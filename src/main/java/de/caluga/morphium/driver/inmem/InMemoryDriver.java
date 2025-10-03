@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -181,7 +182,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // command-level cursor buffers (simulate MongoDB batches)
     private final Map<Long, CursorResultBuffer> activeQueryCursors = new ConcurrentHashMap<>();
     private final AtomicLong cursorIdSequence = new AtomicLong(1);
-    private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(2);
+    private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(10);
     private boolean running = true;
     private int expireCheck = 10000;
     private ScheduledFuture<?> expire;
@@ -1575,7 +1576,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         database.put("test", new ConcurrentHashMap<>());
 
         if (exec.isShutdown()) {
-            exec = new ScheduledThreadPoolExecutor(2);
+            exec = new ScheduledThreadPoolExecutor(10);
         }
 
         // Start per-instance event processor for change streams
@@ -2013,7 +2014,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             @Override
             public int getCursor() { return idx; }
             @Override
-            public MongoConnection getConnection() { return InMemoryDriver.this; }
+            public MongoConnection getConnection() { return new InMemConnectionWrapper(InMemoryDriver.this); }
         };
         crs.setBatchSize(inCrs.batchSize);
         crs.setCursorId(cursorId);
@@ -2061,7 +2062,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             @Override
             public int getCursor() { return idx; }
             @Override
-            public MongoConnection getConnection() { return InMemoryDriver.this; }
+            public MongoConnection getConnection() { return new InMemConnectionWrapper(InMemoryDriver.this); }
         };
         next.setCursorId(crs.getCursorId());
         next.setBatchSize(st.batchSize);
@@ -2567,10 +2568,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public List<Map<String, Object >> insert(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
+        List<Map<String, Object >> writeErrors;
         try {
             int errors = 0;
             objs = new ArrayList<>(objs);
-            List<Map<String, Object >> writeErrors = new ArrayList<>();
+            writeErrors = new ArrayList<>();
             // check for unique index
             List<Map<String, Object >> indexes = getIndexes(db, collection);
         if (indexes != null && !indexes.isEmpty()) {
@@ -2682,12 +2684,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             indexData.putIfAbsent("_id", new HashMap<>());
             indexData.get("_id").putIfAbsent(buckedId, new ArrayList<>());
             indexData.get("_id").get(buckedId).add(o);
-            notifyWatchers(db, collection, "insert", o);
         }
-        return writeErrors;
         } finally {
             lock.writeLock().unlock();
         }
+
+        // Notify watchers AFTER releasing the write lock to prevent deadlocks and dirty reads
+        for (Map<String, Object> o : objs) {
+            notifyWatchers(db, collection, "insert", o);
+        }
+
+        return writeErrors;
     }
 
     private Integer iterateBucketId(int bucketId, Object o) {
@@ -2719,17 +2726,52 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return result.toString();
     }
 
-    public Map<String, Integer> store(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
-        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
-        lock.writeLock().lock();
-        try {
-            return storeInternal(db, collection, objs, wc);
-        } finally {
-            lock.writeLock().unlock();
+    // Helper class to defer change stream notifications until after locks are released
+    private static class PendingNotification {
+        final String db;
+        final String collection;
+        final String op;
+        final Map<String, Object> doc;
+        final Map<String, Object> updatedFields;
+        final List<String> removedFields;
+        final Map<String, Object> beforeDocument;
+
+        PendingNotification(String db, String collection, String op, Map<String, Object> doc) {
+            this(db, collection, op, doc, null, null, null);
+        }
+
+        PendingNotification(String db, String collection, String op, Map<String, Object> doc,
+                          Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
+            this.db = db;
+            this.collection = collection;
+            this.op = op;
+            this.doc = doc;
+            this.updatedFields = updatedFields;
+            this.removedFields = removedFields;
+            this.beforeDocument = beforeDocument;
         }
     }
 
-    private Map<String, Integer> storeInternal(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
+    public Map<String, Integer> store(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
+        lock.writeLock().lock();
+        List<PendingNotification> pendingNotifications = new ArrayList<>();
+        Map<String, Integer> result;
+        try {
+            result = storeInternal(db, collection, objs, wc, pendingNotifications);
+        } finally {
+            lock.writeLock().unlock();
+        }
+        // Notify watchers AFTER releasing the write lock
+        for (PendingNotification notification : pendingNotifications) {
+            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
+                         notification.updatedFields, notification.removedFields, notification.beforeDocument);
+        }
+        return result;
+    }
+
+    private Map<String, Integer> storeInternal(String db, String collection, List<Map<String, Object >> objs,
+                                               Map<String, Object> wc, List<PendingNotification> pendingNotifications) throws MorphiumDriverException {
         // This method is called with the write lock already held
         Map<String, Integer> ret = new HashMap<>();
         int upd = 0;
@@ -2743,7 +2785,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // enforce unique indexes before insert
                 enforceUniqueOrThrow(db, collection, o);
                 getCollection(db, collection).add(o);
-                notifyWatchers(db, collection, "insert", o);
+                pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
                 inserted++;
                 continue;
             }
@@ -2755,11 +2797,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // enforce unique indexes before replacing
                 enforceUniqueOrThrow(db, collection, o);
                 upd++;
-                notifyWatchers(db, collection, "replace", o, null, null, previous);
+                pendingNotifications.add(new PendingNotification(db, collection, "replace", o, null, null, previous));
             } else {
                 // unique check for insert
                 enforceUniqueOrThrow(db, collection, o);
-                notifyWatchers(db, collection, "insert", o);
+                pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
                 inserted++;
             }
             getCollection(db, collection).add(o);
@@ -2839,16 +2881,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Acquire write lock for this collection to block all reads and other writes
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
+        List<PendingNotification> pendingNotifications = new ArrayList<>();
+        Map<String, Object> result;
         try {
-            return updateInternal(db, collection, query, sort, op, multiple, upsert, collation, wc);
+            result = updateInternal(db, collection, query, sort, op, multiple, upsert, collation, wc, pendingNotifications);
         } finally {
             lock.writeLock().unlock();
         }
+        // Notify watchers AFTER releasing the write lock
+        for (PendingNotification notification : pendingNotifications) {
+            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
+                         notification.updatedFields, notification.removedFields, notification.beforeDocument);
+        }
+        return result;
     }
 
     @SuppressWarnings("ConstantConditions")
     private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
-                                      Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
+                                      Map<String, Object> collation, Map<String, Object> wc, List<PendingNotification> pendingNotifications) throws MorphiumDriverException {
         // This method is called with the write lock already held (either by update() or findAndOneAndUpdate())
         {
             List<Map<String, Object >> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1, true);
@@ -3303,11 +3353,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Map<String, Object> beforeImage = deepCopyDoc(original);
                     Map<String, Object> updatedMap = computeUpdatedFields(original, obj);
                     List<String> removedList = computeRemovedFields(original, obj);
-                    notifyWatchers(db, collection, "update", obj, updatedMap, removedList, beforeImage);
+                    pendingNotifications.add(new PendingNotification(db, collection, "update", obj, updatedMap, removedList, beforeImage));
                 }
             }
             if (insert) {
-                storeInternal(db, collection, lst, wc);
+                storeInternal(db, collection, lst, wc, pendingNotifications);
                 // collect upserted ids (single upsert typical)
                 for (Map<String, Object> d : lst) {
                     if (d.get("_id") != null) {
@@ -3360,22 +3410,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * }
      */
     private void notifyWatchers(String db, String collection, String op, Map doc, Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
-        Runnable r = ()-> {
-            ChangeStreamEventInfo eventInfo = buildChangeStreamEvent(db, collection, op, doc, updatedFields, removedFields, beforeDocument);
+        // Build and dispatch change stream event synchronously
+        // This method is now called AFTER write locks are released (see insert/store/update methods)
+        // so there's no risk of deadlock, and synchronous execution ensures proper event ordering
+        log.debug("notifyWatchers called: db={}, coll={}, op={}, driver instance={}", db, collection, op, System.identityHashCode(this));
+        ChangeStreamEventInfo eventInfo = buildChangeStreamEvent(db, collection, op, doc, updatedFields, removedFields, beforeDocument);
 
-            if (eventInfo == null) {
-                return;
-            }
+        if (eventInfo == null) {
+            log.debug("buildChangeStreamEvent returned null, skipping");
+            return;
+        }
 
-            changeStreamHistory.addLast(eventInfo);
+        changeStreamHistory.addLast(eventInfo);
 
-            while (changeStreamHistory.size() > CHANGE_STREAM_HISTORY_LIMIT) {
-                changeStreamHistory.pollFirst();
-            }
+        while (changeStreamHistory.size() > CHANGE_STREAM_HISTORY_LIMIT) {
+            changeStreamHistory.pollFirst();
+        }
 
-            dispatchEvent(eventInfo);
-        };
-        eventQueue.add(r);
+        log.debug("Dispatching event for {}.{}", db, collection);
+        dispatchEvent(eventInfo);
     }
 
     private ChangeStreamEventInfo buildChangeStreamEvent(String db, String collection, String op, Map doc, Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
@@ -3424,6 +3477,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private void dispatchEvent(ChangeStreamEventInfo eventInfo) {
         // Dispatch events only to this instance's subscribers
+        log.debug("dispatchEvent: db={}, coll={}, subscribers for db: {}, subscribers for {}.{}: {}",
+                eventInfo.db, eventInfo.collection,
+                changeStreamSubscribers.get(eventInfo.db) != null ? changeStreamSubscribers.get(eventInfo.db).size() : 0,
+                eventInfo.db, eventInfo.collection,
+                changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection) != null ? changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection).size() : 0);
+
         deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db), eventInfo);
 
         if (eventInfo.collection != null) {
@@ -3456,7 +3515,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private void registerSubscription(ChangeStreamSubscription subscription) {
         String namespaceKey = subscription.collection == null ? subscription.db : subscription.db + "." + subscription.collection;
         subscription.namespaceKey = namespaceKey;
+        log.debug("registerSubscription: namespaceKey={}, driver instance={}", namespaceKey, System.identityHashCode(this));
         changeStreamSubscribers.computeIfAbsent(namespaceKey, k -> new CopyOnWriteArrayList<>()).add(subscription);
+        log.debug("After registration, subscribers for {}: {}", namespaceKey, changeStreamSubscribers.get(namespaceKey).size());
     }
 
     private void unregisterSubscription(ChangeStreamSubscription subscription) {
@@ -3724,29 +3785,37 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         private void deliver(ChangeStreamEventInfo info) {
             if (!active) {
+                log.debug("Subscription inactive, skipping delivery for {}.{}", info.db, info.collection);
                 return;
             }
+
+            log.debug("Delivering change stream event for {}.{}, op={}", info.db, info.collection, info.event.get("operationType"));
 
             Map<String, Object> working = deepCopyDoc(info.event);
             adjustFullDocument(working);
 
             if (!applyFullDocumentBeforeChange(working)) {
+                log.debug("Filtered out by fullDocumentBeforeChange requirement");
                 return;
             }
 
             Map<String, Object> processed = applyPipeline(working);
 
             if (processed == null) {
+                log.debug("Filtered out by pipeline");
                 return;
             }
 
             try {
+                log.debug("Calling callback.incomingData() for {}.{}", info.db, info.collection);
                 callback.incomingData(processed, System.currentTimeMillis() - info.createdAt);
+                log.debug("Callback completed successfully");
             } catch (Exception e) {
                 log.error("Error calling change-stream callback", e);
             }
 
             if (!callback.isContinued()) {
+                log.debug("Callback indicated not to continue, deactivating subscription");
                 deactivate();
             }
         }
@@ -4097,6 +4166,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // NOTE: In MongoDB, findAndModify is atomic. We implement this by holding the write lock for both find and update.
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, col);
         lock.writeLock().lock();
+        List<PendingNotification> pendingNotifications = new ArrayList<>();
+        Map<String, Object> result;
         try {
             // Use internal flag to skip lock acquisition in find() and update()
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
@@ -4104,11 +4175,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return null;
             }
             // Call update with internal=true via the internal updateInternal method
-            updateInternal(db, col, query, null, update, false, false, collation, null);
-            return ret.get(0);
+            updateInternal(db, col, query, null, update, false, false, collation, null, pendingNotifications);
+            result = ret.get(0);
         } finally {
             lock.writeLock().unlock();
         }
+        // Notify watchers AFTER releasing the write lock
+        for (PendingNotification notification : pendingNotifications) {
+            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
+                         notification.updatedFields, notification.removedFields, notification.beforeDocument);
+        }
+        return result;
     }
 
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Object> sort,
@@ -4116,6 +4193,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // NOTE: In MongoDB, findAndModify is atomic. We implement this by holding the write lock for both find and store.
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, col);
         lock.writeLock().lock();
+        List<PendingNotification> pendingNotifications = new ArrayList<>();
+        Map<String, Object> result;
         try {
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
             if (ret.isEmpty()) {
@@ -4126,11 +4205,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } else {
                 replacement.remove("_id");
             }
-            storeInternal(db, col, Collections.singletonList(replacement), null);
-            return replacement;
+            storeInternal(db, col, Collections.singletonList(replacement), null, pendingNotifications);
+            result = replacement;
         } finally {
             lock.writeLock().unlock();
         }
+        // Notify watchers AFTER releasing the write lock
+        for (PendingNotification notification : pendingNotifications) {
+            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
+                         notification.updatedFields, notification.removedFields, notification.beforeDocument);
+        }
+        return result;
     }
 
     public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize,
@@ -4720,7 +4805,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         @Override
         public MongoConnection getConnection() {
-            return InMemoryDriver.this;
+            return new InMemConnectionWrapper(InMemoryDriver.this);
         }
 
         @Override
