@@ -412,40 +412,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
             if (id instanceof MorphiumId) {
 
-                int cnt = 0;
-                Map<String, Object> msg = null;
-                while (msg == null) {
-                    FindCommand fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(null));
-                    while (fnd.getConnection() == null) {
-                        log.error("Did not get connection from driver?!?!?");
-                        fnd.setConnection(morphium.getDriver().getPrimaryConnection(null));
-                    }
-                    try {
-                        fnd.setFilter(Doc.of("_id", id));
-                        fnd.setColl(getCollectionName()).setDb(morphium.getDatabase());
-                        fnd.setProjection(Doc.of("_id", 1, "priority", 1, "sender", 1, "timestamp", 1, "exclusive", 1,
-                                                 "processed_by", 1));
-                        List<Map<String, Object>> msgs = fnd.execute();
-                        if (!msgs.isEmpty()) {
-                            msg = msgs.get(0);
-                            break;
-                        }
-                    } catch(Exception e) {
-                        log.error("Got exception while reading msg", e);
-                        cnt++;
-                        if (cnt > morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
-                            throw new RuntimeException();
-                        }
+                // Use fullDocument from change stream event instead of re-reading
+                // The fullDocument is already a snapshot from the insert operation
+                Map<String, Object> msg = evt.getFullDocument();
 
-
-                    } finally {
-                        fnd.releaseConnection();
-                    }
-                    Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-
-                }
                 if (msg == null) {
-                    log.error("Msg is null");
+                    log.error("Msg is null from change stream fullDocument");
                     return running;
                 }
 
