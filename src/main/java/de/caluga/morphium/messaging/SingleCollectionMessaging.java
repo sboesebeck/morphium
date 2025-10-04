@@ -445,7 +445,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 synchronized (processing) {
                     // First check if already in progress (most important for preventing duplicates)
                     if (idsInProgress.contains(messageId)) {
-                        log.error("message is in progress");
+                        log.warn("CHANGESTREAM DUPLICATE CAUGHT: message {} already in idsInProgress", messageId);
                         return running;
                     }
 
@@ -461,8 +461,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // Add to idsInProgress immediately to prevent duplicate change stream events
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
+                        log.debug("CHANGESTREAM: Queued message {} for processing", messageId);
                     } else {
-                        log.error("Message already in processing?!?!?");
+                        log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
                 }
             } else {
@@ -552,11 +553,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     continue;
                 }
 
-                // Note: ID should already be in idsInProgress
-                // - added in change stream callback (line 463)
-                // - OR added in polling (line 881)
-                // This is expected and correct - we continue processing
-                // (we don't check or add again since it's already there)
+                // Add to idsInProgress now that we've pulled it from the queue
+                // For change stream messages, this is a duplicate add (already added in callback)
+                // For polled messages, this is the first time we add it
+                // Using synchronized to ensure thread safety
+                synchronized (processing) {
+                    if (!idsInProgress.contains(prEl.getId())) {
+                        idsInProgress.add(prEl.getId());
+                        log.debug("PROCESSING: Added {} to idsInProgress (from queue)", prEl.getId());
+                    } else {
+                        log.debug("PROCESSING: {} already in idsInProgress (from changestream)", prEl.getId());
+                    }
+                }
 
                 final ProcessingQueueElement finalPrEl = prEl;
                 Runnable r = () -> {
@@ -651,9 +659,22 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         }
                     } finally {
                         synchronized (processing) {
-                            // CRITICAL: Remove from idsInProgress immediately after processing completes
-                            // The delay was causing messages to be re-processed during the 1 second window
-                            idsInProgress.remove(finalPrEl.getId());
+                            // For InMemoryDriver: delay removal to ensure DB updates are visible
+                            // This prevents race condition where polling finds message before processed_by is visible
+                            if (morphium.getDriver() != null && morphium.getDriver().getName().contains("InMem")) {
+                                Thread.ofVirtual().start(() -> {
+                                    try {
+                                        Thread.sleep(2000);
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                    }
+                                    synchronized (processing) {
+                                        idsInProgress.remove(finalPrEl.getId());
+                                    }
+                                });
+                            } else {
+                                idsInProgress.remove(finalPrEl.getId());
+                            }
                         }
                     }
                 };
@@ -827,7 +848,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 // still messages left in mongodb for processing
                 // or some messages were delete -> check to be sure
                 log.debug("{}: Found {} messages in queue, {} total in DB, {} in idsToIgnore",
-                         id, queueElements.size(), totalCount, idsToIgnore.size());
+                          id, queueElements.size(), totalCount, idsToIgnore.size());
                 requestPoll.incrementAndGet();
             }
 
@@ -869,18 +890,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         for (ProcessingQueueElement el : messages) {
             synchronized (processing) {
                 if (!processing.contains(el) && !idsInProgress.contains(el.getId())) {
-                    // if (log.isDebugEnabled()) {
-                    // log.debug("findMessages: adding message {} to processing queue", el.getId());
-                    // }
                     processing.add(el);
-                    // CRITICAL: Add to idsInProgress immediately to prevent race with change streams/other polls
-                    // This matches the pattern in handleChangeStreamEvent (line 463)
-                    idsInProgress.add(el.getId());
-                    // } else {
-                    // if (log.isDebugEnabled()) {
-                    // log.debug("findMessages: message {} already queued or in progress",
-                    // el.getId());
-                    // }
+                    // NOTE: We do NOT add to idsInProgress here
+                    // It will be added when the processing thread pulls it from the queue
+                    // This prevents messages from getting stuck in idsInProgress if never processed
                 }
             }
         }
