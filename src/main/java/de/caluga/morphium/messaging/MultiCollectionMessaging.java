@@ -196,46 +196,63 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     if (!processingMessages.add(msg.getMsgId())) {
                         return running.get();
                     }
-                    for (var map : monitorsByTopic.get(msg.getTopic())) {
+
+                    // Count how many listeners we're queueing for this message
+                    var listeners = monitorsByTopic.get(msg.getTopic());
+                    int listenerCount = (int) listeners.stream().filter(map -> map.get(MType.listener) != null).count();
+
+                    // Use atomic counter to track when all listeners have finished
+                    var remainingListeners = new java.util.concurrent.atomic.AtomicInteger(listenerCount);
+
+                    for (var map : listeners) {
                         MessageListener l = (MessageListener) map.get(MType.listener);
+                        if (l == null)
+                            continue;
+
                         queueOrRun(() -> {
-                            if (l.markAsProcessedBeforeExec()) {
-                                updateProcessedBy(msg);
-                            }
                             try {
-                                var ret = l.onMessage(MultiCollectionMessaging.this, msg);
-                                if (!running.get())
-                                    return;
-                                if (ret == null && effectiveSettings.isAutoAnswer()) {
-                                    ret = new Msg(msg.getTopic(), "received", "");
+                                if (l.markAsProcessedBeforeExec()) {
+                                    updateProcessedBy(msg);
                                 }
-                                if (ret != null) {
-                                    ret.setRecipient(msg.getSender());
-                                    ret.setInAnswerTo(msg.getMsgId());
-                                    queueMessage(ret);
+                                try {
+                                    var ret = l.onMessage(MultiCollectionMessaging.this, msg);
+                                    if (!running.get())
+                                        return;
+                                    if (ret == null && effectiveSettings.isAutoAnswer()) {
+                                        ret = new Msg(msg.getTopic(), "received", "");
+                                    }
+                                    if (ret != null) {
+                                        ret.setRecipient(msg.getSender());
+                                        ret.setInAnswerTo(msg.getMsgId());
+                                        queueMessage(ret);
+                                    }
+                                } catch (Exception e) {
+                                    log.error("Error processinig message");
                                 }
-                            } catch (Exception e) {
-                                log.error("Error processinig message");
-                            }
 
-                            var deleted = false;
-                            if (msg.isDeleteAfterProcessing()) {
-                                if (msg.getDeleteAfterProcessingTime() == 0) {
-                                    morphium.remove(msg, dmCollectionName);
-                                    deleted = true;
-                                } else {
-                                    msg.setDeleteAt(
-                                                    new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
-                                    msg.addProcessedId(getSenderId());
-                                    morphium.updateUsingFields(msg, dmCollectionName, new AsyncCallbackAdapter(),
-                                                               Msg.Fields.deleteAt, Msg.Fields.processedBy);
+                                var deleted = false;
+                                if (msg.isDeleteAfterProcessing()) {
+                                    if (msg.getDeleteAfterProcessingTime() == 0) {
+                                        morphium.remove(msg, dmCollectionName);
+                                        deleted = true;
+                                    } else {
+                                        msg.setDeleteAt(
+                                                        new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
+                                        msg.addProcessedId(getSenderId());
+                                        morphium.updateUsingFields(msg, dmCollectionName, new AsyncCallbackAdapter(),
+                                                                   Msg.Fields.deleteAt, Msg.Fields.processedBy);
+                                    }
+                                }
+                                if (!deleted && !l.markAsProcessedBeforeExec()) {
+                                    updateProcessedBy(msg);
+                                }
+                            } finally {
+                                // CRITICAL: Only remove from processingMessages when ALL listeners have finished
+                                // This prevents race condition where message is re-processed while listeners are still running
+                                if (remainingListeners.decrementAndGet() == 0) {
+                                    processingMessages.remove(msg.getMsgId());
                                 }
                             }
-                            if (!deleted && !l.markAsProcessedBeforeExec()) {
-                                updateProcessedBy(msg);
-                            }
-                            processingMessages.remove(msg.getMsgId());
-
                         });
                     }
                 } else {
@@ -536,23 +553,33 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // getSenderId(), m.getName());
             return; // cannot process message, as there is no listener? HOW?
         }
-        for (var e : (List<Map<MType, Object>>) monitorsByTopic.get(m.getTopic())) {
+
+        // Use atomic add operation - if already present, skip processing
+        // CRITICAL: Check BEFORE looping through listeners, not inside loop
+        if (!processingMessages.add(m.getMsgId())) {
+            return;
+        }
+
+        // Count how many listeners we're queueing for this message
+        var listeners = (List<Map<MType, Object>>) monitorsByTopic.get(m.getTopic());
+        int listenerCount = (int) listeners.stream().filter(e -> e.get(MType.listener) != null).count();
+
+        // Use atomic counter to track when all listeners have finished
+        var remainingListeners = new java.util.concurrent.atomic.AtomicInteger(listenerCount);
+
+        for (var e : listeners) {
             var l = (MessageListener) e.get(MType.listener);
             if (l == null)
                 continue;
 
-            // Use atomic add operation - if already present, skip processing
-            if (!processingMessages.add(m.getMsgId())) {
-                return;
-            }
             Runnable r = () -> {
                 Msg current = m; // morphium.reread(m, getCollectionName(m));
-                if (current == null) {
-                    processingMessages.remove(m.getMsgId());
-                    return;
-                }
-
                 try {
+                    if (current == null) {
+                        log.info("Reread failed");
+                        return;
+                    }
+
                     if (current.getProcessedBy().contains(getSenderId())) {
                         // Don't unlock here - let lock timeout naturally
                         return;
@@ -589,7 +616,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     log.error("Error during message processing", err);
                     unlock(current);
                 } finally {
-                    processingMessages.remove(m.getMsgId());
+                    // CRITICAL: Only remove from processingMessages when ALL listeners have finished
+                    // This prevents race condition where message is re-processed while listeners are still running
+                    if (remainingListeners.decrementAndGet() == 0) {
+                        processingMessages.remove(m.getMsgId());
+                    }
                 }
             };
             queueOrRun(r);
@@ -690,6 +721,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     // message not for me
                     // TODO: should never be here as we use DM_collections
                     return;
+                }
+
+                // Check if already being processed (from change stream or another poll)
+                if (processingMessages.contains(m.getMsgId())) {
+                    continue;  // Skip - already being processed
                 }
 
                 if (m.isExclusive()) {
@@ -833,51 +869,43 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             pipeline);
         cm.addListener((evt) -> {
             // log.info("Incoming CSE");
+
+            // Deserialize and check BEFORE creating Runnable to prevent race condition
+            Map<String, Object> map = evt.getFullDocument();
+
+            if (pausedTopics.contains(map.get(Msg.Fields.topic.name()))) {
+                // log.info("Topic {} paused", map.get("name"));
+                // paused
+                return running.get();
+            }
+
+            Msg doc = morphium.getMapper().deserialize(Msg.class, map);
+            if (doc.getSender().equals(getSenderId()))
+                return running.get();
+
+            // Use atomic add operation - if already present, skip processing
+            // CRITICAL: This must happen BEFORE queueing the Runnable to prevent duplicates
+            if (!processingMessages.add(doc.getMsgId())) {
+                log.info("could not add to processingMessages - already processing");
+                return running.get();
+            }
+
             Runnable r = () -> {
-
                 try {
-                    // Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-                    Map<String, Object> map = evt.getFullDocument();
-                    // if (getSenderId().equals(map.get(Msg.Fields.sender.name()))) return; //own
-                    // message
-
-                    // this part is obsolete - recipients receive their message directly
-                    // List<String> recipients = (List<String>)map.get("recipients");
-                    // if (recipients != null && !recipients.isEmpty() &&
-                    // !recipients.contains(getSenderId())) {
-                    // //message not for me
-                    // return;
-                    // }
-
-                    if (pausedTopics.contains(map.get(Msg.Fields.topic.name()))) {
-                        // log.info("Topic {} paused", map.get("name"));
-                        // paused
-                        return;
-                    }
-                    Msg doc = morphium.getMapper().deserialize(Msg.class, map);
-                    if (doc.getSender().equals(getSenderId()))
-                        return;
-
-                    // Use atomic add operation - if already present, skip processing
-                    if (!processingMessages.add(doc.getMsgId())) {
-                        log.info("could notr add to processingMessages");
-                        return;
-                    }
+                    // Message already added to processingMessages above
+                    // Ensure removal happens in ALL code paths via outer finally block
                     if (doc.isExclusive()) {
                         // Check if already processed before attempting to lock
                         if (doc.getProcessedBy() != null && !doc.getProcessedBy().isEmpty()) {
-                            processingMessages.remove(doc.getMsgId());
                             return;
                         }
                         if (!lockMessage(doc, getSenderId())) {
-                            processingMessages.remove(doc.getMsgId());
                             return;
                         }
                     }
                     Msg current = doc; // morphium.reread(doc, getCollectionName(doc));
                     if (current == null) {
                         log.info("Reread failed");
-                        processingMessages.remove(doc.getMsgId());
                         return;
                     }
 
@@ -915,11 +943,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     } catch (Exception e) {
                         unlock(current);
                         log.error("Error processing message", e);
-                    } finally {
-                        processingMessages.remove(doc.getMsgId());
                     }
                 } catch (Exception e) {
                     log.error("Error during change event processing", e);
+                } finally {
+                    // CRITICAL: Remove from processingMessages in ALL code paths
+                    // This must be in the outer finally to catch early returns
+                    processingMessages.remove(doc.getMsgId());
                 }
             };
             queueOrRun(r);
