@@ -458,6 +458,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // Check if not already queued for processing
                     if (!processing.contains(el)) {
                         processing.add(el);
+                        // Add to idsInProgress immediately to prevent duplicate change stream events
+                        // This must happen HERE, not in the processing thread, to close the race condition window
+                        idsInProgress.add(messageId);
                     } else {
                         log.error("Message already in processing?!?!?");
                     }
@@ -549,19 +552,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     continue;
                 }
 
-                // Check if already in progress and atomically mark as in progress
-                boolean shouldProcess = false;
-                synchronized (processing) {
-                    if (!idsInProgress.contains(prEl.getId())) {
-                        idsInProgress.add(prEl.getId());
-                        shouldProcess = true;
-                    }
-                }
-
-                if (!shouldProcess) {
-                    // Already in progress, skip this element
-                    continue;
-                }
+                // Note: ID should already be in idsInProgress
+                // - added in change stream callback (line 463)
+                // - OR added in polling (line 881)
+                // This is expected and correct - we continue processing
+                // (we don't check or add again since it's already there)
 
                 final ProcessingQueueElement finalPrEl = prEl;
                 Runnable r = () -> {
@@ -656,13 +651,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         }
                     } finally {
                         synchronized (processing) {
-                            Thread.ofVirtual().start(()-> {
-                                try {
-                                    Thread.sleep(1000);
-                                } catch (InterruptedException e) {
-                                }
-                                idsInProgress.remove(finalPrEl.getId());
-                            });
+                            // CRITICAL: Remove from idsInProgress immediately after processing completes
+                            // The delay was causing messages to be re-processed during the 1 second window
+                            idsInProgress.remove(finalPrEl.getId());
                         }
                     }
                 };
@@ -882,6 +873,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // log.debug("findMessages: adding message {} to processing queue", el.getId());
                     // }
                     processing.add(el);
+                    // CRITICAL: Add to idsInProgress immediately to prevent race with change streams/other polls
+                    // This matches the pattern in handleChangeStreamEvent (line 463)
+                    idsInProgress.add(el.getId());
                     // } else {
                     // if (log.isDebugEnabled()) {
                     // log.debug("findMessages: message {} already queued or in progress",
