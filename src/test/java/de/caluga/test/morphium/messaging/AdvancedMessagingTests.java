@@ -133,9 +133,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 for (Morphium m : morphiums) {
                     try { m.close(); } catch (Exception ignored) {}
                 }
-            } else {
-                try { morphium.getDriver().close(); morphium.getDriver().connect(); } catch (Exception ignored) {}
             }
+            // Note: InMemoryDriver cleanup happens when Morphium closes
+            // No need to manually close/reconnect driver with ref counting
         }
     }
 
