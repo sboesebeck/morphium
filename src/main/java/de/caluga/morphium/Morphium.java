@@ -108,6 +108,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     private static Vector<Morphium> instances = new Vector<>();
     private static AtomicInteger maxInstances = new AtomicInteger();
+    // Map to track InMemoryDriver instances by database name for sharing within a test scope
+    private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> inMemoryDriversByDatabase = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> inMemoryDriverRefCounts = new java.util.concurrent.ConcurrentHashMap<>();
     public Morphium() {
         // profilingListeners = new CopyOnWriteArrayList<>();
         instances.add(this);
@@ -313,7 +316,28 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
                             if (driverAnnotation.name().equals(driverName)) {
                                 log.debug("Found driverName: {} - {} " + driverName, driverAnnotation.description());
-                                morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+
+                                // Special handling for InMemoryDriver: share instances within same database
+                                // This allows multiple Morphium instances in a test to share the same in-memory database
+                                // Different tests (different database names) get different driver instances
+                                if (driverAnnotation.name().equals(InMemoryDriver.driverName)) {
+                                    String dbName = getConfig().connectionSettings().getDatabase();
+                                    morphiumDriver = inMemoryDriversByDatabase.computeIfAbsent(dbName, k -> {
+                                        try {
+                                            MorphiumDriver newDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                                            log.info("Created new InMemoryDriver for database '{}' (driver hashcode: {})", dbName, System.identityHashCode(newDriver));
+                                            return newDriver;
+                                        } catch (Exception e) {
+                                            throw new RuntimeException("Failed to create InMemoryDriver", e);
+                                        }
+                                    });
+                                    // Increment reference count for this shared driver
+                                    inMemoryDriverRefCounts.computeIfAbsent(dbName, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
+                                    log.info("Using InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
+                                             dbName, System.identityHashCode(morphiumDriver), inMemoryDriverRefCounts.get(dbName).get());
+                                } else {
+                                    morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                                }
                             }
 
                             // var flds = annotationHelper.getAllFields(c);
@@ -2492,7 +2516,31 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (morphiumDriver != null) {
             try {
-                morphiumDriver.close();
+                // Check if this is a shared InMemoryDriver
+                if (morphiumDriver.getName().equals(InMemoryDriver.driverName)) {
+                    String dbName = getConfig().connectionSettings().getDatabase();
+                    java.util.concurrent.atomic.AtomicInteger refCount = inMemoryDriverRefCounts.get(dbName);
+                    if (refCount != null) {
+                        int remaining = refCount.decrementAndGet();
+                        log.info("Decremented InMemoryDriver ref count for database '{}' (driver hashcode: {}, remaining: {})",
+                                 dbName, System.identityHashCode(morphiumDriver), remaining);
+                        // Only close the driver when the last Morphium instance releases it
+                        if (remaining == 0) {
+                            log.info("Last reference to InMemoryDriver for database '{}', closing driver", dbName);
+                            morphiumDriver.close();
+                            inMemoryDriversByDatabase.remove(dbName);
+                            inMemoryDriverRefCounts.remove(dbName);
+                        } else {
+                            log.info("Skipping driver close, {} other Morphium instance(s) still using it", remaining);
+                        }
+                    } else {
+                        // Ref count not found, close anyway (shouldn't happen)
+                        morphiumDriver.close();
+                    }
+                } else {
+                    // Non-shared driver, close normally
+                    morphiumDriver.close();
+                }
             } catch (Exception e) {
                 //swallow - during close! e.printStackTrace();
             }
