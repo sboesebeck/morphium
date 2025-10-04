@@ -90,9 +90,77 @@ Trade‑offs
 - Throughput: slower than purpose‑built brokers; every message is a document write/read.
 - Load: very high message rates will add notable database load—plan capacity accordingly or choose a different transport when ultra‑high throughput is critical.
 
+## V6.0 Improvements
+
+### Change Stream Reliability
+Morphium 6.0 significantly improved change stream handling in messaging:
+
+**No More Re-reads**
+- v5: messaging layer re-read documents after change stream events
+- v6: uses `evt.getFullDocument()` directly from change stream snapshots
+- More efficient, no dirty reads, no race conditions
+
+**Document Snapshots**
+```java
+// Change stream events now contain immutable snapshots
+// Messages are processed from the exact state at insert time
+messaging.addListenerForTopic("events", (m, msg) -> {
+    // msg is from immutable snapshot, safe to process
+    // No concurrent modifications possible
+    return null;
+});
+```
+
+### InMemoryDriver Support
+Full messaging support with InMemoryDriver for testing:
+
+```java
+MorphiumConfig cfg = new MorphiumConfig();
+cfg.driverSettings().setDriverName("InMemDriver");
+cfg.connectionSettings().setDatabase("testdb");
+
+try (Morphium morphium = new Morphium(cfg)) {
+    MorphiumMessaging sender = morphium.createMessaging();
+    MorphiumMessaging receiver = morphium.createMessaging();
+
+    receiver.addListenerForTopic("test", (m, msg) -> {
+        // Process message
+        return null;
+    });
+
+    sender.start();
+    receiver.start();
+
+    sender.sendMessage(new Msg("test", "Hello", "World", 30000));
+}
+```
+
+**Multi-Instance Support**
+```java
+// Multiple Morphium instances sharing same database
+Morphium m1 = new Morphium(cfg);
+Morphium m2 = new Morphium(cfg);
+
+MorphiumMessaging msg1 = m1.createMessaging();
+MorphiumMessaging msg2 = m2.createMessaging();
+
+// Both share the same InMemoryDriver
+// Change streams work correctly
+// Exclusive messages properly distributed
+// Broadcast messages delivered to all
+```
+
+### Virtual Threads
+Java 21 virtual threads for lightweight concurrency:
+- Change stream callbacks run on virtual threads
+- Each change stream watcher has its own virtual thread executor
+- Minimal memory overhead for thousands of concurrent listeners
+
 See also
 
 - [In‑Memory Driver](./howtos/inmemory-driver.md)
+- [Messaging Implementations](./howtos/messaging-implementations.md)
+- [Migration Guide v5 → v6](./howtos/migration-v5-to-v6.md)
 
 
 Notes and best practices
