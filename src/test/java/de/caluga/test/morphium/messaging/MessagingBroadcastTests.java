@@ -1,5 +1,6 @@
 package de.caluga.test.morphium.messaging;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -7,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -160,6 +162,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
+
+                final AtomicInteger errorCount = new AtomicInteger();
                 try (Morphium morph = new Morphium(cfg)) {
                     String method = new Object() {
                     }
@@ -182,8 +186,10 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
 
                                 if (receivedIds.get(rec1.getSenderId()).contains(incoming.getMsgId())) {
                                     log.error("Duplicate processing!!!!");
+                                    errorCount.incrementAndGet();
                                 } else if (incoming.isExclusive() && incoming.getProcessedBy() != null && incoming.getProcessedBy().size() != 0) {
                                     log.error("Duplicate processing Exclusive Message!!!!!");
+                                    errorCount.incrementAndGet();
                                 }
 
                                 receivedIds.get(rec1.getSenderId()).add(incoming.getMsgId());
@@ -202,6 +208,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
+                    long timeout = 15000;
 
                     while (true) {
                         StringBuilder b = new StringBuilder();
@@ -229,8 +236,9 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             log.info("Did not receive all: {} of {}", totalNum, amount * receivers.size() + amount);
                         }
 
+                        assertEquals(0, errorCount.get(), "There were errors during processing!");
                         Thread.sleep(200);
-                        assertTrue(System.currentTimeMillis() - start < 15000, "Did not get all messages in time");
+                        assertTrue(System.currentTimeMillis() - start < timeout, "Did not get all messages in time");
                     }
                     Thread.sleep(1000);
                     log.info("--------");
