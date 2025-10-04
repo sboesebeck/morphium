@@ -2685,6 +2685,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (int i = 0; i < objs.size(); i++) {
             Map<String, Object> o = objs.get(i);
             List<Map<String, Object >> idx = indexes;
+            // Ensure index data structures exist before accessing them
+            indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
+            indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
             Map<String, Map<Integer, List<Map<String, Object >> >> indexData = indexDataByDBCollection.get(db).get(collection);
 
             for (Map<String, Object> ix : idx) {
