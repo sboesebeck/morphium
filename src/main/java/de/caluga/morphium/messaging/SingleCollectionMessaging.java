@@ -1084,7 +1084,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         if (wasProcessed && !msg.getProcessedBy().contains(id)) {
-            updateProcessedBy(msg);
+            boolean updated = updateProcessedBy(msg);
+            // If update failed and this is an InMemoryDriver broadcast message, remove from processedIds to allow retry
+            if (!updated && morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
+                processedIds.remove(msg.getMsgId());
+                log.warn(id + ": Removed message " + msg.getMsgId() + " from processedIds due to update failure - will retry");
+            }
         }
 
         if (!wasRejected && wasProcessed) {
@@ -1107,13 +1112,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     // private void removeProcessingFor(Msg msg) {}
-    private void updateProcessedBy(Msg msg) {
+    private boolean updateProcessedBy(Msg msg) {
         if (msg == null) {
-            return;
+            return false;
         }
 
         if (msg.getProcessedBy().contains(id)) {
-            return;
+            return true; // Already processed
         }
 
         Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
@@ -1141,17 +1146,21 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
                         log.warn(id + ": " + Utils.toJsonString(ret));
                         log.warn(id + ": msg: " + msg.toString());
+                        return false; // Update failed
                     }
 
                     // } else {
                     // log.debug("message deleted by someone else!!!");
                 }
+                return true; // Already in processed_by (someone else updated it)
             } else {
                 // Database update succeeded, now update local copy
                 msg.getProcessedBy().add(id);
+                return true;
             }
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
+            return false;
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
