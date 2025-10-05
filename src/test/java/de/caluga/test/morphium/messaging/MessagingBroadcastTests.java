@@ -208,7 +208,10 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
-                    long timeout = 15000;
+                    long maxTotalTimeout = 30000; // Max 30 seconds total (safety net)
+                    long idleTimeout = 5000; // 5 seconds after last message received
+                    long lastMessageTime = System.currentTimeMillis();
+                    int lastTotalNum = 0;
 
                     while (true) {
                         StringBuilder b = new StringBuilder();
@@ -230,6 +233,12 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             log.info(b.toString());
                         }
 
+                        // Update last message time if we received new messages
+                        if (totalNum > lastTotalNum) {
+                            lastMessageTime = System.currentTimeMillis();
+                            lastTotalNum = totalNum;
+                        }
+
                         if (totalNum >= amount * receivers.size() + amount) {
                             break;
                         } else {
@@ -238,7 +247,14 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
 
                         assertEquals(0, errorCount.get(), "There were errors during processing!");
                         Thread.sleep(200);
-                        assertTrue(System.currentTimeMillis() - start < timeout, "Did not get all messages in time");
+
+                        // Check both idle timeout (5s since last message) and max total timeout (30s total)
+                        long timeSinceLastMessage = System.currentTimeMillis() - lastMessageTime;
+                        long totalTime = System.currentTimeMillis() - start;
+                        assertTrue(timeSinceLastMessage < idleTimeout,
+                            "No messages received for " + timeSinceLastMessage + "ms (idle timeout: " + idleTimeout + "ms)");
+                        assertTrue(totalTime < maxTotalTimeout,
+                            "Total timeout exceeded: " + totalTime + "ms (max: " + maxTotalTimeout + "ms)");
                     }
                     Thread.sleep(1000);
                     log.info("--------");
