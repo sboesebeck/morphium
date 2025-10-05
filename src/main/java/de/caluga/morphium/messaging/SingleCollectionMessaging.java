@@ -12,6 +12,7 @@ import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
@@ -84,6 +85,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
     private final List<MorphiumId> idsInProgress = new Vector<>();
+    private final Set<MorphiumId> processedIds = ConcurrentHashMap.newKeySet(); // Track processed messages for InMemoryDriver
     private MessagingSettings settings = null;
 
     public SingleCollectionMessaging() {
@@ -659,22 +661,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         }
                     } finally {
                         synchronized (processing) {
-                            // For InMemoryDriver: delay removal to ensure DB updates are visible
-                            // This prevents race condition where polling finds message before processed_by is visible
-                            if (morphium.getDriver() != null && morphium.getDriver().getName().contains("InMem")) {
-                                Thread.ofVirtual().start(() -> {
-                                    try {
-                                        Thread.sleep(2000);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    synchronized (processing) {
-                                        idsInProgress.remove(finalPrEl.getId());
-                                    }
-                                });
-                            } else {
-                                idsInProgress.remove(finalPrEl.getId());
-                            }
+                            // For InMemoryDriver broadcast messages: no delay needed since processedIds prevents duplicates
+                            // For other messages and drivers: remove immediately
+                            idsInProgress.remove(finalPrEl.getId());
                         }
                     }
                 };
@@ -1022,6 +1011,21 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     break;
                 }
 
+                // For InMemoryDriver broadcast messages: atomically claim this message for THIS instance
+                // This prevents the race where the same instance processes the message twice (changestream + polling)
+                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
+                    // Set.add() returns false if element was already in the set
+                    // This is atomic for ConcurrentHashMap.newKeySet()
+                    if (!processedIds.add(msg.getMsgId())) {
+                        // Already being processed or was processed by THIS instance - skip duplicate
+                        log.debug("Message {} already claimed/processed by this instance ({}), skipping duplicate", msg.getMsgId(), id);
+                        wasProcessed = false;
+                        break;
+                    }
+                    // Successfully claimed - continue with processing
+                    // If processing fails, we'll remove it from the set in the exception handler
+                }
+
                 if (l.markAsProcessedBeforeExec()) {
                     updateProcessedBy(msg);
                 }
@@ -1049,9 +1053,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 wasRejected = true;
                 rejections.add(mre);
                 requestPoll.incrementAndGet();
+                // Remove from processedIds to allow retry
+                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
+                    processedIds.remove(msg.getMsgId());
+                }
             } catch (Exception e) {
                 log.error(id + ": listener Processing failed", e);
                 checkDeleteAfterProcessing(msg);
+                // Remove from processedIds to allow retry
+                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
+                    processedIds.remove(msg.getMsgId());
+                }
             }
         }
 
