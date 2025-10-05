@@ -661,8 +661,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         }
                     } finally {
                         synchronized (processing) {
-                            // For InMemoryDriver broadcast messages: no delay needed since processedIds prevents duplicates
-                            // For other messages and drivers: remove immediately
+                            // Remove from idsInProgress immediately for all messages
                             idsInProgress.remove(finalPrEl.getId());
                         }
                     }
@@ -892,13 +891,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private void lockAndProcess(Msg obj) {
         if (lockMessage(obj, id, obj.getDeleteAt())) {
             processMessage(obj);
-            // } else {
-            //     // Failed to acquire lock, message is being processed by another instance
-            //     // or was already processed. Do not trigger another poll as this is expected.
-            //     if (log.isDebugEnabled()) {
-            //         log.debug("Failed to acquire lock for exclusive message {}, likely being processed by another instance",
-            //                   obj.getMsgId());
-            //     }
         }
     }
 
@@ -1011,22 +1003,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     break;
                 }
 
-                // For InMemoryDriver broadcast messages: atomically claim this message for THIS instance
-                // This prevents the race where the same instance processes the message twice (changestream + polling)
+                // For InMemoryDriver broadcast messages: track processing with in-memory set
+                // This prevents duplicate processing within the same instance
                 if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-                    // Set.add() returns false if element was already in the set
-                    // This is atomic for ConcurrentHashMap.newKeySet()
                     if (!processedIds.add(msg.getMsgId())) {
-                        // Already being processed or was processed by THIS instance - skip duplicate
-                        log.debug("Message {} already claimed/processed by this instance ({}), skipping duplicate", msg.getMsgId(), id);
+                        // Already being processed or was processed by this instance - skip duplicate
                         wasProcessed = false;
                         break;
                     }
-                    // Successfully claimed - continue with processing
-                    // If processing fails, we'll remove it from the set in the exception handler
-                }
-
-                if (l.markAsProcessedBeforeExec()) {
+                } else if (l.markAsProcessedBeforeExec()) {
                     updateProcessedBy(msg);
                 }
 
@@ -1053,17 +1038,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 wasRejected = true;
                 rejections.add(mre);
                 requestPoll.incrementAndGet();
-                // Remove from processedIds to allow retry
-                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-                    processedIds.remove(msg.getMsgId());
-                }
             } catch (Exception e) {
                 log.error(id + ": listener Processing failed", e);
                 checkDeleteAfterProcessing(msg);
-                // Remove from processedIds to allow retry
-                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-                    processedIds.remove(msg.getMsgId());
-                }
             }
         }
 
@@ -1084,12 +1061,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         if (wasProcessed && !msg.getProcessedBy().contains(id)) {
-            boolean updated = updateProcessedBy(msg);
-            // If update failed and this is an InMemoryDriver broadcast message, remove from processedIds to allow retry
-            if (!updated && morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-                processedIds.remove(msg.getMsgId());
-                log.warn(id + ": Removed message " + msg.getMsgId() + " from processedIds due to update failure - will retry");
-            }
+            updateProcessedBy(msg);
+            // NOTE: We never remove from processedIds - once a message is processed by this instance,
+            // it stays in the set to prevent any future duplicates, even if database update fails.
+            // This means processedIds will grow indefinitely, but that's acceptable for preventing duplicates.
         }
 
         if (!wasRejected && wasProcessed) {
