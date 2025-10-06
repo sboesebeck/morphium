@@ -237,6 +237,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         setQueueName(settings.getMessageQueueName());
         setPause(settings.getMessagingPollPause());
         setMultithreadded(settings.isMessagingMultithreadded());
+
+        morphium.ensureIndicesFor(Msg.class, getCollectionName());
+        morphium.ensureIndicesFor(MsgLock.class, getLockCollectionName());
     }
 
     @Override
