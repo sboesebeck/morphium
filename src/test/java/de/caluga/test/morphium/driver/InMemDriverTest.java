@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -157,13 +158,7 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         indexesCommand.execute();
         Thread.sleep(1500);
         int cnt = 0;
-        while (drv.find(db, coll, Doc.of(), null, null, 0, 0).size() > 0) {
-            log.info("Waiting for elements to be removed: " + drv.find(db, coll, Doc.of(), null, null, 0, 0).size());
-            Thread.sleep(1000);
-            cnt++;
-            assertTrue(cnt > 65);
-
-        }
+        TestUtils.waitForConditionToBecomeTrue(65000, (dur, e)-> log.error("Elements were not removed "), ()->drv.find(db, coll, Doc.of(), null, null, 0, 0).size() == 0, (dur)->{ try { log.info("Waiting for elements to be removed:" + drv.find(db, coll, Doc.of(), null, null, 0, 0).size()); } catch (Exception e) {}});
         drv.close();
     }
 
