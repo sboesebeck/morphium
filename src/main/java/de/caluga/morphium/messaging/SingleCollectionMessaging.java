@@ -86,8 +86,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
     private final List<MorphiumId> idsInProgress = new Vector<>();
-    // For InMemoryDriver: Track completed message IDs to prevent duplicates from polling+changestreams
-    private final Set<MorphiumId> completedMessageIds = ConcurrentHashMap.newKeySet();
     // Debug counter for InMemoryDriver
     private final AtomicInteger changeStreamEventsReceived = new AtomicInteger(0);
     private MessagingSettings settings = null;
@@ -588,8 +586,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                 final ProcessingQueueElement finalPrEl = prEl;
                 Runnable r = () -> {
+                    boolean wasProcessed = false;
+                    Msg msg = null;
                     try {
-                        var msg = morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
+                        msg = morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
                         // message was deleted or dirty read
                         // dirty read only possible, because msg read ReadPreferenceLevel is NEAREST
 
@@ -622,6 +622,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         }
 
                         // I did already process this message
+                        // For all drivers, check the stale copy first (fast path)
                         if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
                             return;
                         }
@@ -674,13 +675,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // really do handle message
                         if (msg.isExclusive()) {
                             lockAndProcess(msg);
+                            wasProcessed = true;
                         } else {
                             processMessage(msg);
+                            wasProcessed = true;
                         }
                     } finally {
                         synchronized (processing) {
-                            // Always remove from idsInProgress when done processing (success or failure)
-                            // completedMessageIds handles duplicate prevention for InMemoryDriver
+                            // Always remove from idsInProgress when done processing
+                            // The database processed_by field handles duplicate prevention
                             idsInProgress.remove(finalPrEl.getId());
                         }
                     }
@@ -996,8 +999,42 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return;
         }
 
-        if (msg.getProcessedBy().contains(id)) {
-            return;
+        // For InMemoryDriver broadcasts: use atomic database update for duplicate detection
+        // This is the ONLY reliable way to prevent duplicates with concurrent polling and change streams
+        boolean alreadyUpdatedProcessedBy = false;
+        if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
+            // Use message ID string as lock - intern() ensures all threads use the SAME string object
+            // This is critical: if we use a lock object from a map and remove it, other waiting threads
+            // will create a NEW lock object and bypass synchronization!
+            String lockKey = msg.getMsgId().toString().intern();
+            log.debug("SYNC: Instance {} acquiring lock for message {}", id, msg.getMsgId());
+            synchronized (lockKey) {
+                log.debug("SYNC: Instance {} ACQUIRED lock for message {}", id, msg.getMsgId());
+                // First check if we've already processed this message
+                Msg freshMsg = morphium.findById(Msg.class, msg.getMsgId(), getCollectionName());
+                if (freshMsg == null) {
+                    // Message was deleted
+                    log.debug("SYNC: Message {} was deleted, skipping", msg.getMsgId());
+                    return;
+                }
+
+                // Check if we're already in processed_by
+                if (freshMsg.getProcessedBy() != null && freshMsg.getProcessedBy().contains(id)) {
+                    // Already processed - skip
+                    log.info("DEDUP: Duplicate PREVENTED for instance {} on message {} - already in processed_by", id, msg.getMsgId());
+                    return;
+                }
+
+                // We're not in processed_by yet - add ourselves atomically
+                updateProcessedBy(msg);
+                alreadyUpdatedProcessedBy = true;
+            }
+            log.debug("SYNC: Instance {} RELEASED lock for message {}, proceeding to process", id, msg.getMsgId());
+        } else {
+            // For other drivers or exclusive messages: use the message object's processed_by field
+            if (msg.getProcessedBy().contains(id)) {
+                return;
+            }
         }
 
         if (listenerByName.isEmpty()) {
@@ -1035,38 +1072,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     break;
                 }
 
-                // For InMemoryDriver broadcast messages: synchronized check-and-process
-                boolean alreadyProcessed = false;
-                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-                    // Synchronized check-and-mark to prevent race conditions
-                    synchronized (completedMessageIds) {
-                        if (completedMessageIds.contains(msg.getMsgId())) {
-                            // Already processed by this instance - skip
-                            alreadyProcessed = true;
-                        } else {
-                            // Mark as being processed (will be confirmed after listener runs)
-                            completedMessageIds.add(msg.getMsgId());
-                        }
-                    }
-
-                    if (alreadyProcessed) {
-                        wasProcessed = false;
-                        break;
-                    }
-
-                    // Don't mark in database yet - wait until listener completes
-                } else if (l.markAsProcessedBeforeExec()) {
+                if (l.markAsProcessedBeforeExec() && !alreadyUpdatedProcessedBy) {
                     updateProcessedBy(msg);
                 }
 
                 // Call listener
                 Msg answer = l.onMessage(SingleCollectionMessaging.this, msg);
                 wasProcessed = true;
-
-                // For InMemoryDriver broadcasts: mark in database AFTER listener succeeds
-                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-                    updateProcessedBy(msg);
-                }
 
                 if (autoAnswer && answer == null) {
                     answer = new Msg(msg.getTopic(), "received", "");
@@ -1110,7 +1122,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
         }
 
-        if (wasProcessed && !msg.getProcessedBy().contains(id)) {
+        if (wasProcessed && !msg.getProcessedBy().contains(id) && !alreadyUpdatedProcessedBy) {
             updateProcessedBy(msg);
         }
 

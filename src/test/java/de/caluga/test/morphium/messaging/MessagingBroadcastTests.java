@@ -143,7 +143,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         m4.terminate();
                     }
                 }
-                log.info(">>>>>>>>>>> Finished test %s with Driver %s and Messaging %s successfully <<<<<<<<<<<<<", method, morphium.getDriver().getName(), msgImpl);
+                log.info(">>>>>>>>>>> Finished test {} with Driver {} and Messaging {} successfully <<<<<<<<<<<<<", method, morphium.getDriver().getName(), msgImpl);
             }
 
             log.info(method + "() finished with " + morphium.getDriver().getName());
@@ -168,7 +168,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     String method = new Object() {
                     }
                     .getClass().getEnclosingMethod().getName();
-                    log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
+                    log.info(String.format("=====================> Running Test %s with %s and Messaging %s <===============================", method, morphium.getDriver().getName(), msgImpl));
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     sender.start();
@@ -185,10 +185,12 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                                 receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
 
                                 if (receivedIds.get(rec1.getSenderId()).contains(incoming.getMsgId())) {
-                                    log.error("Duplicate processing!!!!");
+                                    log.error("Duplicate processing by {} using Messaging {}/{}! Message: {}, processed_by: {}",
+                                             rec1.getSenderId(), morphium.getDriver().getName(), msgImpl, incoming.getMsgId(), incoming.getProcessedBy());
                                     errorCount.incrementAndGet();
                                 } else if (incoming.isExclusive() && incoming.getProcessedBy() != null && incoming.getProcessedBy().size() != 0) {
-                                    log.error("Duplicate processing Exclusive Message!!!!!");
+                                    log.error("Duplicate processing Exclusive Message by {} using Messaging {}! Message: {}",
+                                             rec1.getSenderId(), morphium.getDriver().getName(), msgImpl, incoming.getMsgId());
                                     errorCount.incrementAndGet();
                                 }
 
@@ -242,19 +244,19 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         if (totalNum >= amount * receivers.size() + amount) {
                             break;
                         } else {
-                            log.info("Did not receive all: {} of {}", totalNum, amount * receivers.size() + amount);
+                            log.info("Did not receive all: {} of {} using messaging {} and driver {}", totalNum, amount * receivers.size() + amount, msgImpl, morphium.getDriver().getName());
                         }
 
-                        assertEquals(0, errorCount.get(), "There were errors during processing!");
+                        assertEquals(0, errorCount.get(), "There were errors during processing using " + morphium.getDriver().getName() + "/" + msgImpl);
                         Thread.sleep(200);
 
                         // Check both idle timeout (5s since last message) and max total timeout (30s total)
                         long timeSinceLastMessage = System.currentTimeMillis() - lastMessageTime;
                         long totalTime = System.currentTimeMillis() - start;
                         assertTrue(timeSinceLastMessage < idleTimeout,
-                                   "No messages received for " + timeSinceLastMessage + "ms (idle timeout: " + idleTimeout + "ms)");
+                                   "No messages received for " + timeSinceLastMessage + "ms (idle timeout: " + idleTimeout + "ms) using messaging " + msgImpl);
                         assertTrue(totalTime < maxTotalTimeout,
-                                   "Total timeout exceeded: " + totalTime + "ms (max: " + maxTotalTimeout + "ms)");
+                                   "Total timeout exceeded: " + totalTime + "ms (max: " + maxTotalTimeout + "ms) using messaging " + msgImpl);
                     }
                     Thread.sleep(1000);
                     log.info("--------");
@@ -274,10 +276,10 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             var m = morph.findById(Msg.class, e.getValue().get(i), sender.getCollectionName("bcast"));
 
                             if (m == null) {
-                                log.warn("Hmm.. Did not get message... retrying...");
+                                log.warn("Hmm.. Did not get message... retrying...{}/{}", msgImpl, morphium.getDriver().getName());
                                 Thread.sleep(1000);
                                 m = morph.findById(Msg.class, e.getValue().get(i), sender.getCollectionName("bcast"));
-                                assertNotNull(m, "Message not found");
+                                assertNotNull(m, "Message not found using " + msgImpl + "/" + morphium.getDriver().getName());
                             }
 
                             if (m.isExclusive()) {
@@ -309,7 +311,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         new Thread(()-> m.terminate()).start();
                     }
                     sender.terminate();
-                    log.info(method + "() finished with " + morphium.getDriver().getName());
+                    log.info("{}() finished with {}/{}", method, morphium.getDriver().getName(), msgImpl);
                 }
             }
         }
