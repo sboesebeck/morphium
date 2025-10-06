@@ -25,6 +25,7 @@ public class DbStatsCommand extends MongoCommand<DbStatsCommand> {
         if (withStorage) {
             ret.put("freeStorage", 1);
         }
+        ret.remove("withStorage");
 
         return ret;
     }
