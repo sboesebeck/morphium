@@ -86,6 +86,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     TestUtils.waitForConditionToBecomeTrue(5000, "Did not receive all messages", () -> msgCount.get() >= 6);
                     assertEquals(6, msgCount.get());
 
+                    log.info("Test {} using {}/{} finished", tstName, msgImpl, morphium.getDriver().getName());
                     sender.terminate();
                     receiver.terminate();
                 }
@@ -109,9 +110,6 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morph = new Morphium(cfg)) {
-                    morph.dropCollection(Msg.class);
-                    TestUtils.waitForCollectionToBeDeleted(morph, Msg.class);
-
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     MorphiumMessaging receiver = morph.createMessaging();
@@ -141,7 +139,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     TestUtils.waitWithMessage(35000, 5000, (dur)->log.info("Waiting...{}s", dur / 1000));
                     long count = morph.createQueryFor(Msg.class, sender.getCollectionName("test")).countAll();
                     assertEquals(5, count, "Messages should be processed and not removed");
-
+                    log.info("Test {} using {}/{} finished", tstName, msgImpl, morphium.getDriver().getName());
                     sender.terminate();
                     receiver.terminate();
                 }
@@ -204,6 +202,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                                                            () -> processed.get() >= numberOfMessages);
 
                     assertEquals(numberOfMessages, processed.get());
+                    log.info("Test using {}/{} finished", msgImpl, morphium.getDriver().getName());
 
                     producer.terminate();
                     consumer.terminate();
@@ -270,6 +269,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
 
                     assertEquals(1, queue1Messages.get());
                     assertEquals(1, queue2Messages.get());
+                    log.info("Test {} using {}/{} finished", tstName, msgImpl, morphium.getDriver().getName());
 
                     sender1.terminate();
                     receiver1.terminate();
@@ -322,6 +322,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     TestUtils.waitForConditionToBecomeTrue(60000, "Message should be removed by TTL",
                                                            () -> morph.createQueryFor(Msg.class, sender.getCollectionName(msg)).countAll() == 0);
 
+                    log.info("Test {} using {}/{} finished", tstName, msgImpl, morphium.getDriver().getName());
                     sender.terminate();
                 }
             }

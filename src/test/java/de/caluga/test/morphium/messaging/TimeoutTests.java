@@ -105,8 +105,6 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m1.setSenderId("sender");
                     m1.setUseChangeStream(true);
                     m1.start();
-                    // morphium.ensureIndicesFor(Msg.class, m1.getCollectionName("test"));
-                    log.info("Indexes: {}", morphium.getIndexesFromMongo(m1.getCollectionName("test")));
                     m1.sendMessage(new Msg("test", "value0", "").setExclusive(true).setTimingOut(false)
                                    .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(1000));
                     TestUtils.wait(1);
@@ -117,10 +115,15 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m2.setSenderId("recevier");
                     m2.addListenerForTopic("test", (n, mm) -> { log.info("Got message"); gotmsg.set(true); return null;});
                     m2.start();
+
+                    // morphium.ensureIndicesFor(Msg.class, m1.getCollectionName("test"));
+                    log.info("Indexes: {}", morphium.getIndexesFromMongo(m1.getCollectionName("test")));
                     TestUtils.waitForConditionToBecomeTrue(5000, "Message not stored within timeout",
                                                            () -> m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll() == 1);
                     TestUtils.waitForBooleanToBecomeTrue(5000, "Message not received?", gotmsg, (dur)-> {log.info("Waiting for receiver...{}ms", dur);});
                     TestUtils.wait(5);
+                    var theMsg = morphium.createQueryFor(Msg.class, m1.getCollectionName("test")).get();
+                    log.info("Delete at is set to {}", theMsg.getDeleteAt());
                     TestUtils.waitForConditionToBecomeTrue(120000, "Message not deleted within timeout",
                                                            () -> m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll() == 0, (dur)-> {log.info("Still waiting for message do be deleted");});
                     m1.terminate();
