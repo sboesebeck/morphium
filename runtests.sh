@@ -88,18 +88,8 @@ function get_test_stats() {
   # Handle both sequential and parallel log structures
   local log_pattern=""
   if [ -d "test.log" ]; then
-    # Check if we have slot directories (parallel execution)
-    if ls test.log/slot_* >/dev/null 2>&1; then
-      # Parallel execution - ALWAYS prioritize main directory logs to avoid double counting
-      if ls test.log/*.log >/dev/null 2>&1; then
-        log_pattern="test.log/*.log" # Use main directory logs (avoid slot logs to prevent duplicates)
-      else
-        log_pattern="test.log/slot_*/*.log" # Fallback to slot logs only if main directory is empty
-      fi
-    else
-      # Sequential execution - standard pattern
-      log_pattern="test.log/*.log"
-    fi
+    # Sequential execution - standard pattern
+    log_pattern="test.log/*.log"
 
     # Use a simple deduplication approach: collect unique test classes and process newest first
     # This handles parallel execution where same test runs in multiple slots
@@ -481,44 +471,58 @@ if [ "$rerunfailed" -eq 1 ]; then
   echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
 
   # For rerunfailed, we want to use existing logs to determine what failed
-  # Set nodel=1 to preserve existing logs for analysis and skip=1 to bypass prompts
+  # Set nodel=1 to preserve existing logs for analysis
+  # DO NOT set skip=1 because we WANT to rerun the failed tests
   nodel=1
-  skip=1
 
-  # Get failed tests using integrated stats function
-  failed=$(get_test_stats --noreason --nosum 2>/dev/null || echo "")
+  # Use getFailedTests.sh to get method-level failures
+  if [ ! -f "./getFailedTests.sh" ]; then
+    echo -e "${RD}Error:${CL} getFailedTests.sh not found!"
+    exit 1
+  fi
 
-  if [ -z "$failed" ]; then
+  # Get failed tests in ClassName.methodName format (skip the "Looking for" message)
+  failed_tests=$(./getFailedTests.sh 2>/dev/null | grep -v "Looking for")
+
+  # Filter by class pattern if provided (e.g., ./runtests.sh --rerunfailed DataTypeTests)
+  # Note: $1 contains the class pattern since we're processing this before p=$1 assignment
+  if [ "q$1" != "q" ] && [ "$1" != "." ]; then
+    failed_tests=$(echo "$failed_tests" | grep "$1")
+    echo "Filtering failed tests by pattern: $1"
+  fi
+
+  if [ -z "$failed_tests" ]; then
     echo -e "${GN}No failed tests found to rerun!${CL}"
     exit 0
   fi
 
-  # Convert failed tests to class list format
-  failed_classes=""
-  for f in $failed; do
-    cls=${f%#*}
-    # Add to our class list for later processing
-    if [ -z "$failed_classes" ]; then
-      failed_classes="$cls"
-    else
-      failed_classes="$failed_classes\n$cls"
-    fi
-  done
+  # Convert to ClassName#methodName format and write to classList
+  # Use process substitution to avoid subshell (which would lose the file writes)
+  : >$classList
+  while IFS= read -r failed_test; do
+    # Skip empty lines
+    [ -z "$failed_test" ] && continue
+    # Split ClassName.methodName into ClassName#methodName
+    class_part=$(echo "$failed_test" | sed 's/\.[^.]*$//')
+    method_part=$(echo "$failed_test" | sed 's/^.*\.//')
+    echo "$class_part#$method_part" >>$classList
+  done < <(echo "$failed_tests")
 
-  # Create a temporary class list with just the failed tests
-  echo -e "$failed_classes" | sort -u >$classList
-  echo -e "${BL}Found $(wc -l <$classList | tr -d ' ') failed test classes to rerun${CL}"
+  # Count unique classes and total methods
+  num_methods=$(wc -l <$classList | tr -d ' ')
+  num_classes=$(cut -d'#' -f1 <$classList | sort -u | wc -l | tr -d ' ')
+  echo -e "${BL}Found $num_methods failed test methods in $num_classes test classes${CL}"
 
-  # Create file list based on the failed classes
+  # Create file list based on unique classes
   : >$filesList
   while IFS= read -r cls; do
-    # Convert class name back to file path
+    # Convert class name to file path
     file_path=$(echo "$cls" | sed 's/\./\//g')
     file_path="src/test/java/${file_path}.java"
     if [ -f "$file_path" ]; then
       echo "$file_path" >>$filesList
     fi
-  done <$classList
+  done < <(cut -d'#' -f1 <$classList | sort -u)
 
   # Create disabled list (empty for failed test reruns)
   : >$disabledList
@@ -749,16 +753,23 @@ if [ "$cnt" -eq 0 ]; then
   echo "no matching class found for $p"
   exit 1
 fi
-disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | grep : | cut -f1 -d: | grep "$p" | wc -l)
-disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
-disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
-disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
-testMethods=$(grep -E "@Test" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-# testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-((testMethods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
+
+# Skip test method counting for --rerunfailed since we already know exactly which methods to run
+if [ "$rerunfailed" -eq 1 ]; then
+  # For --rerunfailed, testMethods = number of entries in classList (each is a specific method)
+  testMethods=$cnt
+else
+  disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | grep : | cut -f1 -d: | grep "$p" | wc -l)
+  disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+  disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+  disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+  testMethods=$(grep -E "@Test" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+  testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+  testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+  testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+  # testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+  ((testMethods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
+fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
   rm -rf test.log >/dev/null 2>&1
@@ -863,16 +874,24 @@ function run_test_slot() {
 
     ((current_test_classes++))
 
-    # Update progress before starting test
-    echo "RUNNING:$t:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
+    # Parse ClassName#methodName format if present (for --rerunfailed)
+    test_class="$t"
+    test_method="$m"
+    if [[ "$t" == *"#"* ]]; then
+      test_class="${t%#*}"
+      test_method="${t#*#}"
+    fi
 
-    if [ "$m" == "." ]; then
-      echo "Slot $slot_id: Running $t ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t" >"test.log/slot_$slot_id/$t.log" 2>&1
+    # Update progress before starting test
+    echo "RUNNING:$test_class:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
+
+    if [ "$test_method" == "." ]; then
+      echo "Slot $slot_id: Running $test_class ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
+      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1
       exit_code=$?
     else
-      echo "Slot $slot_id: Running $t#$m ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t#$m" >"test.log/slot_$slot_id/$t.log" 2>&1
+      echo "Slot $slot_id: Running $test_class#$test_method ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
+      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1
       exit_code=$?
     fi
 
@@ -1072,39 +1091,18 @@ function cleanup_parallel_execution() {
   # Copy completed logs to main directory for getStats.sh compatibility
   echo -e "${BL}Preserving completed test logs...${CL}"
 
-  # Create a temporary directory for processing
-  mkdir -p test.log/temp_cleanup
-
   # Find all log files in slots and copy them to temp, keeping only the best version of each test
   for ((slot = 1; slot <= parallel; slot)); do
     if [ -d "test.log/slot_$slot" ]; then
       for log_file in test.log/slot_$slot/*.log; do
-        if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
-          test_class=$(basename "$log_file" .log)
-          dest_file="test.log/temp_cleanup/${test_class}.log"
+        test_class=$(basename "$log_file" .log)
+        dest_file="test.log/${test_class}.log"
 
-          # If destination doesn't exist, just copy it
-          if [ ! -e "$dest_file" ]; then
-            cp "$log_file" "$dest_file"
-          else
-            # If this version passed and the existing failed, replace it
-            if ! grep -q "BUILD FAILURE" "$log_file" 2>/dev/null && grep -q "BUILD FAILURE" "$dest_file" 2>/dev/null; then
-              cp "$log_file" "$dest_file"
-            # If this version succeeded and the existing didn't, replace it
-            elif grep -q "BUILD SUCCESS" "$log_file" 2>/dev/null && ! grep -q "BUILD SUCCESS" "$dest_file" 2>/dev/null; then
-              cp "$log_file" "$dest_file"
-            fi
-          fi
-        fi
+        mv $test_class $dest_file
+
       done
     fi
   done
-
-  # Move cleaned logs from temp to main test.log directory
-  if [ -d "test.log/temp_cleanup" ]; then
-    mv test.log/temp_cleanup/*.log test.log/ 2>/dev/null || true
-    rmdir test.log/temp_cleanup
-  fi
 
   # Remove slot directories after copying logs
   echo -e "${BL}Cleaning up slot directories...${CL}"
@@ -1285,15 +1283,24 @@ else
       continue
     fi
     ((tst = tst + 1))
+
+    # Parse ClassName#methodName format if present (for --rerunfailed)
+    test_class="$t"
+    test_method="$m"
+    if [[ "$t" == *"#"* ]]; then
+      test_class="${t%#*}"
+      test_method="${t#*#}"
+    fi
+
     while true; do
       tm=$(date +%s)
-      if [ "$m" == "." ]; then
-        echo "Running Tests in $t" >"test.log/$t.log"
-        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$t" >>"test.log/$t".log 2>&1 &
+      if [ "$test_method" == "." ]; then
+        echo "Running Tests in $test_class" >"test.log/$test_class.log"
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
         echo $! >$testPid
       else
-        echo "Running $m in $t" >"test.log/$t.log"
-        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
+        echo "Running $test_method in $test_class" >"test.log/$test_class.log"
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
         echo $! >$testPid
       fi
       while true; do
