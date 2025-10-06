@@ -285,6 +285,7 @@ public class CacheTests extends MultiDriverTestBase {
             original.setValue("ID Cache Test");
             morphium.store(original);
 
+            Thread.sleep(1000);
             MorphiumId objectId = original.getId();
             assertNotNull(objectId);
 
@@ -391,6 +392,7 @@ public class CacheTests extends MultiDriverTestBase {
             entity.value = "Custom Cache";
             morphium.store(entity);
 
+            Thread.sleep(1000);
             // Query to populate cache
             CustomCacheEntity cached = morphium.createQueryFor(CustomCacheEntity.class).get();
             assertNotNull(cached);

@@ -198,6 +198,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").mod(2, 0),
                          "strValue", "Even Number", false, true);
 
+            Thread.sleep(1000);
             long evenCount = morphium.createQueryFor(UncachedObject.class)
                              .f("strValue").eq("Even Number").countAll();
             assertEquals(50, evenCount);
@@ -206,6 +207,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(1),
                          "strValue", "Found and Modified");
 
+            Thread.sleep(1000);
             UncachedObject verified = morphium.createQueryFor(UncachedObject.class)
                                       .f("counter").eq(1).get();
             assertEquals("Found and Modified", verified.getStrValue());
@@ -249,6 +251,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
 
             // Test cached object deletion
             morphium.delete(first);
+            Thread.sleep(1000);
             CachedObject shouldBeNull = morphium.createQueryFor(CachedObject.class)
                                         .f("counter").eq(5).get();
             assertNull(shouldBeNull);
