@@ -176,6 +176,7 @@ public class DataTypeTests extends MultiDriverTestBase {
 
             morphium.store(entity);
 
+            Thread.sleep(1000);
             MapEntity stored = morphium.createQueryFor(MapEntity.class).get();
             assertNotNull(stored);
             assertEquals(3, stored.stringMap.size());
@@ -185,7 +186,7 @@ public class DataTypeTests extends MultiDriverTestBase {
 
             // Test map queries - Note: Map queries can be complex depending on driver
             MapEntity found = morphium.createQueryFor(MapEntity.class)
-                                      .f("stringMap.key1").eq("value1").get();
+                                      .f("string_map.key1").eq("value1").get();
             assertNotNull(found);
 
             // Test map modifications
@@ -193,6 +194,7 @@ public class DataTypeTests extends MultiDriverTestBase {
             stored.stringMap.remove("key1");
             stored.intMap.put("counter2", 25);
             morphium.store(stored);
+            Thread.sleep(1000);
 
             MapEntity modified = morphium.createQueryFor(MapEntity.class).get();
             assertEquals(3, modified.stringMap.size());
