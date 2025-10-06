@@ -36,9 +36,9 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
         int amount = 1000;
         createCachedObjects(amount);
-        Thread.sleep(5000);
+        TestUtils.wait(5);
         for (int i = 0; i < amount; i++) {
-            CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i + 1).get();
+            CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i ).get();
             assertNotNull(o, "Not found: " + i);
             if (i % 100 == 0) {
                 log.info("Read " + i);
@@ -154,7 +154,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         createCachedObjects(amount);
         Thread.sleep(8500);
         for (int i = 0; i < amount; i++) {
-            CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i + 1).get();
+            CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i).get();
             assertNotNull(o, "Not found: " + i);
             if (i % 500 == 0) {
                 log.info("Read " + i);

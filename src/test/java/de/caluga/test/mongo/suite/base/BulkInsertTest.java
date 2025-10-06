@@ -97,7 +97,7 @@ public class BulkInsertTest extends MultiDriverTestBase {
             assertNotNull(lst.get(0).getMorphiumId());
             ;
             dur = System.currentTimeMillis() - start;
-            if ((morphium.getWriteBufferCount() != 0)) {
+            if ((morphium.getBufferedWriterBufferCount() != 0)) {
                 throw new AssertionError("WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
             }
             log.info("storing objects one by one took " + dur + " ms");
