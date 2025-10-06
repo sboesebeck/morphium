@@ -27,6 +27,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
@@ -85,7 +86,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
     private final List<MorphiumId> idsInProgress = new Vector<>();
-    private final Set<MorphiumId> processedIds = ConcurrentHashMap.newKeySet(); // Track processed messages for InMemoryDriver
+    // For InMemoryDriver: Track completed message IDs to prevent duplicates from polling+changestreams
+    private final Set<MorphiumId> completedMessageIds = ConcurrentHashMap.newKeySet();
+    // Debug counter for InMemoryDriver
+    private final AtomicInteger changeStreamEventsReceived = new AtomicInteger(0);
     private MessagingSettings settings = null;
 
     public SingleCollectionMessaging() {
@@ -400,6 +404,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
+            // Debug: Count ALL change stream events for InMemoryDriver
+            if (morphium.getDriver().getName().contains("InMem")) {
+                int totalEvents = changeStreamEventsReceived.incrementAndGet();
+                if (totalEvents == 1 || totalEvents % 50 == 0 || totalEvents == 200) {
+                    log.info("{}: Change stream event #{} received", this.id, totalEvents);
+                }
+            }
+
             // Note: docIdsFromChangestream is used for debugging duplicate events only
             // It does not prevent processing - that's handled by idsInProgress check below
             if (docIdsFromChangestream.contains(id)) {
@@ -463,6 +475,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // Add to idsInProgress immediately to prevent duplicate change stream events
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
+
                         log.debug("CHANGESTREAM: Queued message {} for processing", messageId);
                     } else {
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
@@ -522,8 +535,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
-                    if (requestPoll.get() > 0 || !useChangeStream) {
-                        log.info("Polling");
+                    // For InMemoryDriver: always poll to ensure messages aren't missed
+                    // For other drivers: only poll if requested or change streams disabled
+                    boolean forcePolling = morphium.getDriver() != null && morphium.getDriver().getName().contains("InMem");
+                    if (requestPoll.get() > 0 || !useChangeStream || forcePolling) {
+                        if (forcePolling || requestPoll.get() > 0) {
+                            log.info("Polling (forced={}, requested={})", forcePolling, requestPoll.get() > 0);
+                        }
                         lastRun.set(System.currentTimeMillis());
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
@@ -661,7 +679,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         }
                     } finally {
                         synchronized (processing) {
-                            // Remove from idsInProgress immediately for all messages
+                            // Always remove from idsInProgress when done processing (success or failure)
+                            // completedMessageIds handles duplicate prevention for InMemoryDriver
                             idsInProgress.remove(finalPrEl.getId());
                         }
                     }
@@ -785,6 +804,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
 
                 idsToIgnore.addAll(idsInProgress);
+
+                // Debug logging for InMemoryDriver
+                if (morphium.getDriver().getName().contains("InMem")) {
+                    log.info("POLLING DEBUG {}: processing.size={}, idsInProgress.size={}, idsToIgnore.size={}",
+                             id, processing.size(), idsInProgress.size(), idsToIgnore.size());
+                }
             }
 
             // q1: Exclusive messages, not locked yet, not processed yet
@@ -832,6 +857,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
 
             long totalCount = q.countAll();
+
+            // Debug logging for InMemoryDriver
+            if (morphium.getDriver().getName().contains("InMem")) {
+                log.info("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
+                         id, queueElements.size(), totalCount, idsToIgnore.size());
+            }
+
             if (totalCount != queueElements.size()) {
                 // still messages left in mongodb for processing
                 // or some messages were delete -> check to be sure
@@ -1003,20 +1035,38 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     break;
                 }
 
-                // For InMemoryDriver broadcast messages: track processing with in-memory set
-                // This prevents duplicate processing within the same instance
+                // For InMemoryDriver broadcast messages: synchronized check-and-process
+                boolean alreadyProcessed = false;
                 if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-                    if (!processedIds.add(msg.getMsgId())) {
-                        // Already being processed or was processed by this instance - skip duplicate
+                    // Synchronized check-and-mark to prevent race conditions
+                    synchronized (completedMessageIds) {
+                        if (completedMessageIds.contains(msg.getMsgId())) {
+                            // Already processed by this instance - skip
+                            alreadyProcessed = true;
+                        } else {
+                            // Mark as being processed (will be confirmed after listener runs)
+                            completedMessageIds.add(msg.getMsgId());
+                        }
+                    }
+
+                    if (alreadyProcessed) {
                         wasProcessed = false;
                         break;
                     }
+
+                    // Don't mark in database yet - wait until listener completes
                 } else if (l.markAsProcessedBeforeExec()) {
                     updateProcessedBy(msg);
                 }
 
+                // Call listener
                 Msg answer = l.onMessage(SingleCollectionMessaging.this, msg);
                 wasProcessed = true;
+
+                // For InMemoryDriver broadcasts: mark in database AFTER listener succeeds
+                if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
+                    updateProcessedBy(msg);
+                }
 
                 if (autoAnswer && answer == null) {
                     answer = new Msg(msg.getTopic(), "received", "");
@@ -1062,9 +1112,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         if (wasProcessed && !msg.getProcessedBy().contains(id)) {
             updateProcessedBy(msg);
-            // NOTE: We never remove from processedIds - once a message is processed by this instance,
-            // it stays in the set to prevent any future duplicates, even if database update fails.
-            // This means processedIds will grow indefinitely, but that's acceptable for preventing duplicates.
         }
 
         if (!wasRejected && wasProcessed) {
@@ -1087,6 +1134,62 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     // private void removeProcessingFor(Msg msg) {}
+    /**
+     * Atomically try to claim a message for processing by adding this instance's ID to processed_by.
+     * Returns true ONLY if this instance successfully claimed it (i.e., we modified the document).
+     * Returns false if already claimed by THIS instance (prevents duplicate processing within same instance).
+     *
+     * Note: For broadcast messages, multiple instances can claim the same message - this only prevents
+     * the SAME instance from processing it twice.
+     */
+    private boolean tryClaimMessageForThisInstance(Msg msg) {
+        if (msg == null) {
+            return false;
+        }
+
+        if (msg.getProcessedBy().contains(id)) {
+            return false; // Already claimed by THIS instance
+        }
+
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
+        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+        // No need for additional query conditions - $addToSet is atomic and won't add duplicates
+        // nModified will tell us if we actually added our ID (claimed it) or if it was already there
+
+        Map<String, Object> qobj = idq.toQueryObject();
+        Map<String, Object> set = Doc.of("processed_by", id);
+        Map<String, Object> update = Doc.of("$addToSet", set);
+        UpdateMongoCommand cmd = null;
+
+        try {
+            cmd = new UpdateMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
+            cmd.addUpdate(qobj, update, null, false, false, null, null, null);
+            Map<String, Object> ret = cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+
+            // Check if we actually modified the document
+            Object nModified = ret.get("nModified");
+            if (nModified != null && ((Number) nModified).intValue() > 0) {
+                // We successfully claimed it for THIS instance
+                msg.getProcessedBy().add(id);
+                return true;
+            } else {
+                // Our ID is already in processed_by (caught by the query condition)
+                return false;
+            }
+        } catch (MorphiumDriverException e) {
+            log.error("Error claiming message - will skip to avoid duplicates", e);
+            return false;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
+
     private boolean updateProcessedBy(Msg msg) {
         if (msg == null) {
             return false;

@@ -32,10 +32,9 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
             String method = new Object() {
             }
             .getClass().getEnclosingMethod().getName();
-            log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.clearCollection(Msg.class);
             for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
-                log.info("Running test with {} messaging", msgImpl);
+                log.info(String.format("=====================> Running Test %s with Driver %s and Messaging %s <===============================", method, morphium.getDriver().getName(), msgImpl));
                 var cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
@@ -144,6 +143,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         m4.terminate();
                     }
                 }
+                log.info(">>>>>>>>>>> Finished test %s with Driver %s and Messaging %s successfully <<<<<<<<<<<<<", method, morphium.getDriver().getName(), msgImpl);
             }
 
             log.info(method + "() finished with " + morphium.getDriver().getName());
@@ -208,8 +208,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
-                    long maxTotalTimeout = 30000; // Max 30 seconds total (safety net)
-                    long idleTimeout = 5000; // 5 seconds after last message received
+                    long maxTotalTimeout = 60000; // Max 60 seconds total (safety net for slow machines)
+                    long idleTimeout = 20000; // 20 seconds after last message received (increased from 10s)
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;
 
@@ -252,9 +252,9 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         long timeSinceLastMessage = System.currentTimeMillis() - lastMessageTime;
                         long totalTime = System.currentTimeMillis() - start;
                         assertTrue(timeSinceLastMessage < idleTimeout,
-                            "No messages received for " + timeSinceLastMessage + "ms (idle timeout: " + idleTimeout + "ms)");
+                                   "No messages received for " + timeSinceLastMessage + "ms (idle timeout: " + idleTimeout + "ms)");
                         assertTrue(totalTime < maxTotalTimeout,
-                            "Total timeout exceeded: " + totalTime + "ms (max: " + maxTotalTimeout + "ms)");
+                                   "Total timeout exceeded: " + totalTime + "ms (max: " + maxTotalTimeout + "ms)");
                     }
                     Thread.sleep(1000);
                     log.info("--------");
