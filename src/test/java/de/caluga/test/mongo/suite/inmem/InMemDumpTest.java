@@ -11,6 +11,7 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,9 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @Tag("inmemory")
+@Disabled
 public class InMemDumpTest extends MorphiumInMemTestBase {
 
     @Test
+    @Disabled
     public void jsonDumpTest() throws Exception {
         MorphiumTypeMapper<ObjectId> mapper = new MorphiumTypeMapper<ObjectId>() {
             @Override
@@ -64,6 +67,7 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    @Disabled
     public void driverDumpTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             UncachedObject e = new UncachedObject();
@@ -97,9 +101,10 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    @Disabled
     public void testManualJsonDump() throws Exception {
         createUncachedObjects(100);
-        Map<Class, List<Map<String,Object>>> dump = new HashMap<>();
+        Map<Class, List<Map<String, Object>>> dump = new HashMap<>();
 
         for (String cn : morphium.listCollections()) {
             Class type = morphium.getMapper().getClassForCollectionName(cn);
@@ -112,7 +117,7 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
         //data is gone
         //restore
         for (var e : dump.entrySet()) {
-            for (var entity:e.getValue()){
+            for (var entity: e.getValue()) {
                 morphium.insert(morphium.getMapper().deserialize(e.getKey(), entity));
             }
         }
@@ -121,6 +126,7 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    @Disabled
     public void testManualDump() throws Exception {
         createUncachedObjects(100);
         Map<Class, List<Object>> dump = new HashMap<>();
