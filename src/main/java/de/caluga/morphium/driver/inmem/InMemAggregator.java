@@ -1377,6 +1377,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                 } else if (varExpr instanceof Map) {
                                     Expr expr = Expr.parse((Map<String, Object>) varExpr);
                                     varValue = expr.evaluate(doc);
+                                } else if (varExpr instanceof String strValue) {
+                                    if (strValue.startsWith("$$")) {
+                                        varValue = letContext.get(strValue);
+                                    } else if (strValue.startsWith("$")) {
+                                        varValue = extractValueByPath(doc, strValue.substring(1));
+                                    } else {
+                                        varValue = strValue;
+                                    }
                                 } else {
                                     varValue = varExpr;
                                 }
@@ -1745,7 +1753,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         evaluatedDefaultBucket = ((Expr) defaultBucket).evaluate(new HashMap<>());
                     }
 
-                    Map<Object, List<Map<String, Object>>> buckets = new HashMap<>();
+                    Map<Object, List<Map<String, Object>>> buckets = new LinkedHashMap<>();
 
                     // Initialize buckets
                     for (int i = 0; i < evaluatedBoundaries.size() - 1; i++) {
@@ -1830,8 +1838,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     if (numBuckets == null) numBuckets = 5; // Default
 
                     // Extract values for sorting and bucket creation
-                    List<Object> values = new ArrayList<>();
-                    Map<Object, Map<String, Object>> valueToDoc = new HashMap<>();
+                    List<BucketValue> entries = new ArrayList<>();
 
                     for (Map<String, Object> doc : data) {
                         Object value;
@@ -1848,19 +1855,18 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         }
 
                         if (value != null) {
-                            values.add(value);
-                            valueToDoc.put(value, doc);
+                            entries.add(new BucketValue(value, doc));
                         }
                     }
 
                     // Sort values
-                    values.sort((a, b) -> compareValues(a, b));
+                    entries.sort((a, b) -> compareValues(a.value, b.value));
 
                     // Create auto buckets with equal distribution
                     ret = new ArrayList<>();
 
-                    if (!values.isEmpty()) {
-                        int totalDocs = values.size();
+                    if (!entries.isEmpty()) {
+                        int totalDocs = entries.size();
                         int docsPerBucket = totalDocs / numBuckets;
                         int remainder = totalDocs % numBuckets;
 
@@ -1877,11 +1883,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             }
 
                             List<Map<String, Object>> bucketDocs = new ArrayList<>();
-                            Object minValue = (lastMaxValue != null) ? lastMaxValue : values.get(currentIndex);
-                            Object maxValue = values.get(endIndex - 1);
+                            Object minValue = (lastMaxValue != null) ? lastMaxValue : entries.get(currentIndex).value;
+                            Object maxValue = entries.get(endIndex - 1).value;
 
                             for (int j = currentIndex; j < endIndex; j++) {
-                                bucketDocs.add(valueToDoc.get(values.get(j)));
+                                bucketDocs.add(entries.get(j).doc);
                             }
 
                             if (!bucketDocs.isEmpty()) {
@@ -2150,6 +2156,16 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
         // Fallback to string comparison
         return value1.toString().compareTo(value2.toString());
+    }
+
+    private static final class BucketValue {
+        final Object value;
+        final Map<String, Object> doc;
+
+        BucketValue(Object value, Map<String, Object> doc) {
+            this.value = value;
+            this.doc = doc;
+        }
     }
 
     /**
@@ -2473,6 +2489,21 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return (current instanceof Number) ? ((Number) current).doubleValue() : null;
+    }
+
+    private Object extractValueByPath(Map<String, Object> map, String path) {
+        String[] parts = path.split("\\.");
+        Object current = map;
+
+        for (String part : parts) {
+            if (current instanceof Map) {
+                current = ((Map<String, Object>) current).get(part);
+            } else {
+                return null;
+            }
+        }
+
+        return current;
     }
 
     /**
