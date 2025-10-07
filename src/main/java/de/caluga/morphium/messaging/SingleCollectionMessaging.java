@@ -127,10 +127,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             setWindowSize(1);
     }
 
+    @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause) {
         this(m, null, pause, true, 10);
     }
 
+    @Deprecated
     public SingleCollectionMessaging(Morphium m) {
         this(m, null, 500, false, 100);
     }
@@ -147,6 +149,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             setWindowSize(1);
     }
 
+    @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause, boolean multithreadded, int windowSize) {
         this(m, null, pause, multithreadded, windowSize);
     }
@@ -162,6 +165,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             setWindowSize(1);
     }
 
+    @Deprecated
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize) {
         this(m, queueName, pause, multithreadded, windowSize,
              m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
@@ -205,6 +209,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * @prarm pause: when waiting for incoming messages, especially when
      *        multithreadded == false, how long to wait between polls
      */
+    @Deprecated
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize,
                                      boolean useChangeStream) {
         this();

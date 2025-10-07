@@ -1,83 +1,82 @@
 # Morphium 6.0
 
-**Feature-reiches MongoDB ODM und Messaging-Framework für Java 21+**
+**Feature-rich MongoDB ODM and messaging framework for Java 21+**
 
-Morphium ist eine umfassende Datenschicht-Lösung für MongoDB mit:
-- 🗄️ **Leistungsstarkes Object Mapping** mit Annotation-basierter Konfiguration
-- 📨 **Integrierte Message Queue** – nutzt MongoDB als Backend (keine zusätzliche Infrastruktur!)
-- ⚡ **Multi-Level Caching** mit automatischer Cluster-Synchronisation
-- 🔌 **Eigener MongoDB Wire-Protocol-Treiber** für direkte Kommunikation
-- 🧪 **In-Memory-Treiber** für ultraschnelle Tests (10-100x schneller, kein MongoDB nötig)
-- 🎯 **JMS API Unterstützung** für standardbasiertes Messaging
-- 🚀 **JDK 21** mit Virtual Threads für optimale Concurrency
+Available languages: English | [Deutsch](README.de.md)
+
+- 🗄️ **High-performance object mapping** with annotation-driven configuration
+- 📨 **Integrated message queue** backed by MongoDB (no extra infrastructure)
+- ⚡ **Multi-level caching** with cluster-wide invalidation
+- 🔌 **Custom MongoDB wire-protocol driver** tuned for Morphium
+- 🧪 **In-memory driver** for fast tests (no MongoDB required)
+- 🎯 **JMS API (experimental)** for standards-based messaging
+- 🚀 **Java 21** with virtual threads for optimal concurrency
 
 [![Maven Central](https://img.shields.io/maven-central/v/de.caluga/morphium.svg)](https://search.maven.org/artifact/de.caluga/morphium)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## 🎯 Warum Morphium?
+## 🎯 Why Morphium?
 
-**Einzigartig:** Morphium bietet **verteiltes Messaging ohne zusätzliche Infrastruktur**. Wenn Sie bereits MongoDB nutzen, haben Sie alles was Sie brauchen – kein RabbitMQ, Kafka oder ActiveMQ erforderlich.
-
-### Schnellvergleich
+Morphium is the only Java ODM that ships a message queue living inside MongoDB. If you already run MongoDB, you can power persistence, messaging, caching, and change streams with a single component.
 
 | Feature | Morphium | Spring Data + RabbitMQ | Kafka |
 |---------|----------|------------------------|-------|
-| Infrastruktur | Nur MongoDB | MongoDB + RabbitMQ | MongoDB + Kafka |
-| Setup-Komplexität | ⭐ Sehr niedrig | ⭐⭐⭐ Mittel | ⭐⭐⭐⭐⭐ Hoch |
-| Nachrichten persistent | Standard | Optional | Standard |
-| Nachrichtenpriorität | ✅ Ja | ✅ Ja | ❌ Nein |
-| Distributed Locks | ✅ Ja | ❌ Nein | ❌ Nein |
-| Durchsatz | Mittel (8K msg/s) | Hoch (50K msg/s) | Sehr hoch (100K+ msg/s) |
-| Betrieb | ⭐ Sehr einfach | ⭐⭐ Mittel | ⭐⭐⭐⭐ Komplex |
+| Infrastructure | MongoDB only | MongoDB + RabbitMQ | MongoDB + Kafka |
+| Setup complexity | ⭐ Very low | ⭐⭐⭐ Medium | ⭐⭐⭐⭐⭐ High |
+| Message persistence | Built in | Optional | Built in |
+| Message priority | ✅ Yes | ✅ Yes | ❌ No |
+| Distributed locks | ✅ Yes | ❌ No | ❌ No |
+| Throughput (internal tests) | ~8K msg/s | 10K–50K msg/s | 100K+ msg/s |
+| Operations | ⭐ Very easy | ⭐⭐ Medium | ⭐⭐⭐⭐ Complex |
 
-## 📚 Dokumentation
+_* Numbers are indicative and depend heavily on hardware and workload._
 
-### Schnellzugriff
-- **[Vollständige Dokumentation](MORPHIUM_DOCUMENTATION_V6.md)** - Alles was Sie wissen müssen
-- **[Versionsankündigung](MORPHIUM_V6_ANNOUNCEMENT.md)** - Was ist neu in v6.0
-- **[Blog Post](BLOG_POST_V6.md)** - Kurze Übersicht der Features
-- **[Entwicklerhandbuch](CLAUDE.md)** - Testing, Entwicklungs-Workflows, Architektur
-- Migration v5→v6: `docs/howtos/migration-v5-to-v6.md`
+## 📚 Documentation
 
-### Weitere Ressourcen
-- Aggregationsbeispiele: `docs/howtos/aggregation-examples.md`
-- Messaging-Implementierungen: `docs/howtos/messaging-implementations.md`
-- Performance-Guide: `docs/performance-scalability-guide.md`
-- Production-Deployment: `docs/production-deployment-guide.md`
-- Monitoring & Troubleshooting: `docs/monitoring-metrics-guide.md`
+### Quick access
+- **[Documentation hub](docs/index.md)** – entry point for all guides
+- **[Overview](docs/overview.md)** – core concepts, quick start, compatibility
+- **[Migration v5→v6](docs/howtos/migration-v5-to-v6.md)** – step-by-step upgrade guide
+- **[InMemory Driver Guide](docs/howtos/inmemory-driver.md)** – capabilities, caveats, testing tips
 
-## 🚀 Neu in Version 6.0
+### More resources
+- Aggregation examples: `docs/howtos/aggregation-examples.md`
+- Messaging implementations: `docs/howtos/messaging-implementations.md`
+- Performance guide: `docs/performance-scalability-guide.md`
+- Production deployment: `docs/production-deployment-guide.md`
+- Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
 
-### JDK 21 & Moderne Java-Features
-- **Virtual Threads**: Messaging-System optimiert für Project Loom
-- **Pattern Matching**: Verbesserte Code-Klarheit und Typ-Sicherheit
-- **Records Support**: Volle Unterstützung für Java Records als Entities
-- **Sealed Classes**: Bessere Typ-Hierarchien in Domain-Models
+## 🚀 What’s New in v6.0
 
-### Verbessertes Messaging-System
-- **90% weniger Duplikate**: Optimierte Message-Processing-Logik
-- **Virtual Thread Integration**: Bessere Concurrency-Performance
-- **5.000-8.000 msg/sec**: Verbesserter Durchsatz
-- **Distributed Locking**: Verbesserte Multi-Instance-Koordination
+### Java 21 & Modern Language Features
+- **Virtual threads** for high-throughput messaging and change streams
+- **Pattern matching & records** across driver and mapping layers
+- **Sealed class support** for cleaner domain models
 
-### In-Memory-Treiber für Testing
-- **Keine MongoDB benötigt**: Komplette Test-Suite ohne externe Abhängigkeiten
-- **10-100x schneller**: Test-Durchläufe in Sekunden statt Minuten
-- **CI/CD-freundlich**: Perfekt für Continuous Integration Pipelines
-- **Feature-komplett**: Unterstützt die meisten MongoDB-Operationen inkl. Aggregation
+### Messaging Improvements
+- **Fewer duplicates** thanks to refined message processing
+- **Virtual-thread integration** for smoother concurrency
+- **Higher throughput** confirmed in internal benchmarking
+- **Distributed locking** for coordinated multi-instance deployments
 
-### Umfassende Dokumentation
-- Komplette Neuschreibung aller Guides
-- Praxis-Beispiele und Use Cases
-- Migration-Guide von 5.x
-- Architektur-Details und Best Practices
+### In-Memory Driver Enhancements
+- **No MongoDB required** for unit tests or CI pipelines
+- **Significantly faster test cycles** in pure in-memory mode
+- **Broad operator coverage** with clearly documented exceptions
+- **Change streams & transactions** available for integration testing
 
-## Anforderungen & Abhaengigkeiten
-- Java 21 oder neuer
-- MongoDB 5.0+ fuer produktive Deployments
+### Documentation Overhaul
+- Complete rewrite of the guide set
+- Practical examples and end-to-end use cases
+- Dedicated migration playbook from 5.x to 6.x
+- Architecture insights and best practices
+
+## ✅ Requirements
+- Java 21 or newer
+- MongoDB 5.0+ for production deployments
 - Maven
 
-Maven-Abhaengigkeiten:
+Maven dependencies:
 ```xml
 <dependency>
   <groupId>de.caluga</groupId>
@@ -91,11 +90,11 @@ Maven-Abhaengigkeiten:
 </dependency>
 ```
 
-Migration von v5? → `docs/howtos/migration-v5-to-v6.md`
+Migrating from v5? → `docs/howtos/migration-v5-to-v6.md`
 
 ## ⚡ Quick Start
 
-### Maven Dependency
+### Maven dependency
 
 ```xml
 <dependency>
@@ -105,25 +104,27 @@ Migration von v5? → `docs/howtos/migration-v5-to-v6.md`
 </dependency>
 ```
 
-### Einfaches Beispiel - Object Mapping
+### Object mapping example
 
 ```java
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.driver.MorphiumId;
+import java.time.LocalDateTime;
 
-// Entity definieren
+// Entity definition
 @Entity
 public class User {
     @Id
-    private ObjectId id;
+    private MorphiumId id;
     private String name;
     private String email;
     private LocalDateTime createdAt;
     // getters/setters
 }
 
-// Konfiguration
+// Configuration
 MorphiumConfig cfg = new MorphiumConfig();
 cfg.connectionSettings().setDatabase("myapp");
 cfg.clusterSettings().addHostToSeed("localhost", 27017);
@@ -131,225 +132,225 @@ cfg.driverSettings().setDriverName("PooledDriver");
 
 Morphium morphium = new Morphium(cfg);
 
-// Entity speichern
+// Store entity
 User user = new User();
 user.setName("John Doe");
 user.setEmail("john@example.com");
 user.setCreatedAt(LocalDateTime.now());
 morphium.store(user);
 
-// Abfragen
+// Query
 List<User> users = morphium.createQueryFor(User.class)
     .f("email").matches(".*@example.com")
     .sort("createdAt")
     .asList();
 ```
 
-### Messaging-Beispiel
+### Messaging example
 
 ```java
-// Messaging Setup
-Messaging messaging = morphium.createMessaging();
+import de.caluga.morphium.messaging.MorphiumMessaging;
+import de.caluga.morphium.messaging.Msg;
+
+// Messaging setup
+MorphiumMessaging messaging = morphium.createMessaging();
+messaging.setSenderId("my-app");
 messaging.start();
 
-// Nachricht senden
+// Send a message
 Msg message = new Msg("orderQueue", "Process Order", "Order #12345");
 message.setPriority(5);
-message.setTtl(300000); // 5 Minuten
+message.setTtl(300000); // 5 minutes
 messaging.sendMessage(message);
 
-// Nachrichten empfangen
-messaging.addMessageListener((msg, m) -> {
-    log.info("Processing: " + msg.getValue());
-    // Order verarbeiten...
-    return true; // Nachricht erfolgreich verarbeitet
+// Receive messages
+messaging.addListenerForTopic("orderQueue", (m, msg) -> {
+    log.info("Processing {}", msg.getValue());
+    // process order ...
+    return null; // no reply
 });
 ```
 
-### Konfiguration über Properties/Environment
+### Properties & environment configuration
 
 ```bash
-# Environment Variables
+# Environment variables
 export MONGODB_URI='mongodb://user:pass@localhost:27017/app?replicaSet=rs0'
 export MORPHIUM_DRIVER=inmem
 
-# System Properties
+# System properties
 mvn -Dmorphium.uri='mongodb://localhost/mydb' test
 
-# Properties-Datei (morphium.properties)
+# Properties file (morphium.properties)
 morphium.hosts=mongo1.example.com:27017,mongo2.example.com:27017
 morphium.database=myapp
 morphium.replicaSet=myReplicaSet
 ```
 
-## 🧪 Tests & Test-Runner
+## 🧪 Tests & Test Runner
 
-### Maven-Tests
+### Maven
 ```bash
-# Alle Tests
+# All tests
 mvn test
 
-# Vollständiger Build mit Checks
+# Full build with checks
 mvn clean verify
 
-# Nur Core-Tests (schnell)
+# Tagged test selection
 mvn test -Dgroups="core,messaging"
 
-# Tests mit echtem MongoDB
+# Run against a real MongoDB instance
 mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 ```
 
-### Test-Runner Script (`./runtests.sh`)
-Umfassender Test-Runner mit farbiger Ausgabe, paralleler Ausführung und automatischen Wiederholungen.
-
+### `./runtests.sh` helper
 ```bash
-# Alle Tests mit InMemory-Treiber (Standard)
+# Default: in-memory driver
 ./runtests.sh
 
-# Nur Core-Tests
+# Run tagged suites
 ./runtests.sh --tags core,messaging
 
-# Parallele Ausführung (8 Slots = 8x schneller!)
+# Parallel runs
 ./runtests.sh --parallel 8 --tags core
 
-# Nur fehlgeschlagene Tests wiederholen (NEU in 6.0!)
+# Retry only failed methods
 ./runtests.sh --rerunfailed
 ./runtests.sh --rerunfailed --retry 3
 
-# Tests gegen echten MongoDB-Cluster
+# Target a MongoDB cluster
 ./runtests.sh --driver pooled --uri mongodb://mongo1,mongo2/testdb
 
-# Spezifische Test-Klasse
+# Single test class
 ./runtests.sh CacheTests
 
-# Statistiken anzeigen
+# Statistics
 ./runtests.sh --stats
-./getFailedTests.sh  # Liste der fehlgeschlagenen Methoden
+./getFailedTests.sh  # list failed methods
 ```
 
-**Neue Features in v6.0:**
-- ✅ **Method-Level Rerun**: `--rerunfailed` führt nur fehlgeschlagene Methoden aus (nicht ganze Klassen)
-- ✅ **Kein Hängen mehr**: Alle bekannten Hänge-Probleme behoben
-- ✅ **Schnellere Iteration**: 3-5x schneller bei partiellen Wiederholungen
-- ✅ **Bessere Filterung**: Klassenname-Filter funktionieren zuverlässig
+**New in v6.0**
+- ✅ **Method-level reruns**: `--rerunfailed` only re-executes failing methods
+- ✅ **No more hangs**: known deadlocks resolved
+- ✅ **Faster iteration**: noticeably quicker partial retries
+- ✅ **Better filtering**: class-name filters now reliable
 
-Siehe `CLAUDE.md` für detaillierte Test-Runner-Dokumentation.
+Run `./runtests.sh --help` to see every option.
 
-### Test-Konfiguration
+### Test configuration precedence
 
-`TestConfig` konsolidiert alle Test-Einstellungen. Priorität der Quellen:
-1. System Properties (`-Dmorphium.*`)
-2. Environment Variables (`MORPHIUM_*`, `MONGODB_URI`)
+`TestConfig` consolidates all test settings. Priority order:
+1. System properties (`-Dmorphium.*`)
+2. Environment variables (`MORPHIUM_*`, `MONGODB_URI`)
 3. `src/test/resources/morphium-test.properties`
 4. Defaults (localhost:27017)
 
 ## 🔧 MorphiumServer & InMemoryDriver
 
-### InMemoryDriver - Testing ohne MongoDB
+### InMemoryDriver – MongoDB-free testing
 
-Der InMemoryDriver bietet eine vollständige MongoDB-Simulation im Speicher:
+The in-memory driver provides a largely MongoDB-compatible data store fully in memory:
 
-**Features:**
-- ✅ Alle CRUD-Operationen
-- ✅ Komplexe Queries mit allen Operatoren
-- ✅ Aggregation-Pipelines (`$match`, `$group`, `$lookup`, etc.)
-- ✅ Transaktionen (single-instance)
-- ✅ Change Streams (Basis-Implementation)
-- ✅ JavaScript `$where`-Operator
+**Features**
+- ✅ Full CRUD operations
+- ✅ Rich query operator coverage
+- ✅ Aggregation stages such as `$match`, `$group`, `$project`
+- ✅ Single-instance transactions
+- ✅ Basic change streams
+- ✅ JavaScript `$where` support
 
-**Performance:**
-- 10-100x schneller als Tests gegen echten MongoDB
-- Keine Netzwerk-Latenz
-- Keine Disk I/O
-- Perfekt für CI/CD-Pipelines
+**Performance**
+- Significantly faster than external MongoDB for tests
+- No network latency
+- No disk I/O
+- Ideal for CI/CD pipelines
 
-**Verwendung:**
+**Usage**
 ```bash
-# Alle Tests mit InMemory
+# All tests with the in-memory driver
 ./runtests.sh --driver inmem
 
-# Spezifische Tests
+# Specific tests
 mvn test -Dmorphium.driver=inmem -Dtest="CacheTests"
 ```
 
-### MorphiumServer - Standalone MongoDB-Ersatz
+See `docs/howtos/inmemory-driver.md` for feature coverage and limitations.
 
-MorphiumServer ist ein eigenständiger Prozess, der das MongoDB Wire Protocol implementiert:
+### MorphiumServer – Standalone MongoDB replacement
+
+MorphiumServer runs the Morphium wire-protocol driver in a separate process:
 
 ```bash
-# Server starten
+# Start the server
 java -jar morphium-6.0.0.jar de.caluga.morphium.server.MorphiumServer
 
-# Clients verbinden (z.B. MongoDB Compass, mongosh)
+# Connect with mongosh or MongoDB Compass
 mongosh mongodb://localhost:27017
 ```
 
-**Use Cases:**
-- Lokale Entwicklung ohne MongoDB-Installation
-- CI/CD-Umgebungen
-- Embedded Database für Desktop-Anwendungen
-- Testing von MongoDB-Tools (Compass, mongodump, etc.)
+**Use cases**
+- Local development without installing MongoDB
+- CI environments
+- Embedded database for desktop applications
+- Smoke-testing MongoDB tooling (mongosh, Compass, mongodump, …)
 
-**Einschränkungen:**
-- Keine Replica Sets (geplant für 6.x)
-- Keine Sharding-Unterstützung
-- Einige erweiterte Aggregation-Operatoren fehlen noch
-
-Siehe InMemoryDriver Enhancement Roadmap in `CLAUDE.md` für Details.
+**Current limitations**
+- No replica set emulation (planned for 6.x)
+- No sharding support
+- Some advanced aggregation operators and joins still missing
 
 ## 🚀 Production Use Cases
 
-Morphium wird produktiv eingesetzt in:
+Organizations run Morphium in production for:
+- **E-commerce**: order processing with guaranteed delivery
+- **Financial services**: coordinating transactions across microservices
+- **Healthcare**: patient-data workflows with strict compliance
+- **IoT platforms**: device state synchronization and command distribution
+- **Content management**: document workflows and event notifications
 
-- **E-Commerce**: Order-Processing mit garantierter Zustellung
-- **Finanzdienstleistungen**: Transaktions-Koordination über Microservices
-- **Gesundheitswesen**: Patientendaten-Management mit HIPAA-Compliance
-- **IoT-Plattformen**: Device-State-Synchronisation und Command-Distribution
-- **Content Management**: Dokument-Workflows und Benachrichtigungen
+## 🤝 Community & Contribution
 
-## 🤝 Community & Mitmachen
-
-### Ressourcen
+### Stay in touch
 - **Slack**: [Team Morphium](https://join.slack.com/t/team-morphium/shared_invite/enQtMjgwODMzMzEzMTU5LTA1MjdmZmM5YTM3NjRmZTE2ZGE4NDllYTA0NTUzYjU2MzkxZTJhODlmZGQ2MThjMGY0NmRkMWE1NDE2YmQxYjI)
 - **Blog**: https://caluga.de
 - **GitHub**: [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
-- **Issues**: Bug-Reports und Feature-Requests auf GitHub
+- **Issues**: Report bugs or request features on GitHub
 
-### Beitragen
+### Contributing
 
-Beiträge sind herzlich willkommen! Bereiche wo wir Hilfe brauchen:
+We appreciate pull requests! Areas where help is especially welcome:
+- **InMemoryDriver**: expanding MongoDB feature coverage
+- **Documentation**: tutorials, examples, translations
+- **Performance**: profiling and benchmarks
+- **Tests**: broader scenarios and regression coverage
 
-- **InMemoryDriver**: Vollständigkeit von MongoDB-Features
-- **Dokumentation**: Beispiele, Tutorials, Übersetzungen
-- **Performance**: Optimierungen und Benchmarks
-- **Tests**: Erweiterte Test-Szenarien
+**How to contribute**
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
+4. Push the branch (`git push origin feature/AmazingFeature`)
+5. Open a pull request
 
-**So tragen Sie bei:**
-1. Fork das Repository
-2. Erstellen Sie einen Feature-Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit Ihre Änderungen (`git commit -m 'Add AmazingFeature'`)
-4. Push zum Branch (`git push origin feature/AmazingFeature`)
-5. Öffnen Sie einen Pull Request
+**Tips**
+- Respect test tags (`@Tag("inmemory")`, `@Tag("external")`)
+- Run `./runtests.sh --tags core` before submitting
+- Update documentation when you change APIs
 
-**Hinweise:**
-- Beachten Sie die Test-Tags (`@Tag("inmemory")`, `@Tag("external")`)
-- Führen Sie `./runtests.sh --tags core` vor dem Commit aus
-- Aktualisieren Sie die Dokumentation bei API-Änderungen
+## 📜 License
 
-## 📜 Lizenz
+Apache License 2.0 – see [LICENSE](LICENSE) for details.
 
-Apache License 2.0 - Siehe [LICENSE](LICENSE) für Details
+## 🙏 Thanks
 
-## 🙏 Danksagungen
-
-Vielen Dank an alle Contributors die diese Release möglich gemacht haben, und an die MongoDB-Community für Support und Feedback.
+Thanks to every contributor who helped ship Morphium 6.0 and to the MongoDB community for continuous feedback.
 
 ---
 
-**Fragen?** Öffnen Sie ein Issue auf [GitHub](https://github.com/sboesebeck/morphium/issues) oder schauen Sie in unsere [Dokumentation](MORPHIUM_DOCUMENTATION_V6.md).
+**Questions?** Open an issue on [GitHub](https://github.com/sboesebeck/morphium/issues) or browse the [documentation](docs/index.md).
 
-**Upgrade geplant?** Siehe [Migration Guide](docs/howtos/migration-v5-to-v6.md) für Schritt-für-Schritt-Anleitung.
+**Planning an upgrade?** Follow the [migration guide](docs/howtos/migration-v5-to-v6.md).
 
-Viel Erfolg mit Morphium 6.0! 🚀
+Enjoy Morphium 6.0! 🚀
 
-*Stephan Bösebeck & das Morphium-Team*
+*Stephan Bösebeck & the Morphium team*
