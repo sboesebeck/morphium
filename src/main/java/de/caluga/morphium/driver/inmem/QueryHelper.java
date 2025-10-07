@@ -1500,40 +1500,6 @@ public class QueryHelper {
         return docGeometryObj.intersects(queryGeometryObj);
     }
 
-    private static boolean geoIntersects(Object documentGeometry, Object queryGeometry) {
-        Map<String, Object> docGeo = asGeometry(documentGeometry);
-        Map<String, Object> queryGeo = asGeometry(queryGeometry instanceof Map && ((Map<?, ?>) queryGeometry).containsKey("$geometry")
-                                   ? ((Map<String, Object>) queryGeometry).get("$geometry")
-                                   : queryGeometry);
-
-        if (docGeo == null || queryGeo == null) {
-            return false;
-        }
-
-        String docType = (String) docGeo.get("type");
-        String queryType = (String) queryGeo.get("type");
-
-        if (docType == null || queryType == null) {
-            return false;
-        }
-
-        List<?> docCoords = toListView(docGeo.get("coordinates"));
-        List<?> queryCoords = toListView(queryGeo.get("coordinates"));
-
-        if (docCoords == null || queryCoords == null) {
-            return false;
-        }
-
-        Geometry docGeometryObj = toGeometry(docType, docCoords);
-        Geometry queryGeometryObj = toGeometry(queryType, queryCoords);
-
-        if (docGeometryObj == null || queryGeometryObj == null) {
-            return false;
-        }
-
-        return docGeometryObj.intersects(queryGeometryObj);
-    }
-
     @SuppressWarnings("unchecked")
     private static boolean validateJsonSchema(Map<String, Object> schema, Object value) {
         if (schema == null) {
