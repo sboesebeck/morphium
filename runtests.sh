@@ -42,6 +42,10 @@ function quitting() {
     kill -9 $(<$failPid) >/dev/null 2>&1
   fi
   rm -f $testPid $failPid >/dev/null 2>&1
+
+  # Preserve any slot logs before cleaning up
+  aggregate_slot_logs
+
   if [ -n "$t" ]; then
     echo -e "${RD}Shutting down...${CL} current test $t"
     echo "Removing unfinished test $t"
@@ -234,6 +238,66 @@ function get_test_stats() {
     # Use printf to handle newline-separated entries properly
     printf "%s" "$failed_tests"
   fi
+}
+
+# Aggregate per-slot logs into the shared test.log directory so stats work after interruptions.
+function aggregate_slot_logs() {
+  # Nothing to do if no slot directories exist
+  if ! compgen -G "test.log/slot_*" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  mkdir -p test.log/temp_aggregate
+
+  local old_nullglob=$(shopt -p nullglob)
+  shopt -s nullglob
+
+  for log_file in test.log/slot_*/*.log; do
+    [ -f "$log_file" ] || continue
+    [[ "$log_file" == */slot.log ]] && continue
+
+    local test_class
+    test_class=$(basename "$log_file" .log)
+    local dest_file="test.log/temp_aggregate/${test_class}.log"
+
+    if [ ! -f "$dest_file" ]; then
+      cp "$log_file" "$dest_file"
+    else
+      if ! grep -q "BUILD FAILURE" "$log_file" 2>/dev/null && grep -q "BUILD FAILURE" "$dest_file" 2>/dev/null; then
+        cp "$log_file" "$dest_file"
+      elif grep -q "BUILD SUCCESS" "$log_file" 2>/dev/null && ! grep -q "BUILD SUCCESS" "$dest_file" 2>/dev/null; then
+        cp "$log_file" "$dest_file"
+      elif [ "$log_file" -nt "$dest_file" ]; then
+        cp "$log_file" "$dest_file"
+      fi
+    fi
+
+  done
+
+  # Restore nullglob to its previous state
+  if [ -n "$old_nullglob" ]; then
+    eval "$old_nullglob"
+  else
+    shopt -u nullglob
+  fi
+
+  if [ -d "test.log/temp_aggregate" ]; then
+    local temp_file
+    local old_nullglob_mv=$(shopt -p nullglob)
+    shopt -s nullglob
+    for temp_file in test.log/temp_aggregate/*.log; do
+      [ -f "$temp_file" ] || continue
+      mv -f "$temp_file" "test.log/$(basename "$temp_file")"
+    done
+    if [ -n "$old_nullglob_mv" ]; then
+      eval "$old_nullglob_mv"
+    else
+      shopt -u nullglob
+    fi
+    rmdir test.log/temp_aggregate 2>/dev/null
+  fi
+
+  return 0
 }
 
 nodel=0
@@ -1044,13 +1108,32 @@ function cleanup_parallel_execution() {
 
   echo -e "\n${YL}Test Results Summary:${CL}"
   echo "=========================================================================================================="
+  for ((slot = 1; slot <= parallel; slot++)); do
+    if [ -e "test.log/slot_$slot/failed_tests" ]; then
+      while IFS= read -r failed_test; do
+        if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
+          test_name="${BASH_REMATCH[1]}"
 
-  for i in test.log/slot_*/*.log; do
-    d=${i%%*.log}
-    d=${d%%_slot*}
+          # Check if this test is already in our unique list
+          local already_listed=false
+          for existing_test in "${unique_failed_tests[@]}"; do
+            if [[ "$existing_test" == "$test_name" ]]; then
+              already_listed=true
+              break
+            fi
+          done
 
-    mv "$i" test.log/$d.log
+          if [ "$already_listed" == "false" ]; then
+            unique_failed_tests+=("$test_name")
+            failed_tests_with_slots+=("$test_name (slot $slot)")
+          fi
+        fi
+      done <"test.log/slot_$slot/failed_tests"
+    fi
   done
+
+  echo -e "${BL}Preserving completed test logs...${CL}"
+  aggregate_slot_logs
 
   local total_failed=${#unique_failed_tests[@]}
 
@@ -1070,9 +1153,6 @@ function cleanup_parallel_execution() {
     done
   fi
   echo "=========================================================================================================="
-
-  # Copy completed logs to main directory for getStats.sh compatibility
-  echo -e "${BL}Preserving completed test logs...${CL}"
 
   # Remove slot directories after copying logs
   echo -e "${BL}Cleaning up slot directories...${CL}"
@@ -1141,39 +1221,7 @@ function run_parallel_tests() {
   local unique_failed_tests=()
   local failed_tests_with_slots=()
 
-  # First pass: collect all unique test classes and determine the best log for each
-  # Use temp directory approach instead of associative arrays for better compatibility
-  mkdir -p test.log/temp_aggregate
-
-  for ((slot = 1; slot <= parallel; slot++)); do
-    if [ -d "test.log/slot_$slot" ]; then
-      for log_file in test.log/slot_$slot/*.log; do
-        if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
-          test_class=$(basename "$log_file" .log)
-          dest_file="test.log/temp_aggregate/${test_class}.log"
-
-          # If destination doesn't exist, just copy it
-          if [ ! -e "$dest_file" ]; then
-            cp "$log_file" "$dest_file"
-          else
-            # If this version passed and the existing failed, replace it
-            if ! grep -q "BUILD FAILURE" "$log_file" 2>/dev/null && grep -q "BUILD FAILURE" "$dest_file" 2>/dev/null; then
-              cp "$log_file" "$dest_file"
-            # If this version succeeded and the existing didn't, replace it
-            elif grep -q "BUILD SUCCESS" "$log_file" 2>/dev/null && ! grep -q "BUILD SUCCESS" "$dest_file" 2>/dev/null; then
-              cp "$log_file" "$dest_file"
-            fi
-          fi
-        fi
-      done
-    fi
-  done
-
-  # Second pass: copy the best log for each test class (without slot suffix)
-  if [ -d "test.log/temp_aggregate" ]; then
-    mv test.log/temp_aggregate/*.log test.log/ 2>/dev/null || true
-    rmdir test.log/temp_aggregate
-  fi
+  aggregate_slot_logs
 
   # Third pass: collect failed tests with deduplication
   for ((slot = 1; slot <= parallel; slot++)); do
