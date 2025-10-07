@@ -1,6 +1,8 @@
 package de.caluga.morphium.driver.inmem;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.text.Collator;
 import java.text.ParseException;
 import java.text.RuleBasedCollator;
@@ -8,12 +10,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+import java.util.Set;
 
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
@@ -214,6 +219,21 @@ public class QueryHelper {
                         }
 
                         return Boolean.TRUE.equals(result);
+                    }
+
+                case "$jsonSchema": {
+                        Object schema = query.get(keyQuery);
+
+                        if (!(schema instanceof Map)) {
+                            return false;
+                        }
+
+                        if (!matchesJsonSchema((Map<String, Object>) schema, toCheck)) {
+                            return false;
+                        }
+
+                        ret = true;
+                        continue;
                     }
 
                 case "$where":
@@ -681,8 +701,15 @@ public class QueryHelper {
                                 return false;
 
                             case "$jsonSchema":
-                            case "$geoIntersects":
                                 break;
+
+                            case "$geoIntersects":
+                                if (!geoIntersects(checkValue, commandMap.get(commandKey))) {
+                                    return false;
+                                }
+
+                                ret = true;
+                                continue;
 
                             case "$nearSphere":
                             case "$near":
@@ -1054,6 +1081,1035 @@ public class QueryHelper {
         }
 
         return ret;
+    }
+
+    private static boolean matchesJsonSchema(Map<String, Object> schema, Map<String, Object> document) {
+        if (schema == null) {
+            return true;
+        }
+
+        try {
+            return validateJsonSchema(schema, document);
+        } catch (ClassCastException e) {
+            log.debug("$jsonSchema evaluation failed because of incompatible schema definition: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private interface Geometry {
+        boolean intersects(Geometry other);
+    }
+
+    private static final class PointGeometry implements Geometry {
+        private final double x;
+        private final double y;
+
+        PointGeometry(List<?> coordinates) {
+            this.x = toDouble(coordinates, 0);
+            this.y = toDouble(coordinates, 1);
+        }
+
+        @Override
+        public boolean intersects(Geometry other) {
+            if (other instanceof PointGeometry) {
+                PointGeometry p = (PointGeometry) other;
+                return Double.compare(x, p.x) == 0 && Double.compare(y, p.y) == 0;
+            }
+
+            if (other instanceof LineStringGeometry) {
+                return ((LineStringGeometry) other).contains(x, y);
+            }
+
+            if (other instanceof PolygonGeometry) {
+                return ((PolygonGeometry) other).contains(x, y);
+            }
+
+            if (other instanceof MultiGeometry) {
+                return ((MultiGeometry) other).intersects(this);
+            }
+
+            return false;
+        }
+    }
+
+    private static final class LineStringGeometry implements Geometry {
+        private final double[] xs;
+        private final double[] ys;
+
+        LineStringGeometry(List<?> coordinates) {
+            int len = coordinates.size();
+            xs = new double[len];
+            ys = new double[len];
+
+            for (int i = 0; i < len; i++) {
+                List<?> point = toListView(coordinates.get(i));
+                xs[i] = toDouble(point, 0);
+                ys[i] = toDouble(point, 1);
+            }
+        }
+
+        boolean contains(double px, double py) {
+            for (int i = 0; i < xs.length - 1; i++) {
+                double x1 = xs[i];
+                double y1 = ys[i];
+                double x2 = xs[i + 1];
+                double y2 = ys[i + 1];
+
+                if (pointOnSegment(px, py, x1, y1, x2, y2)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        boolean intersectsLine(LineStringGeometry other) {
+            for (int i = 0; i < xs.length - 1; i++) {
+                double x1 = xs[i];
+                double y1 = ys[i];
+                double x2 = xs[i + 1];
+                double y2 = ys[i + 1];
+
+                for (int j = 0; j < other.xs.length - 1; j++) {
+                    double x3 = other.xs[j];
+                    double y3 = other.ys[j];
+                    double x4 = other.xs[j + 1];
+                    double y4 = other.ys[j + 1];
+
+                    if (segmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4)) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        @Override
+        public boolean intersects(Geometry other) {
+            if (other instanceof PointGeometry) {
+                PointGeometry p = (PointGeometry) other;
+                return contains(p.x, p.y);
+            }
+
+            if (other instanceof LineStringGeometry) {
+                LineStringGeometry line = (LineStringGeometry) other;
+                return intersectsLine(line) || line.intersectsLine(this);
+            }
+
+            if (other instanceof PolygonGeometry) {
+                PolygonGeometry polygon = (PolygonGeometry) other;
+                if (polygon.contains(xs[0], ys[0])) {
+                    return true;
+                }
+
+                return polygon.intersectsLine(this);
+            }
+
+            if (other instanceof MultiGeometry) {
+                return other.intersects(this);
+            }
+
+            return false;
+        }
+    }
+
+    private static final class PolygonGeometry implements Geometry {
+        private final List<LineStringGeometry> rings;
+
+        PolygonGeometry(List<?> coordinates) {
+            rings = new ArrayList<>();
+
+            for (Object ringObj : coordinates) {
+                List<?> ring = toListView(ringObj);
+                if (ring == null || ring.size() < 4) {
+                    continue;
+                }
+
+                rings.add(new LineStringGeometry(ring));
+            }
+        }
+
+        boolean contains(double px, double py) {
+            if (rings.isEmpty()) {
+                return false;
+            }
+
+            if (!pointInPolygon(px, py, rings.get(0))) {
+                return false;
+            }
+
+            for (int i = 1; i < rings.size(); i++) {
+                if (pointInPolygon(px, py, rings.get(i))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        boolean intersectsLine(LineStringGeometry line) {
+            if (contains(line.xs[0], line.ys[0])) {
+                return true;
+            }
+
+            for (LineStringGeometry ring : rings) {
+                if (ring.intersectsLine(line)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        @Override
+        public boolean intersects(Geometry other) {
+            if (other instanceof PointGeometry) {
+                PointGeometry point = (PointGeometry) other;
+                return contains(point.x, point.y);
+            }
+
+            if (other instanceof LineStringGeometry) {
+                return intersectsLine((LineStringGeometry) other);
+            }
+
+            if (other instanceof PolygonGeometry) {
+                PolygonGeometry polygon = (PolygonGeometry) other;
+
+                if (this.contains(polygon.rings.get(0).xs[0], polygon.rings.get(0).ys[0])
+                 || polygon.contains(rings.get(0).xs[0], rings.get(0).ys[0])) {
+                    return true;
+                }
+
+                for (LineStringGeometry ring : rings) {
+                    if (polygon.intersectsLine(ring)) {
+                        return true;
+                    }
+                }
+
+                for (LineStringGeometry otherRing : polygon.rings) {
+                    if (this.intersectsLine(otherRing)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            if (other instanceof MultiGeometry) {
+                return other.intersects(this);
+            }
+
+            return false;
+        }
+    }
+
+    private static final class MultiGeometry implements Geometry {
+        private final List<Geometry> components = new ArrayList<>();
+
+        MultiGeometry(List<?> coordinates, String componentType) {
+            for (Object component : coordinates) {
+                Geometry geometry = toGeometry(componentType, toListView(component));
+
+                if (geometry != null) {
+                    components.add(geometry);
+                }
+            }
+        }
+
+        @Override
+        public boolean intersects(Geometry other) {
+            for (Geometry component : components) {
+                if (component.intersects(other)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    private static Geometry toGeometry(String type, List<?> coordinates) {
+        if (type == null || coordinates == null) {
+            return null;
+        }
+
+        type = type.toLowerCase(Locale.ROOT);
+
+        switch (type) {
+        case "point":
+            return new PointGeometry(coordinates);
+
+        case "linestring":
+            return new LineStringGeometry(coordinates);
+
+        case "polygon":
+            return new PolygonGeometry(coordinates);
+
+        case "multipoint":
+            return new MultiGeometry(coordinates, "point");
+
+        case "multilinestring":
+            return new MultiGeometry(coordinates, "linestring");
+
+        case "multipolygon":
+            return new MultiGeometry(coordinates, "polygon");
+
+        default:
+            log.warn("Unsupported geo type '{}'", type);
+            return null;
+        }
+    }
+
+    private static double toDouble(List<?> point, int index) {
+        if (point == null || point.size() <= index) {
+            return Double.NaN;
+        }
+
+        Object value = point.get(index);
+
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException ignored) {
+                return Double.NaN;
+            }
+        }
+
+        return Double.NaN;
+    }
+
+    private static boolean pointOnSegment(double px, double py, double x1, double y1, double x2, double y2) {
+        double cross = (px - x1) * (y2 - y1) - (py - y1) * (x2 - x1);
+
+        if (Math.abs(cross) > 1e-9) {
+            return false;
+        }
+
+        double dot = (px - x1) * (px - x2) + (py - y1) * (py - y2);
+        return dot <= 0;
+    }
+
+    private static boolean segmentsIntersect(double x1, double y1, double x2, double y2,
+            double x3, double y3, double x4, double y4) {
+        double d1 = direction(x3, y3, x4, y4, x1, y1);
+        double d2 = direction(x3, y3, x4, y4, x2, y2);
+        double d3 = direction(x1, y1, x2, y2, x3, y3);
+        double d4 = direction(x1, y1, x2, y2, x4, y4);
+
+        if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0))
+         && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+            return true;
+        }
+
+        if (Math.abs(d1) < 1e-9 && pointOnSegment(x1, y1, x3, y3, x4, y4)) {
+            return true;
+        }
+
+        if (Math.abs(d2) < 1e-9 && pointOnSegment(x2, y2, x3, y3, x4, y4)) {
+            return true;
+        }
+
+        if (Math.abs(d3) < 1e-9 && pointOnSegment(x3, y3, x1, y1, x2, y2)) {
+            return true;
+        }
+
+        if (Math.abs(d4) < 1e-9 && pointOnSegment(x4, y4, x1, y1, x2, y2)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static double direction(double xi, double yi, double xj, double yj, double xk, double yk) {
+        return (xk - xi) * (yj - yi) - (xj - xi) * (yk - yi);
+    }
+
+    private static boolean pointInPolygon(double px, double py, LineStringGeometry ring) {
+        int intersections = 0;
+
+        for (int i = 0; i < ring.xs.length - 1; i++) {
+            double x1 = ring.xs[i];
+            double y1 = ring.ys[i];
+            double x2 = ring.xs[i + 1];
+            double y2 = ring.ys[i + 1];
+
+            if (pointOnSegment(px, py, x1, y1, x2, y2)) {
+                return true;
+            }
+
+            boolean intersect = ((y1 > py) != (y2 > py))
+                               && (px < (x2 - x1) * (py - y1) / (y2 - y1 + 1e-12) + x1);
+
+            if (intersect) {
+                intersections++;
+            }
+        }
+
+        return intersections % 2 == 1;
+    }
+    private static Map<String, Object> asGeometry(Object value) {
+        if (!(value instanceof Map)) {
+            return null;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) value;
+        if (!map.containsKey("type") || !map.containsKey("coordinates")) {
+            return null;
+        }
+
+        return map;
+    }
+
+    private static boolean geoIntersects(Object documentGeometry, Object queryGeometry) {
+        Map<String, Object> docGeo = asGeometry(documentGeometry);
+        Map<String, Object> queryGeo = asGeometry(queryGeometry instanceof Map && ((Map<?, ?>) queryGeometry).containsKey("$geometry")
+                                   ? ((Map<String, Object>) queryGeometry).get("$geometry")
+                                   : queryGeometry);
+
+        if (docGeo == null || queryGeo == null) {
+            return false;
+        }
+
+        String docType = (String) docGeo.get("type");
+        String queryType = (String) queryGeo.get("type");
+
+        if (docType == null || queryType == null) {
+            return false;
+        }
+
+        List<?> docCoords = toListView(docGeo.get("coordinates"));
+        List<?> queryCoords = toListView(queryGeo.get("coordinates"));
+
+        if (docCoords == null || queryCoords == null) {
+            return false;
+        }
+
+        Geometry docGeometryObj = toGeometry(docType, docCoords);
+        Geometry queryGeometryObj = toGeometry(queryType, queryCoords);
+
+        if (docGeometryObj == null || queryGeometryObj == null) {
+            return false;
+        }
+
+        return docGeometryObj.intersects(queryGeometryObj);
+    }
+
+    private static boolean geoIntersects(Object documentGeometry, Object queryGeometry) {
+        Map<String, Object> docGeo = asGeometry(documentGeometry);
+        Map<String, Object> queryGeo = asGeometry(queryGeometry instanceof Map && ((Map<?, ?>) queryGeometry).containsKey("$geometry")
+                                   ? ((Map<String, Object>) queryGeometry).get("$geometry")
+                                   : queryGeometry);
+
+        if (docGeo == null || queryGeo == null) {
+            return false;
+        }
+
+        String docType = (String) docGeo.get("type");
+        String queryType = (String) queryGeo.get("type");
+
+        if (docType == null || queryType == null) {
+            return false;
+        }
+
+        List<?> docCoords = toListView(docGeo.get("coordinates"));
+        List<?> queryCoords = toListView(queryGeo.get("coordinates"));
+
+        if (docCoords == null || queryCoords == null) {
+            return false;
+        }
+
+        Geometry docGeometryObj = toGeometry(docType, docCoords);
+        Geometry queryGeometryObj = toGeometry(queryType, queryCoords);
+
+        if (docGeometryObj == null || queryGeometryObj == null) {
+            return false;
+        }
+
+        return docGeometryObj.intersects(queryGeometryObj);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean validateJsonSchema(Map<String, Object> schema, Object value) {
+        if (schema == null) {
+            return true;
+        }
+
+        if (schema.containsKey("allOf")) {
+            for (Object entry : asList(schema.get("allOf"))) {
+                if (entry instanceof Map) {
+                    if (!validateJsonSchema((Map<String, Object>) entry, value)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        if (schema.containsKey("anyOf")) {
+            boolean matched = false;
+
+            for (Object entry : asList(schema.get("anyOf"))) {
+                if (entry instanceof Map && validateJsonSchema((Map<String, Object>) entry, value)) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) {
+                return false;
+            }
+        }
+
+        if (schema.containsKey("oneOf")) {
+            int matches = 0;
+
+            for (Object entry : asList(schema.get("oneOf"))) {
+                if (entry instanceof Map && validateJsonSchema((Map<String, Object>) entry, value)) {
+                    matches++;
+                }
+            }
+
+            if (matches != 1) {
+                return false;
+            }
+        }
+
+        if (schema.containsKey("not") && schema.get("not") instanceof Map) {
+            if (validateJsonSchema((Map<String, Object>) schema.get("not"), value)) {
+                return false;
+            }
+        }
+
+        if (schema.containsKey("if") && schema.get("if") instanceof Map) {
+            boolean condition = validateJsonSchema((Map<String, Object>) schema.get("if"), value);
+
+            if (condition) {
+                Object thenSchema = schema.get("then");
+
+                if (thenSchema instanceof Map && !validateJsonSchema((Map<String, Object>) thenSchema, value)) {
+                    return false;
+                }
+            } else {
+                Object elseSchema = schema.get("else");
+
+                if (elseSchema instanceof Map && !validateJsonSchema((Map<String, Object>) elseSchema, value)) {
+                    return false;
+                }
+            }
+        }
+
+        if (schema.containsKey("enum")) {
+            List<Object> allowedValues = asList(schema.get("enum"));
+
+            if (!allowedValues.isEmpty()) {
+                boolean anyMatch = false;
+
+                for (Object allowed : allowedValues) {
+                    if (compareValues(value, allowed, null)) {
+                        anyMatch = true;
+                        break;
+                    }
+                }
+
+                if (!anyMatch) {
+                    return false;
+                }
+            }
+        }
+
+        if (schema.containsKey("const")) {
+            if (!compareValues(value, schema.get("const"), null)) {
+                return false;
+            }
+        }
+
+        if (schema.containsKey("bsonType") || schema.containsKey("type")) {
+            Object typeSpec = schema.containsKey("bsonType") ? schema.get("bsonType") : schema.get("type");
+            List<Object> types = asList(typeSpec);
+            boolean typeMatch = false;
+
+            for (Object spec : types) {
+                if (matchesTypeSpecification(value, spec)) {
+                    typeMatch = true;
+                    break;
+                }
+            }
+
+            if (!typeMatch) {
+                return false;
+            }
+        }
+
+        if (value == null) {
+            return true;
+        }
+
+        BigDecimal numeric = toBigDecimal(value);
+
+        if (numeric != null) {
+            if (schema.containsKey("minimum")) {
+                BigDecimal minimum = toBigDecimal(schema.get("minimum"));
+
+                if (minimum != null && numeric.compareTo(minimum) < 0) {
+                    return false;
+                }
+            }
+
+            if (schema.containsKey("maximum")) {
+                BigDecimal maximum = toBigDecimal(schema.get("maximum"));
+
+                if (maximum != null && numeric.compareTo(maximum) > 0) {
+                    return false;
+                }
+            }
+
+            if (schema.containsKey("exclusiveMinimum")) {
+                Object exclusiveMinimum = schema.get("exclusiveMinimum");
+
+                if (exclusiveMinimum instanceof Boolean) {
+                    if ((Boolean) exclusiveMinimum && schema.containsKey("minimum")) {
+                        BigDecimal minimum = toBigDecimal(schema.get("minimum"));
+
+                        if (minimum != null && numeric.compareTo(minimum) <= 0) {
+                            return false;
+                        }
+                    }
+                } else {
+                    BigDecimal minimum = toBigDecimal(exclusiveMinimum);
+
+                    if (minimum != null && numeric.compareTo(minimum) <= 0) {
+                        return false;
+                    }
+                }
+            }
+
+            if (schema.containsKey("exclusiveMaximum")) {
+                Object exclusiveMaximum = schema.get("exclusiveMaximum");
+
+                if (exclusiveMaximum instanceof Boolean) {
+                    if ((Boolean) exclusiveMaximum && schema.containsKey("maximum")) {
+                        BigDecimal maximum = toBigDecimal(schema.get("maximum"));
+
+                        if (maximum != null && numeric.compareTo(maximum) >= 0) {
+                            return false;
+                        }
+                    }
+                } else {
+                    BigDecimal maximum = toBigDecimal(exclusiveMaximum);
+
+                    if (maximum != null && numeric.compareTo(maximum) >= 0) {
+                        return false;
+                    }
+                }
+            }
+
+            if (schema.containsKey("multipleOf")) {
+                BigDecimal multiple = toBigDecimal(schema.get("multipleOf"));
+
+                if (multiple != null && multiple.compareTo(BigDecimal.ZERO) != 0) {
+                    BigDecimal remainder = numeric.remainder(multiple);
+
+                    if (remainder == null || remainder.compareTo(BigDecimal.ZERO) != 0) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        if (value instanceof String) {
+            String str = (String) value;
+
+            if (schema.containsKey("minLength")) {
+                Number minLength = asNumber(schema.get("minLength"));
+
+                if (minLength != null && str.codePointCount(0, str.length()) < minLength.intValue()) {
+                    return false;
+                }
+            }
+
+            if (schema.containsKey("maxLength")) {
+                Number maxLength = asNumber(schema.get("maxLength"));
+
+                if (maxLength != null && str.codePointCount(0, str.length()) > maxLength.intValue()) {
+                    return false;
+                }
+            }
+
+            if (schema.containsKey("pattern") && schema.get("pattern") instanceof String patternText) {
+                try {
+                    Pattern compiled = Pattern.compile(patternText);
+
+                    if (!compiled.matcher(str).find()) {
+                        return false;
+                    }
+                } catch (PatternSyntaxException pse) {
+                    log.warn("Invalid regex in $jsonSchema pattern '{}': {}", patternText, pse.getMessage());
+                    return false;
+                }
+            }
+        }
+
+        List<?> listValue = toListView(value);
+
+        if (listValue != null) {
+            if (schema.containsKey("minItems")) {
+                Number minItems = asNumber(schema.get("minItems"));
+
+                if (minItems != null && listValue.size() < minItems.intValue()) {
+                    return false;
+                }
+            }
+
+            if (schema.containsKey("maxItems")) {
+                Number maxItems = asNumber(schema.get("maxItems"));
+
+                if (maxItems != null && listValue.size() > maxItems.intValue()) {
+                    return false;
+                }
+            }
+
+            if (Boolean.TRUE.equals(schema.get("uniqueItems"))) {
+                Set<Object> seen = new HashSet<>();
+
+                for (Object element : listValue) {
+                    Object normalized = normalizeId(element);
+
+                    if (normalized instanceof byte[]) {
+                        normalized = Arrays.hashCode((byte[]) normalized);
+                    }
+
+                    if (!seen.add(normalized)) {
+                        return false;
+                    }
+                }
+            }
+
+            if (schema.containsKey("items")) {
+                Object items = schema.get("items");
+
+                if (items instanceof Map) {
+                    for (Object element : listValue) {
+                        if (!validateJsonSchema((Map<String, Object>) items, element)) {
+                            return false;
+                        }
+                    }
+                } else if (items instanceof List<?>) {
+                    List<?> tupleSchemas = (List<?>) items;
+                    int index = 0;
+
+                    for (; index < tupleSchemas.size() && index < listValue.size(); index++) {
+                        Object tupleSchema = tupleSchemas.get(index);
+
+                        if (tupleSchema instanceof Map && !validateJsonSchema((Map<String, Object>) tupleSchema, listValue.get(index))) {
+                            return false;
+                        }
+                    }
+
+                    if (listValue.size() > tupleSchemas.size()) {
+                        Object additionalItems = schema.get("additionalItems");
+
+                        if (additionalItems instanceof Boolean) {
+                            if (!(Boolean) additionalItems) {
+                                return false;
+                            }
+                        } else if (additionalItems instanceof Map) {
+                            for (int i = tupleSchemas.size(); i < listValue.size(); i++) {
+                                if (!validateJsonSchema((Map<String, Object>) additionalItems, listValue.get(i))) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (schema.containsKey("contains") && schema.get("contains") instanceof Map) {
+                boolean containsMatch = false;
+
+                for (Object element : listValue) {
+                    if (validateJsonSchema((Map<String, Object>) schema.get("contains"), element)) {
+                        containsMatch = true;
+                        break;
+                    }
+                }
+
+                if (!containsMatch) {
+                    return false;
+                }
+            }
+        }
+
+        if (value instanceof Map) {
+            Map<String, Object> mapValue = (Map<String, Object>) value;
+
+            if (schema.containsKey("minProperties")) {
+                Number minProperties = asNumber(schema.get("minProperties"));
+
+                if (minProperties != null && mapValue.size() < minProperties.intValue()) {
+                    return false;
+                }
+            }
+
+            if (schema.containsKey("maxProperties")) {
+                Number maxProperties = asNumber(schema.get("maxProperties"));
+
+                if (maxProperties != null && mapValue.size() > maxProperties.intValue()) {
+                    return false;
+                }
+            }
+
+            if (schema.containsKey("required")) {
+                for (Object requiredField : asList(schema.get("required"))) {
+                    if (requiredField instanceof String fieldName) {
+                        if (!mapValue.containsKey(fieldName)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            Map<String, Object> properties = schema.get("properties") instanceof Map
+                                            ? (Map<String, Object>) schema.get("properties")
+                                            : Collections.emptyMap();
+            Set<String> allowedKeys = new HashSet<>(properties.keySet());
+            allowedKeys.add("_id");
+
+            for (Map.Entry<String, Object> entry : properties.entrySet()) {
+                if (!(entry.getValue() instanceof Map)) {
+                    continue;
+                }
+
+                if (mapValue.containsKey(entry.getKey())) {
+                    if (!validateJsonSchema((Map<String, Object>) entry.getValue(), mapValue.get(entry.getKey()))) {
+                        return false;
+                    }
+                }
+            }
+
+            Map<String, Object> patternProperties = schema.get("patternProperties") instanceof Map
+                                                     ? (Map<String, Object>) schema.get("patternProperties")
+                                                     : Collections.emptyMap();
+
+            if (!patternProperties.isEmpty()) {
+                for (Map.Entry<String, Object> patternEntry : patternProperties.entrySet()) {
+                    try {
+                        Pattern compiled = Pattern.compile(patternEntry.getKey());
+
+                        for (Map.Entry<String, Object> docEntry : mapValue.entrySet()) {
+                            if (compiled.matcher(docEntry.getKey()).find()) {
+                                allowedKeys.add(docEntry.getKey());
+
+                                if (patternEntry.getValue() instanceof Map && !validateJsonSchema((Map<String, Object>) patternEntry.getValue(), docEntry.getValue())) {
+                                    return false;
+                                }
+                            }
+                        }
+                    } catch (PatternSyntaxException pse) {
+                        log.warn("Invalid regex in patternProperties '{}': {}", patternEntry.getKey(), pse.getMessage());
+                        return false;
+                    }
+                }
+            }
+
+            if (schema.containsKey("additionalProperties")) {
+                Object additional = schema.get("additionalProperties");
+
+                if (additional instanceof Boolean) {
+                    if (!(Boolean) additional) {
+                        for (String key : mapValue.keySet()) {
+                            if (!allowedKeys.contains(key)) {
+                                return false;
+                            }
+                        }
+                    }
+                } else if (additional instanceof Map) {
+                    for (Map.Entry<String, Object> entry : mapValue.entrySet()) {
+                        if (!allowedKeys.contains(entry.getKey())) {
+                            if (!validateJsonSchema((Map<String, Object>) additional, entry.getValue())) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean matchesTypeSpecification(Object value, Object specification) {
+        if (specification == null) {
+            return true;
+        }
+
+        if (specification instanceof Map) {
+            return validateJsonSchema((Map<String, Object>) specification, value);
+        }
+
+        if (specification instanceof Number) {
+            MongoType mongoType = MongoType.findByValue(((Number) specification).intValue());
+            return mongoType != null && matchesType(value, mongoType);
+        }
+
+        if (specification instanceof String typeName) {
+            String normalized = typeName.toLowerCase(Locale.ROOT);
+            MongoType mongoType = MongoType.findByTxt(normalized);
+
+            if (mongoType != null) {
+                return matchesType(value, mongoType);
+            }
+
+            switch (normalized) {
+            case "number":
+                return value instanceof Number || value instanceof BigDecimal;
+
+            case "integer":
+                return isIntegralNumber(value);
+
+            case "object":
+                return value instanceof Map;
+
+            case "array":
+                return value instanceof List || (value != null && value.getClass().isArray());
+
+            case "boolean":
+                return value instanceof Boolean;
+
+            case "string":
+                return value instanceof String;
+
+            case "null":
+                return value == null;
+
+            case "date":
+                return value instanceof Date;
+
+            case "timestamp":
+                return value instanceof Date || matchesType(value, MongoType.TIMESTAMP);
+
+            case "decimal128":
+            case "decimal":
+                return matchesType(value, MongoType.DECIMAL);
+
+            case "objectid":
+                return value instanceof MorphiumId || value instanceof ObjectId;
+
+            default:
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private static List<Object> asList(Object value) {
+        if (value == null) {
+            return Collections.emptyList();
+        }
+
+        if (value instanceof List) {
+            return (List<Object>) value;
+        }
+
+        if (value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            List<Object> result = new ArrayList<>(length);
+
+            for (int i = 0; i < length; i++) {
+                result.add(Array.get(value, i));
+            }
+
+            return result;
+        }
+
+        return Collections.singletonList(value);
+    }
+
+    private static List<?> toListView(Object value) {
+        if (value instanceof List) {
+            return (List<?>) value;
+        }
+
+        if (value != null && value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            List<Object> result = new ArrayList<>(length);
+
+            for (int i = 0; i < length; i++) {
+                result.add(Array.get(value, i));
+            }
+
+            return result;
+        }
+
+        return null;
+    }
+
+    private static Number asNumber(Object value) {
+        if (value instanceof Number) {
+            return (Number) value;
+        }
+
+        if (value instanceof String) {
+            try {
+                return new BigDecimal((String) value);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static BigDecimal toBigDecimal(Object value) {
+        if (value instanceof BigDecimal) {
+            return (BigDecimal) value;
+        }
+
+        if (value instanceof BigInteger) {
+            return new BigDecimal((BigInteger) value);
+        }
+
+        if (value instanceof Number) {
+            if (value instanceof Double || value instanceof Float) {
+                return BigDecimal.valueOf(((Number) value).doubleValue());
+            }
+
+            return BigDecimal.valueOf(((Number) value).longValue());
+        }
+
+        if (value instanceof String) {
+            try {
+                return new BigDecimal((String) value);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isIntegralNumber(Object value) {
+        if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long || value instanceof BigInteger) {
+            return true;
+        }
+
+        if (value instanceof BigDecimal) {
+            BigDecimal bd = ((BigDecimal) value).stripTrailingZeros();
+            return bd.scale() <= 0;
+        }
+
+        if (value instanceof Float || value instanceof Double) {
+            double dbl = ((Number) value).doubleValue();
+            return Math.rint(dbl) == dbl;
+        }
+
+        return false;
     }
 
     private static LookupResult resolveValuesForPath(Object current, String[] path, int position) {
