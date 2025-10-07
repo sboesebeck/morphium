@@ -3247,6 +3247,51 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                             break;
 
+                        case "$pop":
+
+                            // $pop: { <field1>: <-1 | 1>, <field2>: <-1 | 1>, ... }
+                            // -1 removes first element, 1 removes last element
+                            // Examples:
+                            // $pop: { scores: 1 }  // removes last element
+                            // $pop: { scores: -1 } // removes first element
+                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                String field = entry.getKey();
+                                Object existing;
+
+                                if (field.contains(".")) {
+                                    existing = getByPath(obj, field);
+                                } else {
+                                    existing = obj.get(field);
+                                }
+
+                                if (existing instanceof List) {
+                                    List originalList = (List) existing;
+                                    if (!originalList.isEmpty()) {
+                                        // Create a mutable copy in case the list is immutable
+                                        List v = new ArrayList(originalList);
+                                        int position = ((Number) entry.getValue()).intValue();
+                                        if (position < 0) {
+                                            // Remove first element
+                                            v.remove(0);
+                                        } else {
+                                            // Remove last element
+                                            v.remove(v.size() - 1);
+                                        }
+                                        // Update the document with the modified list
+                                        if (field.contains(".")) {
+                                            setByPath(obj, field, v);
+                                        } else {
+                                            obj.put(field, v);
+                                        }
+                                        modified.add(obj.get("_id"));
+                                    }
+                                } else if (existing != null) {
+                                    throw new MorphiumDriverException("Cannot apply $pop to non-array field '" + field + "'");
+                                }
+                            }
+
+                            break;
+
                         case "$addToSet":
                         case "$push":
                         case "$pushAll":
