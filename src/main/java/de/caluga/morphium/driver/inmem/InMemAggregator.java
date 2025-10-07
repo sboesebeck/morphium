@@ -1198,8 +1198,69 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                                     break;
 
-                                case "$accumulator":
                                 case "$mergeObjects":
+                                    // $mergeObjects: Merges multiple documents into a single document
+                                    // Can be used to merge objects from an array or multiple field references
+                                    Object mergeValue = ((Map<?, ?>) opValue).get(op);
+                                    Map<String, Object> mergedDoc = new HashMap<>();
+
+                                    if (mergeValue instanceof String) {
+                                        // Field reference: $mergeObjects: "$fieldName"
+                                        String fieldName = mergeValue.toString();
+                                        if (fieldName.startsWith("$")) {
+                                            fieldName = fieldName.substring(1);
+                                        }
+                                        Object fieldValue = o.get(fieldName);
+
+                                        if (fieldValue instanceof Map) {
+                                            mergedDoc.putAll((Map<String, Object>) fieldValue);
+                                        } else if (fieldValue instanceof List) {
+                                            // Merge all objects in the array
+                                            for (Object item : (List<?>) fieldValue) {
+                                                if (item instanceof Map) {
+                                                    mergedDoc.putAll((Map<String, Object>) item);
+                                                }
+                                            }
+                                        }
+                                    } else if (mergeValue instanceof Map) {
+                                        // Direct object or expression
+                                        for (Map.Entry<String, Object> entry : ((Map<String, Object>) mergeValue).entrySet()) {
+                                            Object val = entry.getValue();
+                                            if (val instanceof Expr) {
+                                                mergedDoc.put(entry.getKey(), ((Expr) val).evaluate(o));
+                                            } else if (val instanceof String && val.toString().startsWith("$")) {
+                                                mergedDoc.put(entry.getKey(), o.get(val.toString().substring(1)));
+                                            } else {
+                                                mergedDoc.put(entry.getKey(), val);
+                                            }
+                                        }
+                                    } else if (mergeValue instanceof List) {
+                                        // Array of objects to merge: $mergeObjects: [ "$obj1", "$obj2", ... ]
+                                        for (Object item : (List<?>) mergeValue) {
+                                            if (item instanceof String && item.toString().startsWith("$")) {
+                                                Object fieldValue = o.get(item.toString().substring(1));
+                                                if (fieldValue instanceof Map) {
+                                                    mergedDoc.putAll((Map<String, Object>) fieldValue);
+                                                }
+                                            } else if (item instanceof Map) {
+                                                mergedDoc.putAll((Map<String, Object>) item);
+                                            }
+                                        }
+                                    }
+
+                                    // Merge into existing result for this group
+                                    if (!res.get(id).containsKey(fld)) {
+                                        res.get(id).put(fld, new HashMap<String, Object>());
+                                    }
+
+                                    if (res.get(id).get(fld) instanceof Map) {
+                                        ((Map<String, Object>) res.get(id).get(fld)).putAll(mergedDoc);
+                                    } else {
+                                        res.get(id).put(fld, mergedDoc);
+                                    }
+                                    break;
+
+                                case "$accumulator":
                                 case "$stdDevPop":
                                 case "$stdDevSamp":
                                     throw new RuntimeException(op + " not implemented yet,sorry");
