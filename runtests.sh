@@ -1045,28 +1045,11 @@ function cleanup_parallel_execution() {
   echo -e "\n${YL}Test Results Summary:${CL}"
   echo "=========================================================================================================="
 
-  for ((slot = 1; slot <= parallel; slot++)); do
-    if [ -e "test.log/slot_$slot/failed_tests" ]; then
-      while IFS= read -r failed_test; do
-        if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
-          test_name="${BASH_REMATCH[1]}"
+  for i in test.log/slot_*/*.log; do
+    d=${i%%*.log}
+    d=${d%%_slot*}
 
-          # Check if this test is already in our unique list
-          local already_listed=false
-          for existing_test in "${unique_failed_tests[@]}"; do
-            if [[ "$existing_test" == "$test_name" ]]; then
-              already_listed=true
-              break
-            fi
-          done
-
-          if [ "$already_listed" == "false" ]; then
-            unique_failed_tests+=("$test_name")
-            failed_tests_with_slots+=("$test_name (slot $slot)")
-          fi
-        fi
-      done <"test.log/slot_$slot/failed_tests"
-    fi
+    mv "$i" test.log/$d.log
   done
 
   local total_failed=${#unique_failed_tests[@]}
@@ -1091,26 +1074,9 @@ function cleanup_parallel_execution() {
   # Copy completed logs to main directory for getStats.sh compatibility
   echo -e "${BL}Preserving completed test logs...${CL}"
 
-  # Find all log files in slots and copy them to temp, keeping only the best version of each test
-  for ((slot = 1; slot <= parallel; slot)); do
-    if [ -d "test.log/slot_$slot" ]; then
-      for log_file in test.log/slot_$slot/*.log; do
-        test_class=$(basename "$log_file" .log)
-        dest_file="test.log/${test_class}.log"
-
-        mv $test_class $dest_file
-
-      done
-    fi
-  done
-
   # Remove slot directories after copying logs
   echo -e "${BL}Cleaning up slot directories...${CL}"
-  for ((slot = 1; slot <= parallel; slot++)); do
-    if [ -d "test.log/slot_$slot" ]; then
-      rm -rf "test.log/slot_$slot"
-    fi
-  done
+  rm -rf test.log/slot_*
 
   # Cleanup temporary files
   rm -f test_chunk_*.txt
