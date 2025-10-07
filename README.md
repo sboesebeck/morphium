@@ -62,8 +62,12 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 ### In-Memory Driver Enhancements
 - **No MongoDB required** for unit tests or CI pipelines
 - **Significantly faster test cycles** in pure in-memory mode
-- **Broad operator coverage** with clearly documented exceptions
+- **~93% MongoDB feature coverage** including advanced operations
+- **Full aggregation pipeline** with `$lookup`, `$graphLookup`, `$bucket`, `$mergeObjects`
+- **MapReduce support** with JavaScript engine integration
+- **Array operators** including `$pop`, `$push`, `$pull`, `$addToSet`
 - **Change streams & transactions** available for integration testing
+- **Drop-in replacement** for most development and testing scenarios
 
 ### Documentation Overhaul
 - Complete rewrite of the guide set
