@@ -42,3 +42,6 @@ site
 node_modules
 package-lock.json
 package.json
+
+# MkDocs build output
+site/
