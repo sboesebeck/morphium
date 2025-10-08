@@ -5,6 +5,7 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 ## Getting Started
 - Start here: [Overview](./overview.md) of features and a short quick start.
 - Setup: [Developer Guide](./developer-guide.md) for mapping, queries, aggregation, caching, configuration, and extension points.
+- **[InMemory Driver & MorphiumServer](./howtos/inmemory-driver.md)** - Run without MongoDB! Perfect for testing, development, and embedded applications.
 - Messaging: dedicated [Messaging](./messaging.md) guide (exclusive vs broadcast, listeners, concurrency, change streams).
 - How‑Tos: focused recipes for common tasks and migrations — browse [How‑Tos](./howtos/basic-setup.md) to get started.
 
