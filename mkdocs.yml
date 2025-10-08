@@ -1,19 +1,96 @@
-site_name: Morphium
-site_description: Morphium v6 – Java ODM and MongoDB‑backed messaging
+site_name: Morphium Documentation
+site_description: MongoDB Object Document Mapper (ODM) and Messaging System for Java
+site_author: Morphium Development Team
+site_url: https://sboesebeck.github.io/morphium/
+
+repo_name: morphium
 repo_url: https://github.com/sboesebeck/morphium
+edit_uri: edit/master/docs/
+
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+
 theme:
-  name: mkdocs
-  nav:
-  - Overview: index.md
-  - Getting Started: overview.md
-  - Developer Guide: developer-guide.md
-  - Messaging: messaging.md
-  - Messaging Implementations: howtos/messaging-implementations.md
-  - How‑To:
-      - Basic Setup: howtos/basic-setup.md
-      - InMemory Driver: howtos/inmemory-driver.md
-      - Migration v5→v6: howtos/migration-v5-to-v6.md
-      - Aggregation Examples: howtos/aggregation-examples.md
-      - Caching Examples: howtos/caching-examples.md
-      - Cache Patterns: howtos/cache-patterns.md
-      - Field Names: howtos/field-names.md
+  name: material
+  palette:
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+
+plugins:
+  - search
+  - tags
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+      title: On this page
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Overview: overview.md
+    - Architecture: architecture-overview.md
+    - Basic Setup: howtos/basic-setup.md
+  - How-To Guides:
+    - Migration v5→v6: howtos/migration-v5-to-v6.md
+    - InMemory Driver: howtos/inmemory-driver.md
+    - Aggregation Examples: howtos/aggregation-examples.md
+    - Caching Examples: howtos/caching-examples.md
+    - Cache Patterns: howtos/cache-patterns.md
+    - Field Name Mapping: howtos/field-names.md
+  - Core Features:
+    - Messaging System: messaging.md
+    - Messaging Implementations: howtos/messaging-implementations.md
+    - Developer Guide: developer-guide.md
+  - Reference:
+    - API Reference: api-reference.md
+    - Configuration: configuration-reference.md
+  - Operations:
+    - Performance & Scalability: performance-scalability-guide.md
+    - Production Deployment: production-deployment-guide.md
+    - Monitoring & Metrics: monitoring-metrics-guide.md
+    - Security Guide: security-guide.md
+    - Troubleshooting: troubleshooting-guide.md
+  - Contributing: contributing.md
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sboesebeck/morphium
