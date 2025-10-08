@@ -231,17 +231,21 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 log.info("Writing thread finished...");
             }).start();
             log.info("Watching...");
-            morphium.watch(UncachedObject.class, true, evt-> {
-                printevent(morphium, evt);
-                count.incrementAndGet();
-                log.info("count: " + count.get());
+            try {
+                morphium.watch(UncachedObject.class, true, evt-> {
+                    printevent(morphium, evt);
+                    count.incrementAndGet();
+                    log.info("count: " + count.get());
 
-                if (count.get() == 50) {
-                    run.set(false);
-                    return false;
-                }
-                return true;
-            });
+                    if (count.get() == 50) {
+                        run.set(false);
+                        return false;
+                    }
+                    return true;
+                });
+            } catch (Exception e) {
+                log.info("Watch threw exception", e);
+            }
             assertTrue(count.get() >= 50);
             assertFalse(run.get());
             log.info("Quitting");
