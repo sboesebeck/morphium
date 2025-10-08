@@ -120,7 +120,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 });
                 Thread.sleep(500);
                 TestUtils.waitForConditionToBecomeTrue(5000, morphium.getDriver().getName() + ": no writes?", ()->written.get() > 0);
-                TestUtils.waitForConditionToBecomeTrue(5000, morphium.getDriver().getName() + ": no incoming events?", ()->count.get() > 1);
+                TestUtils.waitForConditionToBecomeTrue(15000, morphium.getDriver().getName() + ": no incoming events?", ()->count.get() > 1);
                 Thread.sleep(1000);
                 log.info(morphium.getDriver().getName() + ": Stopping thread");
                 run.set(false);

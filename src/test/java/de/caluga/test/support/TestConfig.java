@@ -28,7 +28,7 @@ public final class TestConfig {
         // Defaults suitable for tests
         cfg.connectionSettings()
            .setDatabase(valueOr(props, "morphium.database", "morphium_test"))
-           .setMaxWaitTime(intProp(props, "morphium.maxWaitTime", 2000))
+           .setMaxWaitTime(intProp(props, "morphium.maxWaitTime", 10000))
            .setMaxConnections(intProp(props, "morphium.maxConnections", 100))
            .setConnectionTimeout(intProp(props, "morphium.connectionTimeout", 2000))
            .setMinConnections(intProp(props, "morphium.minConnections", 1));
@@ -41,7 +41,8 @@ public final class TestConfig {
         cfg.driverSettings()
            .setRetryReads(booleanProp(props, "morphium.retryReads", false))
            .setRetryWrites(booleanProp(props, "morphium.retryWrites", false))
-           .setReadTimeout(intProp(props, "morphium.readTimeout", 1000))
+           // change streams on external clusters need more than the previous 1s default
+           .setReadTimeout(intProp(props, "morphium.readTimeout", 10000))
            .setDriverName(mapDriverName(valueOr(props, "morphium.driver", "pooled")))
            .setMaxConnectionLifeTime(intProp(props, "morphium.maxConnectionLifeTime", 60000))
            .setMaxConnectionIdleTime(intProp(props, "morphium.maxConnectionIdleTime", 30000))
