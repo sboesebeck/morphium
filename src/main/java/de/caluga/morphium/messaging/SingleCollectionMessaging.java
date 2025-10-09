@@ -118,6 +118,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * @param m               - morphium
      * @param pause           - pause between checks
      * @param processMultiple - deprecated, set windowSize to 1 if needed
+     * @Deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple) {
@@ -127,18 +128,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             setWindowSize(1);
     }
 
+    /**
+     * @Deprecated - use morphium.createMessaging() instead
+     */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause) {
         this(m, null, pause, true, 10);
     }
 
+    /**
+     * @Deprecated - use morphium.createMessaging() instead
+     */
     @Deprecated
     public SingleCollectionMessaging(Morphium m) {
         this(m, null, 500, false, 100);
     }
 
     /**
-     * @Deprecated - processMultiple is unused
+     * @Deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded,
@@ -155,7 +162,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - processMultiple is unused
+     * @Deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple) {
@@ -172,7 +179,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - processMultiple is unused
+     * @Deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple,
