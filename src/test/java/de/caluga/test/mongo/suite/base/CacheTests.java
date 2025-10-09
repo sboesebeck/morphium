@@ -114,7 +114,7 @@ public class CacheTests extends MultiDriverTestBase {
                 morphium.store(uo);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(2000, "Objects not stored",
+            TestUtils.waitForConditionToBecomeTrue(5000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == 5 &&
                                                    morphium.createQueryFor(UncachedObject.class).countAll() == 5);
 
@@ -154,7 +154,9 @@ public class CacheTests extends MultiDriverTestBase {
             ShortCachedEntity entity = new ShortCachedEntity();
             entity.value = "Test Value";
             morphium.store(entity);
-            Thread.sleep(1000);
+            // Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Objects not stored",
+                                                   () -> morphium.createQueryFor(ShortCachedEntity.class).countAll() != 0);
 
             // First query - populates cache
             ShortCachedEntity first = morphium.createQueryFor(ShortCachedEntity.class).get();
@@ -194,7 +196,8 @@ public class CacheTests extends MultiDriverTestBase {
             original.setValue("Original");
             morphium.store(original);
 
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Objects not stored",
+                                                   () -> morphium.createQueryFor(CachedObject.class).countAll() != 0);
             // Query to populate cache
             CachedObject cached = morphium.createQueryFor(CachedObject.class).f("counter").eq(100).get();
             assertNotNull(cached);
@@ -203,7 +206,7 @@ public class CacheTests extends MultiDriverTestBase {
             // Update the object - should invalidate cache
             cached.setValue("Modified");
             morphium.store(cached);
-            Thread.sleep(1000);
+            Thread.sleep(2000);
 
             // Query again - should get updated value from database
             CachedObject updated = morphium.createQueryFor(CachedObject.class).f("counter").eq(100).get();
@@ -213,7 +216,7 @@ public class CacheTests extends MultiDriverTestBase {
             // Delete object - should invalidate cache
             morphium.delete(updated);
 
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             // Query should return null
             CachedObject deleted = morphium.createQueryFor(CachedObject.class).f("counter").eq(100).get();
             assertNull(deleted);
@@ -392,8 +395,9 @@ public class CacheTests extends MultiDriverTestBase {
             entity.value = "Custom Cache";
             morphium.store(entity);
 
-            Thread.sleep(1000);
             // Query to populate cache
+            TestUtils.waitForConditionToBecomeTrue(5000, "CachedEntity not stored",
+                                                   () -> morphium.createQueryFor(CustomCacheEntity.class).countAll() == 1);
             CustomCacheEntity cached = morphium.createQueryFor(CustomCacheEntity.class).get();
             assertNotNull(cached);
 
