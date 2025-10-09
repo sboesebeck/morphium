@@ -18,12 +18,19 @@ public class RegexTests extends MorphiumTestBase {
     @Test
     public void simpleRegexTests() throws Exception {
         createTestData();
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        long tm = TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->q.countAll() == 100);
-        log.info("Written after " + tm + "ms");
-        assertEquals (50L, q.f(UncachedObject.Fields.strValue).matches("VALUE.*").countAll());
-        List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches("9$").asList();
-        assert (lst.size() > 1);
+        Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
+        waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", () -> waitQuery.countAll() == 100);
+
+        Query<UncachedObject> uppercaseQuery = morphium.createQueryFor(UncachedObject.class);
+        uppercaseQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> uppercaseMatches = uppercaseQuery.f(UncachedObject.Fields.strValue).matches("VALUE.*").asList();
+        assertEquals(50, uppercaseMatches.size());
+
+        Query<UncachedObject> endingNineQuery = morphium.createQueryFor(UncachedObject.class);
+        endingNineQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> lst = endingNineQuery.f(UncachedObject.Fields.strValue).matches("9$").asList();
+        assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
             assertTrue (o.getStrValue().endsWith("9"));
         }
@@ -33,11 +40,18 @@ public class RegexTests extends MorphiumTestBase {
     @Test
     public void patternRegexTest() throws Exception {
         createTestData();
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        long tm = TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->q.countAll() == 100);
-        log.info("Written after " + tm + "ms");
-        assertTrue(q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("VALUE.*")).countAll() == 50);
-        List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches(Pattern.compile("9$")).asList();
+        Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
+        waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->waitQuery.countAll() == 100);
+
+        Query<UncachedObject> uppercaseQuery = morphium.createQueryFor(UncachedObject.class);
+        uppercaseQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> uppercaseMatches = uppercaseQuery.f(UncachedObject.Fields.strValue).matches(Pattern.compile("VALUE.*")).asList();
+        assertEquals(50, uppercaseMatches.size());
+
+        Query<UncachedObject> endingNineQuery = morphium.createQueryFor(UncachedObject.class);
+        endingNineQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> lst = endingNineQuery.f(UncachedObject.Fields.strValue).matches(Pattern.compile("9$")).asList();
         assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
             assertTrue(o.getStrValue().endsWith("9"));
@@ -48,11 +62,17 @@ public class RegexTests extends MorphiumTestBase {
     @Test
     public void regexOptionTest() throws Exception {
         createTestData();
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        long tm = TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->q.countAll() == 100);
-        log.info("Written after " + tm + "ms");
-        assertEquals (1, q.f(UncachedObject.Fields.strValue).matches("value 9$", "i").countAll());
-        List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches("value .*9$", "i").asList();
+        Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
+        waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->waitQuery.countAll() == 100);
+
+        Query<UncachedObject> exactMatchQuery = morphium.createQueryFor(UncachedObject.class);
+        exactMatchQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> exactMatch = exactMatchQuery.f(UncachedObject.Fields.strValue).matches("value 9$", "i").asList();
+        assertEquals(1, exactMatch.size());
+        Query<UncachedObject> regexQuery = morphium.createQueryFor(UncachedObject.class);
+        regexQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> lst = regexQuery.f(UncachedObject.Fields.strValue).matches("value .*9$", "i").asList();
         assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
             assertTrue(o.getStrValue().endsWith("9"));
@@ -63,11 +83,19 @@ public class RegexTests extends MorphiumTestBase {
     @Test
     public void patternOptionTest() throws Exception {
         createTestData();
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        long tm = TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->q.countAll() == 100);
-        log.info("Written after " + tm + "ms");
-        assertEquals (1, q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("value 9$", Pattern.CASE_INSENSITIVE)).countAll());
-        List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches(Pattern.compile("value .*9$", Pattern.CASE_INSENSITIVE)).asList();
+        Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
+        waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->waitQuery.countAll() == 100);
+
+        Query<UncachedObject> exactMatchQuery = morphium.createQueryFor(UncachedObject.class);
+        exactMatchQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> exactMatch = exactMatchQuery.f(UncachedObject.Fields.strValue)
+                                                        .matches(Pattern.compile("value 9$", Pattern.CASE_INSENSITIVE))
+                                                        .asList();
+        assertEquals(1, exactMatch.size());
+        Query<UncachedObject> regexQuery = morphium.createQueryFor(UncachedObject.class);
+        regexQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
+        List<UncachedObject> lst = regexQuery.f(UncachedObject.Fields.strValue).matches(Pattern.compile("value .*9$", Pattern.CASE_INSENSITIVE)).asList();
         assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
             assertTrue(o.getStrValue().endsWith("9"));
