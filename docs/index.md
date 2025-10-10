@@ -5,9 +5,13 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 ## Getting Started
 - Start here: [Overview](./overview.md) of features and a short quick start.
 - Setup: [Developer Guide](./developer-guide.md) for mapping, queries, aggregation, caching, configuration, and extension points.
-- **[InMemory Driver & MorphiumServer](./howtos/inmemory-driver.md)** - Run without MongoDB! Perfect for testing, development, and embedded applications.
 - Messaging: dedicated [Messaging](./messaging.md) guide (exclusive vs broadcast, listeners, concurrency, change streams).
 - How‑Tos: focused recipes for common tasks and migrations — browse [How‑Tos](./howtos/basic-setup.md) to get started.
+
+## Run Without MongoDB!
+Morphium includes a complete in-memory MongoDB-compatible implementation:
+- **[InMemory Driver](./inmemory-driver.md)** - Embedded driver for unit testing and development (no MongoDB required!)
+- **[MorphiumServer](./morphium-server.md)** - Standalone MongoDB-compatible server (perfect for testing, CI/CD, embedded apps)
 
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
@@ -40,7 +44,7 @@ Learn more
 - Object mapping and configuration: see the [Developer Guide](./developer-guide.md)
 - Caching: see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md)
 - Messaging: see [Messaging](./messaging.md)
-- Driver: see [In‑Memory Driver](./howtos/inmemory-driver.md) and [Migration v5 → v6](./howtos/migration-v5-to-v6.md)
+- InMemory Driver: see [InMemory Driver](./inmemory-driver.md), [MorphiumServer](./morphium-server.md), and [Migration v5 → v6](./howtos/migration-v5-to-v6.md)
 
 ### Our own driver (since 5.0)
 
