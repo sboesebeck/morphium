@@ -474,6 +474,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#run-without-mongodb" class="md-nav__link">
+    <span class="md-ellipsis">
+      Run Without MongoDB!
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#production-deployment" class="md-nav__link">
     <span class="md-ellipsis">
       Production Deployment
@@ -1289,6 +1298,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#run-without-mongodb" class="md-nav__link">
+    <span class="md-ellipsis">
+      Run Without MongoDB!
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#production-deployment" class="md-nav__link">
     <span class="md-ellipsis">
       Production Deployment
@@ -1364,10 +1382,13 @@
 <ul>
 <li>Start here: <a href="overview/">Overview</a> of features and a short quick start.</li>
 <li>Setup: <a href="developer-guide/">Developer Guide</a> for mapping, queries, aggregation, caching, configuration, and extension points.</li>
-<li><strong><a href="howtos/inmemory-driver/">InMemory Driver &amp; MorphiumServer</a></strong> - Run without MongoDB! Perfect for testing, development, and embedded applications.</li>
 <li>Messaging: dedicated <a href="messaging/">Messaging</a> guide (exclusive vs broadcast, listeners, concurrency, change streams).</li>
 <li>How‑Tos: focused recipes for common tasks and migrations — browse <a href="howtos/basic-setup/">How‑Tos</a> to get started.</li>
 </ul>
+<h2 id="run-without-mongodb">Run Without MongoDB!<a class="headerlink" href="#run-without-mongodb" title="Permanent link">&para;</a></h2>
+<p>Morphium includes a complete in-memory MongoDB-compatible implementation:
+- <strong><a href="inmemory-driver/">InMemory Driver</a></strong> - Embedded driver for unit testing and development (no MongoDB required!)
+- <strong><a href="morphium-server/">MorphiumServer</a></strong> - Standalone MongoDB-compatible server (perfect for testing, CI/CD, embedded apps)</p>
 <h2 id="production-deployment">Production Deployment<a class="headerlink" href="#production-deployment" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="production-deployment-guide/">Production Deployment Guide</a></strong> - Complete guide for deploying Morphium in production environments</li>
@@ -1397,7 +1418,7 @@
 - Object mapping and configuration: see the <a href="developer-guide/">Developer Guide</a>
 - Caching: see <a href="howtos/caching-examples/">Caching Examples</a> and <a href="howtos/cache-patterns/">Cache Patterns</a>
 - Messaging: see <a href="messaging/">Messaging</a>
-- Driver: see <a href="howtos/inmemory-driver/">In‑Memory Driver</a> and <a href="howtos/migration-v5-to-v6/">Migration v5 → v6</a></p>
+- InMemory Driver: see <a href="inmemory-driver/">InMemory Driver</a>, <a href="morphium-server/">MorphiumServer</a>, and <a href="howtos/migration-v5-to-v6/">Migration v5 → v6</a></p>
 <h3 id="our-own-driver-since-50">Our own driver (since 5.0)<a class="headerlink" href="#our-own-driver-since-50" title="Permanent link">&para;</a></h3>
 <p>With Morphium 5.0 we implemented our own MongoDB driver. The official driver includes object mapping, which interfered with Morphium’s mapping system, and we also experienced some failover issues. Building our own wire‑protocol driver gave us full control over mapping, retry/failover behavior, and performance characteristics.</p>
 <p>Benefits
