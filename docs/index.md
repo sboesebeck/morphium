@@ -8,10 +8,13 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 - Messaging: dedicated [Messaging](./messaging.md) guide (exclusive vs broadcast, listeners, concurrency, change streams).
 - How‑Tos: focused recipes for common tasks and migrations — browse [How‑Tos](./howtos/basic-setup.md) to get started.
 
-## Run Without MongoDB!
-Morphium includes a complete in-memory MongoDB-compatible implementation:
-- **[InMemory Driver](./inmemory-driver.md)** - Embedded driver for unit testing and development (no MongoDB required!)
-- **[MorphiumServer](./morphium-server.md)** - Standalone MongoDB-compatible server (perfect for testing, CI/CD, embedded apps)
+## Testing & Development
+Morphium includes a complete in-memory MongoDB-compatible implementation for testing and development:
+- **[InMemory Driver](./howtos/inmemory-driver.md)** - Embedded in-memory driver for unit tests (no MongoDB installation required!)
+- **[MorphiumServer](./morphium-server.md)** - Standalone MongoDB-compatible server that speaks the wire protocol
+  - Perfect for CI/CD pipelines, integration testing, and microservices development
+  - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
+  - Run with: `java -cp morphium.jar de.caluga.morphium.server.MorphiumServer --port 27017`
 
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
@@ -44,7 +47,7 @@ Learn more
 - Object mapping and configuration: see the [Developer Guide](./developer-guide.md)
 - Caching: see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md)
 - Messaging: see [Messaging](./messaging.md)
-- InMemory Driver: see [InMemory Driver](./inmemory-driver.md), [MorphiumServer](./morphium-server.md), and [Migration v5 → v6](./howtos/migration-v5-to-v6.md)
+- Testing without MongoDB: see [InMemory Driver](./howtos/inmemory-driver.md), [MorphiumServer](./morphium-server.md), and [Migration v5 → v6](./howtos/migration-v5-to-v6.md)
 
 ### Our own driver (since 5.0)
 
