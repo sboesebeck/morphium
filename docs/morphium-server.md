@@ -1,115 +1,63 @@
-# MorphiumServer: Standalone MongoDB Replacement
+# MorphiumServer: Standalone MongoDB-Compatible Server
 
-MorphiumServer runs the InMemoryDriver as a network service, providing a **MongoDB wire protocol compatible server** that any MongoDB client can connect to. It's part of the main Morphium project, not a separate application.
+MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. **Important:** MorphiumServer is part of the main Morphium JAR, not a separate application.
 
-## Why Use MorphiumServer?
+## Key Features
 
-**Development & Testing Benefits:**
-- ✅ **No Installation**: No Docker, no MongoDB setup required
-- ✅ **Fast Startup**: Starts in milliseconds vs seconds for MongoDB
-- ✅ **Lightweight**: ~50MB JVM vs ~500MB MongoDB
-- ✅ **Cross-Platform**: Pure Java, runs anywhere
-- ✅ **Deterministic**: Perfect for integration tests
-- ✅ **Multi-Client**: Multiple applications can connect simultaneously
+- ✅ **MongoDB Wire Protocol Compatible** - Works with any MongoDB client library
+- ✅ **Multi-Language Support** - Connect from Java, Python, Node.js, Go, C#, etc.
+- ✅ **Fast Startup** - Starts in ~100-500ms vs ~2-5 seconds for MongoDB
+- ✅ **Lightweight** - ~50-100MB RAM vs ~500MB-1GB for MongoDB
+- ✅ **No Installation** - Pure Java, runs anywhere
+- ✅ **Perfect for CI/CD** - No Docker or MongoDB installation required
+- ✅ **Integration Testing** - Test multi-language microservices together
 
-**Production Use Cases:**
-- ✅ **Embedded Applications**: Ship a complete database with your app
-- ✅ **Edge Computing**: Lightweight database for IoT/edge devices
-- ✅ **Microservices**: In-memory cache with MongoDB API
-- ✅ **Prototyping**: Rapid development without infrastructure
+## Quick Start
 
-> **Important**: MorphiumServer is part of the main `morphium.jar` - there is no separate `morphium-server.jar`.
+### Running from Command Line
 
-## Starting MorphiumServer
-
-### From Command Line
-
-**Basic Usage:**
 ```bash
 # Build Morphium first
 mvn clean package -DskipTests
 
-# Run the server (default port is 17017)
-java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017 --host 0.0.0.0
+# Run MorphiumServer (default port is 17017)
+java -cp target/morphium-6.0.1-SNAPSHOT.jar \
+     de.caluga.morphium.server.MorphiumServer \
+     --port 27017 --host 0.0.0.0
 ```
 
-**With Custom Configuration:**
-```bash
-java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer \
-  --port 27017 \
-  --host 0.0.0.0 \
-  --maxThreads 100 \
-  --minThreads 10
-```
+### Running Programmatically
 
-**With Compression:**
-```bash
-java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer \
-  --port 27017 \
-  --host 0.0.0.0 \
-  --compressor snappy
-```
-
-### Programmatically
-
-**Embedded in Application:**
 ```java
-public class MyApplication {
+import de.caluga.morphium.server.MorphiumServer;
+
+public class MyApp {
     public static void main(String[] args) throws Exception {
-        // Start embedded database
-        MorphiumServer dbServer = new MorphiumServer(27017, "localhost", 100, 10);
-        dbServer.start();
+        // Start embedded MongoDB-compatible server
+        MorphiumServer server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
+        server.start();
 
-        // Connect to it
-        MorphiumConfig cfg = new MorphiumConfig();
-        cfg.connectionSettings()
-           .setDatabase("appdb")
-           .addHost("localhost", 27017);
-        cfg.driverSettings()
-           .setDriverName("de.caluga.morphium.driver.wire.WireProtocolDriver");
+        System.out.println("MorphiumServer running on port 27017");
 
-        Morphium morphium = new Morphium(cfg);
-
-        // Application logic here
-        // Users don't need MongoDB installed!
+        // Keep running
+        while (true) {
+            Thread.sleep(1000);
+        }
     }
 }
 ```
 
-**In Test Setup:**
-```java
-@BeforeAll
-static void startServer() throws Exception {
-    // Start MorphiumServer programmatically
-    server = new MorphiumServer(27017, "localhost", 100, 10);
-    server.start();
-}
-
-@Test
-void testWithMultipleClients() {
-    // Client 1: Python
-    // Client 2: Node.js
-    // Client 3: Java (Morphium)
-    // All connect to the same MorphiumServer!
-}
-
-@AfterAll
-static void stopServer() {
-    server.terminate();
-}
-```
-
-## Configuration Options
+## Configuration
 
 ### Command Line Arguments
 
 ```bash
 -p, --port <number>           # Server port (default: 17017)
 -h, --host <address>          # Bind address (default: localhost)
--mt, --maxThreads <number>    # Max concurrent threads (default: 1000)
--mint, --minThreads <number>  # Min concurrent threads (default: 10)
--c, --compressor <type>       # Compression: snappy, zstd, zlib, none (default: none)
--rs, --replicaset <name> <hosts>  # Replica set configuration (experimental)
+-mt, --maxThreads <number>    # Max thread pool size (default: 1000)
+-mint, --minThreads <number>  # Min thread pool size (default: 10)
+-c, --compressor <type>       # Compression: snappy, zstd, zlib, none
+-rs, --replicaset <name> <hosts>  # Replica set mode (experimental)
 ```
 
 ### Constructor Options
@@ -119,19 +67,17 @@ static void stopServer() {
 MorphiumServer server = new MorphiumServer(
     int port,           // Server port
     String host,        // Bind address
-    int maxThreads,     // Maximum thread pool size
-    int minThreads      // Minimum thread pool size
+    int maxThreads,     // Maximum threads
+    int minThreads      // Minimum threads
 );
 
-// Default constructor (port 17017, localhost, 100 max threads, 10 min threads)
+// Default constructor (port 17017, localhost, 100/10 threads)
 MorphiumServer server = new MorphiumServer();
 ```
 
-## Connecting to MorphiumServer
+## Connecting Clients
 
-MorphiumServer speaks the MongoDB wire protocol, so **any MongoDB driver** can connect to it.
-
-### From Java (Morphium)
+### Java (Morphium)
 
 ```java
 MorphiumConfig cfg = new MorphiumConfig();
@@ -139,90 +85,82 @@ cfg.connectionSettings()
    .setDatabase("mydb")
    .addHost("localhost", 27017);
 cfg.driverSettings()
-   .setDriverName("de.caluga.morphium.driver.wire.WireProtocolDriver");
+   .setDriverName("SingleMongoConnectDriver");
 
 Morphium morphium = new Morphium(cfg);
 ```
 
-### From MongoDB Shell
-
-```bash
-# Use mongosh or mongo CLI
-mongosh mongodb://localhost:27017/mydb
-
-# Test it
-> db.test.insertOne({name: "hello"})
-> db.test.find()
-```
-
-### From Python (PyMongo)
+### Python (PyMongo)
 
 ```python
 from pymongo import MongoClient
 
 client = MongoClient('mongodb://localhost:27017/')
 db = client.mydb
-collection = db.mycollection
+collection = db.users
 
 # Works like regular MongoDB!
-collection.insert_one({'name': 'test'})
-result = collection.find_one({'name': 'test'})
-print(result)
+collection.insert_one({'name': 'Alice', 'age': 30})
+user = collection.find_one({'name': 'Alice'})
+print(user)
 ```
 
-### From Node.js
+### Node.js (mongodb driver)
 
 ```javascript
 const { MongoClient } = require('mongodb');
 
-const client = new MongoClient('mongodb://localhost:27017');
-await client.connect();
+async function main() {
+    const client = new MongoClient('mongodb://localhost:27017');
+    await client.connect();
 
-const db = client.db('mydb');
-const collection = db.collection('mycollection');
+    const db = client.db('mydb');
+    const collection = db.collection('users');
 
-await collection.insertOne({ name: 'test' });
-const doc = await collection.findOne({ name: 'test' });
-console.log(doc);
+    await collection.insertOne({ name: 'Bob', age: 25 });
+    const user = await collection.findOne({ name: 'Bob' });
+    console.log(user);
+}
+
+main();
 ```
 
-### From Go
+### Go (mongo-driver)
 
 ```go
+package main
+
 import (
     "context"
+    "go.mongodb.org/mongo-driver/bson"
     "go.mongodb.org/mongo-driver/mongo"
     "go.mongodb.org/mongo-driver/mongo/options"
 )
 
-client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
-if err != nil {
-    panic(err)
-}
+func main() {
+    client, _ := mongo.Connect(
+        context.TODO(),
+        options.Client().ApplyURI("mongodb://localhost:27017"),
+    )
 
-collection := client.Database("mydb").Collection("mycollection")
-_, err = collection.InsertOne(context.TODO(), bson.D{{"name", "test"}})
+    collection := client.Database("mydb").Collection("users")
+    collection.InsertOne(context.TODO(), bson.D{{"name", "Charlie"}})
+}
 ```
 
-## Use Cases & Examples
-
-### 1. Microservices Development
+### MongoDB Shell
 
 ```bash
-# Terminal 1: Start MorphiumServer
-java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017
+mongosh mongodb://localhost:27017/mydb
 
-# Terminal 2: Start Service A (Node.js)
-MONGO_URL=mongodb://localhost:27017 npm start
-
-# Terminal 3: Start Service B (Python)
-MONGO_URL=mongodb://localhost:27017 python app.py
-
-# Terminal 4: Start Service C (Java)
-MONGO_URL=mongodb://localhost:27017 ./gradlew run
+# Test it
+> db.users.insertOne({name: "Alice", age: 30})
+> db.users.find()
 ```
 
-### 2. CI/CD Pipeline
+## Use Cases
+
+### 1. CI/CD Pipelines
 
 ```yaml
 # .github/workflows/test.yml
@@ -237,31 +175,85 @@ jobs:
 
       - name: Start MorphiumServer
         run: |
-          java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017 --host 0.0.0.0 &
+          java -cp target/morphium-6.0.1-SNAPSHOT.jar \
+               de.caluga.morphium.server.MorphiumServer \
+               --port 27017 --host 0.0.0.0 &
           sleep 2
 
-      - name: Run Tests
-        run: |
-          export MONGO_URL=mongodb://localhost:27017
-          npm test
-
-      # No Docker, no MongoDB service container needed!
+      - name: Run Integration Tests
+        run: npm test
+        env:
+          MONGO_URL: mongodb://localhost:27017
 ```
 
-### 3. Docker Deployment
+### 2. Integration Testing (Multi-Language)
+
+```java
+@BeforeAll
+static void startServer() throws Exception {
+    server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
+    server.start();
+    Thread.sleep(500); // Wait for server to be ready
+}
+
+@Test
+void testCrossLanguageCompatibility() throws Exception {
+    // Insert from Java
+    MorphiumConfig cfg = new MorphiumConfig();
+    cfg.connectionSettings().setDatabase("test").addHost("localhost", 27017);
+    cfg.driverSettings().setDriverName("SingleMongoConnectDriver");
+
+    Morphium morphium = new Morphium(cfg);
+    MyEntity entity = new MyEntity();
+    entity.setName("test-entity");
+    morphium.store(entity);
+    morphium.close();
+
+    // Verify from Python script
+    ProcessBuilder pb = new ProcessBuilder("python3", "test_read.py");
+    pb.environment().put("MONGO_URL", "mongodb://localhost:27017/test");
+    Process p = pb.start();
+    assertEquals(0, p.waitFor());
+}
+
+@AfterAll
+static void stopServer() {
+    server.terminate();
+}
+```
+
+### 3. Microservices Development
+
+```bash
+# Terminal 1: Start MorphiumServer
+java -cp target/morphium-6.0.1-SNAPSHOT.jar \
+     de.caluga.morphium.server.MorphiumServer --port 27017
+
+# Terminal 2: Start Node.js service
+MONGO_URL=mongodb://localhost:27017 npm start
+
+# Terminal 3: Start Python service
+MONGO_URL=mongodb://localhost:27017 python app.py
+
+# Terminal 4: Start Java service
+MONGO_URL=mongodb://localhost:27017 ./gradlew run
+```
+
+### 4. Docker Deployment
 
 **Dockerfile:**
 ```dockerfile
 FROM openjdk:21-slim
 WORKDIR /app
 
-# Copy the Morphium JAR
+# Copy Morphium JAR
 COPY target/morphium-6.0.1-SNAPSHOT.jar /app/
 
 EXPOSE 27017
 
-# Run MorphiumServer
-CMD ["java", "-cp", "/app/morphium-6.0.1-SNAPSHOT.jar", "de.caluga.morphium.server.MorphiumServer", "--port", "27017", "--host", "0.0.0.0"]
+CMD ["java", "-cp", "/app/morphium-6.0.1-SNAPSHOT.jar", \
+     "de.caluga.morphium.server.MorphiumServer", \
+     "--port", "27017", "--host", "0.0.0.0"]
 ```
 
 **Docker Compose:**
@@ -275,7 +267,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "27017:27017"
-    command: ["java", "-cp", "/app/morphium-6.0.1-SNAPSHOT.jar", "de.caluga.morphium.server.MorphiumServer", "--port", "27017", "--host", "0.0.0.0"]
 
   app:
     image: myapp:latest
@@ -287,70 +278,59 @@ services:
 
 **Build and Run:**
 ```bash
-# Build the Docker image
 docker build -t morphium-server .
-
-# Run the container
 docker run -p 27017:27017 morphium-server
 
-# Or use Docker Compose
+# Or use docker-compose
 docker-compose up
 ```
 
-### 4. Integration Testing with Multiple Languages
+## Performance
 
+| Metric | MorphiumServer | MongoDB |
+|--------|---------------|---------|
+| Startup Time | ~100-500ms | ~2-5 seconds |
+| Memory (baseline) | ~50-100MB | ~500MB-1GB |
+| Inserts/sec | ~50,000 | Varies |
+| Queries/sec | ~100,000 | Varies |
+| Updates/sec | ~40,000 | Varies |
+| Latency (localhost) | 1-5ms | 1-10ms |
+
+## Monitoring
+
+### Built-in Status Monitoring
+
+**All Morphium messaging instances automatically include status monitoring** via the `morphium_status` topic. This works with MorphiumServer and any Morphium messaging setup.
+
+Quick example:
 ```java
-// Java test
-@BeforeAll
-static void startServer() throws Exception {
-    server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
-    server.start();
-}
+MorphiumMessaging sender = morphium.createMessaging();
+sender.start();
 
-@Test
-void testCrossLanguageCompatibility() throws Exception {
-    // Insert from Java
-    MorphiumConfig cfg = new MorphiumConfig();
-    cfg.connectionSettings().setDatabase("test").addHost("localhost", 27017);
-    cfg.driverSettings().setDriverName("de.caluga.morphium.driver.wire.WireProtocolDriver");
+// Query all instances for status
+List<Msg> responses = sender.sendAndAwaitAnswers(
+    new Msg(sender.getStatusInfoListenerName(), "status", "ALL"),
+    5,      // Wait for up to 5 responses
+    2000    // 2 second timeout
+);
 
-    try (Morphium morphium = new Morphium(cfg)) {
-        MyEntity entity = new MyEntity();
-        entity.setName("test");
-        morphium.store(entity);
-    }
-
-    // Read from Python (via ProcessBuilder or testcontainers)
-    // Read from Node.js
-    // Verify all clients see the same data
-}
-
-@AfterAll
-static void stopServer() {
-    server.terminate();
+// Process JVM, messaging, and driver metrics
+for (Msg response : responses) {
+    Map<String, Object> stats = response.getMapValue();
+    System.out.println("Instance: " + response.getSender());
+    System.out.println("  Heap Used: " + stats.get("jvm.heap.used"));
+    System.out.println("  Messages Processing: " + stats.get("messaging.processing"));
 }
 ```
 
-## Performance Characteristics
+**For complete documentation on status monitoring**, including:
+- All available metrics (JVM, messaging, driver)
+- Query levels (PING, MESSAGING_ONLY, MORPHIUM_ONLY, ALL)
+- Cross-language monitoring (Python, Node.js, etc.)
+- Health checks and periodic monitoring
+- Enable/disable controls
 
-### Startup Time
-- **MorphiumServer**: ~100-500ms
-- **MongoDB**: ~2-5 seconds
-
-### Memory Usage
-- **MorphiumServer**: ~50-100MB (JVM baseline)
-- **MongoDB**: ~500MB-1GB (baseline)
-
-### Throughput (Single Instance)
-- **Inserts**: ~50,000 ops/sec
-- **Queries**: ~100,000 ops/sec
-- **Updates**: ~40,000 ops/sec
-
-### Latency
-- **In-process**: <1ms (embedded mode)
-- **Network (localhost)**: 1-5ms
-
-## Monitoring & Management
+See the **[Messaging - Built-in Status Monitoring](./messaging.md#built-in-status-monitoring)** section.
 
 ### Connection Count
 
@@ -358,104 +338,83 @@ static void stopServer() {
 MorphiumServer server = new MorphiumServer(27017, "localhost", 100, 10);
 server.start();
 
-// Get active connection count
+// Get active connections
 int connections = server.getConnectionCount();
 System.out.println("Active connections: " + connections);
 ```
 
 ### Logging
 
-**Enable Debug Logging:**
 ```bash
-# Using Logback configuration
+# Debug logging with Logback
 java -Dlogback.configurationFile=logback.xml \
-     -cp morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer --port 27017
+     -cp morphium.jar de.caluga.morphium.server.MorphiumServer \
+     --port 27017
 
-# Using SLF4J simple logger
+# Simple logger
 java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
-     -cp morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer --port 27017
-```
-
-**Example logback.xml:**
-```xml
-<configuration>
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
-
-    <logger name="de.caluga.morphium.server" level="DEBUG"/>
-    <root level="INFO">
-        <appender-ref ref="STDOUT" />
-    </root>
-</configuration>
+     -cp morphium.jar de.caluga.morphium.server.MorphiumServer \
+     --port 27017
 ```
 
 ## Limitations
 
 ### Data Persistence
-- ❌ **No Disk Persistence**: Data stored in memory only
-- ❌ **No Recovery**: Data lost on restart
-- 💡 **Workaround**: Implement export/import scripts for data backup
+- ❌ **No Disk Storage** - All data in memory, lost on restart
+- ❌ **No Recovery** - No WAL or recovery mechanism
+- 💡 **Workaround** - Implement periodic export/import
 
 ### Scalability
-- ❌ **No Sharding**: Single-instance only
-- ❌ **No Replica Sets**: No high availability (experimental replicaset support exists)
-- ❌ **Memory Bound**: Dataset limited by available RAM
+- ❌ **Single Instance** - No sharding support
+- ❌ **No Replica Sets** - Experimental support only
+- ❌ **Memory Bound** - Dataset limited by available RAM
 
-### Advanced Features
-- ❌ **GridFS**: No file storage
-- ❌ **Full-Text Search**: Limited support
-- ❌ **Geospatial**: Basic queries only
-- ❌ **Transactions**: Single-instance only (no distributed)
+### Features
+- ❌ **GridFS** - No file storage
+- ❌ **Full-Text Search** - Limited $text support
+- ❌ **Advanced Geospatial** - Basic queries only
+- ❌ **Distributed Transactions** - Single instance only
 
 ### Security
-- ❌ **No TLS/SSL**: Plain TCP only
-- ❌ **Limited Auth**: No authentication implemented
-- 💡 **Workaround**: Use reverse proxy (nginx, HAProxy) for TLS termination
+- ❌ **No TLS/SSL** - Plain TCP only
+- ❌ **No Authentication** - Not implemented
+- 💡 **Workaround** - Use reverse proxy for TLS
 
-## When NOT to Use MorphiumServer
+## When NOT to Use
 
-**Avoid in Production if:**
-- You need data persistence across restarts
-- Dataset exceeds available RAM (>16GB)
-- You need high availability/failover
-- You require MongoDB Atlas features
-- Security compliance requires TLS/SSL
-- You need advanced geospatial features
-- You need full-text search capabilities
+**Avoid for:**
+- Production data requiring persistence
+- Datasets exceeding available RAM (>16GB)
+- High availability requirements
+- TLS/SSL compliance requirements
+- MongoDB Atlas features
+- Advanced search/geospatial features
 
-**Better Alternatives:**
-- **Production Data**: Use real MongoDB
-- **Large Datasets**: Use MongoDB with disk storage
-- **High Availability**: Use MongoDB replica sets
-- **Advanced Features**: Use MongoDB Enterprise
-- **Cloud Deployment**: Use MongoDB Atlas
+**Use Instead:**
+- **Production**: Real MongoDB with persistence
+- **Large Datasets**: MongoDB with disk storage
+- **High Availability**: MongoDB replica sets
+- **Cloud**: MongoDB Atlas
 
 ## Building from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/sboesebeck/morphium.git
 cd morphium
-
-# Build with Maven
 mvn clean package -DskipTests
 
-# The MorphiumServer class is included in the main JAR
+# The server is part of the main JAR
 ls -lh target/morphium-6.0.1-SNAPSHOT.jar
 
 # Run it
-java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017 --host 0.0.0.0
+java -cp target/morphium-6.0.1-SNAPSHOT.jar \
+     de.caluga.morphium.server.MorphiumServer \
+     --port 27017 --host 0.0.0.0
 ```
 
-## Using as Maven Dependency
+## Maven Dependency
 
 ```xml
-<!-- Add to your pom.xml -->
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
@@ -463,10 +422,10 @@ java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumSe
 </dependency>
 ```
 
-Then run programmatically:
+Then start programmatically:
 ```java
 public static void main(String[] args) throws Exception {
-    // Option 1: Call main method
+    // Option 1: Call main
     de.caluga.morphium.server.MorphiumServer.main(
         new String[]{"--port", "27017", "--host", "0.0.0.0"}
     );
@@ -474,35 +433,27 @@ public static void main(String[] args) throws Exception {
     // Option 2: Create instance
     MorphiumServer server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
     server.start();
-
-    // Keep running
-    while (true) {
-        Thread.sleep(1000);
-    }
 }
 ```
 
-## Comparison with MongoDB
+## Comparison: MorphiumServer vs InMemory Driver
 
-| Feature | MorphiumServer | MongoDB |
-|---------|---------------|---------|
-| Startup Time | ~100-500ms | ~2-5 seconds |
-| Memory Usage | ~50-100MB | ~500MB-1GB |
-| Installation | None (pure Java) | Required |
-| Data Persistence | No | Yes |
-| Replica Sets | No (experimental) | Yes |
-| Sharding | No | Yes |
-| Wire Protocol | Compatible | Native |
-| TLS/SSL | No | Yes |
-| Authentication | No | Yes |
-| GridFS | No | Yes |
-| Change Streams | Yes | Yes |
-| Aggregation | Basic | Full |
-| Atlas Support | No | Yes |
+| Feature | MorphiumServer | InMemory Driver |
+|---------|---------------|-----------------|
+| **Network Access** | Yes (wire protocol) | No (embedded) |
+| **Multi-Language** | Yes | No (Java only) |
+| **Use Case** | Integration tests, microservices | Unit tests |
+| **Overhead** | Network latency | In-process |
+| **Setup** | Start server | Config setting |
+| **Isolation** | Process-level | Per-JVM |
+
+**When to use each:**
+- **InMemory Driver**: Java unit tests, embedded apps
+- **MorphiumServer**: Integration tests, CI/CD, multi-language services
 
 ## See Also
 
-- [InMemory Driver](./inmemory-driver.md) - Embedded in-process driver usage
+- [InMemory Driver](./howtos/inmemory-driver.md) - Embedded driver for unit tests
 - [Messaging](./messaging.md) - Messaging with MorphiumServer
-- [Configuration Reference](./configuration-reference.md) - Complete configuration options
-- [Architecture Overview](./architecture-overview.md) - How MorphiumServer works internally
+- [Configuration Reference](./configuration-reference.md) - All configuration options
+- [Architecture Overview](./architecture-overview.md) - How it works internally
