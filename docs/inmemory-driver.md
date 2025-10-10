@@ -363,6 +363,30 @@ public void testMessaging() throws Exception {
 }
 ```
 
+## Monitoring
+
+**Built-in Status Monitoring**: When using messaging with InMemory driver, all instances automatically respond to `morphium_status` queries. This provides JVM, messaging, and driver metrics without any setup.
+
+```java
+MorphiumMessaging sender = morphium.createMessaging();
+sender.start();
+
+// Query status from all instances
+List<Msg> responses = sender.sendAndAwaitAnswers(
+    new Msg(sender.getStatusInfoListenerName(), "status", "ALL"),
+    5, 2000
+);
+
+// Check metrics
+for (Msg r : responses) {
+    Map<String, Object> stats = r.getMapValue();
+    System.out.println("Heap: " + stats.get("jvm.heap.used"));
+    System.out.println("Processing: " + stats.get("messaging.processing"));
+}
+```
+
+See **[Messaging - Built-in Status Monitoring](./messaging.md#built-in-status-monitoring)** for complete documentation.
+
 ## Best Practices
 
 1. **Use for Unit Tests Only**: Not intended for production
