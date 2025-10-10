@@ -406,26 +406,27 @@ MorphiumServer is a standalone application that runs the InMemoryDriver as a net
 
 ### Starting MorphiumServer
 
-**Using Java:**
+**Using Java with Morphium JAR:**
 ```bash
-java -jar morphium-server.jar --port 27017 --host 0.0.0.0
+# Run the MorphiumServer from the morphium JAR
+java -cp morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017 --host 0.0.0.0
 ```
 
 **With Custom Configuration:**
 ```bash
-java -jar morphium-server.jar \
+java -cp morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer \
   --port 27017 \
   --host localhost \
-  --auth false \
-  --max-connections 100
+  --maxThreads 100 \
+  --minThreads 10
 ```
 
 **As Docker Container:**
 ```dockerfile
 FROM openjdk:21-slim
-COPY morphium-server.jar /app/
+COPY morphium-6.0.1-SNAPSHOT.jar /app/
 EXPOSE 27017
-CMD ["java", "-jar", "/app/morphium-server.jar", "--port", "27017", "--host", "0.0.0.0"]
+CMD ["java", "-cp", "/app/morphium-6.0.1-SNAPSHOT.jar", "de.caluga.morphium.server.MorphiumServer", "--port", "27017", "--host", "0.0.0.0"]
 ```
 
 ### Connecting to MorphiumServer
@@ -480,33 +481,15 @@ MorphiumServer speaks the MongoDB wire protocol, so **any MongoDB driver** (Java
 
 **Command Line Arguments:**
 ```bash
---port <number>              # Server port (default: 27017)
---host <address>             # Bind address (default: localhost)
---auth <true|false>          # Enable authentication (default: false)
---max-connections <number>   # Max concurrent connections (default: 100)
---log-level <level>          # Logging level (INFO, DEBUG, WARN, ERROR)
+-p, --port <number>           # Server port (default: 17017)
+-h, --host <address>          # Bind address (default: localhost)
+-mt, --maxThreads <number>    # Max concurrent threads (default: 1000)
+-mint, --minThreads <number>  # Min concurrent threads (default: 10)
+-c, --compressor <type>       # Compression: snappy, zstd, zlib, none (default: none)
+-rs, --replicaset <name> <hosts>  # Replica set configuration
 ```
 
-**Configuration File (morphium-server.json):**
-```json
-{
-  "server": {
-    "port": 27017,
-    "host": "0.0.0.0",
-    "maxConnections": 100
-  },
-  "authentication": {
-    "enabled": false
-  },
-  "logging": {
-    "level": "INFO"
-  },
-  "performance": {
-    "enableIndexes": true,
-    "cacheSize": "1GB"
-  }
-}
-```
+**Note:** MorphiumServer currently uses command-line arguments only. Configuration file support is not yet implemented.
 
 ### Use Cases & Examples
 
@@ -558,7 +541,7 @@ public class MyApplication {
 #### 3. Microservices Development
 ```bash
 # Terminal 1: Start MorphiumServer
-java -jar morphium-server.jar --port 27017
+java -cp morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017
 
 # Terminal 2: Start Service A (Node.js)
 MONGO_URL=mongodb://localhost:27017 npm start
@@ -579,9 +562,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Build Morphium
+        run: mvn clean package -DskipTests
+
       - name: Start MorphiumServer
         run: |
-          java -jar morphium-server.jar --port 27017 &
+          java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017 &
           sleep 2
 
       - name: Run Tests
@@ -652,31 +638,23 @@ jobs:
 
 ### Monitoring & Management
 
-**Health Check Endpoint:**
-```bash
-curl http://localhost:27017/health
-# Returns: {"status": "ok", "connections": 5, "memory": "156MB"}
-```
-
-**Statistics:**
+**Connection Count:**
 ```java
-MorphiumServer server = new MorphiumServer(27017);
+MorphiumServer server = new MorphiumServer(27017, "localhost", 100, 10);
 server.start();
 
-// Get statistics
-ServerStats stats = server.getStats();
-System.out.println("Connections: " + stats.getActiveConnections());
-System.out.println("Operations/sec: " + stats.getOpsPerSecond());
-System.out.println("Memory usage: " + stats.getMemoryUsageMB() + "MB");
+// Get active connection count
+int connections = server.getConnectionCount();
+System.out.println("Active connections: " + connections);
 ```
 
 **Logging:**
 ```bash
-# Enable debug logging
-java -Dlog.level=DEBUG -jar morphium-server.jar
+# Enable debug logging with Logback configuration
+java -Dlogback.configurationFile=logback.xml -cp morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017
 
-# Log to file
-java -jar morphium-server.jar --log-file=/var/log/morphium.log
+# Or use SLF4J system properties
+java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -cp morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017
 ```
 
 ### Docker Compose Example
@@ -686,18 +664,12 @@ version: '3.8'
 
 services:
   morphium-db:
-    image: morphium/server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.morphium
     ports:
       - "27017:27017"
-    environment:
-      - MORPHIUM_PORT=27017
-      - MORPHIUM_HOST=0.0.0.0
-      - LOG_LEVEL=INFO
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:27017/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+    command: ["java", "-cp", "/app/morphium-6.0.1-SNAPSHOT.jar", "de.caluga.morphium.server.MorphiumServer", "--port", "27017", "--host", "0.0.0.0"]
 
   app:
     image: myapp:latest
@@ -707,7 +679,15 @@ services:
       - MONGO_URL=mongodb://morphium-db:27017/appdb
 ```
 
-### Building MorphiumServer
+Example `Dockerfile.morphium`:
+```dockerfile
+FROM openjdk:21-slim
+WORKDIR /app
+COPY target/morphium-6.0.1-SNAPSHOT.jar /app/
+EXPOSE 27017
+```
+
+### Building and Running MorphiumServer
 
 **From Source:**
 ```bash
@@ -718,24 +698,25 @@ cd morphium
 # Build with Maven
 mvn clean package -DskipTests
 
-# Run the server
-java -jar target/morphium-server.jar --port 27017
+# Run the server (note: default port is 17017, not 27017)
+java -cp target/morphium-6.0.1-SNAPSHOT.jar de.caluga.morphium.server.MorphiumServer --port 27017 --host 0.0.0.0
 ```
 
-**Custom Build with Plugins:**
+**Using Maven Dependency:**
 ```xml
-<!-- pom.xml -->
-<plugin>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-shade-plugin</artifactId>
-    <configuration>
-        <transformers>
-            <transformer implementation="...ManifestResourceTransformer">
-                <mainClass>de.caluga.morphium.server.MorphiumServer</mainClass>
-            </transformer>
-        </transformers>
-    </configuration>
-</plugin>
+<!-- Add to your pom.xml -->
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>morphium</artifactId>
+    <version>6.0.1-SNAPSHOT</version>
+</dependency>
+```
+
+Then run programmatically:
+```java
+public static void main(String[] args) throws Exception {
+    de.caluga.morphium.server.MorphiumServer.main(new String[]{"--port", "27017", "--host", "0.0.0.0"});
+}
 ```
 
 ## See Also
