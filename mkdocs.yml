@@ -66,7 +66,10 @@ nav:
     - Overview: overview.md
     - Architecture: architecture-overview.md
     - Basic Setup: howtos/basic-setup.md
-    - InMemory Driver & Server: howtos/inmemory-driver.md
+  - Testing & Development:
+    - InMemory Driver: inmemory-driver.md
+    - MorphiumServer: morphium-server.md
+    - Quick Reference: howtos/inmemory-driver.md
   - How-To Guides:
     - Migration v5→v6: howtos/migration-v5-to-v6.md
     - Aggregation Examples: howtos/aggregation-examples.md
