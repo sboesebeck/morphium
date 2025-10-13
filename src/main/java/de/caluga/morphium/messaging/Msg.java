@@ -35,6 +35,7 @@ import java.util.*;
 })
 public class Msg {
     @Index
+    @UseIfnull
     private List<String> processedBy;
     @Id
     private MorphiumId msgId;
@@ -46,15 +47,21 @@ public class Msg {
     private long ttl;
     private String sender;
     private String senderHost;
+    @UseIfnull
     private List<String> recipients;
+
+    @UseIfnull
     private MorphiumId inAnswerTo;
     //payload goes here
     @Index
     @Aliases({"name"})
     private String topic;
     private String msg;
+    @UseIfNull
     private List<Object> additional;
+    @UseIfNull
     private Map<String, Object> mapValue;
+    @UseIfNull
     private String value;
     @Index
     private long timestamp;
