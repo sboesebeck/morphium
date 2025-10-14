@@ -1360,6 +1360,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bulk-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Bulk Operations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#performance-improvements" class="md-nav__link">
     <span class="md-ellipsis">
       Performance Improvements
@@ -1600,6 +1609,27 @@
 - Improved error handling when rejecting messages
 - Fixed exclusive message lock release
 - Enhanced connection management in rejection handler</p>
+<h3 id="bulk-operations">Bulk Operations<a class="headerlink" href="#bulk-operations" title="Permanent link">&para;</a></h3>
+<p><strong>Bulk Operations Now Return Proper Statistics</strong>
+- Fixed <code>MorphiumBulkContext.runBulk()</code> to return operation statistics instead of null/empty results
+- All three driver implementations now properly collect and aggregate operation counts:
+  - <code>InMemoryDriver</code> - Fixed inline bulk context implementation
+  - <code>SingleMongoConnectDriver</code> - Fixed inline bulk context implementation
+  - <code>PooledDriver</code> - Fixed inline bulk context implementation</p>
+<p><strong>Returned Statistics:</strong>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Object</span><span class="o">&gt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bulkContext</span><span class="p">.</span><span class="na">runBulk</span><span class="p">();</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// Returns:</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1">// {</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1">//   &quot;num_inserted&quot;: &lt;count&gt;,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1">//   &quot;num_matched&quot;: &lt;count&gt;,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1">//   &quot;num_modified&quot;: &lt;count&gt;,</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1">//   &quot;num_deleted&quot;: &lt;count&gt;,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1">//   &quot;num_upserts&quot;: &lt;count&gt;,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1">//   &quot;upsertedIds&quot;: [&lt;list of IDs&gt;]  // Only if upserts occurred</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1">// }</span>
+</span></code></pre></div></p>
+<p><strong>Impact:</strong> Applications can now track bulk operation results for monitoring, logging, and validation purposes.</p>
+<p><strong>Test Coverage:</strong> Added comprehensive test <code>BulkOperationTest.bulkTestReturnCounts()</code> verifying all count returns.</p>
 <h3 id="performance-improvements">Performance Improvements<a class="headerlink" href="#performance-improvements" title="Permanent link">&para;</a></h3>
 <p><strong>Collection Name Caching</strong>
 - Added caching mechanism for collection names to reduce reflection overhead
@@ -1639,14 +1669,18 @@
 - <code>src/main/java/de/caluga/morphium/ObjectMapperImpl.java</code> - UseIfNull usage
 - <code>src/main/java/de/caluga/morphium/annotations/UseIfNull.java</code> - Renamed and documented</p>
 <p><strong>Driver:</strong>
-- <code>src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnection.java</code> - Timeout handling</p>
+- <code>src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnection.java</code> - Timeout handling
+- <code>src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java</code> - Bulk operations return counts
+- <code>src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnectDriver.java</code> - Bulk operations return counts
+- <code>src/main/java/de/caluga/morphium/driver/wire/PooledDriver.java</code> - Bulk operations return counts</p>
 <p><strong>Messaging:</strong>
 - <code>src/main/java/de/caluga/morphium/messaging/Msg.java</code> - UseIfNull usage
 - <code>src/main/java/de/caluga/morphium/messaging/MessageRejectedException.java</code> - Error handling</p>
 <p><strong>Tests:</strong>
 - <code>src/test/java/de/caluga/test/mongo/suite/data/ComplexObject.java</code> - UseIfNull usage
 - <code>src/test/java/de/caluga/test/mongo/suite/base/UseIfNullTest.java</code> - New test suite (5 tests)
-- <code>src/test/java/de/caluga/test/mongo/suite/base/UseIfNullDistinctionTest.java</code> - New bidirectional tests (4 tests)</p>
+- <code>src/test/java/de/caluga/test/mongo/suite/base/UseIfNullDistinctionTest.java</code> - New bidirectional tests (4 tests)
+- <code>src/test/java/de/caluga/test/mongo/suite/base/BulkOperationTest.java</code> - Added bulkTestReturnCounts() test</p>
 <h3 id="compatibility">Compatibility<a class="headerlink" href="#compatibility" title="Permanent link">&para;</a></h3>
 <p><strong>Minimum Requirements:</strong> (unchanged from 6.0.0)
 - Java 21+
@@ -1658,20 +1692,20 @@
 <ol>
 <li>
 <p><strong>Update @UseIfnull annotations:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Search for usage in your codebase</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>grep<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;@UseIfnull&quot;</span><span class="w"> </span>src/
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Replace with @UseIfNull</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>find<span class="w"> </span>src/<span class="w"> </span>-type<span class="w"> </span>f<span class="w"> </span>-name<span class="w"> </span><span class="s2">&quot;*.java&quot;</span><span class="w"> </span>-exec<span class="w"> </span>sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;&#39;</span><span class="w"> </span><span class="s1">&#39;s/@UseIfnull/@UseIfNull/g&#39;</span><span class="w"> </span><span class="o">{}</span><span class="w"> </span>+
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Search for usage in your codebase</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>grep<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;@UseIfnull&quot;</span><span class="w"> </span>src/
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Replace with @UseIfNull</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>find<span class="w"> </span>src/<span class="w"> </span>-type<span class="w"> </span>f<span class="w"> </span>-name<span class="w"> </span><span class="s2">&quot;*.java&quot;</span><span class="w"> </span>-exec<span class="w"> </span>sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;&#39;</span><span class="w"> </span><span class="s1">&#39;s/@UseIfnull/@UseIfNull/g&#39;</span><span class="w"> </span><span class="o">{}</span><span class="w"> </span>+
 </span></code></pre></div></p>
 </li>
 <li>
 <p><strong>Update imports (if any):</strong>
-   <div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// OLD</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.annotations.UseIfnull</span><span class="p">;</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1">// NEW</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.annotations.UseIfNull</span><span class="p">;</span>
+   <div class="language-java highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// OLD</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.annotations.UseIfnull</span><span class="p">;</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1">// NEW</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.annotations.UseIfNull</span><span class="p">;</span>
 </span></code></pre></div></p>
 </li>
 <li>
@@ -1685,7 +1719,7 @@
 </li>
 <li>
 <p><strong>Rebuild and test:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>mvn<span class="w"> </span>clean<span class="w"> </span>install
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>mvn<span class="w"> </span>clean<span class="w"> </span>install
 </span></code></pre></div></p>
 </li>
 <li>
