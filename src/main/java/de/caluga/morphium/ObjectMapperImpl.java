@@ -557,7 +557,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
 
                 if (v == null) {
-                    if (!fld.isAnnotationPresent(UseIfnull.class)) {
+                    if (!fld.isAnnotationPresent(UseIfNull.class)) {
                         //Do not put null-Values into dbo => not storing null-Values to db
                         continue;
                     }
