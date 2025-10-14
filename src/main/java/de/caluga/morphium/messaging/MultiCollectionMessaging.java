@@ -73,7 +73,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     private Map<String, List<Map<MType, Object>>> monitorsByTopic = new ConcurrentHashMap<>();
     private AtomicBoolean running = new AtomicBoolean(false);
-    private String lockCollectionName;
+    private Map<String, String> lockCollectionNames = new ConcurrentHashMap<>();
     private static Vector<MultiCollectionMessaging> allMessagings = new Vector<>();
     private Set<String> pausedTopics = ConcurrentHashMap.newKeySet();
     private StatusInfoListener statusInfoListener = new StatusInfoListener();
@@ -441,11 +441,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public String getLockCollectionName() {
-        if (lockCollectionName == null) {
-            lockCollectionName = getCollectionName() + "_lck";
+        if (lockCollectionNames.get(".") == null) {
+            lockCollectionNames.put(".", getCollectionName() + "_lck");
         }
 
-        return lockCollectionName;
+        return lockCollectionNames.get(".");
     }
 
     @Override
@@ -455,8 +455,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public String getLockCollectionName(String name) {
-        // TODO: improve
-        return (getLockCollectionName() + "_" + name).replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
+        if (lockCollectionNames.get(name) == null) {
+            lockCollectionNames.put (name, getLockCollectionName() + "_" + name).replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
+        }
+        return lockCollectionNames.get(name);
     }
 
     private boolean lockMessage(Msg m, String lockId) {
