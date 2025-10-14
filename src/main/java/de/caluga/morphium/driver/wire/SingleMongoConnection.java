@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -243,42 +244,47 @@ public class SingleMongoConnection implements MongoConnection {
             throw new MorphiumDriverException("Connection closed");
         }
 
-        try {
-            s.setSoTimeout(timeout);
-        } catch (SocketException e) {
-            // TODO Auto-generated catch block
-            // e.printStackTrace();
-            close();
-            throw new MorphiumDriverException("socket error", e);
-        }
-
-        try {
-            var incoming = WireProtocolMessage.parseFromStream(in);
-            OpMsg msg = null;
-
-            if (incoming instanceof OpCompressed) {
-                var opc = ((OpCompressed)incoming);
-                byte[] msgb = opc.getCompressedMessage();
-                OpMsg message = new OpMsg();
-                message.setMessageId(opc.getMessageId());
-                message.parsePayload(msgb, 0);
-                msg = message;
-            } else {
-                msg = (OpMsg)incoming;
+        while (true) {
+            try {
+                s.setSoTimeout(timeout);
+            } catch (SocketException e) {
+                close();
+                throw new MorphiumDriverException("socket error", e);
             }
 
-            if (msg == null) {
+            try {
+                var incoming = WireProtocolMessage.parseFromStream(in);
+                OpMsg msg = null;
+
+                if (incoming instanceof OpCompressed) {
+                    var opc = ((OpCompressed)incoming);
+                    byte[] msgb = opc.getCompressedMessage();
+                    OpMsg message = new OpMsg();
+                    message.setMessageId(opc.getMessageId());
+                    message.parsePayload(msgb, 0);
+                    msg = message;
+                } else {
+                    msg = (OpMsg)incoming;
+                }
+
+                if (msg == null) {
+                    return null;
+                }
+
+                stats.get(REPLY_RECEIVED).incrementAndGet();
+                return msg;
+            } catch (SocketTimeoutException ste) {
+                log.debug("socket timeout - retrying");
+            } catch (Exception e) {
+                if (e.getCause() instanceof SocketTimeoutException) {
+                    log.debug("socket timeout - retry");
+                    continue;
+                } else if (running) {
+                    close();
+                    throw new MorphiumDriverException("" + e.getMessage(), e);
+                }
                 return null;
             }
-
-            stats.get(REPLY_RECEIVED).incrementAndGet();
-            return msg;
-        } catch (Exception e) {
-            if (running) {
-                close();
-                throw new MorphiumDriverException("" + e.getMessage(), e);
-            }
-            return null;
         }
     }
 
@@ -496,7 +502,7 @@ public class SingleMongoConnection implements MongoConnection {
             try {
                 reply = readNextMessage(maxWait);//getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
             } catch (MorphiumDriverException e) {
-                if (e.getMessage().contains("server did not answer in time: ")) {
+                if (e.getMessage().contains("server did not answer in time: ") || e.getMessage().contains("Read timed out")) {
                     log.debug("timeout in watch - restarting");
                     msg.setMessageId(msgId.incrementAndGet());
                     sendQuery(msg);
