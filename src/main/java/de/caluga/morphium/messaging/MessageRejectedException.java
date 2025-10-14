@@ -11,7 +11,7 @@ import de.caluga.morphium.driver.commands.UpdateMongoCommand;
  * Date: 21.04.18
  * Time: 22:26
  * <p>
- * TODO: Add documentation here
+ * This Exception may be thrown by any onMessage call. If thrown, the message is open for processing by others.
  */
 public class MessageRejectedException extends RuntimeException {
     private boolean continueProcessing;
@@ -49,7 +49,7 @@ public class MessageRejectedException extends RuntimeException {
                         //not exclusive message is marked as processed by me
                     } else {
                         //releasing lock when exclusive - should not be checked until processing is removed
-                        var ret = msg.getMorphium().createQueryFor(MsgLock.class, msg.getLockCollectionName()).f("_id").eq(m.getMsgId()).delete();
+                        var ret = msg.getMorphium().createQueryFor(MsgLock.class, msg.getLockCollectionName(m)).f("_id").eq(m.getMsgId()).delete();
                     }
                 } catch (MorphiumDriverException e) {
                     LoggerFactory.getLogger(msg.getClass()).error("Error unlocking message", e);
