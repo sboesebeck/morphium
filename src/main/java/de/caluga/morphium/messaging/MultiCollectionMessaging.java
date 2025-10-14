@@ -631,11 +631,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     private void pollAndProcessDms(String name) {
-        // TODO: look for paused dms
-        //
-        //
-        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) // not
-                // processed
+        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) // not processed
+                .f(Msg.Fields.topic).nin(getPausedTopics())
                 .f(Msg.Fields.topic).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
         int window = getWindowSize();
         q.limit(window + 1);
@@ -647,7 +644,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 break;
             }
             for (var e : (List<Map<MType, Object>>) monitorsByTopic.get(m.getTopic())) {
-                var l = (MessageListener) e.get(MType.listener);
+                // var l = (MessageListener) e.get(MType.listener);
                 queueOrRun(() -> {
                     if (m.isAnswer()) {
                         handleAnswer(m);
@@ -711,7 +708,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 return;
             }
             // Check answers
-            if (m.isAnswer()) { // should never come in this collection!!! TODO
+            if (m.isAnswer()) {
                 handleAnswer(m);
             } else {
                 // happens if pausing is enabled during processing!
@@ -721,7 +718,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 if (m.getRecipients() != null && !m.getRecipients().isEmpty()
                         && !m.getRecipients().contains(getSenderId())) {
                     // message not for me
-                    // TODO: should never be here as we use DM_collections
+                    log.warn("Got direct message not for me? Recipients: {}", m.getRecipients());
                     return;
                 }
 

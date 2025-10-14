@@ -5,7 +5,6 @@ package de.caluga.morphium.cache;
  * Date: 14.07.18
  * Time: 22:39
  * <p>
- * TODO: Add documentation here
  */
 public interface CacheSyncListener {
     /**

@@ -330,7 +330,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, e.getMessage(), e, null);
                         }
 
-                        // TODO: Implement Handling
                         if (e instanceof RuntimeException) {
                             throw (RuntimeException) e;
                         }
@@ -793,7 +792,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     // }
     // }
     // } catch (MorphiumDriverException e) {
-    // // TODO: Implement Handling
     // throw new RuntimeException(e);
     // }
     // };
@@ -815,7 +813,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         try {
             bulkCtx.execute();
         } catch (MorphiumDriverException e) {
-            // TODO: Implement Handling
             throw new RuntimeException(e);
         }
 

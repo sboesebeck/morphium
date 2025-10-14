@@ -101,6 +101,33 @@ public class MyEntity {
 - Fixed exclusive message lock release
 - Enhanced connection management in rejection handler
 
+### Bulk Operations
+
+**Bulk Operations Now Return Proper Statistics**
+- Fixed `MorphiumBulkContext.runBulk()` to return operation statistics instead of null/empty results
+- All three driver implementations now properly collect and aggregate operation counts:
+  - `InMemoryDriver` - Fixed inline bulk context implementation
+  - `SingleMongoConnectDriver` - Fixed inline bulk context implementation
+  - `PooledDriver` - Fixed inline bulk context implementation
+
+**Returned Statistics:**
+```java
+Map<String, Object> result = bulkContext.runBulk();
+// Returns:
+// {
+//   "num_inserted": <count>,
+//   "num_matched": <count>,
+//   "num_modified": <count>,
+//   "num_deleted": <count>,
+//   "num_upserts": <count>,
+//   "upsertedIds": [<list of IDs>]  // Only if upserts occurred
+// }
+```
+
+**Impact:** Applications can now track bulk operation results for monitoring, logging, and validation purposes.
+
+**Test Coverage:** Added comprehensive test `BulkOperationTest.bulkTestReturnCounts()` verifying all count returns.
+
 ### Performance Improvements
 
 **Collection Name Caching**
@@ -150,6 +177,9 @@ public class MyEntity {
 
 **Driver:**
 - `src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnection.java` - Timeout handling
+- `src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java` - Bulk operations return counts
+- `src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnectDriver.java` - Bulk operations return counts
+- `src/main/java/de/caluga/morphium/driver/wire/PooledDriver.java` - Bulk operations return counts
 
 **Messaging:**
 - `src/main/java/de/caluga/morphium/messaging/Msg.java` - UseIfNull usage
@@ -159,6 +189,7 @@ public class MyEntity {
 - `src/test/java/de/caluga/test/mongo/suite/data/ComplexObject.java` - UseIfNull usage
 - `src/test/java/de/caluga/test/mongo/suite/base/UseIfNullTest.java` - New test suite (5 tests)
 - `src/test/java/de/caluga/test/mongo/suite/base/UseIfNullDistinctionTest.java` - New bidirectional tests (4 tests)
+- `src/test/java/de/caluga/test/mongo/suite/base/BulkOperationTest.java` - Added bulkTestReturnCounts() test
 
 ### Compatibility
 

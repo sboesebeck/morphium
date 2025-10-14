@@ -1226,6 +1226,12 @@ public class PooledDriver extends DriverBase {
             private final List<BulkRequest> requests = new ArrayList<>();
 
             public Doc execute() {
+                int delCount = 0;
+                int matchedCount = 0;
+                int insertCount = 0;
+                int modifiedCount = 0;
+                List<Object> upsertedIds = new ArrayList<>();
+
                 try {
                     for (BulkRequest r : requests) {
                         switch (r) {
@@ -1233,22 +1239,39 @@ public class PooledDriver extends DriverBase {
                                 InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(null));
                                 settings.setDb(db).setColl(collection).setComment("Bulk insert")
                                         .setDocuments(insert.getToInsert());
-                                settings.execute();
+                                Map<String, Object> result = settings.execute();
                                 settings.releaseConnection();
+                                insertCount += insert.getToInsert().size();
                             }
                             case UpdateBulkRequest update -> {
                                 UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(null));
                                 upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
                                         update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())));
-                                upCmd.execute();
+                                Map<String, Object> result = upCmd.execute();
                                 upCmd.releaseConnection();
+                                if (result.containsKey("n")) {
+                                    matchedCount += ((Number) result.get("n")).intValue();
+                                }
+                                if (result.containsKey("nModified")) {
+                                    modifiedCount += ((Number) result.get("nModified")).intValue();
+                                }
+                                if (result.containsKey("upserted")) {
+                                    @SuppressWarnings("unchecked")
+                                    List<Map<String, Object>> upserted = (List<Map<String, Object>>) result.get("upserted");
+                                    for (Map<String, Object> u : upserted) {
+                                        upsertedIds.add(u.get("_id"));
+                                    }
+                                }
                             }
                             case DeleteBulkRequest delete -> {
                                 DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(null));
                                 del.setColl(collection).setDb(db).setDeletes(
                                                    Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)));
-                                del.execute();
+                                Map<String, Object> result = del.execute();
                                 del.releaseConnection();
+                                if (result.containsKey("n")) {
+                                    delCount += ((Number) result.get("n")).intValue();
+                                }
                             }
                             default -> throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
@@ -1258,7 +1281,20 @@ public class PooledDriver extends DriverBase {
                     stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                 }
 
-                return new Doc();
+                // Build result document
+                Doc res = Doc.of(
+                    "num_deleted", delCount,
+                    "num_matched", matchedCount,
+                    "num_inserted", insertCount,
+                    "num_modified", modifiedCount,
+                    "num_upserts", upsertedIds.size()
+                );
+
+                if (!upsertedIds.isEmpty()) {
+                    res.put("upsertedIds", upsertedIds);
+                }
+
+                return res;
             }
 
             public UpdateBulkRequest addUpdateBulkRequest() {

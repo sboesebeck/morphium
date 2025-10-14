@@ -583,28 +583,51 @@ public class SingleMongoConnectDriver extends DriverBase {
         return new BulkRequestContext(m) {
             private final List<BulkRequest> requests = new ArrayList<>();
             public Doc execute() {
+                int delCount = 0;
+                int matchedCount = 0;
+                int insertCount = 0;
+                int modifiedCount = 0;
+                List<Object> upsertedIds = new ArrayList<>();
+
                 try {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
                             var c = getPrimaryConnection(wc);
                             InsertMongoCommand settings = new InsertMongoCommand(c);
                             settings.setDb(db).setColl(collection).setComment("Bulk insert").setDocuments(((InsertBulkRequest) r).getToInsert());
-                            settings.execute();
+                            Map<String, Object> result = settings.execute();
                             settings.releaseConnection();
+                            insertCount += ((InsertBulkRequest) r).getToInsert().size();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
                             var c = getPrimaryConnection(wc);
                             UpdateMongoCommand upCmd = new UpdateMongoCommand(c);
                             upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
-                            upCmd.execute();
+                            Map<String, Object> result = upCmd.execute();
                             upCmd.releaseConnection();
+                            if (result.containsKey("n")) {
+                                matchedCount += ((Number) result.get("n")).intValue();
+                            }
+                            if (result.containsKey("nModified")) {
+                                modifiedCount += ((Number) result.get("nModified")).intValue();
+                            }
+                            if (result.containsKey("upserted")) {
+                                @SuppressWarnings("unchecked")
+                                List<Map<String, Object>> upserted = (List<Map<String, Object>>) result.get("upserted");
+                                for (Map<String, Object> u : upserted) {
+                                    upsertedIds.add(u.get("_id"));
+                                }
+                            }
                         } else if (r instanceof DeleteBulkRequest) {
                             DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
                             var c = getPrimaryConnection(wc);
                             DeleteMongoCommand del = new DeleteMongoCommand(c);
                             del.setColl(collection).setDb(db).setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
-                            del.execute();
+                            Map<String, Object> result = del.execute();
                             del.releaseConnection();
+                            if (result.containsKey("n")) {
+                                delCount += ((Number) result.get("n")).intValue();
+                            }
                         } else {
                             throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
@@ -613,7 +636,20 @@ public class SingleMongoConnectDriver extends DriverBase {
                     log.error("Got exception: ", e);
                 }
 
-                return new Doc();
+                // Build result document
+                Doc res = Doc.of(
+                    "num_deleted", delCount,
+                    "num_matched", matchedCount,
+                    "num_inserted", insertCount,
+                    "num_modified", modifiedCount,
+                    "num_upserts", upsertedIds.size()
+                );
+
+                if (!upsertedIds.isEmpty()) {
+                    res.put("upsertedIds", upsertedIds);
+                }
+
+                return res;
             }
             public UpdateBulkRequest addUpdateBulkRequest() {
                 UpdateBulkRequest up = new UpdateBulkRequest();
