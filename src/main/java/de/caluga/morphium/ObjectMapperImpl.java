@@ -1000,8 +1000,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                 if (valueFromDb == null) {
                     if (!fldType.isPrimitive() && objectMap.containsKey(f)) {
-                        fld.set(ret, null);
+                        // Field is present in DB as null
+                        // Only set to null if field explicitly allows it via @UseIfNull
+                        if (fld.isAnnotationPresent(UseIfNull.class)) {
+                            fld.set(ret, null);
+                        }
+                        // else: Field present as null in DB but no @UseIfNull -> keep default value
                     }
+                    // else: Field not in DB -> keep default value
 
                     continue;
                 }
