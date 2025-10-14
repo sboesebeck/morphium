@@ -35,22 +35,22 @@ import java.util.*;
 })
 public class Msg {
     @Index
-    @UseIfnull
+    @UseIfNull
     private List<String> processedBy;
     @Id
     private MorphiumId msgId;
     @Index
-    // @UseIfnull
+    // @UseIfNull
     // private String lockedBy;
     // @Index
     // private long locked;
     private long ttl;
     private String sender;
     private String senderHost;
-    @UseIfnull
+    @UseIfNull
     private List<String> recipients;
 
-    @UseIfnull
+    @UseIfNull
     private MorphiumId inAnswerTo;
     //payload goes here
     @Index
