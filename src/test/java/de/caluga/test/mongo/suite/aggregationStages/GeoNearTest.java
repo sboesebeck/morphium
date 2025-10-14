@@ -22,6 +22,9 @@ public class GeoNearTest extends MorphiumTestBase {
         morphium.dropCollection(Place.class);
         Thread.sleep(100);
         morphium.ensureIndicesFor(Place.class);
+        // Wait for index creation to complete - geospatial indexes can take time
+        Thread.sleep(1000);
+
         morphium.store(new Place("Polo grounds", new Point(-73.9375, 40.8303), new Double[]{-73.9375, 40.8303}, "Stadiums"));
         morphium.store(new Place("Central park", new Point(-73.97, 40.77), new Double[]{-73.97, 40.77}, "Parks"));
         morphium.store(new Place("La Guardia", new Point(-73.88, 40.78), new Double[]{-73.88, 40.78}, "Airport"));
@@ -29,6 +32,12 @@ public class GeoNearTest extends MorphiumTestBase {
         morphium.store(new Place("Allianz Arena", new Point(11.624707, 48.218800), new Double[]{11.624707, 48.218800}, "Stadiums"));
         morphium.store(new Place("Westfalenhalle Dortmund", new Point(7.463520, 51.511030), new Double[]{7.463520, 51.511030}, "Stadiums"));
 
+        // Wait for documents to be indexed
+        Thread.sleep(500);
+
+        // Verify we have the expected number of documents
+        long count = morphium.createQueryFor(Place.class).countAll();
+        assert count == 6 : "Expected 6 places but found " + count;
 
         Aggregator<Place, Map> agg = morphium.createAggregator(Place.class, Map.class);
         agg.geoNear(UtilsMap.of(Aggregator.GeoNearFields.near, (Object) new Point(-73.98142, 40.71782),
