@@ -170,4 +170,71 @@ public class BulkOperationTest extends MultiDriverTestBase {
         }
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void bulkTestReturnCounts(Morphium morphium) throws Exception {
+        try (morphium) {
+            morphium.dropCollection(UncachedObject.class);
+            Thread.sleep(100);
+
+            // Create test data
+            createUncachedObjects(morphium, 10);
+            TestUtils.waitForWrites(morphium, log);
+
+            // Create bulk context and add various operations
+            MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+
+            // Add 5 inserts
+            for (int i = 0; i < 5; i++) {
+                c.addInsertRequest(Arrays.asList(new UncachedObject("bulk_insert_" + i, 1000 + i)));
+            }
+
+            // Add updates (should match 10 existing documents)
+            c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").lt(100), "counter", 500, false, true);
+
+            // Add another update with upsert
+            c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("strValue").eq("nonexistent"), "counter", 999, true, false);
+
+            // Add deletes (should delete documents with counter=500)
+            c.addDeleteRequest(morphium.createQueryFor(UncachedObject.class).f("counter").eq(500), true);
+
+            // Execute bulk operations
+            Map<String, Object> ret = c.runBulk();
+
+            log.info("Bulk operation results: " + ret);
+
+            // Verify return values are present and correct
+            assert ret != null : "Bulk operation should return results";
+            assert ret.containsKey("num_inserted") : "Result should contain num_inserted";
+            assert ret.containsKey("num_matched") : "Result should contain num_matched";
+            assert ret.containsKey("num_modified") : "Result should contain num_modified";
+            assert ret.containsKey("num_deleted") : "Result should contain num_deleted";
+            assert ret.containsKey("num_upserts") : "Result should contain num_upserts";
+
+            int inserted = ((Number) ret.get("num_inserted")).intValue();
+            int matched = ((Number) ret.get("num_matched")).intValue();
+            int modified = ((Number) ret.get("num_modified")).intValue();
+            int deleted = ((Number) ret.get("num_deleted")).intValue();
+            int upserts = ((Number) ret.get("num_upserts")).intValue();
+
+            log.info(String.format("Inserted: %d, Matched: %d, Modified: %d, Deleted: %d, Upserts: %d",
+                    inserted, matched, modified, deleted, upserts));
+
+            // Verify counts
+            assert inserted == 5 : "Should have inserted 5 documents, got: " + inserted;
+            assert matched >= 10 : "Should have matched at least 10 documents, got: " + matched;
+            assert modified >= 10 : "Should have modified at least 10 documents, got: " + modified;
+            assert deleted >= 10 : "Should have deleted at least 10 documents, got: " + deleted;
+            assert upserts == 1 : "Should have 1 upsert, got: " + upserts;
+
+            // Check upserted IDs
+            if (upserts > 0) {
+                assert ret.containsKey("upsertedIds") : "Result should contain upsertedIds when upserts occurred";
+                log.info("Upserted IDs: " + ret.get("upsertedIds"));
+            }
+
+            log.info("✓ Bulk operation return counts verified successfully");
+        }
+    }
+
 }

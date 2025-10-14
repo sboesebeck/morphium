@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
  * Date: 18.05.18
  * Time: 14:52
  * <p>
- * TODO: Add documentation here
  */
 public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpiredListener<Object, CacheEntry>, CacheEntryCreatedListener<Object, CacheEntry>, CacheEntryRemovedListener<Object, CacheEntry>, CacheEntryUpdatedListener<Object, CacheEntry> {
     public final static String RESULT_CACHE_NAME = "resultCache";
@@ -34,8 +33,8 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
 
     private CacheManager cacheManager;
 
-    private final Map<Class<?>, Cache> idCaches = new HashMap<>();
-    private final Map<Class<?>, Cache> resultCaches = new HashMap<>();
+    private final Map < Class<?>, Cache> idCaches = new HashMap<>();
+    private final Map < Class<?>, Cache> resultCaches = new HashMap<>();
 
     private AnnotationAndReflectionHelper anHelper = new AnnotationAndReflectionHelper(false);
 
@@ -84,7 +83,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     }
 
     @Override
-    public <T> void addToCache(String k, Class<? extends T> type, List<T> ret) {
+    public <T> void addToCache(String k, Class <? extends T> type, List<T> ret) {
 
         Cache idCache = getIdCache(type);
         Cache resultCache = getResultCache(type);
@@ -138,7 +137,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     }
 
     @Override
-    public <T> List<T> getFromCache(Class<? extends T> type, String k) {
+    public <T> List<T> getFromCache(Class <? extends T > type, String k) {
         Cache<Object, CacheEntry<List<T>>> resultCache = getResultCache(type);
         synchronized (this) {
             if (resultCache.get(k) != null) {
@@ -155,7 +154,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     }
 
     @SuppressWarnings("CommentedOutCode")
-    private <T> Cache<Object, CacheEntry<T>> getIdCache(Class<? extends T> type) {
+    private <T> Cache<Object, CacheEntry<T>> getIdCache(Class <? extends T> type) {
         if (idCaches.containsKey(type)) {
             //noinspection unchecked
             return (Cache<Object, CacheEntry<T>>) idCaches.get(type);
@@ -163,11 +162,11 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         Cache<Object, CacheEntry<T>> cache;
         log.info("Creating new cache for " + type.getName());
         MutableConfiguration config =
-                new MutableConfiguration<>()
-                        .setTypes(Object.class, Object.class)
-                        .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                        .setStoreByValue(false)
-                        .setStatisticsEnabled(false);
+                        new MutableConfiguration<>()
+        .setTypes(Object.class, Object.class)
+        .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
+        .setStoreByValue(false)
+        .setStatisticsEnabled(false);
 
         try {
             //noinspection unchecked
@@ -190,7 +189,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     }
 
     @SuppressWarnings("CommentedOutCode")
-    private <T> Cache<Object, CacheEntry<List<T>>> getResultCache(Class<? extends T> type) {
+    private <T> Cache<Object, CacheEntry<List<T>>> getResultCache(Class <? extends T> type) {
         if (resultCaches.containsKey(type)) {
             //noinspection unchecked
             return resultCaches.get(type);
@@ -198,11 +197,11 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         Cache<Object, CacheEntry<List<T>>> cache;
         log.info("Creating new cache for " + type.getName());
         MutableConfiguration config =
-                new MutableConfiguration<>()
-                        .setTypes(Object.class, Object.class)
-                        .setStoreByValue(false)
-                        .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                        .setStatisticsEnabled(false);
+                        new MutableConfiguration<>()
+        .setTypes(Object.class, Object.class)
+        .setStoreByValue(false)
+        .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
+        .setStatisticsEnabled(false);
         try {
             //noinspection unchecked
             cache = getCacheManager().createCache(RESULT_CACHE_NAME + "|" + type.getName(), config);
@@ -266,7 +265,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         }
         Set<String> toRemove = new HashSet<>();
         //noinspection unchecked
-        for (Cache.Entry<String, CacheEntry> entry : (Iterable<Cache.Entry<String, CacheEntry>>) getResultCache(cls)) {
+        for (Cache.Entry<String, CacheEntry> entry : (Iterable<Cache.Entry<String, CacheEntry >> ) getResultCache(cls)) {
             for (Object el : (List) entry.getValue().getResult()) {
                 Object lid = anHelper.getId(el);
                 for (CacheListener cl : cacheListeners) {
@@ -291,7 +290,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     }
 
     @Override
-    public <T> T getFromIDCache(Class<? extends T> type, Object id) {
+    public <T> T getFromIDCache(Class <? extends T > type, Object id) {
         Cache<Object, CacheEntry<T>> c = getIdCache(type);
         if (!c.containsKey(id)) return null;
         return c.get(id).getResult();

@@ -38,22 +38,22 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class AnnotationAndReflectionHelper {
 
     private final Logger logger = getLogger(AnnotationAndReflectionHelper.class);
-    private final Map<Class<?>, Class<? >> realClassCache;
-    private final Map<Class<?>, List<Field >> fieldListCache;
-    private final ConcurrentHashMap<Class<?>, Map<Class<? extends Annotation>, Annotation >> annotationCache;
-    private final Map<Class<?>, Map<String, String >> fieldNameCache;
+    private final Map < Class<?>, Class<? >> realClassCache;
+    private final Map < Class<?>, List<Field >> fieldListCache;
+    private final ConcurrentHashMap < Class<?>, Map<Class<? extends Annotation >, Annotation >> annotationCache;
+    private final Map < Class<?>, Map<String, String >> fieldNameCache;
     private static ConcurrentHashMap<String, String> classNameByType;
     private Map<String, Field> fieldCache;
     private Map<String, List<String>> fieldAnnotationListCache;
-    private Map<Class<?>, Map<Class<? extends Annotation>, Method >> lifeCycleMethods;
-    private Map<Class<?>, Boolean> hasAdditionalData;
+    private Map<Class<?>, Map < Class<? extends Annotation >, Method >> lifeCycleMethods;
+    private Map < Class<?>, Boolean > hasAdditionalData;
     private boolean ccc;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this(convertCamelCase, new HashMap<>());
     }
 
-    public AnnotationAndReflectionHelper(boolean convertCamelCase, Map<Class<?>, Class<? >> realClassCache) {
+    public AnnotationAndReflectionHelper(boolean convertCamelCase, Map < Class<?>, Class<? >> realClassCache) {
         this.ccc = convertCamelCase;
         this.realClassCache = realClassCache;
         this.fieldListCache = new ConcurrentHashMap<>();
@@ -85,13 +85,13 @@ public class AnnotationAndReflectionHelper {
     private void init() {
         //initializing type IDs
         try (ScanResult scanResult =
-                    new ClassGraph()
+                                    new ClassGraph()
             //                     .verbose()             // Enable verbose logging
             .enableAnnotationInfo()
             //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
             .scan()) {
             ClassInfoList entities =
-                scanResult.getClassesWithAnnotation(Entity.class.getName());
+                            scanResult.getClassesWithAnnotation(Entity.class.getName());
             entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             logger.info("Found " + entities.size() + " entities in classpath");
 
@@ -143,11 +143,11 @@ public class AnnotationAndReflectionHelper {
         return Class.forName(typeId);
     }
 
-    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(final Class<?> aClass, final Class<? extends T> annotationClass) {
+    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(final Class<?> aClass, final Class <? extends T > annotationClass) {
         return getAnnotationFromHierarchy(aClass, annotationClass) != null;
     }
 
-    public boolean isAnnotationOnAnyField(final Class<?> aClass, final Class<? extends Annotation>annotationClass) {
+    public boolean isAnnotationOnAnyField(final Class<?> aClass, final Class <? extends Annotation > annotationClass) {
         if (aClass == null || Map.class.isAssignableFrom(aClass)) return false;
 
         for (Field f : getAllFields(aClass)) {
@@ -164,11 +164,11 @@ public class AnnotationAndReflectionHelper {
      * @param superClass class
      * @return the Annotation
      */
-    public <T extends Annotation> T getAnnotationFromHierarchy(final Class<?> superClass, final Class<? extends T> annotationClass) {
+    public <T extends Annotation> T getAnnotationFromHierarchy(final Class<?> superClass, final Class <? extends T > annotationClass) {
         if (superClass == null) { return null; }
 
         final Class<?> aClass = getRealClass(superClass);
-        Map<Class<? extends Annotation>, Annotation> cacheForClass = annotationCache.get(aClass);
+        Map < Class <? extends Annotation>, Annotation > cacheForClass = annotationCache.get(aClass);
 
         if (cacheForClass != null) {
             // Must be done with containsKey to enable caching of null
@@ -187,7 +187,7 @@ public class AnnotationAndReflectionHelper {
         return annotation;
     }
 
-    private <T extends Annotation> T annotationOfClassHierarchy(Class<?> aClass, Class<? extends T> annotationClass) {
+    private <T extends Annotation> T annotationOfClassHierarchy(Class<?> aClass, Class <? extends T > annotationClass) {
         T annotation = null;
         Class<?> tmpClass = aClass;
 
@@ -204,7 +204,7 @@ public class AnnotationAndReflectionHelper {
         }
 
         //check interfaces if nothing was found yet
-        ArrayDeque<Class<?>> interfaces = new ArrayDeque<>();
+        ArrayDeque < Class<?>> interfaces = new ArrayDeque<>();
         Collections.addAll(interfaces, aClass.getInterfaces());
 
         while (!interfaces.isEmpty()) {
@@ -221,16 +221,16 @@ public class AnnotationAndReflectionHelper {
         return null;
     }
 
-    public <T extends Annotation> T getAnnotationFromClass(final Class<?> cls, final Class<? extends T> annotationClass) {
+    public <T extends Annotation> T getAnnotationFromClass(final Class<?> cls, final Class <? extends T > annotationClass) {
         final Class<?> aClass = getRealClass(cls);
         return aClass.getAnnotation(annotationClass);
     }
 
-    public <T> Class<? extends T> getRealClass(final Class<? extends T> superClass) {
+    public <T> Class <? extends T > getRealClass(final Class <? extends T > superClass) {
         Class realClass = realClassCache.get(superClass);
 
         if (realClass != null) {
-            return (Class<? extends T>) realClass;
+            return (Class <? extends T > ) realClass;
         }
 
         if (isProxy(superClass)) {
@@ -293,7 +293,6 @@ public class AnnotationAndReflectionHelper {
 
         if ((inf.contains(List.class)) || inf.contains(Map.class) || inf.contains(Collection.class) || inf.contains(Set.class) || clz.isArray()) {
             //not diving into maps
-            //TODO: check for generics type and dive into collecion/Maps
         } else {
             Field f = getField(cls, field);
 
@@ -338,7 +337,7 @@ public class AnnotationAndReflectionHelper {
             Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);
 
             if ((ccc && ent != null && ent.translateCamelCase())
-                || (ccc && emb != null && emb.translateCamelCase())) {
+                    || (ccc && emb != null && emb.translateCamelCase())) {
                 ret = convertCamelCase(ret);
             }
         }
@@ -834,17 +833,17 @@ public class AnnotationAndReflectionHelper {
      * @param cls - the class to geht ghe Fields from
      * @return List of Strings, each a field name (as described in @Property or determined by name)
      */
-    public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
+    public List<String> getFields(Class cls, Class <? extends Annotation > ... annotations) {
         return getFields(cls, false, annotations);
     }
 
     @SuppressWarnings("CommentedOutCode")
-    public List<String> getFields(Class cls, boolean ignoreEntity, Class<? extends Annotation>... annotations) {
+    public List<String> getFields(Class cls, boolean ignoreEntity, Class <? extends Annotation > ... annotations) {
         if (cls == null) { return new ArrayList<>(); }
 
         StringBuilder stringBuilder = new StringBuilder(cls.toString());
 
-        for (Class<? extends Annotation> a : annotations) {
+        for (Class <? extends Annotation > a : annotations) {
             stringBuilder.append("/");
             stringBuilder.append(a.toString());
         }
@@ -915,7 +914,7 @@ public class AnnotationAndReflectionHelper {
             if (annotations.length > 0) {
                 boolean found = false;
 
-                for (Class<? extends Annotation> a : annotations) {
+                for (Class <? extends Annotation > a : annotations) {
                     if (f.isAnnotationPresent(a)) {
                         found = true;
                         break;
@@ -1043,7 +1042,7 @@ public class AnnotationAndReflectionHelper {
         return (Double) getValue(o, fld);
     }
 
-    public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class<? extends Annotation>... anCls) {
+    public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class <? extends Annotation > ... anCls) {
         cls = getRealClass(cls);
         List<Annotation> ret = new ArrayList<>();
         Class<?> z = cls;
@@ -1054,7 +1053,7 @@ public class AnnotationAndReflectionHelper {
                     ret.addAll(Arrays.asList(z.getAnnotations()));
                 } else {
                     for (Annotation a : z.getAnnotations()) {
-                        for (Class<? extends Annotation> ac : anCls) {
+                        for (Class <? extends Annotation > ac : anCls) {
                             if (a.annotationType().equals(ac)) {
                                 ret.add(a);
                             }
@@ -1128,11 +1127,11 @@ public class AnnotationAndReflectionHelper {
         return lst.get(0);
     }
 
-    public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
+    public void callLifecycleMethod(Class <? extends Annotation > type, Object on) {
         callLifecycleMethod(type, on, new ArrayList());
     }
 
-    private void callLifecycleMethod(Class<? extends Annotation> type, Object on, List calledOn) {
+    private void callLifecycleMethod(Class <? extends Annotation > type, Object on, List calledOn) {
         if (on == null) {
             return;
         }
@@ -1173,7 +1172,7 @@ public class AnnotationAndReflectionHelper {
             Field field = getField(on.getClass(), f);
 
             if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) &&
-                isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
+                    isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
                 field.setAccessible(true);
 
                 try {
@@ -1193,7 +1192,7 @@ public class AnnotationAndReflectionHelper {
                     throw AnnotationAndReflectionException.of(e);
                 } catch (InvocationTargetException e) {
                     if (e.getCause().getClass().equals(MorphiumAccessVetoException.class)) {
-                        throw(RuntimeException) e.getCause();
+                        throw (RuntimeException) e.getCause();
                     }
 
                     throw AnnotationAndReflectionException.of(e);
@@ -1203,7 +1202,7 @@ public class AnnotationAndReflectionHelper {
             return;
         }
 
-        Map<Class<? extends Annotation>, Method> methods = new HashMap<>();
+        Map < Class <? extends Annotation>, Method> methods = new HashMap<>();
 
         //Methods must be public
         for (Method m : cls.getMethods()) {
@@ -1212,7 +1211,7 @@ public class AnnotationAndReflectionHelper {
             }
         }
 
-        Map<Class<?>, Map<Class<? extends Annotation>, Method >> lc = lifeCycleMethods;
+        Map < Class<?>, Map < Class <? extends Annotation >, Method >> lc = lifeCycleMethods;
         lc.put(cls, methods);
         if (methods.get(type) != null) {
             try {
@@ -1229,13 +1228,13 @@ public class AnnotationAndReflectionHelper {
         return wb != null && wb.value();
     }
 
-    private <T> boolean isProxy(Class<? extends T> aClass) {
+    private <T> boolean isProxy(Class <? extends T > aClass) {
         if (aClass == null) { return false; }
 
         return aClass.getName().contains("$$EnhancerByCGLIB$$");
     }
 
-    private <T> Class<?> realClassOf(Class<? extends T> superClass) {
+    private <T> Class<?> realClassOf(Class <? extends T > superClass) {
         try {
             return Class.forName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
         } catch (ClassNotFoundException e) {

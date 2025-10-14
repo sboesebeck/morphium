@@ -4383,15 +4383,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             private final List<BulkRequest> requests = new ArrayList<>();
             @Override
             public Map<String, Object> execute() {
+                int delCount = 0;
+                int matchedCount = 0;
+                int insertCount = 0;
+                int modifiedCount = 0;
+                List<Object> upsertedIds = new ArrayList<>();
+
                 try {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
-                            insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
+                            InsertBulkRequest ibr = (InsertBulkRequest) r;
+                            insert(db, collection, ibr.getToInsert(), null);
+                            insertCount += ibr.getToInsert().size();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            update(db, collection, up.getQuery(), null, up.getCmd(), up.isMultiple(), up.isUpsert(), null, null);
+                            Map<String, Object> updateResult = update(db, collection, up.getQuery(), null, up.getCmd(), up.isMultiple(), up.isUpsert(), null, null);
+                            if (updateResult.containsKey("matched")) {
+                                matchedCount += ((Number) updateResult.get("matched")).intValue();
+                            }
+                            if (updateResult.containsKey("modified") || updateResult.containsKey("nModified")) {
+                                Object modified = updateResult.getOrDefault("modified", updateResult.get("nModified"));
+                                if (modified != null) {
+                                    modifiedCount += ((Number) modified).intValue();
+                                }
+                            }
+                            if (updateResult.containsKey("upsertedIds")) {
+                                @SuppressWarnings("unchecked")
+                                List<Object> ids = (List<Object>) updateResult.get("upsertedIds");
+                                upsertedIds.addAll(ids);
+                            }
                         } else if (r instanceof DeleteBulkRequest) {
-                            delete (db, collection, ((DeleteBulkRequest) r).getQuery(), null, ((DeleteBulkRequest) r).isMultiple(), null, null);
+                            Map<String, Object> delResult = delete (db, collection, ((DeleteBulkRequest) r).getQuery(), null, ((DeleteBulkRequest) r).isMultiple(), null, null);
+                            if (delResult.containsKey("n")) {
+                                delCount += ((Number) delResult.get("n")).intValue();
+                            }
                         } else {
                             throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
@@ -4400,7 +4425,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     log.error("Got exception: ", e);
                 }
 
-                return new Doc();
+                // Build result document
+                Doc res = Doc.of(
+                    "num_deleted", delCount,
+                    "num_matched", matchedCount,
+                    "num_inserted", insertCount,
+                    "num_modified", modifiedCount,
+                    "num_upserts", upsertedIds.size()
+                );
+
+                if (!upsertedIds.isEmpty()) {
+                    res.put("upsertedIds", upsertedIds);
+                }
+
+                return res;
             }
             @Override
             public UpdateBulkRequest addUpdateBulkRequest() {

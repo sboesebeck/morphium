@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better timeout detection in watch operations
 - Multi-collection messaging error handling and lock release
 - Connection management in message rejection handler
+- **Bulk operations now return proper operation counts**: `runBulk()` now returns statistics including `num_inserted`, `num_matched`, `num_modified`, `num_deleted`, `num_upserts`, and `upsertedIds`
 
 ### Performance
 - Added collection name caching to reduce reflection overhead

@@ -93,7 +93,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             //primaryConnection.sendCommand(cmd);
             cmd.execute();
         } catch (MorphiumDriverException e) {
-            // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
             if (cmd != null) {

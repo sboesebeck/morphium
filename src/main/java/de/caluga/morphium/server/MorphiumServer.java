@@ -191,8 +191,7 @@ public class MorphiumServer {
                                     try {
                                         srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
                                     } catch (MorphiumDriverException e) {
-                                        // TODO Auto-generated catch block
-                                        e.printStackTrace();
+                                        log.error("Exception", e);
                                     }
 
                                     //need to insert without notifyWatchers!
@@ -200,15 +199,13 @@ public class MorphiumServer {
                                     try {
                                         srv.getDriver().delete(db, evt.getCollectionName(), Map.of("_id", evt.getDocumentKey()), null, false, null, null);
                                     } catch (MorphiumDriverException e) {
-                                        // TODO Auto-generated catch block
-                                        e.printStackTrace();
+                                        log.error("Exception", e);
                                     }
                                 } else if (evt.getOperationType().equals("update")) {
                                     try {
                                         srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
                                     } catch (MorphiumDriverException e) {
-                                        // TODO Auto-generated catch block
-                                        e.printStackTrace();
+                                        log.error("Exception", e);
                                     }
                                 } else {
                                     log.error("Cannot process command {}", evt.getOperationType());
@@ -216,7 +213,6 @@ public class MorphiumServer {
                                 return true;
                             });
                             mtr.start();
-                            //TODO heartbeat....
                         }
 
                         morphium.close();
