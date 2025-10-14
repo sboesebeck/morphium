@@ -49,7 +49,7 @@ public class ComplexObject {
     @Transient
     private String trans;
 
-    @UseIfnull
+    @UseIfNull
     private Integer nullValue;
 
     public List<EmbeddedObject> getEmbeddedObjectList() {
@@ -153,13 +153,13 @@ public class ComplexObject {
     @Override
     public String toString() {
         return "ComplexObject{" +
-                "id=" + id +
-                ", ref=" + (ref != null ? ref.getMorphiumId().toString() : "null") +
-                ", entityEmbedded=" + entityEmbeded +
-                ", einText='" + einText + '\'' +
-                ", trans='" + trans + '\'' +
-                ", nullValue=" + nullValue +
-                '}';
+               "id=" + id +
+               ", ref=" + (ref != null ? ref.getMorphiumId().toString() : "null") +
+               ", entityEmbedded=" + entityEmbeded +
+               ", einText='" + einText + '\'' +
+               ", trans='" + trans + '\'' +
+               ", nullValue=" + nullValue +
+               '}';
     }
 
 
