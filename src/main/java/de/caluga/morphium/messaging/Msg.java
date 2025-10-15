@@ -35,7 +35,7 @@ import java.util.*;
 })
 public class Msg {
     @Index
-    @UseIfNull
+    // Removed @UseIfNull - default behavior now stores/accepts nulls
     private List<String> processedBy;
     @Id
     private MorphiumId msgId;
@@ -47,21 +47,21 @@ public class Msg {
     private long ttl;
     private String sender;
     private String senderHost;
-    @UseIfNull
+    // Removed @UseIfNull - default behavior now stores/accepts nulls
     private List<String> recipients;
 
-    @UseIfNull
+    // Removed @UseIfNull - default behavior now stores/accepts nulls
     private MorphiumId inAnswerTo;
     //payload goes here
     @Index
     @Aliases({"name"})
     private String topic;
     private String msg;
-    @UseIfNull
+    // Removed @UseIfNull - default behavior now stores/accepts nulls
     private List<Object> additional;
-    @UseIfNull
+    // Removed @UseIfNull - default behavior now stores/accepts nulls
     private Map<String, Object> mapValue;
-    @UseIfNull
+    // Removed @UseIfNull - default behavior now stores/accepts nulls
     private String value;
     @Index
     private long timestamp;

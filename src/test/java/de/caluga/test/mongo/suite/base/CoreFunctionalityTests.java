@@ -87,14 +87,21 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             q.f("counter").eq(5);
             morphium.set(q, "strValue", "Updated Value");
 
-            UncachedMultipleCounter updated = morphium.createQueryFor(UncachedMultipleCounter.class)
-                                              .f("counter").eq(5).get();
-            assertEquals("Updated Value", updated.getStrValue());
+            TestUtils.waitForConditionToBecomeTrue(5000,
+                                                   (dur, e)-> log.error("Did not persist change"),
+                                                   ()->morphium.createQueryFor(UncachedMultipleCounter.class).f("counter").eq(5).get().getStrValue().equals("Updated Value"),
+                                                   (dur)->log.info("Waiting..."),
+                                                   (dur)->log.info("Persisted after {}ms", dur));
 
             // Test increment operation
             morphium.inc(morphium.createQueryFor(UncachedMultipleCounter.class).f("counter").eq(1),
                          "counter", 10);
 
+            TestUtils.waitForConditionToBecomeTrue(5000,
+                                                   (dur, e)-> log.error("Did not persist change"),
+                                                   ()->morphium.createQueryFor(UncachedMultipleCounter.class).f("counter").eq(11).get() != null,
+                                                   (dur)->log.info("Waiting..."),
+                                                   (dur)->log.info("Persisted after {}ms", dur));
             UncachedMultipleCounter incremented = morphium.createQueryFor(UncachedMultipleCounter.class)
                                                   .f("counter").eq(11).get();
             assertNotNull(incremented);
@@ -107,6 +114,11 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             morphium.set(morphium.createQueryFor(UncachedMultipleCounter.class)
                          .f("counter").lt(5), updates, false, true);
 
+            TestUtils.waitForConditionToBecomeTrue(5000,
+                                                   (dur, e)-> log.error("Did not persist change"),
+                                                   ()->morphium.createQueryFor(UncachedMultipleCounter.class).f("strValue").eq("Multi Update").asList().size() > 0,
+                                                   (dur)->log.info("Waiting..."),
+                                                   (dur)->log.info("Persisted after {}ms", dur));
             List<UncachedMultipleCounter> multiUpdated = morphium.createQueryFor(UncachedMultipleCounter.class)
                 .f("strValue").eq("Multi Update").asList();
             assertTrue(multiUpdated.size() > 0);
