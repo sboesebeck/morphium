@@ -32,6 +32,7 @@ public class UncachedObject {
     private long[] longData;
     private float[] floatData;
     private double[] doubleData;
+    @IgnoreNullFromDB  // Test expects this field not to exist when null
     private boolean[] boolData;
 
     @Id
