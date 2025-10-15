@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.UseIfNull;
+import de.caluga.morphium.annotations.IgnoreNullFromDB;
 import de.caluga.morphium.driver.MorphiumId;
 import org.junit.jupiter.api.Test;
 
@@ -15,6 +15,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests to verify if implementation distinguishes between:
  * 1. Field not present in MongoDB
  * 2. Field present with null value
+ *
+ * NEW BEHAVIOR: By default, null values from DB are accepted.
+ * Use @IgnoreNullFromDB to protect fields from null contamination.
  */
 public class UseIfNullDistinctionTest extends MorphiumTestBase {
 
@@ -23,12 +26,12 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
         @Id
         private MorphiumId id;
 
-        // Field WITHOUT @UseIfNull
+        // Field WITHOUT @IgnoreNullFromDB - accepts nulls (default behavior)
         private Integer regularField = 100;
 
-        // Field WITH @UseIfNull
-        @UseIfNull
-        private Integer nullableField = 200;
+        // Field WITH @IgnoreNullFromDB - protected from nulls
+        @IgnoreNullFromDB
+        private Integer protectedField = 200;
 
         public MorphiumId getId() {
             return id;
@@ -46,12 +49,12 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
             this.regularField = regularField;
         }
 
-        public Integer getNullableField() {
-            return nullableField;
+        public Integer getProtectedField() {
+            return protectedField;
         }
 
-        public void setNullableField(Integer nullableField) {
-            this.nullableField = nullableField;
+        public void setProtectedField(Integer protectedField) {
+            this.protectedField = protectedField;
         }
     }
 
@@ -67,8 +70,8 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
         assertNotNull(entity);
         assertEquals(100, entity.getRegularField(),
             "Regular field should have default value when missing from DB");
-        assertEquals(200, entity.getNullableField(),
-            "Nullable field should have default value when missing from DB");
+        assertEquals(200, entity.getProtectedField(),
+            "Protected field should have default value when missing from DB");
     }
 
     @Test
@@ -77,7 +80,7 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
         Map<String, Object> doc = new HashMap<>();
         doc.put("_id", new MorphiumId());
         doc.put("regular_field", null);     // Field present, value null
-        doc.put("nullable_field", null);    // Field present, value null
+        doc.put("protected_field", null);    // Field present, value null
 
         // Deserialize - what happens?
         TestEntity entity = morphium.getMapper().deserialize(TestEntity.class, doc);
@@ -85,13 +88,13 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
         assertNotNull(entity);
 
         log.info("Regular field value: " + entity.getRegularField());
-        log.info("Nullable field value: " + entity.getNullableField());
+        log.info("Protected field value: " + entity.getProtectedField());
 
-        // NEW BEHAVIOR: @UseIfNull is checked during deserialization
-        assertEquals(100, entity.getRegularField(),
-            "Field WITHOUT @UseIfNull: null in DB is ignored, default value preserved");
-        assertNull(entity.getNullableField(),
-            "Field WITH @UseIfNull: null in DB is accepted and set to null");
+        // NEW BEHAVIOR: Nulls are accepted by default, @IgnoreNullFromDB protects
+        assertNull(entity.getRegularField(),
+            "Field WITHOUT @IgnoreNullFromDB: null in DB is accepted and set to null (default behavior)");
+        assertEquals(200, entity.getProtectedField(),
+            "Field WITH @IgnoreNullFromDB: null in DB is ignored, default value preserved");
     }
 
     @Test
@@ -100,50 +103,50 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
         Map<String, Object> doc = new HashMap<>();
         doc.put("_id", new MorphiumId());
         doc.put("regular_field", null);     // Present as null
-        // nullable_field is missing entirely
+        // protected_field is missing entirely
 
         TestEntity entity = morphium.getMapper().deserialize(TestEntity.class, doc);
 
         assertNotNull(entity);
         log.info("Regular field (present as null): " + entity.getRegularField());
-        log.info("Nullable field (missing): " + entity.getNullableField());
+        log.info("Protected field (missing): " + entity.getProtectedField());
 
-        // NEW behavior: @UseIfNull protects from nulls during deserialization
-        assertEquals(100, entity.getRegularField(),
-            "Field WITHOUT @UseIfNull: null in DB ignored, default preserved");
-        assertEquals(200, entity.getNullableField(),
+        // NEW behavior: nulls accepted by default, @IgnoreNullFromDB protects
+        assertNull(entity.getRegularField(),
+            "Field WITHOUT @IgnoreNullFromDB: null in DB accepted (default behavior)");
+        assertEquals(200, entity.getProtectedField(),
             "Field missing from DB keeps default value");
     }
 
     @Test
     public void testAnnotationAffectsBothDirections() {
-        // Demonstrate that @UseIfNull affects BOTH writing AND reading
+        // Demonstrate that @IgnoreNullFromDB affects BOTH writing AND reading
 
-        // Scenario 1: Field WITHOUT @UseIfNull manually set to null in DB
+        // Scenario 1: Field WITHOUT @IgnoreNullFromDB manually set to null in DB
         Map<String, Object> doc1 = new HashMap<>();
         doc1.put("_id", new MorphiumId());
         doc1.put("regular_field", null);  // Manually added null
 
         TestEntity entity1 = morphium.getMapper().deserialize(TestEntity.class, doc1);
-        assertEquals(100, entity1.getRegularField(),
-            "Field WITHOUT @UseIfNull: null in DB is rejected, default preserved");
+        assertNull(entity1.getRegularField(),
+            "Field WITHOUT @IgnoreNullFromDB: null in DB is accepted (default behavior)");
 
-        // Scenario 2: Field WITH @UseIfNull manually set to null in DB
+        // Scenario 2: Field WITH @IgnoreNullFromDB manually set to null in DB
         Map<String, Object> doc2 = new HashMap<>();
         doc2.put("_id", new MorphiumId());
-        doc2.put("nullable_field", null);  // Manually added null
+        doc2.put("protected_field", null);  // Manually added null
 
         TestEntity entity2 = morphium.getMapper().deserialize(TestEntity.class, doc2);
-        assertNull(entity2.getNullableField(),
-            "Field WITH @UseIfNull: null in DB is accepted");
+        assertEquals(200, entity2.getProtectedField(),
+            "Field WITH @IgnoreNullFromDB: null in DB is rejected, default preserved");
 
-        // Scenario 3: Field WITH @UseIfNull missing from DB
+        // Scenario 3: Field WITH @IgnoreNullFromDB missing from DB
         Map<String, Object> doc3 = new HashMap<>();
         doc3.put("_id", new MorphiumId());
-        // nullable_field missing entirely
+        // protected_field missing entirely
 
         TestEntity entity3 = morphium.getMapper().deserialize(TestEntity.class, doc3);
-        assertEquals(200, entity3.getNullableField(),
-            "Field WITH @UseIfNull: missing from DB keeps default");
+        assertEquals(200, entity3.getProtectedField(),
+            "Field WITH @IgnoreNullFromDB: missing from DB keeps default");
     }
 }

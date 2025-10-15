@@ -557,7 +557,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
 
                 if (v == null) {
-                    if (!fld.isAnnotationPresent(UseIfNull.class)) {
+                    if (fld.isAnnotationPresent(IgnoreNullFromDB.class)) {
                         //Do not put null-Values into dbo => not storing null-Values to db
                         continue;
                     }
@@ -1001,11 +1001,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (valueFromDb == null) {
                     if (!fldType.isPrimitive() && objectMap.containsKey(f)) {
                         // Field is present in DB as null
-                        // Only set to null if field explicitly allows it via @UseIfNull
-                        if (fld.isAnnotationPresent(UseIfNull.class)) {
+                        // Set to null unless field has @IgnoreNullFromDB protection
+                        if (!fld.isAnnotationPresent(IgnoreNullFromDB.class)) {
                             fld.set(ret, null);
                         }
-                        // else: Field present as null in DB but no @UseIfNull -> keep default value
+                        // else: Field present as null in DB but has @IgnoreNullFromDB -> keep default value
                     }
                     // else: Field not in DB -> keep default value
 

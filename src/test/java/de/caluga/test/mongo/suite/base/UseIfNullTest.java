@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.UseIfNull;
+import de.caluga.morphium.annotations.IgnoreNullFromDB;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
@@ -12,7 +12,10 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for @UseIfNull annotation behavior
+ * Tests for null handling behavior with @IgnoreNullFromDB annotation.
+ *
+ * NEW BEHAVIOR: By default, null values are stored and accepted from DB.
+ * Use @IgnoreNullFromDB to protect specific fields from null contamination.
  */
 public class UseIfNullTest extends MorphiumTestBase {
 
@@ -21,19 +24,19 @@ public class UseIfNullTest extends MorphiumTestBase {
         @Id
         private MorphiumId id;
 
-        // Regular field - null values not stored
+        // Regular field - null values stored and accepted (default behavior)
         private String regularField;
 
-        // Field with @UseIfNull - null values stored
-        @UseIfNull
-        private String nullableField;
+        // Field with @IgnoreNullFromDB - null values NOT stored, ignored from DB
+        @IgnoreNullFromDB
+        private String protectedField;
 
-        // Field with default value - preserved when not in DB
+        // Field with default value - can be overwritten by null from DB (default)
         private Integer counter = 42;
 
-        // Field with @UseIfNull and default value - overwritten by null from DB
-        @UseIfNull
-        private Integer nullCounter = 99;
+        // Field with @IgnoreNullFromDB and default value - protected from null
+        @IgnoreNullFromDB
+        private Integer protectedCounter = 99;
 
         public MorphiumId getId() {
             return id;
@@ -51,12 +54,12 @@ public class UseIfNullTest extends MorphiumTestBase {
             this.regularField = regularField;
         }
 
-        public String getNullableField() {
-            return nullableField;
+        public String getProtectedField() {
+            return protectedField;
         }
 
-        public void setNullableField(String nullableField) {
-            this.nullableField = nullableField;
+        public void setProtectedField(String protectedField) {
+            this.protectedField = protectedField;
         }
 
         public Integer getCounter() {
@@ -67,50 +70,50 @@ public class UseIfNullTest extends MorphiumTestBase {
             this.counter = counter;
         }
 
-        public Integer getNullCounter() {
-            return nullCounter;
+        public Integer getProtectedCounter() {
+            return protectedCounter;
         }
 
-        public void setNullCounter(Integer nullCounter) {
-            this.nullCounter = nullCounter;
+        public void setProtectedCounter(Integer protectedCounter) {
+            this.protectedCounter = protectedCounter;
         }
     }
 
     @Test
-    public void testNullValueNotStoredWithoutAnnotation() {
-        // Test that fields without @UseIfNull don't store null values
+    public void testNullValueStoredByDefault() {
+        // NEW BEHAVIOR: Test that fields WITHOUT @IgnoreNullFromDB store null values
         TestEntity entity = new TestEntity();
         entity.setRegularField(null);
-        entity.setNullableField("not null");
+        entity.setProtectedField("not null");
 
         Map<String, Object> serialized = morphium.getMapper().serialize(entity);
 
         log.info("Serialized keys: " + serialized.keySet());
         log.info("Serialized content: " + serialized);
 
-        // regularField should not be in the serialized map (camelCase -> snake_case)
-        assertFalse(serialized.containsKey("regular_field"),
-            "Field without @UseIfNull should not be stored when null");
+        // regularField should be in the serialized map with null (camelCase -> snake_case)
+        assertTrue(serialized.containsKey("regular_field"),
+            "Field without @IgnoreNullFromDB should be stored even when null (default behavior)");
+        assertNull(serialized.get("regular_field"),
+            "Stored value should be null");
 
-        // nullableField should be in the map
-        assertTrue(serialized.containsKey("nullable_field"),
+        // protectedField should be in the map
+        assertTrue(serialized.containsKey("protected_field"),
             "Field with value should be stored. Actual keys: " + serialized.keySet());
     }
 
     @Test
-    public void testNullValueStoredWithAnnotation() {
-        // Test that fields with @UseIfNull store null values
+    public void testNullValueNotStoredWithProtection() {
+        // NEW BEHAVIOR: Test that fields with @IgnoreNullFromDB don't store null values
         TestEntity entity = new TestEntity();
         entity.setRegularField("not null");
-        entity.setNullableField(null);
+        entity.setProtectedField(null);
 
         Map<String, Object> serialized = morphium.getMapper().serialize(entity);
 
-        // nullableField should be in the map even though it's null (camelCase -> snake_case)
-        assertTrue(serialized.containsKey("nullable_field"),
-            "Field with @UseIfNull should be stored even when null");
-        assertNull(serialized.get("nullable_field"),
-            "Stored value should be null");
+        // protectedField should NOT be in the map when null (camelCase -> snake_case)
+        assertFalse(serialized.containsKey("protected_field"),
+            "Field with @IgnoreNullFromDB should NOT be stored when null");
 
         // regularField should be in the map
         assertTrue(serialized.containsKey("regular_field"),
@@ -119,78 +122,78 @@ public class UseIfNullTest extends MorphiumTestBase {
 
     @Test
     public void testDefaultValuePreservedWhenFieldMissing() {
-        // Simulate reading from DB where counter field is missing
+        // NEW BEHAVIOR: Simulate reading from DB where protectedCounter field is missing
         TestEntity entity = new TestEntity();
         entity.setRegularField("test");
-        entity.setCounter(null); // null value, so won't be stored (no @UseIfNull)
+        entity.setProtectedCounter(null); // null value, won't be stored (has @IgnoreNullFromDB)
 
         // Serialize to see what would be stored
         Map<String, Object> serialized = morphium.getMapper().serialize(entity);
-        assertFalse(serialized.containsKey("counter"),
-            "counter should not be in serialized map when null");
+        assertFalse(serialized.containsKey("protected_counter"),
+            "protected_counter should not be in serialized map when null (has @IgnoreNullFromDB)");
 
-        // Deserialize from map without counter field
+        // Deserialize from map without protectedCounter field
         TestEntity deserialized = morphium.getMapper().deserialize(TestEntity.class, serialized);
         assertNotNull(deserialized);
-        assertEquals(42, deserialized.getCounter(),
+        assertEquals(99, deserialized.getProtectedCounter(),
             "Default value should be preserved when field is missing from DB");
     }
 
     @Test
     public void testDefaultValueOverwrittenWhenNullInDB() {
-        // Simulate reading from DB where nullCounter is explicitly null
+        // NEW BEHAVIOR: Simulate reading from DB where counter is explicitly null
         TestEntity entity = new TestEntity();
         entity.setRegularField("test");
-        entity.setNullCounter(null); // null value, but will be stored due to @UseIfNull
+        entity.setCounter(null); // null value, will be stored (default behavior)
 
         // Serialize to see what would be stored
         Map<String, Object> serialized = morphium.getMapper().serialize(entity);
-        assertTrue(serialized.containsKey("null_counter"),
-            "null_counter should be in serialized map even when null");
-        assertNull(serialized.get("null_counter"),
-            "null_counter should be null in serialized map");
+        assertTrue(serialized.containsKey("counter"),
+            "counter should be in serialized map even when null (default behavior)");
+        assertNull(serialized.get("counter"),
+            "counter should be null in serialized map");
 
-        // Deserialize from map with null_counter field present as null
+        // Deserialize from map with counter field present as null
         TestEntity deserialized = morphium.getMapper().deserialize(TestEntity.class, serialized);
         assertNotNull(deserialized);
-        assertNull(deserialized.getNullCounter(),
-            "Field with @UseIfNull should be null from DB, not default value");
+        assertNull(deserialized.getCounter(),
+            "Field without @IgnoreNullFromDB should be null from DB, overriding default value");
     }
 
     @Test
     public void testFullRoundTrip() {
-        // Create entity with various null/non-null values
+        // NEW BEHAVIOR: Create entity with various null/non-null values
         TestEntity entity = new TestEntity();
-        entity.setRegularField(null);        // Not stored
-        entity.setNullableField(null);       // Stored as null
-        entity.setCounter(null);             // Not stored, default preserved
-        entity.setNullCounter(null);         // Stored as null
+        entity.setRegularField(null);        // Stored as null (default behavior)
+        entity.setProtectedField(null);      // Not stored (has @IgnoreNullFromDB)
+        entity.setCounter(null);             // Stored as null (default behavior)
+        entity.setProtectedCounter(null);    // Not stored (has @IgnoreNullFromDB)
 
         // Verify by serializing the entity to see what would be stored
         Map<String, Object> serialized = morphium.getMapper().serialize(entity);
-        assertFalse(serialized.containsKey("regular_field"),
-            "regular_field should not be serialized when null");
-        assertTrue(serialized.containsKey("nullable_field"),
-            "nullable_field should be serialized even when null");
-        assertNull(serialized.get("nullable_field"),
-            "nullable_field should be null in serialization");
-        assertFalse(serialized.containsKey("counter"),
-            "counter should not be serialized when null");
-        assertTrue(serialized.containsKey("null_counter"),
-            "null_counter should be serialized even when null");
-        assertNull(serialized.get("null_counter"),
-            "null_counter should be null in serialization");
+        assertTrue(serialized.containsKey("regular_field"),
+            "regular_field should be serialized even when null (default behavior)");
+        assertNull(serialized.get("regular_field"),
+            "regular_field should be null in serialization");
+        assertFalse(serialized.containsKey("protected_field"),
+            "protected_field should not be serialized when null (has @IgnoreNullFromDB)");
+        assertTrue(serialized.containsKey("counter"),
+            "counter should be serialized even when null (default behavior)");
+        assertNull(serialized.get("counter"),
+            "counter should be null in serialization");
+        assertFalse(serialized.containsKey("protected_counter"),
+            "protected_counter should not be serialized when null (has @IgnoreNullFromDB)");
 
         // Deserialize and verify behavior
         TestEntity loaded = morphium.getMapper().deserialize(TestEntity.class, serialized);
         assertNotNull(loaded);
         assertNull(loaded.getRegularField(),
-            "regular_field should be null (not stored, so stays at default null)");
-        assertNull(loaded.getNullableField(),
-            "nullable_field should be null (from DB)");
-        assertEquals(42, loaded.getCounter(),
-            "counter should have default value (not in DB)");
-        assertNull(loaded.getNullCounter(),
-            "null_counter should be null (from DB, overriding default)");
+            "regular_field should be null (from DB)");
+        assertNull(loaded.getProtectedField(),
+            "protected_field should be null (not stored, so stays at default null)");
+        assertNull(loaded.getCounter(),
+            "counter should be null (from DB, overriding default)");
+        assertEquals(99, loaded.getProtectedCounter(),
+            "protected_counter should have default value (not in DB, protected by @IgnoreNullFromDB)");
     }
 }

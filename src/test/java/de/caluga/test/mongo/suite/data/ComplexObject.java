@@ -49,7 +49,7 @@ public class ComplexObject {
     @Transient
     private String trans;
 
-    @UseIfNull
+    // Removed @UseIfNull - default behavior now accepts nulls
     private Integer nullValue;
 
     public List<EmbeddedObject> getEmbeddedObjectList() {
