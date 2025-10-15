@@ -140,7 +140,8 @@ public class ObjectMapperImplTest {
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        assert (MorphiumTestBase.stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"str_value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
+        // With new behavior, null values are serialized as explicit nulls (not omitted)
+        assert (MorphiumTestBase.stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } ")) : "String creation failed?" + s;
         o = OM.deserialize(UncachedObject.class, dbo);
         log.info("Text is: " + o.getStrValue());
     }
@@ -269,7 +270,8 @@ public class ObjectMapperImplTest {
         // assert (m.equals("{list_value=[A Value, 27.0, {dval=0.0, counter=0,
         // class_name=de.caluga.test.mongo.suite.data.UncachedObject}],
         // name=Simple List}")) : "Marshall not ok: " + m;
-        assert (MorphiumTestBase.stringWordCompare(m, "{list_value=[A Value, 27.0, {dval=0.0, counter=0, class_name=uc}], name=Simple List}"));
+        // With new behavior, null values are serialized as explicit nulls (not omitted)
+        assert (MorphiumTestBase.stringWordCompare(m, "{list_value=[A Value, 27.0, {float_data=null, dval=0.0, double_data=null, str_value=null, long_data=null, binary_data=null, counter=0, class_name=uc, int_data=null}], map_value=null, name=Simple List, map_list_value=null}"));
 
         MapListObject mo = OM.deserialize(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
@@ -306,7 +308,8 @@ public class ObjectMapperImplTest {
         // value\" : 42, \"null\" : null, \"double\" : 42.0, \"a_string\" :
         // \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value
         // not marshalled corectly";
-        assert (MorphiumTestBase.stringWordCompare(m, "{ \"map_value\" : { \"Entity\" : { \"dval\" : 0.0, \"counter\" : 0, \"class_name\" : \"uc\" } , \"a primitive value\" : 42, \"null\" :  null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value not marshalled corectly";
+        // With new behavior, null values are serialized as explicit nulls (not omitted)
+        assert (MorphiumTestBase.stringWordCompare(m, "{ \"list_value\" : null, \"map_value\" : { \"Entity\" : { \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : null, \"long_data\" : null, \"binary_data\" : null, \"counter\" : 0, \"class_name\" : \"uc\", \"int_data\" : null } , \"a primitive value\" : 42, \"null\" : null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\", \"map_list_value\" : null }")) : "Value not marshalled corectly";
 
         MapListObject mo = OM.deserialize(MapListObject.class, marshall);
         assert (mo.getName().equals("A map-value")) : "Name error";
