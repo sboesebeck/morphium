@@ -35,13 +35,10 @@ public class BulkOperationTest extends MultiDriverTestBase {
             createUncachedObjects(morphium, 10);
             TestUtils.waitForWrites(morphium, log);
 
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+                "UncachedObject not found",
+                () -> morphium.createQueryFor(UncachedObject.class).get() != null);
             UncachedObject uc1 = morphium.createQueryFor(UncachedObject.class).get();
-            long s = System.currentTimeMillis();
-            while (uc1 == null) {
-                uc1 = morphium.createQueryFor(UncachedObject.class).get();
-                Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-            }
 
             MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
             //        UpdateBulkRequest up = c
@@ -71,7 +68,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
             c.addIncRequest(uc1, "counter", 12, false);
             c.addRenameRequest(uc1, "date", "dt", false);
             Map<String, Object> ret = c.runBulk();
-            Thread.sleep(500);
+            TestUtils.waitForWrites(morphium, log);
 
             for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
                 log.info(o.toString());
@@ -91,12 +88,9 @@ public class BulkOperationTest extends MultiDriverTestBase {
             //        UpdateBulkRequest up = c
             c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 999, true, true);
             Map<String, Object> ret = c.runBulk();
-            long s = System.currentTimeMillis();
-            while (morphium.createQueryFor(UncachedObject.class).f("counter").eq(999).countAll() != 100) {
-                Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-            }
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+                "Bulk set operation not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).f("counter").eq(999).countAll() == 100);
             for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
                 assert (o.getCounter() == 999) : "Counter is " + o.getCounter();
             }
@@ -114,12 +108,9 @@ public class BulkOperationTest extends MultiDriverTestBase {
             MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
             c.addIncRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 1000, true, true);
             c.runBulk();
-            long s = System.currentTimeMillis();
-            while (morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll() != 100) {
-                Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-            }
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+                "Bulk inc operation not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll() == 100);
             for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
                 if (o.getCounter() <= 1000) {
                     log.error("Counter is < 1000!?");
@@ -161,7 +152,8 @@ public class BulkOperationTest extends MultiDriverTestBase {
             morphium.addListener(listener);
             preUpdate = postUpdate = preRemove = postRemove = false;
             incTest(morphium);
-            Thread.sleep(1500);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Bulk operation callbacks not triggered",
+                () -> preUpdate && postUpdate);
             assert (preUpdate);
             assert (postUpdate);
             assert (!preRemove);
@@ -175,7 +167,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
     public void bulkTestReturnCounts(Morphium morphium) throws Exception {
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
-            Thread.sleep(500);
+            TestUtils.waitForWrites(morphium, log);
 
             // Create test data
             createUncachedObjects(morphium, 10);

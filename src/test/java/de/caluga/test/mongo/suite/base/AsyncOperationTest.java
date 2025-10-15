@@ -65,7 +65,8 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     assert false;
                 }
             });
-            Thread.sleep(1200);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Async delete callback not called",
+                () -> asyncCall);
             assert(asyncCall);
             asyncCall = false;
             uc = uc.q();
@@ -83,7 +84,8 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 }
             });
             TestUtils.waitForWrites(morphium, log);
-            Thread.sleep(100);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Update operation not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll() > 0);
             long counter = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll();
 assert counter > 0 : "Counter is: " + counter;
             assert(asyncCall);
@@ -97,8 +99,8 @@ assert counter > 0 : "Counter is: " + counter;
         try (morphium) {
             asyncCall = false;
             createUncachedObjects(morphium, 100);
-            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            q = q.f(UncachedObject.Fields.counter).lt(1000);
+            final Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(1000);
             q.asList(new AsyncCallbackAdapter<UncachedObject>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -113,14 +115,14 @@ assert counter > 0 : "Counter is: " + counter;
                 }
             });
             waitForAsyncOperationsToStart(morphium, 3000);
-            int count = 0;
-
-            while (q.getNumberOfPendingRequests() > 0) {
-                count++;
-                assert(count < 10);
-                System.out.println("Still waiting...");
-                Thread.sleep(1000);
-            }
+            TestUtils.waitForConditionToBecomeTrue(15000, "Pending async read requests not completing",
+                () -> {
+                    if (q.getNumberOfPendingRequests() > 0) {
+                        System.out.println("Still waiting...");
+                        return false;
+                    }
+                    return true;
+                });
 
             assert(asyncCall);
         }
@@ -132,8 +134,8 @@ assert counter > 0 : "Counter is: " + counter;
         try (morphium) {
             asyncCall = false;
             createUncachedObjects(morphium, 100);
-            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            q = q.f(UncachedObject.Fields.counter).lt(1000);
+            final Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(1000);
             q.countAll(new AsyncOperationCallback<UncachedObject>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -153,14 +155,8 @@ assert counter > 0 : "Counter is: " + counter;
             });
             //waiting for thread to become active
             waitForAsyncOperationsToStart(morphium, 3000);
-            Thread.sleep(2000);
-            int count = 0;
-
-            while (q.getNumberOfPendingRequests() > 0) {
-                count++;
-                assert(count < 10);
-                Thread.sleep(1000);
-            }
+            TestUtils.waitForConditionToBecomeTrue(15000, "Pending async count requests not completing",
+                () -> q.getNumberOfPendingRequests() == 0);
 
             assert(asyncCall);
         }
@@ -174,7 +170,7 @@ assert counter > 0 : "Counter is: " + counter;
             morphium.getDriver().setMaxWaitTime(15000);
             // morphium.dropCollection(AsyncObject.class);
             morphium.ensureIndicesFor(AsyncObject.class);
-            Thread.sleep(2000);
+            TestUtils.waitForWrites(morphium, log);
             //assert (morphium.getDriver().exists("morphium_test", "async_object"));
             var q = morphium.createQueryFor(AsyncObject.class);
             assertEquals(q.countAll(), 0);
@@ -201,13 +197,15 @@ assert counter > 0 : "Counter is: " + counter;
             new Thread(r).start();
             long start = System.currentTimeMillis();
 
-            while (System.currentTimeMillis() - start < 5000 && q.countAll() != 500) {
-                log.info("--------> Waiting: " + q.countAll());
-                log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
-                log.info("Connections borrowed: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED));
-                log.info("Connections returned: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_RELEASED));
-                Thread.sleep(500);
-            }
+            TestUtils.waitForConditionToBecomeTrue(5000, "Not all async objects persisted",
+                () -> {
+                    long count = q.countAll();
+                    log.info("--------> Waiting: " + count);
+                    log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
+                    log.info("Connections borrowed: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED));
+                    log.info("Connections returned: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_RELEASED));
+                    return count == 500;
+                });
 
             log.info("--------> finished: " + q.countAll());
             log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
@@ -235,7 +233,8 @@ assert counter > 0 : "Counter is: " + counter;
                     callback = true;
                 }
             });
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Async error callback not called",
+                () -> callback);
             assertTrue(callback, "Callback not called");
         }
     }
