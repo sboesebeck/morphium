@@ -288,6 +288,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
 
             MorphiumId savedId = obj.getMorphiumId();
 
+            TestUtils.waitForConditionToBecomeTrue(5000, (dur, e)->log.error("Did not store", e), ()->morphium.findById(UncachedObject.class, savedId) != null, (dur)->log.info("Waiting..."));
             // Test find by ID
             UncachedObject foundById = morphium.findById(UncachedObject.class, savedId);
             assertNotNull(foundById);
@@ -310,6 +311,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
                 ids.add(o.getMorphiumId());
             }
 
+            TestUtils.waitForConditionToBecomeTrue(5000, (dur, e)->log.error("Did not store", e), ()->morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).in(ids).countAll() != 0, (dur)->log.info("Waiting..."));
             List<UncachedObject> foundByIds = morphium.createQueryFor(UncachedObject.class)
                                               .f(UncachedObject.Fields.morphiumId).in(ids).asList();
             assertEquals(5, foundByIds.size());

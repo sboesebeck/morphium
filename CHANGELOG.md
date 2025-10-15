@@ -11,23 +11,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > 📝 **Quick summary**: [docs/releases/RELEASE-NOTES-6.0.1.md](docs/releases/RELEASE-NOTES-6.0.1.md)
 
 ### Breaking Changes
-- **Annotation Rename**: `@UseIfnull` renamed to `@UseIfNull` for consistency with Java naming conventions
-  - Migration required: Find and replace all instances in your code
-  - Update imports: `de.caluga.morphium.annotations.UseIfNull`
+- **Null Handling Behavior Change**: Default behavior now matches standard ORM conventions
+  - **Previous behavior**: Null values were NOT stored in the database by default (fields omitted)
+  - **New behavior**: Null values ARE stored as explicit nulls in the database by default
+  - Fields WITHOUT annotation: Accept and store null values (standard ORM behavior)
+  - Fields WITH `@IgnoreNullFromDB`: Reject nulls, field omitted when null
+  - **Migration impact**: Existing code that relies on null values being omitted by default may need to add `@IgnoreNullFromDB` to those fields
+
+- **@UseIfNull Deprecated**: Replaced with `@IgnoreNullFromDB` for clearer semantics
+  - Old annotation had inverted logic that was confusing
+  - `@UseIfNull` is now deprecated but still functional
+  - Migration: Replace `@UseIfNull` with `@IgnoreNullFromDB` and remove the annotation (behavior is inverted)
 
 ### Added
-- **Bidirectional @UseIfNull Behavior**: Annotation now protects fields during both serialization and deserialization
-  - Fields WITHOUT `@UseIfNull` are now protected from null values in the database
-  - Prevents null contamination from data migrations, manual edits, or external systems
-  - Improves data integrity when documents are modified outside the application
-- Comprehensive test suites for @UseIfNull behavior (9 new tests)
-- Enhanced documentation for @UseIfNull with detailed examples and use cases
+- **New `@IgnoreNullFromDB` annotation**: Protects fields from null contamination
+  - Prevents null values from being stored during serialization (field omitted)
+  - Rejects null values during deserialization (preserves default value)
+  - Distinguishes between "field missing from DB" vs "field present with null value"
+  - Special handling for `@Id` fields: NEVER stored when null (MongoDB auto-generates)
+  - Comprehensive documentation with behavior matrix and use cases
+- Comprehensive test suites for null handling behavior
+- Enhanced documentation for null handling with detailed examples
 
 ### Changed
-- **@UseIfNull deserialization behavior**: Fields without annotation now reject null values from database, preserving default values
-  - Previous: null in DB always overwrites field value
-  - New: null in DB is rejected unless field has @UseIfNull annotation
-  - This is a behavioral change but improves data integrity
+- **Default null handling now matches standard ORMs**:
+  - Serialization: Null values stored as explicit null in database
+  - Deserialization: Null values from database accepted and set to null
+  - This aligns with Hibernate, JPA, and other standard ORMs
+- **@Id field handling**: Fields annotated with `@Id` are NEVER stored when null
+  - Ensures MongoDB can auto-generate unique `_id` values
+  - Prevents E11000 duplicate key errors from null `_id` values
 
 ### Fixed
 - Socket timeout handling in `SingleMongoConnection` - automatic retry on timeout exceptions
