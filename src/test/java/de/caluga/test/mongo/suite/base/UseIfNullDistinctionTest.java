@@ -12,12 +12,25 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests to verify if implementation distinguishes between:
- * 1. Field not present in MongoDB
- * 2. Field present with null value
+ * Tests to verify that Morphium correctly distinguishes between:
+ * 1. Field not present in MongoDB document (missing key)
+ * 2. Field present in MongoDB document with null value (key exists, value is null)
  *
- * NEW BEHAVIOR: By default, null values from DB are accepted.
- * Use @IgnoreNullFromDB to protect fields from null contamination.
+ * This distinction is CRITICAL for proper null handling:
+ *
+ * BEHAVIOR MATRIX:
+ * ┌─────────────────────────┬──────────────────────────┬──────────────────────────┐
+ * │ Scenario                │ Without @IgnoreNullFromDB│ With @IgnoreNullFromDB   │
+ * ├─────────────────────────┼──────────────────────────┼──────────────────────────┤
+ * │ Field missing from DB   │ Keep default value       │ Keep default value       │
+ * │ Field in DB = null      │ Set to null              │ Keep default (protected) │
+ * │ Field in DB = value     │ Use the value            │ Use the value            │
+ * └─────────────────────────┴──────────────────────────┴──────────────────────────┘
+ *
+ * NEW BEHAVIOR (as of the null handling flip):
+ * - By default, explicit null values from DB ARE accepted and override defaults
+ * - Use @IgnoreNullFromDB to protect specific fields from null contamination
+ * - Missing fields ALWAYS preserve default values (regardless of annotation)
  */
 public class UseIfNullDistinctionTest extends MorphiumTestBase {
 

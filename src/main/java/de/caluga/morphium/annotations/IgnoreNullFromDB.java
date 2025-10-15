@@ -17,21 +17,37 @@ import java.lang.annotation.Target;
  * default values. This annotation changes that behavior for specific fields that need protection from
  * null contamination.
  *
+ * <h3>IMPORTANT: Field Missing vs. Field = null</h3>
+ * Morphium distinguishes between two scenarios when reading from the database:
+ * <ul>
+ *   <li><b>Field missing from DB document:</b> The field key is not present in the document at all.
+ *       In this case, the Java default value is ALWAYS preserved, regardless of this annotation.</li>
+ *   <li><b>Field present in DB with null value:</b> The field key exists in the document but the value is null.
+ *       This is where @IgnoreNullFromDB matters - it controls whether to accept or ignore the explicit null.</li>
+ * </ul>
+ *
  * <h3>Default Behavior (Without @IgnoreNullFromDB):</h3>
  * <ul>
  *   <li><b>Serialization (Writing to DB):</b> When a field value is null, the field is stored in the
  *       database with an explicit null value.</li>
- *   <li><b>Deserialization (Reading from DB):</b> If the field exists in DB with a null value, the field
- *       will be set to null, overriding any default value.</li>
+ *   <li><b>Deserialization (Reading from DB):</b>
+ *       <ul>
+ *         <li>Field missing from DB: Default value preserved</li>
+ *         <li>Field in DB with null: Field set to null, overriding any default value</li>
+ *       </ul>
+ *   </li>
  * </ul>
  *
  * <h3>With @IgnoreNullFromDB:</h3>
  * <ul>
  *   <li><b>Serialization (Writing to DB):</b> When a field value is null, the field is omitted from the
  *       database document (not stored at all).</li>
- *   <li><b>Deserialization (Reading from DB):</b> If the field exists in DB with a null value, it is
- *       ignored and the entity's default value is preserved. This protects fields from unwanted null
- *       contamination.</li>
+ *   <li><b>Deserialization (Reading from DB):</b>
+ *       <ul>
+ *         <li>Field missing from DB: Default value preserved</li>
+ *         <li>Field in DB with null: Null value ignored, default value preserved (protected!)</li>
+ *       </ul>
+ *   </li>
  * </ul>
  *
  * <h3>Example:</h3>
@@ -59,9 +75,14 @@ import java.lang.annotation.Target;
  * <h3>Protection from Null Contamination:</h3>
  * Fields WITH @IgnoreNullFromDB are protected from null values in the database:
  * <pre>{@code
- * // If MongoDB document has: { counter: null }
+ * // Scenario 1: MongoDB document has: { counter: null }
  * // Without @IgnoreNullFromDB: counter becomes null
- * // With @IgnoreNullFromDB: counter stays at default (42)
+ * // With @IgnoreNullFromDB: counter stays at default (99)
+ *
+ * // Scenario 2: MongoDB document has: { }  (field missing entirely)
+ * // Without @IgnoreNullFromDB: counter stays at default (42)
+ * // With @IgnoreNullFromDB: counter stays at default (99)
+ * // -> Both cases preserve default when field is missing!
  * }</pre>
  *
  * <h3>Use Cases:</h3>
