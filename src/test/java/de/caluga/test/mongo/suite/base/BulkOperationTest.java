@@ -175,7 +175,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
     public void bulkTestReturnCounts(Morphium morphium) throws Exception {
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
-            Thread.sleep(100);
+            Thread.sleep(500);
 
             // Create test data
             createUncachedObjects(morphium, 10);
@@ -204,7 +204,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
             log.info("Bulk operation results: " + ret);
 
             // Verify return values are present and correct
-            assert ret != null : "Bulk operation should return results";
+assert ret != null : "Bulk operation should return results";
             assert ret.containsKey("num_inserted") : "Result should contain num_inserted";
             assert ret.containsKey("num_matched") : "Result should contain num_matched";
             assert ret.containsKey("num_modified") : "Result should contain num_modified";
@@ -218,14 +218,14 @@ public class BulkOperationTest extends MultiDriverTestBase {
             int upserts = ((Number) ret.get("num_upserts")).intValue();
 
             log.info(String.format("Inserted: %d, Matched: %d, Modified: %d, Deleted: %d, Upserts: %d",
-                    inserted, matched, modified, deleted, upserts));
+                                   inserted, matched, modified, deleted, upserts));
 
             // Verify counts
-            assert inserted == 5 : "Should have inserted 5 documents, got: " + inserted;
-            assert matched >= 10 : "Should have matched at least 10 documents, got: " + matched;
-            assert modified >= 10 : "Should have modified at least 10 documents, got: " + modified;
-            assert deleted >= 10 : "Should have deleted at least 10 documents, got: " + deleted;
-            assert upserts == 1 : "Should have 1 upsert, got: " + upserts;
+assert inserted == 5 : "Should have inserted 5 documents, got: " + inserted;
+assert matched >= 10 : "Should have matched at least 10 documents, got: " + matched;
+assert modified >= 10 : "Should have modified at least 10 documents, got: " + modified;
+assert deleted >= 10 : "Should have deleted at least 10 documents, got: " + deleted;
+assert upserts == 1 : "Should have 1 upsert, got: " + upserts;
 
             // Check upserted IDs
             if (upserts > 0) {

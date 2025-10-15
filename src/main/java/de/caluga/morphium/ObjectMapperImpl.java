@@ -557,6 +557,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
 
                 if (v == null) {
+                    // NEVER store null IDs - MongoDB needs to auto-generate them
+                    if (fld.isAnnotationPresent(Id.class)) {
+                        continue;
+                    }
                     if (fld.isAnnotationPresent(IgnoreNullFromDB.class)) {
                         //Do not put null-Values into dbo => not storing null-Values to db
                         continue;
