@@ -3,6 +3,7 @@ package de.caluga.morphium.messaging;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
+import de.caluga.morphium.annotations.lifecycle.PostLoad;
 import de.caluga.morphium.annotations.lifecycle.PreStore;
 import de.caluga.morphium.driver.MorphiumId;
 import org.slf4j.LoggerFactory;
@@ -54,7 +55,7 @@ public class Msg {
     private MorphiumId inAnswerTo;
     //payload goes here
     @Index
-    @Aliases({"name"})
+    //@Aliases({"name"})
     private String topic;
     private String msg;
     // Removed @UseIfNull - default behavior now stores/accepts nulls
@@ -72,6 +73,10 @@ public class Msg {
     private int deleteAfterProcessingTime = 0;
     private int priority = 1000;
     private Boolean exclusive = false;
+
+    //backward compatibility
+    @Deprecated
+    private String name;
 
     public Msg() {
         // msgId = UUID.randomUUID().toString();
@@ -386,8 +391,17 @@ public class Msg {
                '}';
     }
 
+    @PostLoad
+    public void postLoad() {
+        if (topic == null && name != null) {
+            topic = name;
+        } else if (topic != null && name != null && !name.equals(topic)) {
+            LoggerFactory.getLogger(Msg.class).warn("Attention: name / topic mismatch");
+        }
+    }
     @PreStore
     public void preStore() {
+        name = topic;
         if (sender == null) {
             throw new RuntimeException("Cannot send msg anonymously - set Sender first!");
         }
