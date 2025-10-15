@@ -26,6 +26,11 @@ import java.lang.annotation.Target;
  *       This is where @IgnoreNullFromDB matters - it controls whether to accept or ignore the explicit null.</li>
  * </ul>
  *
+ * <h3>NOTE: Special Handling for @Id Fields</h3>
+ * Fields annotated with {@link Id} are NEVER stored when null, regardless of this annotation.
+ * This is fundamental MongoDB behavior - if the _id field is missing, MongoDB auto-generates it.
+ * Storing _id as null would cause duplicate key errors.
+ *
  * <h3>Default Behavior (Without @IgnoreNullFromDB):</h3>
  * <ul>
  *   <li><b>Serialization (Writing to DB):</b> When a field value is null, the field is stored in the
