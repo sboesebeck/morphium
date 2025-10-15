@@ -71,7 +71,8 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         morphium.getCache().setDefaultCacheTime(CacheEntry.class);
         int amount = 100;
         createCachedObjects(amount);
-        Thread.sleep(1500);
+        TestUtils.waitForConditionToBecomeTrue(5000, "CachedObjects not persisted",
+            () -> morphium.createQueryFor(CachedObject.class).countAll() == amount);
 
         long start = System.currentTimeMillis();
         for (int i = 0; i < 1000; i++) {
@@ -119,24 +120,23 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
             sp.setStrValue("Value " + i);
             morphium.store(sp);
         }
-        long s = System.currentTimeMillis();
-        while (morphium.createQueryFor(SpecCachedOjbect.class).countAll() < amount) {
-            Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-        }
+        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+            "SpecCachedOjbect not persisted",
+            () -> morphium.createQueryFor(SpecCachedOjbect.class).countAll() >= amount);
         for (int i = 0; i < amount; i++) {
-            s = System.currentTimeMillis();
-            while (morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get() == null) {
-                Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-            }
+            final int counter = i;
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+                "SpecCachedOjbect with counter " + i + " not found",
+                () -> morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(counter).get() != null);
             assertNotNull(morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get());
             ;
         }
         assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);
-        Thread.sleep(hcTime + 100);
+        TestUtils.waitForConditionToBecomeTrue(hcTime + 1000, "Cache not maintained after housekeeping",
+            () -> morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);
         assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);
-        Thread.sleep(gcTime + 1000);
+        TestUtils.waitForConditionToBecomeTrue(gcTime + 2000, "Cache not cleared after global cache time",
+            () -> morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) == 0);
         assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) == 0) : "Stored still: " + morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName());
 
     }
@@ -149,10 +149,11 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
             return;
         }
         morphium.dropCollection(CachedObject.class);
-        Thread.sleep(1000);
+        TestUtils.waitForWrites(morphium, log);
         int amount = 1000;
         createCachedObjects(amount);
-        Thread.sleep(8500);
+        TestUtils.waitForConditionToBecomeTrue(15000, "CachedObjects not persisted for multithread test",
+            () -> morphium.createQueryFor(CachedObject.class).countAll() == amount);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i).get();
             assertNotNull(o, "Not found: " + i);

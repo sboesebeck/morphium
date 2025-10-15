@@ -31,7 +31,7 @@
   <developers>
     <developer>
       <id>sBoesebeck</id>
-      <name>Stephan Bösebeck</name>
+      <name>Stephan B&#xF6;sebeck</name>
       <email>sb@caluga.de</email>
     </developer>
   </developers>
@@ -45,9 +45,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
     <!-- JUnit tag control (defaults) -->
-    <test.includeTags />
+    <test.includeTags/>
     <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
@@ -57,7 +57,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.0.0-M7</version>
+        <version>3.0.0</version>
         <configuration>
           <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED
                     --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</argLine>
@@ -72,6 +72,8 @@
           <systemPropertyVariables>
             <morphium.tests.verbose>${morphium.tests.verbose}</morphium.tests.verbose>
           </systemPropertyVariables>
+          <forkCount>1</forkCount>
+          <reuseForks>false</reuseForks>
         </configuration>
       </plugin>
       <plugin>
@@ -190,7 +192,7 @@
     <profile>
       <id>external</id>
       <properties>
-        <test.excludeTags />
+        <test.excludeTags/>
       </properties>
       <build>
         <plugins>

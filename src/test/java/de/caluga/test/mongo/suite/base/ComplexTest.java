@@ -72,7 +72,8 @@ public class ComplexTest extends MultiDriverTestBase {
             //And test for null-References!
             morphium.store(o);
             assert(o.getChanged() != 0) : "Last change not set!?!?";
-            Thread.sleep(150);
+            TestUtils.waitForConditionToBecomeTrue(2000, "ComplexObject not persisted",
+                () -> morphium.createQueryFor(ComplexObject.class).f("ein_text").eq("A test").get() != null);
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("ein_text").eq("A test");
             o = q.get();
             assert(o.getLastAccess() != 0) : "Last access not set!";
@@ -99,7 +100,8 @@ public class ComplexTest extends MultiDriverTestBase {
                 morphium.store(o);
             }
 
-            Thread.sleep(100);
+            TestUtils.waitForConditionToBecomeTrue(3000, "UncachedObjects not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == 100);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("str_value").eq("Uncached 15"));
             List<UncachedObject> lst = q.asList();
@@ -141,7 +143,8 @@ public class ComplexTest extends MultiDriverTestBase {
                 morphium.store(o);
             }
 
-            Thread.sleep(500);
+            TestUtils.waitForConditionToBecomeTrue(3000, "UncachedObjects not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == 100);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.nor(q.q().f("counter").lt(90), q.q().f("counter").gt(95));
             log.info("Query: " + q.toQueryObject().toString());
@@ -166,7 +169,8 @@ public class ComplexTest extends MultiDriverTestBase {
                 morphium.store(o);
             }
 
-            Thread.sleep(250);
+            TestUtils.waitForConditionToBecomeTrue(3000, "UncachedObjects not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == 100);
             Map<String, Object> query = new HashMap<>();
             query.put("counter", UtilsMap.of("$lt", 10));
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -204,7 +208,8 @@ public class ComplexTest extends MultiDriverTestBase {
             co.setRef(o);
             co.setTrans("trans");
             morphium.store(co);
-            Thread.sleep(500);
+            TestUtils.waitForConditionToBecomeTrue(2000, "ComplexObject not persisted",
+                () -> morphium.createQueryFor(ComplexObject.class).countAll() == 1);
             Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
             qc.f("ref").eq(o);
             ComplexObject fnd = qc.get();
@@ -232,7 +237,8 @@ public class ComplexTest extends MultiDriverTestBase {
             co.setEmbed(eo);
             morphium.store(co);
             TestUtils.waitForWrites(morphium, log);
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(3000, "ComplexObject with embedded not persisted",
+                () -> morphium.createQueryFor(ComplexObject.class).f("embed.name").eq("embedded1").get() != null);
             Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
             co = qc.f("embed.name").eq("embedded1").get();
             assertNotNull(co);
@@ -250,7 +256,8 @@ public class ComplexTest extends MultiDriverTestBase {
     public void complexQueryCallTest(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 100);
-            Thread.sleep(100);
+            TestUtils.waitForConditionToBecomeTrue(3000, "UncachedObjects not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == 100);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             UncachedObject uc = q.rawQuery(UtilsMap.of("counter", 10)).asList().get(0);
             assert(uc.getCounter() == 10);

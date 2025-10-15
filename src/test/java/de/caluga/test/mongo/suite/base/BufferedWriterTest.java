@@ -49,18 +49,20 @@ public class BufferedWriterTest extends MorphiumTestBase {
             morphium.store(b);
         }
 
-        Thread.sleep(3000);
         assertTrue(waitForAsyncOperationsToStart(morphium, 15000));
         TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Initial objects not persisted",
+            () -> morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 100);
 
         for (BufferedBySizeObject b : lst) {
             b.setStrValue(b.getStrValue() + 100);
             morphium.store(b);
         }
 
-        Thread.sleep(3000);
         waitForAsyncOperationsToStart(morphium, 2000);
         TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Updated objects not persisted",
+            () -> morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 200);
         assertEquals(200, morphium.createQueryFor(BufferedBySizeObject.class).countAll());
     }
 
@@ -76,7 +78,8 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.set(q, UncachedObject.Fields.counter, 1, true, false);
         waitForAsyncOperationsToStart(morphium, 2000);
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(3000);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Update operations not persisted",
+            () -> morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 3);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
         assert(q.countAll() == 3);
 
@@ -101,11 +104,8 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
         waitForAsyncOperationsToStart(morphium, 2000);
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(1000);
-
-        while (morphium.createQueryFor(BufferedByTimeObject.class).countAll() != 100) {
-            Thread.sleep(100);
-        }
+        TestUtils.waitForConditionToBecomeTrue(5000, "Initial objects not persisted",
+            () -> morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
 
         Map<String, Number> toInc = new LinkedHashMap<>();
         toInc.put("counter", 1);
@@ -147,14 +147,16 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.dec(q, "dval", 1.0, true, false);
         assert(wr.writeBufferCount() >= 1);
 
-        while (wr.writeBufferCount() > 0) {
-            Thread.sleep(1000); //waiting
-            log.info("Waiting for writes to finish...");
-        }
+        TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushing",
+            () -> {
+                log.info("Waiting for writes to finish...");
+                return wr.writeBufferCount() == 0;
+            });
 
         waitForAsyncOperationsToStart(morphium, 2000);
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(5000);
+        TestUtils.waitForConditionToBecomeTrue(10000, "Inc operations not persisted",
+            () -> morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 1);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
         assert(q.countAll() == 1) : "Counted " + q.countAll();
         BufferedBySizeObject o = q.get();
@@ -180,18 +182,13 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
 
         long start = System.currentTimeMillis();
-        long l = System.currentTimeMillis() - start;
 
-        while (true) {
-            long count = morphium.createQueryFor(BufferedBySizeWriteNewObject.class).countAll();
-
-            if (count == amount) {
-                break;
-            }
-
-            log.info("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
-            Thread.sleep(1000);
-        }
+        TestUtils.waitForConditionToBecomeTrue(120000, "Not all objects persisted",
+            () -> {
+                long count = morphium.createQueryFor(BufferedBySizeWriteNewObject.class).countAll();
+                log.info("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
+                return count == amount;
+            });
 
         log.info("All written " + amount);
     }
@@ -210,16 +207,13 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
         long start = System.currentTimeMillis();
 
-        while (true) {
-            long count = morphium.createQueryFor(BufferedBySizeObject.class).countAll();
-            int writeBufferCount = morphium.getWriteBufferCount();
-            System.out.println("Amount written: " + count + " but Write buffer: " + writeBufferCount);
-            Thread.sleep(10);
-
-            if (writeBufferCount == 0 && count == 1500) {
-                break;
-            }
-        }
+        TestUtils.waitForConditionToBecomeTrue(120000, "Not all objects persisted or buffer not flushed",
+            () -> {
+                long count = morphium.createQueryFor(BufferedBySizeObject.class).countAll();
+                int writeBufferCount = morphium.getWriteBufferCount();
+                System.out.println("Amount written: " + count + " but Write buffer: " + writeBufferCount);
+                return writeBufferCount == 0 && count == 1500;
+            });
 
         assert(System.currentTimeMillis() - start < 120000);
     }
@@ -241,18 +235,13 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
         long start = System.currentTimeMillis();
 
-        while (true) {
-            long count = morphium.createQueryFor(BufferedByTimeObject.class).countAll();
-
-            if (count == amount) {
-                log.info("Found proper amount...");
-                break;
-            }
-
-            System.out.println("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
-            //            assert (morphium.getWriteBufferCount() != 0);
-            Thread.sleep(100);
-        }
+        TestUtils.waitForConditionToBecomeTrue(120000, "Not all objects persisted",
+            () -> {
+                long count = morphium.createQueryFor(BufferedByTimeObject.class).countAll();
+                System.out.println("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
+                return count == amount;
+            });
+        log.info("Found proper amount...");
 
         assert(System.currentTimeMillis() - start < 120000);
     }
@@ -274,7 +263,9 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
 
         log.info("Writes prepared - waiting");
-        Thread.sleep(4000);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "Waiting for buffer to flush",
+            () -> morphium.getWriteBufferCount() == 0);
         long count = morphium.createQueryFor(BufferedBySizeDelOldObject.class).countAll();
         log.info("Amount written: " + count);
     }
@@ -295,7 +286,9 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
 
         log.info("Writes prepared - waiting");
-        Thread.sleep(4000);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "Waiting for buffer to flush",
+            () -> morphium.getWriteBufferCount() == 0);
         long count = morphium.createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
         assert(count < 1500);
     }
@@ -317,7 +310,9 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
 
         log.info("Writes prepared - waiting");
-        Thread.sleep(6000);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "Waiting for buffer to flush",
+            () -> morphium.getWriteBufferCount() == 0);
         long count = morphium.createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
         assert(count < 1500);
     }
@@ -344,11 +339,11 @@ public class BufferedWriterTest extends MorphiumTestBase {
             m.store(buf);
         }
 
-        while (m.getWriteBufferCount() != 0) {
-            Thread.sleep(100);
-        }
+        TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushing",
+            () -> m.getWriteBufferCount() == 0);
 
-        Thread.sleep(500);
+        TestUtils.waitForConditionToBecomeTrue(5000, "ComplexObjectBuffered not persisted",
+            () -> m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100);
         ComplexObjectBuffered buf = m.createQueryFor(ComplexObjectBuffered.class).f("ein_text").eq("The text " + 0).get();
         assertNotNull(buf);;
         assert(m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100);
@@ -397,10 +392,11 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
         TestUtils.waitForWrites(morphium, log);
 
-        while (!thr.isEmpty()) {
-            log.info("waiting for threads: " + thr.size());
-            Thread.sleep(1000);
-        }
+        TestUtils.waitForConditionToBecomeTrue(30000, "Threads not finishing",
+            () -> {
+                log.info("waiting for threads: " + thr.size());
+                return thr.isEmpty();
+            });
 
         log.info("Writing finished");
         TestUtils.waitForConditionToBecomeTrue(10000, "Not all written", ()->morphium.createQueryFor(SimpleObject.class).countAll() == 500);
@@ -431,9 +427,8 @@ public class BufferedWriterTest extends MorphiumTestBase {
             m.store(so);
         }
 
-        while (m.getWriteBufferCount() != 0) {
-            Thread.sleep(100);
-        }
+        TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushing",
+            () -> m.getWriteBufferCount() == 0);
 
         TestUtils.waitForConditionToBecomeTrue(10000, "data not written", ()->m.createQueryFor(SimpleObject.class).countAll() == 100);
 
@@ -445,9 +440,8 @@ public class BufferedWriterTest extends MorphiumTestBase {
             m.store(so);
         }
 
-        while (m.getWriteBufferCount() != 0) {
-            Thread.sleep(100);
-        }
+        TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushing on second batch",
+            () -> m.getWriteBufferCount() == 0);
 
         assert(m.createQueryFor(SimpleObject.class).countAll() == 100);
     }

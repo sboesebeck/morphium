@@ -99,14 +99,15 @@ public class CollationTest extends MultiDriverTestBase {
 
             log.info("==========================> Running with: " + morphium.getDriver().getName());
             morphium.dropCollection(UncachedObject.class);
-            Thread.sleep(100);
+            TestUtils.waitForWrites(morphium, log);
             morphium.store(new UncachedObject("A", 1));
             morphium.store(new UncachedObject("B", 1));
             morphium.store(new UncachedObject("C", 1));
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Objects not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == 6);
             long count = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a").countAll();
             assertEquals(2, count);
         }
@@ -123,17 +124,22 @@ public class CollationTest extends MultiDriverTestBase {
 
             log.info("==========================> Running with: " + morphium.getDriver().getName());
             morphium.dropCollection(UncachedObject.class);
-            Thread.sleep(100);
+            TestUtils.waitForWrites(morphium, log);
             morphium.store(new UncachedObject("A", 1));
             morphium.store(new UncachedObject("B", 1));
             morphium.store(new UncachedObject("C", 1));
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            Thread.sleep(100);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Objects not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == 6);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a");
             morphium.inc(q, UncachedObject.Fields.counter, 1, false, true);
-            Thread.sleep(100);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Inc operation not persisted",
+                () -> {
+                    var obj = morphium.createQueryFor(UncachedObject.class).f("str_value").eq("a").f("counter").eq(2).get();
+                    return obj != null;
+                });
 
             for (UncachedObject u : q.asIterable()) {
                 assert(u.getCounter() == 2);
@@ -152,7 +158,7 @@ public class CollationTest extends MultiDriverTestBase {
 
             log.info("==========================> Running with: " + morphium.getDriver().getName());
             morphium.dropCollection(UncachedObject.class);
-            Thread.sleep(100);
+            TestUtils.waitForWrites(morphium, log);
             morphium.store(new UncachedObject("A", 1));
             morphium.store(new UncachedObject("B", 1));
             morphium.store(new UncachedObject("C", 1));
@@ -178,14 +184,15 @@ public class CollationTest extends MultiDriverTestBase {
 
             log.info("==========================> Running with: " + morphium.getDriver().getName());
             morphium.dropCollection(UncachedObject.class);
-            Thread.sleep(100);
+            TestUtils.waitForWrites(morphium, log);
             morphium.store(new UncachedObject("A", 1));
             morphium.store(new UncachedObject("B", 1));
             morphium.store(new UncachedObject("C", 1));
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(3000, "Objects not persisted",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == 6);
             Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
             agg.collation(new Collation().locale("de").strength(Collation.Strength.PRIMARY));
             agg.match(Expr.eq(Expr.field("str_value"), Expr.string("a")));

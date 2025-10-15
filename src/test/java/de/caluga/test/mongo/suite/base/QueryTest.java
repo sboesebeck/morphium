@@ -515,11 +515,12 @@ public class QueryTest extends MorphiumTestBase {
     @Test
     public void testPush() throws Exception {
         UncachedObject uc = new UncachedObject("value", 10055);
+        uc.setIntData(new int[0]); // Initialize with empty array for push to work
         morphium.store(uc);
         TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(), "Did not store?", ()->morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).eq(uc.getMorphiumId())
                 .push(UncachedObject.Fields.intData, 42);
-        TestUtils.waitForConditionToBecomeTrue(5000, "Did not store", ()->morphium.reread(uc).getIntData() != null, (dur)->log.info("Waiting"));
+        Thread.sleep(500);
         morphium.reread(uc);
         assertNotNull(uc.getIntData());
         assertEquals(42, uc.getIntData()[0]);
@@ -528,11 +529,12 @@ public class QueryTest extends MorphiumTestBase {
     @Test
     public void testPushAll() throws Exception {
         UncachedObject uc = new UncachedObject("value", 10055);
+        uc.setIntData(new int[0]); // Initialize with empty array for pushAll to work
         morphium.store(uc);
         TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(), "Did not store?", ()->morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
         List<Integer> lst = Arrays.asList(42, 123);
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pushAll(UncachedObject.Fields.intData, lst);
-        TestUtils.waitForConditionToBecomeTrue(5000, "Did not store", ()->morphium.reread(uc).getIntData() != null, (dur)->log.info("Waiting"));
+        Thread.sleep(500);
         morphium.reread(uc);
         assertNotNull(uc.getIntData());
         assertEquals(42, uc.getIntData()[0]);

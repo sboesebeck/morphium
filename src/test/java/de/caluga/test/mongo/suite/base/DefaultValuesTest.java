@@ -17,7 +17,8 @@ public class DefaultValuesTest extends MorphiumTestBase {
     public void defaultValuesTest() throws Exception {
         DefaultsTestEntitiy e = new DefaultsTestEntitiy();
         morphium.store(e);
-        Thread.sleep(150);
+        TestUtils.waitForConditionToBecomeTrue(2000, "DefaultsTestEntitiy not persisted",
+            () -> morphium.findById(DefaultsTestEntitiy.class, e.id) != null);
         DefaultsTestEntitiy read = morphium.findById(DefaultsTestEntitiy.class, e.id);
         assertNull(read.bool);
         assertEquals(read.v, e.v);
@@ -25,7 +26,12 @@ public class DefaultValuesTest extends MorphiumTestBase {
         assertEquals("value2", read.value2);
         morphium.setInEntity(read, "value", (Object) null);
         morphium.unsetInEntity(read, "value2");
-        Thread.sleep(500);
+        final MorphiumId entityId = e.id;
+        TestUtils.waitForConditionToBecomeTrue(2000, "setInEntity/unsetInEntity operations not persisted",
+            () -> {
+                var obj = morphium.findById(DefaultsTestEntitiy.class, entityId);
+                return obj != null && obj.value == null;
+            });
 
         var m = morphium.createQueryFor(DefaultsTestEntitiy.class).f("_id").eq(e.id).asMapList().get(0);
         for (var en : m.entrySet()) {
