@@ -1681,7 +1681,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     @Override
     public MorphiumMessaging setQueueName(String queueName) {
-        if (queueName.equals("msg")) {
+        if (queueName != null && queueName.equals("msg")) {
             this.queueName = null;
         } else {
             this.queueName = queueName;
