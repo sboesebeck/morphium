@@ -51,6 +51,7 @@ import java.util.concurrent.locks.LockSupport;
 @SuppressWarnings({ "ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait" })
 @Messaging(name = "StandardMessaging", description = "Standard message queueing implementation")
 public class SingleCollectionMessaging extends Thread implements ShutdownListener, MorphiumMessaging {
+    public final static String NAME = "StandardMessaging";
     private static final Logger log = LoggerFactory.getLogger(SingleCollectionMessaging.class);
     private final StatusInfoListener statusInfoListener = new StatusInfoListener();
     private String statusInfoListenerName = "morphium.status_info";
@@ -839,7 +840,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
             if (!pauseMessages.isEmpty()) {
+                // V5/V6 compatibility: check both 'topic' and 'name' fields
                 q.f(Msg.Fields.topic).nin(pausedMessagesKeys);
+                q.f("name").nin(pausedMessagesKeys);
             }
 
             q.or(q1, q2);
@@ -869,6 +872,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
             if (!result.isEmpty()) {
                 for (Map<String, Object> el : result) {
+                    el.putIfAbsent("priority", 100);
+                    el.putIfAbsent("timestamp", System.currentTimeMillis());
                     queueElements.add(new ProcessingQueueElement((Integer) el.get("priority"),
                                       (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
                 }
