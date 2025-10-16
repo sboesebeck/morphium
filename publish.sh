@@ -27,7 +27,7 @@ git checkout master
 git merge $tag
 git push
 
-./publish_to_central.sh
+./publish_to_central.sh --auto-publish
 
 #./create_bundle >> test.log/release.log
 git checkout develop
