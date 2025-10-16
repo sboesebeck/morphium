@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.Morphium;
@@ -31,6 +32,47 @@ public class MessagingTest extends MorphiumTestBase {
     public AtomicInteger procCounter = new AtomicInteger(0);
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
+
+
+
+    @ParameterizedTest
+    @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
+    public void testBackwardCompatibility(Morphium morphium) throws Exception {
+        try(morphium) {
+            MorphiumConfig cfg = morphium.getConfig().createCopy();
+            cfg.messagingSettings().setMessagingImplementation(SingleCollectionMessaging.NAME);
+            cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+            cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+            cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+            //Test Sending V5 and receiving V6
+            //
+            MorphiumMessaging receiver = morphium.createMessaging(cfg.messagingSettings());
+            receiver.start();
+            AtomicBoolean received = new AtomicBoolean(false);
+            receiver.addListenerForTopic("test", (m, msg)-> {
+                OutputHelper.figletOutput(log, "Indcoming...");
+                received .set( true);
+                return msg.createAnswerMsg();
+            });
+
+            Thread.sleep(1000);
+            //simulating write of V5
+            //
+            var v5msg = Map.of("name", (Object)"test", "value", "test", "processed_by", new ArrayList<String>(), "sender", "v5", "sender_host", "self", "timestamp", System.currentTimeMillis(), "ttl", 30000, "delete_at", new Date(System.currentTimeMillis() + 30000), "priority", 100);
+            morphium.storeMap(receiver.getCollectionName(), v5msg);
+            TestUtils.waitForBooleanToBecomeTrue(5000, "Did not get message", received, (dur)->log.info("Still waiting"));
+            OutputHelper.figletOutput(log, "Got V5 Msg");
+
+            //checking  answer
+            var q = morphium.createQueryFor(Msg.class, receiver.getCollectionName());
+            q.f(Msg.Fields.inAnswerTo).ne(null);
+            var answers = q.asMapList();
+            assertEquals(1, answers.size());
+            assertNotNull(answers.get(0).get("name"));
+
+        }
+    }
 
 
     @ParameterizedTest

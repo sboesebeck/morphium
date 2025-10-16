@@ -57,7 +57,7 @@ import de.caluga.morphium.query.Query;
  */
 @Messaging(name = "MultiCollectionMessaging", description = "Advanced multi-collection messaging implementation")
 public class MultiCollectionMessaging implements MorphiumMessaging {
-
+    public final static String NAME = "MultiCollectionMessaging";
     private Logger log = LoggerFactory.getLogger(MultiCollectionMessaging.class);
     private Morphium morphium;
     private MessagingSettings effectiveSettings;
