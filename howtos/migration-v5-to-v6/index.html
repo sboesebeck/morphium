@@ -902,13 +902,55 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-inmemorydriver-improvements-v6" class="md-nav__link">
+  <a href="#5-removed-deprecated-methods-from-morphium-class" class="md-nav__link">
     <span class="md-ellipsis">
-      5. InMemoryDriver Improvements (v6)
+      5. Removed Deprecated Methods from Morphium Class
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="5. InMemoryDriver Improvements (v6)">
+    <nav class="md-nav" aria-label="5. Removed Deprecated Methods from Morphium Class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#update-operations-use-query-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update Operations: Use Query Methods
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-creation-unified-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query Creation: Unified Method
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-removed-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      Other Removed Methods
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-inmemorydriver-improvements-v6" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. InMemoryDriver Improvements (v6)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. InMemoryDriver Improvements (v6)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1665,13 +1707,55 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-inmemorydriver-improvements-v6" class="md-nav__link">
+  <a href="#5-removed-deprecated-methods-from-morphium-class" class="md-nav__link">
     <span class="md-ellipsis">
-      5. InMemoryDriver Improvements (v6)
+      5. Removed Deprecated Methods from Morphium Class
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="5. InMemoryDriver Improvements (v6)">
+    <nav class="md-nav" aria-label="5. Removed Deprecated Methods from Morphium Class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#update-operations-use-query-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update Operations: Use Query Methods
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-creation-unified-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query Creation: Unified Method
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-removed-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      Other Removed Methods
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-inmemorydriver-improvements-v6" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. InMemoryDriver Improvements (v6)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. InMemoryDriver Improvements (v6)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1933,7 +2017,84 @@
 - <code>regularField</code> becomes null (default overwritten)
 - <code>protectedField</code> stays "default" (protected from null)</p>
 <p>This makes the behavior more consistent: if a field doesn't exist in MongoDB, the Java object is not modified.</p>
-<h3 id="5-inmemorydriver-improvements-v6">5. InMemoryDriver Improvements (v6)<a class="headerlink" href="#5-inmemorydriver-improvements-v6" title="Permanent link">&para;</a></h3>
+<h3 id="5-removed-deprecated-methods-from-morphium-class">5. Removed Deprecated Methods from Morphium Class<a class="headerlink" href="#5-removed-deprecated-methods-from-morphium-class" title="Permanent link">&para;</a></h3>
+<p>Many deprecated methods were removed from the <code>Morphium</code> class in v6. Most update operations (set, unset, inc, push, pull, etc.) should now be performed through the <code>Query</code> class instead.</p>
+<h4 id="update-operations-use-query-methods">Update Operations: Use Query Methods<a class="headerlink" href="#update-operations-use-query-methods" title="Permanent link">&para;</a></h4>
+<p><strong>Removed methods (were deprecated in v5):</strong>
+- <code>morphium.set(entity, collection, values, upsert, callback)</code>
+- <code>morphium.unset(entity, collection, field, callback)</code>
+- <code>morphium.inc(fieldsToInc, query, upsert, multiple, callback)</code></p>
+<p><strong>Migration:</strong></p>
+<p><strong>Old (v5):</strong>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Setting values on entities matching a query</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">Map</span><span class="o">&lt;</span><span class="n">Enum</span><span class="p">,</span><span class="w"> </span><span class="n">Object</span><span class="o">&gt;</span><span class="w"> </span><span class="n">values</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">values</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">Fields</span><span class="p">.</span><span class="na">status</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;active&quot;</span><span class="p">);</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">morphium</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="n">entity</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="n">values</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">);</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1">// Unsetting a field</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">morphium</span><span class="p">.</span><span class="na">unset</span><span class="p">(</span><span class="n">entity</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;fieldName&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">);</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="c1">// Incrementing values</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="n">Map</span><span class="o">&lt;</span><span class="n">Enum</span><span class="p">,</span><span class="w"> </span><span class="n">Number</span><span class="o">&gt;</span><span class="w"> </span><span class="n">increments</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="n">increments</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">Fields</span><span class="p">.</span><span class="na">counter</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="n">morphium</span><span class="p">.</span><span class="na">inc</span><span class="p">(</span><span class="n">increments</span><span class="p">,</span><span class="w"> </span><span class="n">query</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">);</span>
+</span></code></pre></div></p>
+<p><strong>New (v6):</strong>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1">// Use Query.set() instead</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">Query</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">);</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">query</span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="s">&quot;_id&quot;</span><span class="p">).</span><span class="na">eq</span><span class="p">(</span><span class="n">entity</span><span class="p">.</span><span class="na">getId</span><span class="p">());</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">query</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="s">&quot;status&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;active&quot;</span><span class="p">);</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1">// Use Query.unset() instead</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">query</span><span class="p">.</span><span class="na">unset</span><span class="p">(</span><span class="s">&quot;fieldName&quot;</span><span class="p">);</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1">// Use Query.inc() instead</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">query</span><span class="p">.</span><span class="na">inc</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">Fields</span><span class="p">.</span><span class="na">counter</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+</span></code></pre></div></p>
+<p><strong>Note:</strong> The methods <code>setInEntity()</code> and <code>unsetInEntity()</code> still exist for updating specific entities directly.</p>
+<h4 id="query-creation-unified-method">Query Creation: Unified Method<a class="headerlink" href="#query-creation-unified-method" title="Permanent link">&para;</a></h4>
+<p><strong>Removed methods:</strong>
+- <code>createQueryFor(Class, String collectionName)</code> - two-parameter version removed
+- <code>createQueryByTemplate(T template, String... fields)</code> - template-based queries removed
+- <code>findByTemplate(T template, String... fields)</code> - template-based find removed</p>
+<p><strong>Migration:</strong></p>
+<p><strong>Old (v5):</strong>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1">// Creating query with custom collection name</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">Query</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;custom_collection&quot;</span><span class="p">);</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1">// Template-based queries</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">MyEntity</span><span class="w"> </span><span class="n">template</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MyEntity</span><span class="p">();</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">template</span><span class="p">.</span><span class="na">setStatus</span><span class="p">(</span><span class="s">&quot;active&quot;</span><span class="p">);</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="n">List</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">findByTemplate</span><span class="p">(</span><span class="n">template</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;status&quot;</span><span class="p">);</span>
+</span></code></pre></div></p>
+<p><strong>New (v6):</strong>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1">// Use single-parameter createQueryFor and specify collection on query</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">Query</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">);</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">query</span><span class="p">.</span><span class="na">setCollectionName</span><span class="p">(</span><span class="s">&quot;custom_collection&quot;</span><span class="p">);</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1">// Template-based queries: use standard query syntax</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">Query</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">);</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="n">query</span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="s">&quot;status&quot;</span><span class="p">).</span><span class="na">eq</span><span class="p">(</span><span class="s">&quot;active&quot;</span><span class="p">);</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="n">List</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">query</span><span class="p">.</span><span class="na">asList</span><span class="p">();</span>
+</span></code></pre></div></p>
+<h4 id="other-removed-methods">Other Removed Methods<a class="headerlink" href="#other-removed-methods" title="Permanent link">&para;</a></h4>
+<p><strong>Read operations:</strong>
+- <code>readAll(Class)</code> - removed (use <code>createQueryFor(Class).asList()</code>)
+- <code>findByField(Class, field, value)</code> - removed (use query with field filter)
+- <code>findById(Class, id, collection)</code> - three-parameter version removed</p>
+<p><strong>Index operations:</strong>
+- <code>ensureIndex(Class, callback, Enum... fields)</code> - removed (use <code>ensureIndices(Class)</code>)
+- <code>getIndexesFromMongo(Class)</code> - removed (use driver-specific methods)</p>
+<p><strong>Other operations:</strong>
+- <code>flush(Class)</code> - removed (use buffered writer methods directly)
+- <code>createAggregator(Class, resultClass)</code> - removed (use <code>aggregate()</code> on Query)
+- <code>mapReduce(Class, map, reduce)</code> - removed (MongoDB deprecated map-reduce in favor of aggregation)</p>
+<p><strong>Migration approach:</strong>
+1. Replace <code>morphium.set/unset/inc/push/pull</code> with equivalent <code>query.set/unset/inc/push/pull</code> methods
+2. Use <code>Query</code> for all update operations instead of direct <code>Morphium</code> methods
+3. Use standard query syntax instead of template-based queries
+4. For simple operations like <code>findById</code>, use <code>query.f(Query.ID_FIELD).eq(id).get()</code></p>
+<h3 id="6-inmemorydriver-improvements-v6">6. InMemoryDriver Improvements (v6)<a class="headerlink" href="#6-inmemorydriver-improvements-v6" title="Permanent link">&para;</a></h3>
 <p>The InMemoryDriver received major enhancements in v6.0:</p>
 <h4 id="change-streams">Change Streams<a class="headerlink" href="#change-streams" title="Permanent link">&para;</a></h4>
 <ul>
@@ -1943,10 +2104,10 @@
 <li>Multiple Morphium instances can share the same InMemoryDriver when using the same database name</li>
 </ul>
 <h4 id="message-queue-testing">Message Queue Testing<a class="headerlink" href="#message-queue-testing" title="Permanent link">&para;</a></h4>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Multiple messaging instances can now share InMemoryDriver correctly</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">msg1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium1</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">msg2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium2</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1">// Both will receive change stream events from the shared driver</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1">// Multiple messaging instances can now share InMemoryDriver correctly</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">msg1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium1</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">msg2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium2</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1">// Both will receive change stream events from the shared driver</span>
 </span></code></pre></div>
 <h4 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h4>
 <ul>
@@ -1980,6 +2141,12 @@
 <li>[ ] Replace flat config setters with nested settings objects</li>
 <li>[ ] Change messaging instantiation to <code>morphium.createMessaging()</code></li>
 <li>[ ] Update messaging code: replace <code>getName()</code>/<code>setName()</code> with <code>getTopic()</code>/<code>setTopic()</code></li>
+<li>[ ] Replace removed <code>Morphium</code> methods:</li>
+<li>[ ] <code>morphium.set/unset/inc()</code> → use <code>query.set/unset/inc()</code> instead</li>
+<li>[ ] <code>morphium.findByTemplate()</code> → use standard query syntax</li>
+<li>[ ] <code>morphium.readAll()</code> → use <code>query.asList()</code></li>
+<li>[ ] <code>morphium.findByField()</code> → use query with field filter</li>
+<li>[ ] <code>morphium.createQueryFor(Class, collection)</code> → use <code>query.setCollectionName()</code></li>
 <li>[ ] Review null handling behavior: consider adding <code>@IgnoreNullFromDB</code> to fields that need protection from null values</li>
 <li>[ ] Remove deprecated <code>@UseIfnull</code> annotations (behavior is now inverted)</li>
 <li>[ ] Review custom driver/messaging implementations for annotation requirements</li>
