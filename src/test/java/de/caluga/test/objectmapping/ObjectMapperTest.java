@@ -59,7 +59,7 @@ public class ObjectMapperTest {
         MorphiumObjectMapper mapper = new ObjectMapperImpl();
         Map<String, Object> marshall = mapper.serialize(c);
         assert(marshall.get("simple_id") instanceof ObjectId);
-        assert(((Map<?, ?>) marshall.get("id_map")).get("1") instanceof ObjectId);
+        assert(((Map <?, ? >) marshall.get("id_map")).get("1") instanceof ObjectId);
 
         for (Object i : (List<?>) marshall.get("others")) {
             assert(i instanceof ObjectId);
