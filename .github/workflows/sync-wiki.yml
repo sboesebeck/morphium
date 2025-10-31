@@ -3,12 +3,13 @@ name: Sync Documentation to Wiki
 on:
   push:
     branches:
-      - master  # Only sync from master to keep wiki stable
+      - master # Only sync from master to keep wiki stable
+      - develop
     paths:
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '.github/workflows/sync-wiki.yml'
-  workflow_dispatch:  # Allow manual trigger
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/sync-wiki.yml"
+  workflow_dispatch: # Allow manual trigger
 
 permissions:
   contents: write
