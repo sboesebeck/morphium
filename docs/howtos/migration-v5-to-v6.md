@@ -70,7 +70,109 @@ m.addListenerForTopic("topic", (mm, msg) -> {
   - `MultiCollectionMessaging` - Multi-collection messaging for high-volume scenarios
 - Custom implementations must be annotated with `@de.caluga.morphium.annotations.Messaging(name = "YourName")`
 
-### 4. InMemoryDriver Improvements (v6)
+#### Message "name" field renamed to "topic"
+
+In v6, the `Msg` class field and methods have been renamed from "name" to "topic" to align with standard messaging terminology:
+
+**Old (v5):**
+```java
+Msg msg = new Msg("myMessageName", "command", "data");
+String name = msg.getName();
+msg.setName("newName");
+```
+
+**New (v6):**
+```java
+Msg msg = new Msg("myTopic", "command", "data");
+String topic = msg.getTopic();
+msg.setTopic("newTopic");
+```
+
+**Backward compatibility:**
+- The MongoDB field is backward compatible via `@Aliases({"name"})` annotation
+- V5 and V6 messaging instances can communicate if `SingleCollectionMessaging` (now called `StandardMessaging`) is used in V6
+- Existing MongoDB documents with the "name" field will continue to work
+
+**Removed deprecated methods:**
+- `getName()` → use `getTopic()`
+- `setName(String)` → use `setTopic(String)`
+- `sendAnswer(Messaging, Msg)` → removed (use messaging instance methods instead)
+
+### 4. Null Value Handling Changes
+
+Morphium v6 changes how null values are handled during serialization and deserialization to be more consistent with MongoDB behavior and other ORMs.
+
+#### New Default Behavior (v6)
+
+**Field missing from MongoDB document:**
+- Java field is NOT updated (preserves default values or existing values)
+- This is consistent behavior regardless of annotations
+
+**Field present in MongoDB with explicit null value:**
+- By default, Java field IS set to null (overwrites default values)
+- Use `@IgnoreNullFromDB` to protect specific fields from null contamination
+
+**Old (v5):**
+```java
+@Entity
+public class MyEntity {
+    private Integer counter = 42;  // null from DB would be ignored (protected)
+
+    @UseIfnull
+    private String name;           // null from DB would be accepted
+}
+```
+
+**New (v6):**
+```java
+@Entity
+public class MyEntity {
+    private Integer counter = 42;  // null from DB IS accepted (becomes null)
+
+    @IgnoreNullFromDB
+    private Integer protectedCounter = 99;  // null from DB is ignored (stays 99)
+}
+```
+
+#### Migration Strategy
+
+**The `@UseIfnull` annotation is now deprecated.** The behavior has been inverted:
+
+**Old behavior (v5):**
+- Fields WITHOUT `@UseIfnull`: ignored nulls from DB (protected)
+- Fields WITH `@UseIfnull`: accepted nulls from DB
+
+**New behavior (v6):**
+- Fields WITHOUT `@IgnoreNullFromDB`: accept nulls from DB (standard behavior)
+- Fields WITH `@IgnoreNullFromDB`: ignore nulls from DB (protected)
+
+**To migrate:**
+1. Remove `@UseIfnull` from fields that should accept nulls (this is now the default)
+2. Add `@IgnoreNullFromDB` to fields that previously did NOT have `@UseIfnull` if you want to maintain the old protection behavior
+
+#### Example: Field Missing vs. Explicit Null
+
+```java
+@Entity
+public class Example {
+    private String regularField = "default";
+
+    @IgnoreNullFromDB
+    private String protectedField = "default";
+}
+```
+
+**Scenario 1: MongoDB document is `{}`** (field missing entirely)
+- `regularField` stays "default"
+- `protectedField` stays "default"
+
+**Scenario 2: MongoDB document is `{ regularField: null, protectedField: null }`**
+- `regularField` becomes null (default overwritten)
+- `protectedField` stays "default" (protected from null)
+
+This makes the behavior more consistent: if a field doesn't exist in MongoDB, the Java object is not modified.
+
+### 5. InMemoryDriver Improvements (v6)
 
 The InMemoryDriver received major enhancements in v6.0:
 
@@ -118,6 +220,9 @@ Morphium 6 uses Java 21 virtual threads for:
 - [ ] Update pom.xml dependency to `6.0.0` or higher
 - [ ] Replace flat config setters with nested settings objects
 - [ ] Change messaging instantiation to `morphium.createMessaging()`
+- [ ] Update messaging code: replace `getName()`/`setName()` with `getTopic()`/`setTopic()`
+- [ ] Review null handling behavior: consider adding `@IgnoreNullFromDB` to fields that need protection from null values
+- [ ] Remove deprecated `@UseIfnull` annotations (behavior is now inverted)
 - [ ] Review custom driver/messaging implementations for annotation requirements
 - [ ] Update test infrastructure to use tags if using parameterized tests
 - [ ] Test with InMemoryDriver to verify change stream handling
