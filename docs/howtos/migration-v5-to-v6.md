@@ -174,14 +174,18 @@ This makes the behavior more consistent: if a field doesn't exist in MongoDB, th
 
 ### 5. Removed Deprecated Methods from Morphium Class
 
-Many deprecated methods were removed from the `Morphium` class in v6. Most update operations (set, unset, inc, push, pull, etc.) should now be performed through the `Query` class instead.
+Many deprecated methods were removed from the `Morphium` class in v6. The design principle in Morphium is:
+- **Morphium class**: Entity-based operations (save, delete, updates to specific entities)
+- **Query class**: Query-based operations (reads and updates based on query criteria)
 
-#### Update Operations: Use Query Methods
+#### Query-Based Update Operations: Use Query Methods
+
+The removed methods were query-based update operations that should have been in the Query class all along.
 
 **Removed methods (were deprecated in v5):**
-- `morphium.set(entity, collection, values, upsert, callback)`
-- `morphium.unset(entity, collection, field, callback)`
-- `morphium.inc(fieldsToInc, query, upsert, multiple, callback)`
+- `morphium.set(entity, collection, values, upsert, callback)` - query-based update
+- `morphium.unset(entity, collection, field, callback)` - query-based update
+- `morphium.inc(fieldsToInc, query, upsert, multiple, callback)` - query-based update
 
 **Migration:**
 
@@ -203,19 +207,24 @@ morphium.inc(increments, query, false, true, null);
 
 **New (v6):**
 ```java
-// Use Query.set() instead
+// Use Query.set() for query-based updates
 Query<MyEntity> query = morphium.createQueryFor(MyEntity.class);
-query.f("_id").eq(entity.getId());
+query.f("status").eq("pending");  // Query criteria
 query.set("status", "active");
 
-// Use Query.unset() instead
+// Use Query.unset() for query-based field removal
 query.unset("fieldName");
 
-// Use Query.inc() instead
+// Use Query.inc() for query-based increments
 query.inc(MyEntity.Fields.counter, 1);
 ```
 
-**Note:** The methods `setInEntity()` and `unsetInEntity()` still exist for updating specific entities directly.
+**Note:** Entity-based operations remain in Morphium:
+- `morphium.setInEntity(entity, collection, values, ...)` - updates a specific entity
+- `morphium.unsetInEntity(entity, collection, field, ...)` - unsets field in a specific entity
+- `morphium.store(entity)` - saves/updates a specific entity
+
+Use `Query` methods when updating based on query criteria, use `Morphium` methods when updating a specific entity instance.
 
 #### Query Creation: Unified Method
 
