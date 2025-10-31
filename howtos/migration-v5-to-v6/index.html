@@ -912,9 +912,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#update-operations-use-query-methods" class="md-nav__link">
+  <a href="#query-based-update-operations-use-query-methods" class="md-nav__link">
     <span class="md-ellipsis">
-      Update Operations: Use Query Methods
+      Query-Based Update Operations: Use Query Methods
     </span>
   </a>
   
@@ -1717,9 +1717,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#update-operations-use-query-methods" class="md-nav__link">
+  <a href="#query-based-update-operations-use-query-methods" class="md-nav__link">
     <span class="md-ellipsis">
-      Update Operations: Use Query Methods
+      Query-Based Update Operations: Use Query Methods
     </span>
   </a>
   
@@ -2018,12 +2018,15 @@
 - <code>protectedField</code> stays "default" (protected from null)</p>
 <p>This makes the behavior more consistent: if a field doesn't exist in MongoDB, the Java object is not modified.</p>
 <h3 id="5-removed-deprecated-methods-from-morphium-class">5. Removed Deprecated Methods from Morphium Class<a class="headerlink" href="#5-removed-deprecated-methods-from-morphium-class" title="Permanent link">&para;</a></h3>
-<p>Many deprecated methods were removed from the <code>Morphium</code> class in v6. Most update operations (set, unset, inc, push, pull, etc.) should now be performed through the <code>Query</code> class instead.</p>
-<h4 id="update-operations-use-query-methods">Update Operations: Use Query Methods<a class="headerlink" href="#update-operations-use-query-methods" title="Permanent link">&para;</a></h4>
+<p>Many deprecated methods were removed from the <code>Morphium</code> class in v6. The design principle in Morphium is:
+- <strong>Morphium class</strong>: Entity-based operations (save, delete, updates to specific entities)
+- <strong>Query class</strong>: Query-based operations (reads and updates based on query criteria)</p>
+<h4 id="query-based-update-operations-use-query-methods">Query-Based Update Operations: Use Query Methods<a class="headerlink" href="#query-based-update-operations-use-query-methods" title="Permanent link">&para;</a></h4>
+<p>The removed methods were query-based update operations that should have been in the Query class all along.</p>
 <p><strong>Removed methods (were deprecated in v5):</strong>
-- <code>morphium.set(entity, collection, values, upsert, callback)</code>
-- <code>morphium.unset(entity, collection, field, callback)</code>
-- <code>morphium.inc(fieldsToInc, query, upsert, multiple, callback)</code></p>
+- <code>morphium.set(entity, collection, values, upsert, callback)</code> - query-based update
+- <code>morphium.unset(entity, collection, field, callback)</code> - query-based update
+- <code>morphium.inc(fieldsToInc, query, upsert, multiple, callback)</code> - query-based update</p>
 <p><strong>Migration:</strong></p>
 <p><strong>Old (v5):</strong>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Setting values on entities matching a query</span>
@@ -2040,18 +2043,22 @@
 </span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="n">morphium</span><span class="p">.</span><span class="na">inc</span><span class="p">(</span><span class="n">increments</span><span class="p">,</span><span class="w"> </span><span class="n">query</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">);</span>
 </span></code></pre></div></p>
 <p><strong>New (v6):</strong>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1">// Use Query.set() instead</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1">// Use Query.set() for query-based updates</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">Query</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">);</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">query</span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="s">&quot;_id&quot;</span><span class="p">).</span><span class="na">eq</span><span class="p">(</span><span class="n">entity</span><span class="p">.</span><span class="na">getId</span><span class="p">());</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">query</span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="s">&quot;status&quot;</span><span class="p">).</span><span class="na">eq</span><span class="p">(</span><span class="s">&quot;pending&quot;</span><span class="p">);</span><span class="w">  </span><span class="c1">// Query criteria</span>
 </span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">query</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="s">&quot;status&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;active&quot;</span><span class="p">);</span>
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1">// Use Query.unset() instead</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1">// Use Query.unset() for query-based field removal</span>
 </span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">query</span><span class="p">.</span><span class="na">unset</span><span class="p">(</span><span class="s">&quot;fieldName&quot;</span><span class="p">);</span>
 </span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1">// Use Query.inc() instead</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1">// Use Query.inc() for query-based increments</span>
 </span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">query</span><span class="p">.</span><span class="na">inc</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">Fields</span><span class="p">.</span><span class="na">counter</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
 </span></code></pre></div></p>
-<p><strong>Note:</strong> The methods <code>setInEntity()</code> and <code>unsetInEntity()</code> still exist for updating specific entities directly.</p>
+<p><strong>Note:</strong> Entity-based operations remain in Morphium:
+- <code>morphium.setInEntity(entity, collection, values, ...)</code> - updates a specific entity
+- <code>morphium.unsetInEntity(entity, collection, field, ...)</code> - unsets field in a specific entity
+- <code>morphium.store(entity)</code> - saves/updates a specific entity</p>
+<p>Use <code>Query</code> methods when updating based on query criteria, use <code>Morphium</code> methods when updating a specific entity instance.</p>
 <h4 id="query-creation-unified-method">Query Creation: Unified Method<a class="headerlink" href="#query-creation-unified-method" title="Permanent link">&para;</a></h4>
 <p><strong>Removed methods:</strong>
 - <code>createQueryFor(Class, String collectionName)</code> - two-parameter version removed
