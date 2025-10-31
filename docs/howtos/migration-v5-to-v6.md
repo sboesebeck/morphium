@@ -172,7 +172,106 @@ public class Example {
 
 This makes the behavior more consistent: if a field doesn't exist in MongoDB, the Java object is not modified.
 
-### 5. InMemoryDriver Improvements (v6)
+### 5. Removed Deprecated Methods from Morphium Class
+
+Many deprecated methods were removed from the `Morphium` class in v6. Most update operations (set, unset, inc, push, pull, etc.) should now be performed through the `Query` class instead.
+
+#### Update Operations: Use Query Methods
+
+**Removed methods (were deprecated in v5):**
+- `morphium.set(entity, collection, values, upsert, callback)`
+- `morphium.unset(entity, collection, field, callback)`
+- `morphium.inc(fieldsToInc, query, upsert, multiple, callback)`
+
+**Migration:**
+
+**Old (v5):**
+```java
+// Setting values on entities matching a query
+Map<Enum, Object> values = new HashMap<>();
+values.put(MyEntity.Fields.status, "active");
+morphium.set(entity, null, values, false, null);
+
+// Unsetting a field
+morphium.unset(entity, null, "fieldName", null);
+
+// Incrementing values
+Map<Enum, Number> increments = new HashMap<>();
+increments.put(MyEntity.Fields.counter, 1);
+morphium.inc(increments, query, false, true, null);
+```
+
+**New (v6):**
+```java
+// Use Query.set() instead
+Query<MyEntity> query = morphium.createQueryFor(MyEntity.class);
+query.f("_id").eq(entity.getId());
+query.set("status", "active");
+
+// Use Query.unset() instead
+query.unset("fieldName");
+
+// Use Query.inc() instead
+query.inc(MyEntity.Fields.counter, 1);
+```
+
+**Note:** The methods `setInEntity()` and `unsetInEntity()` still exist for updating specific entities directly.
+
+#### Query Creation: Unified Method
+
+**Removed methods:**
+- `createQueryFor(Class, String collectionName)` - two-parameter version removed
+- `createQueryByTemplate(T template, String... fields)` - template-based queries removed
+- `findByTemplate(T template, String... fields)` - template-based find removed
+
+**Migration:**
+
+**Old (v5):**
+```java
+// Creating query with custom collection name
+Query<MyEntity> query = morphium.createQueryFor(MyEntity.class, "custom_collection");
+
+// Template-based queries
+MyEntity template = new MyEntity();
+template.setStatus("active");
+List<MyEntity> results = morphium.findByTemplate(template, "status");
+```
+
+**New (v6):**
+```java
+// Use single-parameter createQueryFor and specify collection on query
+Query<MyEntity> query = morphium.createQueryFor(MyEntity.class);
+query.setCollectionName("custom_collection");
+
+// Template-based queries: use standard query syntax
+Query<MyEntity> query = morphium.createQueryFor(MyEntity.class);
+query.f("status").eq("active");
+List<MyEntity> results = query.asList();
+```
+
+#### Other Removed Methods
+
+**Read operations:**
+- `readAll(Class)` - removed (use `createQueryFor(Class).asList()`)
+- `findByField(Class, field, value)` - removed (use query with field filter)
+- `findById(Class, id, collection)` - three-parameter version removed
+
+**Index operations:**
+- `ensureIndex(Class, callback, Enum... fields)` - removed (use `ensureIndices(Class)`)
+- `getIndexesFromMongo(Class)` - removed (use driver-specific methods)
+
+**Other operations:**
+- `flush(Class)` - removed (use buffered writer methods directly)
+- `createAggregator(Class, resultClass)` - removed (use `aggregate()` on Query)
+- `mapReduce(Class, map, reduce)` - removed (MongoDB deprecated map-reduce in favor of aggregation)
+
+**Migration approach:**
+1. Replace `morphium.set/unset/inc/push/pull` with equivalent `query.set/unset/inc/push/pull` methods
+2. Use `Query` for all update operations instead of direct `Morphium` methods
+3. Use standard query syntax instead of template-based queries
+4. For simple operations like `findById`, use `query.f(Query.ID_FIELD).eq(id).get()`
+
+### 6. InMemoryDriver Improvements (v6)
 
 The InMemoryDriver received major enhancements in v6.0:
 
@@ -221,6 +320,12 @@ Morphium 6 uses Java 21 virtual threads for:
 - [ ] Replace flat config setters with nested settings objects
 - [ ] Change messaging instantiation to `morphium.createMessaging()`
 - [ ] Update messaging code: replace `getName()`/`setName()` with `getTopic()`/`setTopic()`
+- [ ] Replace removed `Morphium` methods:
+  - [ ] `morphium.set/unset/inc()` → use `query.set/unset/inc()` instead
+  - [ ] `morphium.findByTemplate()` → use standard query syntax
+  - [ ] `morphium.readAll()` → use `query.asList()`
+  - [ ] `morphium.findByField()` → use query with field filter
+  - [ ] `morphium.createQueryFor(Class, collection)` → use `query.setCollectionName()`
 - [ ] Review null handling behavior: consider adding `@IgnoreNullFromDB` to fields that need protection from null values
 - [ ] Remove deprecated `@UseIfnull` annotations (behavior is now inverted)
 - [ ] Review custom driver/messaging implementations for annotation requirements
