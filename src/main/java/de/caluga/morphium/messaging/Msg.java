@@ -402,6 +402,7 @@ public class Msg {
     @PreStore
     public void preStore() {
         name = topic;
+        if (processedBy == null) processedBy = new ArrayList<>();
         if (sender == null) {
             throw new RuntimeException("Cannot send msg anonymously - set Sender first!");
         }
