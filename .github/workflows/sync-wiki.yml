@@ -1,0 +1,107 @@
+name: Sync Documentation to Wiki
+
+on:
+  push:
+    branches:
+      - master # Only sync from master to keep wiki stable
+      - develop
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/sync-wiki.yml"
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone wiki repository
+        run: |
+          git clone https://github.com/${{ github.repository }}.wiki.git wiki-repo
+          cd wiki-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync documentation files
+        run: |
+          # Remove old content (except .git)
+          cd wiki-repo
+          find . -type f ! -path './.git/*' -delete
+          find . -type d -empty ! -path './.git/*' -delete
+
+          # Copy markdown files from docs/
+          # Wiki doesn't support nested directories well, so we'll flatten the structure
+          cd ../docs
+
+          # Create Home.md from index.md
+          if [ -f "index.md" ]; then
+            cp index.md ../wiki-repo/Home.md
+          fi
+
+          # Copy top-level docs with their original names
+          for file in *.md; do
+            if [ -f "$file" ] && [ "$file" != "index.md" ]; then
+              # Capitalize first letter for wiki convention
+              basename="${file%.md}"
+              cp "$file" "../wiki-repo/${basename}.md"
+            fi
+          done
+
+          # Copy howtos directory files with "HowTo-" prefix
+          if [ -d "howtos" ]; then
+            for file in howtos/*.md; do
+              if [ -f "$file" ]; then
+                basename=$(basename "$file" .md)
+                cp "$file" "../wiki-repo/HowTo-${basename}.md"
+              fi
+            done
+          fi
+
+          # Copy releases directory files with "Release-" prefix
+          if [ -d "releases" ]; then
+            for file in releases/*.md; do
+              if [ -f "$file" ]; then
+                basename=$(basename "$file" .md)
+                cp "$file" "../wiki-repo/Release-${basename}.md"
+              fi
+            done
+          fi
+
+          cd ../wiki-repo
+
+          # Add note to Home.md about the main documentation site
+          if [ -f "Home.md" ]; then
+            echo "" >> Home.md
+            echo "---" >> Home.md
+            echo "" >> Home.md
+            echo "> **Note**: This wiki is automatically synced from the documentation. For the best reading experience with full navigation, themes, and search, visit the [official documentation site](https://sboesebeck.github.io/morphium/)." >> Home.md
+          fi
+
+      - name: Commit and push changes
+        run: |
+          cd wiki-repo
+          git add .
+
+          # Check if there are changes to commit
+          if git diff-index --quiet HEAD --; then
+            echo "No changes to commit"
+          else
+            git commit -m "Sync documentation from main repository
+
+            Auto-synced from commit: ${{ github.sha }}
+            Triggered by: ${{ github.actor }}"
+
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf wiki-repo
