@@ -456,7 +456,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     @Override
     public String getLockCollectionName(String name) {
         if (lockCollectionNames.get(name) == null) {
-            lockCollectionNames.put (name, getLockCollectionName() + "_" + name).replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
+            String v = getLockCollectionName() + "_" + name;
+            v = v.replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
+            lockCollectionNames.put (name, v);
         }
         return lockCollectionNames.get(name);
     }
