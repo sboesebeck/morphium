@@ -197,6 +197,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private void handleHelloResult(HelloResult hello, String hostConnected) {
+        if (!running) return;
         if (hello == null)
             return;
 
@@ -243,10 +244,13 @@ public class PooledDriver extends DriverBase {
 
             // only closing connections when info comes from primary
             List<ConnectionContainer> toClose = new ArrayList<>();
-            for (String host : new ArrayList<>(hosts.keySet())) {
+            for (var it = hosts.entrySet().iterator(); it.hasNext();) {
+                var entry = it.next();
+                var host = entry.getKey();
                 if (!hello.getHosts().contains(host)) {
                     log.warn("Host {} is not part of the replicaset anymore!", host);
-                    Host h = hosts.remove(host);
+                    it.remove();
+                    Host h = entry.getValue();
                     removeFromHostSeed(host);
 
                     ArrayList<Integer> toDelete = new ArrayList<>();
@@ -466,6 +470,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private void onConnectionError(String host) {
+        if (!running) return;
         // empty pool for host, as connection to it failed
         stats.get(DriverStatsKey.ERRORS).incrementAndGet();
         Host h = hosts.get(host);
@@ -508,10 +513,12 @@ public class PooledDriver extends DriverBase {
     }
 
     private void createNewConnection(String hst) throws Exception {
+        if (!running) return;
         // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst,
         // waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
         // log.debug("Creating connection to {}", hst);
-        if (!hosts.containsKey(hst)) {
+        Host host = hosts.get(hst);
+        if (host == null) {
             return;
         }
 
@@ -525,10 +532,9 @@ public class PooledDriver extends DriverBase {
         HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
         stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
 
-        Host host = hosts.get(hst);
-        if (host != null && (host.getConnectionPool().size() < host.getWaitCounter()
+        if (host.getConnectionPool().size() < host.getWaitCounter()
                                             && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
-                                            getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                                            getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
             var cont = new ConnectionContainer(con);
             host.getConnectionPool().add(cont);
         } else {
@@ -572,6 +578,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
+        if (!running) throw new MorphiumDriverException("Driver is shutting down");
         // log.debug("borrowConnection {}", host);
         if (host == null)
             throw new MorphiumDriverException("Cannot connect to host null!");
@@ -814,8 +821,6 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void releaseConnection(MongoConnection con) {
-        stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
-
         if (con == null) {
             return;
         }
@@ -823,6 +828,7 @@ public class PooledDriver extends DriverBase {
         if (!running) {
             return; // shutting down
         }
+        stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
 
         if (!(con instanceof SingleMongoConnection)) {
             throw new IllegalArgumentException("Got connection of wrong type back!");
@@ -1096,6 +1102,7 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
+        if (!running) return false;
         List<Map<String, Object>> lst = getCollectionInfo(db, coll);
         try {
             if (!lst.isEmpty() && lst.get(0).get("name") != null && lst.get(0).get("name").equals(coll)) {
@@ -1252,6 +1259,7 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public Map<DriverStatsKey, Double> getDriverStats() {
+        if (!running) return new HashMap<>();
         long now = System.currentTimeMillis();
 
         // Return cached stats if recent enough
