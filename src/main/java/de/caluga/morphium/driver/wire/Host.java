@@ -15,11 +15,39 @@ public class Host {
     private final int port;
     private final BlockingQueue<ConnectionContainer> connectionPool = new LinkedBlockingQueue<>();
     private final AtomicInteger waitCounter = new AtomicInteger(0);
+    private final AtomicInteger failures = new AtomicInteger(0);
+    private final AtomicInteger borrowedConnections = new AtomicInteger(0);
+    public static final int MAX_FAILURES = 5;
     private PooledDriver.PingStats pingStats = new PooledDriver.PingStats(0, 0, 0, 0, 0, 0);
 
     public Host(String host, int port) {
         this.hostName = host;
         this.port = port;
+    }
+
+    public int getBorrowedConnections() {
+        return borrowedConnections.get();
+    }
+
+    public void incrementBorrowedConnections() {
+        borrowedConnections.incrementAndGet();
+    }
+
+    public void decrementBorrowedConnections() {
+        borrowedConnections.decrementAndGet();
+    }
+
+
+    public int getFailures() {
+        return failures.get();
+    }
+
+    public void incrementFailures() {
+        failures.incrementAndGet();
+    }
+
+    public void resetFailures() {
+        failures.set(0);
     }
 
     public String getHostName() {

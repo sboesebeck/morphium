@@ -97,6 +97,7 @@ public class PooledDriver extends DriverBase {
 
     public static final String driverName = "PooledDriver";
     private final Map<String, Host> hosts = new ConcurrentHashMap<>();
+    private volatile boolean running;
     private final Map<Integer, ConnectionContainer> borrowedConnections;
     private final Map<DriverStatsKey, AtomicDecimal> stats;
     private volatile long fastestTime = 10000;
@@ -117,6 +118,7 @@ public class PooledDriver extends DriverBase {
     private static final long STATS_CACHE_TTL = 1000; // 1 second
 
     public PooledDriver() {
+        running = true;
         borrowedConnections = Collections.synchronizedMap(new HashMap<>());
         stats = new ConcurrentHashMap<>();
 
@@ -353,6 +355,7 @@ public class PooledDriver extends DriverBase {
     
                                     PingStats newStats = host.getPingStats().updateWith(dur);
                                     host.setPingStats(newStats);
+                                    host.resetFailures();
     
                                     // Use record patterns to update fastest host
                                     updateFastestHost(hst, newStats);
@@ -399,47 +402,46 @@ public class PooledDriver extends DriverBase {
                 }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
                 // thread to create new connections instantly if a thread is waiting
                 // this thread pauses until waitCounter.notifyAll() is called
-                Thread.ofVirtual().name("ConnectionWaiter").start(() -> {
-                    while (heartbeat != null) {
-                        try {
-                            synchronized (waitCounterSignal) {
-                                waitCounterSignal.wait();
-                            }
-    
-                            for (String hst : getHostSeed()) {
-                                try {
-                                    BlockingQueue<ConnectionContainer> queue = null;
-                                    if (hosts.get(hst) != null) {
-                                        queue = hosts.get(hst).getConnectionPool();
+                            Thread.ofVirtual().name("ConnectionWaiter").start(() -> {
+                                while (running) {
+                                    try {
+                                        synchronized (waitCounterSignal) {
+                                            waitCounterSignal.wait();
+                                        }
+                
+                                        for (String hst : getHostSeed()) {
+                                            try {
+                                                BlockingQueue<ConnectionContainer> queue = null;
+                                                if (hosts.get(hst) != null) {
+                                                    queue = hosts.get(hst).getConnectionPool();
+                                                }
+                
+                
+                                                int loopCounter = 0;
+                
+                                                while (getHostSeed().contains(hst) && queue != null
+                                                        && loopCounter < getMaxConnectionsPerHost() &&
+                                                        (queue.size() < getWaitCounterForHost(hst)
+                                                         && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                                    loopCounter++;
+                                                    // log.debug("Creating connection to {} - WaitCounter is {}", hst,
+                                                    // getWaitCounterForHost(hst));
+                                                    // System.out.println("Creating new connection to " + hst + " WaitCounter is: "
+                                                    // + waitCounter.get(hst).get());
+                                                    createNewConnection(hst);
+                                                }
+                                            } catch (Exception e) {
+                                                log.error("Could not create connection to {}", hst, e);
+                                                // removing connections, probably all broken now
+                                                onConnectionError(hst);
+                                            }
+                                        }
+                                    } catch (Throwable e) {
+                                        log.error("error", e);
+                                        stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                                     }
-    
-    
-                                    int loopCounter = 0;
-    
-                                    while (getHostSeed().contains(hst) && queue != null
-                                            && loopCounter < getMaxConnectionsPerHost() &&
-                                            (queue.size() < getWaitCounterForHost(hst)
-                                             && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
-                                        loopCounter++;
-                                        // log.debug("Creating connection to {} - WaitCounter is {}", hst,
-                                        // getWaitCounterForHost(hst));
-                                        // System.out.println("Creating new connection to " + hst + " WaitCounter is: "
-                                        // + waitCounter.get(hst).get());
-                                        createNewConnection(hst);
-                                    }
-                                } catch (Exception e) {
-                                    log.error("Could not create connection to {}", hst, e);
-                                    // removing connections, probably all broken now
-                                    onConnectionError(hst);
                                 }
-                            }
-                        } catch (Throwable e) {
-                            log.error("error", e);
-                            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                        }
-                    }
-                });
-            } else {
+                            });            } else {
                 // log.debug("Heartbeat already scheduled...");
             }
         }
@@ -466,34 +468,41 @@ public class PooledDriver extends DriverBase {
     private void onConnectionError(String host) {
         // empty pool for host, as connection to it failed
         stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-        Host h = hosts.remove(host);
-        BlockingQueue<ConnectionContainer> connectionsList = h.getConnectionPool();
-
-
-        // If we already discovered the replicaset members and this host is not part of it,
-        // drop it from the host seed to avoid repeated futile connection attempts.
-        if (lastHostsFromHello != null && !lastHostsFromHello.contains(host)) {
-            log.info("Removing unreachable seed host '{}' not present in replicaset members {}", host, lastHostsFromHello);
-            removeFromHostSeed(host);
+        Host h = hosts.get(host);
+        if (h == null) {
+            return;
         }
+        h.incrementFailures();
+        if (h.getFailures() > Host.MAX_FAILURES) {
+            hosts.remove(host);
+            BlockingQueue<ConnectionContainer> connectionsList = h.getConnectionPool();
 
-        if (host.equals(primaryNode)) {
-            primaryNode = null;
-        }
 
-        if (host.equals(fastestHost)) {
-            fastestHost = null;
-            fastestTime = 10000;
-        }
+            // If we already discovered the replicaset members and this host is not part of it,
+            // drop it from the host seed to avoid repeated futile connection attempts.
+            if (lastHostsFromHello != null && !lastHostsFromHello.contains(host)) {
+                log.info("Removing unreachable seed host '{}' not present in replicaset members {}", host, lastHostsFromHello);
+                removeFromHostSeed(host);
+            }
 
-        if (connectionsList != null) {
-            for (var c : connectionsList) {
-                try {
-                    c.getCon().close();
-                } catch (Exception ex) {
-                    // swallow
+            if (host.equals(primaryNode)) {
+                primaryNode = null;
+            }
+
+            if (host.equals(fastestHost)) {
+                fastestHost = null;
+                fastestTime = 10000;
+            }
+
+            if (connectionsList != null) {
+                for (var c : connectionsList) {
+                    try {
+                        c.getCon().close();
+                    } catch (Exception ex) {
+                        // swallow
+                    }
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                 }
-                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
             }
         }
     }
@@ -532,6 +541,7 @@ public class PooledDriver extends DriverBase {
 
         PingStats newStats = host.getPingStats().updateWith(dur);
         host.setPingStats(newStats);
+        host.resetFailures();
 
         // Use record patterns to update fastest host
         updateFastestHost(hst, newStats);
@@ -554,28 +564,11 @@ public class PooledDriver extends DriverBase {
     }
 
     private int getTotalConnectionsToHost(String h) {
-        // Count borrowed connections using stream with defensive approach
-        // ConcurrentHashMap.values() provides better concurrent access but can still
-        // throw CME if structure changes during iteration, so we handle it gracefully
-        int borrowed;
-        try {
-            borrowed = (int) borrowedConnections.values().stream()
-                       .filter(c -> c.getCon().getConnectedTo().equals(h))
-                       .count();
-        } catch (Exception e) {
-            // Fall back to safe but slower approach if concurrent modification occurs
-            synchronized (borrowedConnections) {
-                borrowed = (int) borrowedConnections.values().stream()
-                           .filter(c -> c.getCon().getConnectedTo().equals(h))
-                           .count();
-            }
-        }
-
         Host host = hosts.get(h);
         if (host == null) {
-            return borrowed;
+            return 0;
         }
-        return borrowed + host.getConnectionPool().size();
+        return host.getBorrowedConnections() + host.getConnectionPool().size();
     }
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
@@ -631,6 +624,7 @@ public class PooledDriver extends DriverBase {
 
             bc.touch();
             borrowedConnections.put(bc.getCon().getSourcePort(), bc);
+            h.incrementBorrowedConnections();
             stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
             return bc.getCon();
         } catch (InterruptedException iex) {
@@ -826,7 +820,7 @@ public class PooledDriver extends DriverBase {
             return;
         }
 
-        if (heartbeat == null) {
+        if (!running) {
             return; // shutting down
         }
 
@@ -853,6 +847,7 @@ public class PooledDriver extends DriverBase {
                 Host h = hosts.get(con.getConnectedTo());
                 if (h != null) {
                     h.getConnectionPool().add(c);
+                    h.decrementBorrowedConnections();
                 }
             }
         } else {
@@ -912,6 +907,10 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void close() {
+        if (!running) {
+            return;
+        }
+        running = false;
         if (heartbeat != null) {
             heartbeat.cancel(true);
         }
@@ -919,7 +918,12 @@ public class PooledDriver extends DriverBase {
         heartbeat = null;
 
         if (executor != null) {
-            executor.shutdownNow();
+            executor.shutdown();
+            try {
+                executor.awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // Ignore
+            }
         }
 
         for (Host h : hosts.values()) {
@@ -931,8 +935,10 @@ public class PooledDriver extends DriverBase {
             }
 
             h.getConnectionPool().clear();
-            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
         }
+        hosts.clear();
+        borrowedConnections.clear();
+        stats.clear();
     }
 
     protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
