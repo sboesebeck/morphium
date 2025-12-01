@@ -490,7 +490,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
 
-                        log.debug("CHANGESTREAM: Queued message {} for processing", messageId);
+                        // log.debug("CHANGESTREAM: Queued message {} for processing", messageId);
                     } else {
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
@@ -594,9 +594,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 synchronized (processing) {
                     if (!idsInProgress.contains(prEl.getId())) {
                         idsInProgress.add(prEl.getId());
-                        log.debug("PROCESSING: Added {} to idsInProgress (from queue)", prEl.getId());
-                    } else {
-                        log.debug("PROCESSING: {} already in idsInProgress (from changestream)", prEl.getId());
+                        // log.debug("PROCESSING: Added {} to idsInProgress (from queue)", prEl.getId());
+                        // } else {
+                        //     log.debug("PROCESSING: {} already in idsInProgress (from changestream)", prEl.getId());
                     }
                 }
 
@@ -890,8 +890,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             if (totalCount != queueElements.size()) {
                 // still messages left in mongodb for processing
                 // or some messages were delete -> check to be sure
-                log.debug("{}: Found {} messages in queue, {} total in DB, {} in idsToIgnore",
-                          id, queueElements.size(), totalCount, idsToIgnore.size());
+                // log.debug("{}: Found {} messages in queue, {} total in DB, {} in idsToIgnore",
+                //           id, queueElements.size(), totalCount, idsToIgnore.size());
                 requestPoll.incrementAndGet();
             }
 
@@ -910,7 +910,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     public void triggerCheck() {
-        log.debug("Triggercheck called");
+        // log.debug("Triggercheck called");
         requestPoll.incrementAndGet();
     }
 
@@ -1027,14 +1027,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // This is critical: if we use a lock object from a map and remove it, other waiting threads
             // will create a NEW lock object and bypass synchronization!
             String lockKey = msg.getMsgId().toString().intern();
-            log.debug("SYNC: Instance {} acquiring lock for message {}", id, msg.getMsgId());
+            // log.debug("SYNC: Instance {} acquiring lock for message {}", id, msg.getMsgId());
             synchronized (lockKey) {
-                log.debug("SYNC: Instance {} ACQUIRED lock for message {}", id, msg.getMsgId());
+                // log.debug("SYNC: Instance {} ACQUIRED lock for message {}", id, msg.getMsgId());
                 // First check if we've already processed this message
                 Msg freshMsg = morphium.findById(Msg.class, msg.getMsgId(), getCollectionName());
                 if (freshMsg == null) {
                     // Message was deleted
-                    log.debug("SYNC: Message {} was deleted, skipping", msg.getMsgId());
+                    // log.debug("SYNC: Message {} was deleted, skipping", msg.getMsgId());
                     return;
                 }
 
@@ -1049,7 +1049,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 updateProcessedBy(msg);
                 alreadyUpdatedProcessedBy = true;
             }
-            log.debug("SYNC: Instance {} RELEASED lock for message {}, proceeding to process", id, msg.getMsgId());
+            // log.debug("SYNC: Instance {} RELEASED lock for message {}, proceeding to process", id, msg.getMsgId());
         } else {
             // For other drivers or exclusive messages: use the message object's processed_by field
             if (msg.getProcessedBy().contains(id)) {
@@ -1060,9 +1060,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         if (listenerByName.isEmpty()) {
             // message cannot be processed, as no listener is defined and message is no
             // answer.
-            if (log.isDebugEnabled()) {
-                log.debug("Not further processing - no listener for non answer message");
-            }
+            // if (log.isDebugEnabled()) {
+            //     log.debug("Not further processing - no listener for non answer message");
+            // }
 
             // removeProcessingFor(msg);
             unlockIfExclusive(msg);
