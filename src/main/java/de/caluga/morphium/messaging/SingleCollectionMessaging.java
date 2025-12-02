@@ -404,7 +404,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         morphium.delete(m, getCollectionName());
     }
 
-    private Vector<Object> docIdsFromChangestream = new Vector<>();
+    // Use LinkedHashSet for O(1) contains and add operations (debug duplicate detection only)
+    private final Set<Object> docIdsFromChangestreamSet = Collections.synchronizedSet(new LinkedHashSet<>());
     private boolean handleChangeStreamEvent(ChangeStreamEvent evt) {
         // log.info("incoming CSE...");
         if (!running) {
@@ -426,17 +427,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
             }
 
-            // Note: docIdsFromChangestream is used for debugging duplicate events only
+            // Note: docIdsFromChangestreamSet is used for debugging duplicate events only
             // It does not prevent processing - that's handled by idsInProgress check below
-            if (docIdsFromChangestream.contains(id)) {
+            if (docIdsFromChangestreamSet.contains(id)) {
                 if (log.isDebugEnabled()) {
                     log.debug("Duplicate change stream event for id: {}", id);
                 }
             }
-            docIdsFromChangestream.add(id);
-            // Keep only recent 1000 IDs to prevent memory growth
-            while (docIdsFromChangestream.size() > 1000) {
-                docIdsFromChangestream.remove(0);
+            docIdsFromChangestreamSet.add(id);
+            // Keep only recent 1000 IDs to prevent memory growth - clear when exceeded
+            if (docIdsFromChangestreamSet.size() > 1000) {
+                docIdsFromChangestreamSet.clear();
             }
             if (id instanceof MorphiumId) {
 
@@ -879,20 +880,19 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
             }
 
-            long totalCount = q.countAll();
-
-            // Debug logging for InMemoryDriver
-            if (morphium.getDriver().getName().contains("InMem")) {
-                log.info("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
-                         id, queueElements.size(), totalCount, idsToIgnore.size());
+            // Optimization: Avoid expensive countAll() on every poll
+            // If we got exactly windowSize results, there might be more messages
+            // If we got fewer, no need to poll again immediately
+            if (queueElements.size() >= ws) {
+                // Got full batch - likely more messages pending
+                requestPoll.incrementAndGet();
             }
 
-            if (totalCount != queueElements.size()) {
-                // still messages left in mongodb for processing
-                // or some messages were delete -> check to be sure
-                // log.debug("{}: Found {} messages in queue, {} total in DB, {} in idsToIgnore",
-                //           id, queueElements.size(), totalCount, idsToIgnore.size());
-                requestPoll.incrementAndGet();
+            // Debug logging for InMemoryDriver (skip expensive count in production)
+            if (log.isDebugEnabled() && morphium.getDriver().getName().contains("InMem")) {
+                long totalCount = q.countAll();
+                log.debug("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
+                         id, queueElements.size(), totalCount, idsToIgnore.size());
             }
 
             return queueElements;

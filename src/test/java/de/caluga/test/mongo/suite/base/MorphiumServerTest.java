@@ -71,18 +71,26 @@ public class MorphiumServerTest {
         msg2.start();
         msg1.start();
         long start = System.currentTimeMillis();
-        int amount = 200;
+        int amount = 2000;
 
         for (int i = 0; i < amount; i++) {
             Msg m = new Msg("test", "msg", "value");
             msg1.sendMessage(m);
-            log.info("Msg #{} sent", i);
+            if (i % 100 == 0) {
+                double dur = (double)(System.currentTimeMillis() - start);
+                double speed = dur / (double)(i + 1);
+
+                log.info("Msg #{} sent- duration {}ms per message", i, speed);
+            }
         }
 
         log.info("Sent {} msgs, took {}ms - already got {}", amount, System.currentTimeMillis() - start, received.get());
 
         while (received.get() < amount) {
-            log.info("not there {} yet: {}", amount, received.get());
+            double dur = (double)(System.currentTimeMillis() - start);
+            double speed = dur / (double)received.get();
+            log.info("not there {} yet: {} - roundtrip {}ms per message", amount, received.get(), speed);
+
             Thread.sleep(1000);
         }
 

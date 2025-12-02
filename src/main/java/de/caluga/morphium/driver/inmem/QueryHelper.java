@@ -514,44 +514,49 @@ public class QueryHelper {
                                 return expectExists ? exists : !exists;
 
                             case "$nin":
-                                boolean found = false;
-
-                                for (Object v : (List) commandMap.get(commandKey)) {
-                                    Object normalized = normalizeId(v);
-
-                                    if (checkValue instanceof List) {
-                                        for (Object element : (List) checkValue) {
-                                            if (compareValues(element, normalized, coll)) {
-                                                found = true;
-                                                break;
-                                            }
-                                        }
-                                    } else if (compareValues(checkValue, normalized, coll)) {
-                                        found = true;
-                                    }
-
-                                    if (found) {
-                                        break;
-                                    }
+                                // Optimize: use HashSet for O(1) lookup instead of O(n) list iteration
+                                List<?> ninList = (List) commandMap.get(commandKey);
+                                Set<Object> ninSet = new HashSet<>(ninList.size());
+                                for (Object v : ninList) {
+                                    ninSet.add(normalizeId(v));
                                 }
 
-                                return !found;
+                                boolean foundNin = false;
+                                if (checkValue instanceof List) {
+                                    for (Object element : (List) checkValue) {
+                                        Object normalizedElement = normalizeId(element);
+                                        if (ninSet.contains(normalizedElement)) {
+                                            foundNin = true;
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    Object normalizedCheck = normalizeId(checkValue);
+                                    foundNin = ninSet.contains(normalizedCheck);
+                                }
+                                return !foundNin;
 
                             case "$in":
-                                for (Object v : (List) commandMap.get(commandKey)) {
-                                    Object normalized = normalizeId(v);
+                                // Optimize: use HashSet for O(1) lookup instead of O(n) list iteration
+                                List<?> inList = (List) commandMap.get(commandKey);
+                                Set<Object> inSet = new HashSet<>(inList.size());
+                                for (Object v : inList) {
+                                    inSet.add(normalizeId(v));
+                                }
 
-                                    if (checkValue instanceof List) {
-                                        for (Object element : (List) checkValue) {
-                                            if (compareValues(element, normalized, coll)) {
-                                                return true;
-                                            }
+                                if (checkValue instanceof List) {
+                                    for (Object element : (List) checkValue) {
+                                        Object normalizedElement = normalizeId(element);
+                                        if (inSet.contains(normalizedElement)) {
+                                            return true;
                                         }
-                                    } else if (compareValues(checkValue, normalized, coll)) {
+                                    }
+                                } else {
+                                    Object normalizedCheck = normalizeId(checkValue);
+                                    if (inSet.contains(normalizedCheck)) {
                                         return true;
                                     }
                                 }
-
                                 return false;
 
                             case "$comment":
