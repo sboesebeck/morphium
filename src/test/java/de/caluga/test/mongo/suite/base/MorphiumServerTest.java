@@ -52,7 +52,7 @@ public class MorphiumServerTest {
     @Test
     public void messagingPerformanceTest()throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 220, 1);
+        var srv = new MorphiumServer(port, "localhost", 220, 20);
         startServer(srv);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().addHostToSeed("localhost:" + port);
