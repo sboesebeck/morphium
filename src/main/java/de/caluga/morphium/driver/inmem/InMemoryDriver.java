@@ -1939,8 +1939,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (Map.Entry<String, Map<String, List<Map<String, Object>>>> dbEntry : source.entrySet()) {
             Map<String, List<Map<String, Object>>> dbClone = new ConcurrentHashMap<>();
             for (Map.Entry<String, List<Map<String, Object>>> collEntry : dbEntry.getValue().entrySet()) {
-                // Use ArrayList for better write performance - locks provide thread safety
-                List<Map<String, Object>> collClone = new ArrayList<>(collEntry.getValue().size());
+                // Use CopyOnWriteArrayList to allow lock-free reads
+                List<Map<String, Object>> collClone = new CopyOnWriteArrayList<>();
                 for (Map<String, Object> doc : collEntry.getValue()) {
                     collClone.add(deepCopyDoc(doc));
                 }
@@ -4362,29 +4362,30 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 idsToDelete.add(id instanceof ObjectId || id instanceof MorphiumId ? id.toString() : id);
             }
 
-            int deleted = 0;
             List<Map<String, Object>> collectionData = getCollection(db, collection);
             List<Map<String, Object>> deletedDocs = new ArrayList<>(toDel.size());
 
-            // Single pass through collection using Iterator for O(n) removal
-            Iterator<Map<String, Object>> iter = collectionData.iterator();
-            while (iter.hasNext()) {
-                Map<String, Object> dat = iter.next();
+            // Find documents to delete (CopyOnWriteArrayList doesn't support Iterator.remove)
+            for (Map<String, Object> dat : collectionData) {
                 Object datId = dat.get("_id");
                 Object lookupId = datId instanceof ObjectId || datId instanceof MorphiumId ? datId.toString() : datId;
 
                 if (idsToDelete.contains(lookupId)) {
-                    iter.remove();
-                    deleted++;
                     deletedDocs.add(dat);
-                    idsToDelete.remove(lookupId); // Remove from set to avoid re-checking
+                    idsToDelete.remove(lookupId);
                     if (idsToDelete.isEmpty()) {
-                        break; // All documents found and deleted
+                        break;
                     }
                 }
             }
 
-            // Clean up index data in batch - single pass per index
+            // Remove all found documents in one operation
+            int deleted = deletedDocs.size();
+            if (deleted > 0) {
+                collectionData.removeAll(deletedDocs);
+            }
+
+            // Clean up index data in batch
             if (deleted > 0 && indexDataByDBCollection.containsKey(db)
                     && indexDataByDBCollection.get(db).containsKey(collection)) {
                 // Rebuild the ID set for index cleanup
@@ -4398,21 +4399,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Map<Integer, List<Map<String, Object>>> indexData = indexDataByDBCollection.get(db).get(collection).get(keys);
                     if (indexData != null) {
                         for (List<Map<String, Object>> bucket : indexData.values()) {
-                            Iterator<Map<String, Object>> bucketIter = bucket.iterator();
-                            while (bucketIter.hasNext()) {
-                                Map<String, Object> obj = bucketIter.next();
+                            // Collect items to remove (bucket might be ArrayList, so Iterator.remove is safe)
+                            List<Map<String, Object>> toRemove = new ArrayList<>();
+                            for (Map<String, Object> obj : bucket) {
                                 Object objId = obj.get("_id");
                                 Object lookupId = objId instanceof ObjectId || objId instanceof MorphiumId ? objId.toString() : objId;
                                 if (deletedIds.contains(lookupId)) {
-                                    bucketIter.remove();
+                                    toRemove.add(obj);
                                 }
                             }
+                            bucket.removeAll(toRemove);
                         }
                     }
                 }
             }
 
             // Notify watchers for each deleted document
+            // Note: With CopyOnWriteArrayList, read starvation is not an issue even when
+            // notifying inside the lock, and the event dispatcher is async anyway
             for (Map<String, Object> doc : deletedDocs) {
                 notifyWatchers(db, collection, "delete", doc, null, null, doc);
             }
@@ -4426,9 +4430,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private List<Map<String, Object>> getCollection(String db, String collection) throws MorphiumDriverException {
         Map<String, List<Map<String, Object>>> dbMap = getDB(db);
         if (!dbMap.containsKey(collection)) {
-            // Use ArrayList instead of CopyOnWriteArrayList - external ReadWriteLock provides thread safety
-            // ArrayList has O(1) amortized add vs O(n) for CopyOnWriteArrayList
-            dbMap.put(collection, new ArrayList<>());
+            // Use CopyOnWriteArrayList to allow lock-free reads during write operations
+            // This prevents read starvation under heavy write loads
+            dbMap.put(collection, new CopyOnWriteArrayList<>());
 
             try {
                 createIndex(db, collection, Doc.of("_id", 1), Doc.of("name", "_id_1"));
@@ -4454,11 +4458,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (indicesByDbCollection.containsKey(db)) {
                 indicesByDbCollection.get(db).remove(collection);
             }
-
-            notifyWatchers(db, collection, "drop", null);
         } finally {
             lock.writeLock().unlock();
         }
+        // Notify watchers AFTER releasing the write lock to prevent deadlocks
+        notifyWatchers(db, collection, "drop", null);
     }
 
     public synchronized void drop(String db, WriteConcern wc) {
