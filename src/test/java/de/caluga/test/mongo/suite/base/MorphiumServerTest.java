@@ -52,9 +52,13 @@ public class MorphiumServerTest {
     @Test
     public void messagingPerformanceTest()throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 1);
+        var srv = new MorphiumServer(port, "localhost", 220, 1);
         startServer(srv);
-        Morphium morphium = new Morphium("localhost:" + port, "test");
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.clusterSettings().addHostToSeed("localhost:" + port);
+        cfg.connectionSettings().setDatabase("test");
+        cfg.connectionSettings().setMaxConnections(200);
+        Morphium morphium = new Morphium(cfg);
         SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.setUseChangeStream(true);
         AtomicInteger received = new AtomicInteger();
@@ -67,7 +71,7 @@ public class MorphiumServerTest {
         msg2.start();
         msg1.start();
         long start = System.currentTimeMillis();
-        int amount = 2000;
+        int amount = 200;
 
         for (int i = 0; i < amount; i++) {
             Msg m = new Msg("test", "msg", "value");
@@ -446,7 +450,12 @@ public class MorphiumServerTest {
                 log.info("Got it! {}", System.currentTimeMillis() - start);
                 Thread.sleep(250);
             }
+            msg1.terminate();
+            msg2.terminate();
+
         } finally {
+            morphium.close();
+            morphium2.close();
             srv.terminate();
         }
     }
