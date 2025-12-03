@@ -8,6 +8,8 @@ import de.caluga.morphium.query.Query;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue;
+
 /**
  * User: Stephan Bösebeck
  * Date: 29.05.12
@@ -24,15 +26,28 @@ public class LastAccessTest extends MorphiumTestBase {
         morphium.store(tst);
         assert(tst.getCreationTime() > 0) : "No creation time set?!?!?!";
         long creationTime = tst.getCreationTime();
-        Thread.sleep(100);
+
+        // Wait until we can verify the object exists and enough time has passed
+        waitForConditionToBecomeTrue(5000, "Object not found after store",
+            () -> morphium.createQueryFor(TstObjLA.class).countAll() > 0);
+        Thread.sleep(50); // Small delay to ensure timestamp difference
+
         tst.setValue("Annother value");
         morphium.store(tst);
         assert(tst.getLastChange() > 0) : "No last change set?";
         assert(tst.getLastChange() > creationTime) : "No last change set?";
         long lastChange = tst.getLastChange();
         assert(tst.getCreationTime() == creationTime) : "Creation time change? was: " + creationTime + " is " + tst.getCreationTime();
+
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class);
-        Thread.sleep(100);
+        // Wait for lastAccess to be set (happens on read)
+        final long prevLastAccess = tst.getLastAccess();
+        waitForConditionToBecomeTrue(5000, "lastAccess not updated on query",
+            () -> {
+                TstObjLA found = q.get();
+                return found != null && found.getLastAccess() > 0 && found.getLastAccess() != prevLastAccess;
+            });
+
         tst = q.get();
         assert(tst.getLastAccess() > 0) : "No last_access set?";
         long lastAccess = tst.getLastAccess();
@@ -40,10 +55,18 @@ public class LastAccessTest extends MorphiumTestBase {
         assert(tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
         tst = q.asList().get(0);
         assert(tst.getLastAccess() > 0) : "No last_access set?";
-        q = morphium.createQueryFor(TstObjLA.class);
-        Thread.sleep(100);
-        tst = q.get();
-        assert(tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
+
+        Query<TstObjLA> q2 = morphium.createQueryFor(TstObjLA.class);
+        // Wait for lastAccess to change again
+        final long currentLastAccess = lastAccess;
+        waitForConditionToBecomeTrue(5000, "lastAccess did not change on second query",
+            () -> {
+                TstObjLA found = q2.get();
+                return found != null && found.getLastAccess() != currentLastAccess;
+            });
+
+        tst = q2.get();
+        assert(tst.getLastAccess() != lastAccess) : "Last Access did not change?";
         assert(tst.getLastChange() == lastChange);
         assert(tst.getCreationTime() == creationTime);
     }
@@ -52,7 +75,11 @@ public class LastAccessTest extends MorphiumTestBase {
     public void createOnUpsert() throws Exception {
         morphium.dropCollection(TstObjLA.class);
         morphium.set(morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12), "value", "a test", true, false, null);
-        Thread.sleep(100);
+
+        // Wait for the upserted object to be available
+        waitForConditionToBecomeTrue(5000, "Upserted object not found",
+            () -> morphium.createQueryFor(TstObjLA.class).countAll() > 0);
+
         TstObjLA tst = morphium.createQueryFor(TstObjLA.class).get();
         assert(tst.getIntValue() == 12);
         assert(tst.getValue().equals("a test"));
@@ -62,22 +89,39 @@ public class LastAccessTest extends MorphiumTestBase {
     @Test
     public void createdTestStringId() throws Exception {
         morphium.dropCollection(TstObjAutoValuesStringId.class);
-        Thread.sleep(500);
+
+        // Wait for collection to be dropped
+        waitForConditionToBecomeTrue(5000, "Collection not dropped",
+            () -> !morphium.exists(TstObjAutoValuesStringId.class));
+
         TstObjAutoValuesStringId tst = new TstObjAutoValuesStringId();
         tst.setId("test1");
         tst.setValue("A value");
         morphium.store(tst);
         assert(tst.getCreationTime() > 0) : "No creation time set?!?!?!";
         long creationTime = tst.getCreationTime();
-        Thread.sleep(100);
+
+        // Wait until we can verify the object exists and enough time has passed
+        waitForConditionToBecomeTrue(5000, "Object not found after store",
+            () -> morphium.createQueryFor(TstObjAutoValuesStringId.class).countAll() > 0);
+        Thread.sleep(50); // Small delay to ensure timestamp difference
+
         tst.setValue("Annother value");
         morphium.store(tst);
         assert(tst.getLastChange() > 0) : "No last change set?";
         assert(tst.getLastChange() > creationTime) : "No last change set?";
         long lastChange = tst.getLastChange();
         assert(tst.getCreationTime() == creationTime) : "Creation time change?";
+
         Query<TstObjAutoValuesStringId> q = morphium.createQueryFor(TstObjAutoValuesStringId.class);
-        Thread.sleep(100);
+        // Wait for lastAccess to be set (happens on read)
+        final long prevLastAccess = tst.getLastAccess();
+        waitForConditionToBecomeTrue(5000, "lastAccess not updated on query",
+            () -> {
+                TstObjAutoValuesStringId found = q.get();
+                return found != null && found.getLastAccess() > 0 && found.getLastAccess() != prevLastAccess;
+            });
+
         tst = q.get();
         assert(tst.getLastAccess() > 0) : "No last_access set?";
         long lastAccess = tst.getLastAccess();
@@ -85,38 +129,46 @@ public class LastAccessTest extends MorphiumTestBase {
         assert(tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
         tst = q.asList().get(0);
         assert(tst.getLastAccess() > 0) : "No last_access set?";
-        q = morphium.createQueryFor(TstObjAutoValuesStringId.class);
-        Thread.sleep(100);
-        tst = q.get();
-        assert(tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
+
+        Query<TstObjAutoValuesStringId> q2 = morphium.createQueryFor(TstObjAutoValuesStringId.class);
+        // Wait for lastAccess to change again
+        final long currentLastAccess = lastAccess;
+        waitForConditionToBecomeTrue(5000, "lastAccess did not change on second query",
+            () -> {
+                TstObjAutoValuesStringId found = q2.get();
+                return found != null && found.getLastAccess() != currentLastAccess;
+            });
+
+        tst = q2.get();
+        assert(tst.getLastAccess() != lastAccess) : "Last Access did not change?";
         assert(tst.getLastChange() == lastChange);
         assert(tst.getCreationTime() == creationTime);
     }
 
     @Test
     public void testLastAccessInc() throws Exception {
-        Thread.sleep(200);
         TstObjLA la = new TstObjLA();
         la.setValue("value");
         morphium.store(la);
-        long s = System.currentTimeMillis();
 
-        while (morphium.findById(TstObjLA.class, la.id) == null) {
-            Thread.sleep(100);
-            assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-        }
+        // Wait for object to be stored
+        final MorphiumId laId = la.id;
+        waitForConditionToBecomeTrue(10000, "Object not found after store",
+            () -> morphium.findById(TstObjLA.class, laId) != null);
 
         morphium.reread(la);
         assert(la.creationTime != 0);
         assert(la.lastChange != 0);
         la.setValue("new Value");
         morphium.store(la);
-        s = System.currentTimeMillis();
 
-        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == la.getCreationTime()) {
-            Thread.sleep(100);
-            assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-        }
+        // Wait for lastChange to be updated
+        final long creationTime = la.getCreationTime();
+        waitForConditionToBecomeTrue(10000, "lastChange not updated after store",
+            () -> {
+                TstObjLA found = morphium.findById(TstObjLA.class, laId);
+                return found != null && found.getLastChange() != creationTime;
+            });
 
         morphium.reread(la);
         long lc = la.getLastChange();
@@ -126,51 +178,58 @@ public class LastAccessTest extends MorphiumTestBase {
         assert(lc != la.getLastChange());
         lc = la.getLastChange();
         la.setIntValue(41);
-        Thread.sleep(100); //forcing last change to be later!
+        Thread.sleep(50); // Small delay to ensure timestamp difference
         morphium.store(la);
-        s = System.currentTimeMillis();
 
-        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
-            Thread.sleep(100);
-            assert(System.currentTimeMillis() - s < 15000);
-        }
+        // Wait for lastChange to update
+        final long lc1 = lc;
+        waitForConditionToBecomeTrue(15000, "lastChange not updated after setIntValue",
+            () -> {
+                TstObjLA found = morphium.findById(TstObjLA.class, laId);
+                return found != null && found.getLastChange() != lc1;
+            });
 
         morphium.reread(la);
         assert(lc != la.getLastChange());
         lc = la.getLastChange();
         morphium.inc(la, "int_value", 1);
-        s = System.currentTimeMillis();
 
-        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
-            Thread.sleep(100);
-            assert(System.currentTimeMillis() - s < 15000);
-        }
+        // Wait for inc to complete
+        final long lc2 = lc;
+        waitForConditionToBecomeTrue(15000, "lastChange not updated after inc",
+            () -> {
+                TstObjLA found = morphium.findById(TstObjLA.class, laId);
+                return found != null && found.getLastChange() != lc2;
+            });
 
         morphium.reread(la);
         assert(la.getIntValue() == 42);
         assert(lc != la.getLastChange());
-        //now using ID
+
+        // Now using ID query
         lc = la.getLastChange();
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class).f("_id").eq(la.getId());
         morphium.set(q, "int_value", 1);
-        s = System.currentTimeMillis();
 
-        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
-            Thread.sleep(100);
-            assert(System.currentTimeMillis() - s < 15000);
-        }
+        final long lc3 = lc;
+        waitForConditionToBecomeTrue(15000, "lastChange not updated after set via query",
+            () -> {
+                TstObjLA found = morphium.findById(TstObjLA.class, laId);
+                return found != null && found.getLastChange() != lc3;
+            });
 
         morphium.reread(la);
         assert(la.getIntValue() == 1);
         assert(lc != la.getLastChange());
         lc = la.getLastChange();
         morphium.inc(q, "int_value", 41);
-        s = System.currentTimeMillis();
 
-        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
-            Thread.sleep(100);
-            assert(System.currentTimeMillis() - s < 15000);
-        }
+        final long lc4 = lc;
+        waitForConditionToBecomeTrue(15000, "lastChange not updated after inc via query",
+            () -> {
+                TstObjLA found = morphium.findById(TstObjLA.class, laId);
+                return found != null && found.getLastChange() != lc4;
+            });
 
         morphium.reread(la);
         assert(la.getIntValue() == 42);
