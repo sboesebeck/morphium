@@ -4724,7 +4724,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                   Map<String, Object> projection, int skip, int limit, int batchSize,
                                   ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb)
     throws MorphiumDriverException {
-        throw new FunctionNotSupportedException("not possible in Mem yet");
+        //initial query
+        List<Map<String, Object>> initialResult = find(db, collection, query, sort, projection, skip, limit);
+        for (Map<String, Object> doc : initialResult) {
+            cb.incomingData(doc, 0);
+        }
+
+
+        WatchCommand watch = new WatchCommand(new InMemConnectionWrapper(this));
+        watch.setDb(db);
+        watch.setColl(collection);
+        watch.setPipeline(Arrays.asList(Doc.of("$match", query)));
+        watch.setCb(cb);
+
+        watch(watch);
     }
 
     public int getMaxWaitTime() {
