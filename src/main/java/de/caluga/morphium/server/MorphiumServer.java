@@ -49,7 +49,7 @@ public class MorphiumServer {
     private ThreadPoolExecutor executor;
     private boolean running = true;
     private ServerSocket serverSocket;
-    private static int compressorId = OpCompressed.COMPRESSOR_NOOP;
+    private int compressorId;
     private String rsName = "";
     private String hostSeed = "";
     private List<String> hosts = new ArrayList<>();
@@ -60,135 +60,26 @@ public class MorphiumServer {
     private final List<ChangeStreamMonitor> replicationMonitors = new ArrayList<>();
     private volatile boolean replicationStarted = false;
 
-    public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
+    public MorphiumServer(int port, String host, int maxThreads, int minThreads, int compressorId) {
         this.drv = new InMemoryDriver();
         this.port = port;
         this.host = host;
+        this.compressorId = compressorId;
         drv.connect();
         executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
         executor.setMaximumPoolSize(maxThreads);
         executor.setCorePoolSize(minThreads);
     }
 
+    public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
+        this(port, host, maxThreads, minThreads, OpCompressed.COMPRESSOR_NOOP);
+    }
+
     public MorphiumServer() {
-        this(17017, "localhost", 100, 10);
+        this(17017, "localhost", 100, 10, OpCompressed.COMPRESSOR_NOOP);
     }
 
-    public static void main(String[] args) throws Exception {
-        int idx = 0;
-        log.info("Starting up server... parsing commandline params");
-        String host = "localhost";
-        int port = 17017;
-        int maxThreads = 1000;
-        int minThreads = 10;
-        String rsNameArg = "";
-        String hostSeedArg = "";
-        List<String> hostsArg = new ArrayList<>();
-        Map<String, Integer> hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
 
-        while (idx < args.length) {
-            switch (args[idx]) {
-                case "-p":
-                case "--port":
-                    port = Integer.parseInt(args[idx + 1]);
-                    idx += 2;
-                    break;
-
-                case "-mt":
-                case "--maxThreads":
-                    maxThreads = Integer.parseInt(args[idx + 1]);
-                    idx += 2;
-                    break;
-
-                case "-mint":
-                case "--minThreads":
-                    minThreads = Integer.parseInt(args[idx + 1]);
-                    idx += 2;
-                    break;
-
-                case "-h":
-                case "--host":
-                    host = args[idx + 1];
-                    idx += 2;
-                    break;
-
-                case "-rs":
-                case "--replicaset":
-                    rsNameArg = args[idx + 1];
-                    hostSeedArg = args[idx + 2];
-                    idx += 3;
-                    hostsArg = new ArrayList<>();
-                    hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
-                    int basePrio = 1000;
-
-                    for (int i = 0; i < hostSeedArg.split(",").length; i++) {
-                        var s = hostSeedArg.split(",")[i].trim();
-                        int rsport = 27017;
-                        String hst = s;
-                        int prio = basePrio - i;
-
-                        if (s.contains("|")) {
-                            var parts = s.split("\\|");
-                            hst = parts[0];
-
-                            try {
-                                prio = Integer.parseInt(parts[1]);
-                            } catch (NumberFormatException e) {
-                                log.warn("Invalid priority {}, using default {}", parts[1], prio);
-                            }
-                        }
-
-                        if (hst.contains(":")) {
-                            rsport = Integer.parseInt(hst.split(":")[1]);
-                            hst = hst.split(":")[0];
-                        }
-
-                        String entry = hst + ":" + rsport;
-                        hostsArg.add(entry);
-                        hostPrioritiesArg.put(entry, prio);
-                    }
-
-                    break;
-
-                case "-c":
-                case "--compressor":
-                    if (args[idx + 1].equals("snappy")) {
-                        compressorId = OpCompressed.COMPRESSOR_SNAPPY;
-                    } else if (args[idx + 1].equals("zstd")) {
-                        compressorId = OpCompressed.COMPRESSOR_ZSTD;
-                    } else if (args[idx + 1].equals("none")) {
-                        compressorId = OpCompressed.COMPRESSOR_NOOP;
-                    } else if (args[idx + 1].equals("zlib")) {
-                        compressorId = OpCompressed.COMPRESSOR_ZLIB;
-                    } else {
-                        log.error("Unknown parameter for compressor {}", args[idx + 1]);
-                        System.exit(1);
-                    }
-
-                    idx += 2;
-                    break;
-
-                default:
-                    log.error("unknown parameter " + args[idx]);
-                    System.exit(1);
-            }
-        }
-
-        log.info("Starting server...");
-        var srv = new MorphiumServer(port, host, maxThreads, minThreads);
-        srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
-        srv.start();
-
-        if (!rsNameArg.isEmpty()) {
-            log.info("Building replicaset with seed {}", hostSeedArg);
-            srv.startReplicaReplication();
-        }
-
-        while (srv.running) {
-            log.info("Alive and kickin'");
-            sleep(10000);
-        }
-    }
 
     private InMemoryDriver getDriver() {
         return drv;
@@ -613,6 +504,10 @@ public class MorphiumServer {
         return primaryHost;
     }
 
+    public boolean isRunning() {
+        return running;
+    }
+
     public void configureReplicaSet(String name, List<String> hostList, Map<String, Integer> priorities) {
         rsName = name == null ? "" : name;
         hosts = hostList == null ? new ArrayList<>() : hostList;
@@ -635,7 +530,7 @@ public class MorphiumServer {
                    .contains(cmd);
     }
 
-    private void startReplicaReplication() {
+    public void startReplicaReplication() {
         if (replicationStarted || primary || hosts == null || hosts.isEmpty()) {
             return;
         }
