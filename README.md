@@ -283,14 +283,34 @@ See `docs/howtos/inmemory-driver.md` for feature coverage and limitations.
 
 ### MorphiumServer – Standalone MongoDB replacement
 
-MorphiumServer runs the Morphium wire-protocol driver in a separate process:
+MorphiumServer runs the Morphium wire-protocol driver in a separate process, allowing it to act as a lightweight, in-memory MongoDB replacement.
+
+**Building the Server**
+
+First, build the project using Maven. This will generate the executable JAR in the `target/` directory.
 
 ```bash
-# Start the server
-java -jar morphium-6.0.0.jar de.caluga.morphium.server.MorphiumServer
+mvn clean package -DskipTests
+```
 
+This creates `target/morphium-X.Y.Z-server-cli.jar` (where X.Y.Z is the current version).
+
+**Running the Server**
+
+You can run the server directly from the command line:
+
+```bash
+# Start the server on the default port (17017)
+java -jar target/morphium-*-server-cli.jar
+
+# Start on a different port
+java -jar target/morphium-*-server-cli.jar --port 8080
+```
+
+You can then connect to it with any standard MongoDB tool:
+```bash
 # Connect with mongosh or MongoDB Compass
-mongosh mongodb://localhost:27017
+mongosh mongodb://localhost:17017
 ```
 
 **Use cases**

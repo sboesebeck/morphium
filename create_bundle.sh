@@ -27,6 +27,8 @@ required_files=(
     "morphium-${version}-sources.jar.asc"
     "morphium-${version}-javadoc.jar"
     "morphium-${version}-javadoc.jar.asc"
+    "morphium-${version}-server-cli.jar"
+    "morphium-${version}-server-cli.jar.asc"
 )
 
 echo "Verifying required files..."
@@ -51,7 +53,7 @@ for asc_file in *.asc; do
 done
 
 echo "Generating MD5 and SHA1 checksums..."
-for file in morphium-${version}.pom morphium-${version}.jar morphium-${version}-sources.jar morphium-${version}-javadoc.jar; do
+for file in morphium-${version}.pom morphium-${version}.jar morphium-${version}-sources.jar morphium-${version}-javadoc.jar morphium-${version}-server-cli.jar; do
     if [ -f "$file" ]; then
         md5sum "$file" | awk '{print $1}' > "${file}.md5"
         sha1sum "$file" | awk '{print $1}' > "${file}.sha1"

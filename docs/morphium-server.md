@@ -1,6 +1,6 @@
 # MorphiumServer: Standalone MongoDB-Compatible Server
 
-MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. **Important:** MorphiumServer is part of the main Morphium JAR, not a separate application.
+MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. **Important:** MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
 
 ## Key Features
 
@@ -16,14 +16,17 @@ MorphiumServer is a standalone MongoDB wire protocol-compatible server built on 
 
 ### Running from Command Line
 
+After building the project, you can run the server directly using the `server-cli` JAR.
+
 ```bash
-# Build Morphium first
+# Build the project first if you haven't
 mvn clean package -DskipTests
 
-# Run MorphiumServer (default port is 17017)
-java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer \
-     --port 27017 --host 0.0.0.0
+# Run MorphiumServer with default settings (port 17017)
+java -jar target/morphium-*-server-cli.jar
+
+# Run on a different port
+java -jar target/morphium-*-server-cli.jar --port 27017
 ```
 
 ### Running Programmatically
@@ -175,8 +178,7 @@ jobs:
 
       - name: Start MorphiumServer
         run: |
-          java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-               de.caluga.morphium.server.MorphiumServer \
+          java -jar target/morphium-*-server-cli.jar \
                --port 27017 --host 0.0.0.0 &
           sleep 2
 
@@ -226,8 +228,7 @@ static void stopServer() {
 
 ```bash
 # Terminal 1: Start MorphiumServer
-java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer --port 27017
+java -jar target/morphium-*-server-cli.jar --port 27017
 
 # Terminal 2: Start Node.js service
 MONGO_URL=mongodb://localhost:27017 npm start
@@ -246,13 +247,12 @@ MONGO_URL=mongodb://localhost:27017 ./gradlew run
 FROM openjdk:21-slim
 WORKDIR /app
 
-# Copy Morphium JAR
-COPY target/morphium-6.0.1-SNAPSHOT.jar /app/
+# Copy the executable server JAR
+COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
 
 EXPOSE 27017
 
-CMD ["java", "-cp", "/app/morphium-6.0.1-SNAPSHOT.jar", \
-     "de.caluga.morphium.server.MorphiumServer", \
+CMD ["java", "-jar", "/app/morphium-server.jar", \
      "--port", "27017", "--host", "0.0.0.0"]
 ```
 
@@ -403,13 +403,12 @@ git clone https://github.com/sboesebeck/morphium.git
 cd morphium
 mvn clean package -DskipTests
 
-# The server is part of the main JAR
-ls -lh target/morphium-6.0.1-SNAPSHOT.jar
+# This creates two important artifacts in target/:
+# 1. morphium-X.Y.Z.jar (the standard library)
+# 2. morphium-X.Y.Z-server-cli.jar (the executable server)
 
-# Run it
-java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer \
-     --port 27017 --host 0.0.0.0
+# Run the server:
+java -jar target/morphium-*-server-cli.jar --port 27017
 ```
 
 ## Maven Dependency
@@ -418,19 +417,19 @@ java -cp target/morphium-6.0.1-SNAPSHOT.jar \
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>6.0.1-SNAPSHOT</version>
+    <version>6.0.4-SNAPSHOT</version>
 </dependency>
 ```
 
 Then start programmatically:
 ```java
 public static void main(String[] args) throws Exception {
-    // Option 1: Call main
-    de.caluga.morphium.server.MorphiumServer.main(
+    // Option 1: Call main from the CLI class
+    de.caluga.morphium.server.MorphiumServerCLI.main(
         new String[]{"--port", "27017", "--host", "0.0.0.0"}
     );
 
-    // Option 2: Create instance
+    // Option 2: Create instance directly
     MorphiumServer server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
     server.start();
 }
