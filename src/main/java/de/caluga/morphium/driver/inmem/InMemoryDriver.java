@@ -3209,32 +3209,42 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         msg.setMessageId(0);
 
         // Wait for data with timeout for tailable cursors
-        long deadline = System.currentTimeMillis() + (timeout > 0 ? timeout : 30000);
-        while (commandResults.isEmpty()) {
-            if (System.currentTimeMillis() >= deadline) {
-                // Return empty response on timeout for tailable cursors
-                Map<String, Object> emptyResponse = prepareResult();
-                emptyResponse.put("cursor", Doc.of("nextBatch", new ArrayList<>(), "ns", "", "id", 0L));
-                msg.setFirstDoc(emptyResponse);
-                return msg;
+        // Use shorter default timeout to avoid blocking normal operations
+        long deadline = System.currentTimeMillis() + (timeout > 0 ? timeout : 500);
+        Map<String, Object> result = null;
+
+        while (result == null) {
+            synchronized (commandResults) {
+                if (!commandResults.isEmpty()) {
+                    result = commandResults.remove(0);
+                }
             }
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
+
+            if (result == null) {
+                if (System.currentTimeMillis() >= deadline) {
+                    // Return empty response on timeout for tailable cursors
+                    Map<String, Object> emptyResponse = prepareResult();
+                    emptyResponse.put("cursor", Doc.of("nextBatch", new ArrayList<>(), "ns", "", "id", 0L));
+                    msg.setFirstDoc(emptyResponse);
+                    return msg;
+                }
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
         }
 
-        if (commandResults.isEmpty()) {
+        if (result == null) {
             Map<String, Object> emptyResponse = prepareResult();
             emptyResponse.put("cursor", Doc.of("nextBatch", new ArrayList<>(), "ns", "", "id", 0L));
             msg.setFirstDoc(emptyResponse);
             return msg;
         }
 
-        Map<String, Object> o = new HashMap<>(commandResults.remove(0));
-        msg.setFirstDoc(o);
+        msg.setFirstDoc(new HashMap<>(result));
         return msg;
     }
 
