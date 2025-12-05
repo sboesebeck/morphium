@@ -1082,8 +1082,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 });
 
-                watch(watchCmd);
-                watchCmd.releaseConnection();
+                // Start watch asynchronously to avoid deadlock - watch() blocks waiting for events
+                // but events can only come if other threads can call sendCommand (which is synchronized)
+                exec.execute(() -> {
+                    try {
+                        watch(watchCmd);
+                    } catch (MorphiumDriverException e) {
+                        log.error("Error in tailable watch", e);
+                    } finally {
+                        watchCmd.releaseConnection();
+                    }
+                });
             }
 
             Map<String, Object> response = prepareResult();
@@ -1155,35 +1164,51 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (cursors.containsKey(cmd.getCursorId())) {
             FindCommand fnd = cursors.get(cmd.getCursorId());
-            List<Map<String, Object>> result = new ArrayList<>();
-            final List<Map<String, Object>> tailableResult = result;
+            final long cursorId = cmd.getCursorId();
+            final String db = cmd.getDb();
+            final String coll = cmd.getColl();
 
-            if (result.isEmpty()) {
-                WatchCommand watchCmd = new WatchCommand(this)
-                .setDb(fnd.getDb())
-                .setColl(fnd.getColl())
-                .setMaxTimeMS(fnd.getMaxTimeMS())
-                .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
-                .setPipeline(Arrays.asList(Doc.of("$match", fnd.getFilter())))
-                .setCb(new DriverTailableIterationCallback() {
-                    @Override
-                    public void incomingData(Map<String, Object> data, long dur) {
-                        tailableResult.add((Map<String, Object>) data.get("fullDocument"));
+            WatchCommand watchCmd = new WatchCommand(this)
+            .setDb(fnd.getDb())
+            .setColl(fnd.getColl())
+            .setMaxTimeMS(fnd.getMaxTimeMS())
+            .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+            .setPipeline(Arrays.asList(Doc.of("$match", fnd.getFilter())))
+            .setCb(new DriverTailableIterationCallback() {
+                @Override
+                public void incomingData(Map<String, Object> data, long dur) {
+                    // Add incoming data as a new command result that readNextMessage can pick up
+                    Map<String, Object> fullDoc = (Map<String, Object>) data.get("fullDocument");
+                    if (fullDoc != null) {
+                        Map<String, Object> response = prepareResult();
+                        response.put("cursor",
+                                     Doc.of("nextBatch", Arrays.asList(fullDoc), "ns", db + "." + coll, "id", cursorId));
+                        commandResults.add(response);
                     }
+                }
 
-                    @Override
-                    public boolean isContinued() {
-                        return false;
-                    }
-                });
+                @Override
+                public boolean isContinued() {
+                    return false;
+                }
+            });
 
-                watch(watchCmd);
-                watchCmd.releaseConnection();
-            }
+            // Start watch asynchronously to avoid deadlock - watch() blocks waiting for events
+            // but events can only come if other threads can call sendCommand (which is synchronized)
+            exec.execute(() -> {
+                try {
+                    watch(watchCmd);
+                } catch (MorphiumDriverException e) {
+                    log.error("Error in tailable getMore watch", e);
+                } finally {
+                    watchCmd.releaseConnection();
+                }
+            });
 
+            // Return empty response immediately - actual data will come via the watch callback
             Map<String, Object> response = prepareResult();
             response.put("cursor",
-                         Doc.of("nextBatch", result, "ns", cmd.getDb() + "." + cmd.getColl(), "id", cmd.getCursorId()));
+                         Doc.of("nextBatch", new ArrayList<>(), "ns", db + "." + coll, "id", cursorId));
             commandResults.add(response);
             return ret;
         }
@@ -3182,6 +3207,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public OpMsg readNextMessage(int timeout) throws MorphiumDriverException {
         OpMsg msg = new OpMsg();
         msg.setMessageId(0);
+
+        // Wait for data with timeout for tailable cursors
+        long deadline = System.currentTimeMillis() + (timeout > 0 ? timeout : 30000);
+        while (commandResults.isEmpty()) {
+            if (System.currentTimeMillis() >= deadline) {
+                // Return empty response on timeout for tailable cursors
+                Map<String, Object> emptyResponse = prepareResult();
+                emptyResponse.put("cursor", Doc.of("nextBatch", new ArrayList<>(), "ns", "", "id", 0L));
+                msg.setFirstDoc(emptyResponse);
+                return msg;
+            }
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        if (commandResults.isEmpty()) {
+            Map<String, Object> emptyResponse = prepareResult();
+            emptyResponse.put("cursor", Doc.of("nextBatch", new ArrayList<>(), "ns", "", "id", 0L));
+            msg.setFirstDoc(emptyResponse);
+            return msg;
+        }
+
         Map<String, Object> o = new HashMap<>(commandResults.remove(0));
         msg.setFirstDoc(o);
         return msg;
