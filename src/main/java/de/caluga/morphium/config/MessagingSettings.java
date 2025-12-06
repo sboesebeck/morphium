@@ -131,4 +131,68 @@ public class MessagingSettings extends Settings {
     public void setProcessMultiple(boolean processMultiple) {
         this.processMultiple = processMultiple;
     }
+
+
+    public enum TopicCheck {
+        IGNORE, WARN, THROW
+    }
+
+    public enum RecipientCheck {
+        IGNORE, WARN, THROW
+    }
+
+    private boolean messagingRegistryEnabled = false;
+    private TopicCheck messagingRegistryCheckTopics = TopicCheck.IGNORE;
+    private RecipientCheck messagingRegistryCheckRecipients = RecipientCheck.IGNORE;
+    private int messagingRegistryUpdateInterval = 30;
+    private long messagingRegistryParticipantTimeout = 65000;
+    private boolean messagingRegistryWaitForInitialSync = false;
+
+    public boolean isMessagingRegistryEnabled() {
+        return messagingRegistryEnabled;
+    }
+
+    public void setMessagingRegistryEnabled(boolean messagingRegistryEnabled) {
+        this.messagingRegistryEnabled = messagingRegistryEnabled;
+    }
+
+    public TopicCheck getMessagingRegistryCheckTopics() {
+        return messagingRegistryCheckTopics;
+    }
+
+    public void setMessagingRegistryCheckTopics(TopicCheck messagingRegistryCheckTopics) {
+        this.messagingRegistryCheckTopics = messagingRegistryCheckTopics;
+    }
+
+    public RecipientCheck getMessagingRegistryCheckRecipients() {
+        return messagingRegistryCheckRecipients;
+    }
+
+    public void setMessagingRegistryCheckRecipients(RecipientCheck messagingRegistryCheckRecipients) {
+        this.messagingRegistryCheckRecipients = messagingRegistryCheckRecipients;
+    }
+
+    public int getMessagingRegistryUpdateInterval() {
+        return messagingRegistryUpdateInterval;
+    }
+
+    public void setMessagingRegistryUpdateInterval(int messagingRegistryUpdateInterval) {
+        this.messagingRegistryUpdateInterval = messagingRegistryUpdateInterval;
+    }
+
+    public long getMessagingRegistryParticipantTimeout() {
+        return messagingRegistryParticipantTimeout;
+    }
+
+    public void setMessagingRegistryParticipantTimeout(long messagingRegistryParticipantTimeout) {
+        this.messagingRegistryParticipantTimeout = messagingRegistryParticipantTimeout;
+    }
+
+    public boolean isMessagingRegistryWaitForInitialSync() {
+        return messagingRegistryWaitForInitialSync;
+    }
+
+    public void setMessagingRegistryWaitForInitialSync(boolean messagingRegistryWaitForInitialSync) {
+        this.messagingRegistryWaitForInitialSync = messagingRegistryWaitForInitialSync;
+    }
 }

@@ -90,6 +90,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     // Debug counter for InMemoryDriver
     private final AtomicInteger changeStreamEventsReceived = new AtomicInteger(0);
     private MessagingSettings settings = null;
+    private NetworkRegistry networkRegistry;
+
 
     public SingleCollectionMessaging() {
         allMessagings.add(this);
@@ -253,6 +255,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         morphium.ensureIndicesFor(Msg.class, getCollectionName());
         morphium.ensureIndicesFor(MsgLock.class, getLockCollectionName());
+
+        if (settings.isMessagingRegistryEnabled()) {
+            networkRegistry = new NetworkRegistry(this);
+            addListenerForTopic("status_response", (messaging, message) -> {
+                networkRegistry.updateFrom(message);
+                return null;
+            });
+        }
     }
 
     @Override
@@ -1383,6 +1393,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @Override
     public void terminate() {
         log.info("Terminate messaging");
+        if (networkRegistry != null) {
+            networkRegistry.terminate();
+        }
         running = false;
         listenerByName.clear();
         waitingForAnswers.clear();
@@ -1437,6 +1450,31 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void storeMsg(Msg m, boolean async) {
+        if (networkRegistry != null && !m.getTopic().equals(settings.getMessagingStatusInfoListenerName())) {
+            if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    String msg = "No active listeners for topic '" + m.getTopic() + "'";
+                    if (settings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                        log.warn(msg);
+                    } else {
+                        throw new MessageRejectedException(msg);
+                    }
+                }
+            }
+            if (settings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
+                for (String r : m.getRecipients()) {
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        String msg = "Recipient '" + r + "' is not active";
+                        if (settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
+                            log.warn(msg);
+                        } else {
+                            throw new MessageRejectedException(msg);
+                        }
+                    }
+                }
+            }
+        }
+
         AsyncOperationCallback cb = null;
 
         if (async) {
