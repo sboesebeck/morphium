@@ -85,7 +85,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
 
     private ScheduledThreadPoolExecutor decouplePool;
-    private NetworkRegistry networkRegistry;
+    private MessagingRegistry networkRegistry;
 
     private class CallbackRequest {
         Msg theMessage;
@@ -1415,7 +1415,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         });
 
         if (effectiveSettings.isMessagingRegistryEnabled()) {
-            networkRegistry = new NetworkRegistry(this);
+            networkRegistry = new MessagingRegistry(this);
             addListenerForTopic("status_response", (messaging, message) -> {
                 networkRegistry.updateFrom(message);
                 return null;
