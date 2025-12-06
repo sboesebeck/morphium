@@ -4,8 +4,6 @@ import de.caluga.morphium.Morphium;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,8 +11,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class NetworkRegistry {
-    private static final Logger log = LoggerFactory.getLogger(NetworkRegistry.class);
+public class MessagingRegistry {
+    private static final Logger log = LoggerFactory.getLogger(MessagingRegistry.class);
 
     private final Map<String, Set<String>> topicToListeners = new ConcurrentHashMap<>();
     private final Map<String, Long> participantLastSeen = new ConcurrentHashMap<>();
@@ -27,7 +25,7 @@ public class NetworkRegistry {
     private final MorphiumMessaging messaging;
     private final long participantTimeout;
 
-    public NetworkRegistry(MorphiumMessaging messaging) {
+    public MessagingRegistry(MorphiumMessaging messaging) {
         this.messaging = messaging;
         this.participantTimeout = messaging.getMorphium().getConfig().messagingSettings().getMessagingRegistryParticipantTimeout();
 

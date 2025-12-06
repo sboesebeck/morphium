@@ -90,7 +90,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     // Debug counter for InMemoryDriver
     private final AtomicInteger changeStreamEventsReceived = new AtomicInteger(0);
     private MessagingSettings settings = null;
-    private NetworkRegistry networkRegistry;
+    private MessagingRegistry networkRegistry;
 
 
     public SingleCollectionMessaging() {
@@ -257,7 +257,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         morphium.ensureIndicesFor(MsgLock.class, getLockCollectionName());
 
         if (settings.isMessagingRegistryEnabled()) {
-            networkRegistry = new NetworkRegistry(this);
+            networkRegistry = new MessagingRegistry(this);
             addListenerForTopic("status_response", (messaging, message) -> {
                 networkRegistry.updateFrom(message);
                 return null;
@@ -902,7 +902,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             if (log.isDebugEnabled() && morphium.getDriver().getName().contains("InMem")) {
                 long totalCount = q.countAll();
                 log.debug("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
-                         id, queueElements.size(), totalCount, idsToIgnore.size());
+                          id, queueElements.size(), totalCount, idsToIgnore.size());
             }
 
             return queueElements;
