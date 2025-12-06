@@ -85,6 +85,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
 
     private ScheduledThreadPoolExecutor decouplePool;
+    private NetworkRegistry networkRegistry;
 
     private class CallbackRequest {
         Msg theMessage;
@@ -1039,6 +1040,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     @Override
     public void terminate() {
         running.set(false);
+        if (networkRegistry != null) {
+            networkRegistry.terminate();
+        }
         for (var e : monitorsByTopic.entrySet()) {
             for (var m : e.getValue()) {
                 ((ChangeStreamMonitor) m.get(MType.monitor)).terminate();
@@ -1063,6 +1067,31 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     private void persistMessage(Msg m, boolean async) {
+        if (networkRegistry != null && !m.getTopic().equals(effectiveSettings.getMessagingStatusInfoListenerName())) {
+            if (effectiveSettings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    String msg = "No active listeners for topic '" + m.getTopic() + "'";
+                    if (effectiveSettings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                        log.warn(msg);
+                    } else {
+                        throw new MessageRejectedException(msg);
+                    }
+                }
+            }
+            if (effectiveSettings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
+                for (String r : m.getRecipients()) {
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        String msg = "Recipient '" + r + "' is not active";
+                        if (effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
+                            log.warn(msg);
+                        } else {
+                            throw new MessageRejectedException(msg);
+                        }
+                    }
+                }
+            }
+        }
+
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
         if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
@@ -1384,6 +1413,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             }
 
         });
+
+        if (effectiveSettings.isMessagingRegistryEnabled()) {
+            networkRegistry = new NetworkRegistry(this);
+            addListenerForTopic("status_response", (messaging, message) -> {
+                networkRegistry.updateFrom(message);
+                return null;
+            });
+        }
     }
 
 }
