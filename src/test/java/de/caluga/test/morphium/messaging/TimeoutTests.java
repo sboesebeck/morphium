@@ -106,7 +106,7 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m1.setUseChangeStream(true);
                     m1.start();
                     m1.sendMessage(new Msg("test", "value0", "").setExclusive(true).setTimingOut(false)
-                                   .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(1000));
+                                   .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(15000));
                     TestUtils.wait(1);
                     final AtomicBoolean gotmsg = new AtomicBoolean(false);
                     assertEquals(1, m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll());
@@ -121,7 +121,7 @@ public class TimeoutTests extends MultiDriverTestBase {
                     TestUtils.waitForConditionToBecomeTrue(5000, "Message not stored within timeout",
                                                            () -> m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll() == 1);
                     TestUtils.waitForBooleanToBecomeTrue(5000, "Message not received?", gotmsg, (dur)-> {log.info("Waiting for receiver...{}ms", dur);});
-                    TestUtils.wait(5);
+                    TestUtils.wait(2);
                     var theMsg = morphium.createQueryFor(Msg.class, m1.getCollectionName("test")).get();
                     log.info("Delete at is set to {}", theMsg.getDeleteAt());
                     TestUtils.waitForConditionToBecomeTrue(120000, "Message not deleted within timeout",
