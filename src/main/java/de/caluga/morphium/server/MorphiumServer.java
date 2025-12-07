@@ -45,6 +45,8 @@ public class MorphiumServer {
     private String host;
     private AtomicInteger msgId = new AtomicInteger(1000);
     private AtomicInteger cursorId = new AtomicInteger(1000);
+    // Map cursor IDs to their change stream queues for getMore handling
+    private final Map<Long, java.util.concurrent.BlockingQueue<Map<String, Object>>> watchCursors = new java.util.concurrent.ConcurrentHashMap<>();
 
     private ThreadPoolExecutor executor;
     private boolean running = true;
@@ -303,6 +305,35 @@ public class MorphiumServer {
                         answer = Doc.of("ok", 1.0);
                         break;
 
+                    case "getMore":
+                        // For change streams, getMore should wait for data from the queue
+                        long getMoreCursorId = ((Number) doc.get("getMore")).longValue();
+                        int maxTimeMs = doc.containsKey("maxTimeMS") ? ((Number) doc.get("maxTimeMS")).intValue() : 30000;
+                        String getMoreCollection = (String) doc.get("collection");
+                        String getMoreDb = (String) doc.get("$db");
+
+                        var queue = watchCursors.get(getMoreCursorId);
+                        List<Map<String, Object>> batch = new ArrayList<>();
+
+                        if (queue != null) {
+                            try {
+                                // Wait for first event with timeout
+                                Map<String, Object> event = queue.poll(maxTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+                                if (event != null) {
+                                    batch.add(event);
+                                    // Drain any additional events that are ready
+                                    queue.drainTo(batch, 99);
+                                    log.debug("getMore returning {} events for cursor {}", batch.size(), getMoreCursorId);
+                                }
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                            }
+                        }
+
+                        var getMoreCursor = Doc.of("nextBatch", batch, "ns", getMoreDb + "." + getMoreCollection, "id", getMoreCursorId);
+                        answer = Doc.of("ok", 1.0, "cursor", getMoreCursor);
+                        break;
+
                     case "replSetStepDown":
                         stepDown();
                         answer = Doc.of("ok", 1.0, "primary", primaryHost);
@@ -339,62 +370,50 @@ public class MorphiumServer {
 
                             if (doc.containsKey("pipeline") && ((Map)((List)doc.get("pipeline")).get(0)).containsKey("$changeStream")) {
                                 WatchCommand wcmd = new WatchCommand(drv).fromMap(doc);
-                                final int myCursorId = cursorId.incrementAndGet();
+                                final long myCursorId = cursorId.incrementAndGet();
+
+                                // Create queue for this cursor's events
+                                var eventQueue = new java.util.concurrent.LinkedBlockingQueue<Map<String, Object>>();
+                                watchCursors.put(myCursorId, eventQueue);
+                                log.info("Created watch cursor {} for {}.{}", myCursorId, wcmd.getDb(), wcmd.getColl());
+
+                                // Set up callback to queue events
                                 wcmd.setCb(new DriverTailableIterationCallback() {
-                                    private boolean first = true;
-                                    private String batch = "firstBatch";
                                     @Override
                                     public void incomingData(Map<String, Object> data, long dur) {
-                                        try {
-                                            // log.info("Incoming data...");
-                                            var crs =  Doc.of(batch, List.of(data), "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
-                                            var answer = Doc.of("ok", 1.0);
-
-                                            // log.info("Data: {}", data);
-
-                                            if (crs != null) answer.put("cursor", crs);
-
-                                            answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
-                                            answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
-                                            reply.setFirstDoc(answer);
-
-                                            if (first) {
-                                                first = false;
-                                                batch = "nextBatch";
-                                            }
-
-                                            if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
-                                                OpCompressed cmp = new OpCompressed();
-                                                cmp.setMessageId(reply.getMessageId());
-                                                cmp.setResponseTo(reply.getResponseTo());
-                                                cmp.setCompressedMessage(reply.bytes());
-                                                out.write(cmp.bytes());
-                                            } else {
-                                                out.write(reply.bytes());
-                                            }
-
-                                            out.flush();
-                                        } catch (Exception e) {
-                                            log.error("Errror during watch", e);
-                                        }
+                                        log.info("Watch callback: queueing event for cursor {} - data: {}", myCursorId, data);
+                                        eventQueue.offer(data);
                                     }
 
                                     @Override
                                     public boolean isContinued() {
-                                        return true;
+                                        return running && watchCursors.containsKey(myCursorId);
                                     }
                                 });
 
-                                int mid = drv.runCommand(wcmd);
-                                msgid.set(mid);
+                                // Run the watch in a separate thread
+                                Thread.ofVirtual().name("watch-" + myCursorId).start(() -> {
+                                    try {
+                                        log.info("Starting watch thread for cursor {}, db={}, coll={}", myCursorId, wcmd.getDb(), wcmd.getColl());
+                                        drv.runCommand(wcmd);
+                                        log.info("Watch thread ended for cursor {}", myCursorId);
+                                    } catch (Exception e) {
+                                        log.error("Watch command error for cursor {}", myCursorId, e);
+                                    } finally {
+                                        watchCursors.remove(myCursorId);
+                                    }
+                                });
+
+                                // Send initial empty response
+                                var initialCursor = Doc.of("firstBatch", List.of(), "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
+                                answer = Doc.of("ok", 1.0, "cursor", initialCursor);
+                                // Skip normal command processing
                             } else {
                                 msgid.set(drv.runCommand(new GenericCommand(drv).fromMap(doc)));
+                                var crs = drv.readSingleAnswer(msgid.get());
+                                answer = Doc.of("ok", 1.0);
+                                if (crs != null) answer.putAll(crs);
                             }
-
-                            var crs = drv.readSingleAnswer(msgid.get());
-                            answer = Doc.of("ok", 1.0);
-
-                            if (crs != null) answer.putAll(crs);
                         } catch (Exception e) {
                             answer = Doc.of("ok", 0, "errmsg", "no such command: '{}" + cmd + "'");
                             log.error("No such command {}", cmd, e);
@@ -541,38 +560,71 @@ public class MorphiumServer {
                 try {
                     String target = primaryHost != null ? primaryHost : hosts.get(0);
                     log.info("Starting replication from {}", target);
-                    MorphiumConfig cfg = new MorphiumConfig("admin", 10, 10000, 1000);
+                    // Use longer timeouts for replication - 30s max wait
+                    MorphiumConfig cfg = new MorphiumConfig("admin", 10, 10000, 30000);
                     cfg.setDriverName(SingleMongoConnectDriver.driverName);
                     cfg.setHostSeed(target);
-            Morphium morphium = new Morphium(cfg);
+                    Morphium morphium = new Morphium(cfg);
 
-            for (String db : morphium.listDatabases()) {
-                MorphiumConfig cfg2 = new MorphiumConfig(db, 10, 10000, 1000);
-                cfg2.setDriverName(SingleMongoConnectDriver.driverName);
-                        cfg2.setHostSeed(target);
-                        Morphium morphium2 = new Morphium(cfg2);
-                        ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium2, null, true);
-                        mtr.addListener((evt)-> {
-                            try {
-                                if (evt.getOperationType().equals("insert")) {
-                                    drv.insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
-                                } else if (evt.getOperationType().equals("delete")) {
-                                    drv.delete(db, evt.getCollectionName(), Map.of("_id", evt.getDocumentKey()), null, false, null, null);
-                                } else if (evt.getOperationType().equals("update")) {
-                                    Map<String, Object> updated = evt.getUpdatedFields();
-                                    drv.update(db, evt.getCollectionName(), Map.of("_id", evt.getDocumentKey()), null, Doc.of("$set", updated), false, false, null, null);
-                                }
-                            } catch (MorphiumDriverException e) {
-                                log.error("Exception", e);
-                            }
+                    // Initial sync of existing databases
+                    var databases = morphium.listDatabases();
+                    log.info("Found {} databases on primary: {}", databases.size(), databases);
 
-                            return true;
-                        });
-                        mtr.start();
-                        replicationMonitors.add(mtr);
+                    for (String db : databases) {
+                        if (db.equals("admin") || db.equals("local") || db.equals("config")) {
+                            log.debug("Skipping system database: {}", db);
+                            continue;
+                        }
+                        log.info("Performing initial sync for database: {}", db);
+                        initialSyncDatabase(morphium, db);
                     }
 
-                    morphium.close();
+                    // Start a single cluster-wide change stream for ALL databases
+                    // Using admin database with null collection watches everything
+                    log.info("Setting up cluster-wide change stream on admin database");
+                    ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium, null, true);
+                    mtr.addListener((evt)-> {
+                        log.info("CHANGE STREAM EVENT RECEIVED: type={}, db={}, coll={}",
+                                evt.getOperationType(), evt.getDbName(), evt.getCollectionName());
+                        try {
+                            String db = evt.getDbName();
+                            String coll = evt.getCollectionName();
+
+                            // Skip system databases
+                            if (db == null || db.equals("admin") || db.equals("local") || db.equals("config")) {
+                                return true;
+                            }
+
+                            log.info("Replication event: {} on {}.{}", evt.getOperationType(), db, coll);
+
+                            if (evt.getOperationType().equals("insert")) {
+                                var fullDoc = evt.getFullDocument();
+                                if (fullDoc == null) {
+                                    log.warn("Insert event has null fullDocument for {}.{}", db, coll);
+                                } else {
+                                    drv.insert(db, coll, List.of(fullDoc), null);
+                                }
+                            } else if (evt.getOperationType().equals("delete")) {
+                                drv.delete(db, coll, Map.of("_id", evt.getDocumentKey()), null, false, null, null);
+                            } else if (evt.getOperationType().equals("update")) {
+                                Map<String, Object> updated = evt.getUpdatedFields();
+                                if (updated == null || updated.isEmpty()) {
+                                    log.warn("Update event has no updated fields for {}.{}", db, coll);
+                                } else {
+                                    drv.update(db, coll, Map.of("_id", evt.getDocumentKey()), null, Doc.of("$set", updated), false, false, null, null);
+                                }
+                            }
+                        } catch (MorphiumDriverException e) {
+                            log.error("Replication error: {}", e.getMessage());
+                        }
+
+                        return true;
+                    });
+                    mtr.start();
+                    log.info("Started cluster-wide change stream monitor");
+                    replicationMonitors.add(mtr);
+
+                    log.info("Initial sync and replication setup complete");
                     break;
                 } catch (Exception e) {
                     log.error("Could not setup replication, retrying", e);
@@ -584,5 +636,80 @@ public class MorphiumServer {
                 }
             }
         }).start();
+    }
+
+    private void initialSyncDatabase(Morphium sourceMorphium, String db) {
+        try {
+            var con = sourceMorphium.getDriver().getPrimaryConnection(null);
+
+            // List all collections in this database
+            var listCmd = new de.caluga.morphium.driver.commands.ListCollectionsCommand(con)
+                    .setDb(db)
+                    .setNameOnly(false);  // Need full info to get collection names
+            var collections = listCmd.execute();
+            // Connection is released by execute()
+
+            if (collections == null || collections.isEmpty()) {
+                log.info("No collections in database {}", db);
+                return;
+            }
+
+            log.info("Found {} collections in database {}", collections.size(), db);
+
+            for (Map<String, Object> collInfo : collections) {
+                String collectionName = (String) collInfo.get("name");
+                if (collectionName == null || collectionName.startsWith("system.")) {
+                    continue;
+                }
+
+                log.info("Syncing collection: {}.{}", db, collectionName);
+                syncCollection(sourceMorphium, db, collectionName);
+            }
+        } catch (Exception e) {
+            log.error("Error during initial sync of database {}", db, e);
+        }
+    }
+
+    private void syncCollection(Morphium sourceMorphium, String db, String collectionName) {
+        try {
+            var con = sourceMorphium.getDriver().getPrimaryConnection(null);
+
+            // Fetch all documents from the source collection
+            var findCmd = new de.caluga.morphium.driver.commands.FindCommand(con)
+                    .setDb(db)
+                    .setColl(collectionName)
+                    .setFilter(Map.of())
+                    .setBatchSize(1000);
+
+            var cursor = findCmd.executeIterable(1000);
+
+            int count = 0;
+            int errors = 0;
+
+            while (cursor.hasNext()) {
+                Map<String, Object> doc = cursor.next();
+                count++;
+
+                try {
+                    // Use upsert to handle duplicates gracefully
+                    // This replaces the entire document if it exists
+                    Object id = doc.get("_id");
+                    if (id != null) {
+                        drv.update(db, collectionName, Map.of("_id", id), null,
+                                Doc.of("$set", doc), false, true, null, null);
+                    } else {
+                        drv.insert(db, collectionName, List.of(doc), null);
+                    }
+                } catch (MorphiumDriverException e) {
+                    errors++;
+                    log.warn("Error syncing document in {}.{}: {}", db, collectionName, e.getMessage());
+                }
+            }
+
+            log.info("Synced {} documents from {}.{} ({} errors)", count, db, collectionName, errors);
+            cursor.close();
+        } catch (Exception e) {
+            log.error("Error syncing collection {}.{}", db, collectionName, e);
+        }
     }
 }

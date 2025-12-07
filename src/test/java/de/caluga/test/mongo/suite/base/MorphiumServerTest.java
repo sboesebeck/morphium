@@ -585,4 +585,128 @@ public class MorphiumServerTest {
         srv.start();
         Thread.sleep(200);
     }
+
+    @Test
+    public void testReplicaSetDataReplication() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+
+        // Start primary server
+        MorphiumServer primary = new MorphiumServer(port1, "localhost", 10, 1);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2);
+        var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
+        primary.configureReplicaSet("rsDataTest", hosts, prio);
+        startServer(primary);
+
+        // Connect to primary and store some data BEFORE secondary starts
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:" + port1);
+        cfg.setDatabase("replicatest");
+        cfg.setMaxConnections(5);
+        Morphium morphiumPrimary = new Morphium(cfg);
+
+        // Store 10 documents on primary
+        for (int i = 0; i < 10; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setStrValue("PreSync-" + i);
+            morphiumPrimary.store(uc);
+        }
+        log.info("Stored 10 documents on primary before secondary started");
+
+        // Verify data exists on primary
+        var primaryCount = morphiumPrimary.createQueryFor(UncachedObject.class).countAll();
+        assertEquals(10, primaryCount, "Primary should have 10 documents");
+
+        // Now start secondary server
+        MorphiumServer secondary = new MorphiumServer(port2, "localhost", 10, 1);
+        secondary.configureReplicaSet("rsDataTest", hosts, prio);
+        startServer(secondary);
+
+        // Give time for initial sync to complete
+        Thread.sleep(3000);
+
+        // Connect to secondary
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setHostSeed("localhost:" + port2);
+        cfg2.setDatabase("replicatest");
+        cfg2.setMaxConnections(5);
+        Morphium morphiumSecondary = new Morphium(cfg2);
+
+        // Verify data was replicated to secondary
+        var secondaryCount = morphiumSecondary.createQueryFor(UncachedObject.class).countAll();
+        log.info("Secondary has {} documents after initial sync", secondaryCount);
+        assertEquals(10, secondaryCount, "Secondary should have 10 documents after initial sync");
+
+        // Verify the actual data is correct
+        var docs = morphiumSecondary.createQueryFor(UncachedObject.class).sort("counter").asList();
+        assertEquals(10, docs.size());
+        for (int i = 0; i < 10; i++) {
+            assertEquals(i, docs.get(i).getCounter());
+            assertEquals("PreSync-" + i, docs.get(i).getStrValue());
+        }
+        log.info("All documents verified on secondary!");
+
+        // Clean up
+        morphiumPrimary.close();
+        morphiumSecondary.close();
+        primary.terminate();
+        secondary.terminate();
+    }
+
+    @Test
+    public void testReplicaSetOngoingReplication() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+
+        // Start both servers
+        MorphiumServer primary = new MorphiumServer(port1, "localhost", 10, 1);
+        MorphiumServer secondary = new MorphiumServer(port2, "localhost", 10, 1);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2);
+        var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
+        primary.configureReplicaSet("rsOngoing", hosts, prio);
+        secondary.configureReplicaSet("rsOngoing", hosts, prio);
+        startServer(primary);
+        startServer(secondary);
+
+        // Give time for replication to set up
+        Thread.sleep(2000);
+
+        // Connect to primary
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:" + port1);
+        cfg.setDatabase("ongoingtest");
+        cfg.setMaxConnections(5);
+        Morphium morphiumPrimary = new Morphium(cfg);
+
+        // Connect to secondary
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setHostSeed("localhost:" + port2);
+        cfg2.setDatabase("ongoingtest");
+        cfg2.setMaxConnections(5);
+        Morphium morphiumSecondary = new Morphium(cfg2);
+
+        // Store documents on primary AFTER secondary is running
+        for (int i = 0; i < 5; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setStrValue("Ongoing-" + i);
+            morphiumPrimary.store(uc);
+        }
+        log.info("Stored 5 documents on primary");
+
+        // Wait for change stream replication
+        Thread.sleep(2000);
+
+        // Verify data was replicated to secondary via change stream
+        var secondaryCount = morphiumSecondary.createQueryFor(UncachedObject.class).countAll();
+        log.info("Secondary has {} documents after change stream replication", secondaryCount);
+        assertEquals(5, secondaryCount, "Secondary should have 5 documents from change stream");
+
+        // Clean up
+        morphiumPrimary.close();
+        morphiumSecondary.close();
+        primary.terminate();
+        secondary.terminate();
+    }
 }
