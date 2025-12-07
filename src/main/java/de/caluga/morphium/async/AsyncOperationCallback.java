@@ -8,7 +8,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 13.02.13
  * Time: 15:39
- * <p/>
+ * <p>
  * Callback interface for async calls
  */
 public interface AsyncOperationCallback<T> {

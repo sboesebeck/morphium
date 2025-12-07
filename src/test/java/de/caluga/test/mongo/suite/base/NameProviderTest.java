@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
  * User: Stephan Bösebeck
  * Date: 19.06.12
  * Time: 11:53
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class NameProviderTest extends MorphiumTestBase {

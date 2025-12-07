@@ -14,7 +14,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 30.08.12
  * Time: 14:39
- * <p/>
+ * <p>
  * Interface for all morphium write accesses. Override for own use and set to MorphiumConfig
  *
  * @see de.caluga.morphium.MorphiumConfig

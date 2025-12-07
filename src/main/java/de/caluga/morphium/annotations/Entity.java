@@ -13,7 +13,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 11:14
- * <p/>
+ * <p>
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)

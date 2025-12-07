@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * User: Stephan Bösebeck
  * Date: 12.06.12
  * Time: 16:40
- * <p/>
+ * <p>
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")

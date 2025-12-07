@@ -14,7 +14,7 @@ import java.util.*;
  * User: Stephan Bösebeck
  * Date: 26.05.12
  * Time: 15:45
- * <p/>
+ * <p>
  * Message class - used by Morphium's own messaging system<br>
  * </br>
  * Reads from any node, as this produces lots of reads! All Writes will block until <b>all nodes</b> have confirmed the

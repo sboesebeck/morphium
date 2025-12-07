@@ -5,14 +5,21 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * locale: <string>,
- * caseLevel: <boolean>,
- * caseFirst: <string>,
- * strength: <int>,
- * numericOrdering: <boolean>,
- * alternate: <string>,
- * maxVariable: <string>,
- * backwards: <boolean>
+ * <p>
+ * Collation allows users to specify language-specific rules for string comparison, such as rules for lettercase and accent marks.
+ * The collation document has the following fields:
+ * </p>
+ * <ul>
+ * <li>locale: The locale for the collation. This is a string that represents a specific language and region. For example, "en_US" for American English.</li>
+ * <li>caseLevel: A boolean that indicates whether to include case comparison. If true, the comparison considers case.</li>
+ * <li>caseFirst: A string that determines the sort order of case. Possible values are "upper", "lower", or "off".</li>
+ * <li>strength: The level of comparison to perform. This is an integer from 1 to 5, where 1 is the simplest comparison and 5 is the most complex.</li>
+ * <li>numericOrdering: A boolean that determines whether to compare numeric strings as numbers or as strings.</li>
+ * <li>alternate: A string that controls the handling of whitespace and punctuation. Possible values are "non-ignorable" and "shifted".</li>
+ * <li>maxVariable: A string that determines what characters are considered ignorable when alternate is "shifted". Possible values are "punct" and "space".</li>
+ * <li>backwards: A boolean that causes secondary differences to be considered in reverse order, as it is done in the French language.</li>
+ * <li>normalization: A boolean that enables or disables the normalization of text for comparison.</li>
+ * </ul>
  */
 public class Collation {
     private String locale;

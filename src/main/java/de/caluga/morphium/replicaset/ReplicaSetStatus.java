@@ -13,7 +13,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 10.08.12
  * Time: 15:05
- * <p/>
+ * <p>
  * Replicaset Status
  */
 @SuppressWarnings("UnusedDeclaration")

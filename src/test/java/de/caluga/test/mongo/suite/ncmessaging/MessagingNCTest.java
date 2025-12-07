@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * User: Stephan Bösebeck
  * Date: 26.05.12
  * Time: 17:34
- * <p/>
+ * <p>
  */
 @SuppressWarnings("ALL")
 @Disabled

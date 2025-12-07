@@ -10,7 +10,7 @@ import static java.lang.annotation.ElementType.FIELD;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 11:14
- * <p/>
+ * <p>
  * Define this field to be a Property. Usually not necessary, as all fields are Properties by default.
  * But with this annotation, the name of the field in mongo can be changed.
  */

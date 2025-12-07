@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  * User: Stephan Bösebeck
  * Date: 10.06.12
  * Time: 00:02
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class HierarchyTest extends MorphiumTestBase {

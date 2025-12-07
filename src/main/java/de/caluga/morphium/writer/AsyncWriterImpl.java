@@ -12,7 +12,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 19.03.13
  * Time: 12:36
- * <p/>
+ * <p>
  */
 public class AsyncWriterImpl extends MorphiumWriterImpl {
 

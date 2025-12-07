@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * User: Stephan Bösebeck
  * Date: 11.03.13
  * Time: 13:05
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @SuppressWarnings("AssertWithSideEffects")

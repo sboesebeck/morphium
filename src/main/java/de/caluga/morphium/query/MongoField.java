@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 11:30
- * <p/>
+ * <p>
  * Representation of a field in a query
  */
 @SuppressWarnings("UnusedDeclaration")

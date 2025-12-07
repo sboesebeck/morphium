@@ -6,7 +6,7 @@ import de.caluga.morphium.messaging.Msg;
  * User: Stephan Bösebeck
  * Date: 14.07.12
  * Time: 17:25
- * <p/>
+ * <p>
  * get informed about Cache-Synchronization Events
  */
 public interface MessagingCacheSyncListener extends CacheSyncListener {

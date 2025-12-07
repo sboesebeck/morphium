@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * User: Stephan Bösebeck
  * Date: 19.03.13
  * Time: 13:49
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @Tag("core")

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
  * User: Stephan Bösebeck
  * Date: 29.03.12
  * Time: 22:59
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class LifecycleTest extends MorphiumTestBase {

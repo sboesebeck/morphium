@@ -14,7 +14,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 04.05.12
  * Time: 12:44
- * <p/>
+ * <p>
  */
 @Entity
 @NoCache

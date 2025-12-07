@@ -4,7 +4,7 @@ package de.caluga.morphium.annotations.caching;
  * User: Stephan Bösebeck
  * Date: 11.03.13
  * Time: 11:07
- * <p/>
+ * <p>
  * write access to entities marked with this annotation will take place buffered. That means, that the write does take
  * place
  */

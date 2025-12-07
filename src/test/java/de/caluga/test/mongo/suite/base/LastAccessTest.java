@@ -14,7 +14,7 @@ import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecome
  * User: Stephan Bösebeck
  * Date: 29.05.12
  * Time: 15:54
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class LastAccessTest extends MorphiumTestBase {

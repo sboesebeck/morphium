@@ -13,7 +13,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 12.07.12
  * Time: 16:46
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class SkipLimitTest extends MorphiumTestBase {

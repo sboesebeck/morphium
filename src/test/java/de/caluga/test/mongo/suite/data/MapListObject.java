@@ -14,7 +14,7 @@ import java.util.Map;
  * User: Stpehan Bösebeck
  * Date: 03.04.12
  * Time: 11:16
- * <p/>
+ * <p>
  */
 @Entity
 @NoCache

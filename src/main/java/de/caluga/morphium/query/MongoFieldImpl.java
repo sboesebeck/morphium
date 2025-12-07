@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 15:18
- * <p/>
+ * <p>
  * default implementation of a MongoField
  *
  * @see MongoField

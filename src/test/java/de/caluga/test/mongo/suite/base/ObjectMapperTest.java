@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 14:04
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class ObjectMapperTest extends MorphiumTestBase {
