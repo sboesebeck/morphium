@@ -795,8 +795,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int runCommand(WatchCommand cmd) throws MorphiumDriverException {
+        log.info("InMemoryDriver.runCommand(WatchCommand) called: db={}, coll={}", cmd.getDb(), cmd.getColl());
         int ret = commandNumber.incrementAndGet();
         long cursorId = watchInternal(cmd);
+        log.info("watchInternal returned cursorId={}", cursorId);
         Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(),
                 "id", cursorId);
         commandResults.add(prepareResult(Doc.of("ok", 1.0, "cursor", cursor)));
@@ -3979,11 +3981,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // The eventDispatcher then queues events to each subscription's executor
         try {
             eventDispatcher.execute(() -> {
-                deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db), eventInfo);
+                log.info("Dispatching event: db={}, coll={}, op={}, driver instance={}", eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"), System.identityHashCode(InMemoryDriver.this));
 
+                // Deliver to database-level subscribers
+                var dbSubs = changeStreamSubscribers.get(eventInfo.db);
+                log.debug("DB subscribers for '{}': {}", eventInfo.db, dbSubs != null ? dbSubs.size() : 0);
+                deliverToSubscribers(dbSubs, eventInfo);
+
+                // Deliver to collection-level subscribers
                 if (eventInfo.collection != null) {
-                    deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection),
-                                         eventInfo);
+                    var collSubs = changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection);
+                    log.debug("Collection subscribers for '{}.{}': {}", eventInfo.db, eventInfo.collection, collSubs != null ? collSubs.size() : 0);
+                    deliverToSubscribers(collSubs, eventInfo);
+                }
+
+                // Deliver to cluster-wide subscribers
+                // These can be registered as "admin" (db only) or "admin.1" (when collection is "1" for all-db watch)
+                if (!"admin".equals(eventInfo.db)) {
+                    var adminSubs = changeStreamSubscribers.get("admin");
+                    log.debug("Admin (cluster-wide) subscribers for 'admin': {}", adminSubs != null ? adminSubs.size() : 0);
+                    deliverToSubscribers(adminSubs, eventInfo);
+
+                    // Also check for "admin.1" which is used when watching all databases
+                    var adminAllSubs = changeStreamSubscribers.get("admin.1");
+                    log.debug("Admin (cluster-wide) subscribers for 'admin.1': {}", adminAllSubs != null ? adminAllSubs.size() : 0);
+                    deliverToSubscribers(adminAllSubs, eventInfo);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException e) {
@@ -4017,11 +4039,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         String namespaceKey = subscription.collection == null ? subscription.db
                               : subscription.db + "." + subscription.collection;
         subscription.namespaceKey = namespaceKey;
-        // log.debug("registerSubscription: namespaceKey={}, driver instance={}", namespaceKey,
-        // System.identityHashCode(this));
+        log.info("registerSubscription: namespaceKey={}, driver instance={}", namespaceKey, System.identityHashCode(this));
         changeStreamSubscribers.computeIfAbsent(namespaceKey, k -> new CopyOnWriteArrayList<>()).add(subscription);
-        // log.debug("After registration, subscribers for {}: {}", namespaceKey,
-        // changeStreamSubscribers.get(namespaceKey).size());
+        log.info("After registration, subscribers for {}: {}", namespaceKey, changeStreamSubscribers.get(namespaceKey).size());
     }
 
     private void unregisterSubscription(ChangeStreamSubscription subscription) {
@@ -4269,6 +4289,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         private boolean matches(ChangeStreamEventInfo info) {
+            // Cluster-wide watch: db="admin" and collection="1" matches ALL events
+            if ("admin".equals(db) && "1".equals(collection)) {
+                return true;
+            }
+
             if (!Objects.equals(db, info.db)) {
                 return false;
             }
