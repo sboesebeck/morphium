@@ -614,10 +614,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * $lookup:
      * {
-     * from: <collection to join>,
-     * localField: <field from the input documents>,
-     * foreignField: <field from the documents of the "from" collection>,
-     * as: <output array field>
+     * from: &lt;collection to join&gt;,
+     * localField: &lt;field from the input documents&gt;,
+     * foreignField: &lt;field from the documents of the "from" collection&gt;,
+     * as: &lt;output array field&gt;
      * }
      *
      * @return
@@ -833,7 +833,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      * sequence:
      * <p>
      * <p>
-     * { $group: { _id: <expression>, count: { $sum: 1 } } },
+     * { $group: { _id: &lt;expression&gt;, count: { $sum: 1 } } },
      * { $sort: { count: -1 } }
      *
      * @param sortby

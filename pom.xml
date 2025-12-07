@@ -193,23 +193,7 @@
       </activation>
       <build>
         <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-gpg-plugin</artifactId>
-            <version>3.0.1</version>
-            <executions>
-              <execution>
-                <id>sign-artifacts</id>
-                <phase>verify</phase>
-                <goals>
-                  <goal>sign</goal>
-                </goals>
-                <configuration>
-                  <keyname>03DCDB29</keyname>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
+
         </plugins>
       </build>
     </profile>
@@ -323,7 +307,7 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-core</artifactId>
       <version>5.3.39</version>
-      <scope>provided</scope>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
