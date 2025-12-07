@@ -9,7 +9,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 17.05.12
  * Time: 15:11
- * <p/>
+ * <p>
  */
 public class UncachedObjectDAO extends DAO<UncachedObject> {
     public enum Field {

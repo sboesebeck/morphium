@@ -15,7 +15,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 30.08.12
  * Time: 16:23
- * <p/>
+ * <p>
  * Aggregator Framework:
  * represents the aggregator of Mongo 2.2.x. and above
  * $project

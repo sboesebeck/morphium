@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * User: Stephan Bösebeck
  * Date: 01.07.12
  * Time: 11:34
- * <p/>
+ * <p>
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")

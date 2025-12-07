@@ -10,7 +10,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * User: Stephan Bösebeck
  * Date: 10.08.12
  * Time: 12:55
- * <p/>
+ * <p>
  * Set the default read preference level for this type. It can be changed by query, if necessary
  *
  * @see de.caluga.morphium.Morphium

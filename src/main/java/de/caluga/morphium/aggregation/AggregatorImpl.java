@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * User: Stephan Bösebeck
  * Date: 30.08.12
  * Time: 16:24
- * <p/>
+ * <p>
  */
 @SuppressWarnings({"rawtypes", "CommentedOutCode"})
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {

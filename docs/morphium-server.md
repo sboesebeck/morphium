@@ -53,15 +53,27 @@ public class MyApp {
 ## Configuration
 
 ### Command Line Arguments
+You can configure the MorphiumServer using the following command-line arguments:
 
+| Argument | Description | Default |
+|---|---|---|
+| `-p`, `--port <port>` | Port to listen on. | `17017` |
+| `-b`, `--bind <host>` | Host to bind to. | `localhost` |
+| `-mt`, `--maxThreads <threads>` | Maximum number of threads for handling client connections. | `1000` |
+| `-mint`, `--minThreads <threads>` | Minimum number of threads to keep in the pool. | `10` |
+| `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
+| `--rs-name <name>` | Name of the replica set. | |
+| `--rs-seed <hosts>` | Comma-separated list of hosts to seed the replica set. For example: `host1:27017,host2:27018`. | |
+| `--rs-port <port>` | Port for replica set members. **Note:** This is a placeholder for future use and is not currently used. | |
+| `--rs-priority <priorities>` | Comma-separated list of priorities for each host. The number of priorities must match the number of hosts specified with `--rs-seed`. | |
+| `-rs`, `--replicaset <name> <hosts>` | **(DEPRECATED)** Configure a replica set. `<name>` is the name of the replica set, followed by a comma-separated list of hosts and ports. For example: `-rs my-rs host1:27017,host2:27018`. You can also specify a priority for each host, for example: `host1:27017|100,host2:27018|200` | |
+| `-h`, `--help` | Print this help message and exit. | |
+
+Example:
 ```bash
--p, --port <number>           # Server port (default: 17017)
--h, --host <address>          # Bind address (default: localhost)
--mt, --maxThreads <number>    # Max thread pool size (default: 1000)
--mint, --minThreads <number>  # Min thread pool size (default: 10)
--c, --compressor <type>       # Compression: snappy, zstd, zlib, none
--rs, --replicaset <name> <hosts>  # Replica set mode (experimental)
+java -jar target/morphium-*-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018 --rs-priority 100,200
 ```
+
 
 ### Constructor Options
 

@@ -22,7 +22,7 @@ import java.util.concurrent.locks.LockSupport;
  * User: Stephan Bösebeck
  * Date: 24.07.12
  * Time: 21:36
- * <p/>
+ * <p>
  * Generate a new unique sequence number. Uses Sequence to store the current
  * value. Process is as follows:
  * <ul>

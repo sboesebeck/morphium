@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * User: Stephan Bösebeck
  * Date: 04.05.12
  * Time: 12:44
- * <p/>
+ * <p>
  */
 @SuppressWarnings("unchecked")
 @Tag("core")

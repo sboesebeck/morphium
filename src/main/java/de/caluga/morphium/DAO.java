@@ -6,7 +6,7 @@ import de.caluga.morphium.query.Query;
  * User: Stephan Bösebeck
  * Date: 17.05.12
  * Time: 15:06
- * <p/>
+ * <p>
  */
 @SuppressWarnings("UnusedDeclaration")
 public abstract class DAO<T> {

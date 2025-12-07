@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * User: Stephan Bösebeck
  * Date: 28.05.12
  * Time: 17:17
- * <p/>
+ * <p>
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")

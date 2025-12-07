@@ -14,7 +14,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 29.06.12
  * Time: 15:09
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class ListOfListTests extends MorphiumTestBase {

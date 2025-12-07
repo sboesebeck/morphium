@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * User: Stephan Bösebeck
  * Date: 26.06.13
  * Time: 08:20
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @SuppressWarnings("AssertWithSideEffects")

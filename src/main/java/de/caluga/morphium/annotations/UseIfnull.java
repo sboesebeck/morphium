@@ -10,7 +10,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @deprecated This annotation is deprecated. The default behavior has been changed to accept null values
+ * @Deprecated This annotation is deprecated. The default behavior has been changed to accept null values
  * from the database (which is the expected behavior for most ORMs). If you need to protect specific fields
  * from null contamination, use {@link IgnoreNullFromDB} instead.
  *

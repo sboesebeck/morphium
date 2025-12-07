@@ -4,7 +4,7 @@ package de.caluga.morphium;
  * User: Stephan Bösebeck
  * Date: 05.07.12
  * Time: 13:21
- * <p/>
+ * <p>
  */
 public enum StatisticKeys {
 

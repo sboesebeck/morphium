@@ -1274,9 +1274,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
      * all incoming answers up to timeout
      * will be processed.
      *
-     * @parameter theMessage to be sent
-     * @parameter timoutInMs - milliseconds to wait until listener is removed
-     * @parameter cb - the message callback
+     * @param theMessage to be sent
+     * @param timoutInMs - milliseconds to wait until listener is removed
+     * @param cb - the message callback
      */
     @Override
     public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs,

@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * User: Stephan Bösebeck
  * Date: 17.05.12
  * Time: 15:17
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class DAOTest extends MorphiumTestBase {

@@ -14,6 +14,10 @@ public class MorphiumServerCLI {
     private static final Logger log = LoggerFactory.getLogger(MorphiumServerCLI.class);
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 0 || (args.length == 1 && (args[0].equals("--help") || args[0].equals("-h")))) {
+            printHelp();
+            return;
+        }
         int idx = 0;
         log.info("Starting up server... parsing commandline params");
         String host = "localhost";
@@ -28,6 +32,11 @@ public class MorphiumServerCLI {
 
         while (idx < args.length) {
             switch (args[idx]) {
+                case "--help":
+                case "-h":
+                    printHelp();
+                    System.exit(0);
+                    break;
                 case "-p":
                 case "--port":
                     port = Integer.parseInt(args[idx + 1]);
@@ -46,14 +55,15 @@ public class MorphiumServerCLI {
                     idx += 2;
                     break;
 
-                case "-h":
-                case "--host":
+                case "-b":
+                case "--bind":
                     host = args[idx + 1];
                     idx += 2;
                     break;
 
                 case "-rs":
                 case "--replicaset":
+                    log.warn("Warning: -rs/--replicaset is deprecated and will be removed in a future release. Please use --rs-name, --rs-seed, --rs-port, and --rs-priority instead.");
                     rsNameArg = args[idx + 1];
                     hostSeedArg = args[idx + 2];
                     idx += 3;
@@ -89,6 +99,33 @@ public class MorphiumServerCLI {
                     }
 
                     break;
+                case "--rs-name":
+                    rsNameArg = args[idx + 1];
+                    idx += 2;
+                    break;
+                case "--rs-seed":
+                    hostSeedArg = args[idx + 1];
+                    idx += 2;
+                    break;
+                case "--rs-port":
+                    int rsPort = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    // Note: This port is not directly used in the current logic, as ports are parsed from the seed hosts.
+                    // This is a placeholder for future logic.
+                    break;
+                case "--rs-priority":
+                    String[] priorities = args[idx + 1].split(",");
+                    idx += 2;
+                    // This assumes that the hosts are already populated via --rs-seed
+                    if (hostsArg.size() != priorities.length) {
+                        log.error("Number of priorities must match number of seed hosts.");
+                        System.exit(1);
+                    }
+                    for (int i = 0; i < priorities.length; i++) {
+                        hostPrioritiesArg.put(hostsArg.get(i), Integer.parseInt(priorities[i]));
+                    }
+                    break;
+
 
                 case "-c":
                 case "--compressor":
@@ -128,5 +165,24 @@ public class MorphiumServerCLI {
             log.info("Alive and kickin'");
             sleep(10000);
         }
+    }
+
+
+    private static void printHelp() {
+        System.out.println("Usage: java -jar morphium-server.jar [options]");
+        System.out.println("Options:");
+        System.out.println("  -p, --port <port>          : Port to listen on (default: 17017)");
+        System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
+        System.out.println("  -mt, --maxThreads <threads>: Maximum number of threads (default: 1000)");
+        System.out.println("  -mint, --minThreads <threads>: Minimum number of threads (default: 10)");
+        System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
+        System.out.println("  --rs-name <name>           : Name of the replica set");
+        System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts to seed the replica set");
+        System.out.println("  --rs-port <port>           : Port for replica set members (placeholder for future use)");
+        System.out.println("  --rs-priority <priorities> : Comma-separated list of priorities for each host (must match number of hosts)");
+        System.out.println("  -rs, --replicaset <name> <hosts> (DEPRECATED)");
+        System.out.println("                             : Configure a replica set. <name> is the name of the replica set, followed by a comma-separated list of hosts and ports.");
+        System.out.println("                             : Each host can have a priority, e.g. host1:port1|100,host2:port2|200");
+        System.out.println("  -h, --help                 : Print this help message");
     }
 }

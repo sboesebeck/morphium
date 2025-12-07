@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * User: Stephan Bösebeck
  * Date: 12.07.12
  * Time: 16:20
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class MapListTest extends MorphiumTestBase {

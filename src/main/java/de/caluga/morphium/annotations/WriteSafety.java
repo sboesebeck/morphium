@@ -10,9 +10,9 @@ import static java.lang.annotation.ElementType.TYPE;
  * User: Stephan Bösebeck
  * Date: 26.05.12
  * Time: 16:31
- * <p/>
+ * <p>
  * See WriteConcern in MongoDB Java-Driver... for additional information<br>
- * <p/>
+ * <p>
  * </br>
  * WaitForSync: wait for the write to be synced to disk
  * timeout: set a timeout in ms for the operation - if set to 0, unlimited (default). If set to negative value, wait relative to replication lag

@@ -36,7 +36,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  * User: Stpehan Bösebeck
  * Date: 26.02.12
  * Time: 16:17
- * <p/>
+ * <p>
  */
 public class MorphiumTestBase {
 

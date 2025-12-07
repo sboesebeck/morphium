@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * User: Stephan Bösebeck
  * Date: 07.05.12
  * Time: 18:02
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class AliasesTest extends MultiDriverTestBase {

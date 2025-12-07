@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * User: Stephan Bösebeck
  * Date: 07.09.12
  * Time: 08:00
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class SubDocumentTests extends MultiDriverTestBase {

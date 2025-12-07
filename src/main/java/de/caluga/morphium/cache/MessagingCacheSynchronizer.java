@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * User: Stephan Bösebeck
  * Date: 27.05.12
  * Time: 14:14
- * <p/>
+ * <p>
  * Connects to the Messaging system and to morphium. As soon as there is a message coming with name "cacheSync", this
  * is responsible for clearing the local cache for this entity.
  * Messaging used:

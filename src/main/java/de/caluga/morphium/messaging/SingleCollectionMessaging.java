@@ -37,7 +37,7 @@ import java.util.concurrent.locks.LockSupport;
  * User: Stephan Bösebeck
  * Date: 26.05.12
  * Time: 15:48
- * <p/>
+ * <p>
  * Messaging implements a simple, threadsafe and messaging api. Used for cache
  * synchronization.
  * Msg can have several modes:
@@ -216,7 +216,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      *                         to be a replicaset!
      *                         morphium automatically sets this value accordingly
      *                         depending on your configuration
-     * @prarm pause: when waiting for incoming messages, especially when
+     * @param pause: when waiting for incoming messages, especially when
      *        multithreadded == false, how long to wait between polls
      */
     @Deprecated
@@ -1573,9 +1573,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * all incoming answers up to timeout
      * will be processed.
      *
-     * @parameter theMessage to be sent
-     * @parameter timoutInMs - milliseconds to wait until listener is removed
-     * @parameter cb - the message callback
+     * @param theMessage to be sent
+     * @param timoutInMs - milliseconds to wait until listener is removed
+     * @param cb - the message callback
      */
     @Override
     public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs,

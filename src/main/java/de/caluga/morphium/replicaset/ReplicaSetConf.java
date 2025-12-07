@@ -9,7 +9,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 24.08.12
  * Time: 11:31
- * <p/>
+ * <p>
  * ReplicasetConf
  */
 @SuppressWarnings("UnusedDeclaration")

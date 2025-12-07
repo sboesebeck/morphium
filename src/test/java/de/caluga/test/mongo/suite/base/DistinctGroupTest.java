@@ -14,7 +14,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 13.07.12
  * Time: 08:53
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class DistinctGroupTest extends MultiDriverTestBase {

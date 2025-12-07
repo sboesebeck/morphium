@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * User: Stephan Bösebeck
  * Date: 25.07.12
  * Time: 08:09
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class SequenceTest extends MorphiumTestBase {
