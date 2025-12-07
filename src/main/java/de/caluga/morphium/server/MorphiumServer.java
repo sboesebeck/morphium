@@ -49,6 +49,9 @@ public class MorphiumServer {
     private final Map<Long, java.util.concurrent.BlockingQueue<Map<String, Object>>> watchCursors = new java.util.concurrent.ConcurrentHashMap<>();
 
     private ThreadPoolExecutor executor;
+    private Thread heartbeatThread;
+    private static final int HEARTBEAT_INTERVAL_MS = 2000;
+    private static final int HEARTBEAT_TIMEOUT_MS = 5000;
     private boolean running = true;
     private ServerSocket serverSocket;
     private int compressorId;
@@ -155,6 +158,196 @@ public class MorphiumServer {
         if (!primary && rsName != null && !rsName.isEmpty()) {
             startReplicaReplication();
         }
+
+        // Start heartbeat thread for failover detection
+        if (rsName != null && !rsName.isEmpty() && hosts != null && hosts.size() > 1) {
+            startHeartbeat();
+        }
+    }
+
+    private void startHeartbeat() {
+        heartbeatThread = Thread.ofVirtual().name("heartbeat").start(() -> {
+            while (running) {
+                try {
+                    Thread.sleep(HEARTBEAT_INTERVAL_MS);
+
+                    String myAddress = host + ":" + port;
+
+                    if (primary) {
+                        // Primary: check if there's another primary
+                        // This handles split-brain when a node comes back after being down
+                        for (var entry : hostPriorities.entrySet()) {
+                            String otherHost = entry.getKey();
+
+                            if (otherHost.equals(myAddress)) {
+                                continue;
+                            }
+
+                            // Check if another host thinks it's primary
+                            if (checkHostAlive(otherHost) && checkIfPrimary(otherHost)) {
+                                // Two primaries detected! The one with lower priority steps down
+                                int otherPrio = entry.getValue();
+                                if (otherPrio > priority) {
+                                    log.warn("Found another primary {} with higher priority ({}), stepping down", otherHost, otherPrio);
+                                    becomesSecondary(otherHost);
+                                } else {
+                                    log.warn("Found another primary {} with lower priority ({}), they should step down", otherHost, otherPrio);
+                                    // Don't do anything - the other node should detect us and step down
+                                }
+                                break;
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Secondary: check if primary is still alive
+                    if (primaryHost != null && !primaryHost.equals(myAddress)) {
+                        boolean primaryAlive = checkHostAlive(primaryHost);
+                        if (!primaryAlive) {
+                            log.warn("Primary {} appears to be down, initiating election", primaryHost);
+                            initiateElection();
+                        } else {
+                            // Primary is alive - check if we should be primary (higher priority)
+                            int primaryPrio = hostPriorities.getOrDefault(primaryHost, 0);
+                            if (priority > primaryPrio) {
+                                log.info("This node has higher priority ({}) than current primary {} ({}), taking over",
+                                        priority, primaryHost, primaryPrio);
+                                becomesPrimary();
+                            }
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    log.error("Heartbeat error", e);
+                }
+            }
+        });
+    }
+
+    private boolean checkIfPrimary(String hostPort) {
+        String[] parts = hostPort.split(":");
+        String checkHost = parts[0];
+        int checkPort = Integer.parseInt(parts[1]);
+
+        try (Socket socket = new Socket()) {
+            socket.connect(new java.net.InetSocketAddress(checkHost, checkPort), HEARTBEAT_TIMEOUT_MS);
+            socket.setSoTimeout(HEARTBEAT_TIMEOUT_MS);
+
+            var out = socket.getOutputStream();
+            var in = socket.getInputStream();
+
+            // Send isMaster/hello command
+            OpMsg helloMsg = new OpMsg();
+            helloMsg.setMessageId(msgId.incrementAndGet());
+            helloMsg.setFirstDoc(Doc.of("hello", 1, "$db", "admin"));
+            out.write(helloMsg.bytes());
+            out.flush();
+
+            // Read response using parseFromStream
+            var response = WireProtocolMessage.parseFromStream(in);
+            if (response instanceof OpMsg) {
+                Map<String, Object> doc = ((OpMsg) response).getFirstDoc();
+                Boolean isWritablePrimary = (Boolean) doc.get("isWritablePrimary");
+                return isWritablePrimary != null && isWritablePrimary;
+            }
+            return false;
+        } catch (Exception e) {
+            log.debug("Could not check if {} is primary: {}", hostPort, e.getMessage());
+            return false;
+        }
+    }
+
+    private void becomesSecondary(String newPrimaryHost) {
+        log.info("Stepping down {} to secondary, new primary is {}", host + ":" + port, newPrimaryHost);
+        primary = false;
+        primaryHost = newPrimaryHost;
+        replicationStarted = false;
+        startReplicaReplication();
+    }
+
+    private boolean checkHostAlive(String hostPort) {
+        String[] parts = hostPort.split(":");
+        String checkHost = parts[0];
+        int checkPort = Integer.parseInt(parts[1]);
+
+        try (Socket socket = new Socket()) {
+            socket.connect(new java.net.InetSocketAddress(checkHost, checkPort), HEARTBEAT_TIMEOUT_MS);
+            socket.setSoTimeout(HEARTBEAT_TIMEOUT_MS);
+
+            // Send a simple ping command
+            var out = socket.getOutputStream();
+            var in = socket.getInputStream();
+
+            OpMsg pingMsg = new OpMsg();
+            pingMsg.setMessageId(msgId.incrementAndGet());
+            pingMsg.setFirstDoc(Doc.of("ping", 1, "$db", "admin"));
+            out.write(pingMsg.bytes());
+            out.flush();
+
+            // Try to read response
+            byte[] header = new byte[16];
+            int read = in.read(header);
+            return read > 0;
+        } catch (Exception e) {
+            log.debug("Host {} not reachable: {}", hostPort, e.getMessage());
+            return false;
+        }
+    }
+
+    private void initiateElection() {
+        // Find the highest priority host that is alive (excluding current primary)
+        String newPrimary = null;
+        int highestPrio = Integer.MIN_VALUE;
+
+        for (var entry : hostPriorities.entrySet()) {
+            String candidate = entry.getKey();
+            int prio = entry.getValue();
+
+            // Skip the failed primary
+            if (candidate.equals(primaryHost)) {
+                continue;
+            }
+
+            // Check if this candidate has higher priority
+            if (prio > highestPrio) {
+                // Check if candidate is alive (or it's us)
+                if (candidate.equals(host + ":" + port) || checkHostAlive(candidate)) {
+                    highestPrio = prio;
+                    newPrimary = candidate;
+                }
+            }
+        }
+
+        if (newPrimary == null) {
+            log.error("No eligible candidate for new primary found");
+            return;
+        }
+
+        String myAddress = host + ":" + port;
+        if (newPrimary.equals(myAddress)) {
+            // We are the new primary!
+            log.info("This node ({}) is becoming the new primary", myAddress);
+            becomesPrimary();
+        } else {
+            // Another node should become primary
+            log.info("Node {} should become the new primary (higher priority)", newPrimary);
+            primaryHost = newPrimary;
+        }
+    }
+
+    private void becomesPrimary() {
+        log.info("Promoting {} to primary", host + ":" + port);
+        primary = true;
+        primaryHost = host + ":" + port;
+
+        // Stop replication - we're now the primary
+        for (var monitor : replicationMonitors) {
+            monitor.terminate();
+        }
+        replicationMonitors.clear();
+        replicationStarted = false;
     }
 
     public void incoming(Socket s) {
