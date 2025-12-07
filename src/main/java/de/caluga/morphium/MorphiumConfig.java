@@ -933,7 +933,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(List<String> str, List<Integer> ports) {
@@ -942,7 +942,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public List<String> getHostSeed() {
@@ -950,7 +950,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String... hostPorts) {
@@ -959,7 +959,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String hostPorts) {
@@ -968,7 +968,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String hosts, String ports) {
@@ -977,7 +977,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig addHostToSeed(String host, int port) {
@@ -986,7 +986,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig addHostToSeed(String host) {
@@ -995,7 +995,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public int getMaxConnections() {
@@ -1003,7 +1003,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setMaxConnections(int maxConnections) {
@@ -1011,7 +1011,7 @@ public class MorphiumConfig {
         return this;
     }
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public String getDatabase() {
@@ -1019,7 +1019,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * @Deprecated use getConnectionSettings().METHOD
+     @Deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setDatabase(String database) {
@@ -1657,7 +1657,7 @@ public class MorphiumConfig {
      * </p>
      *
      * @return the local threshold, in milliseconds
-     * @mongodb.driver.manual reference/program/mongos/#cmdoption--localThreshold
+     * Refer to the MongoDB documentation for details on localThreshold: reference/program/mongos/#cmdoption--localThreshold
      *                        Local Threshold
      * @since 2.13.0
      */

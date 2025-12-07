@@ -228,7 +228,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
     /**
-     * create unique cache key for queries, also honoring skip & limit and sorting
+     * create unique cache key for queries, also honoring skip &amp; limit and sorting
      *
      * @param q the query
      * @return the resulting cache key

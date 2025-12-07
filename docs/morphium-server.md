@@ -63,15 +63,12 @@ You can configure the MorphiumServer using the following command-line arguments:
 | `-mint`, `--minThreads <threads>` | Minimum number of threads to keep in the pool. | `10` |
 | `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
 | `--rs-name <name>` | Name of the replica set. | |
-| `--rs-seed <hosts>` | Comma-separated list of hosts to seed the replica set. For example: `host1:27017,host2:27018`. | |
-| `--rs-port <port>` | Port for replica set members. **Note:** This is a placeholder for future use and is not currently used. | |
-| `--rs-priority <priorities>` | Comma-separated list of priorities for each host. The number of priorities must match the number of hosts specified with `--rs-seed`. | |
-| `-rs`, `--replicaset <name> <hosts>` | **(DEPRECATED)** Configure a replica set. `<name>` is the name of the replica set, followed by a comma-separated list of hosts and ports. For example: `-rs my-rs host1:27017,host2:27018`. You can also specify a priority for each host, for example: `host1:27017|100,host2:27018|200` | |
+| `--rs-seed <hosts>` | Comma-separated list of hosts to seed the replica set. The first host in the list will have the highest priority. | |
 | `-h`, `--help` | Print this help message and exit. | |
 
 Example:
 ```bash
-java -jar target/morphium-*-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018 --rs-priority 100,200
+java -jar target/morphium-*-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
 
