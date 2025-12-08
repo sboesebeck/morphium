@@ -520,6 +520,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     private void handleAnswer(Msg m) {
+        if (networkRegistry != null && m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName())) {
+            networkRegistry.updateFrom(m);
+            return;
+        }
+
         final Queue<Msg> answersForMessage = waitingForAnswers.get(m.getInAnswerTo());
 
         if (null != answersForMessage) {
@@ -568,6 +573,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         // Count how many listeners we're queueing for this message
         var listeners = (List<Map<MType, Object>>) monitorsByTopic.get(m.getTopic());
         int listenerCount = (int) listeners.stream().filter(e -> e.get(MType.listener) != null).count();
+
+        if (m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName())) {
+            log.info("Status topic message {} (answer={}) seen by {} listeners on {}", m.getMsgId(), m.isAnswer(), listenerCount, getSenderId());
+        }
 
         // Use atomic counter to track when all listeners have finished
         var remainingListeners = new java.util.concurrent.atomic.AtomicInteger(listenerCount);
@@ -1068,7 +1077,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     private void persistMessage(Msg m, boolean async) {
         if (networkRegistry != null && !m.getTopic().equals(effectiveSettings.getMessagingStatusInfoListenerName())) {
+            long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, effectiveSettings.getMessagingRegistryUpdateInterval()));
             if (effectiveSettings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                }
                 if (!networkRegistry.hasActiveListeners(m.getTopic())) {
                     String msg = "No active listeners for topic '" + m.getTopic() + "'";
                     if (effectiveSettings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
@@ -1080,6 +1093,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             }
             if (effectiveSettings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
                 for (String r : m.getRecipients()) {
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                    }
                     if (!networkRegistry.isParticipantActive(r)) {
                         String msg = "Recipient '" + r + "' is not active";
                         if (effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
@@ -1388,6 +1404,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             effectiveSettings = overrides;
         }
 
+        if (effectiveSettings.getMessagingStatusInfoListenerName() == null) {
+            effectiveSettings.setMessagingStatusInfoListenerName("morphium.status_info");
+        }
+
         if (effectiveSettings.getSenderId() == null) {
             setSenderId(UUID.randomUUID().toString());
         } else {
@@ -1414,12 +1434,15 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         });
 
+        if (effectiveSettings.isMessagingStatusInfoListenerEnabled()) {
+            log.info("Enabling status info listener on topic {}", getStatusInfoListenerName());
+            addListenerForTopic(getStatusInfoListenerName(), statusInfoListener);
+        } else {
+            log.info("Status info listener disabled via settings");
+        }
+
         if (effectiveSettings.isMessagingRegistryEnabled()) {
             networkRegistry = new MessagingRegistry(this);
-            addListenerForTopic("status_response", (messaging, message) -> {
-                networkRegistry.updateFrom(message);
-                return null;
-            });
         }
     }
 

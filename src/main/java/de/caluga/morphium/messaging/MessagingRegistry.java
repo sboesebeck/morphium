@@ -10,12 +10,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MessagingRegistry {
     private static final Logger log = LoggerFactory.getLogger(MessagingRegistry.class);
 
     private final Map<String, Set<String>> topicToListeners = new ConcurrentHashMap<>();
     private final Map<String, Long> participantLastSeen = new ConcurrentHashMap<>();
+    private final AtomicLong lastUpdateTimestamp = new AtomicLong(0);
+    private final Object discoveryLock = new Object();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "network_registry");
         t.setDaemon(true);
@@ -34,26 +37,28 @@ public class MessagingRegistry {
     }
 
     private void runDiscovery() {
-        // Send a broadcast status request message
-        String statusTopic = messaging.getStatusInfoListenerName();
-        Msg statusRequest = new Msg(statusTopic, "status_request", "all", 30000);
-        statusRequest.setExclusive(false);
-        messaging.sendMessage(statusRequest);
+        synchronized (discoveryLock) {
+            // Send a broadcast status request message
+            String statusTopic = messaging.getStatusInfoListenerName();
+            Msg statusRequest = new Msg(statusTopic, "status_request", "all", 30000);
+            statusRequest.setExclusive(false);
+            messaging.sendMessage(statusRequest);
 
-        // Prune inactive participants
-        long now = System.currentTimeMillis();
-        participantLastSeen.entrySet().removeIf(entry -> {
-            boolean isStale = now - entry.getValue() > participantTimeout;
-            if (isStale) {
-                log.info("Removing stale participant: {}", entry.getKey());
-                // Remove this participant from all topic listener lists
-                topicToListeners.values().forEach(listeners -> listeners.remove(entry.getKey()));
-            }
-            return isStale;
-        });
+            // Prune inactive participants
+            long now = System.currentTimeMillis();
+            participantLastSeen.entrySet().removeIf(entry -> {
+                boolean isStale = now - entry.getValue() > participantTimeout;
+                if (isStale) {
+                    log.info("Removing stale participant: {}", entry.getKey());
+                    // Remove this participant from all topic listener lists
+                    topicToListeners.values().forEach(listeners -> listeners.remove(entry.getKey()));
+                }
+                return isStale;
+            });
 
-        // Remove topics with no listeners
-        topicToListeners.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+            // Remove topics with no listeners
+            topicToListeners.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -81,6 +86,9 @@ public class MessagingRegistry {
             for (String topic : topics) {
                 topicToListeners.computeIfAbsent(topic, k -> new ConcurrentHashMap<>().newKeySet()).add(senderId);
             }
+
+            log.info("Registry update from {} - topics {}", senderId, topics);
+            lastUpdateTimestamp.set(System.currentTimeMillis());
         } catch (Exception e) {
             log.error("Failed to parse topics from status response from sender: {}", senderId, e);
         }
@@ -88,11 +96,35 @@ public class MessagingRegistry {
 
     public boolean hasActiveListeners(String topicName) {
         Set<String> listeners = topicToListeners.get(topicName);
-        return listeners != null && !listeners.isEmpty();
+        if (listeners == null || listeners.isEmpty()) {
+            log.warn("No registry listeners for topic {} on sender {}. Known topics: {}", topicName, messaging.getSenderId(), topicToListeners.keySet());
+            return false;
+        }
+
+        return true;
     }
 
     public boolean isParticipantActive(String senderId) {
         return participantLastSeen.containsKey(senderId);
+    }
+
+    public void triggerDiscoveryAndWait(long timeoutMs) {
+        long previous = lastUpdateTimestamp.get();
+        runDiscovery();
+        long deadline = System.currentTimeMillis() + timeoutMs;
+
+        while (System.currentTimeMillis() < deadline) {
+            if (lastUpdateTimestamp.get() > previous) {
+                return;
+            }
+
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     public void terminate() {
