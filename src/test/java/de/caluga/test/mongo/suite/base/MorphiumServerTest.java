@@ -709,4 +709,55 @@ public class MorphiumServerTest {
         primary.terminate();
         secondary.terminate();
     }
+
+    @Test
+    public void testLateJoiningNodeInitialSync() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+        int port3 = nextPort();
+        MorphiumServer primary = new MorphiumServer(port1, "localhost", 10, 1);
+        MorphiumServer secondary = new MorphiumServer(port2, "localhost", 10, 1);
+        MorphiumServer lateJoiner = new MorphiumServer(port3, "localhost", 10, 1);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2, "localhost:" + port3);
+        var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 200, "localhost:" + port3, 100);
+        primary.configureReplicaSet("rsLateJoin", hosts, prio);
+        secondary.configureReplicaSet("rsLateJoin", hosts, prio);
+        lateJoiner.configureReplicaSet("rsLateJoin", hosts, prio);
+        startServer(primary);
+        startServer(secondary);
+
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:" + port1);
+        cfg.setDatabase("latejoin");
+        cfg.setMaxConnections(5);
+        Morphium morphiumPrimary = new Morphium(cfg);
+
+        for (int i = 0; i < 7; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setStrValue("LateJoin-" + i);
+            morphiumPrimary.store(uc);
+        }
+
+        var primaryCount = morphiumPrimary.createQueryFor(UncachedObject.class).countAll();
+        assertEquals(7, primaryCount, "Primary should have inserted documents");
+
+        startServer(lateJoiner);
+        Thread.sleep(3000);
+
+        MorphiumConfig cfgLate = new MorphiumConfig();
+        cfgLate.setHostSeed("localhost:" + port3);
+        cfgLate.setDatabase("latejoin");
+        cfgLate.setMaxConnections(5);
+        Morphium morphiumLate = new Morphium(cfgLate);
+
+        var lateCount = morphiumLate.createQueryFor(UncachedObject.class).countAll();
+        assertEquals(7, lateCount, "Late joining node should replicate existing data via initial sync");
+
+        morphiumPrimary.close();
+        morphiumLate.close();
+        primary.terminate();
+        secondary.terminate();
+        lateJoiner.terminate();
+    }
 }

@@ -8,6 +8,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,7 @@ public class MorphiumServer {
     private int priority = 0;
     private final List<ChangeStreamMonitor> replicationMonitors = new ArrayList<>();
     private volatile boolean replicationStarted = false;
+    private volatile boolean initialSyncDone = true;
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads, int compressorId) {
         this.drv = new InMemoryDriver();
@@ -155,13 +157,45 @@ public class MorphiumServer {
 
         }).start();
 
-        if (!primary && rsName != null && !rsName.isEmpty()) {
-            startReplicaReplication();
-        }
+        boolean replicaConfigured = rsName != null && !rsName.isEmpty();
+        if (replicaConfigured) {
+            String myAddress = host + ":" + port;
+            List<String> reachablePeers = getReachablePeers();
 
-        // Start heartbeat thread for failover detection
-        if (rsName != null && !rsName.isEmpty() && hosts != null && hosts.size() > 1) {
-            startHeartbeat();
+            if (!reachablePeers.isEmpty()) {
+                String detectedPrimary = detectPrimaryFromPeers(reachablePeers);
+
+                if (detectedPrimary != null) {
+                    primaryHost = detectedPrimary;
+                } else {
+                    String fallback = pickHighestPriorityPeer(reachablePeers);
+
+                    if (fallback != null) {
+                        primaryHost = fallback;
+                    } else {
+                        primaryHost = reachablePeers.get(0);
+                    }
+
+                    log.info("Could not detect current primary, using {} as sync source", primaryHost);
+                }
+
+                if (primary) {
+                    log.info("Peers detected - stepping down to secondary to perform initial sync");
+                    primary = false;
+                    initialSyncDone = false;
+                }
+
+                startReplicaReplication();
+            } else {
+                log.info("No reachable peers detected - acting as primary");
+                primary = true;
+                primaryHost = myAddress;
+                initialSyncDone = true;
+            }
+
+            if (hosts != null && hosts.size() > 1) {
+                startHeartbeat();
+            }
         }
     }
 
@@ -210,9 +244,13 @@ public class MorphiumServer {
                             // Primary is alive - check if we should be primary (higher priority)
                             int primaryPrio = hostPriorities.getOrDefault(primaryHost, 0);
                             if (priority > primaryPrio) {
-                                log.info("This node has higher priority ({}) than current primary {} ({}), taking over",
-                                        priority, primaryHost, primaryPrio);
-                                becomesPrimary();
+                                if (initialSyncDone) {
+                                    log.info("This node has higher priority ({}) than current primary {} ({}), taking over",
+                                            priority, primaryHost, primaryPrio);
+                                    becomesPrimary();
+                                } else {
+                                    log.info("Detected higher priority than current primary {}, waiting for initial sync to finish", primaryHost);
+                                }
                             }
                         }
                     }
@@ -224,6 +262,57 @@ public class MorphiumServer {
                 }
             }
         });
+    }
+
+    private List<String> getReachablePeers() {
+        if (hosts == null || hosts.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> reachable = new ArrayList<>();
+        String myAddress = host + ":" + port;
+
+        for (String h : hosts) {
+            if (h.equals(myAddress)) {
+                continue;
+            }
+
+            if (checkHostAlive(h)) {
+                reachable.add(h);
+            }
+        }
+
+        return reachable;
+    }
+
+    private String detectPrimaryFromPeers(List<String> peers) {
+        for (String peer : peers) {
+            try {
+                if (checkIfPrimary(peer)) {
+                    return peer;
+                }
+            } catch (Exception e) {
+                log.debug("Could not determine if {} is primary: {}", peer, e.getMessage());
+            }
+        }
+
+        return null;
+    }
+
+    private String pickHighestPriorityPeer(List<String> peers) {
+        String best = null;
+        int bestPrio = Integer.MIN_VALUE;
+
+        for (String peer : peers) {
+            int prio = hostPriorities.getOrDefault(peer, 0);
+
+            if (prio > bestPrio) {
+                bestPrio = prio;
+                best = peer;
+            }
+        }
+
+        return best;
     }
 
     private boolean checkIfPrimary(String hostPort) {
@@ -328,8 +417,12 @@ public class MorphiumServer {
         String myAddress = host + ":" + port;
         if (newPrimary.equals(myAddress)) {
             // We are the new primary!
-            log.info("This node ({}) is becoming the new primary", myAddress);
-            becomesPrimary();
+            if (initialSyncDone) {
+                log.info("This node ({}) is becoming the new primary", myAddress);
+                becomesPrimary();
+            } else {
+                log.info("Election result favors this node, but initial sync is not complete yet - remaining secondary");
+            }
         } else {
             // Another node should become primary
             log.info("Node {} should become the new primary (higher priority)", newPrimary);
@@ -341,6 +434,7 @@ public class MorphiumServer {
         log.info("Promoting {} to primary", host + ":" + port);
         primary = true;
         primaryHost = host + ":" + port;
+        initialSyncDone = true;
 
         // Stop replication - we're now the primary
         for (var monitor : replicationMonitors) {
@@ -732,6 +826,7 @@ public class MorphiumServer {
         primaryHost = findPrimaryHost(null);
         priority = hostPriorities.getOrDefault(host + ":" + port, 0);
         primary = rsName.isEmpty() || (host + ":" + port).equals(primaryHost);
+        initialSyncDone = primary || rsName.isEmpty();
         drv.setReplicaSet(!rsName.isEmpty());
         drv.setReplicaSetName(rsName);
         drv.setHostSeed(hosts);
@@ -747,6 +842,7 @@ public class MorphiumServer {
             return;
         }
 
+        initialSyncDone = false;
         replicationStarted = true;
         new Thread(() -> {
             while (running) {
@@ -818,6 +914,7 @@ public class MorphiumServer {
                     replicationMonitors.add(mtr);
 
                     log.info("Initial sync and replication setup complete");
+                    initialSyncDone = true;
                     break;
                 } catch (Exception e) {
                     log.error("Could not setup replication, retrying", e);
