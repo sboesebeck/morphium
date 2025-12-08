@@ -71,6 +71,20 @@ Example:
 java -jar target/morphium-*-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
+### Replica Set Behavior (experimental)
+
+MorphiumServer now performs a lightweight initial sync whenever you start an additional member with the same `--rs-name` / `--rs-seed`:
+
+- The first node that starts without detecting peers becomes primary immediately.
+- Any later node that can reach an existing peer demotes itself to secondary, runs an initial sync from the detected primary (or highest-priority reachable host), and only participates in elections after the sync finishes.
+- Elections and automatic failover continue to respect the configured host priorities, but a node will not promote itself until it completed the initial copy of data.
+
+Practical tips:
+
+1. Always include all hosts in `--rs-seed` so nodes can find a sync source.
+2. Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.
+3. Keep in mind that this is still meant for testing: persistence and durability are unchanged.
+
 
 ### Constructor Options
 
