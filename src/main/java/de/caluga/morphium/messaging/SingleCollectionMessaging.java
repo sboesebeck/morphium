@@ -258,10 +258,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         if (settings.isMessagingRegistryEnabled()) {
             networkRegistry = new MessagingRegistry(this);
-            addListenerForTopic("status_response", (messaging, message) -> {
-                networkRegistry.updateFrom(message);
-                return null;
-            });
         }
     }
 
@@ -661,6 +657,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                         // Check answers
                         if (msg.isAnswer()) {
+                            if (networkRegistry != null && msg.getTopic() != null && msg.getTopic().equals(getStatusInfoListenerName())) {
+                                networkRegistry.updateFrom(msg);
+                                checkDeleteAfterProcessing(msg);
+                                return;
+                            }
+
                             final Queue<Msg> answersForMessage = waitingForAnswers.get(msg.getInAnswerTo());
 
                             if (null != answersForMessage) {
@@ -1451,7 +1453,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     private void storeMsg(Msg m, boolean async) {
         if (networkRegistry != null && !m.getTopic().equals(settings.getMessagingStatusInfoListenerName())) {
+            long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
             if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                }
                 if (!networkRegistry.hasActiveListeners(m.getTopic())) {
                     String msg = "No active listeners for topic '" + m.getTopic() + "'";
                     if (settings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
@@ -1463,6 +1469,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
             if (settings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
                 for (String r : m.getRecipients()) {
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                    }
                     if (!networkRegistry.isParticipantActive(r)) {
                         String msg = "Recipient '" + r + "' is not active";
                         if (settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
