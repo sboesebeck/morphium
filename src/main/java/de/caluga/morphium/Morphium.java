@@ -107,11 +107,17 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     private Class <? extends MorphiumMessaging > messagingClass;
 
+    // Key used for shared driver lookup (null if not using shared driver)
+    private String sharedDriverKey = null;
+
     private static Vector<Morphium> instances = new Vector<>();
     private static AtomicInteger maxInstances = new AtomicInteger();
     // Map to track InMemoryDriver instances by database name for sharing within a test scope
     private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> inMemoryDriversByDatabase = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> inMemoryDriverRefCounts = new java.util.concurrent.ConcurrentHashMap<>();
+    // Map to track shared connection pool drivers by hosts+database key
+    private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> sharedDriversByKey = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> sharedDriverRefCounts = new java.util.concurrent.ConcurrentHashMap<>();
     public Morphium() {
         // profilingListeners = new CopyOnWriteArrayList<>();
         instances.add(this);
@@ -337,6 +343,23 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                                     inMemoryDriverRefCounts.computeIfAbsent(dbName, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
                                     log.info("Using shared InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
                                              dbName, System.identityHashCode(morphiumDriver), inMemoryDriverRefCounts.get(dbName).get());
+                                } else if (!driverAnnotation.name().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isSharedConnectionPool()) {
+                                    // Shared connection pool for real drivers (not InMemory)
+                                    // Key is based on sorted hosts + database name
+                                    sharedDriverKey = buildSharedDriverKey();
+                                    morphiumDriver = sharedDriversByKey.computeIfAbsent(sharedDriverKey, k -> {
+                                        try {
+                                            MorphiumDriver newDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                                            log.info("Created new shared driver for key '{}' (driver hashcode: {})", sharedDriverKey, System.identityHashCode(newDriver));
+                                            return newDriver;
+                                        } catch (Exception e) {
+                                            throw new RuntimeException("Failed to create shared driver", e);
+                                        }
+                                    });
+                                    // Increment reference count for this shared driver
+                                    sharedDriverRefCounts.computeIfAbsent(sharedDriverKey, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
+                                    log.info("Using shared driver for key '{}' (driver hashcode: {}, refCount: {})",
+                                             sharedDriverKey, System.identityHashCode(morphiumDriver), sharedDriverRefCounts.get(sharedDriverKey).get());
                                 } else {
                                     morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
                                 }
@@ -712,6 +735,17 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     public void setDriver(MorphiumDriver drv) {
         morphiumDriver = drv;
+    }
+
+    /**
+     * Builds a key for shared driver lookup based on sorted hosts and database name.
+     * This ensures that the same driver is reused for connections to the same MongoDB cluster.
+     */
+    private String buildSharedDriverKey() {
+        List<String> hosts = new ArrayList<>(getConfig().clusterSettings().getHostSeed());
+        Collections.sort(hosts);
+        String dbName = getConfig().connectionSettings().getDatabase();
+        return String.join(",", hosts) + "/" + dbName;
     }
 
     public Query<Map<String, Object >> createMapQuery(String collection) {
@@ -2519,7 +2553,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (morphiumDriver != null) {
             try {
                 // Check if this is a shared InMemoryDriver
-                if (morphiumDriver.getName().equals(InMemoryDriver.driverName)) {
+                if (morphiumDriver.getName().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isInMemorySharedDatabases()) {
                     String dbName = getConfig().connectionSettings().getDatabase();
                     java.util.concurrent.atomic.AtomicInteger refCount = inMemoryDriverRefCounts.get(dbName);
                     if (refCount != null) {
@@ -2532,6 +2566,26 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             morphiumDriver.close();
                             inMemoryDriversByDatabase.remove(dbName);
                             inMemoryDriverRefCounts.remove(dbName);
+                        } else {
+                            log.info("Skipping driver close, {} other Morphium instance(s) still using it", remaining);
+                        }
+                    } else {
+                        // Ref count not found, close anyway (shouldn't happen)
+                        morphiumDriver.close();
+                    }
+                } else if (sharedDriverKey != null) {
+                    // Shared connection pool driver
+                    java.util.concurrent.atomic.AtomicInteger refCount = sharedDriverRefCounts.get(sharedDriverKey);
+                    if (refCount != null) {
+                        int remaining = refCount.decrementAndGet();
+                        log.info("Decremented shared driver ref count for key '{}' (driver hashcode: {}, remaining: {})",
+                                 sharedDriverKey, System.identityHashCode(morphiumDriver), remaining);
+                        // Only close the driver when the last Morphium instance releases it
+                        if (remaining == 0) {
+                            log.info("Last reference to shared driver for key '{}', closing driver", sharedDriverKey);
+                            morphiumDriver.close();
+                            sharedDriversByKey.remove(sharedDriverKey);
+                            sharedDriverRefCounts.remove(sharedDriverKey);
                         } else {
                             log.info("Skipping driver close, {} other Morphium instance(s) still using it", remaining);
                         }
