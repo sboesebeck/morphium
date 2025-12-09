@@ -318,15 +318,16 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             if (driverAnnotation.name().equals(driverName)) {
                                 log.debug("Found driverName: {} - {} " + driverName, driverAnnotation.description());
 
-                                // Special handling for InMemoryDriver: share instances within same database
+                                // Special handling for InMemoryDriver: optionally share instances within same database
                                 // This allows multiple Morphium instances in a test to share the same in-memory database
                                 // Different tests (different database names) get different driver instances
-                                if (driverAnnotation.name().equals(InMemoryDriver.driverName)) {
+                                // Sharing is disabled by default, enable with driverSettings().setInMemorySharedDatabases(true)
+                                if (driverAnnotation.name().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isInMemorySharedDatabases()) {
                                     String dbName = getConfig().connectionSettings().getDatabase();
                                     morphiumDriver = inMemoryDriversByDatabase.computeIfAbsent(dbName, k -> {
                                         try {
                                             MorphiumDriver newDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                                            log.info("Created new InMemoryDriver for database '{}' (driver hashcode: {})", dbName, System.identityHashCode(newDriver));
+                                            log.info("Created new shared InMemoryDriver for database '{}' (driver hashcode: {})", dbName, System.identityHashCode(newDriver));
                                             return newDriver;
                                         } catch (Exception e) {
                                             throw new RuntimeException("Failed to create InMemoryDriver", e);
@@ -334,7 +335,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                                     });
                                     // Increment reference count for this shared driver
                                     inMemoryDriverRefCounts.computeIfAbsent(dbName, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
-                                    log.info("Using InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
+                                    log.info("Using shared InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
                                              dbName, System.identityHashCode(morphiumDriver), inMemoryDriverRefCounts.get(dbName).get());
                                 } else {
                                     morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
