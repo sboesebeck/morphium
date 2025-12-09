@@ -33,6 +33,7 @@ public class DriverSettings extends Settings {
     private String defaultReadPreferenceType;
 
     private int serverSelectionTimeout = 30000;
+    private boolean inMemorySharedDatabases = false;
 
     public int getIdleSleepTime() {
         return idleSleepTime;
@@ -140,6 +141,15 @@ public class DriverSettings extends Settings {
     }
     public DriverSettings setHeartbeatFrequency(int heartbeatFrequency) {
         this.heartbeatFrequency = heartbeatFrequency;
+        return this;
+    }
+
+    public boolean isInMemorySharedDatabases() {
+        return inMemorySharedDatabases;
+    }
+
+    public DriverSettings setInMemorySharedDatabases(boolean inMemorySharedDatabases) {
+        this.inMemorySharedDatabases = inMemorySharedDatabases;
         return this;
     }
 }

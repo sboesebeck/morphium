@@ -75,29 +75,60 @@ public class InMemoryDriverShareTest extends MorphiumInMemTestBase {
         }
     }
     @Test
-    public void testSeparateMorphiumInstancesSameDB() throws InterruptedException {
+    public void testSeparateMorphiumInstancesSameDBWithSharing() throws InterruptedException {
         String dbName = "shareddb";
 
         MorphiumConfig cfg1 = new MorphiumConfig();
         cfg1.driverSettings().setDriverName("InMemDriver");
+        cfg1.driverSettings().setInMemorySharedDatabases(true);
         cfg1.clusterSettings().addHostToSeed("mem");
         cfg1.connectionSettings().setDatabase(dbName);
 
 
         MorphiumConfig cfg2 = new MorphiumConfig();
         cfg2.driverSettings().setDriverName("InMemDriver");
+        cfg2.driverSettings().setInMemorySharedDatabases(true);
         cfg2.clusterSettings().addHostToSeed("mem");
         cfg2.connectionSettings().setDatabase(dbName);
 
         try (Morphium m1 = new Morphium(cfg1);
             Morphium m2 = new Morphium(cfg2)) {
 
-            assertSame(m1.getDriver(), m2.getDriver(), "Morphium with same DB should share in-memory driver instance.");
+            assertSame(m1.getDriver(), m2.getDriver(), "Morphium with same DB and sharing enabled should share in-memory driver instance.");
 
             m1.store(new UncachedObject("value", 10));
             Thread.sleep(1000);
             assertEquals(1, m2.createQueryFor(UncachedObject.class).countAll());
             assertNotNull(m2.createQueryFor(UncachedObject.class).get());
+        }
+    }
+
+    @Test
+    public void testSeparateMorphiumInstancesSameDBWithoutSharing() throws InterruptedException {
+        String dbName = "shareddb_no_sharing";
+
+        MorphiumConfig cfg1 = new MorphiumConfig();
+        cfg1.driverSettings().setDriverName("InMemDriver");
+        // inMemorySharedDatabases is false by default
+        cfg1.clusterSettings().addHostToSeed("mem");
+        cfg1.connectionSettings().setDatabase(dbName);
+
+
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.driverSettings().setDriverName("InMemDriver");
+        // inMemorySharedDatabases is false by default
+        cfg2.clusterSettings().addHostToSeed("mem");
+        cfg2.connectionSettings().setDatabase(dbName);
+
+        try (Morphium m1 = new Morphium(cfg1);
+            Morphium m2 = new Morphium(cfg2)) {
+
+            assertNotSame(m1.getDriver(), m2.getDriver(), "Morphium with same DB but sharing disabled should NOT share in-memory driver instance.");
+
+            m1.store(new UncachedObject("value", 10));
+            Thread.sleep(1000);
+            assertEquals(0, m2.createQueryFor(UncachedObject.class).countAll(), "Data should not be visible in separate driver instance");
+            assertNull(m2.createQueryFor(UncachedObject.class).get(), "Data should not be visible in separate driver instance");
         }
     }
 }
