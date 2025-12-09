@@ -34,6 +34,7 @@ public class DriverSettings extends Settings {
 
     private int serverSelectionTimeout = 30000;
     private boolean inMemorySharedDatabases = false;
+    private boolean sharedConnectionPool = false;
 
     public int getIdleSleepTime() {
         return idleSleepTime;
@@ -150,6 +151,15 @@ public class DriverSettings extends Settings {
 
     public DriverSettings setInMemorySharedDatabases(boolean inMemorySharedDatabases) {
         this.inMemorySharedDatabases = inMemorySharedDatabases;
+        return this;
+    }
+
+    public boolean isSharedConnectionPool() {
+        return sharedConnectionPool;
+    }
+
+    public DriverSettings setSharedConnectionPool(boolean sharedConnectionPool) {
+        this.sharedConnectionPool = sharedConnectionPool;
         return this;
     }
 }

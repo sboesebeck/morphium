@@ -47,7 +47,7 @@ If you want to run a **MongoDB-compatible server** that other applications can c
 - ✅ **Document Snapshots**: Immutable snapshots prevent dirty reads
 - ✅ **Pipeline Filtering**: Filter events with aggregation pipelines
 - ✅ **Full Document Support**: Access complete document in change events
-- ✅ **Database-scoped Sharing**: Multiple Morphium instances share driver per database
+- ✅ **Database-scoped Sharing**: Optional driver sharing for multiple Morphium instances (opt-in)
 
 ### Messaging System (v6.0)
 - ✅ **StandardMessaging**: Single-collection messaging with change streams
