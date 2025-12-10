@@ -4440,20 +4440,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return working;
             }
 
-            // Fast-path: single $match stage
-            if (pipeline.size() == 1) {
-                Map<String, Object> stage = pipeline.get(0);
-
-                if (stage.size() == 1 && stage.containsKey("$match") && stage.get("$match") instanceof Map) {
+            // Fast-path: only $match stages (any count)
+            if (isMatchOnlyPipeline()) {
+                for (Map<String, Object> stage : pipeline) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> match = (Map<String, Object>) stage.get("$match");
 
                     if (!QueryHelper.matchesQuery(match, working, null)) {
                         return null;
                     }
-
-                    return working;
                 }
+
+                return working;
             }
 
             List<Map<String, Object>> current = new ArrayList<>();
@@ -4474,6 +4472,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             return deepCopyDoc(result);
+        }
+
+        private boolean isMatchOnlyPipeline() {
+            for (Map<String, Object> stage : pipeline) {
+                if (stage.size() != 1 || !stage.containsKey("$match") || !(stage.get("$match") instanceof Map)) {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
