@@ -426,12 +426,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
             // Debug: Count ALL change stream events for InMemoryDriver
-            if (morphium.getDriver().getName().contains("InMem")) {
-                int totalEvents = changeStreamEventsReceived.incrementAndGet();
-                if (totalEvents == 1 || totalEvents % 50 == 0 || totalEvents == 200) {
-                    log.info("{}: Change stream event #{} received", this.id, totalEvents);
-                }
-            }
+            // if (morphium.getDriver().getName().contains("InMem")) {
+            //     int totalEvents = changeStreamEventsReceived.incrementAndGet();
+            // if (totalEvents == 1 || totalEvents % 50 == 0 || totalEvents == 200) {
+            //     log.info("{}: Change stream event #{} received", this.id, totalEvents);
+            // }
+            // }
 
             // Note: docIdsFromChangestreamSet is used for debugging duplicate events only
             // It does not prevent processing - that's handled by idsInProgress check below
@@ -560,9 +560,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // For other drivers: only poll if requested or change streams disabled
                     boolean forcePolling = morphium.getDriver() != null && morphium.getDriver().getName().contains("InMem");
                     if (requestPoll.get() > 0 || !useChangeStream || forcePolling) {
-                        if (forcePolling || requestPoll.get() > 0) {
-                            log.info("Polling (forced={}, requested={})", forcePolling, requestPoll.get() > 0);
-                        }
+                        // if (forcePolling || requestPoll.get() > 0) {
+                        //     log.info("Polling (forced={}, requested={})", forcePolling, requestPoll.get() > 0);
+                        // }
                         lastRun.set(System.currentTimeMillis());
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
@@ -838,10 +838,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 idsToIgnore.addAll(idsInProgress);
 
                 // Debug logging for InMemoryDriver
-                if (morphium.getDriver().getName().contains("InMem")) {
-                    log.info("POLLING DEBUG {}: processing.size={}, idsInProgress.size={}, idsToIgnore.size={}",
-                             id, processing.size(), idsInProgress.size(), idsToIgnore.size());
-                }
+                // if (morphium.getDriver().getName().contains("InMem")) {
+                // log.info("POLLING DEBUG {}: processing.size={}, idsInProgress.size={}, idsToIgnore.size={}",
+                // id, processing.size(), idsInProgress.size(), idsToIgnore.size());
+                // }
             }
 
             // q1: Exclusive messages, not locked yet, not processed yet
@@ -901,11 +901,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
 
             // Debug logging for InMemoryDriver (skip expensive count in production)
-            if (log.isDebugEnabled() && morphium.getDriver().getName().contains("InMem")) {
-                long totalCount = q.countAll();
-                log.debug("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
-                          id, queueElements.size(), totalCount, idsToIgnore.size());
-            }
+            // if (log.isDebugEnabled() && morphium.getDriver().getName().contains("InMem")) {
+            // long totalCount = q.countAll();
+            // log.debug("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
+            //           id, queueElements.size(), totalCount, idsToIgnore.size());
+            // }
 
             return queueElements;
         } catch (Exception e) {

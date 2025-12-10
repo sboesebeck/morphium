@@ -2,9 +2,16 @@ package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.wire.PooledDriver;
+import de.caluga.morphium.messaging.MorphiumMessaging;
+import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.MultiCollectionMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
+import de.caluga.morphium.objectmapping.AtomicIntegerMapper;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -15,11 +22,75 @@ import org.junit.jupiter.api.Tag;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("inmemory")
 public class InMemoryDriverShareTest extends MorphiumInMemTestBase {
+
+
+
+    // @Test
+    // public void performanceComparisionTest() throws Exception {
+
+    //     MorphiumConfig cfg1 = new MorphiumConfig();
+    //     cfg1.driverSettings().setDriverName(InMemoryDriver.driverName);
+    //     cfg1.clusterSettings().addHostToSeed("mem");
+    //     cfg1.connectionSettings().setDatabase("db1");
+    //     Morphium inMem = new Morphium(cfg1);
+
+    //     runPerformanceTest(inMem, 1000, SingleCollectionMessaging.NAME);
+    //     runPerformanceTest(inMem, 1000, MultiCollectionMessaging.NAME);
+
+    //     inMem.close();
+
+
+    //     MorphiumConfig cfgPooled = new MorphiumConfig();
+    //     cfgPooled.driverSettings().setDriverName(PooledDriver.driverName);
+    //     cfgPooled.clusterSettings().addHostToSeed("mongo1.fritz.box");
+    //     cfgPooled.clusterSettings().addHostToSeed("mongo2.fritz.box");
+    //     cfgPooled.clusterSettings().addHostToSeed("mongo3.fritz.box");
+    //     Morphium pooled = new Morphium(cfgPooled);
+
+    //     runPerformanceTest(pooled, 1000, SingleCollectionMessaging.NAME);
+    //     runPerformanceTest(pooled, 1000, MultiCollectionMessaging.NAME);
+    //     pooled.close();
+
+    // }
+
+
+    // public void runPerformanceTest(Morphium m, int num, String impl) throws Exception {
+    //     log.info("Running test with ---- {}", m.getDriver().getName());
+
+    //     AtomicInteger count = new AtomicInteger();
+    //     var msgcfg = (MessagingSettings)m.getConfig().messagingSettings().copy();
+    //     msgcfg.setMessagingImplementation(impl);
+    //     MorphiumMessaging sender = m.createMessaging(msgcfg);
+    //     sender.start();
+    //     m.clearCollection(Msg.class, sender.getCollectionName("test"));
+    //     Thread.sleep(1000);
+
+    //     MorphiumMessaging rec = m.createMessaging(msgcfg);
+    //     rec.start();
+    //     rec.addListenerForTopic("test", (me, msg)->{
+    //         count.incrementAndGet();
+    //         return null;
+    //     });
+
+    //     long start = System.currentTimeMillis();
+    //     for (int i = 0; i < num; i++) {
+    //         sender.sendMessage(new Msg("test", "test", "test" + i));
+    //     }
+
+    //     while (count.get() != num) {
+    //         Thread.yield();
+    //     }
+    //     long dur = System.currentTimeMillis() - start;
+    //     log.info("============>>>>>>>>> It took {}ms for {} messages and {} Messaging driver {}", dur, num, impl, m.getDriver().getName());
+    //     rec.terminate();
+    //     sender.terminate();
+    // }
 
     @Test
     public void testSeparateInMemoryDrivers() throws Exception {
