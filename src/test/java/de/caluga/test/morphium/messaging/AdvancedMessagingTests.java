@@ -50,11 +50,13 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     counts.clear();
 
                     MorphiumMessaging m1 = morphium.createMessaging();
+                    cfg.driverSettings().setInMemorySharedDatabases(true);
                     m1.start();
 
                     MorphiumConfig cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                     cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium2 = new Morphium(cfg2);
                     MorphiumMessaging m2 = morphium2.createMessaging();
                     m2.start();
@@ -62,6 +64,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                     cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium3 = new Morphium(cfg2);
                     MorphiumMessaging m3 = morphium3.createMessaging();
                     m3.start();
@@ -69,13 +72,14 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                     cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium4 = new Morphium(cfg2);
                     MorphiumMessaging m4 = morphium4.createMessaging();
                     m4.start();
 
                     // Wait for all messaging instances to be running
                     waitForConditionToBecomeTrue(10000, "Messaging instances not all running",
-                        () -> m1.isRunning() && m2.isRunning() && m3.isRunning() && m4.isRunning());
+                                                 () -> m1.isRunning() && m2.isRunning() && m3.isRunning() && m4.isRunning());
 
                     MessageListener<Msg> msgMessageListener = (msg, m) -> {
                         Msg answer = m.createAnswerMsg();
@@ -139,7 +143,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
 
                     // Wait for both messaging instances to be running
                     waitForConditionToBecomeTrue(10000, "Messaging instances not running",
-                        () -> producer.isRunning() && consumer.isRunning());
+                                                 () -> producer.isRunning() && consumer.isRunning());
 
                     try {
                         consumer.addListenerForTopic("testDiff", new MessageListener() {
@@ -184,7 +188,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
 
                     // Wait for both messaging instances to be running
                     waitForConditionToBecomeTrue(10000, "Messaging instances not running",
-                        () -> producer.isRunning() && consumer.isRunning());
+                                                 () -> producer.isRunning() && consumer.isRunning());
 
                     counts.clear();
                     consumer.addListenerForTopic("testAnswering", (msg, m) -> {
@@ -204,7 +208,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
 
                     // Wait for the answer to be received
                     waitForConditionToBecomeTrue(10000, "Answer not received in counts map",
-                        () -> counts.containsKey(msgId));
+                                                 () -> counts.containsKey(msgId));
 
                     assertTrue(counts.containsKey(msgId));
                     producer.terminate();
