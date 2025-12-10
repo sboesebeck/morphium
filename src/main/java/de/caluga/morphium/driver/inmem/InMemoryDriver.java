@@ -4301,6 +4301,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final Object monitor;
         private volatile boolean active = true;
         private final InMemAggregator aggregator; // reused per subscription
+        private final boolean insertOnlyMatchPipeline;
         private String namespaceKey;
         private final long cursorId;
         // Deliver inline to keep latency low for messaging-heavy workloads
@@ -4322,6 +4323,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.cursorId = cursorId;
             // reuse aggregator to avoid per-event allocations; safe because we create fresh input docs
             this.aggregator = pipeline == null || pipeline.isEmpty() ? null : new InMemAggregator(null, Map.class, Map.class);
+            this.insertOnlyMatchPipeline = isInsertOnlyPipeline(pipeline);
         }
 
         private boolean matches(ChangeStreamEventInfo info) {
@@ -4374,6 +4376,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // log.debug("Delivering change stream event for {}.{}, op={}", info.db, info.collection,
             // info.event.get("operationType"));
+
+            // Messaging fast-path: pipeline is only matching on inserts; deliver event as-is
+            if (insertOnlyMatchPipeline && "insert".equals(info.event.get("operationType"))) {
+                try {
+                    callback.incomingData(info.event, System.currentTimeMillis() - info.createdAt);
+                } catch (Exception e) {
+                    log.error("Error calling change-stream callback", e);
+                }
+
+                if (!callback.isContinued()) {
+                    deactivate();
+                }
+
+                return;
+            }
 
             Map<String, Object> working = deepCopyDoc(info.event);
             adjustFullDocument(working);
@@ -4477,6 +4494,44 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private boolean isMatchOnlyPipeline() {
             for (Map<String, Object> stage : pipeline) {
                 if (stage.size() != 1 || !stage.containsKey("$match") || !(stage.get("$match") instanceof Map)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private boolean isInsertOnlyPipeline(List<Map<String, Object>> pl) {
+            if (pl == null || pl.isEmpty()) {
+                return false;
+            }
+
+            for (Map<String, Object> stage : pl) {
+                if (stage.size() != 1 || !stage.containsKey("$match") || !(stage.get("$match") instanceof Map)) {
+                    return false;
+                }
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> match = (Map<String, Object>) stage.get("$match");
+                Object opType = match.get("operationType");
+
+                if (opType instanceof Map<?, ?> opMap) {
+                    if (opMap.size() != 1 || (!opMap.containsKey("$eq") && !opMap.containsKey("$in"))) {
+                        return false;
+                    }
+
+                    Object v = opMap.get(opMap.containsKey("$eq") ? "$eq" : "$in");
+
+                    if (opMap.containsKey("$eq")) {
+                        if (!"insert".equals(v)) {
+                            return false;
+                        }
+                    } else if (opMap.containsKey("$in")) {
+                        if (!(v instanceof List<?> l) || !l.contains("insert")) {
+                            return false;
+                        }
+                    }
+                } else if (!"insert".equals(opType)) {
                     return false;
                 }
             }
