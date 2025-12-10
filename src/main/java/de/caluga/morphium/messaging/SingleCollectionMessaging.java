@@ -456,11 +456,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     return running;
                 }
 
-                // Skip if I am the sender
-                if (msg.get("sender").equals(this.id)) {
-                    return running;
-                }
-
                 MorphiumId messageId = (MorphiumId) msg.get("_id");
 
                 // Additional validation for exclusive messages
@@ -631,11 +626,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                         // do not process if no listener registered for this message
                         if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getTopic())) {
-                            return;
-                        }
-
-                        // I sent the message
-                        if (msg.getSender().equals(id)) {
                             return;
                         }
 
@@ -848,8 +838,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
             // q2: non-exclusive messages, cannot be locked, not processed by me yet
             var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
-            q.f("_id").nin(idsToIgnore).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients)
-             .in(Arrays.asList(null, id));
+            q.f("_id").nin(idsToIgnore);
+            q.f(Msg.Fields.recipients).in(Arrays.asList(null, id));
             Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
             if (!pauseMessages.isEmpty()) {
@@ -1009,12 +999,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     private void processMessage(Msg msg) {
         if (msg == null) {
-            return;
-        }
-
-        // I am the sender?
-        if (msg.getSender().equals(getSenderId())) {
-            log.error("This should have been filtered out before alreaday!!!");
             return;
         }
 
