@@ -936,7 +936,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         Object value = op.get(k);
 
                         if (value instanceof String && ((String) value).startsWith("$")) {
-                            obj.put(k, obj.get(((String) value).substring(1)));
+                            String path = ((String) value).substring(1);
+                            Object v = getByPath(obj, path);
+                            obj.put(k, v);
                         } else if (value instanceof Expr.ValueExpr) {
                             Object evaluate = ((Expr) value).evaluate(obj);
 
@@ -2618,5 +2620,28 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return result;
+    }
+
+    private static Object getByPath(Map<String, Object> doc, String path) {
+        if (doc == null || path == null) {
+            return null;
+        }
+
+        String[] parts = path.split("\\.");
+        Object cur = doc;
+
+        for (String p : parts) {
+            if (!(cur instanceof Map)) {
+                return null;
+            }
+
+            cur = ((Map) cur).get(p);
+
+            if (cur == null) {
+                return null;
+            }
+        }
+
+        return cur;
     }
 }

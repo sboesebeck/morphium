@@ -43,7 +43,7 @@ public class InMemoryDriverShareTest extends MorphiumInMemTestBase {
         List<Map<String, Object>> result = find.execute();
 
         // Assert that the data is not found, proving the drivers are separate
-        assertTrue(result.isEmpty(), "In-memory drivers should be separate and not share data.");
+        assertTrue(result.isEmpty(), "In-memory drivers should be separate by default and not share data.");
 
         drv1.close();
         drv2.close();
@@ -66,7 +66,7 @@ public class InMemoryDriverShareTest extends MorphiumInMemTestBase {
         try (Morphium m1 = new Morphium(cfg1);
             Morphium m2 = new Morphium(cfg2)) {
 
-            assertNotSame(m1.getDriver(), m2.getDriver(), "Morphium with same DB should share in-memory driver instance.");
+            assertNotSame(m1.getDriver(), m2.getDriver(), "Morphium with same DB should not share in-memory driver instance by default.");
 
             m1.store(new UncachedObject("value", 10));
             Thread.sleep(1000);
