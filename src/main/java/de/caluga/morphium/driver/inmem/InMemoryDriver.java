@@ -4300,6 +4300,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final boolean showExpandedEvents;
         private final Object monitor;
         private volatile boolean active = true;
+        private final InMemAggregator aggregator; // reused per subscription
         private String namespaceKey;
         private final long cursorId;
         // Deliver inline to keep latency low for messaging-heavy workloads
@@ -4319,6 +4320,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.showExpandedEvents = showExpandedEvents;
             this.monitor = monitor;
             this.cursorId = cursorId;
+            // reuse aggregator to avoid per-event allocations; safe because we create fresh input docs
+            this.aggregator = pipeline == null || pipeline.isEmpty() ? null : new InMemAggregator(null, Map.class, Map.class);
         }
 
         private boolean matches(ChangeStreamEventInfo info) {
@@ -4453,12 +4456,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            InMemAggregator agg = new InMemAggregator(null, Map.class, Map.class);
             List<Map<String, Object>> current = new ArrayList<>();
             current.add(working);
 
             for (Map<String, Object> stage : pipeline) {
-                current = agg.execStep(stage, current);
+                current = aggregator.execStep(stage, current);
 
                 if (current == null || current.isEmpty()) {
                     return null;
