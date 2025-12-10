@@ -3903,6 +3903,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             changeStreamHistory.pollFirst();
         }
 
+        if (!hasSubscribers(db, collection)) {
+            return;
+        }
+
         // log.debug("Dispatching event for {}.{}", db, collection);
         dispatchEvent(eventInfo);
     }
@@ -4104,6 +4108,35 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private static Map<String, Object> createResumeToken(long token) {
         return Doc.of("_data", String.format(Locale.ROOT, "%016x", token));
+    }
+
+    private boolean hasSubscribers(String db, String collection) {
+        if (changeStreamSubscribers.isEmpty()) {
+            return false;
+        }
+
+        List<ChangeStreamSubscription> dbSubs = changeStreamSubscribers.get(db);
+
+        if (dbSubs != null && !dbSubs.isEmpty()) {
+            return true;
+        }
+
+        if (collection != null) {
+            List<ChangeStreamSubscription> collSubs = changeStreamSubscribers.get(db + "." + collection);
+
+            if (collSubs != null && !collSubs.isEmpty()) {
+                return true;
+            }
+        }
+
+        List<ChangeStreamSubscription> adminSubs = changeStreamSubscribers.get("admin");
+
+        if (adminSubs != null && !adminSubs.isEmpty()) {
+            return true;
+        }
+
+        List<ChangeStreamSubscription> adminAllSubs = changeStreamSubscribers.get("admin.1");
+        return adminAllSubs != null && !adminAllSubs.isEmpty();
     }
 
     private Map<String, Object> cloneAndNormalizeDocument(Map<String, Object> source) {
@@ -4402,6 +4435,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private Map<String, Object> applyPipeline(Map<String, Object> working) {
             if (pipeline == null || pipeline.isEmpty()) {
                 return working;
+            }
+
+            // Fast-path: single $match stage
+            if (pipeline.size() == 1) {
+                Map<String, Object> stage = pipeline.get(0);
+
+                if (stage.size() == 1 && stage.containsKey("$match") && stage.get("$match") instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> match = (Map<String, Object>) stage.get("$match");
+
+                    if (!QueryHelper.matchesQuery(match, working, null)) {
+                        return null;
+                    }
+
+                    return working;
+                }
             }
 
             InMemAggregator agg = new InMemAggregator(null, Map.class, Map.class);
