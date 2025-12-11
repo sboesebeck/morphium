@@ -24,6 +24,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
@@ -476,11 +477,38 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
-        watchInternal(settings);
+        watchInternal(settings, null);
     }
 
-    private long watchInternal(WatchCommand settings) throws MorphiumDriverException {
+    /**
+     * Starts a watch asynchronously but waits for the subscription to be registered before returning.
+     * This prevents race conditions where events could be missed if they occur between
+     * starting the async watch and registering the subscription.
+     */
+    private void watchAsync(WatchCommand settings) {
+        CountDownLatch registrationLatch = new CountDownLatch(1);
+        exec.execute(() -> {
+            try {
+                watchInternal(settings, registrationLatch);
+            } catch (MorphiumDriverException e) {
+                log.error("Error in async watch", e);
+            } finally {
+                settings.releaseConnection();
+            }
+        });
+        // Wait for the subscription to be registered before returning
+        try {
+            registrationLatch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private long watchInternal(WatchCommand settings, CountDownLatch registrationLatch) throws MorphiumDriverException {
         if (settings == null || settings.getCb() == null) {
+            if (registrationLatch != null) {
+                registrationLatch.countDown();
+            }
             return 0L;
         }
 
@@ -499,6 +527,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         ChangeStreamSubscription existing = findActiveSubscription(namespaceKey, settings.getCb());
 
         if (existing != null) {
+            if (registrationLatch != null) {
+                registrationLatch.countDown();
+            }
             return existing.getCursorId();
         }
 
@@ -516,6 +547,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         cursorIdSequence.incrementAndGet());
 
         registerSubscription(subscription);
+
+        // Signal that registration is complete before waiting for events
+        if (registrationLatch != null) {
+            registrationLatch.countDown();
+        }
 
         try {
             Long resumeAfterToken = extractResumeToken(settings.getResumeAfter());
@@ -899,7 +935,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public int runCommand(WatchCommand cmd) throws MorphiumDriverException {
         log.info("InMemoryDriver.runCommand(WatchCommand) called: db={}, coll={}", cmd.getDb(), cmd.getColl());
         int ret = commandNumber.incrementAndGet();
-        long cursorId = watchInternal(cmd);
+        long cursorId = watchInternal(cmd, null);
         log.info("watchInternal returned cursorId={}", cursorId);
         Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(),
                                             "id", cursorId);
@@ -1168,12 +1204,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             final List<Map<String, Object>> tailableResult = result;
 
             if (result.isEmpty()) {
+                // Transform the query to match against fullDocument fields in change stream events
+                Map<String, Object> watchQuery = prefixQueryWithFullDocument(cmd.getFilter());
                 WatchCommand watchCmd = new WatchCommand(this)
                 .setDb(cmd.getDb())
                 .setColl(cmd.getColl())
                 .setMaxTimeMS(cmd.getMaxTimeMS())
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
-                .setPipeline(Arrays.asList(Doc.of("$match", cmd.getFilter())))
+                .setPipeline(Arrays.asList(Doc.of("$match", watchQuery)))
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long dur) {
@@ -1186,17 +1224,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 });
 
-                // Start watch asynchronously to avoid deadlock - watch() blocks waiting for events
-                // but events can only come if other threads can call sendCommand (which is synchronized)
-                exec.execute(() -> {
-                    try {
-                        watch(watchCmd);
-                    } catch (MorphiumDriverException e) {
-                        log.error("Error in tailable watch", e);
-                    } finally {
-                        watchCmd.releaseConnection();
-                    }
-                });
+                // Start watch asynchronously but wait for subscription to be registered
+                // to avoid race conditions where events could be missed
+                watchAsync(watchCmd);
             }
 
             Map<String, Object> response = prepareResult();
@@ -1272,12 +1302,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             final String db = cmd.getDb();
             final String coll = cmd.getColl();
 
+            // Transform the query to match against fullDocument fields in change stream events
+            Map<String, Object> watchQuery = prefixQueryWithFullDocument(fnd.getFilter());
             WatchCommand watchCmd = new WatchCommand(this)
             .setDb(fnd.getDb())
             .setColl(fnd.getColl())
             .setMaxTimeMS(fnd.getMaxTimeMS())
             .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
-            .setPipeline(Arrays.asList(Doc.of("$match", fnd.getFilter())))
+            .setPipeline(Arrays.asList(Doc.of("$match", watchQuery)))
             .setCb(new DriverTailableIterationCallback() {
                 @Override
                 public void incomingData(Map<String, Object> data, long dur) {
@@ -1297,17 +1329,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             });
 
-            // Start watch asynchronously to avoid deadlock - watch() blocks waiting for events
-            // but events can only come if other threads can call sendCommand (which is synchronized)
-            exec.execute(() -> {
-                try {
-                    watch(watchCmd);
-                } catch (MorphiumDriverException e) {
-                    log.error("Error in tailable getMore watch", e);
-                } finally {
-                    watchCmd.releaseConnection();
-                }
-            });
+            // Start watch asynchronously but wait for subscription to be registered
+            // to avoid race conditions where events could be missed
+            watchAsync(watchCmd);
 
             // Return empty response immediately - actual data will come via the watch callback
             Map<String, Object> response = prepareResult();
