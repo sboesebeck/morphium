@@ -5053,10 +5053,45 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         WatchCommand watch = new WatchCommand(new InMemConnectionWrapper(this));
         watch.setDb(db);
         watch.setColl(collection);
-        watch.setPipeline(Arrays.asList(Doc.of("$match", query)));
+        // Transform the query to match against fullDocument fields in change stream events
+        Map<String, Object> watchQuery = prefixQueryWithFullDocument(query);
+        watch.setPipeline(Arrays.asList(Doc.of("$match", watchQuery)));
         watch.setCb(cb);
 
         watch(watch);
+    }
+
+    /**
+     * Transforms a query to match against fullDocument fields in change stream events.
+     * For tailable cursors, the query fields need to be prefixed with "fullDocument."
+     * since change stream events have the document nested under that field.
+     */
+    private Map<String, Object> prefixQueryWithFullDocument(Map<String, Object> query) {
+        if (query == null || query.isEmpty()) {
+            return query;
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : query.entrySet()) {
+            String key = entry.getKey();
+            // Skip operators that apply to the event itself, not the document
+            if (key.startsWith("$")) {
+                // Handle logical operators like $and, $or, $nor
+                if ("$and".equals(key) || "$or".equals(key) || "$nor".equals(key)) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> conditions = (List<Map<String, Object>>) entry.getValue();
+                    List<Map<String, Object>> prefixedConditions = new ArrayList<>();
+                    for (Map<String, Object> condition : conditions) {
+                        prefixedConditions.add(prefixQueryWithFullDocument(condition));
+                    }
+                    result.put(key, prefixedConditions);
+                } else {
+                    result.put(key, entry.getValue());
+                }
+            } else {
+                result.put("fullDocument." + key, entry.getValue());
+            }
+        }
+        return result;
     }
 
     public int getMaxWaitTime() {
