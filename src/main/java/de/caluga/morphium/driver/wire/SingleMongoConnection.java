@@ -72,7 +72,11 @@ public class SingleMongoConnection implements MongoConnection {
 
         try {
             //            log.info("Connecting to " + host + ":" + port);
-            s = new Socket(host, port);
+            if (drv.isUseSSL()) {
+                s = createSslSocket(drv, host, port);
+            } else {
+                s = new Socket(host, port);
+            }
             s.setKeepAlive(true);
             out = s.getOutputStream();
             in = s.getInputStream();
@@ -87,6 +91,46 @@ public class SingleMongoConnection implements MongoConnection {
         //log.info("Connected to "+connectedTo+":"+port);
         connected = true;
         return hello;
+    }
+
+    private Socket createSslSocket(MorphiumDriver drv, String host, int port) throws IOException {
+        javax.net.ssl.SSLContext sslContext = null;
+
+        // Try to get custom SSLContext from driver if it's a DriverBase
+        if (drv instanceof DriverBase) {
+            sslContext = ((DriverBase) drv).getSslContext();
+        }
+
+        // Use default SSLContext if none provided
+        if (sslContext == null) {
+            try {
+                sslContext = javax.net.ssl.SSLContext.getDefault();
+            } catch (java.security.NoSuchAlgorithmException e) {
+                throw new IOException("Failed to get default SSLContext", e);
+            }
+        }
+
+        javax.net.ssl.SSLSocketFactory factory = sslContext.getSocketFactory();
+        javax.net.ssl.SSLSocket sslSocket = (javax.net.ssl.SSLSocket) factory.createSocket(host, port);
+
+        // Configure SSL parameters
+        javax.net.ssl.SSLParameters params = sslSocket.getSSLParameters();
+
+        // Enable hostname verification unless explicitly disabled
+        boolean allowInvalidHostname = false;
+        if (drv instanceof DriverBase) {
+            allowInvalidHostname = ((DriverBase) drv).isSslInvalidHostNameAllowed();
+        }
+
+        if (!allowInvalidHostname) {
+            params.setEndpointIdentificationAlgorithm("HTTPS");
+        }
+
+        sslSocket.setSSLParameters(params);
+        sslSocket.startHandshake();
+
+        log.debug("SSL connection established to {}:{}", host, port);
+        return sslSocket;
     }
 
     public HelloResult getHelloResult(boolean includeClient) throws MorphiumDriverException {

@@ -1,9 +1,11 @@
 package de.caluga.morphium.server;
 
+import de.caluga.morphium.driver.wire.SslHelper;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,11 @@ public class MorphiumServerCLI {
         List<String> hostsArg = new ArrayList<>();
         Map<String, Integer> hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
         int compressorId = OpCompressed.COMPRESSOR_NOOP;
+
+        // SSL configuration
+        boolean sslEnabled = false;
+        String keystorePath = null;
+        String keystorePassword = null;
 
         while (idx < args.length) {
             switch (args[idx]) {
@@ -105,6 +112,24 @@ public class MorphiumServerCLI {
                     idx += 2;
                     break;
 
+                case "--ssl":
+                case "--tls":
+                    sslEnabled = true;
+                    idx += 1;
+                    break;
+
+                case "--sslKeystore":
+                case "--tlsKeystore":
+                    keystorePath = args[idx + 1];
+                    idx += 2;
+                    break;
+
+                case "--sslKeystorePassword":
+                case "--tlsKeystorePassword":
+                    keystorePassword = args[idx + 1];
+                    idx += 2;
+                    break;
+
                 default:
                     log.error("unknown parameter " + args[idx]);
                     System.exit(1);
@@ -114,6 +139,23 @@ public class MorphiumServerCLI {
         log.info("Starting server...");
         var srv = new MorphiumServer(port, host, maxThreads, minThreads, compressorId);
         srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
+
+        // Configure SSL if enabled
+        if (sslEnabled) {
+            log.info("SSL/TLS enabled");
+            if (keystorePath != null) {
+                log.info("Loading keystore from: {}", keystorePath);
+                try {
+                    SSLContext sslContext = SslHelper.createServerSslContext(keystorePath, keystorePassword);
+                    srv.setSslContext(sslContext);
+                } catch (Exception e) {
+                    log.error("Failed to load SSL keystore: {}", e.getMessage());
+                    System.exit(1);
+                }
+            }
+            srv.setSslEnabled(true);
+        }
+
         srv.start();
 
         if (!rsNameArg.isEmpty()) {
@@ -137,7 +179,17 @@ public class MorphiumServerCLI {
         System.out.println("  -mint, --minThreads <threads>: Minimum number of threads (default: 10)");
         System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
         System.out.println("  --rs-name <name>           : Name of the replica set");
-        System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts to seed the replica set. The first host in the list will have the highest priority.");
+        System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts to seed the replica set.");
+        System.out.println("                               The first host in the list will have the highest priority.");
+        System.out.println();
+        System.out.println("SSL/TLS Options:");
+        System.out.println("  --ssl, --tls               : Enable SSL/TLS encrypted connections");
+        System.out.println("  --sslKeystore <path>       : Path to JKS or PKCS12 keystore file");
+        System.out.println("  --sslKeystorePassword <pw> : Password for the keystore");
+        System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
+        System.out.println();
+        System.out.println("Example:");
+        System.out.println("  java -jar morphium-server.jar -p 27018 --ssl --sslKeystore server.jks --sslKeystorePassword changeit");
     }
 }

@@ -43,6 +43,8 @@ public abstract class DriverBase implements MorphiumDriver {
     private Set<String> hostSeed;
     private int heartbeatFrequency = 2000;
     private boolean useSSL = false;
+    private javax.net.ssl.SSLContext sslContext = null;
+    private boolean sslInvalidHostNameAllowed = false;
     private int defaultW = 1;
     private int connectionTimeout = 1000;
     private int maxConnectionIdleTime = 100000;
@@ -552,6 +554,21 @@ public abstract class DriverBase implements MorphiumDriver {
         useSSL = ssl;
     }
 
+    public javax.net.ssl.SSLContext getSslContext() {
+        return sslContext;
+    }
+
+    public void setSslContext(javax.net.ssl.SSLContext sslContext) {
+        this.sslContext = sslContext;
+    }
+
+    public boolean isSslInvalidHostNameAllowed() {
+        return sslInvalidHostNameAllowed;
+    }
+
+    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+        this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+    }
 
     @Override
     public MorphiumTransactionContext startTransaction(boolean autoCommit) {

@@ -64,6 +64,9 @@ You can configure the MorphiumServer using the following command-line arguments:
 | `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
 | `--rs-name <name>` | Name of the replica set. | |
 | `--rs-seed <hosts>` | Comma-separated list of hosts to seed the replica set. The first host in the list will have the highest priority. | |
+| `--ssl`, `--tls` | Enable SSL/TLS encrypted connections. | disabled |
+| `--sslKeystore <path>` | Path to JKS or PKCS12 keystore file containing server certificate. | |
+| `--sslKeystorePassword <pw>` | Password for the keystore. | |
 | `-h`, `--help` | Print this help message and exit. | |
 
 Example:
@@ -85,6 +88,68 @@ Practical tips:
 2. Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.
 3. Keep in mind that this is still meant for testing: persistence and durability are unchanged.
 
+### SSL/TLS Configuration
+
+MorphiumServer supports SSL/TLS encrypted connections for secure communication.
+
+**Quick Start with SSL:**
+
+1. Generate a self-signed certificate:
+```bash
+keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
+  -validity 365 -keystore server.jks -storepass changeit \
+  -dname "CN=localhost"
+```
+
+2. Start the server with SSL enabled:
+```bash
+java -jar target/morphium-*-server-cli.jar -p 27018 \
+  --ssl --sslKeystore server.jks --sslKeystorePassword changeit
+```
+
+3. Connect with mongosh:
+```bash
+# For self-signed certificates
+mongosh "mongodb://localhost:27018" --tls --tlsAllowInvalidCertificates
+
+# With proper certificate verification (export cert first)
+keytool -exportcert -alias morphium -keystore server.jks \
+  -storepass changeit -rfc -file server-cert.pem
+mongosh "mongodb://localhost:27018" --tls --tlsCAFile server-cert.pem
+```
+
+**Programmatic SSL Configuration:**
+```java
+import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.morphium.driver.wire.SslHelper;
+
+MorphiumServer server = new MorphiumServer(27018, "localhost", 100, 10);
+
+// Load keystore and enable SSL
+SSLContext sslContext = SslHelper.createServerSslContext(
+    "server.jks", "changeit"
+);
+server.setSslContext(sslContext);
+server.setSslEnabled(true);
+
+server.start();
+```
+
+**SSL with Docker:**
+```dockerfile
+FROM openjdk:21-slim
+WORKDIR /app
+
+COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
+COPY server.jks /app/server.jks
+
+EXPOSE 27018
+
+CMD ["java", "-jar", "/app/morphium-server.jar", \
+     "--port", "27018", "--host", "0.0.0.0", \
+     "--ssl", "--sslKeystore", "/app/server.jks", \
+     "--sslKeystorePassword", "changeit"]
+```
 
 ### Constructor Options
 
@@ -399,9 +464,9 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
 - ❌ **Distributed Transactions** - Single instance only
 
 ### Security
-- ❌ **No TLS/SSL** - Plain TCP only
-- ❌ **No Authentication** - Not implemented
-- 💡 **Workaround** - Use reverse proxy for TLS
+- ✅ **TLS/SSL Supported** - Encrypted connections available (since v6.1.0)
+- ❌ **No Authentication** - Not implemented yet
+- 💡 **Workaround** - Use reverse proxy for authentication
 
 ## When NOT to Use
 
@@ -409,7 +474,7 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
 - Production data requiring persistence
 - Datasets exceeding available RAM (>16GB)
 - High availability requirements
-- TLS/SSL compliance requirements
+- Authentication requirements (not yet implemented)
 - MongoDB Atlas features
 - Advanced search/geospatial features
 
