@@ -278,6 +278,12 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert(la.lastAccess != 0);
         assertNotNull(la.lastAccessDate);
         long lastAcc = la.lastAccess;
+        // Wait for lastAccess to change - timestamps may be in same millisecond on fast systems
+        final long originalLastAcc = lastAcc;
+        TestUtils.waitForConditionToBecomeTrue(2000, "lastAccess did not change", () -> {
+            var obj = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
+            return obj.lastAccess != originalLastAcc;
+        });
         la = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
         assertNotEquals(lastAcc, la.lastAccess);
         assertNotNull(la.lastAccessString);
