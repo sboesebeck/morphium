@@ -548,7 +548,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
-    public synchronized int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
+    public  int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
         stats.get(DriverStatsKey.MSG_SENT).incrementAndGet();
 
         if (cmd.asMap().get("$db") == null) {
@@ -2491,35 +2491,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 Map<String, Object> o = data.get(i);
                 count++;
 
-                if (count < skip) {
+                if (count <= skip) {
                     continue;
                 }
 
-                if (!internal) {
-                    while (true) {
-                        try {
-                            // Deep copy the document to prevent shared references between threads
-                            o = deepCopyDoc(o);
-
-                            if (o.get("_id") instanceof ObjectId) {
-                                o.put("_id", new MorphiumId((ObjectId) o.get("_id")));
-                            }
-
-                            break;
-                        } catch (ConcurrentModificationException c) {
-                            // retry until it works
-                        }
-                    }
+                // Check match FIRST on original document - no copy needed for non-matches
+                if (!QueryHelper.matchesQuery(query, o, collation)) {
+                    continue;
                 }
 
-                if (QueryHelper.matchesQuery(query, o, collation)) {
-                    if (o == null) {
-                        o = new HashMap<>();
-                    }
-
+                // Only copy/project documents that matched
+                if (!internal) {
                     // apply projection if requested
                     if (projection != null && !projection.isEmpty()) {
-                        Map<String, Object> projected = new HashMap<>();
                         boolean hasInclude = projection.values().stream().anyMatch(v -> {
                             if (v instanceof Number)
                                 return ((Number) v).intValue() == 1;
@@ -2539,8 +2523,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         });
 
                         if (hasInclude && !hasExclude) {
-                            // include only specified fields; _id included by default unless explicitly set
-                            // to 0
+                            // include only specified fields - builds new map, no deepCopy needed
+                            // _id included by default unless explicitly set to 0
+                            Map<String, Object> projected = new HashMap<>();
                             for (var e : projection.entrySet()) {
                                 var k = e.getKey();
                                 var v = e.getValue();
@@ -2553,50 +2538,69 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     Object arr = getByPath(o, k);
                                     Object sliced = applySlice(arr, ((Map) v).get("$slice"));
                                     if (sliced != null)
-                                        setByPath(projected, k, sliced);
+                                        setByPath(projected, k, deepCopyValue(sliced));
                                     continue;
                                 }
                                 if (v instanceof Map && ((Map) v).containsKey("$elemMatch")) {
                                     Object arr = getByPath(o, k);
                                     Object em = applyElemMatchProjection(k, arr, (Map) ((Map) v).get("$elemMatch"));
                                     if (em != null)
-                                        setByPath(projected, k, em);
+                                        setByPath(projected, k, deepCopyValue(em));
                                     continue;
                                 }
                                 Object val = getByPath(o, k);
                                 boolean fieldExists = containsByPath(o, k);
                                 if (fieldExists)
-                                    setByPath(projected, k, val);
+                                    setByPath(projected, k, deepCopyValue(val));
                             }
                             if (!projection.containsKey("_id") || truthy(projection.get("_id"))) {
                                 if (o.containsKey("_id"))
-                                    projected.put("_id", o.get("_id"));
+                                    projected.put("_id", deepCopyValue(o.get("_id")));
                             }
                             o = projected;
                         } else {
-                            // exclusion style: start with full doc and remove excluded fields
-                            Map<String, Object> copy = deepCopyDoc(o);
+                            // exclusion style: start with full doc copy and remove excluded fields
+                            while (true) {
+                                try {
+                                    o = deepCopyDoc(o);
+                                    break;
+                                } catch (ConcurrentModificationException c) {
+                                    // retry until it works
+                                }
+                            }
                             for (var e : projection.entrySet()) {
                                 var k = e.getKey();
                                 var v = e.getValue();
                                 boolean exclude = (v instanceof Number && ((Number) v).intValue() == 0)
                                                   || (v instanceof Boolean && !(Boolean) v);
                                 if (exclude) {
-                                    removeByPath(copy, k);
+                                    removeByPath(o, k);
                                 }
                             }
-                            o = copy;
+                        }
+                    } else {
+                        // No projection - need full deep copy for external callers
+                        while (true) {
+                            try {
+                                o = deepCopyDoc(o);
+                                break;
+                            } catch (ConcurrentModificationException c) {
+                                // retry until it works
+                            }
                         }
                     }
 
-                    ret.add(o);
+                    // Convert ObjectId after copy
+                    if (o.get("_id") instanceof ObjectId) {
+                        o.put("_id", new MorphiumId((ObjectId) o.get("_id")));
+                    }
                 }
+
+                ret.add(o);
 
                 if (limit > 0 && ret.size() >= limit) {
                     break;
                 }
-
-                // todo add projection
             }
             return new ArrayList<>(ret);
         } finally {
@@ -2694,6 +2698,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
         return out;
+    }
+
+    private static Object deepCopyValue(Object v) {
+        if (v instanceof Map) {
+            return deepCopyDoc((Map<String, Object>) v);
+        } else if (v instanceof List) {
+            return deepCopyList((List) v);
+        }
+        // Primitive types, Strings, Numbers, etc. are immutable and safe to share
+        return v;
     }
 
     private static Object applySlice(Object arrayVal, Object sliceSpec) {
