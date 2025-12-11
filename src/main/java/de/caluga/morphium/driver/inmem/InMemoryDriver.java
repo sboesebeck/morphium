@@ -295,11 +295,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     /**
      * Dump a single database to file without requiring a Morphium instance.
      * Useful for MorphiumServer persistence.
+     *
+     * This method creates a shallow snapshot of the database structure to minimize
+     * blocking time, then serializes it. The actual document data uses CopyOnWriteArrayList
+     * so iteration is safe even with concurrent modifications.
      */
     public void dumpToFile(String db, File f) throws IOException {
         ObjectMapperImpl mapper = new ObjectMapperImpl();
         MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
         mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
+
+        // Create a snapshot of the database structure
+        // Documents are stored in CopyOnWriteArrayList, so iteration is thread-safe
+        Map<String, List<Map<String, Object>>> dbData = getDatabase(db);
+        if (dbData == null) {
+            log.debug("Database '{}' not found, skipping dump", db);
+            return;
+        }
+
+        // Shallow copy of collection map to avoid ConcurrentModificationException
+        Map<String, List<Map<String, Object>>> snapshot = new ConcurrentHashMap<>(dbData);
 
         try (FileOutputStream fos = new FileOutputStream(f);
              GZIPOutputStream gzip = new GZIPOutputStream(fos);
@@ -307,7 +322,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             InMemDumpContainer d = new InMemDumpContainer();
             d.setCreated(System.currentTimeMillis());
-            d.setData(getDatabase(db));
+            d.setData(snapshot);
             d.setDb(db);
             Map<String, Object> ser = mapper.serialize(d);
             Utils.writeJson(ser, wr);
