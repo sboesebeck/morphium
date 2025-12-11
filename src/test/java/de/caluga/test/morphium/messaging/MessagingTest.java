@@ -135,6 +135,7 @@ public class MessagingTest extends MorphiumTestBase {
                         q = morph.createQueryFor(Msg.class, messaging1.getCollectionName(msg));
                         assertEquals(1, q.countAll());  //not stored in collection for messaging1 - still 1
                         TestUtils.check(log, "Message stored and not found in messaging1");
+                        // Messages should NOT be received - different queues, sleep to ensure nothing arrives
                         Thread.sleep(500);
                         assertFalse(gotMessage1);
                         assertFalse(gotMessage2);

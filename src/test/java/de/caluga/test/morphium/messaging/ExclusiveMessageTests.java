@@ -154,6 +154,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             m.setProcessedBy(Arrays.asList("someone_else"));
             sender.sendMessage(m);
             Thread.sleep(1000);
+            // Message should NOT be received since processedBy contains someone_else
             assertFalse(gotMessage1 || gotMessage2 || gotMessage3 || gotMessage4);
             morphium.setInEntity(m, m1.getCollectionName(), Map.of(Msg.Fields.processedBy, new ArrayList<String>()));
             Thread.sleep(100);
@@ -183,10 +184,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
             }
 
-            Thread.sleep(5100);
-            assertEquals(0, m1.getNumberOfMessages());
-            assertEquals(0, morphium.createQueryFor(Msg.class, m1.getCollectionName()).countAll());
-            assertEquals(0, morphium.createQueryFor(MsgLock.class, m1.getLockCollectionName()).countAll());
+            TestUtils.waitForConditionToBecomeTrue(10000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Msg collection not empty", () -> morphium.createQueryFor(Msg.class, m1.getCollectionName()).countAll() == 0);
+            TestUtils.waitForConditionToBecomeTrue(5000, "MsgLock collection not empty", () -> morphium.createQueryFor(MsgLock.class, m1.getLockCollectionName()).countAll() == 0);
         } finally {
             m1.terminate();
             m2.terminate();
@@ -261,8 +261,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 assertThat(System.currentTimeMillis() - s).isLessThan(2 * morphium.getConfig().getMaxWaitTime());
             }
 
-            Thread.sleep(100);
-            assertEquals(0, m1.getNumberOfMessages());
+            TestUtils.waitForConditionToBecomeTrue(5000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
         } finally {
             m1.terminate();
             m2.terminate();
@@ -696,8 +695,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         receiver.start();
 
         try {
-            Thread.sleep(5000);
-            assertEquals(1, recCount.get());
+            TestUtils.waitForConditionToBecomeTrue(10000, "Message not received", () -> recCount.get() == 1);
             log.info("waiting for mongo to delete...");
             long start = System.currentTimeMillis();
 
@@ -749,8 +747,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         receiver.start();
 
         try {
-            Thread.sleep(3000);
-            assertEquals(1, recCount.get());
+            TestUtils.waitForConditionToBecomeTrue(10000, "Message not received", () -> recCount.get() == 1);
         } finally {
             sender.terminate();
             receiver.terminate();

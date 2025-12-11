@@ -12,6 +12,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -139,10 +140,9 @@ public class AnsweringTests extends MultiDriverTestBase {
                     lastMsgId = question.getMsgId();
                     onlyAnswers.sendMessage(question);
                     log.info("Send Message with id: " + question.getMsgId());
-                    Thread.sleep(7000);
-                    assertTrue(gotMessage3);//: "no answer got back?";
-                    assertTrue(gotMessage1, "Question not received by m1");
-                    assertTrue(gotMessage2, "Question not received by m2");
+                    TestUtils.waitForConditionToBecomeTrue(15000, "Answer not received", () -> gotMessage3);
+                    TestUtils.waitForConditionToBecomeTrue(5000, "Question not received by m1", () -> gotMessage1);
+                    TestUtils.waitForConditionToBecomeTrue(5000, "Question not received by m2", () -> gotMessage2);
                     assertFalse(error);
                     gotMessage1 = false;
                     gotMessage2 = false;
@@ -341,6 +341,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 Msg msg = new Msg("not asdf", "will it stick", "uahh", 10000);
                 msg.setPriority(1);
                 messaging1.sendMessage(msg);
+                // Message should NOT be received - wrong topic
                 Thread.sleep(5000);
                 assertFalse(gotMessage1);
                 assertFalse(gotMessage2);
@@ -454,9 +455,8 @@ public class AnsweringTests extends MultiDriverTestBase {
                     return null;
                 });
                 sender.sendMessage(new Msg("query", "a query", "avalue"));
-                Thread.sleep(5000);
-                assertTrue(gotMessage1);
-                assertTrue(gotMessage2);
+                TestUtils.waitForConditionToBecomeTrue(10000, "Query not received", () -> gotMessage1);
+                TestUtils.waitForConditionToBecomeTrue(10000, "Answer not received", () -> gotMessage2);
                 Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
                 assertNotNull(answer);;
                 sender.terminate();
