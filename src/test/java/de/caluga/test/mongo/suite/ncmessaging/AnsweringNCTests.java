@@ -316,7 +316,6 @@ public class AnsweringNCTests extends MorphiumTestBase {
         }
         m1.terminate();
         m2.terminate();
-        mor.close();
     }
 
     @Test
