@@ -5,6 +5,84 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.0] - TBD
+
+### Added
+
+#### MorphiumServer Enhancements
+- **Replica set support**: MorphiumServer now supports replica set configuration with automatic primary election and failover
+- **Server CLI**: New standalone `morphium-server-cli.jar` for running MorphiumServer from command line with `--help` option
+- **Replication**: Data replication between MorphiumServer instances in a replica set
+
+#### Messaging
+- **Topic Registry / Network Registry**: New `NetworkRegistry` implementation for discovering messaging topics across the network
+- **MessagingSettings**: New configuration class for messaging-related settings
+
+#### InMemoryDriver
+- **Tailable cursor support**: InMemoryDriver now supports tailable queries
+- **Shared InMemory databases**: Multiple Morphium instances can share the same InMemory database (configurable via `DriverSettings.setShareInMemoryDatabase()`)
+
+#### Driver
+- **Host class**: New `Host` class for improved readability in connection pool management
+- **Shared connection pools**: Connection pool sharing between Morphium instances
+
+### Fixed
+- **Message sending to self**: Fixed broken message sending when sender equals recipient
+- **Deadlocks**: Fixed multiple deadlock scenarios in messaging and server components
+- **Robust shutdown**: Improved shutdown handling across components
+
+### Performance
+
+#### InMemoryDriver Optimizations
+- **Removed global synchronization on `sendCommand()`**: Operations on different collections can now execute in parallel. Previously all commands were serialized through a single synchronized method, causing unnecessary contention.
+
+- **Optimized `find()` deep copy behavior**: Documents are now only copied after query matching succeeds, and projection-aware copying avoids redundant work:
+  - Non-matching documents: No copy (previously copied before match check)
+  - Include projections: Only projected fields are copied (previously full document copied twice)
+  - Exclude projections: Single copy (previously double copy)
+
+- **Improved index lookups for equality queries**: Simple equality queries (e.g., `{field: value}`) now use fast `Objects.equals()` instead of full `matchesQuery()` evaluation. Operator queries (`$gt`, `$lt`, etc.) skip the index path entirely to avoid ineffective bucket scanning.
+
+- **Rewrote TTL expiration checking**:
+  - Collections without TTL indexes have zero overhead (previously all collections scanned every 10 seconds)
+  - TTL index info is cached when indexes are created
+  - No snapshot copy during expiration check - iterates directly on CopyOnWriteArrayList
+  - Auto-cleanup of tracking when collections are dropped
+
+- **`$in` operator optimization**: Changed from O(n*m) to O(n+m) using HashSet lookups
+
+- **Aggregator reuse**: Aggregators are now reused to reduce object allocation
+
+- **Subdocument projection support**: Improved projection handling for nested documents
+
+- **Stats performance**: Improved performance for driver statistics collection
+
+#### MorphiumServer Optimizations
+- **Buffered I/O**: Added 64KB buffered streams for socket read/write operations
+- **ZLIB decompression buffer**: Increased from 100 bytes to 8KB with pre-sized output buffer
+- **Reduced redundant serialization**: Avoid calling `bytes()` multiple times in logging paths
+
+---
+
+## [6.0.3] - 2025-11-28
+
+### Fixed
+- **NPE in MultiCollectionMessaging**: Fixed null pointer exception in `getLockCollectionName()` when building lock collection names
+
+---
+
+## [6.0.2] - 2025-10-16
+
+### Fixed
+- **NPE in Query.set() methods**: Changed from `Map.of()` to `Doc.of()` to allow null values in set operations
+- **NPE in Msg.preStore()**: Initialize `processedBy` list if null before validation
+
+### Changed
+- **Default queue name handling**: Setting queue name to "msg" now resets to default (null) for backward compatibility
+- **Build configuration**: Added `runOrder=filesystem` to surefire plugin for consistent test execution
+
+---
+
 ## [6.0.1] - TBD
 
 > 📖 **Detailed release notes**: [docs/releases/CHANGELOG-6.0.1.md](docs/releases/CHANGELOG-6.0.1.md)

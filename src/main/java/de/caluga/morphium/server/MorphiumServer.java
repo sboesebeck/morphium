@@ -451,8 +451,9 @@ public class MorphiumServer {
             s.setSoTimeout(0);
             s.setTcpNoDelay(true);
             s.setKeepAlive(true);
-            var in = s.getInputStream();
-            var out = s.getOutputStream();
+            // Use buffered streams for better I/O performance
+            var in = new java.io.BufferedInputStream(s.getInputStream(), 65536);
+            var out = new java.io.BufferedOutputStream(s.getOutputStream(), 65536);
             int id = 0;
             //            OpMsg r = new OpMsg();
             //            r.setFlags(2);
@@ -505,11 +506,13 @@ public class MorphiumServer {
                             byte[] originalPayload = r.getPayload();
                             cmp.setUncompressedSize(originalPayload.length);
                             cmp.setCompressedMessage(originalPayload);
-                            log.debug("Sending compressed OpReply: {} bytes (uncompressed: {} bytes)", cmp.bytes().length, originalPayload.length);
-                            out.write(cmp.bytes());
+                            byte[] compressedBytes = cmp.bytes();
+                            log.debug("Sending compressed OpReply: {} bytes (uncompressed: {} bytes)", compressedBytes.length, originalPayload.length);
+                            out.write(compressedBytes);
                         } else {
-                            log.debug("Sending OpReply: {} bytes", r.bytes().length);
-                            out.write(r.bytes());
+                            byte[] replyBytes = r.bytes();
+                            log.debug("Sending OpReply: {} bytes", replyBytes.length);
+                            out.write(replyBytes);
                         }
 
                         out.flush();
