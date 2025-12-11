@@ -74,6 +74,8 @@ cfg.driverSettings()
 |--------|---------|-------------|
 | `setDriverName(String)` | "PooledDriver" | Driver implementation to use |
 | `setIdleSleepTime(int)` | 5 | Sleep time between idle checks (ms) |
+| `setSharedConnectionPool(boolean)` | false | Share driver/connection pool across Morphium instances with same hosts+database |
+| `setInMemorySharedDatabases(boolean)` | false | Share InMemoryDriver instance across Morphium instances with same database |
 
 ### Available Drivers
 - **`PooledDriver`** (default): Connection pooling with replica set support
