@@ -3,7 +3,7 @@ package de.caluga.morphium;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import org.slf4j.LoggerFactory;
 
-import java.util.Hashtable;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * User: Stephan Bösebeck
@@ -13,7 +13,7 @@ import java.util.Hashtable;
  * Name Providers define the name of a given collection. Can be set in config for any type
  */
 public final class DefaultNameProvider implements NameProvider {
-    private final Hashtable<Class<?>, String> collectionNameCache = new Hashtable<>();
+    private final ConcurrentHashMap<Class<?>, String> collectionNameCache = new ConcurrentHashMap<>();
 
     @Override
     public String getCollectionName(Class<?> type, MorphiumObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
@@ -24,7 +24,7 @@ public final class DefaultNameProvider implements NameProvider {
         if (name == null) {
             name = type.getSimpleName();
             if (useFQN) {
-                name = type.getName().replaceAll("\\.", "_");
+                name = type.getName().replace(".", "_");
             }
 
             if (translateCamelCase) {
