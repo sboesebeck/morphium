@@ -205,6 +205,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private boolean running = true;
     private int expireCheck = 10000;
     private ScheduledFuture<?> expire;
+    // Track collections with TTL indexes to avoid scanning all collections during expiration check
+    // Key format: "db.collection", Value: TTL index info (field name, expireAfterSeconds)
+    private final Map<String, TtlIndexInfo> collectionsWithTtlIndex = new ConcurrentHashMap<>();
+
+    private static class TtlIndexInfo {
+        final String fieldName;
+        final int expireAfterSeconds;
+
+        TtlIndexInfo(String fieldName, int expireAfterSeconds) {
+            this.fieldName = fieldName;
+            this.expireAfterSeconds = expireAfterSeconds;
+        }
+    }
     private String replicaSetName;
     private boolean replicaSetEnabled = false;
     private final AtomicInteger activeConnections = new AtomicInteger(0);
@@ -345,6 +358,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         indexDataByDBCollection.clear();
         indicesByDbCollection.clear();
         cappedCollections.clear();
+        collectionsWithTtlIndex.clear();
 
         for (var o : monitors) {
             synchronized (o) {
@@ -1746,87 +1760,74 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private void scheduleExpire() {
         expire = exec.scheduleWithFixedDelay(() -> {
-            // checking indexes for expire options
-            // log.info("Checking expire indices");
+            // Only check collections that have TTL indexes - skip all others
+            if (collectionsWithTtlIndex.isEmpty()) {
+                return;
+            }
 
             try {
-                for (String db : database.keySet()) {
-                    for (String coll : database.get(db).keySet()) {
-                        // log.info("Checking collection {} - size {}", coll, getCollection(db,
-                        // coll).size());
-                        if (getCollection(db, coll).isEmpty()) {
-                            continue;
-                        }
-                        var idx = getIndexes(db, coll);
+                for (Map.Entry<String, TtlIndexInfo> entry : collectionsWithTtlIndex.entrySet()) {
+                    String key = entry.getKey();
+                    TtlIndexInfo ttlInfo = entry.getValue();
 
-                        for (var i : idx) {
-                            Map<String, Object> options = (Map<String, Object>) i.get("$options");
+                    // Parse db.collection from key
+                    int dotIdx = key.indexOf('.');
+                    if (dotIdx < 0) continue;
+                    String db = key.substring(0, dotIdx);
+                    String coll = key.substring(dotIdx + 1);
 
-                            if (options != null && options.containsKey("expireAfterSeconds")) {
-                                // log.info("Found collection candidate for expire...{}.{}", db, coll);
+                    // Check if collection still exists
+                    if (!database.containsKey(db) || !database.get(db).containsKey(coll)) {
+                        collectionsWithTtlIndex.remove(key);
+                        continue;
+                    }
 
-                                var k = new HashMap<>(i);
-                                k.remove("$options");
-                                var keys = k.keySet().toArray(new String[] {});
+                    List<Map<String, Object>> collectionData = getCollection(db, coll);
+                    if (collectionData.isEmpty()) {
+                        continue;
+                    }
 
-                                if (keys.length > 1) {
-                                    log.error("Too many keys for expire-index!!!");
-                                } else {
-                                    try {
-                                        Date threshold = new Date(System.currentTimeMillis()
-                                                                  - ((int) options.get("expireAfterSeconds")) * 1000);
-                                        List<Map<String, Object>> snapshot = new ArrayList<>(getCollection(db, coll));
-                                        List<Map<String, Object>> toRemove = new ArrayList<>();
-                                        // log.info("Checking {} candidates for key {}", snapshot.size(), keys[0]);
+                    try {
+                        long thresholdMs = System.currentTimeMillis() - (ttlInfo.expireAfterSeconds * 1000L);
+                        Date threshold = new Date(thresholdMs);
+                        List<Map<String, Object>> toRemove = new ArrayList<>();
 
-                                        for (Map<String, Object> existing : snapshot) {
-                                            Object val = existing.get(keys[0]);
+                        // Iterate directly - CopyOnWriteArrayList is safe for concurrent reads
+                        for (Map<String, Object> existing : collectionData) {
+                            Object val = existing.get(ttlInfo.fieldName);
 
-                                            if (val == null) {
-                                                // log.info("Objects value for {} is null", keys[0]);
-                                                continue;
-                                            }
-                                            // log.info("Objects value for {} is {}", keys[0], val);
+                            if (val == null) {
+                                continue;
+                            }
 
-                                            boolean expired;
+                            boolean expired;
+                            if (val instanceof Date) {
+                                expired = !((Date) val).after(threshold);
+                            } else if (val instanceof Number) {
+                                expired = ((Number) val).longValue() <= thresholdMs;
+                            } else {
+                                // Fallback for non-standard types
+                                expired = QueryHelper.matchesQuery(
+                                    Doc.of(ttlInfo.fieldName, Doc.of("$lte", threshold)), existing, null);
+                            }
 
-                                            if (val instanceof Date) {
-                                                // log.info("value is of type date: {}", val);
-                                                expired = !((Date) val).after(threshold);
-                                            } else if (val instanceof Number) {
-                                                // log.info("value is of type number: {}", val);
-                                                expired = ((Number) val).longValue() <= threshold.getTime();
-                                            } else {
-                                                log.warn(
-                                                                "expireAfterSeconds value is not Number or date: {} of type {}",
-                                                                val, val.getClass().getName());
-                                                expired = QueryHelper.matchesQuery(
-                                                                          Doc.of(keys[0], Doc.of("$lte", threshold)), existing, null);
-                                            }
-                                            // log.info("expired: {}", expired);
-
-                                            if (expired) {
-                                                toRemove.add(existing);
-                                            }
-                                        }
-
-                                        if (!toRemove.isEmpty()) {
-                                            for (Map<String, Object> o : toRemove) {
-                                                getCollection(db, coll).remove(o);
-                                            }
-
-                                            updateIndexData(db, coll, null);
-                                        }
-                                    } catch (Exception e) {
-                                        log.error("Error", e);
-                                    }
-                                }
+                            if (expired) {
+                                toRemove.add(existing);
                             }
                         }
+
+                        if (!toRemove.isEmpty()) {
+                            for (Map<String, Object> o : toRemove) {
+                                collectionData.remove(o);
+                            }
+                            updateIndexData(db, coll, null);
+                        }
+                    } catch (Exception e) {
+                        log.error("Error processing TTL for {}", key, e);
                     }
                 }
             } catch (Exception e) {
-                log.error("Error", e);
+                log.error("Error in TTL expiration check", e);
             }
         }, 100, expireCheck, TimeUnit.MILLISECONDS);
     }
@@ -4685,6 +4686,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (indicesByDbCollection.containsKey(db)) {
                 indicesByDbCollection.get(db).remove(collection);
             }
+
+            // Remove from TTL tracking
+            collectionsWithTtlIndex.remove(db + "." + collection);
         } finally {
             lock.writeLock().unlock();
         }
@@ -5167,6 +5171,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             //
         }
+
+        // Track TTL index for efficient expiration checking
+        if (options != null && options.containsKey("expireAfterSeconds")) {
+            // Get the field name (should be single field for TTL index)
+            String fieldName = null;
+            for (String k : indexDef.keySet()) {
+                if (!k.startsWith("$")) {
+                    fieldName = k;
+                    break;
+                }
+            }
+            if (fieldName != null) {
+                Object expireVal = options.get("expireAfterSeconds");
+                int expireSeconds = (expireVal instanceof Number) ? ((Number) expireVal).intValue() : 0;
+                collectionsWithTtlIndex.put(db + "." + collection, new TtlIndexInfo(fieldName, expireSeconds));
+            }
+        }
+
         updateIndexData(db, collection, options);
     }
 
