@@ -110,7 +110,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     // Key used for shared driver lookup (null if not using shared driver)
     private String sharedDriverKey = null;
 
-    private static Vector<Morphium> instances = new Vector<>();
+    private static java.util.List<Morphium> instances = new java.util.concurrent.CopyOnWriteArrayList<>();
     private static AtomicInteger maxInstances = new AtomicInteger();
     // Map to track InMemoryDriver instances by database name for sharing within a test scope
     private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> inMemoryDriversByDatabase = new java.util.concurrent.ConcurrentHashMap<>();

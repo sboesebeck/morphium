@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Vector;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -74,7 +74,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private Map<String, List<Map<MType, Object>>> monitorsByTopic = new ConcurrentHashMap<>();
     private AtomicBoolean running = new AtomicBoolean(false);
     private Map<String, String> lockCollectionNames = new ConcurrentHashMap<>();
-    private static Vector<MultiCollectionMessaging> allMessagings = new Vector<>();
+    private static List<MultiCollectionMessaging> allMessagings = new CopyOnWriteArrayList<>();
     private Set<String> pausedTopics = ConcurrentHashMap.newKeySet();
     private StatusInfoListener statusInfoListener = new StatusInfoListener();
     private String hostname = null;
@@ -131,7 +131,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     public List<MorphiumMessaging> getAlternativeMessagings() {
-        return new Vector<>(allMessagings);
+        return new ArrayList<>(allMessagings);
     }
 
     public String getDMCollectionName() {
@@ -433,7 +433,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public String getCollectionName(String n) {
-        return (getCollectionName() + "_" + n).replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
+        return (getCollectionName() + "_" + n).replaceAll("[\\s\\-/]", "");
     }
 
     private MsgLock getLock(Msg m) {
@@ -458,7 +458,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     public String getLockCollectionName(String name) {
         if (lockCollectionNames.get(name) == null) {
             String v = getLockCollectionName() + "_" + name;
-            v = v.replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
+            v = v.replaceAll("[\\s\\-/]", "");
             lockCollectionNames.put (name, v);
         }
         return lockCollectionNames.get(name);

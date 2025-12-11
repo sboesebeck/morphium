@@ -77,7 +77,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private int windowSize = 100;
     private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
-    private static Vector<SingleCollectionMessaging> allMessagings = new Vector<>();
+    private static List<SingleCollectionMessaging> allMessagings = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     // answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
@@ -86,7 +86,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private final BlockingQueue<ProcessingQueueElement> processing = new PriorityBlockingQueue<>();
 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
-    private final List<MorphiumId> idsInProgress = new Vector<>();
+    private final List<MorphiumId> idsInProgress = new java.util.concurrent.CopyOnWriteArrayList<>();
     // Debug counter for InMemoryDriver
     private final AtomicInteger changeStreamEventsReceived = new AtomicInteger(0);
     private MessagingSettings settings = null;
