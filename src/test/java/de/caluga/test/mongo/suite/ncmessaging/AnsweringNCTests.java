@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -148,9 +149,10 @@ public class AnsweringNCTests extends MorphiumTestBase {
                         lastMsgId = question.getMsgId();
                         onlyAnswers.sendMessage(question);
                         log.info("Send Message with id: " + question.getMsgId());
-                        Thread.sleep(1000);
-                        cnt = morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
-            assert (cnt == 1);
+                        final MorphiumId questionId = question.getMsgId();
+                        TestUtils.waitForConditionToBecomeTrue(10000, "Answer not received", () ->
+                            morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(questionId).countAll() == 1
+                        );
 
                     } finally {
                         m1.terminate();
@@ -296,6 +298,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m2.setSenderId("m2");
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
+        Thread.sleep(1000); // Allow messaging to fully start
 
         m2.addListenerForTopic("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
@@ -385,6 +388,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     @Test
     public void sendAndWaitforAnswerTestFailing() {
+        // When sending a message to yourself (without using sendMessageToSelf),
+        // you should NOT receive it, so this should timeout
         assertThrows(RuntimeException.class, ()-> {
             SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 100, false);
             log.info("Upcoming Errormessage is expected!");
@@ -411,6 +416,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
 //        morphium.dropCollection(Msg.class);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
+        Thread.sleep(500); // Allow sender to start
 
         gotMessage1 = false;
         gotMessage2 = false;
