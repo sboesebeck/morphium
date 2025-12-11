@@ -2757,6 +2757,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<Map<String, Object>> ret = null;
         int bucketId = 0;
         StringBuilder fieldList = new StringBuilder();
+
+        // Check if this is a simple equality query (no operators like $gt, $in, etc.)
+        // Operator queries have Map values, equality queries have direct values
+        boolean isSimpleEqualityQuery = true;
+        for (Object value : query.values()) {
+            if (value instanceof Map) {
+                // This is an operator query like {field: {$gt: 5}}
+                isSimpleEqualityQuery = false;
+                break;
+            }
+        }
+
+        // For operator queries, index bucket lookup won't work - return null to use full scan
+        if (!isSimpleEqualityQuery) {
+            return null;
+        }
+
         for (Map<String, Object> idx : getIndexes(db, collection)) {
             if (idx.size() > query.size()) {
                 continue;
@@ -2780,35 +2797,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             if (found) {
                 // all keys in this index are found in query
-                // log.debug("Index hit");
                 String fields = fieldList.toString();
                 Map<Integer, List<Map<String, Object>>> indexDataForCollection = getIndexDataForCollection(db,
                     collection, fields);
                 ret = indexDataForCollection.get(bucketId);
-                if (ret == null || ret.size() == 0) {
-                    // no direkt hit, need to use index data
-                    //
-                    // log.debug("indirect Index hit - fields: "+fields+" Index size:
-                    // "+indexDataForCollection.size());
-                    ret = new ArrayList<>();
-
-                    //// long start = System.currentTimeMillis();
-                    for (Map.Entry<Integer, List<Map<String, Object>>> k : indexDataForCollection.entrySet()) {
-                        for (Map<String, Object> o : k.getValue()) {
-                            if (QueryHelper.matchesQuery(query, o, null)) {
-                                ret.add(o);
+                if (ret != null && ret.size() > 0) {
+                    // Direct bucket hit - for simple equality queries, filter by exact value match
+                    // This handles hash collisions without full matchesQuery overhead
+                    List<Map<String, Object>> filtered = new ArrayList<>();
+                    for (Map<String, Object> doc : ret) {
+                        boolean matches = true;
+                        for (Map.Entry<String, Object> qe : query.entrySet()) {
+                            Object docVal = doc.get(qe.getKey());
+                            Object queryVal = qe.getValue();
+                            if (!Objects.equals(docVal, queryVal)) {
+                                matches = false;
+                                break;
                             }
                         }
-
-                        // ret.addAll(indexDataForCollection.get(k.getKey()));
+                        if (matches) {
+                            filtered.add(doc);
+                        }
                     }
-
-                    //// long dur = System.currentTimeMillis() - start;
-                    //// log.info("Duration index assembling: " + dur + "ms - "+ret.size());
-                    if (ret.size() == 0) {
-                        // //log.error("Index miss although index exists");
-                        ret = null;
-                    }
+                    ret = filtered.isEmpty() ? null : filtered;
+                } else {
+                    ret = null;
                 }
                 break;
             }
