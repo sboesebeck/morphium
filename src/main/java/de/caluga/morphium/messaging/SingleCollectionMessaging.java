@@ -840,6 +840,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // q2: non-exclusive messages, cannot be locked, not processed by me yet
             var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
             q.f("_id").nin(idsToIgnore);
+            q.f(Msg.Fields.sender).ne(id);  // Don't receive messages sent by myself
             q.f(Msg.Fields.recipients).in(Arrays.asList(null, id));
             Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
