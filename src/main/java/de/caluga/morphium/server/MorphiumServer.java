@@ -67,6 +67,10 @@ public class MorphiumServer {
     private volatile boolean replicationStarted = false;
     private volatile boolean initialSyncDone = true;
 
+    // SSL configuration
+    private boolean sslEnabled = false;
+    private javax.net.ssl.SSLContext sslContext = null;
+
     public MorphiumServer(int port, String host, int maxThreads, int minThreads, int compressorId) {
         this.drv = new InMemoryDriver();
         this.port = port;
@@ -90,6 +94,56 @@ public class MorphiumServer {
 
     private InMemoryDriver getDriver() {
         return drv;
+    }
+
+    // SSL configuration methods
+    public boolean isSslEnabled() {
+        return sslEnabled;
+    }
+
+    public void setSslEnabled(boolean sslEnabled) {
+        this.sslEnabled = sslEnabled;
+    }
+
+    public javax.net.ssl.SSLContext getSslContext() {
+        return sslContext;
+    }
+
+    public void setSslContext(javax.net.ssl.SSLContext sslContext) {
+        this.sslContext = sslContext;
+    }
+
+    /**
+     * Create an SSLServerSocket with the configured SSLContext.
+     * If no SSLContext is set, uses the default SSLContext.
+     */
+    private ServerSocket createSslServerSocket(int port) throws IOException {
+        javax.net.ssl.SSLContext ctx = sslContext;
+        if (ctx == null) {
+            try {
+                ctx = javax.net.ssl.SSLContext.getDefault();
+            } catch (java.security.NoSuchAlgorithmException e) {
+                throw new IOException("Failed to get default SSLContext", e);
+            }
+        }
+
+        javax.net.ssl.SSLServerSocketFactory factory = ctx.getServerSocketFactory();
+        javax.net.ssl.SSLServerSocket sslServerSocket = (javax.net.ssl.SSLServerSocket) factory.createServerSocket(port);
+
+        // Configure SSL parameters - require TLS 1.2 or higher
+        String[] enabledProtocols = sslServerSocket.getSupportedProtocols();
+        List<String> secureProtocols = new ArrayList<>();
+        for (String protocol : enabledProtocols) {
+            if (protocol.equals("TLSv1.2") || protocol.equals("TLSv1.3")) {
+                secureProtocols.add(protocol);
+            }
+        }
+        if (!secureProtocols.isEmpty()) {
+            sslServerSocket.setEnabledProtocols(secureProtocols.toArray(new String[0]));
+        }
+
+        log.info("SSL ServerSocket created with protocols: {}", Arrays.toString(sslServerSocket.getEnabledProtocols()));
+        return sslServerSocket;
     }
 
     private HelloResult getHelloResult() {
@@ -125,8 +179,12 @@ public class MorphiumServer {
     }
 
     public void start() throws IOException, InterruptedException {
-        log.info("Opening port " + port);
-        serverSocket = new ServerSocket(port);
+        log.info("Opening port " + port + (sslEnabled ? " (SSL enabled)" : ""));
+        if (sslEnabled) {
+            serverSocket = createSslServerSocket(port);
+        } else {
+            serverSocket = new ServerSocket(port);
+        }
         drv.setHostSeed(host + ":" + port);
         drv.setReplicaSet(rsName != null && !rsName.isEmpty());
         drv.setReplicaSetName(rsName == null ? "" : rsName);
