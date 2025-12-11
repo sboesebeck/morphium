@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Message sending to self**: Fixed broken message sending when sender equals recipient
 - **Deadlocks**: Fixed multiple deadlock scenarios in messaging and server components
 - **Robust shutdown**: Improved shutdown handling across components
+- **NPE in QueryHelper.matchesQuery**: Fixed null pointer exception when comparing MorphiumId/ObjectId fields against null query values
+
+### Changed
+- **Modernized concurrent collections**: Replaced legacy `Vector` with `CopyOnWriteArrayList` and `Hashtable` with `ConcurrentHashMap` for better performance
+- **Optimized string operations**: Consolidated multiple `replaceAll()` calls into single regex patterns, replaced `replaceAll()` with `replace()` for literal string replacements
 
 ### Performance
 

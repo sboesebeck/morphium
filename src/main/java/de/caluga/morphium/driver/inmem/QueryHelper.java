@@ -1099,7 +1099,11 @@ public class QueryHelper {
                         // Note: query may contain multiple fields due to auto-variables, but we only check keyQuery
 
                         if (toCheck.get(keyQuery) instanceof MorphiumId || toCheck.get(keyQuery) instanceof ObjectId) {
-                            return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString());
+                            Object queryValue = query.get(keyQuery);
+                            if (queryValue == null) {
+                                return false;
+                            }
+                            return toCheck.get(keyQuery).toString().equals(queryValue.toString());
                         }
 
                         if (toCheck.get(keyQuery) instanceof List) {
