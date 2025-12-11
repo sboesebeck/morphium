@@ -67,6 +67,8 @@ You can configure the MorphiumServer using the following command-line arguments:
 | `--ssl`, `--tls` | Enable SSL/TLS encrypted connections. | disabled |
 | `--sslKeystore <path>` | Path to JKS or PKCS12 keystore file containing server certificate. | |
 | `--sslKeystorePassword <pw>` | Password for the keystore. | |
+| `-d`, `--dump-dir <path>` | Directory for periodic database dumps. Enables persistence. | |
+| `--dump-interval <seconds>` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
 | `-h`, `--help` | Print this help message and exit. | |
 
 Example:
@@ -87,6 +89,61 @@ Practical tips:
 1. Always include all hosts in `--rs-seed` so nodes can find a sync source.
 2. Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.
 3. Keep in mind that this is still meant for testing: persistence and durability are unchanged.
+
+### Persistence (Periodic Snapshots)
+
+MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.
+
+**How it works:**
+- On startup: If dump files exist in the configured directory, they are automatically restored
+- During runtime: If `--dump-interval` is set, databases are dumped periodically
+- On shutdown: A final dump is performed to capture all changes
+
+**Quick Start with Persistence:**
+
+```bash
+# Start with persistence - dumps every 5 minutes
+java -jar target/morphium-*-server-cli.jar -p 27017 \
+  --dump-dir /var/morphium/data --dump-interval 300
+
+# Start with persistence - dump only on shutdown
+java -jar target/morphium-*-server-cli.jar -p 27017 \
+  --dump-dir /var/morphium/data
+```
+
+**Programmatic Configuration:**
+```java
+import de.caluga.morphium.server.MorphiumServer;
+import java.io.File;
+
+MorphiumServer server = new MorphiumServer(27017, "localhost", 100, 10);
+
+// Configure persistence
+server.setDumpDirectory(new File("/var/morphium/data"));
+server.setDumpIntervalMs(300000); // 5 minutes
+
+// Restore previous state before starting
+try {
+    int restored = server.restoreFromDump();
+    System.out.println("Restored " + restored + " databases");
+} catch (Exception e) {
+    System.out.println("Starting fresh: " + e.getMessage());
+}
+
+server.start();
+
+// Manual dump if needed
+server.dumpNow();
+```
+
+**Dump File Format:**
+- Each database is saved as `<dbname>.morphium.gz` (gzip-compressed JSON)
+- Files can be inspected with `zcat <file>.morphium.gz | jq .`
+
+**Limitations:**
+- Not a real-time persistence solution (no write-ahead log)
+- Data between dump intervals may be lost on crash
+- Suitable for development/testing, not production
 
 ### SSL/TLS Configuration
 
@@ -448,9 +505,10 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
 ## Limitations
 
 ### Data Persistence
-- ❌ **No Disk Storage** - All data in memory, lost on restart
-- ❌ **No Recovery** - No WAL or recovery mechanism
-- 💡 **Workaround** - Implement periodic export/import
+- ✅ **Periodic Snapshots** - Dump/restore to disk (since v6.1.0)
+- ❌ **No Real-time Persistence** - No WAL or journaling
+- ❌ **Crash Risk** - Data between dumps may be lost on crash
+- 💡 **Tip** - Use short dump intervals for important data
 
 ### Scalability
 - ❌ **Single Instance** - No sharding support

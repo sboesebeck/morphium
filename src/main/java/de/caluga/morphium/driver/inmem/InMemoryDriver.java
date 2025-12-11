@@ -292,6 +292,79 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         gzip.close();
     }
 
+    /**
+     * Dump a single database to file without requiring a Morphium instance.
+     * Useful for MorphiumServer persistence.
+     */
+    public void dumpToFile(String db, File f) throws IOException {
+        ObjectMapperImpl mapper = new ObjectMapperImpl();
+        MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
+        mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
+
+        try (FileOutputStream fos = new FileOutputStream(f);
+             GZIPOutputStream gzip = new GZIPOutputStream(fos);
+             OutputStreamWriter wr = new OutputStreamWriter(gzip)) {
+
+            InMemDumpContainer d = new InMemDumpContainer();
+            d.setCreated(System.currentTimeMillis());
+            d.setData(getDatabase(db));
+            d.setDb(db);
+            Map<String, Object> ser = mapper.serialize(d);
+            Utils.writeJson(ser, wr);
+            wr.flush();
+            gzip.finish();
+        }
+    }
+
+    /**
+     * Dump all databases to a directory. Each database is saved as a separate file.
+     * @param dir Directory to dump to
+     * @return Number of databases dumped
+     */
+    public int dumpAllToDirectory(File dir) throws IOException {
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        if (!dir.isDirectory()) {
+            throw new IOException("Path is not a directory: " + dir.getAbsolutePath());
+        }
+
+        int count = 0;
+        for (String dbName : listDatabases()) {
+            File dbFile = new File(dir, dbName + ".morphium.gz");
+            log.info("Dumping database '{}' to {}", dbName, dbFile.getAbsolutePath());
+            dumpToFile(dbName, dbFile);
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * Restore all databases from a directory.
+     * @param dir Directory containing .morphium.gz dump files
+     * @return Number of databases restored
+     */
+    public int restoreAllFromDirectory(File dir) throws IOException, ParseException {
+        if (!dir.exists() || !dir.isDirectory()) {
+            log.warn("Dump directory does not exist or is not a directory: {}", dir.getAbsolutePath());
+            return 0;
+        }
+
+        File[] dumpFiles = dir.listFiles((d, name) -> name.endsWith(".morphium.gz"));
+        if (dumpFiles == null || dumpFiles.length == 0) {
+            log.info("No dump files found in {}", dir.getAbsolutePath());
+            return 0;
+        }
+
+        int count = 0;
+        for (File dumpFile : dumpFiles) {
+            log.info("Restoring from {}", dumpFile.getAbsolutePath());
+            restoreFromFile(dumpFile);
+            count++;
+        }
+        return count;
+    }
+
     private MorphiumTypeMapper<ObjectId> getObjectIdTypeMapper() {
         return new MorphiumTypeMapper<ObjectId>() {
             @Override

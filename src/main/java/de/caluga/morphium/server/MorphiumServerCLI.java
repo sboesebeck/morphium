@@ -37,6 +37,10 @@ public class MorphiumServerCLI {
         String keystorePath = null;
         String keystorePassword = null;
 
+        // Persistence configuration
+        String dumpDir = null;
+        long dumpIntervalSec = 0;
+
         while (idx < args.length) {
             switch (args[idx]) {
                 case "--help":
@@ -130,6 +134,17 @@ public class MorphiumServerCLI {
                     idx += 2;
                     break;
 
+                case "--dump-dir":
+                case "-d":
+                    dumpDir = args[idx + 1];
+                    idx += 2;
+                    break;
+
+                case "--dump-interval":
+                    dumpIntervalSec = Long.parseLong(args[idx + 1]);
+                    idx += 2;
+                    break;
+
                 default:
                     log.error("unknown parameter " + args[idx]);
                     System.exit(1);
@@ -154,6 +169,28 @@ public class MorphiumServerCLI {
                 }
             }
             srv.setSslEnabled(true);
+        }
+
+        // Configure persistence if enabled
+        if (dumpDir != null) {
+            java.io.File dir = new java.io.File(dumpDir);
+            srv.setDumpDirectory(dir);
+            log.info("Persistence enabled: dump directory = {}", dir.getAbsolutePath());
+
+            if (dumpIntervalSec > 0) {
+                srv.setDumpIntervalMs(dumpIntervalSec * 1000);
+                log.info("Periodic dumps every {} seconds", dumpIntervalSec);
+            }
+
+            // Restore previous state if dump files exist
+            try {
+                int restored = srv.restoreFromDump();
+                if (restored > 0) {
+                    log.info("Restored {} databases from previous dump", restored);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to restore from dump (starting fresh): {}", e.getMessage());
+            }
         }
 
         srv.start();
@@ -187,9 +224,15 @@ public class MorphiumServerCLI {
         System.out.println("  --sslKeystore <path>       : Path to JKS or PKCS12 keystore file");
         System.out.println("  --sslKeystorePassword <pw> : Password for the keystore");
         System.out.println();
+        System.out.println("Persistence Options:");
+        System.out.println("  -d, --dump-dir <path>      : Directory for periodic database dumps");
+        System.out.println("                               Enables persistence: restores on startup, dumps on shutdown");
+        System.out.println("  --dump-interval <seconds>  : Interval between periodic dumps (default: 0 = only on shutdown)");
+        System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
-        System.out.println("Example:");
+        System.out.println("Examples:");
         System.out.println("  java -jar morphium-server.jar -p 27018 --ssl --sslKeystore server.jks --sslKeystorePassword changeit");
+        System.out.println("  java -jar morphium-server.jar -p 27017 --dump-dir /var/morphium/data --dump-interval 300");
     }
 }

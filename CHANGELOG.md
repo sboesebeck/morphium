@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `server.setSslEnabled(true)` to enable SSL
   - `server.setSslContext(sslContext)` for custom SSL configuration
   - Automatic TLS 1.2/1.3 protocol selection
+- **Periodic snapshots/persistence**: MorphiumServer can now dump databases to disk and restore on startup
+  - `--dump-dir <path>` CLI option to enable persistence
+  - `--dump-interval <seconds>` for periodic dumps during runtime
+  - Automatic restore from dump files on startup
+  - Final dump on graceful shutdown
+  - Programmatic API: `setDumpDirectory()`, `setDumpIntervalMs()`, `dumpNow()`, `restoreFromDump()`
 
 ### Fixed
 - **Message sending to self**: Fixed broken message sending when sender equals recipient

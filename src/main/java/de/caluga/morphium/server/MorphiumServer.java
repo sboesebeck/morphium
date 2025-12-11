@@ -71,6 +71,12 @@ public class MorphiumServer {
     private boolean sslEnabled = false;
     private javax.net.ssl.SSLContext sslContext = null;
 
+    // Persistence configuration
+    private java.io.File dumpDirectory = null;
+    private long dumpIntervalMs = 0; // 0 = disabled
+    private java.util.concurrent.ScheduledExecutorService dumpScheduler = null;
+    private volatile long lastDumpTime = 0;
+
     public MorphiumServer(int port, String host, int maxThreads, int minThreads, int compressorId) {
         this.drv = new InMemoryDriver();
         this.port = port;
@@ -111,6 +117,118 @@ public class MorphiumServer {
 
     public void setSslContext(javax.net.ssl.SSLContext sslContext) {
         this.sslContext = sslContext;
+    }
+
+    // Persistence configuration methods
+
+    /**
+     * Set the directory for periodic database dumps.
+     * @param dir Directory to store dump files
+     */
+    public void setDumpDirectory(java.io.File dir) {
+        this.dumpDirectory = dir;
+    }
+
+    public java.io.File getDumpDirectory() {
+        return dumpDirectory;
+    }
+
+    /**
+     * Set the interval for periodic database dumps.
+     * @param intervalMs Interval in milliseconds (0 = disabled)
+     */
+    public void setDumpIntervalMs(long intervalMs) {
+        this.dumpIntervalMs = intervalMs;
+    }
+
+    public long getDumpIntervalMs() {
+        return dumpIntervalMs;
+    }
+
+    /**
+     * Get the timestamp of the last successful dump.
+     */
+    public long getLastDumpTime() {
+        return lastDumpTime;
+    }
+
+    /**
+     * Manually trigger a database dump to the configured directory.
+     * @return Number of databases dumped
+     */
+    public int dumpNow() throws IOException {
+        if (dumpDirectory == null) {
+            throw new IOException("Dump directory not configured");
+        }
+        int count = drv.dumpAllToDirectory(dumpDirectory);
+        lastDumpTime = System.currentTimeMillis();
+        log.info("Dumped {} databases to {}", count, dumpDirectory.getAbsolutePath());
+        return count;
+    }
+
+    /**
+     * Restore databases from the configured dump directory.
+     * Should be called before start() to restore previous state.
+     * @return Number of databases restored
+     */
+    public int restoreFromDump() throws IOException {
+        if (dumpDirectory == null) {
+            throw new IOException("Dump directory not configured");
+        }
+        try {
+            int count = drv.restoreAllFromDirectory(dumpDirectory);
+            log.info("Restored {} databases from {}", count, dumpDirectory.getAbsolutePath());
+            return count;
+        } catch (org.json.simple.parser.ParseException e) {
+            throw new IOException("Failed to parse dump file", e);
+        }
+    }
+
+    /**
+     * Start the periodic dump scheduler.
+     */
+    private void startDumpScheduler() {
+        if (dumpIntervalMs <= 0 || dumpDirectory == null) {
+            return;
+        }
+
+        dumpScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "MorphiumServer-DumpScheduler");
+            t.setDaemon(true);
+            return t;
+        });
+
+        dumpScheduler.scheduleAtFixedRate(() -> {
+            try {
+                int count = drv.dumpAllToDirectory(dumpDirectory);
+                lastDumpTime = System.currentTimeMillis();
+                if (count > 0) {
+                    log.info("Periodic dump: {} databases saved to {}", count, dumpDirectory.getAbsolutePath());
+                }
+            } catch (Exception e) {
+                log.error("Failed to dump databases: {}", e.getMessage(), e);
+            }
+        }, dumpIntervalMs, dumpIntervalMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+        log.info("Dump scheduler started: interval={}ms, directory={}", dumpIntervalMs, dumpDirectory.getAbsolutePath());
+    }
+
+    /**
+     * Stop the periodic dump scheduler.
+     */
+    private void stopDumpScheduler() {
+        if (dumpScheduler != null) {
+            dumpScheduler.shutdown();
+            try {
+                if (!dumpScheduler.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    dumpScheduler.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                dumpScheduler.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            dumpScheduler = null;
+        }
     }
 
     /**
@@ -189,6 +307,10 @@ public class MorphiumServer {
         drv.setReplicaSet(rsName != null && !rsName.isEmpty());
         drv.setReplicaSetName(rsName == null ? "" : rsName);
         executor.prestartAllCoreThreads();
+
+        // Start periodic dump scheduler if configured
+        startDumpScheduler();
+
         log.info("Port opened, waiting for incoming connections");
         new Thread(()-> {
             while (running) {
@@ -813,6 +935,20 @@ public class MorphiumServer {
 
     public void terminate() {
         running = false;
+
+        // Stop dump scheduler
+        stopDumpScheduler();
+
+        // Final dump on shutdown if persistence is configured
+        if (dumpDirectory != null) {
+            try {
+                log.info("Performing final dump before shutdown...");
+                int count = drv.dumpAllToDirectory(dumpDirectory);
+                log.info("Final dump completed: {} databases saved", count);
+            } catch (Exception e) {
+                log.error("Failed to perform final dump: {}", e.getMessage(), e);
+            }
+        }
 
         if (serverSocket != null) {
             try {
