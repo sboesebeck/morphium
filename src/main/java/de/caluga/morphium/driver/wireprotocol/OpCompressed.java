@@ -35,16 +35,15 @@ public class OpCompressed extends WireProtocolMessage {
             compressedMessage = Snappy.uncompress(compressedMessage);
         } else if (compressorId == COMPRESSOR_ZLIB) {
             InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(compressedMessage));
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] b = new byte[100];
-            int r = 0;
+            // Pre-size output buffer based on uncompressed size hint
+            ByteArrayOutputStream out = new ByteArrayOutputStream(uncompressedSize > 0 ? uncompressedSize : 8192);
+            byte[] b = new byte[8192];  // Larger buffer for better performance
+            int r;
 
-            while ((r = in.read(b, 0, 100)) != -1) {
-                // System.out.println("read: " + r);
+            while ((r = in.read(b)) != -1) {
                 out.write(b, 0, r);
             }
 
-            out.flush();
             in.close();
             compressedMessage = out.toByteArray();
         } else if (compressorId == COMPRESSOR_ZSTD) {
