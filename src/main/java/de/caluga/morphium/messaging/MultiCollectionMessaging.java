@@ -759,14 +759,15 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     private boolean checkDeleteAfterProcessing(Msg message) {
+        String collName = getStorageCollectionNameForMessage(message);
         if (message.isDeleteAfterProcessing()) {
             if (message.getDeleteAfterProcessingTime() == 0) {
-                morphium.delete(message, getCollectionName(message));
+                morphium.delete(message, collName);
                 // unlock(message);
                 return true;
             } else {
                 message.setDeleteAt(new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
-                morphium.setInEntity(message, getCollectionName(message), Msg.Fields.deleteAt,
+                morphium.setInEntity(message, collName, Msg.Fields.deleteAt,
                                      new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
 
                 // if (message.getDeleteAfterProcessingTime() > 0 && morphium.getDriver()
@@ -801,7 +802,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             } catch (Throwable ignored) {
             }
         } else {
-            r.run();
+            synchronized (this) {
+                r.run();
+            }
         }
     }
 
@@ -811,28 +814,48 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         }
     }
 
+    private String getStorageCollectionNameForMessage(Msg msg) {
+        if (msg == null) {
+            return null;
+        }
+
+        if (msg.getRecipients() != null && !msg.getRecipients().isEmpty()) {
+            return getDMCollectionName(getSenderId());
+        }
+
+        return getCollectionName(msg);
+    }
+
     private void updateProcessedBy(Msg msg) {
         if (msg == null) {
             return;
         }
 
-        if (msg.getProcessedBy().contains(getSenderId())) {
+        String id = getSenderId();
+        if (id == null) {
             return;
         }
 
-        String id = getSenderId();
-        msg.getProcessedBy().add(getSenderId());
-        Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName(msg));
-        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+        if (msg.getProcessedBy().contains(id)) {
+            return;
+        }
+
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
+        String collName = getStorageCollectionNameForMessage(msg);
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, collName);
+        idq.f("_id").eq(queryId);
         Map<String, Object> qobj = idq.toQueryObject();
-        Map<String, Object> set = Doc.of("processed_by", getSenderId());
+        Map<String, Object> set = Doc.of("processed_by", id);
         Map<String, Object> update = Doc.of("$addToSet", set);
         UpdateMongoCommand cmd = null;
 
         try {
             cmd = new UpdateMongoCommand(
                             morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
-            cmd.setColl(getCollectionName(msg)).setDb(morphium.getDatabase());
+            cmd.setColl(collName).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             if (!running.get())
                 return; // this happens during tests mainly
@@ -840,20 +863,21 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             cmd.releaseConnection();
             cmd = null;
 
-            // log.debug("Updating processed by for "+id+" on message "+msg.getMsgId());
-            // if (ret.get("nModified") == null && ret.get("modified") == null
-            // || Integer.valueOf(0).equals(ret.get("nModified"))) {
-            // if (morphium.reread(msg, getCollectionName(msg)) != null) {
-            // if (!msg.getProcessedBy().contains(id)) {
-            // log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
-            // log.warn(id + ": " + Utils.toJsonString(ret));
-            // log.warn(id + ": msg: " + msg.toString());
-            // }
+            Object nModified = ret.get("nModified");
+            boolean modified = nModified instanceof Number && ((Number) nModified).intValue() > 0;
 
-            // // } else {
-            // // log.debug("message deleted by someone else!!!");
-            // }
-            // }
+            if (!modified) {
+                // Could be already updated by another thread; re-read to be sure.
+                if (morphium.reread(msg, collName) == null) {
+                    return;
+                }
+                if (!msg.getProcessedBy().contains(id)) {
+                    log.warn("{}: Could not update processed_by in msg {}", id, msg.getMsgId());
+                }
+                return;
+            }
+
+            msg.getProcessedBy().add(id);
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
         } finally {
@@ -1295,7 +1319,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 // Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
             }
         } finally {
-            returnValue = new ArrayList(waitingForAnswers.remove(requestMsgId));
+            List<T> answers = new ArrayList(waitingForAnswers.remove(requestMsgId));
+            if (numberOfAnswers > 0 && answers.size() > numberOfAnswers) {
+                returnValue = new ArrayList<>(answers.subList(0, numberOfAnswers));
+            } else {
+                returnValue = answers;
+            }
         }
 
         return returnValue;
@@ -1435,9 +1464,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         } else {
             setSenderId(effectiveSettings.getSenderId());
         }
+        int coreSize = effectiveSettings.getThreadPoolMessagingCoreSize();
+        int maxSize = effectiveSettings.getThreadPoolMessagingMaxSize();
+        if (coreSize <= 0) {
+            coreSize = Math.max(1, maxSize);
+        }
         threadPool = new ThreadPoolExecutor(
-                        effectiveSettings.getThreadPoolMessagingCoreSize(),
-                        effectiveSettings.getThreadPoolMessagingMaxSize(),
+                        coreSize,
+                        maxSize,
                         effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
                         TimeUnit.MILLISECONDS,
                         new LinkedBlockingQueue<>(),
