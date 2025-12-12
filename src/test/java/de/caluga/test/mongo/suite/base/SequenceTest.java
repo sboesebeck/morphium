@@ -265,6 +265,10 @@ public class SequenceTest extends MorphiumTestBase {
         assertEquals(0, errors.get(), "No errors allowed");
         assertEquals(500, values.size(), "Should have gotten 500 values in total");
 
+        // Values may be collected out-of-order due to thread interleaving, even if the sequence
+        // itself is correct. Sort to validate "no gaps / no duplicates".
+        values.sort(Long::compareTo);
+
         //checking that no value was skipped
         for (int i = 0; i < values.size(); i++) {
             assertEquals(i, values.get(i), "Values not ordered properly!");

@@ -59,7 +59,7 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
                     receiver.setMultithreadded(true);
 
                     AtomicInteger msgCount = new AtomicInteger(0);
-                    Set<Msg> receivedMessages = new HashSet<>();
+                    Set<Msg> receivedMessages = ConcurrentHashMap.newKeySet();
 
                     receiver.addListenerForTopic("test", (msg, m) -> {
                         msgCount.incrementAndGet();

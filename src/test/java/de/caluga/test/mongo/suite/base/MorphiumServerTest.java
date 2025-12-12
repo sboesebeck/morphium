@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.Map;
 import java.util.List;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.ServerSocket;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,11 +55,12 @@ public class MorphiumServerTest {
     public void messagingPerformanceTest()throws Exception {
         int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 220, 20);
-        startServer(srv);
+        startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().addHostToSeed("localhost:" + port);
         cfg.connectionSettings().setDatabase("test");
         cfg.connectionSettings().setMaxConnections(200);
+        cfg.cacheSettings().setBufferedWritesEnabled(false);
         Morphium morphium = new Morphium(cfg);
         SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.setUseChangeStream(true);
@@ -107,7 +110,7 @@ public class MorphiumServerTest {
     public void singleConnectToServerTest()throws Exception {
         int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 20, 1);
-        startServer(srv);
+        startServer(srv, port);
         SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
         drv.setHostSeed("localhost:" + port);
         drv.setMaxConnections(10);
@@ -132,7 +135,7 @@ public class MorphiumServerTest {
     public void testConnectionPool() throws Exception {
         int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 10, 1);
-        startServer(srv);
+        startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
         cfg.setDatabase("srvtst");
@@ -186,7 +189,7 @@ public class MorphiumServerTest {
     public void testServerMessaging() throws Exception {
         int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 100, 1);
-        startServer(srv);
+        startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
         cfg.setDatabase("srvtst");
@@ -226,7 +229,7 @@ public class MorphiumServerTest {
     public void testServerMessagingMoreThanOne() throws Exception {
         int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 100, 1);
-        startServer(srv);
+        startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
         cfg.setDatabase("srvtst");
@@ -274,7 +277,7 @@ public class MorphiumServerTest {
     public void testServer() throws Exception {
         int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 100, 1);
-        startServer(srv);
+        startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
         cfg.setDatabase("srvtst");
@@ -317,7 +320,7 @@ public class MorphiumServerTest {
     public void multithreaddedMessagingTest() throws Exception {
         int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 100, 1);
-        startServer(srv);
+        startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
         cfg.setDatabase("srvtst");
@@ -402,7 +405,7 @@ public class MorphiumServerTest {
     public void multithreaddedMessaging() throws Exception {
         int port = PORT.incrementAndGet();
         var srv = new MorphiumServer(port, "localhost", 100, 1);
-        startServer(srv);
+        startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
         cfg.setDatabase("srvtst");
@@ -551,8 +554,8 @@ public class MorphiumServerTest {
         var prio = Map.of("localhost:" + port1, 200, "localhost:" + port2, 100);
         s1.configureReplicaSet("rsTest", hosts, prio);
         s2.configureReplicaSet("rsTest", hosts, prio);
-        startServer(s1);
-        startServer(s2);
+        startServer(s1, port1);
+        startServer(s2, port2);
         Thread.sleep(500);
         assertTrue(s1.isPrimary());
         assertFalse(s2.isPrimary());
@@ -570,8 +573,8 @@ public class MorphiumServerTest {
         var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 200);
         s1.configureReplicaSet("rsTest2", hosts, prio);
         s2.configureReplicaSet("rsTest2", hosts, prio);
-        startServer(s1);
-        startServer(s2);
+        startServer(s1, port1);
+        startServer(s2, port2);
         Thread.sleep(500);
         s1.stepDown();
         Thread.sleep(300);
@@ -581,9 +584,20 @@ public class MorphiumServerTest {
         s2.terminate();
     }
 
-    private void startServer(MorphiumServer srv) throws Exception {
+    private void startServer(MorphiumServer srv, int port) throws Exception {
         srv.start();
-        Thread.sleep(200);
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (true) {
+            try (Socket s = new Socket()) {
+                s.connect(new InetSocketAddress("localhost", port), 250);
+                return;
+            } catch (Exception e) {
+                if (System.currentTimeMillis() > deadline) {
+                    throw e;
+                }
+                Thread.sleep(50);
+            }
+        }
     }
 
     @Test
@@ -596,7 +610,7 @@ public class MorphiumServerTest {
         var hosts = List.of("localhost:" + port1, "localhost:" + port2);
         var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
         primary.configureReplicaSet("rsDataTest", hosts, prio);
-        startServer(primary);
+        startServer(primary, port1);
 
         // Connect to primary and store some data BEFORE secondary starts
         MorphiumConfig cfg = new MorphiumConfig();
@@ -621,7 +635,7 @@ public class MorphiumServerTest {
         // Now start secondary server
         MorphiumServer secondary = new MorphiumServer(port2, "localhost", 10, 1);
         secondary.configureReplicaSet("rsDataTest", hosts, prio);
-        startServer(secondary);
+        startServer(secondary, port2);
 
         // Give time for initial sync to complete
         Thread.sleep(3000);
@@ -666,8 +680,8 @@ public class MorphiumServerTest {
         var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
         primary.configureReplicaSet("rsOngoing", hosts, prio);
         secondary.configureReplicaSet("rsOngoing", hosts, prio);
-        startServer(primary);
-        startServer(secondary);
+        startServer(primary, port1);
+        startServer(secondary, port2);
 
         // Give time for replication to set up
         Thread.sleep(2000);
@@ -723,8 +737,8 @@ public class MorphiumServerTest {
         primary.configureReplicaSet("rsLateJoin", hosts, prio);
         secondary.configureReplicaSet("rsLateJoin", hosts, prio);
         lateJoiner.configureReplicaSet("rsLateJoin", hosts, prio);
-        startServer(primary);
-        startServer(secondary);
+        startServer(primary, port1);
+        startServer(secondary, port2);
 
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port1);
@@ -742,7 +756,7 @@ public class MorphiumServerTest {
         var primaryCount = morphiumPrimary.createQueryFor(UncachedObject.class).countAll();
         assertEquals(7, primaryCount, "Primary should have inserted documents");
 
-        startServer(lateJoiner);
+        startServer(lateJoiner, port3);
         Thread.sleep(3000);
 
         MorphiumConfig cfgLate = new MorphiumConfig();

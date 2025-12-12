@@ -144,17 +144,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     // DBName => Collection => List of documents
-    // InMemoryDriver instances emulate a single shared MongoDB server in-process.
-    // Therefore state is shared across driver instances.
-    private static final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
-    // ReadWriteLocks per collection for fine-grained concurrency control across all instances
-    private static final Map<String, java.util.concurrent.locks.ReadWriteLock> collectionLocks = new ConcurrentHashMap<>();
+    // By default, every InMemoryDriver instance is isolated (does not share state).
+    // If you want sharing between Morphium instances, enable it via
+    // `cfg.driverSettings().setInMemorySharedDatabases(true)` which reuses the SAME driver instance.
+    private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
+    // ReadWriteLocks per collection for fine-grained concurrency control
+    private final Map<String, java.util.concurrent.locks.ReadWriteLock> collectionLocks = new ConcurrentHashMap<>();
     private int idleSleepTime = 20;
     /**
      * index definitions by db and collection name
      * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
      */
-    private static final Map<String, Map<String, List<Map<String, Object>>>> indicesByDbCollection = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object>>>> indicesByDbCollection = new ConcurrentHashMap<>();
 
     /**
      * Map DB->Collection->FieldNames->Keys....
@@ -162,17 +163,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // private final Map<String, Map<String, Map<String, Map<IndexKey,
     // List<Map<String, Object>>>>>> indexDataByDBCollection = new
     // ConcurrentHashMap<>();
-    private static final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
-    private static final AtomicLong changeStreamSequence = new AtomicLong();
+    private final AtomicLong changeStreamSequence = new AtomicLong();
     private final List<String> hostSeed = new CopyOnWriteArrayList<>();
 
-    // Change stream infrastructure - shared across instances
-    private static final Map<String, CopyOnWriteArrayList<ChangeStreamSubscription>> changeStreamSubscribers = new ConcurrentHashMap<>();
-    private static final ConcurrentLinkedDeque<ChangeStreamEventInfo> changeStreamHistory = new ConcurrentLinkedDeque<>();
+    // Change stream infrastructure (per driver instance)
+    private final Map<String, CopyOnWriteArrayList<ChangeStreamSubscription>> changeStreamSubscribers = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedDeque<ChangeStreamEventInfo> changeStreamHistory = new ConcurrentLinkedDeque<>();
     private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
-    private static final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
     private final List<Object> monitors = new CopyOnWriteArrayList<>();
     private final BlockingQueue<Runnable> eventQueue = new LinkedBlockingDeque<>();
@@ -207,7 +208,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private ScheduledFuture<?> expire;
     // Track collections with TTL indexes to avoid scanning all collections during expiration check
     // Key format: "db.collection", Value: TTL index info (field name, expireAfterSeconds)
-    private static final Map<String, TtlIndexInfo> collectionsWithTtlIndex = new ConcurrentHashMap<>();
+    private final Map<String, TtlIndexInfo> collectionsWithTtlIndex = new ConcurrentHashMap<>();
 
     private static class TtlIndexInfo {
         final String fieldName;
@@ -221,19 +222,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private String replicaSetName;
     private boolean replicaSetEnabled = false;
     private final AtomicInteger activeConnections = new AtomicInteger(0);
-    private static final Deque<Map<String, Object>> oplog = new ConcurrentLinkedDeque<>();
+    private final Deque<Map<String, Object>> oplog = new ConcurrentLinkedDeque<>();
     private static final int OPLOG_MAX = 5000;
-    private static final AtomicLong oplogInc = new AtomicLong();
-
-    // Track how many driver instances are alive so shared data can be cleared safely.
-    private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger(0);
+    private final AtomicLong oplogInc = new AtomicLong();
 
     public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
         return database.get(dbn);
     }
 
     public InMemoryDriver() {
-        INSTANCE_COUNT.incrementAndGet();
     }
 
     @Override
@@ -1277,11 +1274,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             limit = cmd.getLimit();
         }
 
-        int skip = 0;
-
-        if (cmd.getSkip() != null) {
-            skip = cmd.getSkip();
-        }
+        int skip = normalizeSkip(cmd.getSkip());
 
         var filter = cmd.getFilter();
 
@@ -1292,6 +1285,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var result = find(cmd.getDb(), cmd.getColl(), filter, cmd.getSort(), cmd.getProjection(), cmd.getCollation(),
                           skip, limit, false);
         return result;
+    }
+
+    /**
+     * Morphium's Query.skip(n) is historically treated as a 1-based offset in some tests
+     * (e.g. skip(10) -> first element has index 9 when sorted).
+     * MongoDB's wire protocol skip is 0-based, so normalize here for inMem parity.
+     */
+    private int normalizeSkip(Integer skip) {
+        if (skip == null) {
+            return 0;
+        }
+
+        int s = skip;
+        if (s <= 0) {
+            return 0;
+        }
+
+        return s - 1;
+    }
+
+    private int normalizeSkip(int skip) {
+        if (skip <= 0) {
+            return 0;
+        }
+        return skip - 1;
     }
 
     private int runCommand(GetMoreMongoCommand cmd) throws MorphiumDriverException {
@@ -2167,10 +2185,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void close() {
         log.info("InMemoryDriver.close() called - instance {}", System.identityHashCode(this));
         // When Morphium.close() is called, shutdown the driver completely
-        // Shared state is only cleared when the last instance shuts down.
-        // Note: We don't check activeConnections here because close() is called from
-        // Morphium.close()
-        // which is the final cleanup, regardless of how many connections were created
         shutdown(true);
         log.info("InMemoryDriver.close() completed - instance {}", System.identityHashCode(this));
     }
@@ -2186,6 +2200,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     public void shutdown(boolean clearData) {
         log.info("Shutting down InMemoryDriver (clearData={})", clearData);
+
+        // Make shutdown idempotent per instance; Morphium/legacy paths may call it multiple times.
+        if (!running) {
+            return;
+        }
+        running = false;
 
         // Shutdown the scheduler - this is driver-level, not connection-level
         if (exec != null && !exec.isShutdown()) {
@@ -2221,13 +2241,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        int remaining = INSTANCE_COUNT.decrementAndGet();
-        if (remaining < 0) {
-            INSTANCE_COUNT.set(0);
-            remaining = 0;
-        }
-        // Optionally clear shared data only when last instance is gone
-        if (clearData && remaining <= 0) {
+        if (clearData) {
             resetData();
         }
 
@@ -2282,7 +2296,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData)
     throws MorphiumDriverException {
         final InMemoryCursor inCrs = new InMemoryCursor();
-        inCrs.skip = Math.max(0, skip);
+        inCrs.skip = normalizeSkip(skip);
         inCrs.limit = Math.max(0, limit);
         inCrs.batchSize = (batchSize == 0 ? 1000 : batchSize);
         inCrs.setCollection(collection);
@@ -2536,11 +2550,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } else if (query.containsKey("$or")) {
                 List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$or");
                 if (m != null) {
+                    // For $or queries, using index candidates is only safe if ALL branches can be served
+                    // by an index, otherwise we would miss matches from non-indexable branches.
+                    boolean allIndexable = true;
+
                     for (Map<String, Object> subquery : m) {
                         List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
-                        if (dataFromIndex != null) {
-                            partialHitData.addAll(dataFromIndex);
+
+                        if (dataFromIndex == null) {
+                            allIndexable = false;
+                            break;
                         }
+
+                        partialHitData.addAll(dataFromIndex);
+                    }
+
+                    if (!allIndexable) {
+                        partialHitData = null; // fall back to full scan for correctness
                     }
                 }
             } else {
