@@ -37,6 +37,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
         try (baseMorphium) {
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
                 MorphiumConfig cfg = baseMorphium.getConfig().createCopy();
+                cfg.driverSettings().setSharedConnectionPool(true);
+                cfg.driverSettings().setInMemorySharedDatabases(true);
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
                 cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());

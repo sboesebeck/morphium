@@ -1438,7 +1438,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void storeMsg(Msg m, boolean async) {
-        if (networkRegistry != null && !m.getTopic().equals(settings.getMessagingStatusInfoListenerName())) {
+        if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
             long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
             if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
                 if (!networkRegistry.hasActiveListeners(m.getTopic())) {
@@ -1490,7 +1490,19 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         m.setSender(id);
         m.setSenderHost(hostname);
-        morphium.insert(m, getCollectionName(), cb);
+        try {
+            morphium.insert(m, getCollectionName(), cb);
+        } catch (RuntimeException e) {
+            if (networkRegistry != null
+                && settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
+                && m.getRecipients() != null
+                && !m.getRecipients().isEmpty()) {
+                MessageRejectedException mre = new MessageRejectedException("Recipient '" + m.getRecipients().get(0) + "' is not active");
+                mre.initCause(e);
+                throw mre;
+            }
+            throw e;
+        }
     }
 
     @Override

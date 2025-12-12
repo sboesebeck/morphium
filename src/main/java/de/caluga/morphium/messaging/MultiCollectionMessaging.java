@@ -1076,7 +1076,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     private void persistMessage(Msg m, boolean async) {
-        if (networkRegistry != null && !m.getTopic().equals(effectiveSettings.getMessagingStatusInfoListenerName())) {
+        if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
             long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, effectiveSettings.getMessagingRegistryUpdateInterval()));
             if (effectiveSettings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
                 if (!networkRegistry.hasActiveListeners(m.getTopic())) {
@@ -1111,18 +1111,40 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
         if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
-            if (async) {
-                morphium.store(m, getCollectionName(m), aCallback);
-            } else {
-                morphium.store(m, getCollectionName(m), null);
+            try {
+                if (async) {
+                    morphium.store(m, getCollectionName(m), aCallback);
+                } else {
+                    morphium.store(m, getCollectionName(m), null);
+                }
+            } catch (RuntimeException e) {
+                if (networkRegistry != null
+                    && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
+                    && m.getRecipients() != null
+                    && !m.getRecipients().isEmpty()) {
+                    MessageRejectedException mre = new MessageRejectedException("Recipient '" + m.getRecipients().get(0) + "' is not active");
+                    mre.initCause(e);
+                    throw mre;
+                }
+                throw e;
             }
 
         } else {
             for (String rec : m.getRecipients()) {
-                if (async) {
-                    morphium.store(m, getDMCollectionName(rec), aCallback);
-                } else {
-                    morphium.store(m, getDMCollectionName(rec), null);
+                try {
+                    if (async) {
+                        morphium.store(m, getDMCollectionName(rec), aCallback);
+                    } else {
+                        morphium.store(m, getDMCollectionName(rec), null);
+                    }
+                } catch (RuntimeException e) {
+                    if (networkRegistry != null
+                        && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW) {
+                        MessageRejectedException mre = new MessageRejectedException("Recipient '" + rec + "' is not active");
+                        mre.initCause(e);
+                        throw mre;
+                    }
+                    throw e;
                 }
 
             }

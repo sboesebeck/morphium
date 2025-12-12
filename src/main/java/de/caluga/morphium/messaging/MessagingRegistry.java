@@ -42,7 +42,12 @@ public class MessagingRegistry {
             String statusTopic = messaging.getStatusInfoListenerName();
             Msg statusRequest = new Msg(statusTopic, "status_request", "all", 30000);
             statusRequest.setExclusive(false);
-            messaging.sendMessage(statusRequest);
+            try {
+                messaging.sendMessage(statusRequest);
+            } catch (Exception e) {
+                // Discovery should never break normal messaging flows.
+                log.debug("Failed to send status request during discovery", e);
+            }
 
             // Prune inactive participants
             long now = System.currentTimeMillis();
@@ -68,8 +73,6 @@ public class MessagingRegistry {
             return;
         }
 
-        participantLastSeen.put(senderId, System.currentTimeMillis());
-
         Map<String, Object> mapValue = statusResponse.getMapValue();
         if (mapValue == null || !mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey)) {
             return;
@@ -78,6 +81,15 @@ public class MessagingRegistry {
         try {
             Map<String, Integer> listenersMap = (Map<String, Integer>) mapValue.get(StatusInfoListener.messageListenersbyNameKey);
             Set<String> topics = listenersMap.keySet();
+
+            if (topics.isEmpty()) {
+                // A participant reporting no listeners is considered inactive.
+                participantLastSeen.remove(senderId);
+                topicToListeners.values().forEach(listeners -> listeners.remove(senderId));
+                return;
+            }
+
+            participantLastSeen.put(senderId, System.currentTimeMillis());
 
             // First, remove this sender from all topics to handle cases where it stopped listening
             topicToListeners.values().forEach(listeners -> listeners.remove(senderId));
@@ -105,7 +117,18 @@ public class MessagingRegistry {
     }
 
     public boolean isParticipantActive(String senderId) {
-        return participantLastSeen.containsKey(senderId);
+        Long lastSeen = participantLastSeen.get(senderId);
+        if (lastSeen == null) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastSeen > participantTimeout) {
+            participantLastSeen.remove(senderId);
+            topicToListeners.values().forEach(listeners -> listeners.remove(senderId));
+            return false;
+        }
+        boolean hasAnyTopic = topicToListeners.values().stream().anyMatch(listeners -> listeners.contains(senderId));
+        return hasAnyTopic;
     }
 
     public void triggerDiscoveryAndWait(long timeoutMs) {
