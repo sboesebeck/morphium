@@ -89,13 +89,15 @@ public class MorphiumServerTest {
 
         log.info("Sent {} msgs, took {}ms - already got {}", amount, System.currentTimeMillis() - start, received.get());
 
-        while (received.get() < amount) {
+        long deadline = System.currentTimeMillis() + 120_000;
+        while (received.get() < amount && System.currentTimeMillis() < deadline) {
             double dur = (double)(System.currentTimeMillis() - start);
             double speed = dur / (double)received.get();
             log.info("not there {} yet: {} - roundtrip {}ms per message", amount, received.get(), speed);
 
             Thread.sleep(1000);
         }
+        assertEquals(amount, received.get(), "Timed out waiting for all messages to be received");
 
         try {
             msg1.terminate();

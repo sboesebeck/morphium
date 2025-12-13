@@ -781,6 +781,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void checkDeleteAfterProcessing(Msg obj) {
+        if (!running || morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+            return;
+        }
+
         if (obj.isDeleteAfterProcessing()) {
             if (obj.getDeleteAfterProcessingTime() == 0) {
                 morphium.delete(obj, getCollectionName());
@@ -1006,7 +1010,26 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @SuppressWarnings("CommentedOutCode")
     private void lockAndProcess(Msg obj) {
         if (lockMessage(obj, id, obj.getDeleteAt())) {
-            processMessage(obj);
+            // Messages can be queued for processing before the exclusive lock exists.
+            // If another instance already processed and unlocked, a stale queued message
+            // could otherwise be processed again. Re-fetch to ensure processed_by state is current.
+            Msg fresh = null;
+            try {
+                fresh = morphium.findById(Msg.class, obj.getMsgId(), getCollectionName());
+            } catch (Exception ignored) {
+            }
+
+            if (fresh == null) {
+                unlockIfExclusive(obj);
+                return;
+            }
+
+            if (fresh.getProcessedBy() != null && !fresh.getProcessedBy().isEmpty()) {
+                unlockIfExclusive(fresh);
+                return;
+            }
+
+            processMessage(fresh);
         }
     }
 
@@ -1058,6 +1081,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     private void processMessage(Msg msg) {
         if (msg == null) {
+            return;
+        }
+
+        if (!running || morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
             return;
         }
 

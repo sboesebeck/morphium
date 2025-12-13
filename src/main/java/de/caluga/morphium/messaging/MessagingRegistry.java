@@ -27,6 +27,7 @@ public class MessagingRegistry {
 
     private final MorphiumMessaging messaging;
     private final long participantTimeout;
+    private volatile boolean terminated = false;
 
     public MessagingRegistry(MorphiumMessaging messaging) {
         this.messaging = messaging;
@@ -37,12 +38,30 @@ public class MessagingRegistry {
     }
 
     private void runDiscovery() {
+        if (terminated) {
+            return;
+        }
+
+        Morphium morphium = null;
+        try {
+            morphium = messaging.getMorphium();
+        } catch (Exception ignored) {
+        }
+
+        // During shutdown Morphium can already be partially torn down (config/driver nulled).
+        if (morphium == null || morphium.getConfig() == null || morphium.getDriver() == null || !messaging.isRunning()) {
+            return;
+        }
+
         synchronized (discoveryLock) {
             // Send a broadcast status request message
             String statusTopic = messaging.getStatusInfoListenerName();
             Msg statusRequest = new Msg(statusTopic, "status_request", "all", 30000);
             statusRequest.setExclusive(false);
             try {
+                if (terminated) {
+                    return;
+                }
                 messaging.sendMessage(statusRequest);
             } catch (Exception e) {
                 // Discovery should never break normal messaging flows.
@@ -151,6 +170,7 @@ public class MessagingRegistry {
     }
 
     public void terminate() {
+        terminated = true;
         scheduler.shutdownNow();
     }
 }
