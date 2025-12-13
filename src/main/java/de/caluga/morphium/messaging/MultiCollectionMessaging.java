@@ -743,9 +743,26 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     if (!lockMessage(m, getSenderId())) {
                         return;
                     }
-                    // could lock message
-                    // process exclusive message
-                    //
+                    // Messages can be queued/seen before the exclusive lock exists. If another instance already
+                    // processed and unlocked, a stale queued message could otherwise be processed again.
+                    // Re-fetch to ensure processed_by state is current.
+                    Msg fresh = null;
+                    try {
+                        fresh = morphium.findById(Msg.class, m.getMsgId(), getStorageCollectionNameForMessage(m));
+                    } catch (Exception ignored) {
+                    }
+
+                    if (fresh == null) {
+                        unlock(m);
+                        return;
+                    }
+
+                    if (fresh.getProcessedBy() != null && !fresh.getProcessedBy().isEmpty()) {
+                        unlock(fresh);
+                        return;
+                    }
+
+                    m = fresh;
                 }
                 processMessage(m);
             }

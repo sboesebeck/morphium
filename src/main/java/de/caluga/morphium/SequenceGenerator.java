@@ -169,16 +169,14 @@ public class SequenceGenerator {
             Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
             var val = seq.get();//.getCurrentValue();
             int count = 0;
-            while (val == null) {
+            while (val == null || val.getCurrentValue() == null) {
 
                 //cannot be - retry
                 if (count++ > morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
                     throw new RuntimeException("Could not read from Sequence");
                 }
-                try {
-                    Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-                } catch (InterruptedException e) {
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(
+                        morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
 
                 val = seq.get();
             }
@@ -191,8 +189,12 @@ public class SequenceGenerator {
             count = 0;
             while (true) {
                 val = seq.get();
-                if (val != null) {
-                    break;
+                if (val != null && val.getCurrentValue() != null) {
+                    // Under very high concurrency (especially with in-memory drivers), we may briefly
+                    // observe an incomplete/old read. Never return values below the configured startValue.
+                    if (val.getCurrentValue() >= startValue) {
+                        break;
+                    }
                 }
 
                 // Sequence disappeared - retry with backoff
@@ -200,10 +202,8 @@ public class SequenceGenerator {
                     throw new RuntimeException("Sequence disappeared after increment!");
                 }
 
-                try {
-                    Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-                } catch (InterruptedException e) {
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(
+                        morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
             }
 
             return val.getCurrentValue();

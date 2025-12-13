@@ -13,6 +13,41 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class TopicRegistryTest extends MorphiumTestBase {
 
+    private void waitUntilSendAccepted(long timeoutMs, Runnable sendAttempt) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        MessageRejectedException last = null;
+
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                sendAttempt.run();
+                return;
+            } catch (MessageRejectedException e) {
+                last = e;
+                Thread.sleep(50);
+            }
+        }
+
+        if (last != null) {
+            throw last;
+        }
+        throw new MessageRejectedException("Timed out waiting for send to be accepted");
+    }
+
+    private void waitUntilSendRejected(long timeoutMs, Runnable sendAttempt) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                sendAttempt.run();
+                Thread.sleep(50);
+            } catch (MessageRejectedException e) {
+                return;
+            }
+        }
+
+        throw new MessageRejectedException("Timed out waiting for send to be rejected");
+    }
+
     @ParameterizedTest
     @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
     public void testThrowOnNoListeners(Morphium morphium) throws Exception {
@@ -67,8 +102,8 @@ public class TopicRegistryTest extends MorphiumTestBase {
                     });
                     receiver.start();
 
-                    log.info("Waiting for network discovery...");
-                    Thread.sleep(2500); // Wait for registry to be updated
+                    log.info("Waiting for network discovery (registry update)...");
+                    waitUntilSendAccepted(15_000, () -> sender.sendMessage(new Msg("listener-topic", "warmup", "value")));
 
                     log.info("Sending message to topic with listener...");
                     sender.sendMessage(new Msg("listener-topic", "msg", "value"));
@@ -136,21 +171,24 @@ public class TopicRegistryTest extends MorphiumTestBase {
                         MorphiumMessaging receiver = m2.createMessaging();
                         receiverId = receiver.getSenderId();
                         receiver.start();
-                        log.info("Waiting for initial discovery...");
-                        Thread.sleep(1500); // receiver is active
-                        log.info("Receiver ID: " + receiverId);
-                        // Should work
-                        Msg directMsg = new Msg("direct", "msg", "value");
-                        directMsg.addRecipient(receiverId);
-                        sender.sendMessage(directMsg);
-                        log.info("Sent message to active recipient.");
+                        try {
+                            log.info("Waiting for initial discovery...");
+                            log.info("Receiver ID: " + receiverId);
+                            // Should work (wait for registry to see receiver)
+                            waitUntilSendAccepted(15_000, () -> {
+                                Msg directMsg = new Msg("direct", "msg", "value");
+                                directMsg.addRecipient(receiverId);
+                                sender.sendMessage(directMsg);
+                            });
+                            log.info("Sent message to active recipient.");
+                        } finally {
+                            receiver.terminate();
+                        }
                         // Receiver is terminated automatically by try-with-resources
                     }
 
                     log.info("Receiver is now terminated. Waiting for participant timeout...");
-                    Thread.sleep(3000); // wait for participant to be considered inactive
-
-                    assertThrows(MessageRejectedException.class, () -> {
+                    waitUntilSendRejected(15_000, () -> {
                         Msg directMsg = new Msg("direct", "msg", "value");
                         directMsg.addRecipient(receiverId);
                         log.info("Sending message to inactive recipient...");

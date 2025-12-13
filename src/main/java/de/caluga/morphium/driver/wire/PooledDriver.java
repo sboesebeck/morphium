@@ -119,7 +119,7 @@ public class PooledDriver extends DriverBase {
 
     public PooledDriver() {
         running = true;
-        borrowedConnections = Collections.synchronizedMap(new HashMap<>());
+        borrowedConnections = new ConcurrentHashMap<>();
         stats = new ConcurrentHashMap<>();
 
         for (var e : DriverStatsKey.values()) {
@@ -620,14 +620,21 @@ public class PooledDriver extends DriverBase {
                     log.error("Connections to {}: {}", host, getTotalConnectionsToHost(host));
                     log.error("WaitingThreads for {}: {}", host, getWaitCounterForHost(host));
                     throw new MorphiumDriverException(
-                                    String.format("Could not get connection to %s in time %dms", host, getMaxWaitTime()));
+                                    String.format("Could not get connection to %s in time %dms", host, getServerSelectionTimeout()));
                 }
 
-                if (bc.getCon().getSourcePort() == 0) {
-                    // broken
+                if (bc.getCon() == null || bc.getCon().getSourcePort() == 0 || !bc.getCon().isConnected()) {
                     stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                    try {
+                        if (bc.getCon() != null) {
+                            bc.getCon().close();
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    bc = null;
                 }
-            } while (bc.getCon().getSourcePort() == 0);
+            } while (bc == null);
 
             bc.touch();
             borrowedConnections.put(bc.getCon().getSourcePort(), bc);
@@ -636,6 +643,7 @@ public class PooledDriver extends DriverBase {
             return bc.getCon();
         } catch (InterruptedException iex) {
             // swallow - might happen when closing
+            Thread.currentThread().interrupt();
             throw new MorphiumDriverException("Waiting for connection was aborted");
             // return new SingleMongoConnection();
         } finally {
@@ -684,8 +692,8 @@ public class PooledDriver extends DriverBase {
                         try {
                             Thread.sleep(100);
                         } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt(); // Properly handle interruption
-                            return null; // Exit gracefully when interrupted
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Interrupted while waiting for primary connection", e);
                         }
                     }
 
@@ -871,8 +879,6 @@ public class PooledDriver extends DriverBase {
             for (int port : sourcePortsToDelete) {
                 borrowedConnections.remove(port);
             }
-
-            stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
         }
     }
 

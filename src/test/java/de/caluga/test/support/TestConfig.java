@@ -49,6 +49,18 @@ public final class TestConfig {
            .setHeartbeatFrequency(intProp(props, "morphium.heartbeatFrequency", 500))
            .setDefaultReadPreference(ReadPreference.nearest());
 
+        // In-memory driver: default to shared databases in tests so multiple Morphium instances
+        // behave like multiple clients connecting to the same server.
+        if (InMemoryDriver.driverName.equals(cfg.driverSettings().getDriverName())) {
+            cfg.driverSettings().setInMemorySharedDatabases(
+                booleanProp(props, "morphium.inMemorySharedDatabases", true)
+            );
+        } else {
+            cfg.driverSettings().setInMemorySharedDatabases(
+                booleanProp(props, "morphium.inMemorySharedDatabases", false)
+            );
+        }
+
         cfg.collectionCheckSettings()
            .setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL)
            .setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
