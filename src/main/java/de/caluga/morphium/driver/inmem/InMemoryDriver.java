@@ -1317,29 +1317,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return result;
     }
 
-    /**
-     * Morphium's Query.skip(n) is historically treated as a 1-based offset in some tests
-     * (e.g. skip(10) -> first element has index 9 when sorted).
-     * MongoDB's wire protocol skip is 0-based, so normalize here for inMem parity.
-     */
     private int normalizeSkip(Integer skip) {
-        if (skip == null) {
+        if (skip == null || skip <= 0) {
             return 0;
         }
-
-        int s = skip;
-        if (s <= 0) {
-            return 0;
-        }
-
-        return s - 1;
+        return skip;
     }
 
     private int normalizeSkip(int skip) {
         if (skip <= 0) {
             return 0;
         }
-        return skip - 1;
+        return skip;
     }
 
     private int runCommand(GetMoreMongoCommand cmd) throws MorphiumDriverException {
@@ -2611,7 +2600,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 data = partialHitData;
             }
             List<Map<String, Object>> ret = new ArrayList<>();
-            int count = 0;
+            int matched = 0;
 
             if (sort != null) {
                 Collator coll = QueryHelper.getCollator(collation);
@@ -2666,16 +2655,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // noinspection ForLoopReplaceableByForEach
             for (int i = 0; i < data.size(); i++) {
                 Map<String, Object> o = data.get(i);
-                count++;
-
-                if (count <= skip) {
-                    continue;
-                }
 
                 // Check match FIRST on original document - no copy needed for non-matches
                 if (!QueryHelper.matchesQuery(query, o, collation)) {
                     continue;
                 }
+
+                // MongoDB applies skip after filter + sort, and skip counts matching documents.
+                if (skip > 0 && matched < skip) {
+                    matched++;
+                    continue;
+                }
+                matched++;
 
                 // Only copy/project documents that matched
                 if (!internal) {
