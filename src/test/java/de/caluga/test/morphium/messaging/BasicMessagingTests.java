@@ -319,7 +319,8 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     Thread.sleep(3000);
 
                     // Message should be removed by TTL
-                    TestUtils.waitForConditionToBecomeTrue(60000, "Message should be removed by TTL",
+                    // MongoDB's TTL monitor runs periodically; allow enough time for real clusters.
+                    TestUtils.waitForConditionToBecomeTrue(120000, "Message should be removed by TTL",
                                                            () -> morph.createQueryFor(Msg.class, sender.getCollectionName(msg)).countAll() == 0);
 
                     log.info("Test {} using {}/{} finished", tstName, msgImpl, morphium.getDriver().getName());

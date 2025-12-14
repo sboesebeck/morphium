@@ -708,7 +708,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 }
 
                 Thread.sleep(4000);
-                assertTrue(System.currentTimeMillis() - start < 90000);
+                // MongoDB's TTL monitor runs periodically; allow enough time for real clusters.
+                assertTrue(System.currentTimeMillis() - start < 180000);
             }
 
             log.info("Deleted after: " + (System.currentTimeMillis() - start));

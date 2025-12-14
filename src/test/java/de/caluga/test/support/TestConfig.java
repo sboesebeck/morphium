@@ -47,7 +47,8 @@ public final class TestConfig {
            .setMaxConnectionLifeTime(intProp(props, "morphium.maxConnectionLifeTime", 60000))
            .setMaxConnectionIdleTime(intProp(props, "morphium.maxConnectionIdleTime", 30000))
            .setHeartbeatFrequency(intProp(props, "morphium.heartbeatFrequency", 500))
-           .setDefaultReadPreference(ReadPreference.nearest());
+           // Tests should be deterministic; reading from secondaries can cause flakiness due to replication lag.
+           .setDefaultReadPreference(ReadPreference.primary());
 
         // In-memory driver: default to shared databases in tests so multiple Morphium instances
         // behave like multiple clients connecting to the same server.

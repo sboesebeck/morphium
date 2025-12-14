@@ -69,6 +69,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 final MorphiumMessaging m1;
                 final MorphiumMessaging m2;
                 final MorphiumMessaging onlyAnswers;
+                final AtomicInteger answersReceived = new AtomicInteger(0);
 
                 m1 = morph.createMessaging();
                 m2 = morph.createMessaging();
@@ -120,6 +121,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     });
                     onlyAnswers.addListenerForTopic("test", (msg, m) -> {
                         gotMessage3 = true;
+                        answersReceived.incrementAndGet();
 
                         if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
                             log.error("wrongly received message?");
@@ -140,7 +142,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     lastMsgId = question.getMsgId();
                     onlyAnswers.sendMessage(question);
                     log.info("Send Message with id: " + question.getMsgId());
-                    TestUtils.waitForConditionToBecomeTrue(15000, "Answer not received", () -> gotMessage3);
+                    TestUtils.waitForConditionToBecomeTrue(15000, "Answers not received", () -> answersReceived.get() == 2);
                     TestUtils.waitForConditionToBecomeTrue(5000, "Question not received by m1", () -> gotMessage1);
                     TestUtils.waitForConditionToBecomeTrue(5000, "Question not received by m2", () -> gotMessage2);
                     assertFalse(error);
