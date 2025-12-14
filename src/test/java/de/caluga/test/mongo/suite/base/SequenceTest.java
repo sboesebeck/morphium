@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -68,11 +69,13 @@ public class SequenceTest extends MorphiumTestBase {
         morphium.store(s);
         Sequence.SeqLock l = new Sequence.SeqLock();
         l.setLockedBy("noone");
-        l.setLockedAt(new Date());
+        // TTL cleanup in MongoDB is not instantaneous (background monitor runs periodically).
+        // Use an already-expired timestamp to make this test deterministic.
+        l.setLockedAt(new Date(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(2)));
         l.setName(s.getName());
         morphium.store(l);
         TestUtils.waitForWrites(morphium, log);
-        //now sequence is blocked by someone else... waiting 30-60s
+        //now sequence is blocked by someone else... should recover by clearing stale lock
         long v = sg.getNextValue();
         log.info("Got next Value: " + v);
         assertEquals(v, 2);
