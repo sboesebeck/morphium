@@ -842,6 +842,8 @@ public class PooledDriver extends DriverBase {
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
         if (primaryNode == null) {
+            // Race-free: connect() returns after scheduling heartbeat, but primary discovery happens async.
+            // Also handles short windows during primary failover where primaryNode is cleared temporarily.
             long start = System.currentTimeMillis();
             long timeout = getServerSelectionTimeout();
 
@@ -849,16 +851,24 @@ public class PooledDriver extends DriverBase {
                 timeout = 1000;
             }
 
-            while (primaryNode == null) {
-                if (System.currentTimeMillis() - start > timeout) {
-                    throw new MorphiumDriverException("No primary node found - connection not established yet?");
+            // If not a replicaset, there is no "primary" concept - use seed host.
+            if (!isReplicaSet() || getHostSeed().size() <= 1) {
+                if (getHostSeed().isEmpty()) {
+                    throw new MorphiumDriverException("No host seed configured");
                 }
+                primaryNode = getHostSeed().get(0);
+            } else {
+                while (primaryNode == null) {
+                    if (System.currentTimeMillis() - start > timeout) {
+                        throw new MorphiumDriverException("No primary node found - not connected yet?");
+                    }
 
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new MorphiumDriverException("Interrupted while waiting for primary connection", e);
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new MorphiumDriverException("Interrupted while waiting for primary connection", e);
+                    }
                 }
             }
         }

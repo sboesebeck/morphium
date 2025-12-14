@@ -17,7 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -66,8 +68,8 @@ public class SubDocumentTests extends MultiDriverTestBase {
             List<ComplexObject> lst = q.asList();
             assertNotNull(lst);
             ;
-            assert (lst.size() == 1) : "List size wrong: " + lst.size();
-            assert (lst.get(0).getId().equals(co.getId()));
+            assertEquals(1, lst.size(), "List size wrong: " + lst.size());
+            assertEquals(lst.get(0).getId(), co.getId());
         }
     }
 
@@ -106,7 +108,7 @@ public class SubDocumentTests extends MultiDriverTestBase {
             List<ComplexObject> lst = q.asList();
             assertNotNull(lst);
             ;
-            assert (lst.isEmpty());
+            assertTrue(lst.isEmpty());
         }
     }
 
@@ -130,10 +132,10 @@ public class SubDocumentTests extends MultiDriverTestBase {
                 lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
                 assert (System.currentTimeMillis() - st < 5000);
             }
-            assert (lst.size() == 1);
+            assertEquals(1, lst.size());
             assertNotNull(lst.get(0).additionals.get("sub"));
             ;
-            assert (lst.get(0).additionals.get("sub") instanceof Map);
+            assertTrue(lst.get(0).additionals.get("sub") instanceof Map);
         }
     }
 
