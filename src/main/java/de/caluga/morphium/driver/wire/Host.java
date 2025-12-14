@@ -17,6 +17,7 @@ public class Host {
     private final AtomicInteger waitCounter = new AtomicInteger(0);
     private final AtomicInteger failures = new AtomicInteger(0);
     private final AtomicInteger borrowedConnections = new AtomicInteger(0);
+    private final AtomicInteger internalInUseConnections = new AtomicInteger(0);
     public static final int MAX_FAILURES = 5;
     private PooledDriver.PingStats pingStats = new PooledDriver.PingStats(0, 0, 0, 0, 0, 0);
 
@@ -35,6 +36,18 @@ public class Host {
 
     public void decrementBorrowedConnections() {
         borrowedConnections.decrementAndGet();
+    }
+
+    public int getInternalInUseConnections() {
+        return internalInUseConnections.get();
+    }
+
+    public void incrementInternalInUseConnections() {
+        internalInUseConnections.incrementAndGet();
+    }
+
+    public void decrementInternalInUseConnections() {
+        internalInUseConnections.decrementAndGet();
     }
 
 

@@ -790,25 +790,46 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 morphium.delete(obj, getCollectionName());
             } else {
                 obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
-                morphium.setInEntity(obj, getCollectionName(), Msg.Fields.deleteAt, obj.getDeleteAt());
+                String deleteAtField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.deleteAt.name());
+                morphium.setInEntity(obj, getCollectionName(), deleteAtField, obj.getDeleteAt(), false, null);
 
-                if (obj.getDeleteAfterProcessingTime() > 0
-                        && morphium.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
-                    long delay = Math.max(obj.getDeleteAfterProcessingTime(), 10_000);
-                    java.util.concurrent.CompletableFuture.runAsync(() -> {
+                // MongoDB TTL cleanup is not instantaneous (monitor runs periodically); schedule best-effort cleanup.
+                long deleteDelay = Math.max(0, obj.getDeleteAfterProcessingTime()) + TimeUnit.SECONDS.toMillis(1);
+                if (decouplePool != null) {
+                    decouplePool.schedule(() -> {
+                        if (!running || morphium == null || morphium.getDriver() == null) {
+                            return;
+                        }
+
                         try {
                             morphium.createQueryFor(Msg.class, getCollectionName())
-                                    .f(Msg.Fields.msgId).eq(obj.getMsgId()).remove();
-                        } catch (Exception e) {
-                            log.warn("Failed to remove message after processing", e);
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(obj.getMsgId())
+                                    .remove();
+                        } catch (Exception ignored) {
                         }
-                    }, java.util.concurrent.CompletableFuture.delayedExecutor(delay,
-                            java.util.concurrent.TimeUnit.MILLISECONDS));
+                    }, deleteDelay, TimeUnit.MILLISECONDS);
                 }
 
                 if (obj.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId())
                             .set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
+
+                    if (decouplePool != null) {
+                        decouplePool.schedule(() -> {
+                            if (!running || morphium == null || morphium.getDriver() == null) {
+                                return;
+                            }
+
+                            try {
+                                morphium.createQueryFor(MsgLock.class, getLockCollectionName())
+                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                        .f("_id").eq(obj.getMsgId())
+                                        .remove();
+                            } catch (Exception ignored) {
+                            }
+                        }, deleteDelay, TimeUnit.MILLISECONDS);
+                    }
                 }
             }
         }
@@ -1579,6 +1600,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         m.setSenderHost(hostname);
         try {
             morphium.insert(m, getCollectionName(), cb);
+            scheduleTimeoutDeletionIfNeeded(m, getCollectionName());
         } catch (RuntimeException e) {
             if (networkRegistry != null
                 && settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
@@ -1590,6 +1612,42 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
             throw e;
         }
+    }
+
+    private void scheduleTimeoutDeletionIfNeeded(Msg msg, String collectionName) {
+        if (msg == null || !running || decouplePool == null || morphium == null || morphium.getDriver() == null) {
+            return;
+        }
+
+        if (!msg.isTimingOut() || msg.getTtl() <= 0 || msg.getMsgId() == null) {
+            return;
+        }
+
+        long delay = msg.getTtl();
+
+        try {
+            Date deleteAt = msg.getDeleteAt();
+            if (deleteAt != null) {
+                delay = Math.max(0, deleteAt.getTime() - System.currentTimeMillis());
+            }
+        } catch (Exception ignored) {
+        }
+
+        long effectiveDelay = delay + TimeUnit.SECONDS.toMillis(1);
+
+        decouplePool.schedule(() -> {
+            if (!running || morphium == null || morphium.getDriver() == null) {
+                return;
+            }
+
+            try {
+                morphium.createQueryFor(Msg.class, collectionName)
+                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(msg.getMsgId())
+                        .remove();
+            } catch (Exception ignored) {
+            }
+        }, effectiveDelay, TimeUnit.MILLISECONDS);
     }
 
     @Override

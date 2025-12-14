@@ -116,6 +116,8 @@ public class PooledDriver extends DriverBase {
     private volatile StatsSnapshot cachedStats = null;
     private volatile long lastStatsUpdate = 0;
     private static final long STATS_CACHE_TTL = 1000; // 1 second
+    private final AtomicLong statsDirtyCounter = new AtomicLong(0);
+    private volatile long cachedStatsDirtyCounter = -1;
 
     public PooledDriver() {
         running = true;
@@ -125,6 +127,11 @@ public class PooledDriver extends DriverBase {
         for (var e : DriverStatsKey.values()) {
             stats.put(e, new AtomicDecimal(0));
         }
+    }
+
+    private void markStatsDirty() {
+        statsDirtyCounter.incrementAndGet();
+        cachedStats = null;
     }
 
     @Override
@@ -156,7 +163,20 @@ public class PooledDriver extends DriverBase {
     @Override
     public synchronized void removeFromHostSeed(String host) {
         super.removeFromHostSeed(host);
-        hosts.remove(host);
+        Host removed = hosts.remove(host);
+
+        if (removed != null) {
+            // Close pooled connections for the removed host to avoid untracked open sockets and drifting stats.
+            for (var c : new ArrayList<>(removed.getConnectionPool())) {
+                try {
+                    c.getCon().close();
+                } catch (Exception ignored) {
+                }
+                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                markStatsDirty();
+            }
+            removed.getConnectionPool().clear();
+        }
 
         if (getNumHostsInSeed() == 0) {
             if (lastHostsFromHello == null) {
@@ -280,6 +300,7 @@ public class PooledDriver extends DriverBase {
                 } catch (Exception ex) {
                 }
                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                markStatsDirty();
             }
         }
     }
@@ -307,23 +328,29 @@ public class PooledDriver extends DriverBase {
     
                                     if (connection == null)
                                         break;
+                                    host.incrementInternalInUseConnections();
     
-                                    long now = System.currentTimeMillis();
-    
-                                    if ((connection.getLastUsed() < now - getMaxConnectionIdleTime())
-                                            || connection.getCreated() < now - getMaxConnectionLifetime()) {
-                                        log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove",
-                                                connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(),
-                                                getMaxConnectionLifetime());
-    
-                                        try {
-                                            connection.getCon().close();
-                                        } catch (Exception e) {
-                                            // swallow
+                                    try {
+                                        long now = System.currentTimeMillis();
+
+                                        if ((connection.getLastUsed() < now - getMaxConnectionIdleTime())
+                                                || connection.getCreated() < now - getMaxConnectionLifetime()) {
+                                            log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove",
+                                                    connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(),
+                                                    getMaxConnectionLifetime());
+
+                                            try {
+                                                connection.getCon().close();
+                                            } catch (Exception e) {
+                                                // swallow
+                                            }
+                                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                            markStatsDirty();
+                                        } else {
+                                            connectionPoolForHost.add(connection);
                                         }
-                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                    } else {
-                                        connectionPoolForHost.add(connection);
+                                    } finally {
+                                        host.decrementInternalInUseConnections();
                                     }
                                 }
                             } catch (Throwable e) {
@@ -346,32 +373,38 @@ public class PooledDriver extends DriverBase {
                                 }
     
                                 if (container != null) {
-                                    long start = System.currentTimeMillis();
-                                    HelloResult result;
-    
-                                    if (container.getCon().isConnected()) {
-                                        result = container.getCon().getHelloResult(false);
-                                    } else {
-                                        result = container.getCon().connect(this, getHost(hst), getPortFromHost(hst));
-                                    }
-    
-                                    long dur = System.currentTimeMillis() - start;
-    
-                                    PingStats newStats = host.getPingStats().updateWith(dur);
-                                    host.setPingStats(newStats);
-                                    host.resetFailures();
-    
-                                    // Use record patterns to update fastest host
-                                    updateFastestHost(hst, newStats);
-                                    // container.touch();
-                                    handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
-    
-                                    if (hosts.containsKey(hst)
-                                            && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
-                                        host.getConnectionPool().add(container);
-                                    } else {
-                                        container.getCon().close();
-                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                    host.incrementInternalInUseConnections();
+                                    try {
+                                        long start = System.currentTimeMillis();
+                                        HelloResult result;
+
+                                        if (container.getCon().isConnected()) {
+                                            result = container.getCon().getHelloResult(false);
+                                        } else {
+                                            result = container.getCon().connect(this, getHost(hst), getPortFromHost(hst));
+                                        }
+
+                                        long dur = System.currentTimeMillis() - start;
+
+                                        PingStats newStats = host.getPingStats().updateWith(dur);
+                                        host.setPingStats(newStats);
+                                        host.resetFailures();
+
+                                        // Use record patterns to update fastest host
+                                        updateFastestHost(hst, newStats);
+                                        // container.touch();
+                                        handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
+
+                                        if (hosts.containsKey(hst)
+                                                && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
+                                            host.getConnectionPool().add(container);
+                                        } else {
+                                            container.getCon().close();
+                                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                            markStatsDirty();
+                                        }
+                                    } finally {
+                                        host.decrementInternalInUseConnections();
                                     }
                                 }
     
@@ -507,6 +540,7 @@ public class PooledDriver extends DriverBase {
                         // swallow
                     }
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    markStatsDirty();
                 }
             }
         }
@@ -531,15 +565,18 @@ public class PooledDriver extends DriverBase {
         long start = System.currentTimeMillis();
         HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
         stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
+        markStatsDirty();
 
         if (host.getConnectionPool().size() < host.getWaitCounter()
                                             && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
                                             getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
             var cont = new ConnectionContainer(con);
             host.getConnectionPool().add(cont);
+            markStatsDirty();
         } else {
 
             stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+            markStatsDirty();
             con.close();
         }
 
@@ -632,6 +669,7 @@ public class PooledDriver extends DriverBase {
                     } catch (Exception ignored) {
                     }
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    markStatsDirty();
                     bc = null;
                 }
             } while (bc == null);
@@ -640,6 +678,7 @@ public class PooledDriver extends DriverBase {
             borrowedConnections.put(bc.getCon().getSourcePort(), bc);
             h.incrementBorrowedConnections();
             stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
+            markStatsDirty();
             return bc.getCon();
         } catch (InterruptedException iex) {
             // swallow - might happen when closing
@@ -803,7 +842,25 @@ public class PooledDriver extends DriverBase {
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
         if (primaryNode == null) {
-            throw new MorphiumDriverException("No primary node found - connection not established yet?");
+            long start = System.currentTimeMillis();
+            long timeout = getServerSelectionTimeout();
+
+            if (timeout <= 0) {
+                timeout = 1000;
+            }
+
+            while (primaryNode == null) {
+                if (System.currentTimeMillis() - start > timeout) {
+                    throw new MorphiumDriverException("No primary node found - connection not established yet?");
+                }
+
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new MorphiumDriverException("Interrupted while waiting for primary connection", e);
+                }
+            }
         }
 
         return borrowConnection(primaryNode);
@@ -837,6 +894,7 @@ public class PooledDriver extends DriverBase {
             return; // shutting down
         }
         stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
+        markStatsDirty();
 
         if (!(con instanceof SingleMongoConnection)) {
             throw new IllegalArgumentException("Got connection of wrong type back!");
@@ -844,6 +902,7 @@ public class PooledDriver extends DriverBase {
 
         if (con.getSourcePort() != 0) { // sourceport== 0 probably closed or broken
             var c = borrowedConnections.remove(con.getSourcePort());
+            markStatsDirty();
 
             if (c == null) {
                 // log.debug("Returning not borrowed connection!?!?");
@@ -851,6 +910,7 @@ public class PooledDriver extends DriverBase {
                     // c = new Connection((SingleMongoConnection) con);
 
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    markStatsDirty();
                     con.close();
                 }
 
@@ -862,6 +922,7 @@ public class PooledDriver extends DriverBase {
                 if (h != null) {
                     h.getConnectionPool().add(c);
                     h.decrementBorrowedConnections();
+                    markStatsDirty();
                 }
             }
         } else {
@@ -878,6 +939,9 @@ public class PooledDriver extends DriverBase {
 
             for (int port : sourcePortsToDelete) {
                 borrowedConnections.remove(port);
+            }
+            if (!sourcePortsToDelete.isEmpty()) {
+                markStatsDirty();
             }
         }
     }
@@ -950,7 +1014,6 @@ public class PooledDriver extends DriverBase {
         }
         hosts.clear();
         borrowedConnections.clear();
-        stats.clear();
     }
 
     protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
@@ -1269,13 +1332,15 @@ public class PooledDriver extends DriverBase {
         long now = System.currentTimeMillis();
 
         // Return cached stats if recent enough
-        if (cachedStats != null && now - lastStatsUpdate < STATS_CACHE_TTL) {
+        if (cachedStats != null && now - lastStatsUpdate < STATS_CACHE_TTL
+                && cachedStatsDirtyCounter == statsDirtyCounter.get()) {
             return cachedStats.toMap();
         }
 
         // Batch collect all stats in one operation
         StatsSnapshot snapshot = collectStatsSnapshot();
         cachedStats = snapshot;
+        cachedStatsDirtyCounter = statsDirtyCounter.get();
         lastStatsUpdate = now;
 
         return snapshot.toMap();
@@ -1293,7 +1358,7 @@ public class PooledDriver extends DriverBase {
         Map<DriverStatsKey, Double> connStats = new HashMap<>();
 
         for (Host h : hosts.values()) {
-            totalPooled += h.getConnectionPool().size();
+            totalPooled += h.getConnectionPool().size() + h.getInternalInUseConnections();
 
             for (var con : h.getConnectionPool()) {
                 for (var entry : con.getCon().getStats().entrySet()) {

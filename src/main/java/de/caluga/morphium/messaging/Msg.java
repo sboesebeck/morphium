@@ -17,8 +17,8 @@ import java.util.*;
  * <p>
  * Message class - used by Morphium's own messaging system<br>
  * </br>
- * Reads from any node, as this produces lots of reads! All Writes will block until <b>all nodes</b> have confirmed the
- * write!t
+ * Reads default to primary-preferred to avoid stale reads causing duplicates under replication lag.
+ * All writes block until <b>all nodes</b> have confirmed the write.
  */
 @SuppressWarnings({"WeakerAccess", "UnusedReturnValue", "CommentedOutCode"})
 @Entity(polymorph = true)
@@ -26,7 +26,7 @@ import java.util.*;
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
 @WriteSafety(level = SafetyLevel.MAJORITY)
-@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
+@DefaultReadPreference(ReadPreferenceLevel.PRIMARY_PREFERRED)
 @Lifecycle
 @Index({
     "sender,processed_by,in_answer_to",

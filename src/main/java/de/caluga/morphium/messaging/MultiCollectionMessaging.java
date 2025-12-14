@@ -33,6 +33,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Messaging;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -643,7 +644,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     private void pollAndProcessDms(String name) {
-        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) // not processed
+        // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
+        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f("processed_by.0").notExists() // not processed
                 .f(Msg.Fields.topic).nin(getPausedTopics())
                 .f(Msg.Fields.topic).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
         int window = getWindowSize();
@@ -690,7 +692,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q2.f(Msg.Fields.exclusive).eq(false) // non-exclusive message
-          .f(Msg.Fields.processedBy).ne(getSenderId()) // not processed by me
+          // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
+          .f("processed_by").ne(getSenderId()) // not processed by me
           .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
         if (!processingIds.isEmpty()) {
             q2.f(Msg.Fields.msgId).nin(processingIds); // not processing already
@@ -784,28 +787,49 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 return true;
             } else {
                 message.setDeleteAt(new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
-                morphium.setInEntity(message, collName, Msg.Fields.deleteAt,
-                                     new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
+                String deleteAtField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.deleteAt.name());
+                morphium.setInEntity(message, collName, deleteAtField,
+                                     new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()), false, null);
 
-                // if (message.getDeleteAfterProcessingTime() > 0 && morphium.getDriver()
-                // instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
-                // long delay = Math.max(message.getDeleteAfterProcessingTime(), 10_000);
-                // java.util.concurrent.CompletableFuture.runAsync(() -> {
-                // try {
-                // morphium.createQueryFor(Msg.class, getCollectionName(message))
-                // .f(Msg.Fields.msgId).eq(message.getMsgId()).remove();
-                // } catch (Exception e) {
-                // log.warn("Failed to remove message after processing", e);
-                // }
-                // }, java.util.concurrent.CompletableFuture.delayedExecutor(delay,
-                // java.util.concurrent.TimeUnit.MILLISECONDS));
-                // }
+                // MongoDB TTL cleanup is not instantaneous (monitor runs periodically); schedule best-effort cleanup.
+                long deleteDelay = Math.max(0, message.getDeleteAfterProcessingTime()) + TimeUnit.SECONDS.toMillis(1);
+                if (decouplePool != null) {
+                    decouplePool.schedule(() -> {
+                        if (!running.get() || morphium == null || morphium.getDriver() == null) {
+                            return;
+                        }
+
+                        try {
+                            morphium.createQueryFor(Msg.class, collName)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(message.getMsgId())
+                                    .remove();
+                        } catch (Exception ignored) {
+                        }
+                    }, deleteDelay, TimeUnit.MILLISECONDS);
+                }
 
                 if (message.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName(message)).f("_id")
                             .eq(message.getMsgId())
                             .set(MsgLock.Fields.deleteAt,
                                  new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
+
+                    if (decouplePool != null) {
+                        decouplePool.schedule(() -> {
+                            if (!running.get() || morphium == null || morphium.getDriver() == null) {
+                                return;
+                            }
+
+                            try {
+                                morphium.createQueryFor(MsgLock.class, getLockCollectionName(message))
+                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                        .f("_id").eq(message.getMsgId())
+                                        .remove();
+                            } catch (Exception ignored) {
+                            }
+                        }, deleteDelay, TimeUnit.MILLISECONDS);
+                    }
                 }
             }
         }
@@ -1158,6 +1182,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 } else {
                     morphium.store(m, getCollectionName(m), null);
                 }
+                scheduleTimeoutDeletionIfNeeded(m, getCollectionName(m));
             } catch (RuntimeException e) {
                 if (networkRegistry != null
                     && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
@@ -1178,6 +1203,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     } else {
                         morphium.store(m, getDMCollectionName(rec), null);
                     }
+                    scheduleTimeoutDeletionIfNeeded(m, getDMCollectionName(rec));
                 } catch (RuntimeException e) {
                     if (networkRegistry != null
                         && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW) {
@@ -1191,6 +1217,42 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             }
         }
 
+    }
+
+    private void scheduleTimeoutDeletionIfNeeded(Msg msg, String collectionName) {
+        if (msg == null || !running.get() || decouplePool == null || morphium == null || morphium.getDriver() == null) {
+            return;
+        }
+
+        if (!msg.isTimingOut() || msg.getTtl() <= 0 || msg.getMsgId() == null) {
+            return;
+        }
+
+        long delay = msg.getTtl();
+
+        try {
+            Date deleteAt = msg.getDeleteAt();
+            if (deleteAt != null) {
+                delay = Math.max(0, deleteAt.getTime() - System.currentTimeMillis());
+            }
+        } catch (Exception ignored) {
+        }
+
+        long effectiveDelay = delay + TimeUnit.SECONDS.toMillis(1);
+
+        decouplePool.schedule(() -> {
+            if (!running.get() || morphium == null || morphium.getDriver() == null) {
+                return;
+            }
+
+            try {
+                morphium.createQueryFor(Msg.class, collectionName)
+                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(msg.getMsgId())
+                        .remove();
+            } catch (Exception ignored) {
+            }
+        }, effectiveDelay, TimeUnit.MILLISECONDS);
     }
 
     @Override

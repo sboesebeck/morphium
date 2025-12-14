@@ -124,7 +124,8 @@ public class TimeoutTests extends MultiDriverTestBase {
                     TestUtils.wait(2);
                     var theMsg = morphium.createQueryFor(Msg.class, m1.getCollectionName("test")).get();
                     log.info("Delete at is set to {}", theMsg.getDeleteAt());
-                    TestUtils.waitForConditionToBecomeTrue(120000, "Message not deleted within timeout",
+                    // MongoDB's TTL monitor runs periodically; allow enough time for real clusters.
+                    TestUtils.waitForConditionToBecomeTrue(180000, "Message not deleted within timeout",
                                                            () -> m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll() == 0, (dur)-> {log.info("Still waiting for message do be deleted");});
                     m1.terminate();
                     m2.terminate();
