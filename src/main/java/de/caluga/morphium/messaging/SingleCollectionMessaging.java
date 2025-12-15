@@ -37,7 +37,7 @@ import java.util.concurrent.locks.LockSupport;
  * User: Stephan Bösebeck
  * Date: 26.05.12
  * Time: 15:48
- * <p/>
+ * <p>
  * Messaging implements a simple, threadsafe and messaging api. Used for cache
  * synchronization.
  * Msg can have several modes:
@@ -77,7 +77,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private int windowSize = 100;
     private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
-    private static Vector<SingleCollectionMessaging> allMessagings = new Vector<>();
+    private static List<SingleCollectionMessaging> allMessagings = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     // answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
@@ -86,10 +86,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private final BlockingQueue<ProcessingQueueElement> processing = new PriorityBlockingQueue<>();
 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
-    private final List<MorphiumId> idsInProgress = new Vector<>();
+    private final List<MorphiumId> idsInProgress = new java.util.concurrent.CopyOnWriteArrayList<>();
     // Debug counter for InMemoryDriver
     private final AtomicInteger changeStreamEventsReceived = new AtomicInteger(0);
     private MessagingSettings settings = null;
+    private MessagingRegistry networkRegistry;
+
 
     public SingleCollectionMessaging() {
         allMessagings.add(this);
@@ -214,7 +216,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      *                         to be a replicaset!
      *                         morphium automatically sets this value accordingly
      *                         depending on your configuration
-     * @prarm pause: when waiting for incoming messages, especially when
+     * @param pause: when waiting for incoming messages, especially when
      *        multithreadded == false, how long to wait between polls
      */
     @Deprecated
@@ -253,6 +255,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         morphium.ensureIndicesFor(Msg.class, getCollectionName());
         morphium.ensureIndicesFor(MsgLock.class, getLockCollectionName());
+
+        if (settings.isMessagingRegistryEnabled()) {
+            networkRegistry = new MessagingRegistry(this);
+        }
     }
 
     @Override
@@ -371,9 +377,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void initThreadPool() {
+        int coreSize = settings.getThreadPoolMessagingCoreSize();
+        int maxSize = settings.getThreadPoolMessagingMaxSize();
+        if (coreSize <= 0) {
+            // Core size 0 leads to effectively single-threaded execution with an unbounded queue.
+            // Interpret 0 as "auto" -> use max size for parallelism (virtual threads).
+            coreSize = Math.max(1, maxSize);
+        }
         threadPool = new ThreadPoolExecutor(
-                        settings.getThreadPoolMessagingCoreSize(),
-                        settings.getThreadPoolMessagingMaxSize(),
+                        coreSize,
+                        maxSize,
                         settings.getThreadPoolMessagingKeepAliveTime(),
                         TimeUnit.MILLISECONDS,
                         new LinkedBlockingQueue<>(),
@@ -404,7 +417,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         morphium.delete(m, getCollectionName());
     }
 
-    private Vector<Object> docIdsFromChangestream = new Vector<>();
+    // Use LinkedHashSet for O(1) contains and add operations (debug duplicate detection only)
+    private final Set<Object> docIdsFromChangestreamSet = Collections.synchronizedSet(new LinkedHashSet<>());
+    // Prevent duplicate listener invocation within the same JVM instance (especially important for InMem + change streams).
+    private final Set<MorphiumId> locallyProcessedMessageIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private boolean handleChangeStreamEvent(ChangeStreamEvent evt) {
         // log.info("incoming CSE...");
         if (!running) {
@@ -419,26 +435,36 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
             // Debug: Count ALL change stream events for InMemoryDriver
-            if (morphium.getDriver().getName().contains("InMem")) {
-                int totalEvents = changeStreamEventsReceived.incrementAndGet();
-                if (totalEvents == 1 || totalEvents % 50 == 0 || totalEvents == 200) {
-                    log.info("{}: Change stream event #{} received", this.id, totalEvents);
-                }
+            // if (morphium.getDriver().getName().contains("InMem")) {
+            //     int totalEvents = changeStreamEventsReceived.incrementAndGet();
+            // if (totalEvents == 1 || totalEvents % 50 == 0 || totalEvents == 200) {
+            //     log.info("{}: Change stream event #{} received", this.id, totalEvents);
+            // }
+            // }
+
+            MorphiumId normalizedDocKeyId = null;
+            if (id instanceof MorphiumId) {
+                normalizedDocKeyId = (MorphiumId) id;
+            } else if (id instanceof org.bson.types.ObjectId) {
+                normalizedDocKeyId = new MorphiumId((org.bson.types.ObjectId) id);
+            } else if (id instanceof String) {
+                normalizedDocKeyId = new MorphiumId(id.toString());
             }
 
-            // Note: docIdsFromChangestream is used for debugging duplicate events only
-            // It does not prevent processing - that's handled by idsInProgress check below
-            if (docIdsFromChangestream.contains(id)) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Duplicate change stream event for id: {}", id);
+            // InMemoryDriver change streams may deliver duplicate insert events; filter them here.
+            // Polling remains as a safety net, and this avoids double listener invocation.
+            if (normalizedDocKeyId != null) {
+                if (docIdsFromChangestreamSet.contains(normalizedDocKeyId)) {
+                    return running;
+                }
+
+                docIdsFromChangestreamSet.add(normalizedDocKeyId);
+                // Keep only recent 1000 IDs to prevent memory growth - clear when exceeded
+                if (docIdsFromChangestreamSet.size() > 1000) {
+                    docIdsFromChangestreamSet.clear();
                 }
             }
-            docIdsFromChangestream.add(id);
-            // Keep only recent 1000 IDs to prevent memory growth
-            while (docIdsFromChangestream.size() > 1000) {
-                docIdsFromChangestream.remove(0);
-            }
-            if (id instanceof MorphiumId) {
+            if (id instanceof MorphiumId || id instanceof org.bson.types.ObjectId || id instanceof String) {
 
                 // Use fullDocument from change stream event instead of re-reading
                 // The fullDocument is already a snapshot from the insert operation
@@ -449,18 +475,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     return running;
                 }
 
-                // Skip if I am the sender
-                if (msg.get("sender").equals(this.id)) {
+                Object rawMsgId = msg.get("_id");
+                MorphiumId messageId;
+                if (rawMsgId instanceof MorphiumId) {
+                    messageId = (MorphiumId) rawMsgId;
+                } else if (rawMsgId instanceof org.bson.types.ObjectId) {
+                    messageId = new MorphiumId((org.bson.types.ObjectId) rawMsgId);
+                } else if (rawMsgId instanceof String) {
+                    messageId = new MorphiumId(rawMsgId.toString());
+                } else {
+                    log.error("Unsupported _id type in change stream fullDocument: {}", rawMsgId == null ? "null" : rawMsgId.getClass().getName());
                     return running;
                 }
-
-                MorphiumId messageId = (MorphiumId) msg.get("_id");
 
                 // Additional validation for exclusive messages
                 Boolean exclusive = (Boolean) msg.get("exclusive");
                 if (exclusive != null && exclusive) {
                     @SuppressWarnings("unchecked")
-                    List<String> processedBy = (List<String>) msg.get("processed_by");
+                    List<String> processedBy = (List<String>) (msg.containsKey("processed_by") ? msg.get("processed_by") : msg.get("processedBy"));
                     // Only skip if explicitly marked as processed by someone
                     if (processedBy != null && !processedBy.isEmpty()) {
                         // Exclusive message already processed, skip
@@ -479,9 +511,21 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                     // Create processing element
                     ProcessingQueueElement el = new ProcessingQueueElement();
-                    el.setPriority((Integer) msg.get("priority"));
+                    Object prio = msg.get("priority");
+                    if (prio instanceof Number) {
+                        el.setPriority(((Number) prio).intValue());
+                    } else {
+                        el.setPriority(1000);
+                    }
                     el.setId(messageId);
-                    el.setTimestamp((Long) msg.get("timestamp"));
+                    Object ts = msg.get("timestamp");
+                    if (ts instanceof Number) {
+                        el.setTimestamp(((Number) ts).longValue());
+                    } else if (ts instanceof Date) {
+                        el.setTimestamp(((Date) ts).getTime());
+                    } else {
+                        el.setTimestamp(System.currentTimeMillis());
+                    }
 
                     // Check if not already queued for processing
                     if (!processing.contains(el)) {
@@ -490,7 +534,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
 
-                        log.debug("CHANGESTREAM: Queued message {} for processing", messageId);
+                        // log.debug("CHANGESTREAM: Queued message {} for processing", messageId);
                     } else {
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
@@ -553,9 +597,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // For other drivers: only poll if requested or change streams disabled
                     boolean forcePolling = morphium.getDriver() != null && morphium.getDriver().getName().contains("InMem");
                     if (requestPoll.get() > 0 || !useChangeStream || forcePolling) {
-                        if (forcePolling || requestPoll.get() > 0) {
-                            log.info("Polling (forced={}, requested={})", forcePolling, requestPoll.get() > 0);
-                        }
+                        // if (forcePolling || requestPoll.get() > 0) {
+                        //     log.info("Polling (forced={}, requested={})", forcePolling, requestPoll.get() > 0);
+                        // }
                         lastRun.set(System.currentTimeMillis());
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
@@ -594,9 +638,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 synchronized (processing) {
                     if (!idsInProgress.contains(prEl.getId())) {
                         idsInProgress.add(prEl.getId());
-                        log.debug("PROCESSING: Added {} to idsInProgress (from queue)", prEl.getId());
-                    } else {
-                        log.debug("PROCESSING: {} already in idsInProgress (from changestream)", prEl.getId());
+                        // log.debug("PROCESSING: Added {} to idsInProgress (from queue)", prEl.getId());
+                        // } else {
+                        //     log.debug("PROCESSING: {} already in idsInProgress (from changestream)", prEl.getId());
                     }
                 }
 
@@ -605,11 +649,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     boolean wasProcessed = false;
                     Msg msg = null;
                     try {
+                        if (!running || morphium == null || morphium.getDriver() == null) {
+                            return;
+                        }
+
                         msg = morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
                         // message was deleted or dirty read
                         // dirty read only possible, because msg read ReadPreferenceLevel is NEAREST
 
                         if (msg == null) {
+                            if (!running || morphium.getDriver() == null) {
+                                return;
+                            }
                             var q = morphium.createQueryFor(Msg.class)
                                             .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
                             q.setCollectionName(getCollectionName());
@@ -627,8 +678,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             return;
                         }
 
-                        // I sent the message
-                        if (msg.getSender().equals(id)) {
+                        // Never receive messages sent by myself by default.
+                        // sendMessageToSelf() uses sender="self" and explicit recipient, so it still works.
+                        if (msg.getSender() != null && msg.getSender().equals(id)) {
                             return;
                         }
 
@@ -650,6 +702,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                         // Check answers
                         if (msg.isAnswer()) {
+                            if (networkRegistry != null && msg.getTopic() != null && msg.getTopic().equals(getStatusInfoListenerName())) {
+                                networkRegistry.updateFrom(msg);
+                                checkDeleteAfterProcessing(msg);
+                                return;
+                            }
+
                             final Queue<Msg> answersForMessage = waitingForAnswers.get(msg.getInAnswerTo());
 
                             if (null != answersForMessage) {
@@ -723,30 +781,55 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void checkDeleteAfterProcessing(Msg obj) {
+        if (!running || morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+            return;
+        }
+
         if (obj.isDeleteAfterProcessing()) {
             if (obj.getDeleteAfterProcessingTime() == 0) {
                 morphium.delete(obj, getCollectionName());
             } else {
                 obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
-                morphium.setInEntity(obj, getCollectionName(), Msg.Fields.deleteAt, obj.getDeleteAt());
+                String deleteAtField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.deleteAt.name());
+                morphium.setInEntity(obj, getCollectionName(), deleteAtField, obj.getDeleteAt(), false, null);
 
-                if (obj.getDeleteAfterProcessingTime() > 0
-                        && morphium.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
-                    long delay = Math.max(obj.getDeleteAfterProcessingTime(), 10_000);
-                    java.util.concurrent.CompletableFuture.runAsync(() -> {
+                // MongoDB TTL cleanup is not instantaneous (monitor runs periodically); schedule best-effort cleanup.
+                long deleteDelay = Math.max(0, obj.getDeleteAfterProcessingTime()) + TimeUnit.SECONDS.toMillis(1);
+                if (decouplePool != null) {
+                    decouplePool.schedule(() -> {
+                        if (!running || morphium == null || morphium.getDriver() == null) {
+                            return;
+                        }
+
                         try {
                             morphium.createQueryFor(Msg.class, getCollectionName())
-                                    .f(Msg.Fields.msgId).eq(obj.getMsgId()).remove();
-                        } catch (Exception e) {
-                            log.warn("Failed to remove message after processing", e);
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(obj.getMsgId())
+                                    .remove();
+                        } catch (Exception ignored) {
                         }
-                    }, java.util.concurrent.CompletableFuture.delayedExecutor(delay,
-                            java.util.concurrent.TimeUnit.MILLISECONDS));
+                    }, deleteDelay, TimeUnit.MILLISECONDS);
                 }
 
                 if (obj.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId())
                             .set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
+
+                    if (decouplePool != null) {
+                        decouplePool.schedule(() -> {
+                            if (!running || morphium == null || morphium.getDriver() == null) {
+                                return;
+                            }
+
+                            try {
+                                morphium.createQueryFor(MsgLock.class, getLockCollectionName())
+                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                        .f("_id").eq(obj.getMsgId())
+                                        .remove();
+                            } catch (Exception ignored) {
+                            }
+                        }, deleteDelay, TimeUnit.MILLISECONDS);
+                    }
                 }
             }
         }
@@ -799,6 +882,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // Check if morphium is still valid (not closed)
         if (morphium.getDriver() == null) {
             log.debug(id + ": Morphium driver is null, messaging system is shutting down");
+            running = false;  // Stop the messaging loop
             return new ArrayList<>();
         }
 
@@ -809,7 +893,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
             if (listenerByName.isEmpty()) {
                 // No listeners - only answers will be processed
-                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo)
+                // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
+                return q.q().f(Msg.Fields.sender).ne(id).f("processed_by").ne(id).f(Msg.Fields.inAnswerTo)
                        .in(waitingForAnswers.keySet()).limit(windowSize).idList();
             }
 
@@ -825,18 +910,20 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 idsToIgnore.addAll(idsInProgress);
 
                 // Debug logging for InMemoryDriver
-                if (morphium.getDriver().getName().contains("InMem")) {
-                    log.info("POLLING DEBUG {}: processing.size={}, idsInProgress.size={}, idsToIgnore.size={}",
-                             id, processing.size(), idsInProgress.size(), idsToIgnore.size());
-                }
+                // if (morphium.getDriver().getName().contains("InMem")) {
+                // log.info("POLLING DEBUG {}: processing.size={}, idsInProgress.size={}, idsToIgnore.size={}",
+                // id, processing.size(), idsInProgress.size(), idsToIgnore.size());
+                // }
             }
 
             // q1: Exclusive messages, not locked yet, not processed yet
             var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
             // q2: non-exclusive messages, cannot be locked, not processed by me yet
-            var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
-            q.f("_id").nin(idsToIgnore).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients)
-             .in(Arrays.asList(null, id));
+            // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
+            var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f("processed_by").ne(id);
+            q.f("_id").nin(idsToIgnore);
+            q.f(Msg.Fields.sender).ne(id);  // Don't receive messages sent by myself
+            q.f(Msg.Fields.recipients).in(Arrays.asList(null, id));
             Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
             if (!pauseMessages.isEmpty()) {
@@ -879,21 +966,20 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
             }
 
-            long totalCount = q.countAll();
-
-            // Debug logging for InMemoryDriver
-            if (morphium.getDriver().getName().contains("InMem")) {
-                log.info("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
-                         id, queueElements.size(), totalCount, idsToIgnore.size());
-            }
-
-            if (totalCount != queueElements.size()) {
-                // still messages left in mongodb for processing
-                // or some messages were delete -> check to be sure
-                log.debug("{}: Found {} messages in queue, {} total in DB, {} in idsToIgnore",
-                          id, queueElements.size(), totalCount, idsToIgnore.size());
+            // Optimization: Avoid expensive countAll() on every poll
+            // If we got exactly windowSize results, there might be more messages
+            // If we got fewer, no need to poll again immediately
+            if (queueElements.size() >= ws) {
+                // Got full batch - likely more messages pending
                 requestPoll.incrementAndGet();
             }
+
+            // Debug logging for InMemoryDriver (skip expensive count in production)
+            // if (log.isDebugEnabled() && morphium.getDriver().getName().contains("InMem")) {
+            // long totalCount = q.countAll();
+            // log.debug("POLLING RESULT {}: found {} messages, total in DB={}, idsToIgnore.size={}",
+            //           id, queueElements.size(), totalCount, idsToIgnore.size());
+            // }
 
             return queueElements;
         } catch (Exception e) {
@@ -910,7 +996,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     public void triggerCheck() {
-        log.debug("Triggercheck called");
+        // log.debug("Triggercheck called");
         requestPoll.incrementAndGet();
     }
 
@@ -945,7 +1031,26 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @SuppressWarnings("CommentedOutCode")
     private void lockAndProcess(Msg obj) {
         if (lockMessage(obj, id, obj.getDeleteAt())) {
-            processMessage(obj);
+            // Messages can be queued for processing before the exclusive lock exists.
+            // If another instance already processed and unlocked, a stale queued message
+            // could otherwise be processed again. Re-fetch to ensure processed_by state is current.
+            Msg fresh = null;
+            try {
+                fresh = morphium.findById(Msg.class, obj.getMsgId(), getCollectionName());
+            } catch (Exception ignored) {
+            }
+
+            if (fresh == null) {
+                unlockIfExclusive(obj);
+                return;
+            }
+
+            if (fresh.getProcessedBy() != null && !fresh.getProcessedBy().isEmpty()) {
+                unlockIfExclusive(fresh);
+                return;
+            }
+
+            processMessage(fresh);
         }
     }
 
@@ -1000,10 +1105,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return;
         }
 
-        // I am the sender?
-        if (msg.getSender().equals(getSenderId())) {
-            log.error("This should have been filtered out before alreaday!!!");
+        if (!running || morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
             return;
+        }
+
+        // Per-instance dedup (broadcasts must not be delivered twice to same instance).
+        // If a listener rejects a message, remove the local mark to allow retry.
+        boolean locallyMarked = false;
+        if (!msg.isExclusive()) {
+            locallyMarked = locallyProcessedMessageIds.add(msg.getMsgId());
+            if (!locallyMarked) {
+                return;
+            }
         }
 
         // outdated message
@@ -1019,50 +1132,19 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return;
         }
 
-        // For InMemoryDriver broadcasts: use atomic database update for duplicate detection
-        // This is the ONLY reliable way to prevent duplicates with concurrent polling and change streams
         boolean alreadyUpdatedProcessedBy = false;
-        if (morphium.getDriver().getName().contains("InMem") && !msg.isExclusive()) {
-            // Use message ID string as lock - intern() ensures all threads use the SAME string object
-            // This is critical: if we use a lock object from a map and remove it, other waiting threads
-            // will create a NEW lock object and bypass synchronization!
-            String lockKey = msg.getMsgId().toString().intern();
-            log.debug("SYNC: Instance {} acquiring lock for message {}", id, msg.getMsgId());
-            synchronized (lockKey) {
-                log.debug("SYNC: Instance {} ACQUIRED lock for message {}", id, msg.getMsgId());
-                // First check if we've already processed this message
-                Msg freshMsg = morphium.findById(Msg.class, msg.getMsgId(), getCollectionName());
-                if (freshMsg == null) {
-                    // Message was deleted
-                    log.debug("SYNC: Message {} was deleted, skipping", msg.getMsgId());
-                    return;
-                }
-
-                // Check if we're already in processed_by
-                if (freshMsg.getProcessedBy() != null && freshMsg.getProcessedBy().contains(id)) {
-                    // Already processed - skip
-                    log.info("DEDUP: Duplicate PREVENTED for instance {} on message {} - already in processed_by", id, msg.getMsgId());
-                    return;
-                }
-
-                // We're not in processed_by yet - add ourselves atomically
-                updateProcessedBy(msg);
-                alreadyUpdatedProcessedBy = true;
-            }
-            log.debug("SYNC: Instance {} RELEASED lock for message {}, proceeding to process", id, msg.getMsgId());
-        } else {
-            // For other drivers or exclusive messages: use the message object's processed_by field
-            if (msg.getProcessedBy().contains(id)) {
-                return;
-            }
+        // Duplicate execution is prevented by queue/idsInProgress deduplication and the processed_by checks.
+        // Avoid extra database roundtrips here (especially for InMemoryDriver), as they severely impact throughput.
+        if (msg.getProcessedBy().contains(id)) {
+            return;
         }
 
         if (listenerByName.isEmpty()) {
             // message cannot be processed, as no listener is defined and message is no
             // answer.
-            if (log.isDebugEnabled()) {
-                log.debug("Not further processing - no listener for non answer message");
-            }
+            // if (log.isDebugEnabled()) {
+            //     log.debug("Not further processing - no listener for non answer message");
+            // }
 
             // removeProcessingFor(msg);
             unlockIfExclusive(msg);
@@ -1129,6 +1211,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // }
 
         if (wasRejected) {
+            if (locallyMarked) {
+                locallyProcessedMessageIds.remove(msg.getMsgId());
+            }
             for (MessageRejectedException mre : rejections) {
                 if (mre.getRejectionHandler() != null) {
                     try {
@@ -1183,8 +1268,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return false; // Already claimed by THIS instance
         }
 
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
         Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
-        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+        idq.f("_id").eq(queryId);
         // No need for additional query conditions - $addToSet is atomic and won't add duplicates
         // nModified will tell us if we actually added our ID (claimed it) or if it was already there
 
@@ -1227,12 +1316,20 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return false;
         }
 
+        if (!running || morphium == null || morphium.getDriver() == null || morphium.getConfig() == null) {
+            return false;
+        }
+
         if (msg.getProcessedBy().contains(id)) {
             return true; // Already processed
         }
 
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
         Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
-        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+        idq.f("_id").eq(queryId);
         // Don't modify local copy until database update succeeds
         Map<String, Object> qobj = idq.toQueryObject();
         Map<String, Object> set = Doc.of("processed_by", id);
@@ -1251,7 +1348,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // log.debug("Updating processed by for "+id+" on message "+msg.getMsgId());
             if (ret.get("nModified") == null && ret.get("modified") == null
                     || Integer.valueOf(0).equals(ret.get("nModified"))) {
-                if (morphium.reread(msg, getCollectionName()) != null) {
+                if (!running || morphium.getDriver() == null) {
+                    return false;
+                }
+
+                try {
+                    if (morphium.reread(msg, getCollectionName()) != null) {
                     if (!msg.getProcessedBy().contains(id)) {
                         log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
                         log.warn(id + ": " + Utils.toJsonString(ret));
@@ -1261,6 +1363,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                     // } else {
                     // log.debug("message deleted by someone else!!!");
+                }
+                } catch (RuntimeException rte) {
+                    // Can happen during shutdown when Morphium/driver is already closed
+                    return false;
                 }
                 return true; // Already in processed_by (someone else updated it)
             } else {
@@ -1383,6 +1489,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @Override
     public void terminate() {
         log.info("Terminate messaging");
+        if (networkRegistry != null) {
+            networkRegistry.terminate();
+        }
         running = false;
         listenerByName.clear();
         waitingForAnswers.clear();
@@ -1437,6 +1546,38 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void storeMsg(Msg m, boolean async) {
+        if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
+            long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
+            if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                }
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    String msg = "No active listeners for topic '" + m.getTopic() + "'";
+                    if (settings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                        log.warn(msg);
+                    } else {
+                        throw new MessageRejectedException(msg);
+                    }
+                }
+            }
+            if (settings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
+                for (String r : m.getRecipients()) {
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                    }
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        String msg = "Recipient '" + r + "' is not active";
+                        if (settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
+                            log.warn(msg);
+                        } else {
+                            throw new MessageRejectedException(msg);
+                        }
+                    }
+                }
+            }
+        }
+
         AsyncOperationCallback cb = null;
 
         if (async) {
@@ -1457,7 +1598,56 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         m.setSender(id);
         m.setSenderHost(hostname);
-        morphium.insert(m, getCollectionName(), cb);
+        try {
+            morphium.insert(m, getCollectionName(), cb);
+            scheduleTimeoutDeletionIfNeeded(m, getCollectionName());
+        } catch (RuntimeException e) {
+            if (networkRegistry != null
+                && settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
+                && m.getRecipients() != null
+                && !m.getRecipients().isEmpty()) {
+                MessageRejectedException mre = new MessageRejectedException("Recipient '" + m.getRecipients().get(0) + "' is not active");
+                mre.initCause(e);
+                throw mre;
+            }
+            throw e;
+        }
+    }
+
+    private void scheduleTimeoutDeletionIfNeeded(Msg msg, String collectionName) {
+        if (msg == null || !running || decouplePool == null || morphium == null || morphium.getDriver() == null) {
+            return;
+        }
+
+        if (!msg.isTimingOut() || msg.getTtl() <= 0 || msg.getMsgId() == null) {
+            return;
+        }
+
+        long delay = msg.getTtl();
+
+        try {
+            Date deleteAt = msg.getDeleteAt();
+            if (deleteAt != null) {
+                delay = Math.max(0, deleteAt.getTime() - System.currentTimeMillis());
+            }
+        } catch (Exception ignored) {
+        }
+
+        long effectiveDelay = delay + TimeUnit.SECONDS.toMillis(1);
+
+        decouplePool.schedule(() -> {
+            if (!running || morphium == null || morphium.getDriver() == null) {
+                return;
+            }
+
+            try {
+                morphium.createQueryFor(Msg.class, collectionName)
+                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(msg.getMsgId())
+                        .remove();
+            } catch (Exception ignored) {
+            }
+        }, effectiveDelay, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -1535,9 +1725,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * all incoming answers up to timeout
      * will be processed.
      *
-     * @parameter theMessage to be sent
-     * @parameter timoutInMs - milliseconds to wait until listener is removed
-     * @parameter cb - the message callback
+     * @param theMessage to be sent
+     * @param timoutInMs - milliseconds to wait until listener is removed
+     * @param cb - the message callback
      */
     @Override
     public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs,
@@ -1651,7 +1841,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                 TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
             }
         } finally {
-            returnValue = new ArrayList(waitingForAnswers.remove(requestMsgId));
+            List<T> answers = new ArrayList(waitingForAnswers.remove(requestMsgId));
+            if (numberOfAnswers > 0 && answers.size() > numberOfAnswers) {
+                returnValue = new ArrayList<>(answers.subList(0, numberOfAnswers));
+            } else {
+                returnValue = answers;
+            }
         }
 
         return returnValue;

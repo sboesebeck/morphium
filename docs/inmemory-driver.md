@@ -53,7 +53,7 @@ mvn test -Dmorphium.driver=inmem
 - ✅ **Document Snapshots**: Immutable snapshots prevent dirty reads
 - ✅ **Pipeline Filtering**: Filter events with aggregation pipelines
 - ✅ **Full Document Support**: Access complete document in change events
-- ✅ **Database-scoped Sharing**: Multiple Morphium instances share driver per database
+- ✅ **Database-scoped Sharing**: Optional driver sharing for multiple Morphium instances (opt-in)
 
 ### Messaging System (v6.0)
 - ✅ **StandardMessaging**: Single-collection messaging with change streams
@@ -88,17 +88,22 @@ morphium.watch(UncachedObject.class, evt -> {
 });
 ```
 
-**Database-scoped Driver Sharing**
+**Database-scoped Driver Sharing (Opt-in)**
+
+By default, each Morphium instance gets its own separate InMemoryDriver. To enable sharing between instances with the same database name, use `setInMemorySharedDatabases(true)`:
+
 ```java
-// Multiple Morphium instances sharing the same database will share the driver
+// Enable driver sharing for multiple Morphium instances
 MorphiumConfig cfg1 = new MorphiumConfig();
 cfg1.connectionSettings().setDatabase("testdb");
 cfg1.driverSettings().setDriverName("InMemDriver");
+cfg1.driverSettings().setInMemorySharedDatabases(true);  // Enable sharing
 Morphium m1 = new Morphium(cfg1);
 
 MorphiumConfig cfg2 = new MorphiumConfig();
 cfg2.connectionSettings().setDatabase("testdb");  // same database
 cfg2.driverSettings().setDriverName("InMemDriver");
+cfg2.driverSettings().setInMemorySharedDatabases(true);  // Enable sharing
 Morphium m2 = new Morphium(cfg2);
 
 // m1 and m2 share the same InMemoryDriver instance
@@ -106,7 +111,26 @@ Morphium m2 = new Morphium(cfg2);
 // Driver is only closed when the last Morphium instance closes
 ```
 
-**Reference Counting**
+**Without sharing (default behavior)**:
+```java
+// Each instance gets its own driver (default)
+MorphiumConfig cfg1 = new MorphiumConfig();
+cfg1.connectionSettings().setDatabase("testdb");
+cfg1.driverSettings().setDriverName("InMemDriver");
+// inMemorySharedDatabases is false by default
+
+MorphiumConfig cfg2 = new MorphiumConfig();
+cfg2.connectionSettings().setDatabase("testdb");
+cfg2.driverSettings().setDriverName("InMemDriver");
+
+try (Morphium m1 = new Morphium(cfg1);
+     Morphium m2 = new Morphium(cfg2)) {
+    // m1 and m2 have separate, isolated in-memory databases
+    // Data written to m1 is NOT visible to m2
+}
+```
+
+**Reference Counting (when sharing enabled)**
 - Automatic reference counting prevents premature driver shutdown
 - Each Morphium instance increments the ref count on creation
 - Driver shuts down only when ref count reaches zero
@@ -314,16 +338,18 @@ public void testMultipleInstances() {
 
     MorphiumConfig cfg1 = new MorphiumConfig();
     cfg1.driverSettings().setDriverName("InMemDriver");
+    cfg1.driverSettings().setInMemorySharedDatabases(true);  // Enable sharing
     cfg1.connectionSettings().setDatabase(dbName);
 
     MorphiumConfig cfg2 = new MorphiumConfig();
     cfg2.driverSettings().setDriverName("InMemDriver");
+    cfg2.driverSettings().setInMemorySharedDatabases(true);  // Enable sharing
     cfg2.connectionSettings().setDatabase(dbName);
 
     try (Morphium m1 = new Morphium(cfg1);
          Morphium m2 = new Morphium(cfg2)) {
 
-        // Both share the same driver
+        // Both share the same driver (sharing enabled)
         // Write with m1, read with m2
         m1.store(new MyEntity("test"));
         MyEntity found = m2.findById(MyEntity.class, id);

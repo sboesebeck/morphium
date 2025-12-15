@@ -15,7 +15,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 30.06.12
  * Time: 13:58
- * <p/>
+ * <p>
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * User: Stephan Bösebeck
  * Date: 05.07.12
  * Time: 13:22
- * <p/>
+ * <p>
  * Statistics
  */
 

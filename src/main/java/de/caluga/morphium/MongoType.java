@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 11:48
- * <p/>
+ * <p>
  * Mongo Data types according to documentation:
  * see also: http://www.mongodb.org/display/DOCS/Advanced+Queries#AdvancedQueries-ConditionalOperators
  */

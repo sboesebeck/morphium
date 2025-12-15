@@ -4,7 +4,7 @@ package de.caluga.morphium;
  * User: Stephan Bösebeck
  * Date: 01.08.12
  * Time: 10:43
- * <p/>
+ * <p>
  * profiling write access types
  */
 public enum WriteAccessType {

@@ -18,7 +18,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 22.11.12
  * Time: 08:30
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class GeoSearchTests extends MultiDriverTestBase {

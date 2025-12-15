@@ -12,7 +12,7 @@ import java.util.Set;
  * User: Stephan Bösebeck
  * Date: 28.05.12
  * Time: 17:18
- * <p/>
+ * <p>
  */
 @Entity
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)

@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * User: Stephan Bösebeck
  * Date: 11.05.12
  * Time: 23:18
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class SortingTest extends MultiDriverTestBase {

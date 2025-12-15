@@ -38,6 +38,11 @@ import de.caluga.morphium.driver.MorphiumId;
 public class QueryHelper {
     private static final Logger log = LoggerFactory.getLogger(QueryHelper.class);
 
+    // Pre-compiled patterns for $text search - avoid regex compilation on every query
+    private static final Pattern TEXT_PHRASE_PATTERN = Pattern.compile("\"([^\"]+)\"");
+    private static final Pattern TEXT_CLEANUP_PATTERN = Pattern.compile("[^a-z0-9 ]");
+    private static final Pattern TEXT_SPLIT_PATTERN = Pattern.compile(" +");
+
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
@@ -303,15 +308,15 @@ public class QueryHelper {
                         Object checkValue = toCheck;
 
                         if (keyQuery.contains(".")) {
+                            // Optimization: split once and reuse the path array
+                            String[] pth = keyQuery.split("\\.");
                             // Special handling for map field queries like "stringMap.key1"
-                            String[] parts = keyQuery.split("\\.", 2);
-                            if (parts.length == 2 && toCheck.get(parts[0]) instanceof Map) {
-                                Map<String, Object> mapField = (Map<String, Object>) toCheck.get(parts[0]);
-                                if (mapField.containsKey(parts[1])) {
-                                    checkValue = mapField.get(parts[1]);
+                            if (pth.length >= 2 && toCheck.get(pth[0]) instanceof Map) {
+                                Map<String, Object> mapField = (Map<String, Object>) toCheck.get(pth[0]);
+                                if (pth.length == 2 && mapField.containsKey(pth[1])) {
+                                    checkValue = mapField.get(pth[1]);
                                 } else {
-                                    // Handle nested paths
-                                    var pth = keyQuery.split("\\.");
+                                    // Handle nested paths - reuse already split pth
                                     checkValue = toCheck;
 
                                     for (String p : pth) {
@@ -341,8 +346,7 @@ public class QueryHelper {
                                     }
                                 }
                             } else {
-                                // Handle nested paths
-                                var pth = keyQuery.split("\\.");
+                                // Handle nested paths - reuse already split pth
                                 checkValue = toCheck;
 
                                 for (String p : pth) {
@@ -514,45 +518,87 @@ public class QueryHelper {
                                 return expectExists ? exists : !exists;
 
                             case "$nin":
-                                boolean found = false;
+                                List<?> ninList = (List) commandMap.get(commandKey);
+                                boolean foundNin = false;
 
-                                for (Object v : (List) commandMap.get(commandKey)) {
-                                    Object normalized = normalizeId(v);
-
+                                // When collation is present, use O(n) comparison that respects collation
+                                // Otherwise use O(1) HashSet lookup
+                                if (coll != null) {
+                                    for (Object v : ninList) {
+                                        Object normalized = normalizeId(v);
+                                        if (checkValue instanceof List) {
+                                            for (Object element : (List) checkValue) {
+                                                if (compareValues(element, normalized, coll)) {
+                                                    foundNin = true;
+                                                    break;
+                                                }
+                                            }
+                                        } else if (compareValues(checkValue, normalized, coll)) {
+                                            foundNin = true;
+                                        }
+                                        if (foundNin) break;
+                                    }
+                                } else {
+                                    // Optimize: use HashSet for O(1) lookup when no collation
+                                    Set<Object> ninSet = new HashSet<>(ninList.size());
+                                    for (Object v : ninList) {
+                                        ninSet.add(normalizeId(v));
+                                    }
                                     if (checkValue instanceof List) {
                                         for (Object element : (List) checkValue) {
-                                            if (compareValues(element, normalized, coll)) {
-                                                found = true;
+                                            Object normalizedElement = normalizeId(element);
+                                            if (ninSet.contains(normalizedElement)) {
+                                                foundNin = true;
                                                 break;
                                             }
                                         }
-                                    } else if (compareValues(checkValue, normalized, coll)) {
-                                        found = true;
-                                    }
-
-                                    if (found) {
-                                        break;
+                                    } else {
+                                        Object normalizedCheck = normalizeId(checkValue);
+                                        foundNin = ninSet.contains(normalizedCheck);
                                     }
                                 }
-
-                                return !found;
+                                return !foundNin;
 
                             case "$in":
-                                for (Object v : (List) commandMap.get(commandKey)) {
-                                    Object normalized = normalizeId(v);
+                                List<?> inList = (List) commandMap.get(commandKey);
 
+                                // When collation is present, use O(n) comparison that respects collation
+                                // Otherwise use O(1) HashSet lookup
+                                if (coll != null) {
+                                    for (Object v : inList) {
+                                        Object normalized = normalizeId(v);
+                                        if (checkValue instanceof List) {
+                                            for (Object element : (List) checkValue) {
+                                                if (compareValues(element, normalized, coll)) {
+                                                    return true;
+                                                }
+                                            }
+                                        } else if (compareValues(checkValue, normalized, coll)) {
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                } else {
+                                    // Optimize: use HashSet for O(1) lookup when no collation
+                                    Set<Object> inSet = new HashSet<>(inList.size());
+                                    for (Object v : inList) {
+                                        inSet.add(normalizeId(v));
+                                    }
                                     if (checkValue instanceof List) {
                                         for (Object element : (List) checkValue) {
-                                            if (compareValues(element, normalized, coll)) {
+                                            Object normalizedElement = normalizeId(element);
+                                            if (inSet.contains(normalizedElement)) {
                                                 return true;
                                             }
                                         }
-                                    } else if (compareValues(checkValue, normalized, coll)) {
-                                        return true;
+                                    } else {
+                                        Object normalizedCheck = normalizeId(checkValue);
+                                        if (inSet.contains(normalizedCheck)) {
+                                            return true;
+                                        }
                                     }
+                                    return false;
                                 }
-
-                                return false;
 
                             case "$comment":
                                 continue;
@@ -629,15 +675,15 @@ public class QueryHelper {
                                     String srch = commandMap.get("$text").toString().toLowerCase();
                                     List<String> tokens = new ArrayList<>();
 
-                                    Pattern phrasePattern = Pattern.compile("\"([^\"]+)\"");
-                                    var matcher = phrasePattern.matcher(srch);
+                                    // Use pre-compiled patterns for performance
+                                    var matcher = TEXT_PHRASE_PATTERN.matcher(srch);
                                     while (matcher.find()) {
                                         tokens.add(matcher.group(1));
                                     }
 
                                     srch = matcher.replaceAll(" ");
-                                    srch = srch.replaceAll("[^a-z0-9 ]", " ");
-                                    tokens.addAll(Arrays.asList(srch.trim().split(" +")));
+                                    srch = TEXT_CLEANUP_PATTERN.matcher(srch).replaceAll(" ");
+                                    tokens.addAll(Arrays.asList(TEXT_SPLIT_PATTERN.split(srch.trim())));
 
                                     String valueText = valtoCheck.toString().toLowerCase();
 
@@ -874,8 +920,10 @@ public class QueryHelper {
                                 List toCheckValList = (List) checkValue;
                                 List queryValues = (List) commandMap.get(commandKey);
 
+                                // Optimize: use HashSet for O(1) lookups instead of O(n) List.contains()
+                                Set<Object> checkSet = new HashSet<>(toCheckValList);
                                 for (Object o : queryValues) {
-                                    if (!toCheckValList.contains(o)) {
+                                    if (!checkSet.contains(o)) {
                                         return false;
                                     }
                                 }
@@ -1051,7 +1099,11 @@ public class QueryHelper {
                         // Note: query may contain multiple fields due to auto-variables, but we only check keyQuery
 
                         if (toCheck.get(keyQuery) instanceof MorphiumId || toCheck.get(keyQuery) instanceof ObjectId) {
-                            return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString());
+                            Object queryValue = query.get(keyQuery);
+                            if (queryValue == null) {
+                                return false;
+                            }
+                            return toCheck.get(keyQuery).toString().equals(queryValue.toString());
                         }
 
                         if (toCheck.get(keyQuery) instanceof List) {
@@ -2181,6 +2233,22 @@ public class QueryHelper {
         return true;
     }
 
+    /**
+     * Optimized check for non-negative integer strings (equivalent to regex \\d+ but O(n) faster)
+     * Used for array index validation without regex compilation overhead
+     */
+    private static boolean isNonNegativeInteger(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static boolean compareValues(Object left, Object right, Collator coll) {
         Object normalizedLeft = normalizeId(left);
         Object normalizedRight = normalizeId(right);
@@ -2417,7 +2485,7 @@ public class QueryHelper {
         if (current instanceof List) {
             List<?> list = (List<?>) current;
 
-            if (part.matches("\\d+")) {
+            if (isNonNegativeInteger(part)) {
                 int pos = Integer.parseInt(part);
                 if (pos < 0 || pos >= list.size()) {
                     return false;
@@ -2453,7 +2521,7 @@ public class QueryHelper {
                 result.append(".");
             }
             String part = parts[i];
-            if (part.matches("\\d+")) {
+            if (isNonNegativeInteger(part)) {
                 // This is an array index, keep as is
                 result.append(part);
             } else {
@@ -2483,7 +2551,7 @@ public class QueryHelper {
                 result.append(".");
             }
             String part = parts[i];
-            if (part.matches("\\d+")) {
+            if (isNonNegativeInteger(part)) {
                 // This is an array index, keep as is
                 result.append(part);
             } else {

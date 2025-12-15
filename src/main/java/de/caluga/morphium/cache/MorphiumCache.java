@@ -12,7 +12,7 @@ import java.util.Set;
  * User: Stephan Bösebeck
  * Date: 07.03.13
  * Time: 09:57
- * <p/>
+ * <p>
  * Cache interface . you can set your own cache implementation to morphium if it implements this interface
  */
 public interface MorphiumCache {

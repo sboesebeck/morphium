@@ -11,7 +11,7 @@ import static java.lang.annotation.ElementType.FIELD;
  * User: Stephan Bösebeck
  * Date: 29.05.12
  * Time: 15:30
- * <p/>
+ * <p>
  * define the field to store the creation timestamp. Only works ifthis annotation is also added to  the type
  * <code>
  *

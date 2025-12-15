@@ -164,7 +164,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         long stored = System.currentTimeMillis();
         la = morphium.findById(LATest.class, la.morphiumId);
         assert(la.lastAccess != 0);
-        assert(la.lastAccess > stored);
+        assert(la.lastAccess >= stored) : "lastAccess " + la.lastAccess + " should be >= stored " + stored;
 
         while (t.isAlive()) {
             Thread.yield();
@@ -278,6 +278,12 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert(la.lastAccess != 0);
         assertNotNull(la.lastAccessDate);
         long lastAcc = la.lastAccess;
+        // Wait for lastAccess to change - timestamps may be in same millisecond on fast systems
+        final long originalLastAcc = lastAcc;
+        TestUtils.waitForConditionToBecomeTrue(2000, "lastAccess did not change", () -> {
+            var obj = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
+            return obj.lastAccess != originalLastAcc;
+        });
         la = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
         assertNotEquals(lastAcc, la.lastAccess);
         assertNotNull(la.lastAccessString);
@@ -333,7 +339,7 @@ public class AutoVariableTest extends MorphiumTestBase {
             });
         assert(lc.lastChange != 0);
         assertNotNull(lc.lastChangeDate);
-        assert(lc.lastChange > created);
+        assert(lc.lastChange >= created) : "lastChange " + lc.lastChange + " should be >= created " + created;
         Query<LCTest> q = morphium.createQueryFor(LCTest.class);
         q.set("value", "all_same", false, true);
         long cmp = 0;

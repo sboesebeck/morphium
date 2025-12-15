@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * User: Stephan Bösebeck
  * Date: 23.11.12
  * Time: 12:04
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class MorphiumCursorTest extends MorphiumTestBase {

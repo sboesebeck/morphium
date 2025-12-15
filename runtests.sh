@@ -93,7 +93,7 @@ function get_test_stats() {
   local log_pattern=""
   if [ -d "test.log" ]; then
     # Sequential execution - standard pattern
-    log_pattern="test.log/*.log"
+    log_pattern="test.log/*.log test.log/slot_*/*.log"
 
     # Use a simple deduplication approach: collect unique test classes and process newest first
     # This handles parallel execution where same test runs in multiple slots
@@ -890,6 +890,99 @@ fail=0
 err=0
 ##################################################################################################################
 #######PARALLEL EXECUTION FUNCTIONS
+#
+# Best-effort test method counting for progress reporting.
+# JUnit5 parameterized tests execute multiple times depending on the @MethodSource and selected drivers.
+function _calc_allowed_driver_flags() {
+  local external_enabled=0
+  if [ "${useExternal:-0}" -eq 1 ]; then external_enabled=1; fi
+  if [ -n "${uri:-}" ]; then external_enabled=1; fi
+  if [ -z "${uri:-}" ] && [ -n "${MONGODB_URI:-}" ]; then external_enabled=1; fi
+
+  local allow_pooled=0
+  local allow_single=0
+  local allow_inmem=0
+
+  if [ "$external_enabled" -eq 0 ]; then
+    allow_inmem=1
+  else
+    if [ -z "${driver:-}" ]; then
+      allow_pooled=1
+      allow_single=1
+      allow_inmem=1
+    else
+      IFS=',' read -r -a drvArr <<<"${driver}"
+      for tok in "${drvArr[@]}"; do
+        local t
+        t="$(echo "$tok" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+        case "$t" in
+        pooled | pooleddriver) allow_pooled=1 ;;
+        single | singleconnect | singlemongoconnectdriver) allow_single=1 ;;
+        inmem | inmemory | inmemorydriver) allow_inmem=1 ;;
+        all)
+          allow_pooled=1
+          allow_single=1
+          allow_inmem=1
+          ;;
+        esac
+      done
+    fi
+  fi
+
+  echo "$allow_pooled:$allow_single:$allow_inmem"
+}
+
+function _count_test_methods_in_file() {
+  local test_file="$1"
+  if [ -z "$test_file" ] || [ ! -f "$test_file" ]; then
+    echo 0
+    return
+  fi
+
+  local flags
+  flags="$(_calc_allowed_driver_flags)"
+  local allow_pooled allow_single allow_inmem
+  IFS=':' read -r allow_pooled allow_single allow_inmem <<<"$flags"
+
+  local mult_getInstances=$((allow_pooled + allow_inmem)) # getMorphiumInstances(false, true, true)
+  local mult_noInMem=$((allow_pooled + allow_single))     # getMorphiumInstancesNoInMem(true, false, true)
+  local mult_pooledOnly=$allow_pooled
+  local mult_singleOnly=$allow_single
+  local mult_inMemOnly=$allow_inmem
+
+  local base_tests
+  base_tests=$(grep -E '@Test\b|@RepeatedTest\b|@TestFactory\b' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+  local param_total
+  param_total=$(grep -E '@ParameterizedTest\b' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+
+  local ms_getInstances
+  ms_getInstances=$(grep -E '@MethodSource\("getMorphiumInstances"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+  local ms_noSingle
+  ms_noSingle=$(grep -E '@MethodSource\("getMorphiumInstancesNoSingle"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+  local ms_noInMem
+  ms_noInMem=$(grep -E '@MethodSource\("getMorphiumInstancesNoInMem"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+  local ms_pooledOnly
+  ms_pooledOnly=$(grep -E '@MethodSource\("getMorphiumInstancesPooledOnly"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+  local ms_singleOnly
+  ms_singleOnly=$(grep -E '@MethodSource\("getMorphiumInstancesSingleOnly"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+  local ms_inMemOnly
+  ms_inMemOnly=$(grep -E '@MethodSource\("getMorphiumInstancesInMemOnly"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+
+  local special_sum=$((ms_getInstances + ms_noSingle + ms_noInMem + ms_pooledOnly + ms_singleOnly + ms_inMemOnly))
+  local param_other=$((param_total - special_sum))
+  if [ "$param_other" -lt 0 ]; then
+    param_other=0
+  fi
+
+  echo $((base_tests + param_other + \
+  ms_getInstances * mult_getInstances + \
+  ms_noSingle * mult_getInstances + \
+  ms_noInMem * mult_noInMem + \
+  ms_pooledOnly * mult_pooledOnly + \
+  ms_singleOnly * mult_singleOnly + \
+  ms_inMemOnly * mult_inMemOnly))
+}
+
 function run_test_slot() {
   local slot_id=$1
   local test_chunk_file=$2
@@ -906,11 +999,7 @@ function run_test_slot() {
       local fn=$(echo "$test_class" | tr "." "/")
       local test_file=$(grep "$fn" $filesList | head -1 2>/dev/null)
       if [ -n "$test_file" ] && [ -f "$test_file" ]; then
-        local lmeth=$(grep -E "@Test" "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-        local lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-        local lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-        local lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-        ((slot_testMethods += lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
+        ((slot_testMethods += $(_count_test_methods_in_file "$test_file")))
       fi
     fi
   done <"$test_chunk_file"
@@ -929,11 +1018,7 @@ function run_test_slot() {
     local test_file=$(grep "$fn" $filesList | head -1 2>/dev/null)
     local class_test_methods=0
     if [ -n "$test_file" ] && [ -f "$test_file" ]; then
-      local class_lmeth=$(grep -E "@Test" "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-      local class_lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-      local class_lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-      local class_lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
-      class_test_methods=$((class_lmeth + class_lmeth3 * 2 + class_lmeth2 * 2 + class_lmeth1))
+      class_test_methods=$(_count_test_methods_in_file "$test_file")
     fi
 
     ((current_test_classes++))
@@ -951,11 +1036,13 @@ function run_test_slot() {
 
     if [ "$test_method" == "." ]; then
       echo "Slot $slot_id: Running $test_class ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1
+      # Run surefire directly to avoid re-running lifecycle phases (resources/compile/testCompile) per test,
+      # which can clobber shared `target/classes`/`target/test-classes` when running in parallel slots.
+      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1
       exit_code=$?
     else
       echo "Slot $slot_id: Running $test_class#$test_method ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1
+      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1
       exit_code=$?
     fi
 
@@ -988,6 +1075,7 @@ function monitor_parallel_progress() {
     local total_running=0
     local total_completed=0
     local total_failed=0
+    local total_test_methods_from_slots=0
     local unique_failed_tests=()
 
     for ((slot = 1; slot <= parallel; slot++)); do
@@ -1012,6 +1100,7 @@ function monitor_parallel_progress() {
         # Add to totals (avoid double counting by reading each slot's progress only once per iteration)
         ((total_completed += slot_current_test))
         ((total_failed += slot_failed_tests))
+        ((total_test_methods_from_slots += slot_total_tests))
 
         # Display slot status
         if [ "$slot_running" == "true" ]; then
@@ -1054,7 +1143,11 @@ function monitor_parallel_progress() {
     done
 
     echo "=========================================================================================================="
-    echo -e "Overall: ${BL}$total_completed${CL}/${MG}$total_test_methods${CL} test methods completed, ${GN}$total_running${CL} slots running, ${RD}$total_failed${CL} failed"
+    local total_for_display="$total_test_methods"
+    if [ "$total_test_methods_from_slots" -gt 0 ]; then
+      total_for_display="$total_test_methods_from_slots"
+    fi
+    echo -e "Overall: ${BL}$total_completed${CL}/${MG}$total_for_display${CL} test methods completed, ${GN}$total_running${CL} slots running, ${RD}$total_failed${CL} failed"
 
     # Show unique failed tests in real-time
     if [ ${#unique_failed_tests[@]} -gt 0 ]; then
@@ -1310,11 +1403,12 @@ else
       tm=$(date +%s)
       if [ "$test_method" == "." ]; then
         echo "Running Tests in $test_class" >"test.log/$test_class.log"
-        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
+        # Same rationale as in parallel slots: call surefire directly to keep runs isolated from build output churn.
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
         echo $! >$testPid
       else
         echo "Running $test_method in $test_class" >"test.log/$test_class.log"
-        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
         echo $! >$testPid
       fi
       while true; do
@@ -1469,9 +1563,9 @@ else
           fi
           echo "Retrying $retry_t"
           if [ "$m" == "." ]; then
-            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
+            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
           else
-            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
+            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
           fi
         done
 

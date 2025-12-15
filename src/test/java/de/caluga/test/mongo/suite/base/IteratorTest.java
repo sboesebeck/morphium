@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * User: Stephan Bösebeck
  * Date: 23.11.12
  * Time: 12:04
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class IteratorTest extends MultiDriverTestBase {

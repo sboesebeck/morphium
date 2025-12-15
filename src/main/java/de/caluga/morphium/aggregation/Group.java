@@ -12,7 +12,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 31.08.12
  * Time: 08:48
- * <p/>
+ * <p>
  * Aggregator-Group
  */
 @SuppressWarnings("UnusedDeclaration")

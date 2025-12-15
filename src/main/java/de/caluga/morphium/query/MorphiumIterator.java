@@ -10,8 +10,8 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 23.11.12
  * Time: 11:35
- * <p/>
- * iterator, makes paging through huge collections a lot easier. Default Window (~page) size is 10.<p/>
+ * <p>
+ * iterator, makes paging through huge collections a lot easier. Default Window (~page) size is 10.<p>
  * This iterator only reads as many objects from mongo as specified in window-size. It can be used like a
  * normal java iterator:
  * <code>

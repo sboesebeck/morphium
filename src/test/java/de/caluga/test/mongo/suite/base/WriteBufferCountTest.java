@@ -19,7 +19,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 15.03.13
  * Time: 19:14
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @Tag("core")

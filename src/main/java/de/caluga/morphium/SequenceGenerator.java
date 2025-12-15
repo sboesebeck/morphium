@@ -1,6 +1,7 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.Sequence.SeqLock;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
@@ -22,7 +23,7 @@ import java.util.concurrent.locks.LockSupport;
  * User: Stephan Bösebeck
  * Date: 24.07.12
  * Time: 21:36
- * <p/>
+ * <p>
  * Generate a new unique sequence number. Uses Sequence to store the current
  * value. Process is as follows:
  * <ul>
@@ -42,6 +43,9 @@ import java.util.concurrent.locks.LockSupport;
 @SuppressWarnings({"UnusedDeclaration", "BusyWait"})
 public class SequenceGenerator {
     private static final Logger log = LoggerFactory.getLogger(SequenceGenerator.class);
+    // Keep in sync with {@link Sequence.SeqLock#lockedAt} TTL index (expireAfterSeconds:30).
+    private static final long LOCK_EXPIRE_MILLIS = TimeUnit.SECONDS.toMillis(30);
+    private static final long LOCK_EXPIRE_GRACE_MILLIS = TimeUnit.SECONDS.toMillis(5);
     private int inc;
     private long startValue;
     private Morphium morphium;
@@ -95,7 +99,9 @@ public class SequenceGenerator {
     }
 
     public long getCurrentValue() {
-        Sequence s = morphium.createQueryFor(Sequence.class).f("_id").eq(name).get();
+        Sequence s = morphium.createQueryFor(Sequence.class)
+            .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+            .f("_id").eq(name).get();
 
         if (s == null) {
             log.warn("getCurrentValue() - Sequence '{}' is NULL, calling getNextValue(), thread={}",
@@ -116,7 +122,6 @@ public class SequenceGenerator {
         long start = System.currentTimeMillis();
         SeqLock lock = new SeqLock();
         lock.setName(name);
-        lock.setLockedAt(new Date());
         lock.setLockedBy(id);
 
         while (true) {
@@ -125,11 +130,37 @@ public class SequenceGenerator {
             }
 
             try {
+                lock.setLockedAt(new Date());
                 morphium.insert(lock);
                 break;
             } catch (Exception e) {
                 // lock failed
-                // waiting for it to be released
+                // waiting for it to be released (or for a stale lock to be cleared)
+                try {
+                    SeqLock existingLock = morphium.createQueryFor(SeqLock.class)
+                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(name).get();
+
+                    if (existingLock != null && existingLock.getLockedAt() != null) {
+                        long age = System.currentTimeMillis() - existingLock.getLockedAt().getTime();
+
+                        // MongoDB's TTL monitor only runs periodically and may take >expireAfterSeconds to delete.
+                        // To keep sequence acquisition deterministic (and avoid test flakiness), proactively clear
+                        // stale locks once they are beyond the configured TTL (+ grace).
+                        if (age > LOCK_EXPIRE_MILLIS + LOCK_EXPIRE_GRACE_MILLIS) {
+                            morphium.delete(
+                                morphium.createQueryFor(SeqLock.class)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(name)
+                                    .f("lockedBy").eq(existingLock.getLockedBy())
+                                    .f("lockedAt").eq(existingLock.getLockedAt())
+                            );
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // ignore all errors during stale-lock cleanup; we will retry acquiring the lock
+                }
+
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos((long)(100 * Math.random() + 10)));
                 // try {
                 //     Thread.sleep((long)(100 * Math.random() + 10));
@@ -166,19 +197,19 @@ public class SequenceGenerator {
 
         // long st = System.currentTimeMillis();
         try {
-            Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
+            Query<Sequence> seq = morphium.createQueryFor(Sequence.class)
+                .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                .f("_id").eq(name);
             var val = seq.get();//.getCurrentValue();
             int count = 0;
-            while (val == null) {
+            while (val == null || val.getCurrentValue() == null) {
 
                 //cannot be - retry
                 if (count++ > morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
                     throw new RuntimeException("Could not read from Sequence");
                 }
-                try {
-                    Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-                } catch (InterruptedException e) {
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(
+                        morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
 
                 val = seq.get();
             }
@@ -191,8 +222,12 @@ public class SequenceGenerator {
             count = 0;
             while (true) {
                 val = seq.get();
-                if (val != null) {
-                    break;
+                if (val != null && val.getCurrentValue() != null) {
+                    // Under very high concurrency (especially with in-memory drivers), we may briefly
+                    // observe an incomplete/old read. Never return values below the configured startValue.
+                    if (val.getCurrentValue() >= startValue) {
+                        break;
+                    }
                 }
 
                 // Sequence disappeared - retry with backoff
@@ -200,10 +235,8 @@ public class SequenceGenerator {
                     throw new RuntimeException("Sequence disappeared after increment!");
                 }
 
-                try {
-                    Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-                } catch (InterruptedException e) {
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(
+                        morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
             }
 
             return val.getCurrentValue();

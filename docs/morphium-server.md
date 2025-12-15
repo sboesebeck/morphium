@@ -1,6 +1,6 @@
 # MorphiumServer: Standalone MongoDB-Compatible Server
 
-MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. **Important:** MorphiumServer is part of the main Morphium JAR, not a separate application.
+MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. **Important:** MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
 
 ## Key Features
 
@@ -16,14 +16,17 @@ MorphiumServer is a standalone MongoDB wire protocol-compatible server built on 
 
 ### Running from Command Line
 
+After building the project, you can run the server directly using the `server-cli` JAR.
+
 ```bash
-# Build Morphium first
+# Build the project first if you haven't
 mvn clean package -DskipTests
 
-# Run MorphiumServer (default port is 17017)
-java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer \
-     --port 27017 --host 0.0.0.0
+# Run MorphiumServer with default settings (port 17017)
+java -jar target/morphium-*-server-cli.jar
+
+# Run on a different port
+java -jar target/morphium-*-server-cli.jar --port 27017
 ```
 
 ### Running Programmatically
@@ -50,14 +53,159 @@ public class MyApp {
 ## Configuration
 
 ### Command Line Arguments
+You can configure the MorphiumServer using the following command-line arguments:
+
+| Argument | Description | Default |
+|---|---|---|
+| `-p`, `--port <port>` | Port to listen on. | `17017` |
+| `-b`, `--bind <host>` | Host to bind to. | `localhost` |
+| `-mt`, `--maxThreads <threads>` | Maximum number of threads for handling client connections. | `1000` |
+| `-mint`, `--minThreads <threads>` | Minimum number of threads to keep in the pool. | `10` |
+| `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
+| `--rs-name <name>` | Name of the replica set. | |
+| `--rs-seed <hosts>` | Comma-separated list of hosts to seed the replica set. The first host in the list will have the highest priority. | |
+| `--ssl`, `--tls` | Enable SSL/TLS encrypted connections. | disabled |
+| `--sslKeystore <path>` | Path to JKS or PKCS12 keystore file containing server certificate. | |
+| `--sslKeystorePassword <pw>` | Password for the keystore. | |
+| `-d`, `--dump-dir <path>` | Directory for periodic database dumps. Enables persistence. | |
+| `--dump-interval <seconds>` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
+| `-h`, `--help` | Print this help message and exit. | |
+
+Example:
+```bash
+java -jar target/morphium-*-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
+```
+
+### Replica Set Behavior (experimental)
+
+MorphiumServer now performs a lightweight initial sync whenever you start an additional member with the same `--rs-name` / `--rs-seed`:
+
+- The first node that starts without detecting peers becomes primary immediately.
+- Any later node that can reach an existing peer demotes itself to secondary, runs an initial sync from the detected primary (or highest-priority reachable host), and only participates in elections after the sync finishes.
+- Elections and automatic failover continue to respect the configured host priorities, but a node will not promote itself until it completed the initial copy of data.
+
+Practical tips:
+
+1. Always include all hosts in `--rs-seed` so nodes can find a sync source.
+2. Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.
+3. Keep in mind that this is still meant for testing: persistence and durability are unchanged.
+
+### Persistence (Periodic Snapshots)
+
+MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.
+
+**How it works:**
+- On startup: If dump files exist in the configured directory, they are automatically restored
+- During runtime: If `--dump-interval` is set, databases are dumped periodically
+- On shutdown: A final dump is performed to capture all changes
+
+**Quick Start with Persistence:**
 
 ```bash
--p, --port <number>           # Server port (default: 17017)
--h, --host <address>          # Bind address (default: localhost)
--mt, --maxThreads <number>    # Max thread pool size (default: 1000)
--mint, --minThreads <number>  # Min thread pool size (default: 10)
--c, --compressor <type>       # Compression: snappy, zstd, zlib, none
--rs, --replicaset <name> <hosts>  # Replica set mode (experimental)
+# Start with persistence - dumps every 5 minutes
+java -jar target/morphium-*-server-cli.jar -p 27017 \
+  --dump-dir /var/morphium/data --dump-interval 300
+
+# Start with persistence - dump only on shutdown
+java -jar target/morphium-*-server-cli.jar -p 27017 \
+  --dump-dir /var/morphium/data
+```
+
+**Programmatic Configuration:**
+```java
+import de.caluga.morphium.server.MorphiumServer;
+import java.io.File;
+
+MorphiumServer server = new MorphiumServer(27017, "localhost", 100, 10);
+
+// Configure persistence
+server.setDumpDirectory(new File("/var/morphium/data"));
+server.setDumpIntervalMs(300000); // 5 minutes
+
+// Restore previous state before starting
+try {
+    int restored = server.restoreFromDump();
+    System.out.println("Restored " + restored + " databases");
+} catch (Exception e) {
+    System.out.println("Starting fresh: " + e.getMessage());
+}
+
+server.start();
+
+// Manual dump if needed
+server.dumpNow();
+```
+
+**Dump File Format:**
+- Each database is saved as `<dbname>.morphium.gz` (gzip-compressed JSON)
+- Files can be inspected with `zcat <file>.morphium.gz | jq .`
+
+**Limitations:**
+- Not a real-time persistence solution (no write-ahead log)
+- Data between dump intervals may be lost on crash
+- Suitable for development/testing, not production
+
+### SSL/TLS Configuration
+
+MorphiumServer supports SSL/TLS encrypted connections for secure communication.
+
+**Quick Start with SSL:**
+
+1. Generate a self-signed certificate:
+```bash
+keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
+  -validity 365 -keystore server.jks -storepass changeit \
+  -dname "CN=localhost"
+```
+
+2. Start the server with SSL enabled:
+```bash
+java -jar target/morphium-*-server-cli.jar -p 27018 \
+  --ssl --sslKeystore server.jks --sslKeystorePassword changeit
+```
+
+3. Connect with mongosh:
+```bash
+# For self-signed certificates
+mongosh "mongodb://localhost:27018" --tls --tlsAllowInvalidCertificates
+
+# With proper certificate verification (export cert first)
+keytool -exportcert -alias morphium -keystore server.jks \
+  -storepass changeit -rfc -file server-cert.pem
+mongosh "mongodb://localhost:27018" --tls --tlsCAFile server-cert.pem
+```
+
+**Programmatic SSL Configuration:**
+```java
+import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.morphium.driver.wire.SslHelper;
+
+MorphiumServer server = new MorphiumServer(27018, "localhost", 100, 10);
+
+// Load keystore and enable SSL
+SSLContext sslContext = SslHelper.createServerSslContext(
+    "server.jks", "changeit"
+);
+server.setSslContext(sslContext);
+server.setSslEnabled(true);
+
+server.start();
+```
+
+**SSL with Docker:**
+```dockerfile
+FROM openjdk:21-slim
+WORKDIR /app
+
+COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
+COPY server.jks /app/server.jks
+
+EXPOSE 27018
+
+CMD ["java", "-jar", "/app/morphium-server.jar", \
+     "--port", "27018", "--host", "0.0.0.0", \
+     "--ssl", "--sslKeystore", "/app/server.jks", \
+     "--sslKeystorePassword", "changeit"]
 ```
 
 ### Constructor Options
@@ -175,8 +323,7 @@ jobs:
 
       - name: Start MorphiumServer
         run: |
-          java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-               de.caluga.morphium.server.MorphiumServer \
+          java -jar target/morphium-*-server-cli.jar \
                --port 27017 --host 0.0.0.0 &
           sleep 2
 
@@ -226,8 +373,7 @@ static void stopServer() {
 
 ```bash
 # Terminal 1: Start MorphiumServer
-java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer --port 27017
+java -jar target/morphium-*-server-cli.jar --port 27017
 
 # Terminal 2: Start Node.js service
 MONGO_URL=mongodb://localhost:27017 npm start
@@ -246,13 +392,12 @@ MONGO_URL=mongodb://localhost:27017 ./gradlew run
 FROM openjdk:21-slim
 WORKDIR /app
 
-# Copy Morphium JAR
-COPY target/morphium-6.0.1-SNAPSHOT.jar /app/
+# Copy the executable server JAR
+COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
 
 EXPOSE 27017
 
-CMD ["java", "-cp", "/app/morphium-6.0.1-SNAPSHOT.jar", \
-     "de.caluga.morphium.server.MorphiumServer", \
+CMD ["java", "-jar", "/app/morphium-server.jar", \
      "--port", "27017", "--host", "0.0.0.0"]
 ```
 
@@ -360,9 +505,10 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
 ## Limitations
 
 ### Data Persistence
-- ❌ **No Disk Storage** - All data in memory, lost on restart
-- ❌ **No Recovery** - No WAL or recovery mechanism
-- 💡 **Workaround** - Implement periodic export/import
+- ✅ **Periodic Snapshots** - Dump/restore to disk (since v6.1.0)
+- ❌ **No Real-time Persistence** - No WAL or journaling
+- ❌ **Crash Risk** - Data between dumps may be lost on crash
+- 💡 **Tip** - Use short dump intervals for important data
 
 ### Scalability
 - ❌ **Single Instance** - No sharding support
@@ -376,9 +522,9 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
 - ❌ **Distributed Transactions** - Single instance only
 
 ### Security
-- ❌ **No TLS/SSL** - Plain TCP only
-- ❌ **No Authentication** - Not implemented
-- 💡 **Workaround** - Use reverse proxy for TLS
+- ✅ **TLS/SSL Supported** - Encrypted connections available (since v6.1.0)
+- ❌ **No Authentication** - Not implemented yet
+- 💡 **Workaround** - Use reverse proxy for authentication
 
 ## When NOT to Use
 
@@ -386,7 +532,7 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
 - Production data requiring persistence
 - Datasets exceeding available RAM (>16GB)
 - High availability requirements
-- TLS/SSL compliance requirements
+- Authentication requirements (not yet implemented)
 - MongoDB Atlas features
 - Advanced search/geospatial features
 
@@ -403,13 +549,12 @@ git clone https://github.com/sboesebeck/morphium.git
 cd morphium
 mvn clean package -DskipTests
 
-# The server is part of the main JAR
-ls -lh target/morphium-6.0.1-SNAPSHOT.jar
+# This creates two important artifacts in target/:
+# 1. morphium-X.Y.Z.jar (the standard library)
+# 2. morphium-X.Y.Z-server-cli.jar (the executable server)
 
-# Run it
-java -cp target/morphium-6.0.1-SNAPSHOT.jar \
-     de.caluga.morphium.server.MorphiumServer \
-     --port 27017 --host 0.0.0.0
+# Run the server:
+java -jar target/morphium-*-server-cli.jar --port 27017
 ```
 
 ## Maven Dependency
@@ -418,19 +563,19 @@ java -cp target/morphium-6.0.1-SNAPSHOT.jar \
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>6.0.1-SNAPSHOT</version>
+    <version>6.0.4-SNAPSHOT</version>
 </dependency>
 ```
 
 Then start programmatically:
 ```java
 public static void main(String[] args) throws Exception {
-    // Option 1: Call main
-    de.caluga.morphium.server.MorphiumServer.main(
+    // Option 1: Call main from the CLI class
+    de.caluga.morphium.server.MorphiumServerCLI.main(
         new String[]{"--port", "27017", "--host", "0.0.0.0"}
     );
 
-    // Option 2: Create instance
+    // Option 2: Create instance directly
     MorphiumServer server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
     server.start();
 }

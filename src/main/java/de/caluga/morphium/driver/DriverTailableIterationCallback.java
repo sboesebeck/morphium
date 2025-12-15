@@ -9,7 +9,6 @@ public interface DriverTailableIterationCallback {
     /**
      * @param data - incoming data
      * @param dur  - duration since start
-     * @return true, if you want to continue reading
      */
     void incomingData(Map<String, Object> data, long dur);
 

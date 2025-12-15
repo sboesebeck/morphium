@@ -12,7 +12,7 @@ import java.util.Map;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 11:24
- * <p/>
+ * <p>
  * Maps objects to Mongo
  */
 public interface MorphiumObjectMapper {

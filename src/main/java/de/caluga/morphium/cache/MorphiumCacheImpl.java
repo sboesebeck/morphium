@@ -23,7 +23,7 @@ import de.caluga.morphium.query.Query;
  * User: Stephan Bösebeck
  * Date: 07.03.13
  * Time: 10:56
- * <p/>
+ * <p>
  * The Cache implementation for morphium.
  */
 public class MorphiumCacheImpl implements MorphiumCache {
@@ -228,7 +228,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
     /**
-     * create unique cache key for queries, also honoring skip & limit and sorting
+     * create unique cache key for queries, also honoring skip &amp; limit and sorting
      *
      * @param q the query
      * @return the resulting cache key

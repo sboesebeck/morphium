@@ -7,7 +7,7 @@ import de.caluga.morphium.driver.ReadPreference;
  * User: Stephan Bösebeck
  * Date: 30.08.12
  * Time: 13:54
- * <p/>
+ * <p>
  * Define the read preference level for this type. Read from PRimary only or allow to read from secondaries.
  */
 @SuppressWarnings("UnusedDeclaration")

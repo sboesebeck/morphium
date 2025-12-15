@@ -19,6 +19,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -72,8 +73,21 @@ public class SingleMongoConnection implements MongoConnection {
 
         try {
             //            log.info("Connecting to " + host + ":" + port);
-            s = new Socket(host, port);
+            if (drv.isUseSSL()) {
+                s = createSslSocket(drv, host, port);
+            } else {
+                s = new Socket();
+                int timeout = drv.getConnectionTimeout();
+                if (timeout <= 0) {
+                    timeout = 1000;
+                }
+                s.connect(new InetSocketAddress(host, port), timeout);
+            }
             s.setKeepAlive(true);
+            int readTimeout = drv.getReadTimeout();
+            if (readTimeout > 0) {
+                s.setSoTimeout(readTimeout);
+            }
             out = s.getOutputStream();
             in = s.getInputStream();
         } catch (IOException e) {
@@ -87,6 +101,51 @@ public class SingleMongoConnection implements MongoConnection {
         //log.info("Connected to "+connectedTo+":"+port);
         connected = true;
         return hello;
+    }
+
+    private Socket createSslSocket(MorphiumDriver drv, String host, int port) throws IOException {
+        javax.net.ssl.SSLContext sslContext = null;
+
+        // Try to get custom SSLContext from driver if it's a DriverBase
+        if (drv instanceof DriverBase) {
+            sslContext = ((DriverBase) drv).getSslContext();
+        }
+
+        // Use default SSLContext if none provided
+        if (sslContext == null) {
+            try {
+                sslContext = javax.net.ssl.SSLContext.getDefault();
+            } catch (java.security.NoSuchAlgorithmException e) {
+                throw new IOException("Failed to get default SSLContext", e);
+            }
+        }
+
+        javax.net.ssl.SSLSocketFactory factory = sslContext.getSocketFactory();
+        javax.net.ssl.SSLSocket sslSocket = (javax.net.ssl.SSLSocket) factory.createSocket();
+        int timeout = drv.getConnectionTimeout();
+        if (timeout <= 0) {
+            timeout = 1000;
+        }
+        sslSocket.connect(new InetSocketAddress(host, port), timeout);
+
+        // Configure SSL parameters
+        javax.net.ssl.SSLParameters params = sslSocket.getSSLParameters();
+
+        // Enable hostname verification unless explicitly disabled
+        boolean allowInvalidHostname = false;
+        if (drv instanceof DriverBase) {
+            allowInvalidHostname = ((DriverBase) drv).isSslInvalidHostNameAllowed();
+        }
+
+        if (!allowInvalidHostname) {
+            params.setEndpointIdentificationAlgorithm("HTTPS");
+        }
+
+        sslSocket.setSSLParameters(params);
+        sslSocket.startHandshake();
+
+        log.debug("SSL connection established to {}:{}", host, port);
+        return sslSocket;
     }
 
     public HelloResult getHelloResult(boolean includeClient) throws MorphiumDriverException {

@@ -7,7 +7,7 @@ import de.caluga.morphium.annotations.Property;
  * User: Stephan Bösebeck
  * Date: 24.08.12
  * Time: 11:33
- * <p/>
+ * <p>
  * Representation of a ReplicaseConfigNode
  */
 @SuppressWarnings("UnusedDeclaration")

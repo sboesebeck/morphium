@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
  * User: Stephan Bösebeck
  * Date: 19.04.13
  * Time: 12:15
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @Tag("core")

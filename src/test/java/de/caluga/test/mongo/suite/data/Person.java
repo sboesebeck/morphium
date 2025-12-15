@@ -10,7 +10,7 @@ import java.util.Date;
  * User: Stephan Bösebeck
  * Date: 26.06.13
  * Time: 08:19
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @Entity

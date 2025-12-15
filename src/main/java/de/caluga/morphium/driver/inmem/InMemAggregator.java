@@ -614,10 +614,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * $lookup:
      * {
-     * from: <collection to join>,
-     * localField: <field from the input documents>,
-     * foreignField: <field from the documents of the "from" collection>,
-     * as: <output array field>
+     * from: &lt;collection to join&gt;,
+     * localField: &lt;field from the input documents&gt;,
+     * foreignField: &lt;field from the documents of the "from" collection&gt;,
+     * as: &lt;output array field&gt;
      * }
      *
      * @return
@@ -833,7 +833,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      * sequence:
      * <p>
      * <p>
-     * { $group: { _id: <expression>, count: { $sum: 1 } } },
+     * { $group: { _id: &lt;expression&gt;, count: { $sum: 1 } } },
      * { $sort: { count: -1 } }
      *
      * @param sortby
@@ -936,7 +936,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         Object value = op.get(k);
 
                         if (value instanceof String && ((String) value).startsWith("$")) {
-                            obj.put(k, obj.get(((String) value).substring(1)));
+                            String path = ((String) value).substring(1);
+                            Object v = getByPath(obj, path);
+                            obj.put(k, v);
                         } else if (value instanceof Expr.ValueExpr) {
                             Object evaluate = ((Expr) value).evaluate(obj);
 
@@ -2618,5 +2620,28 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return result;
+    }
+
+    private static Object getByPath(Map<String, Object> doc, String path) {
+        if (doc == null || path == null) {
+            return null;
+        }
+
+        String[] parts = path.split("\\.");
+        Object cur = doc;
+
+        for (String p : parts) {
+            if (!(cur instanceof Map)) {
+                return null;
+            }
+
+            cur = ((Map) cur).get(p);
+
+            if (cur == null) {
+                return null;
+            }
+        }
+
+        return cur;
     }
 }

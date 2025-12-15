@@ -9,7 +9,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 06.03.13
  * Time: 08:13
- * <p/>
+ * <p>
  * the adapter for the storage listener
  */
 public abstract class MorphiumStorageAdapter<T> implements MorphiumStorageListener<T> {

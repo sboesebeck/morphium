@@ -22,7 +22,7 @@ public abstract class MorphiumBase {
     // /**
     //  * This method unsets a property.
     //  *
-    //  * @deprecated There is a newer implementation.
+    //  * @Deprecated There is a newer implementation.
     //  * Please use {@link Morphium#unsetInEntity(Object, Enum)}
     //  */
     // @Deprecated
@@ -790,7 +790,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets properties.
      *
-     // * @deprecated There is a newer implementation.
+     // * @Deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object, String, Map)
      */
     // @Deprecated
@@ -805,7 +805,7 @@ public abstract class MorphiumBase {
     // /**
     //  * This method sets properties.
     //  *
-    //  * @deprecated There is a newer implementation.
+    //  * @Deprecated There is a newer implementation.
     //  * Please use {@link Morphium#setInEntity(Object, String,Map,boolean)} instead.
     //  */
     // @Deprecated
@@ -819,7 +819,7 @@ public abstract class MorphiumBase {
     // /**
     //  * This method sets a property.
     //  *
-    //  * @deprecated There is a newer implementation.
+    //  * @Deprecated There is a newer implementation.
     //  * Please use {@link Morphium#setInEntity(Object,String,Enum,Object, boolean, AsyncOperationCallback)} instead.
     //  */
     // @Deprecated
@@ -833,7 +833,7 @@ public abstract class MorphiumBase {
     // /**
     //  * This method sets a property.
     //  *
-    //  * @deprecated There is a newer implementation.
+    //  * @Deprecated There is a newer implementation.
     //  * Please use {@link Morphium#setInEntity(Object, String, String,Object, boolean, AsyncOperationCallback)}  instead.
     //  */
     // @Deprecated
@@ -847,7 +847,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     // * @deprecated There is a newer implementation.
+     // * @Deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object,String, Object, AsyncOperationCallback)}  instead.
      */
     // @Deprecated
@@ -1126,7 +1126,7 @@ public abstract class MorphiumBase {
     // /**
     //  * This method sets a property.
     //  *
-    //  * @deprecated There is a newer implementation.
+    //  * @Deprecated There is a newer implementation.
     //  * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
     //  */
     // @Deprecated
@@ -1137,7 +1137,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1150,7 +1150,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1161,7 +1161,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1240,7 +1240,7 @@ public abstract class MorphiumBase {
      * @param multiple - update several documents, if false, only first hit will be
      *        updated
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1253,7 +1253,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1269,7 +1269,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1280,7 +1280,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1293,7 +1293,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}  instead.
      */
     @Deprecated
@@ -1304,7 +1304,7 @@ public abstract class MorphiumBase {
     // /**
     //  * This method sets a property.
     //  *
-    //  * @deprecated There is a newer implementation.
+    //  * @Deprecated There is a newer implementation.
     //  * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}  instead.
     //  */
     // @Deprecated
@@ -1456,7 +1456,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#unset(String[])}  instead.
      */
     @Deprecated
@@ -1467,7 +1467,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#unset(boolean, String[])} instead.
      */
     @Deprecated
@@ -1478,7 +1478,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#unset(Enum[])} instead.
      */
     @Deprecated
@@ -1490,7 +1490,7 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     * @Deprecated There is a newer implementation.
      * Please use {@link Query#unset(boolean, Enum[])} instead.
      */
     @Deprecated

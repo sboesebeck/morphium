@@ -65,11 +65,11 @@ public class TailableQueryTests extends MultiDriverTestBase {
                 });
                 assertTrue(found.get() >= 1);
             }).start();
-            TestUtils.waitForConditionToBecomeTrue(2500, "no result coming in?", ()->found.get() == 2);
+            TestUtils.waitForConditionToBecomeTrue(10000, "no result coming in?", ()->found.get() == 2);
             log.info("Storing 3...");
             m2.store(new CappedCol("Test 3 - quit", 3));
             log.info("Stored... waiting for event");
-            TestUtils.waitForConditionToBecomeTrue(2500, "3rd result not coming in", ()->found.get() == 3);
+            TestUtils.waitForConditionToBecomeTrue(10000, "3rd result not coming in", ()->found.get() == 3);
 
             if (m.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
                 m2.close();

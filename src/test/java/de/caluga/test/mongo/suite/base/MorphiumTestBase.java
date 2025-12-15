@@ -36,7 +36,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  * User: Stpehan Bösebeck
  * Date: 26.02.12
  * Time: 16:17
- * <p/>
+ * <p>
  */
 public class MorphiumTestBase {
 
@@ -83,7 +83,15 @@ public class MorphiumTestBase {
             // Per-test unique database name for fast teardown, enforce 63-char limit
             String cls = sanitize(info.getTestClass().map(Class::getSimpleName).orElse("UnknownClass"));
             String mth = sanitize(info.getDisplayName());
-            String db = buildDbName(cls, mth, number.incrementAndGet());
+            String basePrefix = System.getProperty("morphium.database");
+            if (basePrefix == null || basePrefix.isBlank()) {
+                basePrefix = cfg.connectionSettings().getDatabase();
+            }
+            if (basePrefix == null || basePrefix.isBlank()) {
+                basePrefix = "morphium_test";
+            }
+            basePrefix = sanitize(basePrefix);
+            String db = buildDbName(basePrefix, cls, mth, number.incrementAndGet());
             cfg.connectionSettings().setDatabase(db);
             morphium = new Morphium(cfg);
             log.info("Morphium instantiated with database: {} (instance: {})", db, System.identityHashCode(morphium));
@@ -181,6 +189,19 @@ public class MorphiumTestBase {
             drop.setComment("Dropping from MorphiumTestBase teardown");
             drop.execute();
             drop.releaseConnection();
+
+            // dropDatabase is asynchronous on MongoDB; wait a bit so the next test doesn't run into "being dropped".
+            long start = System.currentTimeMillis();
+            while (System.currentTimeMillis() - start < 10_000) {
+                try {
+                    if (!morphium.listDatabases().contains(morphium.getDatabase())) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                } catch (Exception ignore) {
+                    break;
+                }
+            }
         } catch (Exception e) {
             log.info("Could not drop DB '" + morphium.getDatabase() + "': ", e);
         }
@@ -317,10 +338,10 @@ public class MorphiumTestBase {
         return s.replaceAll("[^A-Za-z0-9_]+", "_");
     }
 
-    private static String buildDbName(String cls, String mth, int counter) {
+    private static String buildDbName(String prefix, String cls, String mth, int counter) {
         final int MAX = 63;
         String suffix = "_" + counter;
-        String base = "morphium_test_" + cls + "_" + mth;
+        String base = prefix + "_" + cls + "_" + mth;
         // Trim if needed to fit 63 chars
         int allowed = MAX - suffix.length();
         if (allowed < 1) {

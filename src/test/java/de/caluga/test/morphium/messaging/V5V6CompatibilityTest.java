@@ -82,15 +82,18 @@ public class V5V6CompatibilityTest extends MultiDriverTestBase {
             // Instance 2 sends to Instance 1
             messaging2.sendMessage(new Msg("test", "From instance 2", "value2"));
 
-            // Both should receive each other's messages (and their own)
+            // By default, sendMessage() does not deliver to self; only sendMessageToSelf() does.
+            // So each node should receive the other node's broadcast.
+            int expectedPerNode = 1;
+
             TestUtils.waitForConditionToBecomeTrue(10000, "Messages not exchanged properly",
                 () -> {
                     log.info("Waiting... msg1Count={}, msg2Count={}", msg1Count.get(), msg2Count.get());
-                    return msg1Count.get() >= 2 && msg2Count.get() >= 2;
+                    return msg1Count.get() >= expectedPerNode && msg2Count.get() >= expectedPerNode;
                 });
 
-            assertTrue(msg1Count.get() >= 2, "Instance 1 should receive at least 2 messages, got: " + msg1Count.get());
-            assertTrue(msg2Count.get() >= 2, "Instance 2 should receive at least 2 messages, got: " + msg2Count.get());
+            assertTrue(msg1Count.get() >= expectedPerNode, "Instance 1 should receive at least " + expectedPerNode + " messages, got: " + msg1Count.get());
+            assertTrue(msg2Count.get() >= expectedPerNode, "Instance 2 should receive at least " + expectedPerNode + " messages, got: " + msg2Count.get());
 
             log.info("✓ Bidirectional message exchange successful");
             log.info("  This confirms V5 and V6 can communicate through the same collection");
