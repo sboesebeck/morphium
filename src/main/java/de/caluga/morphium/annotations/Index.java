@@ -8,33 +8,50 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * User: Stephan Bösebeck
- * Date: 20.06.12
- * Time: 10:16
- * <p/>
- * define the indices to be ensured when the corresponding collection is created
- * when morphium.ensureIndicesFor
- * can be used with a field like:
- * <code>
+ * <p>
+ * Defines indices to be created for a collection when `morphium.ensureIndicesFor` is called for the corresponding entity.
+ * This annotation can be used on a field to create a single-field index, or on the class to create compound indexes.
+ * </p>
+ * <h3>Single-Field Indexes</h3>
+ * <p>
+ * To create a single-field index, annotate the field with `@Index`. By default, the index will be in ascending order.
+ * To create a descending index, use `@Index(decrement = true)`.
+ * </p>
+ * <pre>
+ * {@code
+ * @Entity
+ * public class MyClass {
+ *     @Index
+ *     private String myField;
  *
- * @Entity
- * @Index pbulic class MyClass {
- * @Index private String myField;
- * @Index(decrement=true) private String timestamp;
- * ....
+ *     @Index(decrement = true)
+ *     private String timestamp;
  * }
- * </code>
- * or, if necessary, at the class level, defining combined indices
- * unfortunately, the indices have to be specified each as a string
- * <code>
- * @Entity
- * @Index({"-timestamp,name","timestamp,-name"}) public class MyClass {
- * private long timestamp;
- * private String name;
  * }
- * </code>
- * As usual in Morphium, these strings can either be the variable name or the name of the field in MongoDB, or an alias
- * Support for geosphatial indices: http://docs.mongodb.org/manual/applications/2d/
+ * </pre>
+ *
+ * <h3>Compound Indexes</h3>
+ * <p>
+ * To create a compound index, annotate the class with `@Index` and provide a list of fields to include in the index.
+ * The order of the fields is important. To specify the direction of the index for each field, prefix the field name
+ * with a `-` for descending order.
+ * </p>
+ * <pre>
+ * {@code
+ * @Entity
+ * @Index({"name, -timestamp"})
+ * public class MyClass {
+ *     private String name;
+ *     private long timestamp;
+ * }
+ * }
+ * </pre>
+ *
+ * <h3>Geospatial Indexes</h3>
+ * <p>
+ * Morphium also supports 2D geospatial indexes. For more information, please refer to the
+ * <a href="http://docs.mongodb.org/manual/applications/2d/">MongoDB documentation</a>.
+ * </p>
  */
 @Target({ElementType.TYPE, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)

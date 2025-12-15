@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.0.3</version>
+  <version>6.1.0</version>
   <packaging>jar</packaging>
   <!--    <parent>-->
   <!--        <groupId>org.sonatype.oss</groupId>-->
@@ -26,7 +26,7 @@
     <url>https://github.com/sboesebeck/morphium</url>
     <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
     <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-    <tag>v6.0.3</tag>
+    <tag>v6.1.0</tag>
   </scm>
   <developers>
     <developer>
@@ -142,6 +142,30 @@
           <arguments>-Dmaven.javadoc.skip=false -Dmaven.test.skipTests=true -Dmaven.test.skip=true</arguments>
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.7.1</version>
+        <configuration>
+          <descriptors>
+            <descriptor>src/main/assembly/server-cli.xml</descriptor>
+          </descriptors>
+          <archive>
+            <manifest>
+              <mainClass>de.caluga.morphium.server.MorphiumServerCLI</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+        <executions>
+          <execution>
+            <id>make-assembly</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
     <testResources>
       <testResource>
@@ -169,23 +193,7 @@
       </activation>
       <build>
         <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-gpg-plugin</artifactId>
-            <version>3.0.1</version>
-            <executions>
-              <execution>
-                <id>sign-artifacts</id>
-                <phase>verify</phase>
-                <goals>
-                  <goal>sign</goal>
-                </goals>
-                <configuration>
-                  <keyname>03DCDB29</keyname>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
+
         </plugins>
       </build>
     </profile>
@@ -299,7 +307,7 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-core</artifactId>
       <version>5.3.39</version>
-      <scope>provided</scope>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>

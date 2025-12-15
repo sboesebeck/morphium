@@ -11,7 +11,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * User: Stephan Bösebeck
  * Date: 29.05.12
  * Time: 15:32
- * <p/>
+ * <p>
  * Tell the type to store the last access. Field is specified by the same annotation at field level.
  * <b>Attention:</b> this causes one write access for <em>every</em> read!
  */

@@ -10,7 +10,7 @@ import static java.lang.annotation.ElementType.FIELD;
  * User: Stephan Bösebeck
  * Date: 22.08.12
  * Time: 15:45
- * <p/>
+ * <p>
  * Store all data found to this field. Field needs to be of type Map&lt;String,Object&gt; - depending on what the mongo-Driver delivers
  */
 @Target({FIELD})

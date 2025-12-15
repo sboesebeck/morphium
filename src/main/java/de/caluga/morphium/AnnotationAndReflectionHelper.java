@@ -27,7 +27,7 @@ import static org.slf4j.LoggerFactory.getLogger;
  * User: Stephan Bösebeck
  * Date: 07.03.13
  * Time: 11:10
- * <p/>
+ * <p>
  * This class will encapsulate all calls to the reflection API. Specially getting all the annotations from
  * entities is done here. For performance increase (and because the structure of the code usually does not
  * change during runtime) those results are being cached.

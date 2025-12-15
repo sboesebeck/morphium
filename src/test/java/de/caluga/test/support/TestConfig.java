@@ -43,11 +43,27 @@ public final class TestConfig {
            .setRetryWrites(booleanProp(props, "morphium.retryWrites", false))
            // change streams on external clusters need more than the previous 1s default
            .setReadTimeout(intProp(props, "morphium.readTimeout", 10000))
+           // Avoid multi-minute "hangs" when no primary is available, but still allow enough time for
+           // primary discovery on slower/remote clusters.
+           .setServerSelectionTimeout(intProp(props, "morphium.serverSelectionTimeout", 15000))
            .setDriverName(mapDriverName(valueOr(props, "morphium.driver", "pooled")))
            .setMaxConnectionLifeTime(intProp(props, "morphium.maxConnectionLifeTime", 60000))
            .setMaxConnectionIdleTime(intProp(props, "morphium.maxConnectionIdleTime", 30000))
            .setHeartbeatFrequency(intProp(props, "morphium.heartbeatFrequency", 500))
-           .setDefaultReadPreference(ReadPreference.nearest());
+           // Tests should be deterministic; reading from secondaries can cause flakiness due to replication lag.
+           .setDefaultReadPreference(ReadPreference.primary());
+
+        // In-memory driver: default to shared databases in tests so multiple Morphium instances
+        // behave like multiple clients connecting to the same server.
+        if (InMemoryDriver.driverName.equals(cfg.driverSettings().getDriverName())) {
+            cfg.driverSettings().setInMemorySharedDatabases(
+                booleanProp(props, "morphium.inMemorySharedDatabases", true)
+            );
+        } else {
+            cfg.driverSettings().setInMemorySharedDatabases(
+                booleanProp(props, "morphium.inMemorySharedDatabases", false)
+            );
+        }
 
         cfg.collectionCheckSettings()
            .setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL)

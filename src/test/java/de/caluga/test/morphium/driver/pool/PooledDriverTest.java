@@ -230,15 +230,11 @@ public class PooledDriverTest {
     }
 
     private PooledDriver getDriver() throws MorphiumDriverException {
-        String hostSeed = System.getenv("HOST_SEED");
+        var config = TestConfig.load();
         var drv = new PooledDriver();
-        drv.setCredentials("admin", "test", "test");
+        drv.setHostSeed(config.clusterSettings().getHostSeed());
+        drv.setCredentials(config.authSettings().getMongoAuthDb(), config.authSettings().getMongoLogin(), config.authSettings().getMongoPassword());
 
-        if (hostSeed == null) {
-            drv.setHostSeed("127.0.0.1:27017", "127.0.0.1:27018", "127.0.0.1:27019");
-        } else {
-            drv.setHostSeed(hostSeed.split(","));
-        }
 
         drv.setMaxConnectionsPerHost(105);
         drv.setMinConnectionsPerHost(2);

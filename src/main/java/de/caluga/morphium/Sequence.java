@@ -10,7 +10,7 @@ import de.caluga.morphium.annotations.caching.NoCache;
  * User: Stephan Bösebeck
  * Date: 24.07.12
  * Time: 21:49
- * <p/>
+ * <p>
  * Sequence: Used by SequenceGenerator to crate unique sequential numbers. Locking and such is done by the Generator
  * ReadPreference: MasterOnly and SavetyLevel=WAIT_FOR_SLAVE means: read only from master, but wait for one slave to
  * commit the write. This is best compromise between performance and security (as usually you'd call nextValue on the

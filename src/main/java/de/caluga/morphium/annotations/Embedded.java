@@ -10,7 +10,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * User: Stephan Bösebeck
  * Date: 28.05.12
  * Time: 16:43
- * <p/>
+ * <p>
  * Mark an object to be used only embedded in an other object. THIS MUST NOT BE USED TOGETHER WITH @Entity!!!!
  */
 @Target({TYPE})

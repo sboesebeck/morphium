@@ -107,11 +107,17 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     private Class <? extends MorphiumMessaging > messagingClass;
 
-    private static Vector<Morphium> instances = new Vector<>();
+    // Key used for shared driver lookup (null if not using shared driver)
+    private String sharedDriverKey = null;
+
+    private static java.util.List<Morphium> instances = new java.util.concurrent.CopyOnWriteArrayList<>();
     private static AtomicInteger maxInstances = new AtomicInteger();
     // Map to track InMemoryDriver instances by database name for sharing within a test scope
     private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> inMemoryDriversByDatabase = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> inMemoryDriverRefCounts = new java.util.concurrent.ConcurrentHashMap<>();
+    // Map to track shared connection pool drivers by hosts+database key
+    private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> sharedDriversByKey = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> sharedDriverRefCounts = new java.util.concurrent.ConcurrentHashMap<>();
     public Morphium() {
         // profilingListeners = new CopyOnWriteArrayList<>();
         instances.add(this);
@@ -318,15 +324,16 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             if (driverAnnotation.name().equals(driverName)) {
                                 log.debug("Found driverName: {} - {} " + driverName, driverAnnotation.description());
 
-                                // Special handling for InMemoryDriver: share instances within same database
+                                // Special handling for InMemoryDriver: optionally share instances within same database
                                 // This allows multiple Morphium instances in a test to share the same in-memory database
                                 // Different tests (different database names) get different driver instances
-                                if (driverAnnotation.name().equals(InMemoryDriver.driverName)) {
+                                // Sharing is disabled by default, enable with driverSettings().setInMemorySharedDatabases(true)
+                                if (driverAnnotation.name().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isInMemorySharedDatabases()) {
                                     String dbName = getConfig().connectionSettings().getDatabase();
                                     morphiumDriver = inMemoryDriversByDatabase.computeIfAbsent(dbName, k -> {
                                         try {
                                             MorphiumDriver newDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                                            log.info("Created new InMemoryDriver for database '{}' (driver hashcode: {})", dbName, System.identityHashCode(newDriver));
+                                            log.info("Created new shared InMemoryDriver for database '{}' (driver hashcode: {})", dbName, System.identityHashCode(newDriver));
                                             return newDriver;
                                         } catch (Exception e) {
                                             throw new RuntimeException("Failed to create InMemoryDriver", e);
@@ -334,8 +341,25 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                                     });
                                     // Increment reference count for this shared driver
                                     inMemoryDriverRefCounts.computeIfAbsent(dbName, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
-                                    log.info("Using InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
+                                    log.info("Using shared InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
                                              dbName, System.identityHashCode(morphiumDriver), inMemoryDriverRefCounts.get(dbName).get());
+                                } else if (!driverAnnotation.name().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isSharedConnectionPool()) {
+                                    // Shared connection pool for real drivers (not InMemory)
+                                    // Key is based on sorted hosts + database name
+                                    sharedDriverKey = buildSharedDriverKey();
+                                    morphiumDriver = sharedDriversByKey.computeIfAbsent(sharedDriverKey, k -> {
+                                        try {
+                                            MorphiumDriver newDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                                            log.info("Created new shared driver for key '{}' (driver hashcode: {})", sharedDriverKey, System.identityHashCode(newDriver));
+                                            return newDriver;
+                                        } catch (Exception e) {
+                                            throw new RuntimeException("Failed to create shared driver", e);
+                                        }
+                                    });
+                                    // Increment reference count for this shared driver
+                                    sharedDriverRefCounts.computeIfAbsent(sharedDriverKey, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
+                                    log.info("Using shared driver for key '{}' (driver hashcode: {}, refCount: {})",
+                                             sharedDriverKey, System.identityHashCode(morphiumDriver), sharedDriverRefCounts.get(sharedDriverKey).get());
                                 } else {
                                     morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
                                 }
@@ -713,6 +737,17 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         morphiumDriver = drv;
     }
 
+    /**
+     * Builds a key for shared driver lookup based on sorted hosts and database name.
+     * This ensures that the same driver is reused for connections to the same MongoDB cluster.
+     */
+    private String buildSharedDriverKey() {
+        List<String> hosts = new ArrayList<>(getConfig().clusterSettings().getHostSeed());
+        Collections.sort(hosts);
+        String dbName = getConfig().connectionSettings().getDatabase();
+        return String.join(",", hosts) + "/" + dbName;
+    }
+
     public Query<Map<String, Object >> createMapQuery(String collection) {
         try {
             Query<Map<String, Object >> q = new Query<>(this, null, getAsyncOperationsThreadPool());
@@ -754,7 +789,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * fields are
      * specified, all NON Null-Fields are taken into account if specified, field
      * might also be null
-     * @deprecated not useful anymore.
+     @Deprecated not useful anymore.
      * @param template - what to search for
      * @param fields - fields to use for searching
      * @param <T> - type
@@ -767,7 +802,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     /**
      * This method unsets a field
-     * @deprecated use {Morphium{@link #unsetInEntity(Object, String, String, AsyncOperationCallback)} instead.
+     @Deprecated use {Morphium{@link #unsetInEntity(Object, String, String, AsyncOperationCallback)} instead.
      */
     // @Deprecated
     // public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
@@ -1018,7 +1053,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     /**
      * This method sets a map of properties (defined by enums in the map) with their associated values
      *
-     * @deprecated There is a newer implementation.
+     @Deprecated There is a newer implementation.
      * Please use {@link Morphium setInEntity()} instead.
      */
     @Deprecated
@@ -1039,7 +1074,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     /**
      * This method sets a map of properties with their associated values
      *
-     * @deprecated There is a newer implementation.
+     @Deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object, String, Map, boolean, AsyncOperationCallback)}   instead.
      */
     @Deprecated
@@ -1114,7 +1149,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     /**
      * * Use remove instead, to make it more similar to mongosh
-     * @deprecated use {@link Morphium#remove(List, String)}
+     @Deprecated use {@link Morphium#remove(List, String)}
      **/
     @Deprecated
     public <T> void delete (List<T> lst, String forceCollectionName) {
@@ -1123,7 +1158,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     /**
      * * Use remove instead, to make it more similar to mongosh
-     * @deprecated use {@link Morphium#remove(List, String, AsyncOperationCallback)}
+     @Deprecated use {@link Morphium#remove(List, String, AsyncOperationCallback)}
      **/
     @Deprecated
     public <T> void delete (List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
@@ -1612,7 +1647,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     /**
      * use query.asList() instead
-     * @deprecated - for read access use {@link Query} instead
+     @Deprecated - for read access use {@link Query} instead
      * @param q
      * @param <T>
      * @return
@@ -1625,7 +1660,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     /**
      * returns a distinct list of values of the given collection Attention: these
      * values are not
-     * unmarshalled, you might get MongoMap<String,Object>s
+     * unmarshalled, you might get MongoMap&lt;String,Object&gt;s
      */
     public List<Object> distinct(String key, @SuppressWarnings("rawtypes") Query q) {
         MongoConnection con = null;
@@ -2518,7 +2553,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (morphiumDriver != null) {
             try {
                 // Check if this is a shared InMemoryDriver
-                if (morphiumDriver.getName().equals(InMemoryDriver.driverName)) {
+                if (morphiumDriver.getName().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isInMemorySharedDatabases()) {
                     String dbName = getConfig().connectionSettings().getDatabase();
                     java.util.concurrent.atomic.AtomicInteger refCount = inMemoryDriverRefCounts.get(dbName);
                     if (refCount != null) {
@@ -2531,6 +2566,26 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             morphiumDriver.close();
                             inMemoryDriversByDatabase.remove(dbName);
                             inMemoryDriverRefCounts.remove(dbName);
+                        } else {
+                            log.info("Skipping driver close, {} other Morphium instance(s) still using it", remaining);
+                        }
+                    } else {
+                        // Ref count not found, close anyway (shouldn't happen)
+                        morphiumDriver.close();
+                    }
+                } else if (sharedDriverKey != null) {
+                    // Shared connection pool driver
+                    java.util.concurrent.atomic.AtomicInteger refCount = sharedDriverRefCounts.get(sharedDriverKey);
+                    if (refCount != null) {
+                        int remaining = refCount.decrementAndGet();
+                        log.info("Decremented shared driver ref count for key '{}' (driver hashcode: {}, remaining: {})",
+                                 sharedDriverKey, System.identityHashCode(morphiumDriver), remaining);
+                        // Only close the driver when the last Morphium instance releases it
+                        if (remaining == 0) {
+                            log.info("Last reference to shared driver for key '{}', closing driver", sharedDriverKey);
+                            morphiumDriver.close();
+                            sharedDriversByKey.remove(sharedDriverKey);
+                            sharedDriverRefCounts.remove(sharedDriverKey);
                         } else {
                             log.info("Skipping driver close, {} other Morphium instance(s) still using it", remaining);
                         }
@@ -3005,8 +3060,24 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         missingIndicesByClass.put(entity, getIndexesFromEntity(entity));
                     }
                 } catch (Throwable e) {
-                    // swallow
-                    if (!e.getMessage().contains("Error: 26 - ns does not exist:")) {
+                    // Swallow most errors to keep startup lenient, but fail fast if the cluster has no primary.
+                    // Otherwise, startup can appear to "hang" for a very long time because each entity check
+                    // waits for server selection timeout before failing (and there can be lots of entities).
+                    Throwable t = e;
+                    while (t != null) {
+                        if (t instanceof de.caluga.morphium.driver.MorphiumDriverException) {
+                            String msg = t.getMessage();
+                            if (msg != null) {
+                                String m = msg.toLowerCase(java.util.Locale.ROOT);
+                                if (m.contains("no primary node") || m.contains("no primary") || m.contains("not connected yet")) {
+                                    throw new RuntimeException("Cannot check indices: no primary available", e);
+                                }
+                            }
+                        }
+                        t = t.getCause();
+                    }
+
+                    if (e.getMessage() == null || !e.getMessage().contains("Error: 26 - ns does not exist:")) {
                         log.error("Could not check indices for " + cn, e);
                     }
                 }

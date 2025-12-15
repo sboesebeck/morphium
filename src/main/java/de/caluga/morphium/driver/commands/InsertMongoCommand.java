@@ -66,7 +66,7 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
         if (!getConnection().isConnected()) throw new RuntimeException("Not connected");
         Map<String, Object> writeResult = super.execute();
         if (writeResult == null) {
-            throw new MorphiumDriverException("Write failed...");
+            throw new MorphiumDriverException("Write failed: no result returned by driver");
         }
         if (writeResult.containsKey("writeErrors")) {
             int failedWrites = ((List) writeResult.get("writeErrors")).size();

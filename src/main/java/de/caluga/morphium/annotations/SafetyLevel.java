@@ -4,7 +4,7 @@ package de.caluga.morphium.annotations;
  * User: Stephan Bösebeck
  * Date: 26.05.12
  * Time: 16:35
- * <p/>
+ * <p>
  * Define the type of Write safety.
  */
 public enum SafetyLevel {

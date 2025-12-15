@@ -14,7 +14,7 @@ import java.util.Set;
  * User: Hans Karlsson
  * Date: 21.11.12
  * Time: 20:17
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class FilterExpressionTest {

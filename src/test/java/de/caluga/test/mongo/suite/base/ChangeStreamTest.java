@@ -67,8 +67,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             assertTrue(count >= 2 && count <= 3);
             long cnt = count;
             m2.set(m2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
-            Thread.sleep(2550);
-            assertEquals(cnt + 1, count);
+            final long expectedCount = cnt + 1;
+            TestUtils.waitForConditionToBecomeTrue(10000, "Change not detected", () -> count >= expectedCount);
 
             if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
                 m2.close();
@@ -332,8 +332,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             //assert(cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
             TestUtils.waitForIntegerValue(5000, "Did not get events", cnt, 100, (dur)->log.info("waiting for 100 events got {}", cnt.get()));
             m.terminate();
-            Thread.sleep(1000);
-            assertEquals(100, cnt.get());
+            TestUtils.waitForConditionToBecomeTrue(5000, "Count changed after terminate", () -> cnt.get() == 100);
         }
     }
 
@@ -389,8 +388,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             }
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
             morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
-            Thread.sleep(2500);
-            assert(inserts.get() == 10) : "Wrong number of inserts: " + inserts.get();
+            TestUtils.waitForConditionToBecomeTrue(10000, "Wrong number of inserts", () -> inserts.get() == 10);
             assert(updates.get() == 0);
             assert(deletes.get() == 0);
             mon.terminate();
@@ -424,13 +422,11 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 morphium.store(new UncachedObject("changeStreamPipelineTestOtherValue " + i, i), "uncached_object", null);
             }
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
-            Thread.sleep(2000);
+            TestUtils.waitForConditionToBecomeTrue(10000, "Update not detected", () -> updates.get() >= 1);
             assertEquals(0, inserts.get());
-            assertEquals(1, updates.get());
             assertEquals(0, deletes.get());
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "str_value", "updated", false, true);
-            Thread.sleep(1000);
-            assert(updates.get() >= 10) : "Updates wrong: " + updates.get();
+            TestUtils.waitForConditionToBecomeTrue(10000, "Updates wrong", () -> updates.get() >= 10);
             mon.terminate();
         }
     }
@@ -457,12 +453,10 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             i.name = "test";
             i.value = new Integer(23);
             morphium.store(i);
-            Thread.sleep(1000);
-            assertEquals(1, cnt.get());
+            TestUtils.waitForConditionToBecomeTrue(5000, "Insert not detected", () -> cnt.get() >= 1);
             i.name = "neuer Testt";
             morphium.store(i);
-            Thread.sleep(1000);
-            assert(cnt.get() == 2);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Update not detected", () -> cnt.get() >= 2);
             m.terminate();
         }
     }

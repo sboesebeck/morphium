@@ -16,7 +16,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * User: Stephan Bösebeck
  * Date: 01.06.12
  * Time: 15:27
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class ArrayTest extends MultiDriverTestBase {

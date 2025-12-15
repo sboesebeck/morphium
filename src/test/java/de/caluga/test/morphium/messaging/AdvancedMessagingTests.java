@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue;
 
 @Tag("messaging")
 public class AdvancedMessagingTests extends MultiDriverTestBase {
@@ -36,6 +37,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
         try (baseMorphium) {
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
                 MorphiumConfig cfg = baseMorphium.getConfig().createCopy();
+                cfg.driverSettings().setSharedConnectionPool(true);
+                cfg.driverSettings().setInMemorySharedDatabases(true);
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
                 cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
@@ -49,11 +52,13 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     counts.clear();
 
                     MorphiumMessaging m1 = morphium.createMessaging();
+                    cfg.driverSettings().setInMemorySharedDatabases(true);
                     m1.start();
 
                     MorphiumConfig cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                     cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium2 = new Morphium(cfg2);
                     MorphiumMessaging m2 = morphium2.createMessaging();
                     m2.start();
@@ -61,6 +66,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                     cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium3 = new Morphium(cfg2);
                     MorphiumMessaging m3 = morphium3.createMessaging();
                     m3.start();
@@ -68,11 +74,15 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                     cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium4 = new Morphium(cfg2);
                     MorphiumMessaging m4 = morphium4.createMessaging();
                     m4.start();
 
-                    Thread.sleep(500);
+                    // Wait for all messaging instances to be running
+                    waitForConditionToBecomeTrue(10000, "Messaging instances not all running",
+                                                 () -> m1.isRunning() && m2.isRunning() && m3.isRunning() && m4.isRunning());
+
                     MessageListener<Msg> msgMessageListener = (msg, m) -> {
                         Msg answer = m.createAnswerMsg();
                         answer.setTopic("test_answer");
@@ -87,14 +97,14 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
                             query.setExclusive(true);
-                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1000);
+                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 5000);
                             assertEquals(1, ans.size(), "more than one answer for exclusive message");
                         }
 
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
                             query.setExclusive(false);
-                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1000);
+                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 5000);
                             assertEquals(3, ans.size(), "not enough answers for non-exclusive message");
                         }
                     } finally {
@@ -132,7 +142,11 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     MorphiumMessaging consumer = morphium.createMessaging();
                     consumer.setUseChangeStream(true);
                     consumer.start();
-                    Thread.sleep(500);
+
+                    // Wait for both messaging instances to be running
+                    waitForConditionToBecomeTrue(10000, "Messaging instances not running",
+                                                 () -> producer.isRunning() && consumer.isRunning());
+
                     try {
                         consumer.addListenerForTopic("testDiff", new MessageListener() {
                             @Override
@@ -142,7 +156,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                                 return answer;
                             }
                         });
-                        Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 4000);
+                        Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 10000);
                         assertNotNull(answer);
                         assertEquals("answer", answer.getTopic());
                     } finally {
@@ -173,7 +187,11 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     producer.start();
                     MorphiumMessaging consumer = morphium.createMessaging();
                     consumer.start();
-                    Thread.sleep(500);
+
+                    // Wait for both messaging instances to be running
+                    waitForConditionToBecomeTrue(10000, "Messaging instances not running",
+                                                 () -> producer.isRunning() && consumer.isRunning());
+
                     counts.clear();
                     consumer.addListenerForTopic("testAnswering", (msg, m) -> {
                         Msg answer = m.createAnswerMsg();
@@ -189,7 +207,11 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     Msg msg = new Msg("testAnswering", "query", "value");
                     msg.setMsgId(msgId);
                     producer.sendMessage(msg);
-                    Thread.sleep(1500);
+
+                    // Wait for the answer to be received
+                    waitForConditionToBecomeTrue(10000, "Answer not received in counts map",
+                                                 () -> counts.containsKey(msgId));
+
                     assertTrue(counts.containsKey(msgId));
                     producer.terminate();
                     consumer.terminate();

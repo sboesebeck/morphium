@@ -11,7 +11,7 @@ import java.util.List;
  * User: Martin Finke
  * Date: 07.07.16
  * Time: 08:31
- * <p/>
+ * <p>
  */
 @Entity
 public class ListWildcardContainer {

@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * User: Stephan Bösebeck
  * Date: 22.03.13
  * Time: 14:41
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @Tag("core")

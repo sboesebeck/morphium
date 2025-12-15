@@ -8,7 +8,7 @@ import java.util.Objects;
  * User: Stephan Bösebeck
  * Date: 28.05.12
  * Time: 16:54
- * <p/>
+ * <p>
  */
 @Embedded(typeId = "embedded")
 public class EmbeddedObject {

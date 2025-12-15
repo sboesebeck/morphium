@@ -10,7 +10,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * User: Stephan Bösebeck
  * Date: 19.03.13
  * Time: 12:38
- * <p/>
+ * <p>
  * When this annotation is added to a class, all store or update calls of objects of this class will be asynchrounously
  */
 @Target({TYPE})

@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
     public void answeringTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-        
+
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -67,60 +68,60 @@ public class AnsweringNCTests extends MorphiumTestBase {
                         m1.setUseChangeStream(false).start();
                         m2.setUseChangeStream(false).start();
                         onlyAnswers.setUseChangeStream(false).start();
-            Thread.sleep(100);
+                        Thread.sleep(100);
 
-            log.info("m1 ID: " + m1.getSenderId());
-            log.info("m2 ID: " + m2.getSenderId());
-            log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
+                        log.info("m1 ID: " + m1.getSenderId());
+                        log.info("m2 ID: " + m2.getSenderId());
+                        log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
 
-            m1.addListenerForTopic("test", (msg, m) -> {
-                gotMessage1 = true;
-                if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
-                    log.error("wrongly received message?");
-                    error = true;
-                }
-                if (m.getInAnswerTo() != null) {
-                    log.error("M1 got an answer, but did not ask?");
-                    error = true;
-                }
-                log.info("M1 got message " + m.toString());
-                Msg answer = m.createAnswerMsg();
-                answer.setValue("This is the answer from m1");
-                answer.addValue("something", new Date());
-                answer.addAdditional("String message from m1");
-                return answer;
-            });
+                        m1.addListenerForTopic("test", (msg, m) -> {
+                            gotMessage1 = true;
+                            if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                                log.error("wrongly received message?");
+                                error = true;
+                            }
+                            if (m.getInAnswerTo() != null) {
+                                log.error("M1 got an answer, but did not ask?");
+                                error = true;
+                            }
+                            log.info("M1 got message " + m.toString());
+                            Msg answer = m.createAnswerMsg();
+                            answer.setValue("This is the answer from m1");
+                            answer.addValue("something", new Date());
+                            answer.addAdditional("String message from m1");
+                            return answer;
+                        });
 
-            m2.addListenerForTopic("test", (msg, m) -> {
-                gotMessage2 = true;
-                if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
-                    log.error("wrongly received message?");
-                    error = true;
-                }
-                log.info("M2 got message " + m.toString());
-                assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
-                Msg answer = m.createAnswerMsg();
-                answer.setValue("This is the answer from m2");
-                answer.addValue("when", System.currentTimeMillis());
-                answer.addAdditional("Additional Value von m2");
-                return answer;
-            });
+                        m2.addListenerForTopic("test", (msg, m) -> {
+                            gotMessage2 = true;
+                            if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                                log.error("wrongly received message?");
+                                error = true;
+                            }
+                            log.info("M2 got message " + m.toString());
+                            assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
+                            Msg answer = m.createAnswerMsg();
+                            answer.setValue("This is the answer from m2");
+                            answer.addValue("when", System.currentTimeMillis());
+                            answer.addAdditional("Additional Value von m2");
+                            return answer;
+                        });
 
-            onlyAnswers.addListenerForTopic("test", (msg, m) -> {
-                gotMessage3 = true;
-                if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
-                    log.error("wrongly received message?");
-                    error = true;
-                }
+                        onlyAnswers.addListenerForTopic("test", (msg, m) -> {
+                            gotMessage3 = true;
+                            if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
+                                log.error("wrongly received message?");
+                                error = true;
+                            }
 
-                assertNotNull(m.getInAnswerTo(), "was not an answer? " + m.toString());
+                            assertNotNull(m.getInAnswerTo(), "was not an answer? " + m.toString());
 
-                log.info("M3 got answer " + m.toString());
-                assertNotNull(lastMsgId, "Last message == null?");
-                assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
-                //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-                return null;
-            });
+                            log.info("M3 got answer " + m.toString());
+                            assertNotNull(lastMsgId, "Last message == null?");
+                            assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
+                            //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+                            return null;
+                        });
 
                         Msg question = new Msg("test", "This is the message text", "A question param");
                         question.setMsgId(new MorphiumId());
@@ -129,28 +130,29 @@ public class AnsweringNCTests extends MorphiumTestBase {
                         log.info("Send Message with id: " + question.getMsgId());
                         Thread.sleep(3000);
                         long cnt = morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
-            log.info("Answers in mongo: " + cnt);
-            assert (cnt == 2);
-            assert (gotMessage3) : "no answer got back?";
-            assert (gotMessage1) : "Question not received by m1";
-            assert (gotMessage2) : "Question not received by m2";
-            assert (!error);
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            Thread.sleep(2000);
-            assert (!error);
+                        log.info("Answers in mongo: " + cnt);
+                        assert (cnt == 2);
+                        assert (gotMessage3) : "no answer got back?";
+                        assert (gotMessage1) : "Question not received by m1";
+                        assert (gotMessage2) : "Question not received by m2";
+                        assert (!error);
+                        gotMessage1 = false;
+                        gotMessage2 = false;
+                        gotMessage3 = false;
+                        Thread.sleep(2000);
+                        assert (!error);
 
-            assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
+                        assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
                         question = new Msg("test", "This is the message text", "A question param", 30000, true);
                         question.setMsgId(new MorphiumId());
                         lastMsgId = question.getMsgId();
                         onlyAnswers.sendMessage(question);
                         log.info("Send Message with id: " + question.getMsgId());
-                        Thread.sleep(1000);
-                        cnt = morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
-            assert (cnt == 1);
+                        final MorphiumId questionId = question.getMsgId();
+                        TestUtils.waitForConditionToBecomeTrue(10000, "Answer not received", () ->
+                                                               morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(questionId).countAll() == 1
+                                                              );
 
                     } finally {
                         m1.terminate();
@@ -287,15 +289,14 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     @Test
     public void waitForAnswerTest() throws Exception {
-        MorphiumConfig cfg = MorphiumConfig.createFromJson(morphium.getConfig().toString());
-        Morphium mor = new Morphium(cfg);
 
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
-        SingleCollectionMessaging m2 = new SingleCollectionMessaging(mor, 10, false, true, 10);
+        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         m2.setSenderId("m2");
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
+        Thread.sleep(1000); // Allow messaging to fully start
 
         m2.addListenerForTopic("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
@@ -315,7 +316,6 @@ public class AnsweringNCTests extends MorphiumTestBase {
         }
         m1.terminate();
         m2.terminate();
-        mor.close();
     }
 
     @Test
@@ -385,6 +385,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     @Test
     public void sendAndWaitforAnswerTestFailing() {
+        // When sending a message to yourself (without using sendMessageToSelf),
+        // you should NOT receive it, so this should timeout
         assertThrows(RuntimeException.class, ()-> {
             SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 100, false);
             log.info("Upcoming Errormessage is expected!");
@@ -411,6 +413,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
 //        morphium.dropCollection(Msg.class);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
+        Thread.sleep(500); // Allow sender to start
 
         gotMessage1 = false;
         gotMessage2 = false;

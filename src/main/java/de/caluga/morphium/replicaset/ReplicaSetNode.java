@@ -9,7 +9,7 @@ import java.util.Date;
  * User: Stephan Bösebeck
  * Date: 10.08.12
  * Time: 15:06
- * <p/>
+ * <p>
  * Mongo Replicaset Node
  */
 @SuppressWarnings("UnusedDeclaration")

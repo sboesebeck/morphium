@@ -16,7 +16,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 23.07.13
  * Time: 10:44
- * <p/>
+ * <p>
  * TODO: Add documentation here
  */
 @Tag("driver")

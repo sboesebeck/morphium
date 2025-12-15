@@ -10,7 +10,7 @@ import static java.lang.annotation.ElementType.FIELD;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 13:11
- * <p/>
+ * <p>
  * Specify the ID fiel - needs to be of type Object. is mandatory!
  */
 @Target({FIELD})

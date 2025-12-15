@@ -155,7 +155,8 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
 
             // Test query-based delete
             long initialCount = TestUtils.countUC(morphium);
-            morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(2));
+            int queryDeleteCounter = (toDelete.getCounter() == 2) ? 3 : 2;
+            morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(queryDeleteCounter));
 
             TestUtils.waitForConditionToBecomeTrue(2000, "Query delete failed",
                                                    () -> TestUtils.countUC(morphium) == initialCount - 1);

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
  * User: Stephan Bösebeck
  * Date: 10.05.12
  * Time: 13:05
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class CollectionMappingTest extends MorphiumTestBase {

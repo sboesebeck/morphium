@@ -14,11 +14,10 @@ import java.util.zip.CRC32C;
  * <p>
  * OP_MSG {
  * MsgHeader header;          // standard message header
- * uint32 flagBits;           // message flags
+ * flagBits;           // message flags
  * Sections[] sections;       // data sections
- * optional<uint32> checksum; // optional CRC-32C checksum
+ * checksum; // optional CRC-32C checksum
  * }
- * <p>
  * struct MsgHeader {
  * int32   messageLength; // total message size, including this
  * int32   requestID;     // identifier for this message

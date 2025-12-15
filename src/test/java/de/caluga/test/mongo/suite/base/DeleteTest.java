@@ -14,7 +14,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 03.09.12
  * Time: 08:18
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class DeleteTest extends MultiDriverTestBase {

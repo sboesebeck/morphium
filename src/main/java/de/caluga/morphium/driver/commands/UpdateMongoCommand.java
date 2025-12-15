@@ -53,6 +53,10 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
     }
 
     public UpdateMongoCommand addUpdate(Map<String, Object> query, Map<String, Object> update, Map<String, Object> context, boolean upsert, boolean multi, Collation collation, List<Map<String, Object>> arrayFilters, String hint) {
+        return addUpdate(query, update, context, upsert, multi, collation, arrayFilters, hint, null);
+    }
+
+    public UpdateMongoCommand addUpdate(Map<String, Object> query, Map<String, Object> update, Map<String, Object> context, boolean upsert, boolean multi, Collation collation, List<Map<String, Object>> arrayFilters, String hint, Map<String, Object> sort) {
         if (updates == null) updates = new ArrayList<>();
 
         Doc upd = Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);
@@ -60,6 +64,7 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
         if (arrayFilters != null) upd.put("arrayFilters", arrayFilters);
         if (collation != null) upd.put("collation", collation.toQueryObject());
         if (hint != null) upd.put("hint", hint);
+        if (sort != null && !sort.isEmpty()) upd.put("sort", sort);
 
         updates.add(upd);
         return this;

@@ -123,8 +123,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 try {
                     if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
                         WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
-                        bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(morphium, morphium.getConfig().connectionSettings().getDatabase(), entry.getCollectionName(), w.ordered(),
-                                                 morphium.getWriteConcernForClass(entry.getEntityType())));
+                        boolean ordered = w != null && w.ordered();
+                        bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(
+                            morphium,
+                            morphium.getConfig().connectionSettings().getDatabase(),
+                            entry.getCollectionName(),
+                            ordered,
+                            morphium.getWriteConcernForClass(entry.getEntityType())
+                        ));
                     }
 
                     //                logger.info("Queueing a request of type "+entry.getType());
@@ -349,6 +355,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return;
         }
 
+        final List<T> lstSnapshot = new ArrayList<>(lst);
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -356,7 +363,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         if (morphium.isAutoValuesEnabledForThread()) {
-            for (T obj : lst) {
+            for (T obj : lstSnapshot) {
                 try {
                     morphium.setAutoValues(obj);
                 } catch (IllegalAccessException e) {
@@ -366,11 +373,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         final AsyncOperationCallback<T> finalC = c;
-        addToWriteQueue(lst.get(0).getClass(), collectionName, ctx -> {
+        addToWriteQueue(lstSnapshot.get(0).getClass(), collectionName, ctx -> {
             Map<Object, Boolean> map = new HashMap<>();
             List<Map<String, Object>> marshalled = new ArrayList<>();
 
-            for (T o : lst) {
+            for (T o : lstSnapshot) {
                 map.put(o, true);
 
                 try {
@@ -383,8 +390,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             }
             morphium.firePreStore(map);
 
-            ctx.addInsertBulkRequest(marshalled);
-            morphium.clearCachefor(lst.get(0).getClass());
+            if (!marshalled.isEmpty()) {
+                ctx.addInsertBulkRequest(marshalled);
+            }
+            morphium.clearCachefor(lstSnapshot.get(0).getClass());
             morphium.firePostStore(map);
         }, c, AsyncOperationType.WRITE);
     }
@@ -484,6 +493,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return;
         }
 
+        final List<T> lstSnapshot = new ArrayList<>(lst);
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -491,7 +501,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         if (morphium.isAutoValuesEnabledForThread()) {
-            for (T obj : lst) {
+            for (T obj : lstSnapshot) {
                 try {
                     morphium.setAutoValues(obj);
                 } catch (IllegalAccessException e) {
@@ -501,10 +511,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         final AsyncOperationCallback<T> finalC = c;
-        addToWriteQueue(lst.get(0).getClass(), collectionName, ctx -> {
+        addToWriteQueue(lstSnapshot.get(0).getClass(), collectionName, ctx -> {
             Map<Object, Boolean> map = new HashMap<>();
 
-            for (T o : lst) {
+            for (T o : lstSnapshot) {
                 map.put(o, morphium.getARHelper().getId(o) == null);
             }
             morphium.firePreStore(map);
@@ -524,7 +534,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     store((T) entry.getKey(), morphium.getMapper().getCollectionName(entry.getKey().getClass()), finalC);
                 }
             }
-            ctx.addInsertBulkRequest(toInsert);
+            if (!toInsert.isEmpty()) {
+                ctx.addInsertBulkRequest(toInsert);
+            }
             morphium.firePostStore(map);
         }, c, AsyncOperationType.WRITE);
     }
@@ -1078,13 +1090,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public <T> void createIndex(final Class<T> cls, final String collection, final IndexDescription index, AsyncOperationCallback<T> c) {
-        if (c == null) {
-            c = new AsyncOpAdapter<>();
-        }
-
-        final AsyncOperationCallback<T> callback = c;
-        morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(cls, collection, ctx -> directWriter.createIndex(cls, collection, index, callback), c, AsyncOperationType.ENSURE_INDICES);
+        // Index creation is a schema operation; buffering it can deadlock under load (it may enqueue work
+        // that in turn needs writer threads to progress, while tests wait for the buffer to drain).
+        // Run it directly through the underlying writer.
+        directWriter.createIndex(cls, collection, index, c);
     }
 
     @Override

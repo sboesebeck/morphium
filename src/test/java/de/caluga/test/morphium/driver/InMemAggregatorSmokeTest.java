@@ -97,5 +97,29 @@ public class InMemAggregatorSmokeTest {
         assertThat(totals.get("A")).isEqualTo(4);
         assertThat(totals.get("B")).isEqualTo(5);
     }
-}
 
+    @Test
+    public void projectStageWithSubDocumentIdField() {
+        Aggregator<AggItem, Map> agg = (Aggregator<AggItem, Map>) drv.createAggregator(morphium, AggItem.class, Map.class);
+        agg.setCollectionName(coll);
+        // group by grp to create an _id sub-document, then project nested _id.someValue into MyValue
+        agg.addOperator(UtilsMap.of("$group", Doc.of(
+            "_id", Doc.of("someValue", "$grp"),
+            "total", Doc.of("$sum", "$value")
+        )));
+        agg.addOperator(UtilsMap.of("$project", Doc.of(
+            "MyValue", "$_id.someValue",
+            "total", 1,
+            "_id", 0
+        )));
+
+        List<Map<String, Object>> res = agg.aggregateMap();
+        assertThat(res).hasSize(2);
+        assertThat(res).allSatisfy(r -> assertThat(r).doesNotContainKey("_id"));
+        Map<Object, Integer> totals = res.stream()
+            .collect(Collectors.toMap(m -> m.get("MyValue"), m -> ((Number) m.get("total")).intValue()));
+        assertThat(totals.keySet()).containsExactlyInAnyOrder("A", "B");
+        assertThat(totals.get("A")).isEqualTo(4);
+        assertThat(totals.get("B")).isEqualTo(5);
+    }
+}

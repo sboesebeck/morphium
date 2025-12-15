@@ -8,10 +8,10 @@ Security considerations and best practices for Morphium applications in MongoDB 
 
 ### Community Edition Limitations
 
-**No SSL/TLS Support:**
-- MongoDB Community Edition **does not support SSL/TLS encryption**
-- Morphium's wire protocol driver **does not implement SSL/TLS**
-- All network communication is **unencrypted**
+**SSL/TLS Support:**
+- MongoDB Community Edition supports SSL/TLS encryption
+- **Morphium now supports SSL/TLS connections** (since v6.1.0)
+- See [SSL/TLS Configuration](#ssltls-configuration) below for setup instructions
 
 **Basic Authentication Only:**
 - Only **username/password authentication** supported
@@ -28,11 +28,112 @@ Security considerations and best practices for Morphium applications in MongoDB 
   - Field-level security
   - Encryption at rest (without additional tools)
 
+## SSL/TLS Configuration
+
+### Enabling SSL/TLS for MongoDB Connections
+
+Morphium supports SSL/TLS encrypted connections to MongoDB servers.
+
+**Basic SSL Configuration:**
+```java
+MorphiumConfig cfg = new MorphiumConfig();
+cfg.connectionSettings()
+   .setDatabase("mydb")
+   .addHost("mongo.example.com", 27017);
+
+// Enable SSL with system default trust store
+cfg.driverSettings().setDriverName("PooledDriver");
+
+// Get the driver and enable SSL
+Morphium morphium = new Morphium(cfg);
+PooledDriver driver = (PooledDriver) morphium.getDriver();
+driver.setUseSSL(true);
+```
+
+**Custom SSL Context (for self-signed certificates or custom CA):**
+```java
+import de.caluga.morphium.driver.wire.SslHelper;
+
+// Create SSL context from truststore
+SSLContext sslContext = SslHelper.createClientSslContext(
+    "/path/to/truststore.jks",
+    "truststorePassword"
+);
+
+// Configure driver with custom SSL context
+driver.setSslContext(sslContext);
+driver.setUseSSL(true);
+
+// Optional: Allow invalid hostnames (for testing only!)
+driver.setSslInvalidHostNameAllowed(true);
+```
+
+**Using SslHelper Utility:**
+```java
+import de.caluga.morphium.driver.wire.SslHelper;
+
+// For client connections (truststore only)
+SSLContext clientCtx = SslHelper.createClientSslContext(
+    "/path/to/truststore.jks", "password"
+);
+
+// For mutual TLS (client certificate authentication)
+SSLContext mtlsCtx = SslHelper.createSslContext(
+    "/path/to/keystore.jks", "keystorePassword",    // Client cert
+    "/path/to/truststore.jks", "truststorePassword" // Server CA
+);
+
+// For testing only - trust all certificates (INSECURE!)
+SSLContext testCtx = SslHelper.createTrustAllSslContext();
+```
+
+### MorphiumServer SSL Configuration
+
+MorphiumServer can accept SSL/TLS encrypted connections:
+
+**Command Line:**
+```bash
+# Generate a keystore with server certificate
+keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
+  -validity 365 -keystore server.jks -storepass changeit \
+  -dname "CN=localhost"
+
+# Start server with SSL
+java -jar morphium-server.jar -p 27018 \
+  --ssl --sslKeystore server.jks --sslKeystorePassword changeit
+```
+
+**Programmatic:**
+```java
+import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.morphium.driver.wire.SslHelper;
+
+MorphiumServer server = new MorphiumServer(27018, "localhost", 100, 10);
+
+// Configure SSL
+SSLContext sslContext = SslHelper.createServerSslContext(
+    "/path/to/server-keystore.jks", "keystorePassword"
+);
+server.setSslContext(sslContext);
+server.setSslEnabled(true);
+
+server.start();
+```
+
+**Connecting with mongosh:**
+```bash
+# With certificate verification
+mongosh "mongodb://localhost:27018" --tls --tlsCAFile server-cert.pem
+
+# Skip certificate verification (testing only)
+mongosh "mongodb://localhost:27018" --tls --tlsAllowInvalidCertificates
+```
+
 ## Network Security
 
 ### Trusted Network Requirement
 
-**Since SSL/TLS is not available, Morphium must be deployed in trusted network environments:**
+**For deployments without SSL/TLS, Morphium must be deployed in trusted network environments:**
 
 ```java
 // Configure for trusted network deployment

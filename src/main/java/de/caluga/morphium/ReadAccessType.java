@@ -4,7 +4,7 @@ package de.caluga.morphium;
  * User: Stephan Bösebeck
  * Date: 01.08.12
  * Time: 11:05
- * <p/>
+ * <p>
  * PRofiling read access types
  */
 public enum ReadAccessType {

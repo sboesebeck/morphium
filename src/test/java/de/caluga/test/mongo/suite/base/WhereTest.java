@@ -19,7 +19,7 @@ import java.util.List;
  * User: Stephan Bösebeck
  * Date: 27.08.12
  * Time: 11:17
- * <p/>
+ * <p>
  */
 @Tag("core")
 public class WhereTest extends MultiDriverTestBase {

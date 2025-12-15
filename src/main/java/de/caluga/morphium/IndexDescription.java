@@ -277,7 +277,7 @@ public class IndexDescription {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexDescription that = (IndexDescription) o;
-        return Objects.equals(key, that.key)
+        boolean ret = Objects.equals(key, that.key)
                 && Objects.equals(background, that.background)
                 && Objects.equals(unique, that.unique)
                 && Objects.equals(partialFilterExpression, that.partialFilterExpression)
@@ -288,6 +288,8 @@ public class IndexDescription {
                 && Objects.equals(_2dsphereIndexVersion, that._2dsphereIndexVersion) && Objects.equals(bits, that.bits)
                 && Objects.equals(min, that.min) && Objects.equals(max, that.max) && Objects.equals(collation, that.collation)
                 && Objects.equals(wildcardProjection, that.wildcardProjection);
+        LoggerFactory.getLogger(IndexDescription.class).info("Comparing {} with {} -> {}", this, that, ret);
+        return ret;
     }
 
     @Override
