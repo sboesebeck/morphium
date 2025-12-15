@@ -43,6 +43,9 @@ public final class TestConfig {
            .setRetryWrites(booleanProp(props, "morphium.retryWrites", false))
            // change streams on external clusters need more than the previous 1s default
            .setReadTimeout(intProp(props, "morphium.readTimeout", 10000))
+           // Avoid multi-minute "hangs" when no primary is available, but still allow enough time for
+           // primary discovery on slower/remote clusters.
+           .setServerSelectionTimeout(intProp(props, "morphium.serverSelectionTimeout", 15000))
            .setDriverName(mapDriverName(valueOr(props, "morphium.driver", "pooled")))
            .setMaxConnectionLifeTime(intProp(props, "morphium.maxConnectionLifeTime", 60000))
            .setMaxConnectionIdleTime(intProp(props, "morphium.maxConnectionIdleTime", 30000))

@@ -330,8 +330,12 @@ public class Query<T> implements Cloneable {
         FindAndModifyMongoCommand settings = null;
 
         try {
-            con = morphium.getDriver().getPrimaryConnection(null);
+            var wc = getMorphium().getWriteConcernForClass(getType());
+            con = morphium.getDriver().getPrimaryConnection(wc);
             settings = new FindAndModifyMongoCommand(con).setQuery(toQueryObject()).setRemove(true).setSort(new Doc(getSort())).setColl(getCollectionName()).setDb(getDB());
+            if (wc != null) {
+                settings.setWriteConcern(wc.asMap());
+            }
 
             if (collation != null) {
                 settings.setCollation(Doc.of(collation.toQueryObject()));
@@ -417,8 +421,12 @@ public class Query<T> implements Cloneable {
         FindAndModifyMongoCommand settings = null;
 
         try {
-            con = morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(getType()));
+            var wc = getMorphium().getWriteConcernForClass(getType());
+            con = morphium.getDriver().getPrimaryConnection(wc);
             settings = new FindAndModifyMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())).setUpdate(Doc.of(update));
+            if (wc != null) {
+                settings.setWriteConcern(wc.asMap());
+            }
 
             if (collation != null) {
                 settings.setCollation(Doc.of(collation.toQueryObject()));
