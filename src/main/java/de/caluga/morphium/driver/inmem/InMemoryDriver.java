@@ -30,6 +30,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPInputStream;
@@ -237,6 +238,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Deque<Map<String, Object>> oplog = new ConcurrentLinkedDeque<>();
     private static final int OPLOG_MAX = 5000;
     private final AtomicLong oplogInc = new AtomicLong();
+    private final AtomicBoolean initialized = new AtomicBoolean(false);
     // Used to support the "aggregate" wire command (e.g. when running against MorphiumServer).
     // NOTE: These Morphium instances must NOT be closed, as they would close this driver as well.
     private final ConcurrentHashMap<String, Morphium> aggregationMorphiumByDb = new ConcurrentHashMap<>();
@@ -245,20 +247,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return aggregationMorphiumByDb.computeIfAbsent(db, dbName -> {
             MorphiumConfig cfg = new MorphiumConfig(dbName, 100, 5000, 5000);
             cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
-            // Morphium initialization expects a non-empty host seed even for InMemoryDriver.
-            cfg.setHostSeed("inMem");
-
-            Morphium m = new Morphium(cfg);
-            MorphiumDriver createdDriver = m.getDriver();
+            // Ensure this internal Morphium uses the already running InMemoryDriver instance.
+            // This avoids ClassGraph-based driver discovery, which may not work in some packaged runtimes.
+            Morphium m = new Morphium();
             m.setDriver(this);
-
-            // Close the temporary driver created during Morphium initialization so it doesn't leak resources.
-            // Important: do NOT close Morphium itself (it would close this driver).
-            try {
-                createdDriver.close();
-            } catch (Exception ignored) {
-            }
-
+            m.setConfig(cfg);
             return m;
         });
     }
@@ -1897,6 +1890,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void connect() {
+        if (initialized.get() && running && exec != null && !exec.isShutdown()) {
+            return;
+        }
+
+        synchronized (this) {
+            if (initialized.get() && running && exec != null && !exec.isShutdown()) {
+                return;
+            }
+            initialized.set(true);
+            running = true;
+        }
+
         try (ScanResult scanResult = new ClassGraph()
             // .verbose() // Enable verbose logging
             .enableAnnotationInfo()
@@ -2293,6 +2298,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
         running = false;
+        initialized.set(false);
 
         // Shutdown the scheduler - this is driver-level, not connection-level
         if (exec != null && !exec.isShutdown()) {

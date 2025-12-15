@@ -349,6 +349,76 @@ sys.exit(1)
 PY
 }
 
+function _ms_local_wait_for_primary() {
+  local uri_in="$1"
+  local timeout_s="${2:-45}"
+  local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
+  local jar
+  jar=$(_ms_local_find_server_cli_jar)
+  if [ -z "$jar" ]; then
+    echo -e "${RD}Error:${CL} Cannot probe local cluster readiness - server-cli jar missing under target/"
+    return 1
+  fi
+
+  mkdir -p "$pid_dir"
+  local probe_java="${pid_dir}/MorphiumServerProbe_${PID}.java"
+  local probe_class="MorphiumServerProbe_${PID}"
+
+  cat >"$probe_java" <<'JAVA'
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.PooledDriver;
+public class MorphiumServerProbe_0 {
+  public static void main(String[] args) throws Exception {
+    String uri = args[0];
+    String hostsCsv = args[1];
+    String[] hosts = hostsCsv.split(",");
+    PooledDriver d = new PooledDriver();
+    d.setHostSeed(hosts);
+    d.connect(null);
+    // Primary must be selectable for any write-heavy tests.
+    d.getPrimaryConnection(null).close();
+    System.out.println("OK primary selectable for " + uri);
+  }
+}
+JAVA
+
+  # Replace placeholder class name with unique name
+  if sed --version >/dev/null 2>&1; then
+    sed -i.bak "s/public class MorphiumServerProbe_0/public class ${probe_class}/" "$probe_java" 2>/dev/null || true
+  else
+    sed -i '' -e "s/public class MorphiumServerProbe_0/public class ${probe_class}/" "$probe_java" 2>/dev/null || true
+  fi
+  rm -f "$probe_java.bak" >/dev/null 2>&1 || true
+
+  javac -cp "$jar" "$probe_java" >/dev/null 2>&1 || true
+
+  # Parse hosts for seeding the driver (no DB part, no scheme)
+  local hostports
+  hostports=$(_ms_local_parse_hosts_from_uri "$uri_in" | tr '\n' ',' | sed 's/,$//')
+  if [ -z "$hostports" ]; then
+    hostports="localhost:27017,localhost:27018,localhost:27019"
+  fi
+
+  python3 - "$jar" "$pid_dir" "$probe_class" "$uri_in" "$hostports" "$timeout_s" <<'PY'
+import subprocess, sys, time
+jar, pid_dir, cls, uri, hosts, timeout_s = sys.argv[1:]
+deadline = time.time() + float(timeout_s)
+last = None
+while time.time() < deadline:
+    try:
+        p = subprocess.run(["java", "-cp", f"{jar}:{pid_dir}", cls, uri, hosts],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10)
+        if p.returncode == 0:
+            sys.exit(0)
+        last = p.stdout.strip()
+    except Exception as e:
+        last = str(e)
+    time.sleep(0.5)
+print(f"Timed out waiting for primary to become selectable - last output: {last}", file=sys.stderr)
+sys.exit(1)
+PY
+}
+
 function _ms_local_parse_hosts_from_uri() {
   local uri_in="$1"
   local u="$uri_in"
@@ -476,6 +546,9 @@ function _ms_local_start_cluster() {
     _ms_local_wait_for_port "$host" "$port" 30 || return 1
   done <<<"$hostports"
 
+  # Ports being open is not enough; wait until a primary is actually selectable.
+  _ms_local_wait_for_primary "$uri_in" 60 || return 1
+
   return 0
 }
 
@@ -542,6 +615,9 @@ function _ms_local_ensure_cluster() {
   done <<<"$hostports"
 
   if [ "$all_ok" -eq 1 ]; then
+    if [ "${startMorphiumserverLocal:-0}" -eq 1 ] && [ "${morphiumserverLocalStarted:-0}" -ne 1 ]; then
+      echo -e "${YL}Warning:${CL} Local cluster already listening for ${GN}${uri_in}${CL} - not auto-starting MorphiumServer."
+    fi
     return 0
   fi
 
@@ -582,6 +658,7 @@ showStats=0
 morphiumserverLocalMode=0
 startMorphiumserverLocal=0
 keepMorphiumserverLocal=0
+allowExistingLocalhostRs=0
 morphiumserverLocalStarted=0
 morphiumserverLocalPidDir=".morphiumserver-local"
 
@@ -613,8 +690,9 @@ while [ "q$1" != "q" ]; do
 	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
 	    echo -e "${BL}--morphiumserver-local$CL - use default localhost replica set URI (MongoDB or MorphiumServer)"
 	    echo -e "${BL}--localhost-rs$CL       - alias for --morphiumserver-local"
-	    echo -e "${BL}--start-morphiumserver-local$CL - auto-start local MorphiumServer cluster if needed"
-	    echo -e "${BL}--keep-morphiumserver-local$CL  - keep locally started cluster running after tests"
+	    echo -e "${BL}--start-morphiumserver-local$CL - auto-start local MorphiumServer cluster if needed (idempotent; implies --keep-morphiumserver-local)"
+	    echo -e "${BL}--keep-morphiumserver-local$CL  - keep locally started cluster running after tests (default with --start-morphiumserver-local)"
+	    echo -e "${BL}--allow-existing-localhost-rs$CL - deprecated (no-op; auto-start always allows existing listeners)"
 	    echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
 	    echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
 	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
@@ -709,9 +787,16 @@ while [ "q$1" != "q" ]; do
 	    shift
 	  elif [ "q$1" == "q--start-morphiumserver-local" ]; then
 	    startMorphiumserverLocal=1
+	    # If we auto-start a local cluster, keep it running by default.
+	    # This makes local test runs idempotent and avoids long restarts between runs.
+	    keepMorphiumserverLocal=1
 	    shift
 	  elif [ "q$1" == "q--keep-morphiumserver-local" ]; then
 	    keepMorphiumserverLocal=1
+	    shift
+	  elif [ "q$1" == "q--allow-existing-localhost-rs" ]; then
+	    # Deprecated: auto-start is idempotent and will use already-listening ports automatically.
+	    allowExistingLocalhostRs=1
 	    shift
 	  elif [ "q$1" == "q--localhost-rs" ]; then
 	    # Alias for --morphiumserver-local (default localhost replica set URI + pooled driver).
