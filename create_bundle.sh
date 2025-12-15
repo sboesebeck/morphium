@@ -15,6 +15,17 @@ if [[ $version == *"SNAPSHOT"* ]]; then
     exit 1
 fi
 
+echo "Copying pom.xml to target..."
+cp pom.xml "target/morphium-${version}.pom"
+
+echo "Signing artifacts..."
+for file in target/morphium-${version}.pom target/morphium-${version}.jar target/morphium-${version}-sources.jar target/morphium-${version}-javadoc.jar target/morphium-${version}-server-cli.jar; do
+    if [ -f "$file" ] && [ ! -f "${file}.asc" ]; then
+        gpg --armor --detach-sign "$file"
+        echo "  ✓ Signed $file"
+    fi
+done
+
 cd target
 
 # Verify all required files exist
@@ -55,8 +66,8 @@ done
 echo "Generating MD5 and SHA1 checksums..."
 for file in morphium-${version}.pom morphium-${version}.jar morphium-${version}-sources.jar morphium-${version}-javadoc.jar morphium-${version}-server-cli.jar; do
     if [ -f "$file" ]; then
-        md5sum "$file" | awk '{print $1}' > "${file}.md5"
-        sha1sum "$file" | awk '{print $1}' > "${file}.sha1"
+        md5sum "$file" | awk '{print $1}' >"${file}.md5"
+        sha1sum "$file" | awk '{print $1}' >"${file}.sha1"
         echo "  ✓ ${file}.md5"
         echo "  ✓ ${file}.sha1"
     fi
@@ -88,4 +99,3 @@ echo "  2. Click 'Upload Bundle'"
 echo "  3. Select target/bundle_${version}.jar"
 echo "  4. Wait for validation (usually 10-30 minutes)"
 echo ""
-
