@@ -778,10 +778,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#local-morphiumserver-cluster" class="md-nav__link">
+  <a href="#local-cluster-localhost" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Local MorphiumServer Cluster
+        Local Cluster (localhost)
       
     </span>
   </a>
@@ -1680,10 +1680,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#local-morphiumserver-cluster" class="md-nav__link">
+  <a href="#local-cluster-localhost" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Local MorphiumServer Cluster
+        Local Cluster (localhost)
       
     </span>
   </a>
@@ -1755,15 +1755,21 @@
 <h3 id="rerun-only-failed-tests">Rerun only failed tests<a class="headerlink" href="#rerun-only-failed-tests" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./runtests.sh<span class="w"> </span>--rerunfailed<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span>
 </span></code></pre></div>
-<h2 id="local-morphiumserver-cluster">Local MorphiumServer Cluster<a class="headerlink" href="#local-morphiumserver-cluster" title="Permanent link">&para;</a></h2>
-<p>If you have a MorphiumServer replica set running locally on <code>localhost:27017,27018,27019</code>, use:</p>
+<h2 id="local-cluster-localhost">Local Cluster (localhost)<a class="headerlink" href="#local-cluster-localhost" title="Permanent link">&para;</a></h2>
+<p>If you have a replica set running locally on <code>localhost:27017,localhost:27018,localhost:27019</code> (MongoDB or MorphiumServer), use:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
 <p>This mode sets:
 - <code>--driver pooled</code>
 - <code>--uri mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests</code></p>
+<p>The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start MorphiumServer:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--start-morphiumserver-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
+</span></code></pre></div>
+<p>To keep the locally started cluster running after the test run:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--start-morphiumserver-local<span class="w"> </span>--keep-morphiumserver-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
+</span></code></pre></div>
 <p>If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--exclude-tags<span class="w"> </span>server<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--exclude-tags<span class="w"> </span>server<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
 <h2 id="debugging-failures">Debugging Failures<a class="headerlink" href="#debugging-failures" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1775,7 +1781,7 @@
 <p>With <code>--parallel N</code>, the runner assigns each slot its own database prefix via <code>-Dmorphium.database=morphium_test_&lt;slot&gt;</code>.
 This prevents different JVMs from dropping or overwriting each other’s data during heavy parallel suites.</p>
 <p>If you run tests manually with Maven, it’s recommended to set an explicit DB as well:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>mvn<span class="w"> </span>-Pexternal<span class="w"> </span>-Dmorphium.driver<span class="o">=</span>pooled<span class="w"> </span>-Dmorphium.uri<span class="o">=</span>mongodb://...<span class="w"> </span>-Dmorphium.database<span class="o">=</span>morphium_test_manual<span class="w"> </span><span class="nb">test</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>mvn<span class="w"> </span>-Pexternal<span class="w"> </span>-Dmorphium.driver<span class="o">=</span>pooled<span class="w"> </span>-Dmorphium.uri<span class="o">=</span>mongodb://...<span class="w"> </span>-Dmorphium.database<span class="o">=</span>morphium_test_manual<span class="w"> </span><span class="nb">test</span>
 </span></code></pre></div>
 
 
