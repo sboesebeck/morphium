@@ -1,6 +1,7 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.Sequence.SeqLock;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
@@ -98,7 +99,9 @@ public class SequenceGenerator {
     }
 
     public long getCurrentValue() {
-        Sequence s = morphium.createQueryFor(Sequence.class).f("_id").eq(name).get();
+        Sequence s = morphium.createQueryFor(Sequence.class)
+            .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+            .f("_id").eq(name).get();
 
         if (s == null) {
             log.warn("getCurrentValue() - Sequence '{}' is NULL, calling getNextValue(), thread={}",
@@ -134,7 +137,9 @@ public class SequenceGenerator {
                 // lock failed
                 // waiting for it to be released (or for a stale lock to be cleared)
                 try {
-                    SeqLock existingLock = morphium.createQueryFor(SeqLock.class).f("_id").eq(name).get();
+                    SeqLock existingLock = morphium.createQueryFor(SeqLock.class)
+                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(name).get();
 
                     if (existingLock != null && existingLock.getLockedAt() != null) {
                         long age = System.currentTimeMillis() - existingLock.getLockedAt().getTime();
@@ -145,6 +150,7 @@ public class SequenceGenerator {
                         if (age > LOCK_EXPIRE_MILLIS + LOCK_EXPIRE_GRACE_MILLIS) {
                             morphium.delete(
                                 morphium.createQueryFor(SeqLock.class)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
                                     .f("_id").eq(name)
                                     .f("lockedBy").eq(existingLock.getLockedBy())
                                     .f("lockedAt").eq(existingLock.getLockedAt())
@@ -191,7 +197,9 @@ public class SequenceGenerator {
 
         // long st = System.currentTimeMillis();
         try {
-            Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
+            Query<Sequence> seq = morphium.createQueryFor(Sequence.class)
+                .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                .f("_id").eq(name);
             var val = seq.get();//.getCurrentValue();
             int count = 0;
             while (val == null || val.getCurrentValue() == null) {

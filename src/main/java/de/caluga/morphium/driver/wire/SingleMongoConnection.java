@@ -19,6 +19,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -75,9 +76,18 @@ public class SingleMongoConnection implements MongoConnection {
             if (drv.isUseSSL()) {
                 s = createSslSocket(drv, host, port);
             } else {
-                s = new Socket(host, port);
+                s = new Socket();
+                int timeout = drv.getConnectionTimeout();
+                if (timeout <= 0) {
+                    timeout = 1000;
+                }
+                s.connect(new InetSocketAddress(host, port), timeout);
             }
             s.setKeepAlive(true);
+            int readTimeout = drv.getReadTimeout();
+            if (readTimeout > 0) {
+                s.setSoTimeout(readTimeout);
+            }
             out = s.getOutputStream();
             in = s.getInputStream();
         } catch (IOException e) {
@@ -111,7 +121,12 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         javax.net.ssl.SSLSocketFactory factory = sslContext.getSocketFactory();
-        javax.net.ssl.SSLSocket sslSocket = (javax.net.ssl.SSLSocket) factory.createSocket(host, port);
+        javax.net.ssl.SSLSocket sslSocket = (javax.net.ssl.SSLSocket) factory.createSocket();
+        int timeout = drv.getConnectionTimeout();
+        if (timeout <= 0) {
+            timeout = 1000;
+        }
+        sslSocket.connect(new InetSocketAddress(host, port), timeout);
 
         // Configure SSL parameters
         javax.net.ssl.SSLParameters params = sslSocket.getSSLParameters();
