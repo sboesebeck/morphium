@@ -1768,6 +1768,7 @@
 <p>To keep the locally started cluster running after the test run:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--start-morphiumserver-local<span class="w"> </span>--keep-morphiumserver-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
+<p>When auto-start is used, MorphiumServer logs are written to <code>.morphiumserver-local/logs/</code>.</p>
 <p>If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--exclude-tags<span class="w"> </span>server<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
