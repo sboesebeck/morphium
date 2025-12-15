@@ -2471,6 +2471,23 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         con = morphium.getDriver().getPrimaryConnection(null);
                         settings = new DropMongoCommand(con).setColl(co).setDb(getDbName());
                         settings.execute();
+
+                        // On real MongoDB, drop may return before the namespace is fully gone.
+                        // Tests (and callers) commonly expect a subsequent write to not be "eaten" by an in-flight drop.
+                        long waitStart = System.currentTimeMillis();
+                        while (morphium.exists(getDbName(), co)) {
+                            if (System.currentTimeMillis() - waitStart > 10_000) {
+                                LoggerFactory.getLogger(MorphiumWriterImpl.class)
+                                    .warn("Collection {}.{} still exists 10s after drop - continuing anyway", getDbName(), co);
+                                break;
+                            }
+                            try {
+                                Thread.sleep(50);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                break;
+                            }
+                        }
                     } catch (MorphiumDriverException e) {
                         if (e.getMessage().endsWith("error: 26 - ns not found")) {
                             LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("NS not found: " + morphium.getMapper().getCollectionName(cls));

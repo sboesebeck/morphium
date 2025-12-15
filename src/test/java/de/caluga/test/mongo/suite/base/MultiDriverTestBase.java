@@ -133,6 +133,18 @@ public class MultiDriverTestBase {
         List<Arguments> morphiums = new ArrayList<>();
         MorphiumConfig base = TestConfig.load();
 
+        // IMPORTANT: tests can run in parallel slots via `runtests.sh --parallel N`.
+        // Each slot sets `-Dmorphium.database=morphium_test_<slotId>` and we must respect that here.
+        // Otherwise different JVMs will all use the same DB names (morphium_test_1, morphium_test_2, ...)
+        // and will drop/overwrite each other's data, causing flakiness and timeouts.
+        String baseDbPrefix = System.getProperty("morphium.database");
+        if (baseDbPrefix == null || baseDbPrefix.isBlank()) {
+            baseDbPrefix = base.connectionSettings().getDatabase();
+        }
+        if (baseDbPrefix == null || baseDbPrefix.isBlank()) {
+            baseDbPrefix = "morphium_test";
+        }
+
         boolean externalEnabled = isExternalEnabled();
         var allowed = getAllowedDrivers(externalEnabled);
 
@@ -144,20 +156,20 @@ public class MultiDriverTestBase {
         if (includePooled && allowed.contains(PooledDriver.driverName)) {
             MorphiumConfig pooled = MorphiumConfig.fromProperties(base.asProperties());
             pooled.driverSettings().setDriverName(PooledDriver.driverName);
-            pooled.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            pooled.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
             pooled.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
                   .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.driverSettings().getDriverName());
+            log.info("Running test with DB " + pooled.connectionSettings().getDatabase() + " for " + pooled.driverSettings().getDriverName());
             morphiums.add(Arguments.of(new Morphium(pooled)));
         }
 
         if (includeSingle && allowed.contains(SingleMongoConnectDriver.driverName)) {
             MorphiumConfig single = MorphiumConfig.fromProperties(base.asProperties());
             single.driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
-            single.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            single.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
             single.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
                   .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + single.driverSettings().getDriverName());
+            log.info("Running test with DB " + single.connectionSettings().getDatabase() + " for " + single.driverSettings().getDriverName());
             morphiums.add(Arguments.of(new Morphium(single)));
         }
 
@@ -172,13 +184,13 @@ public class MultiDriverTestBase {
             MorphiumConfig inMemCfg = MorphiumConfig.fromProperties(base.asProperties());
             inMemCfg.driverSettings().setDriverName(InMemoryDriver.driverName);
             inMemCfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
-            inMemCfg.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            inMemCfg.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
             inMemCfg.collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP)
                      .setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
             Morphium inMem = new Morphium(inMemCfg);
             ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500);
             morphiums.add(Arguments.of(inMem));
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemCfg.driverSettings().getDriverName());
+            log.info("Running test with DB " + inMemCfg.connectionSettings().getDatabase() + " for " + inMemCfg.driverSettings().getDriverName());
         }
 
         //dropping all existing test-dbs
@@ -191,8 +203,20 @@ public class MultiDriverTestBase {
 
             if (m.listDatabases() == null) return morphiums.stream();
 
+            // When running tests in parallel slots, each slot uses its own base DB prefix (e.g. morphium_test_1).
+            // Never drop all "morphium*" DBs globally, otherwise different slots will fight each other and create
+            // "database is in the process of being dropped" errors and data loss.
+            String basePrefix = System.getProperty("morphium.database");
+            if (basePrefix == null || basePrefix.isBlank()) {
+                basePrefix = m.getConfig().connectionSettings().getDatabase();
+            }
+            if (basePrefix == null || basePrefix.isBlank()) {
+                basePrefix = "morphium_test";
+            }
+            final String prefix = basePrefix;
+
             for (String db : m.listDatabases()) {
-                if (db.startsWith("morphium")) {
+                if (db.equals(prefix) || db.startsWith(prefix + "_")) {
                     log.info(m.getDriver().getName() + ": Dropping db " + db);
 
                     try {
@@ -201,6 +225,18 @@ public class MultiDriverTestBase {
                         cmd.setComment("Delete for testing");
                         cmd.execute();
                         cmd.releaseConnection();
+                        // Wait until MongoDB actually finished dropping the database
+                        long start = System.currentTimeMillis();
+                        while (System.currentTimeMillis() - start < 30_000) {
+                            try {
+                                if (!m.listDatabases().contains(db)) {
+                                    break;
+                                }
+                                Thread.sleep(100);
+                            } catch (Exception ignore) {
+                                break;
+                            }
+                        }
                     } catch (MorphiumDriverException e) {
                         log.error(m.getDriver().getName() + " Dropping failed", e);
                     }

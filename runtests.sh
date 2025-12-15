@@ -951,11 +951,13 @@ function run_test_slot() {
 
     if [ "$test_method" == "." ]; then
       echo "Slot $slot_id: Running $test_class ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1
+      # Run surefire directly to avoid re-running lifecycle phases (resources/compile/testCompile) per test,
+      # which can clobber shared `target/classes`/`target/test-classes` when running in parallel slots.
+      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1
       exit_code=$?
     else
       echo "Slot $slot_id: Running $test_class#$test_method ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1
+      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1
       exit_code=$?
     fi
 
@@ -1310,11 +1312,12 @@ else
       tm=$(date +%s)
       if [ "$test_method" == "." ]; then
         echo "Running Tests in $test_class" >"test.log/$test_class.log"
-        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
+        # Same rationale as in parallel slots: call surefire directly to keep runs isolated from build output churn.
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
         echo $! >$testPid
       else
         echo "Running $test_method in $test_class" >"test.log/$test_class.log"
-        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
         echo $! >$testPid
       fi
       while true; do
@@ -1469,9 +1472,9 @@ else
           fi
           echo "Retrying $retry_t"
           if [ "$m" == "." ]; then
-            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
+            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
           else
-            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
+            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
           fi
         done
 

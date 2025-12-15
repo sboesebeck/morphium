@@ -157,7 +157,9 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public ReadPreference getDefaultReadPreference() {
-        return ReadPreference.nearest();
+        // Defaulting to PRIMARY keeps behavior consistent with MongoDB drivers and avoids
+        // surprising "read-your-writes" issues on replica sets when no explicit RP is set.
+        return ReadPreference.primary();
     }
 
     @Override
@@ -845,7 +847,7 @@ public class PooledDriver extends DriverBase {
             // Race-free: connect() returns after scheduling heartbeat, but primary discovery happens async.
             // Also handles short windows during primary failover where primaryNode is cleared temporarily.
             long start = System.currentTimeMillis();
-            long timeout = getServerSelectionTimeout();
+            long timeout = Math.max(getServerSelectionTimeout(), (long) getHeartbeatFrequency() * 2L + 500L);
 
             if (timeout <= 0) {
                 timeout = 1000;
