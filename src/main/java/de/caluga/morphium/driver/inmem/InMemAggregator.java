@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.SingleBatchCursor;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2153,13 +2154,24 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     private List<Map<String, Object>> doAggregation() {
-        var q = getMorphium().createQueryFor(getSearchType());
-
-        if (getCollectionName() != null) {
-            q.setCollectionName(getCollectionName());
+        if (getMorphium() == null) {
+            throw new IllegalStateException("Morphium not set");
         }
 
-        List<Map<String, Object>> result = q.asMapList();
+        Query<?> q;
+        // Special handling for Map-based aggregations: there is no @Entity, so creating a typed Query would fail.
+        // Use a map query and bind it to the explicit collection name instead.
+        if (Map.class.equals(getSearchType()) || getMorphium().getARHelper().getAnnotationFromHierarchy(getSearchType(), Entity.class) == null) {
+            q = getMorphium().createMapQuery(getCollectionName());
+        } else {
+            q = getMorphium().createQueryFor(getSearchType());
+            if (getCollectionName() != null) {
+                q.setCollectionName(getCollectionName());
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> result = (List<Map<String, Object>>) (List<?>) q.asMapList();
 
         for (Map<String, Object> step : getPipeline()) {
             //evaluate each step

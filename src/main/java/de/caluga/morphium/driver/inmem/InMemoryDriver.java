@@ -237,6 +237,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Deque<Map<String, Object>> oplog = new ConcurrentLinkedDeque<>();
     private static final int OPLOG_MAX = 5000;
     private final AtomicLong oplogInc = new AtomicLong();
+    // Used to support the "aggregate" wire command (e.g. when running against MorphiumServer).
+    // NOTE: These Morphium instances must NOT be closed, as they would close this driver as well.
+    private final ConcurrentHashMap<String, Morphium> aggregationMorphiumByDb = new ConcurrentHashMap<>();
+
+    private Morphium getAggregationMorphium(String db) {
+        return aggregationMorphiumByDb.computeIfAbsent(db, dbName -> {
+            MorphiumConfig cfg = new MorphiumConfig(dbName, 100, 5000, 5000);
+            cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+            // Morphium initialization expects a non-empty host seed even for InMemoryDriver.
+            cfg.setHostSeed("inMem");
+
+            Morphium m = new Morphium(cfg);
+            MorphiumDriver createdDriver = m.getDriver();
+            m.setDriver(this);
+
+            // Close the temporary driver created during Morphium initialization so it doesn't leak resources.
+            // Important: do NOT close Morphium itself (it would close this driver).
+            try {
+                createdDriver.close();
+            } catch (Exception ignored) {
+            }
+
+            return m;
+        });
+    }
 
     public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
         return database.get(dbn);
@@ -1626,12 +1651,54 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(AggregateMongoCommand cmd) {
-        if (cmd.getDb().equals("admin") && cmd.getColl().equals("atlascli")) {
-            int ret = commandNumber.incrementAndGet();
+        int ret = commandNumber.incrementAndGet();
+
+        // Keep compatibility with older tooling probing for atlascli in admin
+        if ("admin".equals(cmd.getDb()) && "atlascli".equals(cmd.getColl())) {
             addResult(ret, prepareResult(Doc.of("ok", 0.0, "msg", "not found")));
             return ret;
         }
-        throw new IllegalArgumentException("please use morphium for aggregation in Memory!");
+
+        try {
+            Morphium m = getAggregationMorphium(cmd.getDb());
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            InMemAggregator<Map<String, Object>, Map<String, Object>> agg = new InMemAggregator(m, (Class) Map.class, (Class) Map.class);
+            agg.setCollectionName(cmd.getColl());
+
+            if (cmd.getPipeline() != null) {
+                agg.getPipeline().addAll(cmd.getPipeline());
+            }
+
+            List<Map<String, Object>> allResults = agg.aggregateMap();
+
+            int batchSize = 0;
+            if (cmd.getBatchSize() != null && cmd.getBatchSize() > 0) {
+                batchSize = cmd.getBatchSize();
+            } else if (cmd.getCursor() != null && cmd.getCursor().get("batchSize") instanceof Number n && n.intValue() > 0) {
+                batchSize = n.intValue();
+            } else if (getDefaultBatchSize() > 0) {
+                batchSize = getDefaultBatchSize();
+            } else {
+                batchSize = Math.min(allResults.size(), 101);
+            }
+
+            String namespace = cmd.getDb() + "." + cmd.getColl();
+            long cursorId = registerCursorBuffer(namespace, allResults, batchSize);
+
+            List<Map<String, Object>> firstBatch;
+            if (cursorId != 0L && allResults.size() > batchSize) {
+                firstBatch = new ArrayList<>(allResults.subList(0, batchSize));
+            } else {
+                firstBatch = allResults;
+            }
+
+            Map<String, Object> cursor = Doc.of("firstBatch", firstBatch, "ns", namespace, "id", cursorId);
+            addResult(ret, prepareResult(Doc.of("cursor", cursor)));
+            return ret;
+        } catch (Exception e) {
+            addResult(ret, prepareResult(Doc.of("ok", 0.0, "errmsg", "aggregate failed: " + e.getMessage())));
+            return ret;
+        }
     }
 
     private int runCommand(MongoCommand cmd) {

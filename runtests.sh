@@ -35,6 +35,11 @@ function createFileList() {
 }
 function quitting() {
 
+  # Stop a locally started MorphiumServer cluster (if any) before tearing down logs/state.
+  if type _ms_local_cleanup >/dev/null 2>&1; then
+    _ms_local_cleanup
+  fi
+
   if [ -e $testPid ]; then
     kill -9 $(<$testPid) >/dev/null 2>&1
   fi
@@ -300,6 +305,261 @@ function aggregate_slot_logs() {
   return 0
 }
 
+function _ms_local_port_open() {
+  local host="$1"
+  local port="$2"
+  python3 - "$host" "$port" <<'PY'
+import socket, sys
+host = sys.argv[1]
+port = int(sys.argv[2])
+s = socket.socket()
+s.settimeout(0.5)
+try:
+    s.connect((host, port))
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+finally:
+    try:
+        s.close()
+    except Exception:
+        pass
+PY
+}
+
+function _ms_local_wait_for_port() {
+  local host="$1"
+  local port="$2"
+  local timeout_s="${3:-30}"
+  python3 - "$host" "$port" "$timeout_s" <<'PY'
+import socket, sys, time
+host = sys.argv[1]
+port = int(sys.argv[2])
+deadline = time.time() + float(sys.argv[3])
+last = None
+while time.time() < deadline:
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            sys.exit(0)
+    except Exception as e:
+        last = e
+        time.sleep(0.2)
+print(f"Timed out waiting for {host}:{port} - last error: {last}", file=sys.stderr)
+sys.exit(1)
+PY
+}
+
+function _ms_local_parse_hosts_from_uri() {
+  local uri_in="$1"
+  local u="$uri_in"
+
+  # Strip scheme
+  u="${u#mongodb://}"
+  u="${u#mongodb+srv://}"
+
+  # Strip everything after first /
+  u="${u%%/*}"
+
+  # Strip credentials if present
+  if [[ "$u" == *"@"* ]]; then
+    u="${u##*@}"
+  fi
+
+  local IFS=,
+  local parts=($u)
+  local p
+  for p in "${parts[@]}"; do
+    # remove query (if any leaked into host list)
+    p="${p%%\?*}"
+    p="${p// /}"
+    [ -z "$p" ] && continue
+
+    local host=""
+    local port=""
+
+    # IPv6 in brackets: [::1]:27017
+    if [[ "$p" == \[*\]* ]]; then
+      host="${p%%]*}"
+      host="${host#[}"
+      local rest="${p#*]}"
+      if [[ "$rest" == :* ]]; then
+        port="${rest#:}"
+      else
+        port="27017"
+      fi
+    else
+      if [[ "$p" == *":"* ]]; then
+        host="${p%:*}"
+        port="${p##*:}"
+      else
+        host="$p"
+        port="27017"
+      fi
+    fi
+
+    [ -z "$host" ] && continue
+    [ -z "$port" ] && port="27017"
+    echo "${host}:${port}"
+  done
+}
+
+function _ms_local_find_server_cli_jar() {
+  local jar
+  jar=$(ls -1 target/*server-cli*.jar 2>/dev/null | head -n 1)
+  if [ -z "$jar" ]; then
+    jar=$(ls -1 target/*-server-cli.jar 2>/dev/null | head -n 1)
+  fi
+  echo "$jar"
+}
+
+function _ms_local_start_cluster() {
+  local uri_in="$1"
+  local rs_name="${2:-rs0}"
+  local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
+  mkdir -p "$pid_dir" "$pid_dir/logs" test.log
+
+  local jar
+  jar=$(_ms_local_find_server_cli_jar)
+  if [ -z "$jar" ] || find src/main/java -newer "$jar" 2>/dev/null | head -n 1 | grep -q .; then
+    echo -e "${BL}Info:${CL} Building MorphiumServer CLI jar (mvn -DskipTests package)..."
+    mvn -DskipTests -Dmaven.javadoc.skip=true package
+    jar=$(_ms_local_find_server_cli_jar)
+  fi
+
+  if [ -z "$jar" ]; then
+    echo -e "${RD}Error:${CL} Could not locate server-cli jar under target/ (build failed?)"
+    return 1
+  fi
+
+  local hostports
+  hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
+  if [ -z "$hostports" ]; then
+    hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+  fi
+
+  # Build seed list from the URI host list to support non-default ports.
+  local seed
+  seed=$(echo "$hostports" | tr '\n' ',' | sed 's/,$//')
+
+  echo -e "${BL}Info:${CL} Starting MorphiumServer replica set ${GN}${rs_name}${CL} (${seed})"
+
+  local hp
+  while IFS= read -r hp; do
+    [ -z "$hp" ] && continue
+    local host="${hp%:*}"
+    local port="${hp##*:}"
+
+    # Only auto-start for local addresses. If the URI points elsewhere, we can't safely start it.
+    if [[ "$host" != "localhost" && "$host" != "127.0.0.1" && "$host" != "::1" ]]; then
+      echo -e "${YL}Warning:${CL} --start-morphiumserver-local only starts local hosts; skipping ${host}:${port}"
+      continue
+    fi
+
+    if _ms_local_port_open "$host" "$port"; then
+      echo -e "${BL}Info:${CL} ${host}:${port} already listening - not starting"
+      continue
+    fi
+
+    local log_file="${pid_dir}/logs/morphiumserver_${port}.log"
+    nohup java -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" >"$log_file" 2>&1 &
+    local pid=$!
+    echo "$pid" >"${pid_dir}/${host}_${port}.pid"
+    morphiumserverLocalStarted=1
+    echo -e "${BL}Info:${CL} Started MorphiumServer on ${host}:${port} (pid ${pid}) - log ${log_file}"
+  done <<<"$hostports"
+
+  # Wait for the requested ports to be reachable (best-effort).
+  while IFS= read -r hp; do
+    [ -z "$hp" ] && continue
+    local host="${hp%:*}"
+    local port="${hp##*:}"
+    _ms_local_wait_for_port "$host" "$port" 30 || return 1
+  done <<<"$hostports"
+
+  return 0
+}
+
+function _ms_local_cleanup() {
+  if [ "${morphiumserverLocalStarted:-0}" -ne 1 ]; then
+    return 0
+  fi
+  if [ "${keepMorphiumserverLocal:-0}" -eq 1 ]; then
+    return 0
+  fi
+
+  local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
+  if [ ! -d "$pid_dir" ]; then
+    return 0
+  fi
+
+  local pidfile
+  for pidfile in "$pid_dir"/*.pid; do
+    [ -f "$pidfile" ] || continue
+    local pid
+    pid=$(cat "$pidfile" 2>/dev/null)
+    if [ -n "$pid" ]; then
+      kill "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+
+  # Give processes a moment to stop cleanly
+  sleep 1
+
+  for pidfile in "$pid_dir"/*.pid; do
+    [ -f "$pidfile" ] || continue
+    local pid
+    pid=$(cat "$pidfile" 2>/dev/null)
+    if [ -n "$pid" ]; then
+      kill -9 "$pid" >/dev/null 2>&1 || true
+    fi
+    rm -f "$pidfile" >/dev/null 2>&1 || true
+  done
+
+  rmdir "$pid_dir" >/dev/null 2>&1 || true
+  morphiumserverLocalStarted=0
+  return 0
+}
+
+function _ms_local_ensure_cluster() {
+  local uri_in="$1"
+
+  local hostports
+  hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
+  if [ -z "$hostports" ]; then
+    hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+  fi
+
+  local all_ok=1
+  local hp
+  while IFS= read -r hp; do
+    [ -z "$hp" ] && continue
+    local host="${hp%:*}"
+    local port="${hp##*:}"
+    if ! _ms_local_port_open "$host" "$port"; then
+      all_ok=0
+      break
+    fi
+  done <<<"$hostports"
+
+  if [ "$all_ok" -eq 1 ]; then
+    return 0
+  fi
+
+  if [ "${startMorphiumserverLocal:-0}" -eq 1 ]; then
+    _ms_local_start_cluster "$uri_in" "rs0" || return 1
+    return 0
+  fi
+
+  echo -e "${RD}Error:${CL} Local cluster is not reachable for URI:"
+  echo -e "  ${GN}${uri_in}${CL}"
+  echo -e ""
+  echo -e "Start it first (MongoDB or MorphiumServer), or to auto-start MorphiumServer use:"
+  echo -e "  ${BL}./runtests.sh --morphiumserver-local --start-morphiumserver-local ...${CL}"
+  echo -e ""
+  echo -e "Tip: check ports and MorphiumServer logs under ${GN}${morphiumserverLocalPidDir:-.morphiumserver-local}/logs/${CL}"
+  exit 1
+}
+
 nodel=0
 skip=0
 refresh=5
@@ -319,6 +579,11 @@ useExternal=0
 rerunfailed=0
 explicitRestart=0
 showStats=0
+morphiumserverLocalMode=0
+startMorphiumserverLocal=0
+keepMorphiumserverLocal=0
+morphiumserverLocalStarted=0
+morphiumserverLocalPidDir=".morphiumserver-local"
 
 # Save original arguments for stats processing
 original_args=("$@")
@@ -346,7 +611,10 @@ while [ "q$1" != "q" ]; do
 	    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
 	    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
 	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
-	    echo -e "${BL}--morphiumserver-local$CL - run against local MorphiumServer cluster (pooled driver + default URI)"
+	    echo -e "${BL}--morphiumserver-local$CL - use default localhost replica set URI (MongoDB or MorphiumServer)"
+	    echo -e "${BL}--localhost-rs$CL       - alias for --morphiumserver-local"
+	    echo -e "${BL}--start-morphiumserver-local$CL - auto-start local MorphiumServer cluster if needed"
+	    echo -e "${BL}--keep-morphiumserver-local$CL  - keep locally started cluster running after tests"
 	    echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
 	    echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
 	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
@@ -366,7 +634,7 @@ while [ "q$1" != "q" ]; do
 	    echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
 	    echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
 	    echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
-	    echo -e "  ${BL}./runtests.sh --morphiumserver-local${CL}        # Local MorphiumServer replica set (localhost:27017-27019)"
+	    echo -e "  ${BL}./runtests.sh --morphiumserver-local${CL}        # Local replica set URI (localhost:27017-27019)"
 	    echo
 	    echo -e "${YL}Parallel Examples:${CL}"
 	    echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
@@ -439,9 +707,27 @@ while [ "q$1" != "q" ]; do
 	  elif [ "q$1" == "q--external" ]; then
 	    useExternal=1
 	    shift
+	  elif [ "q$1" == "q--start-morphiumserver-local" ]; then
+	    startMorphiumserverLocal=1
+	    shift
+	  elif [ "q$1" == "q--keep-morphiumserver-local" ]; then
+	    keepMorphiumserverLocal=1
+	    shift
+	  elif [ "q$1" == "q--localhost-rs" ]; then
+	    # Alias for --morphiumserver-local (default localhost replica set URI + pooled driver).
+	    morphiumserverLocalMode=1
+	    useExternal=1
+	    if [ -z "$uri" ]; then
+	      uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+	    fi
+	    if [ -z "$driver" ]; then
+	      driver="pooled"
+	    fi
+	    shift
 	  elif [ "q$1" == "q--morphiumserver-local" ]; then
 	    # Convenience mode for running tests against a local MorphiumServer replica set on 27017-27019.
 	    # This option only sets sensible defaults (URI + pooled driver) and leaves tag filtering up to the caller.
+	    morphiumserverLocalMode=1
 	    useExternal=1
 	    if [ -z "$uri" ]; then
 	      uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
@@ -543,6 +829,12 @@ if [ "$driver" == "inmem" ]; then
   fi
   echo -e "${BL}Info:${CL} InMemory driver selected - automatically excluding 'external' tagged tests"
 fi
+
+# If requested, ensure a local MorphiumServer cluster is reachable (and optionally start it).
+if [ "$morphiumserverLocalMode" -eq 1 ]; then
+  _ms_local_ensure_cluster "$uri"
+fi
+
 # Handle --rerunfailed option early to bypass interactive prompts
 if [ "$rerunfailed" -eq 1 ]; then
   echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
@@ -607,7 +899,7 @@ if [ "$rerunfailed" -eq 1 ]; then
   # Skip the normal file creation logic
   skip_file_creation=1
 fi
-if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
+if [ "$explicitRestart" -eq 0 ] && [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   if [ -z "$(ls -A 'test.log')" ]; then
     count=0
   else
@@ -639,6 +931,7 @@ fi
 # trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
+trap _ms_local_cleanup EXIT
 
 p=$1
 if [ "q$p" == "q" ]; then
