@@ -93,7 +93,7 @@ function get_test_stats() {
   local log_pattern=""
   if [ -d "test.log" ]; then
     # Sequential execution - standard pattern
-    log_pattern="test.log/*.log"
+    log_pattern="test.log/*.log test.log/slot_*/*.log"
 
     # Use a simple deduplication approach: collect unique test classes and process newest first
     # This handles parallel execution where same test runs in multiple slots
@@ -916,10 +916,14 @@ function _calc_allowed_driver_flags() {
         local t
         t="$(echo "$tok" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
         case "$t" in
-          pooled|pooleddriver) allow_pooled=1 ;;
-          single|singleconnect|singlemongoconnectdriver) allow_single=1 ;;
-          inmem|inmemory|inmemorydriver) allow_inmem=1 ;;
-          all) allow_pooled=1; allow_single=1; allow_inmem=1 ;;
+        pooled | pooleddriver) allow_pooled=1 ;;
+        single | singleconnect | singlemongoconnectdriver) allow_single=1 ;;
+        inmem | inmemory | inmemorydriver) allow_inmem=1 ;;
+        all)
+          allow_pooled=1
+          allow_single=1
+          allow_inmem=1
+          ;;
         esac
       done
     fi
@@ -940,8 +944,8 @@ function _count_test_methods_in_file() {
   local allow_pooled allow_single allow_inmem
   IFS=':' read -r allow_pooled allow_single allow_inmem <<<"$flags"
 
-  local mult_getInstances=$((allow_pooled + allow_inmem))   # getMorphiumInstances(false, true, true)
-  local mult_noInMem=$((allow_pooled + allow_single))       # getMorphiumInstancesNoInMem(true, false, true)
+  local mult_getInstances=$((allow_pooled + allow_inmem)) # getMorphiumInstances(false, true, true)
+  local mult_noInMem=$((allow_pooled + allow_single))     # getMorphiumInstancesNoInMem(true, false, true)
   local mult_pooledOnly=$allow_pooled
   local mult_singleOnly=$allow_single
   local mult_inMemOnly=$allow_inmem
@@ -970,13 +974,13 @@ function _count_test_methods_in_file() {
     param_other=0
   fi
 
-  echo $((base_tests + param_other \
-    + ms_getInstances * mult_getInstances \
-    + ms_noSingle * mult_getInstances \
-    + ms_noInMem * mult_noInMem \
-    + ms_pooledOnly * mult_pooledOnly \
-    + ms_singleOnly * mult_singleOnly \
-    + ms_inMemOnly * mult_inMemOnly))
+  echo $((base_tests + param_other + \
+  ms_getInstances * mult_getInstances + \
+  ms_noSingle * mult_getInstances + \
+  ms_noInMem * mult_noInMem + \
+  ms_pooledOnly * mult_pooledOnly + \
+  ms_singleOnly * mult_singleOnly + \
+  ms_inMemOnly * mult_inMemOnly))
 }
 
 function run_test_slot() {
