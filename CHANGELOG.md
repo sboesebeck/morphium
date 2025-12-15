@@ -147,6 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents E11000 duplicate key errors from null `_id` values
 - `runtests.sh`: Added local MorphiumServer cluster convenience mode (`--morphiumserver-local`) with optional auto-start (`--start-morphiumserver-local`)
   - Auto-start logs now go to `.morphiumserver-local/logs/`
+  - Auto-start is idempotent and keeps a locally started cluster running by default
 
 ### Fixed
 - Socket timeout handling in `SingleMongoConnection` - automatic retry on timeout exceptions
