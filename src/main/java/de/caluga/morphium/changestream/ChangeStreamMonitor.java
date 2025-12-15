@@ -43,6 +43,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private MorphiumDriver dedicatedConnection;
     private final CountDownLatch watchStartedLatch = new CountDownLatch(1);
     private final AtomicBoolean watchStartedSignaled = new AtomicBoolean(false);
+    private volatile WatchCommand activeWatch;
+    private volatile de.caluga.morphium.driver.wire.MongoConnection activeConnection;
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false, null);
@@ -135,10 +137,40 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     @SuppressWarnings("deprecation")
     public void terminate() {
         running = false;
+        signalWatchStarted(); // ensure `start()` doesn't wait if we are terminating
 
         try {
             long start = System.currentTimeMillis();
             dedicatedConnection = null;
+
+            // Actively break out of blocking watch operations.
+            // Closing the underlying connection is the most reliable way to stop watch loops.
+            try {
+                var con = activeConnection;
+                if (con != null) {
+                    con.close();
+                }
+            } catch (Exception ignore) {
+            } finally {
+                activeConnection = null;
+            }
+
+            try {
+                var w = activeWatch;
+                if (w != null) {
+                    w.releaseConnection();
+                }
+            } catch (Exception ignore) {
+            } finally {
+                activeWatch = null;
+            }
+
+            try {
+                if (changeStreamThread != null) {
+                    changeStreamThread.interrupt();
+                }
+            } catch (Exception ignore) {
+            }
 
             //while (changeStreamThread != null && changeStreamThread.isAlive()) {
             //    try {
@@ -226,6 +258,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 if (dedicatedConnection == null) break;
 
                 var con = dedicatedConnection.getPrimaryConnection(null);
+                activeConnection = con;
 
                 if (!con.isConnected()) {
                     log.error("Could not connect!");
@@ -234,6 +267,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                 watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxWaitTime())
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
+                activeWatch = watch;
 
                 if (!dbOnly) {
                     watch.setColl(collectionName);
@@ -273,6 +307,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 if (watch != null) {
                     watch.releaseConnection();
                 }
+                activeWatch = null;
+                activeConnection = null;
             }
         }
 
