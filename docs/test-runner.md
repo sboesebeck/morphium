@@ -34,6 +34,24 @@ Notes:
 ./runtests.sh --rerunfailed --parallel 2
 ```
 
+## Local MorphiumServer Cluster
+
+If you have a MorphiumServer replica set running locally on `localhost:27017,27018,27019`, use:
+
+```bash
+./runtests.sh --morphiumserver-local --parallel 2 --restart
+```
+
+This mode sets:
+- `--driver pooled`
+- `--uri mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests`
+
+If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
+
+```bash
+./runtests.sh --morphiumserver-local --exclude-tags server --parallel 2 --restart
+```
+
 ## Debugging Failures
 
 - Aggregated logs are written to `test.log/<fully.qualified.Test>.log`.
@@ -50,4 +68,3 @@ If you run tests manually with Maven, it’s recommended to set an explicit DB a
 ```bash
 mvn -Pexternal -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://... -Dmorphium.database=morphium_test_manual test
 ```
-

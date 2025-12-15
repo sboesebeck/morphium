@@ -328,10 +328,10 @@ while [ "q$1" != "q" ]; do
   if [ "q$1" == "q--nodel" ]; then
     nodel=1
     shift
-  elif [ "q$1" == "q--help" ] || [ "q$1" == "-h" ]; then
-    echo -e "Usage ${BL}$0$CL [--OPTION...] [TESTNAME] [METHOD]"
-    echo -e "${BL}--skip$CL        - if presen, allready run tests will be skipped"
-    echo -e "${BL}--restart$CL     - forget about existing test logs, restart"
+	  elif [ "q$1" == "q--help" ] || [ "q$1" == "-h" ]; then
+	    echo -e "Usage ${BL}$0$CL [--OPTION...] [TESTNAME] [METHOD]"
+	    echo -e "${BL}--skip$CL        - if presen, allready run tests will be skipped"
+	    echo -e "${BL}--restart$CL     - forget about existing test logs, restart"
     echo -e "${BL}--logs$CL ${GN}NUM$CL    - number of log lines to show"
     echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
     echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
@@ -343,13 +343,14 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--verbose$CL     - enable verbose test logs"
     echo -e "${BL}--user$CL ${GN}USESRNAME$CL     - authenticate as user"
     echo -e "${BL}--pass$CL ${GN}password$CL     - authenticate with password"
-    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
-    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
-    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
-    echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
-    echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
-    echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
-    echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
+	    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
+	    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
+	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
+	    echo -e "${BL}--morphiumserver-local$CL - run against local MorphiumServer cluster (pooled driver + default URI)"
+	    echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
+	    echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
+	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
+	    echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
     echo "Test name is the classname to run, and method is method name in that class"
     echo
@@ -361,14 +362,15 @@ while [ "q$1" != "q" ]; do
     echo -e "  ${BL}./runtests.sh --external --tags driver${CL}       # External MongoDB driver tests"
     echo -e "  ${BL}./runtests.sh --tags core,messaging --exclude-tags admin${CL} # Combined filters"
     echo
-    echo -e "${YL}Driver/External Examples:${CL}"
-    echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
-    echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
-    echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
-    echo
-    echo -e "${YL}Parallel Examples:${CL}"
-    echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
-    echo -e "  ${BL}./runtests.sh --parallel 8 --tags core${CL}       # 8 parallel slots, core tests only"
+	    echo -e "${YL}Driver/External Examples:${CL}"
+	    echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
+	    echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
+	    echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
+	    echo -e "  ${BL}./runtests.sh --morphiumserver-local${CL}        # Local MorphiumServer replica set (localhost:27017-27019)"
+	    echo
+	    echo -e "${YL}Parallel Examples:${CL}"
+	    echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
+	    echo -e "  ${BL}./runtests.sh --parallel 8 --tags core${CL}       # 8 parallel slots, core tests only"
     echo
     echo -e "${YL}Rerun Examples:${CL}"
     echo -e "  ${BL}./runtests.sh --rerunfailed${CL}                  # Rerun all previously failed tests"
@@ -434,12 +436,23 @@ while [ "q$1" != "q" ]; do
   elif [ "q$1" == "q--verbose" ]; then
     verbose=1
     shift
-  elif [ "q$1" == "q--external" ]; then
-    useExternal=1
-    shift
-  elif [ "q$1" == "q--rerunfailed" ]; then
-    rerunfailed=1
-    shift
+	  elif [ "q$1" == "q--external" ]; then
+	    useExternal=1
+	    shift
+	  elif [ "q$1" == "q--morphiumserver-local" ]; then
+	    # Convenience mode for running tests against a local MorphiumServer replica set on 27017-27019.
+	    # This option only sets sensible defaults (URI + pooled driver) and leaves tag filtering up to the caller.
+	    useExternal=1
+	    if [ -z "$uri" ]; then
+	      uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+	    fi
+	    if [ -z "$driver" ]; then
+	      driver="pooled"
+	    fi
+	    shift
+	  elif [ "q$1" == "q--rerunfailed" ]; then
+	    rerunfailed=1
+	    shift
   elif [ "q$1" == "q--stats" ]; then
     showStats=1
     shift
