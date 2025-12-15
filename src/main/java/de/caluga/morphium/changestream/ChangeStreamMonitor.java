@@ -20,6 +20,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Created by stephan on 15.11.16.
@@ -38,6 +41,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private boolean dbOnly = false;
     private final List<Map<String, Object >> pipeline;
     private MorphiumDriver dedicatedConnection;
+    private final CountDownLatch watchStartedLatch = new CountDownLatch(1);
+    private final AtomicBoolean watchStartedSignaled = new AtomicBoolean(false);
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false, null);
@@ -114,6 +119,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                              .name("changeStream")
                              .start(this);
         running = true;
+
+        // Avoid race: if the watch cursor isn't established yet, early writes may be missed.
+        try {
+            watchStartedLatch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public boolean isRunning() {
@@ -227,7 +239,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     watch.setColl(collectionName);
                 }
 
-                if (watch.getConnection().isConnected()) watch.watch();
+                if (watch.getConnection().isConnected()) {
+                    signalWatchStarted();
+                    watch.watch();
+                }
             } catch (Exception e) {
                 if (e.getMessage() == null) {
                     log.warn("Restarting changestream", e);
@@ -262,6 +277,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         }
 
         log.debug("ChangeStreamMonitor finished gracefully!");
+    }
+
+    private void signalWatchStarted() {
+        if (watchStartedSignaled.compareAndSet(false, true)) {
+            watchStartedLatch.countDown();
+        }
     }
 
     @Override
