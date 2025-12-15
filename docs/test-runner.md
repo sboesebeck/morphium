@@ -60,6 +60,9 @@ To keep the locally started cluster running after the test run:
 
 When auto-start is used, MorphiumServer logs are written to `.morphiumserver-local/logs/`.
 
+Note: `--start-morphiumserver-local` is idempotent. If something is already listening (MongoDB or another MorphiumServer), the runner will just use it.
+`--allow-existing-localhost-rs` is deprecated and has no effect.
+
 If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
 
 ```bash

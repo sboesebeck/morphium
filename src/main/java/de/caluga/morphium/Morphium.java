@@ -282,20 +282,20 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         }
 
-        if (morphiumDriver == null) {
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    setName("shutdown_hook");
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                setName("shutdown_hook");
 
-                    try {
-                        close();
-                    } catch (Exception e) {
-                        // swallow
-                    }
+                try {
+                    close();
+                } catch (Exception e) {
+                    // swallow
                 }
-            });
+            }
+        });
 
+        if (morphiumDriver == null) {
             if (getConfig().driverSettings().getDriverName() == null) {
                 getConfig().driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
                 morphiumDriver = new SingleMongoConnectDriver();
@@ -388,96 +388,96 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     throw new RuntimeException(e);
                 }
             }
+        }
 
-            morphiumDriver.setConnectionTimeout(getConfig().connectionSettings().getConnectionTimeout());
-            morphiumDriver.setMaxConnections(getConfig().connectionSettings().getMaxConnections());
-            morphiumDriver.setMinConnections(getConfig().connectionSettings().getMinConnections());
-            morphiumDriver.setReadTimeout(getConfig().driverSettings().getReadTimeout());
-            morphiumDriver.setRetryReads(getConfig().driverSettings().isRetryReads());
-            morphiumDriver.setRetryWrites(getConfig().driverSettings().isRetryWrites());
-            morphiumDriver.setHeartbeatFrequency(getConfig().driverSettings().getHeartbeatFrequency());
-            morphiumDriver.setMaxConnectionIdleTime(getConfig().driverSettings().getMaxConnectionIdleTime());
-            morphiumDriver.setMaxConnectionLifetime(getConfig().driverSettings().getMaxConnectionLifeTime());
-            morphiumDriver.setMaxWaitTime(getConfig().connectionSettings().getMaxWaitTime());
-            morphiumDriver.setIdleSleepTime(getConfig().driverSettings().getIdleSleepTime());
-            morphiumDriver.setCompression(getConfig().driverSettings().getCompressionType().getCode());
-            morphiumDriver.setDefaultBatchSize(getConfig().driverSettings().getCursorBatchSize());
-            morphiumDriver.setServerSelectionTimeout(getConfig().driverSettings().getServerSelectionTimeout());
+        morphiumDriver.setConnectionTimeout(getConfig().connectionSettings().getConnectionTimeout());
+        morphiumDriver.setMaxConnections(getConfig().connectionSettings().getMaxConnections());
+        morphiumDriver.setMinConnections(getConfig().connectionSettings().getMinConnections());
+        morphiumDriver.setReadTimeout(getConfig().driverSettings().getReadTimeout());
+        morphiumDriver.setRetryReads(getConfig().driverSettings().isRetryReads());
+        morphiumDriver.setRetryWrites(getConfig().driverSettings().isRetryWrites());
+        morphiumDriver.setHeartbeatFrequency(getConfig().driverSettings().getHeartbeatFrequency());
+        morphiumDriver.setMaxConnectionIdleTime(getConfig().driverSettings().getMaxConnectionIdleTime());
+        morphiumDriver.setMaxConnectionLifetime(getConfig().driverSettings().getMaxConnectionLifeTime());
+        morphiumDriver.setMaxWaitTime(getConfig().connectionSettings().getMaxWaitTime());
+        morphiumDriver.setIdleSleepTime(getConfig().driverSettings().getIdleSleepTime());
+        morphiumDriver.setCompression(getConfig().driverSettings().getCompressionType().getCode());
+        morphiumDriver.setDefaultBatchSize(getConfig().driverSettings().getCursorBatchSize());
+        morphiumDriver.setServerSelectionTimeout(getConfig().driverSettings().getServerSelectionTimeout());
 
-            if (getConfig().clusterSettings().getHostSeed().isEmpty() && !(morphiumDriver instanceof InMemoryDriver)) {
-                throw new RuntimeException("Error - no server address specified!");
+        if (getConfig().clusterSettings().getHostSeed().isEmpty() && !(morphiumDriver instanceof InMemoryDriver)) {
+            throw new RuntimeException("Error - no server address specified!");
+        }
+
+        setValidationSupport();
+
+        try {
+            objectMapper = new ObjectMapperImpl();
+            objectMapper.setMorphium(this);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        try {
+            encryptionKeyProvider = getConfig().encryptionSettings().getEncryptionKeyProviderClass().getDeclaredConstructor().newInstance();
+
+            if (getConfig().encryptionSettings().getCredentialsEncryptionKey() != null) {
+                encryptionKeyProvider.setEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, getConfig().encryptionSettings().getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
             }
 
-            setValidationSupport();
-
-            try {
-                objectMapper = new ObjectMapperImpl();
-                objectMapper.setMorphium(this);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            if (getConfig().encryptionSettings().getCredentialsDecryptionKey() != null) {
+                encryptionKeyProvider.setDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, getConfig().encryptionSettings().getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
             }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
-            try {
-                encryptionKeyProvider = getConfig().encryptionSettings().getEncryptionKeyProviderClass().getDeclaredConstructor().newInstance();
+        try {
+            valueEncryptionProvider = getConfig().encryptionSettings().getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
-                if (getConfig().encryptionSettings().getCredentialsEncryptionKey() != null) {
-                    encryptionKeyProvider.setEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, getConfig().encryptionSettings().getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+        if (getConfig().authSettings().getMongoLogin() != null && getConfig().authSettings().getMongoPassword() != null) {
+            if (getConfig().encryptionSettings().getCredentialsEncrypted() != null && getConfig().encryptionSettings().getCredentialsEncrypted()) {
+                var key = getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME);
+                valueEncryptionProvider.setEncryptionKey(getEncryptionKeyProvider().getEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
+                valueEncryptionProvider.setDecryptionKey(getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
+
+                if (key == null) {
+                    throw new RuntimeException(("Cannot decrypt - no key for mongodb_crendentials set!"));
                 }
 
-                if (getConfig().encryptionSettings().getCredentialsDecryptionKey() != null) {
-                    encryptionKeyProvider.setDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, getConfig().encryptionSettings().getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+                try {
+                    var user = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(getConfig().authSettings().getMongoLogin())));
+                    var passwd = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(getConfig().authSettings().getMongoPassword())));
+                    var authdb = "admin";
 
-            try {
-                valueEncryptionProvider = getConfig().encryptionSettings().getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            if (getConfig().authSettings().getMongoLogin() != null && getConfig().authSettings().getMongoPassword() != null) {
-                if (getConfig().encryptionSettings().getCredentialsEncrypted() != null && getConfig().encryptionSettings().getCredentialsEncrypted()) {
-                    var key = getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME);
-                    valueEncryptionProvider.setEncryptionKey(getEncryptionKeyProvider().getEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
-                    valueEncryptionProvider.setDecryptionKey(getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
-
-                    if (key == null) {
-                        throw new RuntimeException(("Cannot decrypt - no key for mongodb_crendentials set!"));
+                    if (getConfig().authSettings().getMongoAuthDb() != null) {
+                        authdb = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(getConfig().authSettings().getMongoAuthDb())));
                     }
 
-                    try {
-                        var user = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(getConfig().authSettings().getMongoLogin())));
-                        var passwd = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(getConfig().authSettings().getMongoPassword())));
-                        var authdb = "admin";
-
-                        if (getConfig().authSettings().getMongoAuthDb() != null) {
-                            authdb = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(getConfig().authSettings().getMongoAuthDb())));
-                        }
-
-                        morphiumDriver.setCredentials(authdb, user, passwd);
-                    } catch (Exception e) {
-                        throw new IllegalArgumentException("Credential decryption failed", e);
-                    }
-                } else {
-                    morphiumDriver.setCredentials(getConfig().authSettings().getMongoAuthDb(), getConfig().authSettings().getMongoLogin(), getConfig().authSettings().getMongoPassword());
+                    morphiumDriver.setCredentials(authdb, user, passwd);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Credential decryption failed", e);
                 }
+            } else {
+                morphiumDriver.setCredentials(getConfig().authSettings().getMongoAuthDb(), getConfig().authSettings().getMongoLogin(), getConfig().authSettings().getMongoPassword());
             }
+        }
 
-            String[] seed = new String[getConfig().clusterSettings().getHostSeed().size()];
+        String[] seed = new String[getConfig().clusterSettings().getHostSeed().size()];
 
-            for (int i = 0; i < seed.length; i++) {
-                seed[i] = getConfig().clusterSettings().getHostSeed().get(i);
-            }
+        for (int i = 0; i < seed.length; i++) {
+            seed[i] = getConfig().clusterSettings().getHostSeed().get(i);
+        }
 
-            morphiumDriver.setHostSeed(seed);
+        morphiumDriver.setHostSeed(seed);
 
-            try {
-                morphiumDriver.connect(getConfig().clusterSettings().getRequiredReplicaSetName());
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            morphiumDriver.connect(getConfig().clusterSettings().getRequiredReplicaSetName());
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
         }
 
         if (getConfig().writerSettings().getWriter() == null) {
