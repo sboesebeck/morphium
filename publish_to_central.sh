@@ -112,15 +112,17 @@ echo "Uploading to Sonatype Central Portal..."
 auth_token=$(echo -n "${SONATYPE_USERNAME}:${SONATYPE_PASSWORD}" | base64)
 
 # Upload bundle via API
-response=$(curl -s -w "\n%{http_code}" \
+response=$(curl --progress-bar -w "\n%{http_code}" \
     --request POST \
     --form bundle=@"$bundle_file" \
     --form publishingType="$publishing_type" \
     --header "Authorization: Bearer $auth_token" \
+    --connect-timeout 30 \
+    --max-time 600 \
     https://central.sonatype.com/api/v1/publisher/upload)
 
 http_code=$(echo "$response" | tail -n1)
-body=$(echo "$response" | head -n-1)
+body=$(echo "$response" | sed '$d')
 
 if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
     echo "✓ Upload successful!"
