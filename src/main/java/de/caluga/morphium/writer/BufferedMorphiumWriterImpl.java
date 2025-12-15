@@ -1078,13 +1078,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public <T> void createIndex(final Class<T> cls, final String collection, final IndexDescription index, AsyncOperationCallback<T> c) {
-        if (c == null) {
-            c = new AsyncOpAdapter<>();
-        }
-
-        final AsyncOperationCallback<T> callback = c;
-        morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(cls, collection, ctx -> directWriter.createIndex(cls, collection, index, callback), c, AsyncOperationType.ENSURE_INDICES);
+        // Index creation is a schema operation; buffering it can deadlock under load (it may enqueue work
+        // that in turn needs writer threads to progress, while tests wait for the buffer to drain).
+        // Run it directly through the underlying writer.
+        directWriter.createIndex(cls, collection, index, c);
     }
 
     @Override

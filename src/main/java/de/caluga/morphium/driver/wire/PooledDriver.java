@@ -152,7 +152,44 @@ public class PooledDriver extends DriverBase {
         }
 
         setReplicaSet(getHostSeed().size() > 1);
+
+        // Proactively establish at least one connection per seed to discover primary immediately.
+        // Relying solely on the async heartbeat can lead to races where early operations (e.g. exists/listCollections
+        // during Morphium startup) run before primary discovery, causing intermittent "No primary node found".
+        for (String host : new ArrayList<>(getHostSeed())) {
+            try {
+                createNewConnection(host);
+            } catch (Exception e) {
+                // swallow: unreachable seed(s) are handled by the heartbeat/error logic
+                if (log.isDebugEnabled()) {
+                    log.debug("Initial connect to seed {} failed", host, e);
+                }
+            }
+        }
+
         startHeartbeat();
+
+        // Wait (briefly) for primary discovery on replica sets.
+        if (isReplicaSet() && getHostSeed().size() > 1) {
+            long start = System.currentTimeMillis();
+            long timeout = getServerSelectionTimeout();
+            if (timeout <= 0) timeout = 1000;
+
+            while (primaryNode == null) {
+                if (System.currentTimeMillis() - start > timeout) {
+                    throw new MorphiumDriverException("No primary node found - not connected yet?");
+                }
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new MorphiumDriverException("Interrupted while waiting for primary discovery", ie);
+                }
+            }
+        } else if (primaryNode == null && !getHostSeed().isEmpty()) {
+            // Non-replicaset: treat first seed as primary.
+            primaryNode = getHostSeed().get(0);
+        }
     }
 
     @Override
@@ -193,6 +230,24 @@ public class PooledDriver extends DriverBase {
     private volatile ScheduledFuture<?> heartbeat;
     private final Object waitCounterSignal = new Object();
     private List<String> lastHostsFromHello = null;
+    /**
+     * Some replica sets advertise members using hostnames that differ from the seed list
+     * (e.g. short hostnames vs FQDNs). Keep a best-effort alias map from server-reported
+     * host:port to the actually reachable host:port we connected to, so primary selection
+     * and pool lookups keep working.
+     */
+    private final ConcurrentHashMap<String, String> hostAliases = new ConcurrentHashMap<>();
+
+    private String resolveAlias(String hostPort) {
+        if (hostPort == null) return null;
+        return hostAliases.getOrDefault(hostPort, hostPort);
+    }
+
+    private void registerAlias(String serverReported, String connectedAs) {
+        if (serverReported == null || connectedAs == null) return;
+        hostAliases.putIfAbsent(serverReported, connectedAs);
+        hostAliases.putIfAbsent(connectedAs, connectedAs);
+    }
 
     private String getHost(String hostPort) {
         if (hostPort == null) {
@@ -223,6 +278,9 @@ public class PooledDriver extends DriverBase {
         if (hello == null)
             return;
 
+        // Keep track of server-advertised vs reachable names.
+        registerAlias(hello.getMe(), hostConnected);
+
         if (hello.getWritablePrimary() != null && hello.getWritablePrimary() && hello.getMe() == null) {
             if (hello.getWritablePrimary() && primaryNode == null) {
                 primaryNode = hostConnected;
@@ -235,15 +293,22 @@ public class PooledDriver extends DriverBase {
                 primaryNode = null;
             }
         } else if (hello.getWritablePrimary() != null && hello.getMe() != null) {
-            if (primaryNode == null && hello.getPrimary() != null) {
-                primaryNode = hello.getPrimary();
-            } else if (hello.getWritablePrimary() && !hello.getMe().equals(primaryNode)) {
-                log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
+            if (hello.getWritablePrimary() && primaryNode == null) {
+                // Prefer the actually reachable address we used for this connection.
+                primaryNode = hostConnected;
+            } else if (hello.getWritablePrimary() && !hostConnected.equals(primaryNode)) {
+                log.warn("Primary failover? {} -> {}", primaryNode, hostConnected);
                 stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
-                primaryNode = hello.getMe();
-            } else if (!hello.getWritablePrimary() && hello.getMe().equals(primaryNode)) {
+                primaryNode = hostConnected;
+            } else if (!hello.getWritablePrimary() && hostConnected.equals(primaryNode)) {
                 log.error("Primary node is not me {}", hello.getMe());
                 primaryNode = null;
+            } else if (primaryNode == null && hello.getPrimary() != null) {
+                // Only use the advertised primary if it maps to a known/reachable host key.
+                String advertised = resolveAlias(hello.getPrimary());
+                if (hosts.containsKey(advertised)) {
+                    primaryNode = advertised;
+                }
             }
         }
 
@@ -251,18 +316,18 @@ public class PooledDriver extends DriverBase {
             lastHostsFromHello = hello.getHosts();
 
             for (String hst : hello.getHosts()) {
-                if (!hosts.containsKey(hst)) {
-                    hosts.put(hst, new Host(getHost(hst), getPortFromHost(hst)));
+                String resolved = resolveAlias(hst);
+                if (!hosts.containsKey(resolved)) {
+                    hosts.put(resolved, new Host(getHost(resolved), getPortFromHost(resolved)));
                 }
 
-                addToHostSeed(hst);
+                addToHostSeed(resolved);
             }
 
-            for (String hst : getHostSeed()) {
-                if (!hello.getHosts().contains(hst)) {
-                    removeFromHostSeed(hst);
-                }
-            }
+            // Do NOT remove existing host seed entries here.
+            // Users might provide a seed list using different (but resolvable) hostnames than those
+            // advertised by the replica set configuration. Removing seeds can make the driver lose
+            // the only reachable addresses and lead to "No primary node found".
 
             // only closing connections when info comes from primary
             List<ConnectionContainer> toClose = new ArrayList<>();
@@ -518,12 +583,9 @@ public class PooledDriver extends DriverBase {
             BlockingQueue<ConnectionContainer> connectionsList = h.getConnectionPool();
 
 
-            // If we already discovered the replicaset members and this host is not part of it,
-            // drop it from the host seed to avoid repeated futile connection attempts.
-            if (lastHostsFromHello != null && !lastHostsFromHello.contains(host)) {
-                log.info("Removing unreachable seed host '{}' not present in replicaset members {}", host, lastHostsFromHello);
-                removeFromHostSeed(host);
-            }
+            // Do not remove seed hosts based on replica-set member strings:
+            // the replica set may advertise members under different hostnames (e.g. short names)
+            // than the client's resolvable seed list (e.g. FQDNs). Removing here can break primary discovery.
 
             if (host.equals(primaryNode)) {
                 primaryNode = null;

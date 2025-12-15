@@ -3060,8 +3060,24 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         missingIndicesByClass.put(entity, getIndexesFromEntity(entity));
                     }
                 } catch (Throwable e) {
-                    // swallow
-                    if (!e.getMessage().contains("Error: 26 - ns does not exist:")) {
+                    // Swallow most errors to keep startup lenient, but fail fast if the cluster has no primary.
+                    // Otherwise, startup can appear to "hang" for a very long time because each entity check
+                    // waits for server selection timeout before failing (and there can be lots of entities).
+                    Throwable t = e;
+                    while (t != null) {
+                        if (t instanceof de.caluga.morphium.driver.MorphiumDriverException) {
+                            String msg = t.getMessage();
+                            if (msg != null) {
+                                String m = msg.toLowerCase(java.util.Locale.ROOT);
+                                if (m.contains("no primary node") || m.contains("no primary") || m.contains("not connected yet")) {
+                                    throw new RuntimeException("Cannot check indices: no primary available", e);
+                                }
+                            }
+                        }
+                        t = t.getCause();
+                    }
+
+                    if (e.getMessage() == null || !e.getMessage().contains("Error: 26 - ns does not exist:")) {
                         log.error("Could not check indices for " + cn, e);
                     }
                 }
