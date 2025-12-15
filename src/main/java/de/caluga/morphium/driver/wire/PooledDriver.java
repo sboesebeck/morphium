@@ -1316,20 +1316,36 @@ public class PooledDriver extends DriverBase {
                 List<Object> upsertedIds = new ArrayList<>();
 
                 try {
+                    if (requests.isEmpty()) {
+                        return Doc.of(
+                            "num_deleted", 0,
+                            "num_matched", 0,
+                            "num_inserted", 0,
+                            "num_modified", 0,
+                            "num_upserts", 0
+                        );
+                    }
+
                     for (BulkRequest r : requests) {
                         switch (r) {
                             case InsertBulkRequest insert -> {
-                                InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(null));
+                                if (insert.getToInsert() == null || insert.getToInsert().isEmpty()) {
+                                    break;
+                                }
+
+                                InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(wc));
                                 settings.setDb(db).setColl(collection).setComment("Bulk insert")
-                                        .setDocuments(insert.getToInsert());
+                                        .setDocuments(insert.getToInsert())
+                                        .setWriteConcern(wc != null ? wc.asMap() : null);
                                 Map<String, Object> result = settings.execute();
                                 settings.releaseConnection();
                                 insertCount += insert.getToInsert().size();
                             }
                             case UpdateBulkRequest update -> {
-                                UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(null));
+                                UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(wc));
                                 upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
-                                        update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())));
+                                        update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())))
+                                    .setWriteConcern(wc != null ? wc.asMap() : null);
                                 Map<String, Object> result = upCmd.execute();
                                 upCmd.releaseConnection();
                                 if (result.containsKey("n")) {
@@ -1347,9 +1363,10 @@ public class PooledDriver extends DriverBase {
                                 }
                             }
                             case DeleteBulkRequest delete -> {
-                                DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(null));
+                                DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(wc));
                                 del.setColl(collection).setDb(db).setDeletes(
-                                                   Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)));
+                                                   Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)))
+                                    .setWriteConcern(wc != null ? wc.asMap() : null);
                                 Map<String, Object> result = del.execute();
                                 del.releaseConnection();
                                 if (result.containsKey("n")) {
