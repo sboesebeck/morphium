@@ -1543,10 +1543,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         checkIndexAndCaps(cls, coll, callback);
                     }
 
-                    if (query.getSort() != null) {
-                        logger.warn("Sorting is not supported on updates!");
-                    }
-
                     // if (upsert &&
                     // morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() &&
                     // !morphium.getDriver().getConnection().exists(getDbName(), coll)) {
@@ -1556,8 +1552,21 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     // }
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
                     con = morphium.getDriver().getPrimaryConnection(wc);
-                    settings = new UpdateMongoCommand(con).setDb(getDbName()).setColl(coll);
-                    settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), null, null);
+                    settings = new UpdateMongoCommand(con)
+                        .setDb(getDbName())
+                        .setColl(coll)
+                        .setWriteConcern(wc != null ? wc.asMap() : null);
+                    settings.addUpdate(
+                        Doc.of(qobj),
+                        Doc.of(update),
+                        null,
+                        upsert,
+                        multiple,
+                        query.getCollation(),
+                        null,
+                        null,
+                        (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
+                    );
                     ret = settings.execute();
                     settings.releaseConnection();
                     long dur = System.currentTimeMillis() - start;
@@ -1666,8 +1675,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         checkIndexAndCaps(cls, coll, callback);
                     }
 
-                    if (query.getSort() != null) {
-                        logger.warn("Sorting not supported in update query!");
+                    if (query.getSort() != null && (multiple || query.getLimit() > 0)) {
+                        logger.warn("Sorting is only supported for single-document updates; ignoring sort");
                     }
 
                     // if (upsert &&
@@ -1682,7 +1691,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
                     settings = null;
                     con = morphium.getDriver().getPrimaryConnection(wc);
-                    settings = new UpdateMongoCommand(con).setDb(getDbName()).setColl(coll);
+                    settings = new UpdateMongoCommand(con)
+                        .setDb(getDbName())
+                        .setColl(coll)
+                        .setWriteConcern(wc != null ? wc.asMap() : null);
 
                     if (query.getLimit() > 0 && multiple) {
                         for (int i = 0; i < query.getLimit(); i++) {
@@ -1696,7 +1708,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
                         }
                     } else {
-                        settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), null, null);
+                        settings.addUpdate(
+                            Doc.of(qobj),
+                            Doc.of(update),
+                            null,
+                            upsert,
+                            multiple,
+                            query.getCollation(),
+                            null,
+                            null,
+                            (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
+                        );
                         // settings.releaseConnection();
                     }
 
