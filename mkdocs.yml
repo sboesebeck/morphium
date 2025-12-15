@@ -67,6 +67,7 @@ nav:
     - Architecture: architecture-overview.md
     - Basic Setup: howtos/basic-setup.md
   - Testing & Development:
+    - Test Runner: test-runner.md
     - InMemory Driver: inmemory-driver.md
     - MorphiumServer: morphium-server.md
     - Quick Reference: howtos/inmemory-driver.md
