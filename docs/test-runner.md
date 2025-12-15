@@ -58,6 +58,8 @@ To keep the locally started cluster running after the test run:
 ./runtests.sh --morphiumserver-local --start-morphiumserver-local --keep-morphiumserver-local --parallel 2 --restart
 ```
 
+When auto-start is used, MorphiumServer logs are written to `.morphiumserver-local/logs/`.
+
 If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
 
 ```bash

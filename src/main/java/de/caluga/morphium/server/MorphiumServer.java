@@ -360,12 +360,30 @@ public class MorphiumServer {
                 }
 
                 if (primary) {
-                    log.info("Peers detected - stepping down to secondary to perform initial sync");
-                    primary = false;
-                    initialSyncDone = false;
+                    // Do NOT step down just because peers exist. This can lead to a "no primary" situation
+                    // when all nodes start around the same time.
+                    if (primaryHost != null && !primaryHost.equals(myAddress)) {
+                        int otherPrio = hostPriorities.getOrDefault(primaryHost, 0);
+                        if (otherPrio > priority) {
+                            log.info("Detected primary {} with higher priority ({}), staying secondary for initial sync",
+                                    primaryHost, otherPrio);
+                            primary = false;
+                            initialSyncDone = false;
+                            startReplicaReplication();
+                        } else {
+                            log.info("No higher-priority primary detected, staying primary");
+                            primary = true;
+                            primaryHost = myAddress;
+                            initialSyncDone = true;
+                        }
+                    } else {
+                        // Either no primary detected yet or it's us.
+                        primaryHost = myAddress;
+                        initialSyncDone = true;
+                    }
+                } else {
+                    startReplicaReplication();
                 }
-
-                startReplicaReplication();
             } else {
                 log.info("No reachable peers detected - acting as primary");
                 primary = true;

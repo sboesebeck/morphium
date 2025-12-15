@@ -145,12 +145,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **@Id field handling**: Fields annotated with `@Id` are NEVER stored when null
   - Ensures MongoDB can auto-generate unique `_id` values
   - Prevents E11000 duplicate key errors from null `_id` values
+- `runtests.sh`: Added local MorphiumServer cluster convenience mode (`--morphiumserver-local`) with optional auto-start (`--start-morphiumserver-local`)
+  - Auto-start logs now go to `.morphiumserver-local/logs/`
 
 ### Fixed
 - Socket timeout handling in `SingleMongoConnection` - automatic retry on timeout exceptions
 - Better timeout detection in watch operations
 - Multi-collection messaging error handling and lock release
 - Connection management in message rejection handler
+- MorphiumServer: fix replica set startup to avoid ending up with no primary
+- MorphiumServer: support `aggregate` command over the wire (enables aggregation stage tests against MorphiumServer)
 - **Bulk operations now return proper operation counts**: `runBulk()` now returns statistics including `num_inserted`, `num_matched`, `num_modified`, `num_deleted`, `num_upserts`, and `upsertedIds`
 
 ### Performance
