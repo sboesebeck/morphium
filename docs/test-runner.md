@@ -34,9 +34,9 @@ Notes:
 ./runtests.sh --rerunfailed --parallel 2
 ```
 
-## Local MorphiumServer Cluster
+## Local Cluster (localhost)
 
-If you have a MorphiumServer replica set running locally on `localhost:27017,27018,27019`, use:
+If you have a replica set running locally on `localhost:27017,localhost:27018,localhost:27019` (MongoDB or MorphiumServer), use:
 
 ```bash
 ./runtests.sh --morphiumserver-local --parallel 2 --restart
@@ -45,6 +45,18 @@ If you have a MorphiumServer replica set running locally on `localhost:27017,270
 This mode sets:
 - `--driver pooled`
 - `--uri mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests`
+
+The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start MorphiumServer:
+
+```bash
+./runtests.sh --morphiumserver-local --start-morphiumserver-local --parallel 2 --restart
+```
+
+To keep the locally started cluster running after the test run:
+
+```bash
+./runtests.sh --morphiumserver-local --start-morphiumserver-local --keep-morphiumserver-local --parallel 2 --restart
+```
 
 If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
 
