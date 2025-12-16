@@ -2428,7 +2428,7 @@
 <ul>
 <li>✅ <strong>Single Field Indexes</strong>: Basic indexing support</li>
 <li>⚠️ <strong>Compound Indexes</strong>: Limited support</li>
-<li>❌ <strong>Text Indexes</strong>: Not fully implemented</li>
+<li>⚠️ <strong>Text Indexes</strong>: Index creation and metadata supported; <code>$text</code> queries not yet implemented</li>
 <li>❌ <strong>Geospatial Indexes</strong>: Limited geospatial support</li>
 </ul>
 <h3 id="transactions">Transactions<a class="headerlink" href="#transactions" title="Permanent link">&para;</a></h3>
@@ -2631,7 +2631,7 @@
 <ul>
 <li>❌ <strong>Replica Sets</strong>: No replica set simulation</li>
 <li>❌ <strong>Sharding</strong>: No shard key or distributed queries</li>
-<li>❌ <strong>Full Text Search</strong>: Limited $text operator support</li>
+<li>⚠️ <strong>Full Text Search</strong>: Text indexes can be created with proper metadata, but <code>$text</code> queries are not yet implemented (planned feature)</li>
 <li>❌ <strong>Advanced Geospatial</strong>: Basic $near/$geoWithin only</li>
 <li>❌ <strong>GridFS</strong>: No file storage support</li>
 <li>❌ <strong>Time Series Collections</strong>: Not implemented</li>
