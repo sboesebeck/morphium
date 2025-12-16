@@ -863,6 +863,16 @@ public class MorphiumServer {
                                 break;
                             }
 
+                            // Forward listIndexes to primary when running as secondary
+                            // This is needed because indexes are only created on primary
+                            if (!primary && cmd.equalsIgnoreCase("listindexes") && primaryHost != null) {
+                                answer = forwardListIndexesToPrimary(doc);
+                                if (answer != null) {
+                                    break;
+                                }
+                                // Fall through to local execution if forwarding failed
+                            }
+
                             AtomicInteger msgid = new AtomicInteger(0);
 
                             if (doc.containsKey("pipeline") && ((Map)((List)doc.get("pipeline")).get(0)).containsKey("$changeStream")) {
@@ -1088,6 +1098,51 @@ public class MorphiumServer {
     }
     private boolean isWriteCommand(String cmd) {
         return WRITE_COMMANDS.contains(cmd.toLowerCase());
+    }
+
+    /**
+     * Forward listIndexes command to primary server.
+     * Uses short timeout to avoid hanging. Returns null on failure (caller should fall back to local execution).
+     */
+    private Map<String, Object> forwardListIndexesToPrimary(Map<String, Object> doc) {
+        if (primaryHost == null || primaryHost.isEmpty()) {
+            return null;
+        }
+
+        SingleMongoConnectDriver driver = null;
+        try {
+            driver = new SingleMongoConnectDriver();
+            driver.setHostSeed(primaryHost);
+            driver.setConnectionTimeout(2000);  // Short timeout
+            driver.setReadTimeout(3000);
+            driver.connect();
+
+            var conn = driver.getPrimaryConnection(null);
+            if (conn == null) {
+                log.debug("Could not get connection to primary for listIndexes forwarding");
+                return null;
+            }
+
+            GenericCommand cmd = new GenericCommand(conn).fromMap(doc);
+            int msgid = conn.sendCommand(cmd);
+            Map<String, Object> response = conn.readSingleAnswer(msgid);
+            cmd.releaseConnection();
+
+            if (response != null) {
+                log.debug("Forwarded listIndexes to primary successfully");
+                return response;
+            }
+        } catch (Exception e) {
+            log.debug("Failed to forward listIndexes to primary: {}", e.getMessage());
+        } finally {
+            if (driver != null) {
+                try {
+                    driver.close();
+                } catch (Exception ignore) {
+                }
+            }
+        }
+        return null;  // Return null to fall back to local execution
     }
 
     // private boolean isWriteCommand(String cmd) {
