@@ -1148,7 +1148,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     index.put("hidden", opt.get("hidden"));
                 }
 
-                // todo: add index features
+                // Handle text indexes - add weights and textIndexVersion
+                Doc keyDoc = (Doc) index.get("key");
+                boolean isTextIndex = false;
+                Map<String, Object> weights = new HashMap<>();
+                for (var entry : keyDoc.entrySet()) {
+                    if ("text".equals(entry.getValue())) {
+                        isTextIndex = true;
+                        weights.put(entry.getKey(), 1);  // default weight is 1
+                    }
+                }
+                if (isTextIndex) {
+                    index.put("weights", weights);
+                    index.put("textIndexVersion", 3);  // MongoDB 3.2+ uses version 3
+                }
+
                 indices.add(index);
             }
         addResult(ret, prepareResult(

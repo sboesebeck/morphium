@@ -68,12 +68,8 @@ public class IndexTest extends MultiDriverTestBase {
             assertThat(missing.size()).isNotEqualTo(0);
             assertNotNull(missing.get(UncachedObject.class));
 
-            if (morphium.getDriver() instanceof InMemoryDriver) {
-                log.info("InMemoryDriver does not support text indexes (yet)");
-                assertEquals(1, missing.get(IndexedObject.class).size());
-            } else {
-                assertThat(missing.get(IndexedObject.class)).isNull();
-            }
+            // All drivers including InMemoryDriver now support text indexes
+            assertThat(missing.get(IndexedObject.class)).isNull();
             assertThat(missing.get(CappedCol.class)).isNull(); //all indices created
             String collectionName = morphium.getMapper().getCollectionName(UncachedObject.class);
             morphium.createIndex(UncachedObject.class, collectionName, missing.get(UncachedObject.class).get(0), null);
