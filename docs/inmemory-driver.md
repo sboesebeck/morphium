@@ -65,7 +65,7 @@ mvn test -Dmorphium.driver=inmem
 ### Indexes
 - ✅ **Single Field Indexes**: Basic indexing support
 - ⚠️ **Compound Indexes**: Limited support
-- ❌ **Text Indexes**: Not fully implemented
+- ⚠️ **Text Indexes**: Index creation and metadata supported; `$text` queries not yet implemented
 - ❌ **Geospatial Indexes**: Limited geospatial support
 
 ### Transactions
@@ -300,7 +300,7 @@ For large-scale MapReduce, consider using real MongoDB with sharding.
 ### Not Supported
 - ❌ **Replica Sets**: No replica set simulation
 - ❌ **Sharding**: No shard key or distributed queries
-- ❌ **Full Text Search**: Limited $text operator support
+- ⚠️ **Full Text Search**: Text indexes can be created with proper metadata, but `$text` queries are not yet implemented (planned feature)
 - ❌ **Advanced Geospatial**: Basic $near/$geoWithin only
 - ❌ **GridFS**: No file storage support
 - ❌ **Time Series Collections**: Not implemented

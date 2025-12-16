@@ -14,7 +14,7 @@
 ### 2. Multiple index types
 - **Hash index**: Fast O(1) equality lookups (similar to current)
 - **B-tree index**: Sorted structure for range queries and ordering
-- **Text index**: For `$text` search queries
+- **Text index**: For `$text` search queries (see Text Index Support below)
 
 ### 3. Compound index prefix matching
 - Current implementation builds compound bucket IDs but can't do prefix matching
@@ -202,3 +202,88 @@ config.setAdminPassword("secure_password");
   - `src/main/java/de/caluga/morphium/server/auth/Role.java`
 
 **Estimated effort:** High - SCRAM-SHA-256 implementation is complex, RBAC requires careful design.
+
+---
+
+## InMemoryDriver Text Index Support
+
+**Current state:** Text indexes can be created and are properly returned by `listIndexes` with correct metadata (`weights`, `textIndexVersion`). However, the actual `$text` query operator is not implemented - text search queries will not work.
+
+**What works now:**
+- ✅ Creating text indexes via `createIndex({field: "text"})`
+- ✅ Listing text indexes with correct metadata (weights, textIndexVersion)
+- ✅ Index comparison between entity annotations and MongoDB indexes
+- ❌ `$text` query operator (queries will fail or return no results)
+- ❌ `$meta: "textScore"` for relevance scoring
+
+**Proposed implementation:**
+
+### 1. Basic text search (`$text` operator)
+```java
+// Support for queries like:
+db.collection.find({ $text: { $search: "coffee shop" } })
+```
+
+- Tokenize indexed text fields on whitespace and punctuation
+- Build inverted index: word → set of document IDs
+- Support multi-word searches (AND semantics by default)
+- Case-insensitive matching
+
+### 2. Text tokenization
+- Split on whitespace and common punctuation
+- Normalize to lowercase
+- Optional: basic stop word removal (the, a, an, etc.)
+- Optional: simple stemming (running → run)
+
+### 3. Search operators
+- **Phrase search**: `"coffee shop"` - exact phrase match
+- **Negation**: `-word` - exclude documents containing word
+- **OR search**: Multiple words without quotes
+
+### 4. Text score (`$meta`)
+```java
+// Support for relevance scoring
+db.collection.find(
+    { $text: { $search: "coffee" } },
+    { score: { $meta: "textScore" } }
+).sort({ score: { $meta: "textScore" } })
+```
+
+- Calculate TF-IDF or simple term frequency
+- Support sorting by text score
+
+### 5. Weighted fields
+```java
+// Honor weights from index definition
+db.collection.createIndex(
+    { title: "text", content: "text" },
+    { weights: { title: 10, content: 1 } }
+)
+```
+
+**Implementation approach:**
+
+1. **Inverted index structure:**
+   ```java
+   // Per collection: word → Set<ObjectId>
+   Map<String, Map<String, Set<Object>>> textIndex;
+   ```
+
+2. **Index maintenance:**
+   - On insert: tokenize text fields, add doc ID to inverted index
+   - On update: remove old tokens, add new tokens
+   - On delete: remove doc ID from all token sets
+
+3. **Query execution:**
+   - Parse `$text.$search` string into tokens
+   - Look up each token in inverted index
+   - Intersect result sets (AND) or union (OR)
+   - Optionally calculate scores
+
+**Files to modify:**
+- `src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java`
+  - `createIndex()` - build inverted index for text fields
+  - `find()` / query execution - handle `$text` operator
+  - `insert()`, `update()`, `delete()` - maintain inverted index
+
+**Estimated effort:** Medium - basic text search is straightforward, advanced features (stemming, scoring) add complexity.
