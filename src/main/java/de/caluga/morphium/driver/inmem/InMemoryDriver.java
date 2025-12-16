@@ -2802,35 +2802,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             }
                             o = projected;
                         } else {
-                            // exclusion style: start with full doc copy and remove excluded fields
-                            while (true) {
-                                try {
-                                    o = deepCopyDoc(o);
-                                    break;
-                                } catch (ConcurrentModificationException c) {
-                                    // retry until it works
-                                }
-                            }
+                            // exclusion style: copy only non-excluded fields
+                            // Build set of excluded top-level fields for O(1) lookup
+                            Set<String> excludedFields = new HashSet<>();
+                            Set<String> nestedExclusions = new HashSet<>();
                             for (var e : projection.entrySet()) {
                                 var k = e.getKey();
                                 var v = e.getValue();
                                 boolean exclude = (v instanceof Number && ((Number) v).intValue() == 0)
                                                   || (v instanceof Boolean && !(Boolean) v);
                                 if (exclude) {
-                                    removeByPath(o, k);
+                                    if (k.contains(".")) {
+                                        nestedExclusions.add(k);
+                                    } else {
+                                        excludedFields.add(k);
+                                    }
                                 }
                             }
+                            o = deepCopyDocExcluding(o, excludedFields, nestedExclusions);
                         }
                     } else {
                         // No projection - need full deep copy for external callers
-                        while (true) {
-                            try {
-                                o = deepCopyDoc(o);
-                                break;
-                            } catch (ConcurrentModificationException c) {
-                                // retry until it works
-                            }
-                        }
+                        o = deepCopyDocWithRetry(o);
                     }
 
                     // Convert ObjectId after copy
@@ -2915,7 +2908,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private static Map<String, Object> deepCopyDoc(Map<String, Object> src) {
-        Map<String, Object> out = new HashMap<>();
+        // Pre-size HashMap to avoid rehashing
+        Map<String, Object> out = new HashMap<>((int) (src.size() / 0.75) + 1);
         for (var e : src.entrySet()) {
             Object v = e.getValue();
             if (v instanceof Map) {
@@ -2923,13 +2917,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } else if (v instanceof List) {
                 v = deepCopyList((List) v);
             }
+            // Primitive types, Strings, Numbers, Dates, ObjectIds etc. are immutable - safe to share
             out.put(e.getKey(), v);
         }
         return out;
     }
 
     private static List deepCopyList(List src) {
-        List<Object> out = new ArrayList<>();
+        // Pre-size ArrayList to avoid resizing
+        List<Object> out = new ArrayList<>(src.size());
         for (Object item : src) {
             if (item instanceof Map) {
                 out.add(deepCopyDoc((Map<String, Object>) item));
@@ -2951,6 +2947,113 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         // Primitive types, Strings, Numbers, etc. are immutable and safe to share
         return v;
+    }
+
+    /**
+     * Deep copy with retry logic for handling concurrent modifications.
+     * Uses exponential backoff with a maximum number of retries.
+     */
+    private static Map<String, Object> deepCopyDocWithRetry(Map<String, Object> src) {
+        final int maxRetries = 10;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return deepCopyDoc(src);
+            } catch (ConcurrentModificationException e) {
+                if (attempt == maxRetries - 1) {
+                    throw new RuntimeException("Failed to deep copy document after " + maxRetries + " attempts", e);
+                }
+                // Exponential backoff: yield, then short sleep
+                Thread.yield();
+                if (attempt > 2) {
+                    try {
+                        Thread.sleep(1L << (attempt - 2)); // 1, 2, 4, 8, 16, 32, 64 ms
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during deep copy retry", ie);
+                    }
+                }
+            }
+        }
+        // Should not reach here, but compiler needs this
+        throw new RuntimeException("Failed to deep copy document");
+    }
+
+    /**
+     * Deep copy a document while excluding specified fields.
+     * More efficient than copy-then-remove for exclusion projections.
+     *
+     * @param src source document
+     * @param excludedFields top-level fields to exclude (no dots)
+     * @param nestedExclusions nested paths to exclude (with dots, e.g., "a.b.c")
+     */
+    private static Map<String, Object> deepCopyDocExcluding(Map<String, Object> src,
+            Set<String> excludedFields, Set<String> nestedExclusions) {
+        final int maxRetries = 10;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return deepCopyDocExcludingInternal(src, excludedFields, nestedExclusions, "");
+            } catch (ConcurrentModificationException e) {
+                if (attempt == maxRetries - 1) {
+                    throw new RuntimeException("Failed to deep copy document after " + maxRetries + " attempts", e);
+                }
+                Thread.yield();
+                if (attempt > 2) {
+                    try {
+                        Thread.sleep(1L << (attempt - 2));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during deep copy retry", ie);
+                    }
+                }
+            }
+        }
+        throw new RuntimeException("Failed to deep copy document");
+    }
+
+    private static Map<String, Object> deepCopyDocExcludingInternal(Map<String, Object> src,
+            Set<String> excludedFields, Set<String> nestedExclusions, String currentPath) {
+        Map<String, Object> out = new HashMap<>((int) (src.size() / 0.75) + 1);
+        for (var e : src.entrySet()) {
+            String key = e.getKey();
+
+            // Check if this top-level field should be excluded
+            if (currentPath.isEmpty() && excludedFields.contains(key)) {
+                continue;
+            }
+
+            // Build the full path for nested exclusion checks
+            String fullPath = currentPath.isEmpty() ? key : currentPath + "." + key;
+
+            // Check if this exact path should be excluded
+            if (nestedExclusions.contains(fullPath)) {
+                continue;
+            }
+
+            Object v = e.getValue();
+            if (v instanceof Map) {
+                // Check if any nested exclusions apply to children of this field
+                boolean hasNestedExclusion = false;
+                String prefix = fullPath + ".";
+                for (String nested : nestedExclusions) {
+                    if (nested.startsWith(prefix)) {
+                        hasNestedExclusion = true;
+                        break;
+                    }
+                }
+                if (hasNestedExclusion) {
+                    // Recurse with exclusion handling
+                    v = deepCopyDocExcludingInternal((Map<String, Object>) v,
+                            Collections.emptySet(), nestedExclusions, fullPath);
+                } else {
+                    // No nested exclusions for this subtree, use regular deep copy
+                    v = deepCopyDoc((Map<String, Object>) v);
+                }
+            } else if (v instanceof List) {
+                v = deepCopyList((List) v);
+            }
+            out.put(key, v);
+        }
+        return out;
     }
 
     private static Object applySlice(Object arrayVal, Object sliceSpec) {
@@ -4636,25 +4739,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         private void deliver(ChangeStreamEventInfo info) {
             if (!active) {
-                // log.debug("Subscription inactive, skipping delivery for {}.{}", info.db, info.collection);
                 return;
             }
 
-            // log.debug("Delivering change stream event for {}.{}, op={}", info.db, info.collection,
-            // info.event.get("operationType"));
-
-            // Messaging fast-path: pipeline is only matching on inserts; deliver a mutable copy directly
+            // Fast-path: insert-only pipeline matching inserts
             if (insertOnlyMatchPipeline && "insert".equals(info.event.get("operationType"))) {
                 try {
                     callback.incomingData(deepCopyDoc(info.event), System.currentTimeMillis() - info.createdAt);
                 } catch (Exception e) {
                     log.error("Error calling change-stream callback", e);
                 }
-
                 if (!callback.isContinued()) {
                     deactivate();
                 }
+                return;
+            }
 
+            // Early check for required fullDocumentBeforeChange - skip copy if it would be filtered
+            if (beforeChangeMode == WatchCommand.FullDocumentBeforeChangeEnum.required
+                    && info.event.get("fullDocumentBeforeChange") == null) {
                 return;
             }
 
@@ -4662,14 +4765,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             adjustFullDocument(working);
 
             if (!applyFullDocumentBeforeChange(working)) {
-                // log.debug("Filtered out by fullDocumentBeforeChange requirement");
                 return;
             }
 
             Map<String, Object> processed = applyPipeline(working);
-
             if (processed == null) {
-                // log.debug("Filtered out by pipeline");
                 return;
             }
 

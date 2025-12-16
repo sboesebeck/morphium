@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,7 +54,7 @@ public class MorphiumServer {
     private Thread heartbeatThread;
     private static final int HEARTBEAT_INTERVAL_MS = 2000;
     private static final int HEARTBEAT_TIMEOUT_MS = 5000;
-    private boolean running = true;
+    private volatile boolean running = true;
     private ServerSocket serverSocket;
     private int compressorId;
     private String rsName = "";
@@ -66,6 +67,10 @@ public class MorphiumServer {
     private final List<ChangeStreamMonitor> replicationMonitors = new ArrayList<>();
     private volatile boolean replicationStarted = false;
     private volatile boolean initialSyncDone = true;
+    private static final Set<String> WRITE_COMMANDS = Set.of(
+                        "insert", "update", "delete", "findandmodify",
+                        "createindexes", "create", "drop", "dropindexes", "bulkwrite"
+        );
 
     // SSL configuration
     private boolean sslEnabled = false;
@@ -366,7 +371,7 @@ public class MorphiumServer {
                         int otherPrio = hostPriorities.getOrDefault(primaryHost, 0);
                         if (otherPrio > priority) {
                             log.info("Detected primary {} with higher priority ({}), staying secondary for initial sync",
-                                    primaryHost, otherPrio);
+                                     primaryHost, otherPrio);
                             primary = false;
                             initialSyncDone = false;
                             startReplicaReplication();
@@ -444,7 +449,7 @@ public class MorphiumServer {
                             if (priority > primaryPrio) {
                                 if (initialSyncDone) {
                                     log.info("This node has higher priority ({}) than current primary {} ({}), taking over",
-                                            priority, primaryHost, primaryPrio);
+                                             priority, primaryHost, primaryPrio);
                                     becomesPrimary();
                                 } else {
                                     log.info("Detected higher priority than current primary {}, waiting for initial sync to finish", primaryHost);
@@ -1049,11 +1054,13 @@ public class MorphiumServer {
         drv.setReplicaSetName(rsName);
         drv.setHostSeed(hosts);
     }
-
     private boolean isWriteCommand(String cmd) {
-        return List.of("insert", "update", "delete", "findandmodify", "findAndModify", "createIndexes", "create")
-                   .contains(cmd);
+        return WRITE_COMMANDS.contains(cmd.toLowerCase());
     }
+    // private boolean isWriteCommand(String cmd) {
+    //     return List.of("insert", "update", "delete", "findandmodify", "findAndModify", "createIndexes", "create")
+    //            .contains(cmd);
+    // }
 
     public void startReplicaReplication() {
         if (replicationStarted || primary || hosts == null || hosts.isEmpty()) {
@@ -1092,7 +1099,7 @@ public class MorphiumServer {
                     ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium, null, true);
                     mtr.addListener((evt)-> {
                         log.info("CHANGE STREAM EVENT RECEIVED: type={}, db={}, coll={}",
-                                evt.getOperationType(), evt.getDbName(), evt.getCollectionName());
+                                 evt.getOperationType(), evt.getDbName(), evt.getCollectionName());
                         try {
                             String db = evt.getDbName();
                             String coll = evt.getCollectionName();
@@ -1128,14 +1135,14 @@ public class MorphiumServer {
                                     if (fullDoc != null && !fullDoc.isEmpty()) {
                                         log.debug("Using fullDocument for update replication on {}.{}", db, coll);
                                         Object docKey = evt.getDocumentKey();
-                                        Object id = docKey instanceof Map ? ((Map<?,?>) docKey).get("_id") : docKey;
+                                        Object id = docKey instanceof Map ? ((Map <?, ? >) docKey).get("_id") : docKey;
                                         drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", fullDoc), false, true, null, null);
                                     } else {
                                         log.warn("Update event has no updated fields or fullDocument for {}.{}", db, coll);
                                     }
                                 } else {
                                     Object docKey = evt.getDocumentKey();
-                                    Object id = docKey instanceof Map ? ((Map<?,?>) docKey).get("_id") : docKey;
+                                    Object id = docKey instanceof Map ? ((Map <?, ? >) docKey).get("_id") : docKey;
                                     drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", updated), false, false, null, null);
                                 }
                             }
@@ -1170,8 +1177,8 @@ public class MorphiumServer {
 
             // List all collections in this database
             var listCmd = new de.caluga.morphium.driver.commands.ListCollectionsCommand(con)
-                    .setDb(db)
-                    .setNameOnly(false);  // Need full info to get collection names
+            .setDb(db)
+            .setNameOnly(false);  // Need full info to get collection names
             var collections = listCmd.execute();
             // Connection is released by execute()
 
@@ -1202,10 +1209,10 @@ public class MorphiumServer {
 
             // Fetch all documents from the source collection
             var findCmd = new de.caluga.morphium.driver.commands.FindCommand(con)
-                    .setDb(db)
-                    .setColl(collectionName)
-                    .setFilter(Map.of())
-                    .setBatchSize(1000);
+            .setDb(db)
+            .setColl(collectionName)
+            .setFilter(Map.of())
+            .setBatchSize(1000);
 
             var cursor = findCmd.executeIterable(1000);
 
@@ -1222,7 +1229,7 @@ public class MorphiumServer {
                     Object id = doc.get("_id");
                     if (id != null) {
                         drv.update(db, collectionName, Map.of("_id", id), null,
-                                Doc.of("$set", doc), false, true, null, null);
+                                   Doc.of("$set", doc), false, true, null, null);
                     } else {
                         drv.insert(db, collectionName, List.of(doc), null);
                     }
