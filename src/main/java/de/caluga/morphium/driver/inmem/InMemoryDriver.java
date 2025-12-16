@@ -834,9 +834,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int runCommand(GenericCommand cmd) {
-        // log.info("Trying to handle generic Command");
         Map<String, Object> cmdMap = cmd.asMap();
         var commandName = cmdMap.keySet().stream().findFirst().get();
+        log.debug("InMemoryDriver.runCommand(GenericCommand): commandName={}, filter={}", commandName, cmdMap.get("filter"));
         Class <? extends MongoCommand > commandClass = commandsCache.get(commandName);
 
         if (commandName.equals("aggreagate") && cmdMap.containsKey("pipeline")
@@ -1325,6 +1325,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int skip = normalizeSkip(cmd.getSkip());
 
         var filter = cmd.getFilter();
+        log.debug("InMemoryDriver.runFind: db={}, coll={}, filter={}", cmd.getDb(), cmd.getColl(), filter);
 
         if (filter == null) {
             filter = Doc.of();
@@ -1332,6 +1333,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         var result = find(cmd.getDb(), cmd.getColl(), filter, cmd.getSort(), cmd.getProjection(), cmd.getCollation(),
                           skip, limit, false);
+        log.debug("InMemoryDriver.runFind: returned {} results", result.size());
         return result;
     }
 

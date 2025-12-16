@@ -216,6 +216,7 @@ public class QueryHelper {
                     }
 
                 case "$expr": {
+                        org.slf4j.LoggerFactory.getLogger(QueryHelper.class).debug("QueryHelper: evaluating $expr = {}", query.get(keyQuery));
                         Expr expr = Expr.parse(query.get(keyQuery));
                         var result = expr.evaluate(toCheck);
 
@@ -223,6 +224,7 @@ public class QueryHelper {
                             result = ((Expr) result).evaluate(toCheck);
                         }
 
+                        org.slf4j.LoggerFactory.getLogger(QueryHelper.class).debug("QueryHelper: $expr result = {}", result);
                         return Boolean.TRUE.equals(result);
                     }
 
