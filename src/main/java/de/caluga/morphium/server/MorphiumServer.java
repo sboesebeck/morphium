@@ -897,8 +897,11 @@ public class MorphiumServer {
                                 answer = Doc.of("ok", 1.0, "cursor", initialCursor);
                                 // Skip normal command processing
                             } else {
+                                log.debug("MorphiumServer: Executing command '{}' with filter: {}", cmd, doc.get("filter"));
                                 msgid.set(drv.runCommand(new GenericCommand(drv).fromMap(doc)));
+                                log.debug("MorphiumServer: Command returned msgid={}, reading answer...", msgid.get());
                                 var crs = drv.readSingleAnswer(msgid.get());
+                                log.debug("MorphiumServer: Got answer: {}", crs != null ? "cursor with " + (crs.containsKey("cursor") ? "data" : "no cursor") : "null");
                                 answer = Doc.of("ok", 1.0);
                                 if (crs != null) answer.putAll(crs);
                             }
@@ -1111,11 +1114,29 @@ public class MorphiumServer {
                             } else if (evt.getOperationType().equals("delete")) {
                                 drv.delete(db, coll, Map.of("_id", evt.getDocumentKey()), null, false, null, null);
                             } else if (evt.getOperationType().equals("update")) {
+                                // Try getUpdatedFields first, then fall back to updateDescription.updatedFields
                                 Map<String, Object> updated = evt.getUpdatedFields();
+                                if ((updated == null || updated.isEmpty()) && evt.getUpdateDescription() != null) {
+                                    Object updatedFieldsObj = evt.getUpdateDescription().get("updatedFields");
+                                    if (updatedFieldsObj instanceof Map) {
+                                        updated = (Map<String, Object>) updatedFieldsObj;
+                                    }
+                                }
                                 if (updated == null || updated.isEmpty()) {
-                                    log.warn("Update event has no updated fields for {}.{}", db, coll);
+                                    // If still no updated fields, use fullDocument as a fallback
+                                    Map<String, Object> fullDoc = evt.getFullDocument();
+                                    if (fullDoc != null && !fullDoc.isEmpty()) {
+                                        log.debug("Using fullDocument for update replication on {}.{}", db, coll);
+                                        Object docKey = evt.getDocumentKey();
+                                        Object id = docKey instanceof Map ? ((Map<?,?>) docKey).get("_id") : docKey;
+                                        drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", fullDoc), false, true, null, null);
+                                    } else {
+                                        log.warn("Update event has no updated fields or fullDocument for {}.{}", db, coll);
+                                    }
                                 } else {
-                                    drv.update(db, coll, Map.of("_id", evt.getDocumentKey()), null, Doc.of("$set", updated), false, false, null, null);
+                                    Object docKey = evt.getDocumentKey();
+                                    Object id = docKey instanceof Map ? ((Map<?,?>) docKey).get("_id") : docKey;
+                                    drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", updated), false, false, null, null);
                                 }
                             }
                         } catch (MorphiumDriverException e) {
