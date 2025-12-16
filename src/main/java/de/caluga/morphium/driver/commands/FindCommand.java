@@ -279,7 +279,9 @@ public class FindCommand extends ReadMongoCommand<FindCommand> {
         super.fromMap(m);
 
         if (m.containsKey("filter")) {
-            setFilter((Map<String, Object>) m.get("filter"));
+            var f = (Map<String, Object>) m.get("filter");
+            org.slf4j.LoggerFactory.getLogger(FindCommand.class).debug("FindCommand.fromMap: setting filter = {}", f);
+            setFilter(f);
         }
 
         if (m.containsKey("projection")) {
