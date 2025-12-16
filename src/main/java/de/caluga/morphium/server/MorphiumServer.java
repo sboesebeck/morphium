@@ -72,12 +72,9 @@ public class MorphiumServer {
                         "createindexes", "create", "drop", "dropindexes", "bulkwrite"
         );
 
-    // Commands that read data and should be forwarded to primary when running as secondary
-    // This is needed because each MorphiumServer instance has its own InMemoryDriver
-    private static final Set<String> DATA_READ_COMMANDS = Set.of(
-                        "find", "aggregate", "count", "distinct", "listindexes",
-                        "collstats", "dbstats", "getmore"
-        );
+    // Note: Each MorphiumServer instance has its own isolated InMemoryDriver.
+    // Secondaries will not have the same data as primary unless replication is implemented.
+    // For tests, use primary read preference or connect directly to the primary.
 
     // SSL configuration
     private boolean sslEnabled = false;
@@ -866,14 +863,6 @@ public class MorphiumServer {
                                 break;
                             }
 
-                            // Forward data read commands to primary when running as secondary
-                            // This ensures consistent reads since each MorphiumServer has its own InMemoryDriver
-                            if (!primary && isDataReadCommand(cmd)) {
-                                log.debug("Forwarding data read command '{}' to primary {}", cmd, primaryHost);
-                                answer = forwardToPrimary(doc);
-                                break;
-                            }
-
                             AtomicInteger msgid = new AtomicInteger(0);
 
                             if (doc.containsKey("pipeline") && ((Map)((List)doc.get("pipeline")).get(0)).containsKey("$changeStream")) {
@@ -1101,74 +1090,6 @@ public class MorphiumServer {
         return WRITE_COMMANDS.contains(cmd.toLowerCase());
     }
 
-    private boolean isDataReadCommand(String cmd) {
-        return DATA_READ_COMMANDS.contains(cmd.toLowerCase());
-    }
-
-    /**
-     * Forward a command to the primary server and return its response.
-     * Used by secondaries to provide consistent read data.
-     * Includes retry logic for transient connection issues during startup.
-     */
-    private Map<String, Object> forwardToPrimary(Map<String, Object> doc) {
-        if (primaryHost == null || primaryHost.isEmpty()) {
-            log.warn("Cannot forward to primary - primaryHost not set");
-            return Doc.of("ok", 0, "errmsg", "No primary available for forwarding");
-        }
-
-        int maxRetries = 3;
-        Exception lastException = null;
-
-        for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            SingleMongoConnectDriver driver = null;
-            try {
-                // Use a simple driver connection, not a full Morphium instance
-                driver = new SingleMongoConnectDriver();
-                driver.setHostSeed(primaryHost);
-                driver.setConnectionTimeout(5000);
-                driver.setReadTimeout(10000);
-                driver.connect();
-
-                var conn = driver.getPrimaryConnection(null);
-                if (conn == null) {
-                    throw new RuntimeException("Could not get connection to primary");
-                }
-
-                GenericCommand cmd = new GenericCommand(conn).fromMap(doc);
-                int msgid = conn.sendCommand(cmd);
-                Map<String, Object> response = conn.readSingleAnswer(msgid);
-                cmd.releaseConnection();
-
-                if (response == null) {
-                    if (attempt < maxRetries) {
-                        log.debug("No response from primary, retrying (attempt {}/{})", attempt, maxRetries);
-                        try { Thread.sleep(100 * attempt); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-                        continue;
-                    }
-                    return Doc.of("ok", 0, "errmsg", "No response from primary after " + maxRetries + " attempts");
-                }
-                log.debug("Forwarded command {} to primary, got response", doc.keySet().iterator().next());
-                return response;
-            } catch (Exception e) {
-                lastException = e;
-                log.debug("Error forwarding command to primary (attempt {}/{}): {}", attempt, maxRetries, e.getMessage());
-                if (attempt < maxRetries) {
-                    try { Thread.sleep(100 * attempt); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-                }
-            } finally {
-                if (driver != null) {
-                    try {
-                        driver.close();
-                    } catch (Exception ignore) {
-                        // Ignore close errors
-                    }
-                }
-            }
-        }
-
-        log.error("Error forwarding command to primary after {} attempts: {}", maxRetries, lastException != null ? lastException.getMessage() : "unknown");
-        return Doc.of("ok", 0, "errmsg", "Error forwarding to primary: " + (lastException != null ? lastException.getMessage() : "unknown"));
-    }
     // private boolean isWriteCommand(String cmd) {
     //     return List.of("insert", "update", "delete", "findandmodify", "findAndModify", "createIndexes", "create")
     //            .contains(cmd);
