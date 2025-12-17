@@ -51,7 +51,9 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
     @Override
     public GenericCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);
-        cmdData = new HashMap<>();
+        // Use LinkedHashMap to preserve key ordering - critical for MongoDB wire protocol
+        // where the command name must be the first key
+        cmdData = new LinkedHashMap<>();
         cmdData.putAll(m);
         commandName = m.keySet().toArray(new String[m.size()])[0];
         if (cmdData.get(commandName) instanceof String) {
