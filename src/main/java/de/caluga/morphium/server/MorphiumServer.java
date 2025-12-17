@@ -701,8 +701,12 @@ public class MorphiumServer {
                         r.setResponseTo(id);
                         r.setNumReturned(1);
                         var res = getHelloResult();
-                        log.debug("Sending isMaster response via OpReply: {}", res.toMsg());
-                        r.setDocuments(Arrays.asList(res.toMsg()));
+                        var resMsg = res.toMsg();
+                        // Add MorphiumServer-specific fields for client detection
+                        resMsg.put("morphiumServer", true);
+                        resMsg.put("inMemoryBackend", true);
+                        log.debug("Sending isMaster response via OpReply: {}", resMsg);
+                        r.setDocuments(Arrays.asList(resMsg));
 
                         if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
                             OpCompressed cmp = new OpCompressed();
@@ -770,6 +774,9 @@ public class MorphiumServer {
                     case "hello":
                         log.debug("OpMsg->hello/ismaster");
                         answer = getHelloResult().toMsg();
+                        // Add MorphiumServer-specific fields for client detection
+                        answer.put("morphiumServer", true);
+                        answer.put("inMemoryBackend", true);
                         log.debug("Hello response: {}", answer);
                         break;
 
