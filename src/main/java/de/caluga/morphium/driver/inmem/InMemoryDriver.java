@@ -85,6 +85,7 @@ import de.caluga.morphium.driver.commands.DeleteMongoCommand;
 import de.caluga.morphium.driver.commands.DistinctMongoCommand;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.DropMongoCommand;
+import de.caluga.morphium.driver.commands.DropIndexesCommand;
 import de.caluga.morphium.driver.commands.ExplainCommand;
 import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
@@ -1478,6 +1479,123 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int ret = commandNumber.incrementAndGet();
         drop(cmd.getDb(), null);
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "msg", "dropped database " + cmd.getDb())));
+        return ret;
+    }
+
+    private int runCommand(DropIndexesCommand cmd) {
+        int ret = commandNumber.incrementAndGet();
+        String db = cmd.getDb();
+        String coll = cmd.getColl();
+        Object index = cmd.getIndex();
+
+        if (index == null) {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "index field is required")));
+            return ret;
+        }
+
+        String indexName;
+        if (index instanceof String) {
+            indexName = (String) index;
+        } else if (index instanceof Map) {
+            // Key specification - build index name from it
+            StringBuilder b = new StringBuilder();
+            for (var entry : ((Map<String, Object>) index).entrySet()) {
+                if (b.length() > 0) b.append("_");
+                b.append(entry.getKey()).append("_").append(entry.getValue());
+            }
+            indexName = b.toString();
+        } else {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "invalid index specification")));
+            return ret;
+        }
+
+        // Get indexes for this collection
+        Map<String, List<Map<String, Object>>> indexesForDB = indicesByDbCollection.get(db);
+        if (indexesForDB == null) {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "database not found: " + db)));
+            return ret;
+        }
+
+        List<Map<String, Object>> indexesForCollection = indexesForDB.get(coll);
+        if (indexesForCollection == null) {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "collection not found: " + coll)));
+            return ret;
+        }
+
+        int droppedCount = 0;
+
+        if ("*".equals(indexName)) {
+            // Drop all indexes except _id
+            List<Map<String, Object>> toRemove = new ArrayList<>();
+            for (Map<String, Object> idx : indexesForCollection) {
+                // Index name is stored in $options.name
+                String name = null;
+                Map<String, Object> opts = (Map<String, Object>) idx.get("$options");
+                if (opts != null) {
+                    name = (String) opts.get("name");
+                }
+                if (name == null) {
+                    name = (String) idx.get("name");  // Fallback to top-level
+                }
+                if (!"_id_".equals(name)) {
+                    toRemove.add(idx);
+                }
+            }
+            indexesForCollection.removeAll(toRemove);
+            droppedCount = toRemove.size();
+
+            // Clear index data
+            if (indexDataByDBCollection.containsKey(db) && indexDataByDBCollection.get(db).containsKey(coll)) {
+                indexDataByDBCollection.get(db).get(coll).clear();
+            }
+
+            log.info("Dropped {} indexes from {}.{}", droppedCount, db, coll);
+        } else {
+            // Drop specific index by name
+            Map<String, Object> toRemove = null;
+            for (Map<String, Object> idx : indexesForCollection) {
+                // Index name is stored in $options.name
+                String name = null;
+                Map<String, Object> opts = (Map<String, Object>) idx.get("$options");
+                if (opts != null) {
+                    name = (String) opts.get("name");
+                }
+                if (name == null) {
+                    name = (String) idx.get("name");  // Fallback to top-level
+                }
+                if (indexName.equals(name)) {
+                    toRemove = idx;
+                    break;
+                }
+            }
+
+            if (toRemove != null) {
+                indexesForCollection.remove(toRemove);
+                droppedCount = 1;
+
+                // Remove index data for this specific index
+                // Key fields are stored at top level (all entries except $options)
+                if (indexDataByDBCollection.containsKey(db)
+                        && indexDataByDBCollection.get(db).containsKey(coll)) {
+                    StringBuilder fields = new StringBuilder();
+                    for (var entry : toRemove.entrySet()) {
+                        if (entry.getKey().startsWith("$")) continue;  // Skip $options
+                        if (fields.length() > 0) fields.append(",");
+                        fields.append(entry.getKey());
+                    }
+                    if (fields.length() > 0) {
+                        indexDataByDBCollection.get(db).get(coll).remove(fields.toString());
+                    }
+                }
+
+                log.info("Dropped index {} from {}.{}", indexName, db, coll);
+            } else {
+                addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "index not found: " + indexName)));
+                return ret;
+            }
+        }
+
+        addResult(ret, prepareResult(Doc.of("ok", 1.0, "nIndexesWas", indexesForCollection.size() + droppedCount)));
         return ret;
     }
 

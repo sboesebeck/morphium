@@ -1244,6 +1244,9 @@ public class MorphiumServer {
                     log.info("Started cluster-wide change stream monitor");
                     replicationMonitors.add(mtr);
 
+                    // Start periodic index sync thread
+                    startPeriodicIndexSync(morphium);
+
                     log.info("Initial sync and replication setup complete");
                     initialSyncDone = true;
                     break;
@@ -1338,7 +1341,152 @@ public class MorphiumServer {
     }
 
     /**
-     * Sync indexes from primary to this secondary.
+     * Start a background thread that periodically syncs indexes from primary.
+     * This ensures new indexes created on primary are replicated to secondaries.
+     */
+    private void startPeriodicIndexSync(Morphium sourceMorphium) {
+        Thread indexSyncThread = new Thread(() -> {
+            log.info("Starting periodic index sync thread (interval: 30s)");
+            while (running && !primary) {
+                try {
+                    Thread.sleep(30000);  // Sync every 30 seconds
+
+                    if (!running || primary) break;
+
+                    // Get all databases
+                    var databases = sourceMorphium.listDatabases();
+                    for (String db : databases) {
+                        if (db.equals("admin") || db.equals("local") || db.equals("config")) {
+                            continue;
+                        }
+
+                        try {
+                            var con = sourceMorphium.getDriver().getPrimaryConnection(null);
+                            var listCmd = new de.caluga.morphium.driver.commands.ListCollectionsCommand(con)
+                                .setDb(db)
+                                .setNameOnly(true);
+                            var collections = listCmd.execute();
+
+                            if (collections != null) {
+                                for (Map<String, Object> collInfo : collections) {
+                                    String collName = (String) collInfo.get("name");
+                                    if (collName != null && !collName.startsWith("system.")) {
+                                        syncIndexesWithDeletion(sourceMorphium, db, collName);
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.debug("Error during periodic index sync for db {}: {}", db, e.getMessage());
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    log.debug("Error in periodic index sync: {}", e.getMessage());
+                }
+            }
+            log.info("Periodic index sync thread stopped");
+        }, "index-sync-thread");
+        indexSyncThread.setDaemon(true);
+        indexSyncThread.start();
+    }
+
+    /**
+     * Sync indexes from primary to this secondary, including deletion of removed indexes.
+     */
+    private void syncIndexesWithDeletion(Morphium sourceMorphium, String db, String collectionName) {
+        try {
+            var con = sourceMorphium.getDriver().getPrimaryConnection(null);
+
+            // Get indexes from primary
+            var listIdxCmd = new de.caluga.morphium.driver.commands.ListIndexesCommand(con)
+                .setDb(db)
+                .setColl(collectionName);
+            var primaryIndexes = listIdxCmd.execute();
+
+            if (primaryIndexes == null) {
+                primaryIndexes = new java.util.ArrayList<>();
+            }
+
+            // Get local indexes
+            List<Map<String, Object>> localIndexes = drv.getIndexes(db, collectionName);
+            if (localIndexes == null) {
+                localIndexes = new java.util.ArrayList<>();
+            }
+
+            // Build set of primary index names
+            Set<String> primaryIndexNames = new java.util.HashSet<>();
+            for (var idx : primaryIndexes) {
+                if (idx.getName() != null) {
+                    primaryIndexNames.add(idx.getName());
+                }
+            }
+
+            // Build set of local index names
+            Set<String> localIndexNames = new java.util.HashSet<>();
+            for (var idx : localIndexes) {
+                Object nameObj = idx.get("name");
+                if (nameObj == null) {
+                    // Try to get from $options
+                    Map<String, Object> opts = (Map<String, Object>) idx.get("$options");
+                    if (opts != null) {
+                        nameObj = opts.get("name");
+                    }
+                }
+                if (nameObj != null) {
+                    localIndexNames.add(nameObj.toString());
+                }
+            }
+
+            // Create missing indexes
+            for (var idx : primaryIndexes) {
+                String idxName = idx.getName();
+                if (idxName != null && idxName.equals("_id_")) continue;
+                if (idxName != null && !localIndexNames.contains(idxName)) {
+                    Map<String, Object> key = idx.getKey();
+                    if (key != null && !key.isEmpty()) {
+                        try {
+                            Map<String, Object> options = new java.util.HashMap<>();
+                            if (idx.getName() != null) options.put("name", idx.getName());
+                            if (idx.getUnique() != null && idx.getUnique()) options.put("unique", true);
+                            if (idx.getSparse() != null && idx.getSparse()) options.put("sparse", true);
+                            if (idx.getExpireAfterSeconds() != null) options.put("expireAfterSeconds", idx.getExpireAfterSeconds());
+                            if (idx.getWeights() != null) options.put("weights", idx.getWeights());
+
+                            drv.createIndex(db, collectionName, key, options);
+                            log.info("Created index {} on {}.{} (periodic sync)", idxName, db, collectionName);
+                        } catch (Exception e) {
+                            log.debug("Failed to create index {}: {}", idxName, e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            // Drop indexes that no longer exist on primary
+            for (String localIdxName : localIndexNames) {
+                if (localIdxName.equals("_id_") || localIdxName.equals("_id_1")) continue;
+                if (!primaryIndexNames.contains(localIdxName)) {
+                    try {
+                        var dropCmd = new de.caluga.morphium.driver.commands.DropIndexesCommand(drv)
+                            .setDb(db)
+                            .setColl(collectionName)
+                            .setIndex(localIdxName);
+                        int msgId = drv.runCommand(new de.caluga.morphium.driver.commands.GenericCommand(drv).fromMap(dropCmd.asMap()));
+                        drv.readSingleAnswer(msgId);  // Wait for completion
+                        log.info("Dropped index {} on {}.{} (no longer on primary)", localIdxName, db, collectionName);
+                    } catch (Exception e) {
+                        log.debug("Failed to drop index {}: {}", localIdxName, e.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Error syncing indexes for {}.{}: {}", db, collectionName, e.getMessage());
+        }
+    }
+
+    /**
+     * Sync indexes from primary to this secondary (initial sync - no deletion).
      * This ensures secondaries have the same indexes for efficient query execution.
      */
     private void syncIndexes(Morphium sourceMorphium, String db, String collectionName) {
