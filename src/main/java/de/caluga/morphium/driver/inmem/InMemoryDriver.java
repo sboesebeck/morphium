@@ -1474,10 +1474,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DropDatabaseMongoCommand cmd) {
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        log.info("InMemoryDriver: dropDatabase command for db='{}' (databases before: {})",
+                 cmd.getDb(), database.keySet());
         int ret = commandNumber.incrementAndGet();
         drop(cmd.getDb(), null);
+        log.info("InMemoryDriver: dropped database '{}' (databases after: {})", cmd.getDb(), database.keySet());
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "msg", "dropped database " + cmd.getDb())));
         return ret;
     }
