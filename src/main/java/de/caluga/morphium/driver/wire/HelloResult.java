@@ -46,6 +46,10 @@ public class HelloResult {
     private Map<String, Object> topologyVersion;
     private Long operationTime;
 
+    // MorphiumServer-specific fields
+    private Boolean morphiumServer;
+    private Boolean inMemoryBackend;
+
     public static HelloResult fromMsg(Map<String, Object> msg) {
         if (msg == null) return null;
 
