@@ -4494,10 +4494,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // log.debug("DB subscribers for '{}': {}", eventInfo.db, dbSubs != null ? dbSubs.size() : 0);
                 deliverToSubscribers(dbSubs, eventInfo);
 
+                // Deliver to database-level watches registered via MorphiumServer (with collection="1")
+                // When aggregate with $changeStream comes through wire protocol, collection is set to "1" for db-level watches
+                var dbAllSubs = changeStreamSubscribers.get(eventInfo.db + ".1");
+                // log.debug("DB-level (via MorphiumServer) subscribers for '{}.1': {}", eventInfo.db, dbAllSubs != null ? dbAllSubs.size() : 0);
+                deliverToSubscribers(dbAllSubs, eventInfo);
+
                 // Deliver to collection-level subscribers
                 if (eventInfo.collection != null) {
                     var collSubs = changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection);
-                    // rog.debug("Collection subscribers for '{}.{}': {}", eventInfo.db, eventInfo.collection, collSubs != null ? collSubs.size() : 0);
+                    // log.debug("Collection subscribers for '{}.{}': {}", eventInfo.db, eventInfo.collection, collSubs != null ? collSubs.size() : 0);
                     deliverToSubscribers(collSubs, eventInfo);
                 }
 
@@ -4620,6 +4626,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<ChangeStreamSubscription> dbSubs = changeStreamSubscribers.get(db);
 
         if (dbSubs != null && !dbSubs.isEmpty()) {
+            return true;
+        }
+
+        // Check for database-level watches registered via MorphiumServer (with collection="1")
+        List<ChangeStreamSubscription> dbAllSubs = changeStreamSubscribers.get(db + ".1");
+
+        if (dbAllSubs != null && !dbAllSubs.isEmpty()) {
             return true;
         }
 
