@@ -1329,8 +1329,68 @@ public class MorphiumServer {
 
             log.info("Synced {} documents from {}.{} ({} errors)", count, db, collectionName, errors);
             cursor.close();
+
+            // Sync indexes for this collection
+            syncIndexes(sourceMorphium, db, collectionName);
         } catch (Exception e) {
             log.error("Error syncing collection {}.{}", db, collectionName, e);
+        }
+    }
+
+    /**
+     * Sync indexes from primary to this secondary.
+     * This ensures secondaries have the same indexes for efficient query execution.
+     */
+    private void syncIndexes(Morphium sourceMorphium, String db, String collectionName) {
+        try {
+            var con = sourceMorphium.getDriver().getPrimaryConnection(null);
+
+            // List all indexes from primary
+            var listIdxCmd = new de.caluga.morphium.driver.commands.ListIndexesCommand(con)
+                .setDb(db)
+                .setColl(collectionName);
+            var indexes = listIdxCmd.execute();
+
+            if (indexes == null || indexes.isEmpty()) {
+                log.debug("No indexes to sync for {}.{}", db, collectionName);
+                return;
+            }
+
+            int synced = 0;
+            for (var idx : indexes) {
+                // Skip the _id index - it's created automatically
+                String idxName = idx.getName();
+                if (idxName != null && idxName.equals("_id_")) {
+                    continue;
+                }
+
+                Map<String, Object> key = idx.getKey();
+                if (key == null || key.isEmpty()) {
+                    continue;
+                }
+
+                try {
+                    // Build options map from IndexDescription
+                    Map<String, Object> options = new java.util.HashMap<>();
+                    if (idx.getName() != null) options.put("name", idx.getName());
+                    if (idx.getUnique() != null && idx.getUnique()) options.put("unique", true);
+                    if (idx.getSparse() != null && idx.getSparse()) options.put("sparse", true);
+                    if (idx.getExpireAfterSeconds() != null) options.put("expireAfterSeconds", idx.getExpireAfterSeconds());
+                    if (idx.getWeights() != null) options.put("weights", idx.getWeights());
+
+                    drv.createIndex(db, collectionName, key, options);
+                    synced++;
+                    log.debug("Synced index {} on {}.{}", idxName, db, collectionName);
+                } catch (Exception e) {
+                    log.warn("Failed to create index {} on {}.{}: {}", idxName, db, collectionName, e.getMessage());
+                }
+            }
+
+            if (synced > 0) {
+                log.info("Synced {} indexes for {}.{}", synced, db, collectionName);
+            }
+        } catch (Exception e) {
+            log.warn("Error syncing indexes for {}.{}: {}", db, collectionName, e.getMessage());
         }
     }
 }
