@@ -54,6 +54,8 @@ mvn test -Dmorphium.driver=inmem
 - ✅ **Pipeline Filtering**: Filter events with aggregation pipelines
 - ✅ **Full Document Support**: Access complete document in change events
 - ✅ **Database-scoped Sharing**: Optional driver sharing for multiple Morphium instances (opt-in)
+- ✅ **Database-level Watches**: Watch all collections in a database (v6.1.0)
+- ✅ **MorphiumServer Integration**: Full change stream support via wire protocol (v6.1.0)
 
 ### Messaging System (v6.0)
 - ✅ **StandardMessaging**: Single-collection messaging with change streams
