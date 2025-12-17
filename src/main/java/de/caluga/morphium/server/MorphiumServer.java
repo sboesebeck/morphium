@@ -781,6 +781,15 @@ public class MorphiumServer {
                         answer = Doc.of("ok", 1.0);
                         break;
 
+                    case "listDatabases":
+                        // Return list of databases from the in-memory driver
+                        List<Map<String, Object>> dbList = new ArrayList<>();
+                        for (String dbName : drv.listDatabases()) {
+                            dbList.add(Doc.of("name", dbName, "sizeOnDisk", 0, "empty", false));
+                        }
+                        answer = Doc.of("databases", dbList, "totalSize", 0, "ok", 1.0);
+                        break;
+
                     case "endSessions":
                         // Session management - just acknowledge since we don't track sessions
                         answer = Doc.of("ok", 1.0);
