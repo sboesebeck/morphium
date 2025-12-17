@@ -4838,6 +4838,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return false;
             }
 
+            // Database-level watch: collection="1" means watch all collections in this db
+            if ("1".equals(collection)) {
+                return true;
+            }
+
             if (collection == null) {
                 return true;
             }
