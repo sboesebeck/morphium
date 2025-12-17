@@ -69,7 +69,7 @@ public class MorphiumServer {
     private volatile boolean initialSyncDone = true;
     private static final Set<String> WRITE_COMMANDS = Set.of(
                         "insert", "update", "delete", "findandmodify",
-                        "createindexes", "create", "drop", "dropindexes", "bulkwrite"
+                        "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
         );
 
     // Note: Each MorphiumServer instance has its own isolated InMemoryDriver.
@@ -916,6 +916,10 @@ public class MorphiumServer {
                                 answer = Doc.of("ok", 1.0, "cursor", initialCursor);
                                 // Skip normal command processing
                             } else {
+                                // Log database drop commands at INFO level for debugging test isolation issues
+                                if (cmd.equalsIgnoreCase("dropDatabase") || cmd.equalsIgnoreCase("drop")) {
+                                    log.info("MorphiumServer: Processing {} command for db={}, coll={}", cmd, doc.get("$db"), doc.get(cmd));
+                                }
                                 log.debug("MorphiumServer: Executing command '{}' with filter: {}", cmd, doc.get("filter"));
                                 msgid.set(drv.runCommand(new GenericCommand(drv).fromMap(doc)));
                                 log.debug("MorphiumServer: Command returned msgid={}, reading answer...", msgid.get());
