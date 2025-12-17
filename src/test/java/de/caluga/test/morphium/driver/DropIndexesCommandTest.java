@@ -78,7 +78,7 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
                 found = indexes.stream().anyMatch(idx -> "myfield_1".equals(idx.getName()));
                 assertThat(found).as("Index should not exist after drop").isFalse();
             } finally {
-                conn.release();
+                conn.close();
                 // Cleanup
                 morphium.dropCollection(TestDoc.class, coll, null);
             }
@@ -134,7 +134,7 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
                     assertThat(name).isIn("_id_", "_id_1");
                 }
             } finally {
-                conn.release();
+                conn.close();
                 morphium.dropCollection(TestDoc.class, coll, null);
             }
         }
@@ -171,7 +171,7 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
                 assertThat(result.get("ok")).isIn(0, 0.0);
                 assertThat(result.get("errmsg")).isNotNull();
             } finally {
-                conn.release();
+                conn.close();
                 morphium.dropCollection(TestDoc.class, coll, null);
             }
         }
