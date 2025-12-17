@@ -360,6 +360,24 @@ public class HelloResult {
         return this;
     }
 
+    public Boolean getMorphiumServer() {
+        return morphiumServer;
+    }
+
+    public HelloResult setMorphiumServer(Boolean morphiumServer) {
+        this.morphiumServer = morphiumServer;
+        return this;
+    }
+
+    public Boolean getInMemoryBackend() {
+        return inMemoryBackend;
+    }
+
+    public HelloResult setInMemoryBackend(Boolean inMemoryBackend) {
+        this.inMemoryBackend = inMemoryBackend;
+        return this;
+    }
+
     @Override
     public String toString() {
         return "HelloResult{" +

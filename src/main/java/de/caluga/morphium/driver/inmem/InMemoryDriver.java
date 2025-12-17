@@ -1973,6 +1973,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
+    public boolean isInMemoryBackend() {
+        return true;
+    }
+
+    @Override
     public int getMaxBsonObjectSize() {
         return Integer.MAX_VALUE;
     }

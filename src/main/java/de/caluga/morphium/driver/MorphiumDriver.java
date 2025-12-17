@@ -52,6 +52,13 @@ public interface MorphiumDriver extends Closeable {
 
     void setReplicaSet(boolean replicaSet);
 
+    /**
+     * Returns true if the backend is an InMemory database (either InMemoryDriver directly
+     * or connecting to a MorphiumServer with InMemory backend).
+     * This is useful for tests that need to skip features not supported by the InMemory backend.
+     */
+    boolean isInMemoryBackend();
+
     boolean getDefaultJ();
 
     int getDefaultWriteTimeout();
