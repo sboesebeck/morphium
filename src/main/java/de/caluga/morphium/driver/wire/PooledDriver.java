@@ -105,6 +105,7 @@ public class PooledDriver extends DriverBase {
     private volatile String fastestHost = null;
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private volatile String primaryNode;
+    private volatile boolean inMemoryBackend = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
         Thread.ofVirtual().name("MCon-", 0).factory());
 
@@ -277,6 +278,11 @@ public class PooledDriver extends DriverBase {
         if (!running) return;
         if (hello == null)
             return;
+
+        // Check if connected to InMemory backend (MorphiumServer with InMemory)
+        if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
+            inMemoryBackend = true;
+        }
 
         // Keep track of server-advertised vs reachable names.
         registerAlias(hello.getMe(), hostConnected);
@@ -1049,6 +1055,11 @@ public class PooledDriver extends DriverBase {
     @Override
     public String getName() {
         return driverName;
+    }
+
+    @Override
+    public boolean isInMemoryBackend() {
+        return inMemoryBackend;
     }
 
     @Override

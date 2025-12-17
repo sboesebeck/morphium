@@ -94,6 +94,11 @@ public class DriverMock implements MorphiumDriver {
     }
 
     @Override
+    public boolean isInMemoryBackend() {
+        return false;
+    }
+
+    @Override
     public boolean getDefaultJ() {
         return false;
     }
