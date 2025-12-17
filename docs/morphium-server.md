@@ -502,6 +502,48 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
      --port 27017
 ```
 
+## Supported Admin Commands
+
+MorphiumServer implements the following MongoDB admin commands:
+
+| Command | Description |
+|---------|-------------|
+| `ping` | Basic connectivity test |
+| `hello` / `isMaster` / `ismaster` | Server status and topology information |
+| `listDatabases` | List all databases with sizes |
+| `buildInfo` | Server version information |
+| `getCmdLineOpts` | Command line options |
+| `getParameter` | Server parameters |
+| `getLog` | Server logs |
+| `replSetStepDown` | Step down from primary (for replica sets) |
+| `startSession` / `endSessions` / `refreshSessions` | Session management |
+| `getMore` | Cursor iteration (including change streams) |
+
+### Standalone Server Behavior
+
+When running MorphiumServer as a standalone server (without replica set configuration):
+
+- The server always reports itself as primary (`isWritablePrimary: true`)
+- `replSetStepDown` commands are acknowledged but the server immediately becomes primary again
+- This ensures compatibility with clients and tests that issue replica set commands
+
+### Change Stream Support
+
+MorphiumServer fully supports change streams for real-time notifications:
+
+- **Collection-level watches**: Watch changes on a specific collection
+- **Database-level watches**: Watch all collections in a database
+- **Cluster-level watches**: Watch all databases
+
+Example with mongosh:
+```javascript
+// Watch a collection
+db.users.watch().on('change', console.log);
+
+// Watch entire database
+db.watch().on('change', console.log);
+```
+
 ## Limitations
 
 ### Data Persistence

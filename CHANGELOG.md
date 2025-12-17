@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Programmatic API: `setDumpDirectory()`, `setDumpIntervalMs()`, `dumpNow()`, `restoreFromDump()`
 
 ### Fixed
+- **MorphiumServer listDatabases**: Added explicit handler for `listDatabases` command in MorphiumServer. Previously this command returned null when forwarded through GenericCommand, causing NullPointerException in tests that call `morphium.listDatabases()`
+- **MorphiumServer stepDown for standalone servers**: Standalone MorphiumServer instances (no replica set configured) now immediately become primary again after receiving a `replSetStepDown` command. Previously, stepDown would leave the server in secondary state with no way to recover, causing "no primary" errors for subsequent operations
+- **InMemoryDriver database-level change streams via MorphiumServer**: Fixed change stream event delivery for database-level watches registered through MorphiumServer. When a client creates a database-level watch via the wire protocol, MongoDB convention sets collection to "1". The InMemoryDriver now correctly delivers events to subscribers registered under the `db.1` namespace key
 - **Message sending to self**: Fixed broken message sending when sender equals recipient
 - **Deadlocks**: Fixed multiple deadlock scenarios in messaging and server components
 - **Robust shutdown**: Improved shutdown handling across components
