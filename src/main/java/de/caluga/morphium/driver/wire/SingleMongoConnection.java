@@ -164,7 +164,7 @@ public class SingleMongoConnection implements MongoConnection {
                 cmd.setIncludeClient(false);
             }
 
-            cmd.setLoadBalanced(true);
+            cmd.setLoadBalanced(false);
             OpMsg msg = new OpMsg();
             msg.setMessageId(msgId.incrementAndGet());
             msg.setFirstDoc(cmd.asMap());

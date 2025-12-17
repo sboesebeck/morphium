@@ -918,7 +918,9 @@ public class MorphiumServer {
                             } else {
                                 // Log database drop commands at INFO level for debugging test isolation issues
                                 if (cmd.equalsIgnoreCase("dropDatabase") || cmd.equalsIgnoreCase("drop")) {
-                                    log.info("MorphiumServer: Processing {} command for db={}, coll={}", cmd, doc.get("$db"), doc.get(cmd));
+                                    log.info("MorphiumServer[{}:{}]: Processing {} command for db={}, coll={}, drvHash={}",
+                                             host, port, cmd, doc.get("$db"), doc.get(cmd), System.identityHashCode(drv));
+                                    log.info("MorphiumServer[{}:{}]: Databases BEFORE drop: {}", host, port, drv.listDatabases());
                                 }
                                 log.debug("MorphiumServer: Executing command '{}' with filter: {}", cmd, doc.get("filter"));
                                 msgid.set(drv.runCommand(new GenericCommand(drv).fromMap(doc)));
@@ -927,6 +929,10 @@ public class MorphiumServer {
                                 log.debug("MorphiumServer: Got answer: {}", crs != null ? "cursor with " + (crs.containsKey("cursor") ? "data" : "no cursor") : "null");
                                 answer = Doc.of("ok", 1.0);
                                 if (crs != null) answer.putAll(crs);
+                                // Log after drop
+                                if (cmd.equalsIgnoreCase("dropDatabase") || cmd.equalsIgnoreCase("drop")) {
+                                    log.info("MorphiumServer[{}:{}]: Databases AFTER drop: {}", host, port, drv.listDatabases());
+                                }
                             }
                         } catch (Exception e) {
                             // Check if it's a duplicate key error for write commands
