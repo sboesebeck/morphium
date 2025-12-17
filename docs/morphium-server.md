@@ -517,7 +517,7 @@ MorphiumServer implements the following MongoDB admin commands:
 | `getLog` | Server logs |
 | `replSetStepDown` | Step down from primary (for replica sets) |
 | `startSession` / `endSessions` / `refreshSessions` | Session management |
-| `getMore` | Cursor iteration (including change streams) |
+| `getMore` | Cursor iteration for both regular queries and change streams |
 
 ### Standalone Server Behavior
 

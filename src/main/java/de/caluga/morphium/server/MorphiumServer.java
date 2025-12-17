@@ -819,9 +819,10 @@ public class MorphiumServer {
                         String getMoreDb = (String) doc.get("$db");
 
                         var queue = watchCursors.get(getMoreCursorId);
-                        List<Map<String, Object>> batch = new ArrayList<>();
 
                         if (queue != null) {
+                            // This is a change stream cursor - handle with blocking queue
+                            List<Map<String, Object>> batch = new ArrayList<>();
                             try {
                                 // Wait for first event with timeout
                                 Map<String, Object> event = queue.poll(maxTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
@@ -834,10 +835,16 @@ public class MorphiumServer {
                             } catch (InterruptedException ie) {
                                 Thread.currentThread().interrupt();
                             }
+                            var getMoreCursor = Doc.of("nextBatch", batch, "ns", getMoreDb + "." + getMoreCollection, "id", getMoreCursorId);
+                            answer = Doc.of("ok", 1.0, "cursor", getMoreCursor);
+                        } else {
+                            // Not a change stream cursor - forward to InMemoryDriver for regular query cursors
+                            log.debug("getMore for regular cursor {} - forwarding to driver", getMoreCursorId);
+                            int getMoreMsgId = drv.runCommand(new GenericCommand(drv).fromMap(doc));
+                            var crs = drv.readSingleAnswer(getMoreMsgId);
+                            answer = Doc.of("ok", 1.0);
+                            if (crs != null) answer.putAll(crs);
                         }
-
-                        var getMoreCursor = Doc.of("nextBatch", batch, "ns", getMoreDb + "." + getMoreCollection, "id", getMoreCursorId);
-                        answer = Doc.of("ok", 1.0, "cursor", getMoreCursor);
                         break;
 
                     case "replSetStepDown":
