@@ -123,11 +123,10 @@ public final class TestConfig {
                 cfg.clusterSettings().addHostToSeed(s.trim());
             }
         } else {
-            // default replicaset-ish local setup
+            // Default to single host for simpler test setup
+            // Use morphium.hostSeed property or MORPHIUM_HOSTSEED env to configure replica set
             cfg.clusterSettings()
-               .addHostToSeed("localhost", 27017)
-               .addHostToSeed("localhost", 27018)
-               .addHostToSeed("localhost", 27019);
+               .addHostToSeed("localhost", 27017);
         }
 
         applyExplicitAuth(cfg, props, true);

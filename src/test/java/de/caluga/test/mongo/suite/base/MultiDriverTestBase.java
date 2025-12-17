@@ -211,7 +211,12 @@ public class MultiDriverTestBase {
             // "database is in the process of being dropped" errors and data loss.
             String basePrefix = System.getProperty("morphium.database");
             if (basePrefix == null || basePrefix.isBlank()) {
-                basePrefix = m.getConfig().connectionSettings().getDatabase();
+                // Get the configured database name and strip trailing _N suffix to get base prefix
+                String dbName = m.getConfig().connectionSettings().getDatabase();
+                if (dbName != null && !dbName.isBlank()) {
+                    // Strip trailing _N (e.g., "morphium_tests_2" -> "morphium_tests")
+                    basePrefix = dbName.replaceAll("_\\d+$", "");
+                }
             }
             if (basePrefix == null || basePrefix.isBlank()) {
                 basePrefix = "morphium_test";
@@ -221,10 +226,12 @@ public class MultiDriverTestBase {
             var allDbs = m.listDatabases();
             if (allDbs == null) continue;
 
-            log.info("Database cleanup for {}: prefix='{}', existing databases={}",
-                     m.getDriver().getName(), prefix, allDbs);
+            log.info("Database cleanup for {}: prefix='{}', morphiumDb='{}', existing databases={}",
+                     m.getDriver().getName(), prefix, m.getConfig().connectionSettings().getDatabase(), allDbs);
             int droppedCount = 0;
-            for (String db : allDbs) {
+            // Make a copy to avoid ConcurrentModificationException
+            List<String> dbsToCheck = new ArrayList<>(allDbs);
+            for (String db : dbsToCheck) {
                 if (db.equals(prefix) || db.startsWith(prefix + "_")) {
                     log.info(m.getDriver().getName() + ": Dropping db " + db);
 
@@ -260,6 +267,21 @@ public class MultiDriverTestBase {
             }
             log.info("Database cleanup complete for {}: dropped {} databases, remaining={}",
                      m.getDriver().getName(), droppedCount, m.listDatabases());
+
+            // Also explicitly drop this morphium's own database to ensure it's clean
+            String ownDb = m.getConfig().connectionSettings().getDatabase();
+            if (ownDb != null && !ownDb.isBlank()) {
+                try {
+                    log.info("{}: Also dropping own database '{}' to ensure clean state", m.getDriver().getName(), ownDb);
+                    DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
+                    cmd.setDb(ownDb);
+                    cmd.setComment("Clean own database");
+                    cmd.execute();
+                    cmd.releaseConnection();
+                } catch (Exception e) {
+                    log.debug("Error dropping own database (may not exist): {}", e.getMessage());
+                }
+            }
         }
 
         return morphiums.stream();
@@ -355,8 +377,19 @@ public class MultiDriverTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         long existingCount = q.countAll();
         if (existingCount > 0) {
-            log.warn("createUncachedObjects: Collection already has {} objects before insert! DB={}",
-                     existingCount, morphium.getConfig().connectionSettings().getDatabase());
+            log.warn("createUncachedObjects: Collection already has {} objects before insert! DB={}, driver={}, driverHash={}",
+                     existingCount, morphium.getConfig().connectionSettings().getDatabase(),
+                     morphium.getDriver().getName(), System.identityHashCode(morphium.getDriver()));
+            // Try to drop the collection to ensure clean state
+            log.warn("Attempting to drop collection to ensure clean state...");
+            try {
+                morphium.dropCollection(UncachedObject.class);
+                Thread.sleep(200);
+                long afterDrop = q.countAll();
+                log.warn("After explicit collection drop: {} objects remain", afterDrop);
+            } catch (Exception e) {
+                log.error("Failed to drop collection", e);
+            }
         }
 
         List<UncachedObject> lst = new ArrayList<>();
