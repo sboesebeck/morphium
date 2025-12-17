@@ -1211,7 +1211,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         for (String coll : database.get(cmd.getDb()).keySet()) {
-            cursorData.add(Doc.of("name", coll, "type", "collection", "options", new Doc(), "info",
+            // Build options map - include capped status if applicable
+            Doc options = new Doc();
+            if (cappedCollections.containsKey(cmd.getDb()) && cappedCollections.get(cmd.getDb()).containsKey(coll)) {
+                options.put("capped", true);
+                Map<String, Integer> cappedInfo = cappedCollections.get(cmd.getDb()).get(coll);
+                if (cappedInfo.containsKey("size")) {
+                    options.put("size", cappedInfo.get("size"));
+                }
+                if (cappedInfo.containsKey("max")) {
+                    options.put("max", cappedInfo.get("max"));
+                }
+            }
+            cursorData.add(Doc.of("name", coll, "type", "collection", "options", options, "info",
                                   Doc.of("readonly", false, "UUID", UUID.randomUUID())).add("idIndex",
                                           Doc.of("v", 2.0, "key", Doc.of("_id", 1), "name", "_id_1", "ns",
                                                  cmd.getDb() + "." + coll)));
@@ -5530,6 +5542,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public boolean isCapped(String db, String coll) {
         return cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(coll);
+    }
+
+    /**
+     * Register a collection as capped. Used for replication to sync capped collection metadata.
+     */
+    public void registerCappedCollection(String db, String coll, int size, int max) {
+        cappedCollections.putIfAbsent(db, new HashMap<>());
+        cappedCollections.get(db).putIfAbsent(coll, new HashMap<>());
+        cappedCollections.get(db).get(coll).put("size", size);
+        cappedCollections.get(db).get(coll).put("max", max);
     }
 
     @Override

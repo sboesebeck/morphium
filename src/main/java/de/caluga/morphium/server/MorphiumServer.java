@@ -879,10 +879,10 @@ public class MorphiumServer {
                                 break;
                             }
 
-                            // Forward listIndexes to primary when running as secondary
-                            // This is needed because indexes are only created on primary
-                            if (!primary && cmd.equalsIgnoreCase("listindexes") && primaryHost != null) {
-                                answer = forwardListIndexesToPrimary(doc);
+                            // Forward listIndexes and listCollections to primary when running as secondary
+                            // This is needed because indexes and collection metadata (capped status) are only created on primary
+                            if (!primary && (cmd.equalsIgnoreCase("listindexes") || cmd.equalsIgnoreCase("listcollections")) && primaryHost != null) {
+                                answer = forwardCommandToPrimary(doc, cmd);
                                 if (answer != null) {
                                     break;
                                 }
@@ -1142,10 +1142,10 @@ public class MorphiumServer {
     }
 
     /**
-     * Forward listIndexes command to primary server.
+     * Forward a command to primary server.
      * Uses short timeout to avoid hanging. Returns null on failure (caller should fall back to local execution).
      */
-    private Map<String, Object> forwardListIndexesToPrimary(Map<String, Object> doc) {
+    private Map<String, Object> forwardCommandToPrimary(Map<String, Object> doc, String cmdName) {
         if (primaryHost == null || primaryHost.isEmpty()) {
             return null;
         }
@@ -1160,7 +1160,7 @@ public class MorphiumServer {
 
             var conn = driver.getPrimaryConnection(null);
             if (conn == null) {
-                log.debug("Could not get connection to primary for listIndexes forwarding");
+                log.debug("Could not get connection to primary for {} forwarding", cmdName);
                 return null;
             }
 
@@ -1170,11 +1170,11 @@ public class MorphiumServer {
             cmd.releaseConnection();
 
             if (response != null) {
-                log.debug("Forwarded listIndexes to primary successfully");
+                log.debug("Forwarded {} to primary successfully", cmdName);
                 return response;
             }
         } catch (Exception e) {
-            log.debug("Failed to forward listIndexes to primary: {}", e.getMessage());
+            log.debug("Failed to forward {} to primary: {}", cmdName, e.getMessage());
         } finally {
             if (driver != null) {
                 try {
@@ -1274,6 +1274,29 @@ public class MorphiumServer {
                                     Object id = docKey instanceof Map ? ((Map <?, ? >) docKey).get("_id") : docKey;
                                     drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", updated), false, false, null, null);
                                 }
+                            } else if (evt.getOperationType().equals("replace")) {
+                                // Handle document replacement
+                                var fullDoc = evt.getFullDocument();
+                                if (fullDoc != null) {
+                                    Object docKey = evt.getDocumentKey();
+                                    Object id = docKey instanceof Map ? ((Map<?, ?>) docKey).get("_id") : docKey;
+                                    drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", fullDoc), false, true, null, null);
+                                }
+                            } else if (evt.getOperationType().equals("drop")) {
+                                // Handle collection drop
+                                log.info("Replicating collection drop: {}.{}", db, coll);
+                                drv.drop(db, coll, null);
+                            } else if (evt.getOperationType().equals("dropDatabase")) {
+                                // Handle database drop
+                                log.info("Replicating database drop: {}", db);
+                                drv.drop(db, null);
+                            } else if (evt.getOperationType().equals("rename")) {
+                                // Handle collection rename - drop old, will be synced as new collection
+                                log.info("Replicating collection rename (dropping old): {}.{}", db, coll);
+                                drv.drop(db, coll, null);
+                            } else if (evt.getOperationType().equals("invalidate")) {
+                                // Change stream invalidated - need to restart replication
+                                log.warn("Change stream invalidated, replication may need restart");
                             }
                         } catch (MorphiumDriverException e) {
                             log.error("Replication error: {}", e.getMessage());
@@ -1325,6 +1348,15 @@ public class MorphiumServer {
                 String collectionName = (String) collInfo.get("name");
                 if (collectionName == null || collectionName.startsWith("system.")) {
                     continue;
+                }
+
+                // Check if collection is capped and sync capped metadata
+                Map<String, Object> options = (Map<String, Object>) collInfo.get("options");
+                if (options != null && Boolean.TRUE.equals(options.get("capped"))) {
+                    int size = options.get("size") != null ? ((Number) options.get("size")).intValue() : 1000000;
+                    int max = options.get("max") != null ? ((Number) options.get("max")).intValue() : 0;
+                    log.info("Registering capped collection: {}.{} (size={}, max={})", db, collectionName, size, max);
+                    drv.registerCappedCollection(db, collectionName, size, max);
                 }
 
                 log.info("Syncing collection: {}.{}", db, collectionName);
@@ -1382,12 +1414,12 @@ public class MorphiumServer {
     }
 
     /**
-     * Start a background thread that periodically syncs indexes from primary.
-     * This ensures new indexes created on primary are replicated to secondaries.
+     * Start a background thread that periodically syncs indexes and collection metadata from primary.
+     * This ensures new indexes and capped collections created on primary are replicated to secondaries.
      */
     private void startPeriodicIndexSync(Morphium sourceMorphium) {
         Thread indexSyncThread = new Thread(() -> {
-            log.info("Starting periodic index sync thread (interval: 30s)");
+            log.info("Starting periodic metadata sync thread (interval: 30s)");
             while (running && !primary) {
                 try {
                     Thread.sleep(30000);  // Sync every 30 seconds
@@ -1405,19 +1437,22 @@ public class MorphiumServer {
                             var con = sourceMorphium.getDriver().getPrimaryConnection(null);
                             var listCmd = new de.caluga.morphium.driver.commands.ListCollectionsCommand(con)
                                 .setDb(db)
-                                .setNameOnly(true);
+                                .setNameOnly(false);  // Need full info for capped status
                             var collections = listCmd.execute();
 
                             if (collections != null) {
                                 for (Map<String, Object> collInfo : collections) {
                                     String collName = (String) collInfo.get("name");
                                     if (collName != null && !collName.startsWith("system.")) {
+                                        // Sync capped collection metadata
+                                        syncCappedCollectionMetadata(db, collName, collInfo);
+                                        // Sync indexes
                                         syncIndexesWithDeletion(sourceMorphium, db, collName);
                                     }
                                 }
                             }
                         } catch (Exception e) {
-                            log.debug("Error during periodic index sync for db {}: {}", db, e.getMessage());
+                            log.debug("Error during periodic metadata sync for db {}: {}", db, e.getMessage());
                         }
                     }
                 } catch (InterruptedException e) {
@@ -1427,10 +1462,31 @@ public class MorphiumServer {
                     log.debug("Error in periodic index sync: {}", e.getMessage());
                 }
             }
-            log.info("Periodic index sync thread stopped");
-        }, "index-sync-thread");
+            log.info("Periodic metadata sync thread stopped");
+        }, "metadata-sync-thread");
         indexSyncThread.setDaemon(true);
         indexSyncThread.start();
+    }
+
+    /**
+     * Sync capped collection metadata from primary.
+     * If the collection is capped on primary but not locally, register it as capped.
+     */
+    private void syncCappedCollectionMetadata(String db, String collectionName, Map<String, Object> collInfo) {
+        try {
+            Map<String, Object> options = (Map<String, Object>) collInfo.get("options");
+            if (options != null && Boolean.TRUE.equals(options.get("capped"))) {
+                // Check if already capped locally
+                if (!drv.isCapped(db, collectionName)) {
+                    int size = options.get("size") != null ? ((Number) options.get("size")).intValue() : 1000000;
+                    int max = options.get("max") != null ? ((Number) options.get("max")).intValue() : 0;
+                    log.info("Syncing capped collection metadata: {}.{} (size={}, max={})", db, collectionName, size, max);
+                    drv.registerCappedCollection(db, collectionName, size, max);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Error syncing capped collection metadata for {}.{}: {}", db, collectionName, e.getMessage());
+        }
     }
 
     /**
