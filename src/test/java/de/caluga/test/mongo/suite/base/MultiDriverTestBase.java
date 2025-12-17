@@ -198,14 +198,13 @@ public class MultiDriverTestBase {
             log.info("No morphium instances created for requested driver configuration");
             return morphiums.stream();
         }
-        if (((Morphium) morphiums.get(0).get()[0]).getDriver() instanceof InMemoryDriver) {
-            log.info("Not erasing DBs - inMem");
-        } else {
-            Morphium m = (Morphium) morphiums.get(0).get()[0];
 
-            if (m == null) return morphiums.stream();
-
-            if (m.listDatabases() == null) return morphiums.stream();
+        // Clean databases for ALL morphium instances, not just the first one.
+        // This is critical because PooledDriver→MorphiumServer and InMemoryDriver
+        // are completely separate storage systems.
+        for (Arguments arg : morphiums) {
+            Morphium m = (Morphium) arg.get()[0];
+            if (m == null) continue;
 
             // When running tests in parallel slots, each slot uses its own base DB prefix (e.g. morphium_test_1).
             // Never drop all "morphium*" DBs globally, otherwise different slots will fight each other and create
@@ -219,7 +218,13 @@ public class MultiDriverTestBase {
             }
             final String prefix = basePrefix;
 
-            for (String db : m.listDatabases()) {
+            var allDbs = m.listDatabases();
+            if (allDbs == null) continue;
+
+            log.info("Database cleanup for {}: prefix='{}', existing databases={}",
+                     m.getDriver().getName(), prefix, allDbs);
+            int droppedCount = 0;
+            for (String db : allDbs) {
                 if (db.equals(prefix) || db.startsWith(prefix + "_")) {
                     log.info(m.getDriver().getName() + ": Dropping db " + db);
 
@@ -229,11 +234,15 @@ public class MultiDriverTestBase {
                         cmd.setComment("Delete for testing");
                         cmd.execute();
                         cmd.releaseConnection();
+                        droppedCount++;
                         // Wait until MongoDB actually finished dropping the database
+                        // Shorter wait for InMemoryDriver since it's synchronous
+                        int maxWait = m.getDriver() instanceof InMemoryDriver ? 1000 : 30_000;
                         long start = System.currentTimeMillis();
-                        while (System.currentTimeMillis() - start < 30_000) {
+                        while (System.currentTimeMillis() - start < maxWait) {
                             try {
                                 if (!m.listDatabases().contains(db)) {
+                                    log.info("Database '{}' confirmed dropped after {}ms", db, System.currentTimeMillis() - start);
                                     break;
                                 }
                                 Thread.sleep(100);
@@ -241,11 +250,16 @@ public class MultiDriverTestBase {
                                 break;
                             }
                         }
+                        if (m.listDatabases().contains(db)) {
+                            log.warn("Database '{}' still exists after {}ms wait!", db, maxWait);
+                        }
                     } catch (MorphiumDriverException e) {
                         log.error(m.getDriver().getName() + " Dropping failed", e);
                     }
                 }
             }
+            log.info("Database cleanup complete for {}: dropped {} databases, remaining={}",
+                     m.getDriver().getName(), droppedCount, m.listDatabases());
         }
 
         return morphiums.stream();
@@ -338,6 +352,13 @@ public class MultiDriverTestBase {
     }
 
     public void createUncachedObjects(Morphium morphium, int amount) {
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        long existingCount = q.countAll();
+        if (existingCount > 0) {
+            log.warn("createUncachedObjects: Collection already has {} objects before insert! DB={}",
+                     existingCount, morphium.getConfig().connectionSettings().getDatabase());
+        }
+
         List<UncachedObject> lst = new ArrayList<>();
 
         for (int i = 0; i < amount; i++) {
@@ -353,16 +374,17 @@ public class MultiDriverTestBase {
         }
 
         morphium.storeList(lst);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
 
-        while (q.countAll() < amount) {
-            log.info("Waiting for data to be stored..." + q.countAll() + "/" + amount);
+        long targetCount = existingCount + amount;
+        while (q.countAll() < targetCount) {
+            log.info("Waiting for data to be stored..." + q.countAll() + "/" + targetCount);
 
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
             }
         }
+        log.info("createUncachedObjects complete: created {} objects, total now {}", amount, q.countAll());
     }
 
     public void createCachedObjects(Morphium morphium, int amount) {
