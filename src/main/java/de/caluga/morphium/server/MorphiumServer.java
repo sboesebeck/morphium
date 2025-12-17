@@ -1048,6 +1048,21 @@ public class MorphiumServer {
         }
 
         log.info("Stepping down {}", host + ":" + port);
+
+        // For standalone servers (no replica set or single host), stepDown is essentially a no-op
+        // since there's no other node to become primary. We briefly step down and immediately
+        // become primary again to simulate MongoDB's behavior for single-member replica sets.
+        boolean isStandalone = rsName == null || rsName.isEmpty() || hosts == null || hosts.size() <= 1;
+
+        if (isStandalone) {
+            log.info("Standalone server - immediately becoming primary again after stepDown");
+            // Reset priority to normal and stay as primary
+            hostPriorities.put(host + ":" + port, 0);
+            primaryHost = host + ":" + port;
+            primary = true;
+            return;
+        }
+
         primary = false;
         hostPriorities.put(host + ":" + port, Integer.MIN_VALUE);
         primaryHost = findPrimaryHost(host + ":" + port);
