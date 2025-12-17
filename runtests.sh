@@ -509,14 +509,22 @@ function _ms_local_start_cluster() {
   local hostports
   hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
   if [ -z "$hostports" ]; then
-    hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+    if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+      hostports="localhost:27017"
+    else
+      hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+    fi
   fi
 
   # Build seed list from the URI host list to support non-default ports.
   local seed
   seed=$(echo "$hostports" | tr '\n' ',' | sed 's/,$//')
 
-  echo -e "${BL}Info:${CL} Starting MorphiumServer replica set ${GN}${rs_name}${CL} (${seed})"
+  if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+    echo -e "${BL}Info:${CL} Starting MorphiumServer single-node (${seed})"
+  else
+    echo -e "${BL}Info:${CL} Starting MorphiumServer replica set ${GN}${rs_name}${CL} (${seed})"
+  fi
 
   local hp
   while IFS= read -r hp; do
@@ -526,7 +534,7 @@ function _ms_local_start_cluster() {
 
     # Only auto-start for local addresses. If the URI points elsewhere, we can't safely start it.
     if [[ "$host" != "localhost" && "$host" != "127.0.0.1" && "$host" != "::1" ]]; then
-      echo -e "${YL}Warning:${CL} --start-morphiumserver-local only starts local hosts; skipping ${host}:${port}"
+      echo -e "${YL}Warning:${CL} --morphium-server only starts local hosts; skipping ${host}:${port}"
       continue
     fi
 
@@ -536,7 +544,13 @@ function _ms_local_start_cluster() {
     fi
 
     local log_file="${pid_dir}/logs/morphiumserver_${port}.log"
-    nohup java -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" >"$log_file" 2>&1 &
+    if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+      # Single-node mode: no replica set arguments
+      nohup java -jar "$jar" --bind "$host" --port "$port" >"$log_file" 2>&1 &
+    else
+      # Replica set mode
+      nohup java -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" >"$log_file" 2>&1 &
+    fi
     local pid=$!
     # Detach from the job table so that the main status loop ignores these helper processes.
     disown
@@ -561,9 +575,6 @@ function _ms_local_start_cluster() {
 
 function _ms_local_cleanup() {
   if [ "${morphiumserverLocalStarted:-0}" -ne 1 ]; then
-    return 0
-  fi
-  if [ "${keepMorphiumserverLocal:-0}" -eq 1 ]; then
     return 0
   fi
 
@@ -606,7 +617,11 @@ function _ms_local_ensure_cluster() {
   local hostports
   hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
   if [ -z "$hostports" ]; then
-    hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+    if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+      hostports="localhost:27017"
+    else
+      hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+    fi
   fi
 
   local all_ok=1
@@ -637,7 +652,8 @@ function _ms_local_ensure_cluster() {
   echo -e "  ${GN}${uri_in}${CL}"
   echo -e ""
   echo -e "Start it first (MongoDB or MorphiumServer), or to auto-start MorphiumServer use:"
-  echo -e "  ${BL}./runtests.sh --morphiumserver-local --start-morphiumserver-local ...${CL}"
+  echo -e "  ${BL}./runtests.sh --morphium-server ...${CL}  (single node, recommended)"
+  echo -e "  ${BL}./runtests.sh --morphium-server-replicaset ...${CL}  (3-node replica set)"
   echo -e ""
   echo -e "Tip: check ports and MorphiumServer logs under ${GN}${morphiumserverLocalPidDir:-.morphiumserver-local}/logs/${CL}"
   exit 1
@@ -664,8 +680,7 @@ explicitRestart=0
 showStats=0
 morphiumserverLocalMode=0
 startMorphiumserverLocal=0
-keepMorphiumserverLocal=0
-allowExistingLocalhostRs=0
+morphiumserverSingleNode=0
 morphiumserverLocalStarted=0
 morphiumserverLocalPidDir=".morphiumserver-local"
 
@@ -695,11 +710,11 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
     echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
-    echo -e "${BL}--morphiumserver-local$CL - use default localhost replica set URI (MongoDB or MorphiumServer)"
-    echo -e "${BL}--localhost-rs$CL       - alias for --morphiumserver-local"
-    echo -e "${BL}--start-morphiumserver-local$CL - auto-start local MorphiumServer cluster if needed (idempotent)"
-    echo -e "${BL}--keep-morphiumserver-local$CL  - keep locally started cluster running after tests"
-    echo -e "${BL}--allow-existing-localhost-rs$CL - deprecated (no-op; auto-start always allows existing listeners)"
+    echo -e "${BL}--morphium-server$CL    - start single MorphiumServer on localhost:27017"
+    echo -e "${BL}--morphium-server-replicaset$CL - start 3-node MorphiumServer replica set (27017-27019)"
+    echo -e "                     ${YL}NOTE:${CL} Replica set mode has limited data sync - prefer single node for testing"
+    echo -e "${BL}--morphiumserver-local$CL - alias for --morphium-server-replicaset (deprecated)"
+    echo -e "${BL}--localhost-rs$CL       - alias for --morphium-server-replicaset (deprecated)"
     echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
     echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
@@ -720,7 +735,8 @@ while [ "q$1" != "q" ]; do
     echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
     echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
     echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
-    echo -e "  ${BL}./runtests.sh --morphiumserver-local${CL}        # Local replica set URI (localhost:27017-27019)"
+    echo -e "  ${BL}./runtests.sh --morphium-server${CL}             # Single-node MorphiumServer (recommended)"
+    echo -e "  ${BL}./runtests.sh --morphium-server-replicaset${CL}  # 3-node MorphiumServer replica set"
     echo
     echo -e "${YL}Parallel Examples:${CL}"
     echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
@@ -793,19 +809,23 @@ while [ "q$1" != "q" ]; do
   elif [ "q$1" == "q--external" ]; then
     useExternal=1
     shift
-  elif [ "q$1" == "q--start-morphiumserver-local" ]; then
+  elif [ "q$1" == "q--morphium-server" ]; then
+    # Single-node MorphiumServer on localhost:27017 (recommended for testing)
     startMorphiumserverLocal=1
+    morphiumserverSingleNode=1
+    useExternal=1
+    if [ -z "$uri" ]; then
+      uri="mongodb://localhost:27017/morphium_tests"
+    fi
+    if [ -z "$driver" ]; then
+      driver="pooled"
+    fi
     shift
-  elif [ "q$1" == "q--keep-morphiumserver-local" ]; then
-    keepMorphiumserverLocal=1
-    shift
-  elif [ "q$1" == "q--allow-existing-localhost-rs" ]; then
-    # Deprecated: auto-start is idempotent and will use already-listening ports automatically.
-    allowExistingLocalhostRs=1
-    shift
-  elif [ "q$1" == "q--localhost-rs" ]; then
-    # Alias for --morphiumserver-local (default localhost replica set URI + pooled driver).
-    morphiumserverLocalMode=1
+  elif [ "q$1" == "q--morphium-server-replicaset" ] || [ "q$1" == "q--start-morphiumserver-local" ]; then
+    # 3-node MorphiumServer replica set on 27017-27019
+    # Note: Each node has isolated InMemoryDriver - limited data sync between nodes
+    startMorphiumserverLocal=1
+    morphiumserverSingleNode=0
     useExternal=1
     if [ -z "$uri" ]; then
       uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
@@ -814,10 +834,11 @@ while [ "q$1" != "q" ]; do
       driver="pooled"
     fi
     shift
-  elif [ "q$1" == "q--morphiumserver-local" ]; then
-    # Convenience mode for running tests against a local MorphiumServer replica set on 27017-27019.
-    # This option only sets sensible defaults (URI + pooled driver) and leaves tag filtering up to the caller.
-    morphiumserverLocalMode=1
+  elif [ "q$1" == "q--localhost-rs" ] || [ "q$1" == "q--morphiumserver-local" ]; then
+    # Deprecated aliases for --morphium-server-replicaset
+    echo -e "${YL}Warning:${CL} $1 is deprecated, use --morphium-server or --morphium-server-replicaset instead"
+    startMorphiumserverLocal=1
+    morphiumserverSingleNode=0
     useExternal=1
     if [ -z "$uri" ]; then
       uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
