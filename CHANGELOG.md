@@ -50,8 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NPE in QueryHelper.matchesQuery**: Fixed null pointer exception when comparing MorphiumId/ObjectId fields against null query values
 - **Flaky test fixes**: Replaced timing-dependent `Thread.sleep()` + assertion patterns with `TestUtils.waitForConditionToBecomeTrue()` polling in messaging and changestream tests
 - **Pooled driver updates**: Updates now apply proper `writeConcern` consistently and single-document updates honor sort
-- **Buffered writer bulk inserts**: Fixed a race where mutating a list after `storeList/insert(list)` could flush as “0 operations” and/or cause duplicate inserts
+- **Buffered writer bulk inserts**: Fixed a race where mutating a list after `storeList/insert(list)` could flush as "0 operations" and/or cause duplicate inserts
 - **Change stream lifecycle**: `ChangeStreamMonitor` no longer misses early events as easily and terminates reliably (stops blocking watches on shutdown)
+- **MorphiumServer dropDatabase handling**: Added "dropdatabase" to WRITE_COMMANDS set so database drops are properly forwarded to primary instead of being rejected by secondaries
+- **Test database cleanup**: Fixed `MultiDriverTestBase` to clean databases for ALL morphium instances (both PooledDriver and InMemoryDriver), not just the first one. Previously only one storage backend was cleaned, causing test isolation failures
+- **GenericCommand key ordering**: Changed `cmdData` from `HashMap` to `LinkedHashMap` in `GenericCommand.fromMap()` to preserve key ordering, which is critical for MongoDB wire protocol where the command name must be the first key
+- **Test configuration default hosts**: Changed `TestConfig` to default to single host (localhost:27017) instead of 3-host replica set for simpler test setup. Multi-node replica sets can still be configured via `morphium.hostSeed` property
 
 ### Changed
 - **Modernized concurrent collections**: Replaced legacy `Vector` with `CopyOnWriteArrayList` and `Hashtable` with `ConcurrentHashMap` for better performance
@@ -87,6 +91,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Buffered I/O**: Added 64KB buffered streams for socket read/write operations
 - **ZLIB decompression buffer**: Increased from 100 bytes to 8KB with pre-sized output buffer
 - **Reduced redundant serialization**: Avoid calling `bytes()` multiple times in logging paths
+
+### Known Limitations
+- **MorphiumServer replica set data synchronization**: When running multiple MorphiumServer instances as a replica set, each instance has its own isolated InMemoryDriver. Data written to the primary is not automatically replicated to secondaries. For testing purposes, use single-node mode or a real MongoDB replica set.
 
 ---
 
