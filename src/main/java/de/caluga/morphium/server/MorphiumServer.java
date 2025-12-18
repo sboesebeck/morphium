@@ -33,6 +33,7 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
@@ -74,6 +75,11 @@ public class MorphiumServer {
     private static final Set<String> READ_COMMANDS = Set.of(
                         "find", "aggregate", "count", "distinct", "countdocuments"
         );
+
+    // Cached connection for forwarding reads to primary (avoids creating new connections per request)
+    private volatile SingleMongoConnectDriver forwardingDriver;
+    private volatile SingleMongoConnection forwardingConnection;
+    private final Object forwardingLock = new Object();
 
     // Note: Each MorphiumServer instance has its own isolated InMemoryDriver.
     // Secondaries will not have the same data as primary unless replication is implemented.
@@ -906,14 +912,17 @@ public class MorphiumServer {
                                 if (readPref instanceof Map) {
                                     String mode = (String) ((Map<?, ?>) readPref).get("mode");
                                     if ("primary".equals(mode) || "primaryPreferred".equals(mode)) {
-                                        log.debug("Forwarding {} to primary (readPreference={})", cmd, mode);
+                                        log.info("Forwarding {} to primary {} (readPreference={})", cmd, primaryHost, mode);
                                         answer = forwardCommandToPrimary(doc, cmd);
                                         if (answer != null) {
                                             break;
                                         }
+                                        log.warn("Forwarding {} failed, falling back to local", cmd);
                                         // Fall through to local execution if forwarding failed
                                     }
                                 }
+                            } else if (READ_COMMANDS.contains(cmd.toLowerCase())) {
+                                log.debug("Not forwarding {}: primary={}, primaryHost={}", cmd, primary, primaryHost);
                             }
 
                             AtomicInteger msgid = new AtomicInteger(0);
@@ -1169,48 +1178,115 @@ public class MorphiumServer {
     }
 
     /**
+     * Get or create a cached connection to the primary for forwarding.
+     */
+    private SingleMongoConnection getForwardingConnection() {
+        // Already inside synchronized block from caller, so just check the cached values
+        if (forwardingConnection != null && forwardingDriver != null) {
+            return forwardingConnection;
+        }
+        try {
+            // Close old driver if exists
+            if (forwardingDriver != null) {
+                try { forwardingDriver.close(); } catch (Exception ignore) {}
+                forwardingDriver = null;
+                forwardingConnection = null;
+            }
+            log.debug("Creating forwarding connection to primary {}", primaryHost);
+            forwardingDriver = new SingleMongoConnectDriver();
+            forwardingDriver.setHostSeed(primaryHost);
+            forwardingDriver.setConnectionTimeout(5000);
+            forwardingDriver.setReadTimeout(30000);
+            forwardingDriver.connect();
+            var conn = forwardingDriver.getPrimaryConnection(null);
+            if (conn == null) {
+                log.warn("getPrimaryConnection returned null for {}", primaryHost);
+                forwardingDriver.close();
+                forwardingDriver = null;
+                return null;
+            }
+            forwardingConnection = (SingleMongoConnection) conn;
+            log.info("Created forwarding connection to primary {}", primaryHost);
+            return forwardingConnection;
+        } catch (Exception e) {
+            log.warn("Failed to create forwarding connection: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            if (forwardingDriver != null) {
+                try { forwardingDriver.close(); } catch (Exception ignore) {}
+                forwardingDriver = null;
+            }
+            forwardingConnection = null;
+            return null;
+        }
+    }
+
+    /**
+     * Reset the forwarding connection (called on error to force reconnect).
+     */
+    private void resetForwardingConnection() {
+        synchronized (forwardingLock) {
+            if (forwardingDriver != null) {
+                try { forwardingDriver.close(); } catch (Exception ignore) {}
+            }
+            forwardingDriver = null;
+            forwardingConnection = null;
+        }
+    }
+
+    /**
      * Forward a command to primary server.
-     * Uses short timeout to avoid hanging. Returns null on failure (caller should fall back to local execution).
+     * Uses cached connection for efficiency. Synchronized to prevent concurrent access issues.
+     * Returns null on failure (caller should fall back to local execution).
      */
     private Map<String, Object> forwardCommandToPrimary(Map<String, Object> doc, String cmdName) {
         if (primaryHost == null || primaryHost.isEmpty()) {
             return null;
         }
 
-        SingleMongoConnectDriver driver = null;
-        try {
-            driver = new SingleMongoConnectDriver();
-            driver.setHostSeed(primaryHost);
-            driver.setConnectionTimeout(2000);  // Short timeout
-            driver.setReadTimeout(3000);
-            driver.connect();
-
-            var conn = driver.getPrimaryConnection(null);
-            if (conn == null) {
-                log.debug("Could not get connection to primary for {} forwarding", cmdName);
-                return null;
-            }
-
-            GenericCommand cmd = new GenericCommand(conn).fromMap(doc);
-            int msgid = conn.sendCommand(cmd);
-            Map<String, Object> response = conn.readSingleAnswer(msgid);
-            cmd.releaseConnection();
-
-            if (response != null) {
-                log.debug("Forwarded {} to primary successfully", cmdName);
-                return response;
-            }
-        } catch (Exception e) {
-            log.debug("Failed to forward {} to primary: {}", cmdName, e.getMessage());
-        } finally {
-            if (driver != null) {
-                try {
-                    driver.close();
-                } catch (Exception ignore) {
+        // Synchronize to prevent multiple threads from using the connection simultaneously
+        synchronized (forwardingLock) {
+            try {
+                var conn = getForwardingConnection();
+                if (conn == null) {
+                    log.warn("Could not get forwarding connection for {}", cmdName);
+                    return null;
                 }
+
+                GenericCommand cmd = new GenericCommand(conn).fromMap(doc);
+                conn.sendCommand(cmd);
+
+                // Read the full response without cursor extraction
+                var reply = conn.readNextMessage(forwardingDriver.getReadTimeout());
+
+                if (reply == null) {
+                    log.warn("Forwarding {} got null reply, resetting connection", cmdName);
+                    resetForwardingConnection();
+                    return null;
+                }
+                if (reply.getFirstDoc() == null) {
+                    log.warn("Forwarding {} got null firstDoc, resetting connection", cmdName);
+                    resetForwardingConnection();
+                    return null;
+                }
+
+                Map<String, Object> response = reply.getFirstDoc();
+                // Log response details for debugging
+                if (response.containsKey("cursor")) {
+                    var cursor = (Map<?, ?>) response.get("cursor");
+                    var batch = cursor.get("firstBatch");
+                    if (batch instanceof List) {
+                        log.debug("Forwarded {} to primary: cursor with {} results", cmdName, ((List<?>) batch).size());
+                    }
+                } else {
+                    log.debug("Forwarded {} to primary successfully: {}", cmdName, response.keySet());
+                }
+                return response;
+            } catch (Exception e) {
+                log.warn("Failed to forward {} to primary: {} - {}", cmdName, e.getClass().getSimpleName(), e.getMessage());
+                // Reset connection on error to force reconnect next time
+                resetForwardingConnection();
             }
+            return null;  // Return null to fall back to local execution
         }
-        return null;  // Return null to fall back to local execution
     }
 
     // private boolean isWriteCommand(String cmd) {
