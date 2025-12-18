@@ -71,6 +71,9 @@ public class MorphiumServer {
                         "insert", "update", "delete", "findandmodify",
                         "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
         );
+    private static final Set<String> READ_COMMANDS = Set.of(
+                        "find", "aggregate", "count", "distinct", "countdocuments"
+        );
 
     // Note: Each MorphiumServer instance has its own isolated InMemoryDriver.
     // Secondaries will not have the same data as primary unless replication is implemented.
@@ -894,6 +897,23 @@ public class MorphiumServer {
                                     break;
                                 }
                                 // Fall through to local execution if forwarding failed
+                            }
+
+                            // Forward read commands to primary when read preference is primary or primaryPreferred
+                            // This ensures consistent reads even when client connects to a secondary
+                            if (!primary && READ_COMMANDS.contains(cmd.toLowerCase()) && primaryHost != null) {
+                                var readPref = doc.get("$readPreference");
+                                if (readPref instanceof Map) {
+                                    String mode = (String) ((Map<?, ?>) readPref).get("mode");
+                                    if ("primary".equals(mode) || "primaryPreferred".equals(mode)) {
+                                        log.debug("Forwarding {} to primary (readPreference={})", cmd, mode);
+                                        answer = forwardCommandToPrimary(doc, cmd);
+                                        if (answer != null) {
+                                            break;
+                                        }
+                                        // Fall through to local execution if forwarding failed
+                                    }
+                                }
                             }
 
                             AtomicInteger msgid = new AtomicInteger(0);
