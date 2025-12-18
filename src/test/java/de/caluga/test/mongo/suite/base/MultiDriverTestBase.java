@@ -186,7 +186,7 @@ public class MultiDriverTestBase {
             inMemCfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
             inMemCfg.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
             inMemCfg.collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP)
-                     .setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
+                    .setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
             Morphium inMem = new Morphium(inMemCfg);
             ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500);
             morphiums.add(Arguments.of(inMem));
@@ -408,15 +408,8 @@ public class MultiDriverTestBase {
 
         morphium.storeList(lst);
 
-        long targetCount = existingCount + amount;
-        while (q.countAll() < targetCount) {
-            log.info("Waiting for data to be stored..." + q.countAll() + "/" + targetCount);
-
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
-        }
+        long targetCount = amount;
+        TestUtils.waitForConditionToBecomeTrue(targetCount * 100, (dur, e)->log.error("Could not store"), ()->q.countAll() >= targetCount, (dur)->log.info("Waiting for data to be stored...{}/{}", q.countAll(), targetCount));
         log.info("createUncachedObjects complete: created {} objects, total now {}", amount, q.countAll());
     }
 

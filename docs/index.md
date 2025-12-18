@@ -10,6 +10,8 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 
 ## Testing & Development
 Morphium includes a complete in-memory MongoDB-compatible implementation for testing and development:
+- **[Developer Testing Guide](./developer-testing-guide.md)** - How to run and write tests, MultiDriverTestBase, runtests.sh
+- **[Test Runner](./test-runner.md)** - Quick reference for the `runtests.sh` script
 - **[InMemory Driver](./howtos/inmemory-driver.md)** - Embedded in-memory driver for unit tests (no MongoDB installation required!)
 - **[MorphiumServer](./morphium-server.md)** - Standalone MongoDB-compatible server that speaks the wire protocol
   - Perfect for CI/CD pipelines, integration testing, and microservices development

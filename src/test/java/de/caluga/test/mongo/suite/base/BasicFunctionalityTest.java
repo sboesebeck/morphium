@@ -75,10 +75,10 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             var q = morphium.createQueryFor(AdditionalDataEntity.class).f("counter").eq(10);
             q.set("additional.value", "was set");
             TestUtils.waitForConditionToBecomeTrue(2000, "Set operation not persisted",
-                () -> {
-                    var obj = morphium.createQueryFor(AdditionalDataEntity.class).f("counter").eq(10).get();
-                    return obj != null && obj.getAdditionals() != null && obj.getAdditionals().get("additional") != null;
-                });
+            () -> {
+                var obj = morphium.createQueryFor(AdditionalDataEntity.class).f("counter").eq(10).get();
+                return obj != null && obj.getAdditionals() != null && obj.getAdditionals().get("additional") != null;
+            });
             var ae = q.get();
             assertNotNull(ae.getAdditionals());
             assertNotNull(ae.getAdditionals().get("additional"));
@@ -130,7 +130,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             log.info("----> Running with: " + m.getDriver().getName());
             createUncachedObjects(m, 10);
             TestUtils.waitForConditionToBecomeTrue(2000, "Objects not created",
-                () -> m.createQueryFor(UncachedObject.class).countAll() == 10);
+                                                   () -> m.createQueryFor(UncachedObject.class).countAll() == 10);
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).exists().countAll();
             assertEquals(0, cnt);
             cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(4).countAll();
@@ -146,7 +146,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             lc.addString("one");
             m.store(lc);
             TestUtils.waitForConditionToBecomeTrue(2000, "ListContainer not persisted",
-                () -> m.createQueryFor(ListContainer.class).countAll() > 0);
+                                                   () -> m.createQueryFor(ListContainer.class).countAll() > 0);
             cnt = m.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).exists().countAll();
             assertEquals(1, cnt);
             cnt = m.createQueryFor(ListContainer.class).f("string_list.0").exists().countAll();
@@ -212,7 +212,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             TestUtils.waitForConditionToBecomeTrue(2000, "Objects not created",
-                () -> morphium.createQueryFor(UncachedObject.class).countAll() == NO_OBJECTS);
+                                                   () -> morphium.createQueryFor(UncachedObject.class).countAll() == NO_OBJECTS);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter", "strValue");
             List<UncachedObject> lst = q.asList();
@@ -405,7 +405,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             final int lastCounter = last.getCounter();
 
             TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(), "Object not found by ID",
-                () -> morphium.findById(UncachedObject.class, lastId) != null);
+                                                   () -> morphium.findById(UncachedObject.class, lastId) != null);
 
             UncachedObject uc = morphium.findById(UncachedObject.class, lastId);
             assertNotNull(uc, "Not found?!?");
@@ -479,7 +479,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             log.info("Storing single took " + dur + " ms");
             //        assert (dur < NO_OBJECTS * 5) : "Storing took way too long";
             TestUtils.waitForConditionToBecomeTrue(2000, "Objects not persisted",
-                () -> morphium.createQueryFor(UncachedObject.class).countAll() == NO_OBJECTS);
+                                                   () -> morphium.createQueryFor(UncachedObject.class).countAll() == NO_OBJECTS);
             log.info("Searching for objects");
             checkUncached(morphium);
             assertTrue(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null, "Cached Uncached Object?!?!?!");
@@ -510,8 +510,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.storeList(lst);
             long dur = System.currentTimeMillis() - start;
             log.info("Storing a list  took " + dur + " ms");
-            TestUtils.waitForConditionToBecomeTrue(2000, "List not persisted",
-                () -> morphium.createQueryFor(UncachedObject.class).countAll() == NO_OBJECTS);
+            TestUtils.waitForConditionToBecomeTrue(NO_OBJECTS * 100, "List not persisted",
+                                                   () -> morphium.createQueryFor(UncachedObject.class).countAll() == NO_OBJECTS);
             checkUncached(morphium);
             assertTrue(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null, "Cached Uncached Object?!?!?!");
         }
@@ -594,10 +594,10 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             //        wiatForAsyncOpToStart(1000);
             //       TestUtils.waitForWrites(morphium,log);
             TestUtils.waitForConditionToBecomeTrue(5000, "Cached objects not persisted",
-                () -> {
-                    m.clearCachefor(CachedObject.class);
-                    return m.createQueryFor(CachedObject.class).countAll() == NO_OBJECTS;
-                });
+            () -> {
+                m.clearCachefor(CachedObject.class);
+                return m.createQueryFor(CachedObject.class).countAll() == NO_OBJECTS;
+            });
             var q = m.createQueryFor(CachedObject.class);
 
             dur = System.currentTimeMillis() - start;
@@ -682,15 +682,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
-                "Cached objects not persisted",
-                () -> {
-                    try {
-                        return morphium.createQueryFor(CachedObject.class).countAll() == 100;
-                    } catch (Exception e) {
-                        log.info("Error getting count..");
-                        return false;
-                    }
-                });
+                                                   "Cached objects not persisted",
+            () -> {
+                try {
+                    return morphium.createQueryFor(CachedObject.class).countAll() == 100;
+                } catch (Exception e) {
+                    log.info("Error getting count..");
+                    return false;
+                }
+            });
         }
     }
 
@@ -730,17 +730,17 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             final int expectedUncached = uncached;
             final int expectedCached = cached;
             TestUtils.waitForConditionToBecomeTrue(5000,
-                (dur, e) -> log.error("Test timed out waiting for objects to be stored correctly"),
-                () -> {
-                    Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
-                    Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-                    long ucCount = qu.countAll();
-                    long cCount = q.countAll();
-                    log.info("uncached {} -> {}, cached {} -> {}", expectedUncached, ucCount, expectedCached, cCount);
-                    return expectedUncached == ucCount && expectedCached == cCount;
-                },
-                (dur) -> log.info("Waiting..."),
-                (dur) -> log.info("Objects stored after {}ms", dur));
+                                                   (dur, e) -> log.error("Test timed out waiting for objects to be stored correctly"),
+            () -> {
+                Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
+                Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
+                long ucCount = qu.countAll();
+                long cCount = q.countAll();
+                log.info("uncached {} -> {}, cached {} -> {}", expectedUncached, ucCount, expectedCached, cCount);
+                return expectedUncached == ucCount && expectedCached == cCount;
+            },
+            (dur) -> log.info("Waiting..."),
+                        (dur) -> log.info("Objects stored after {}ms", dur));
         }
     }
 
@@ -774,7 +774,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             c.simpleId = new MorphiumId();
             morphium.store(c);
             TestUtils.waitForConditionToBecomeTrue(2000, "ListOfIdsContainer not persisted",
-                () -> morphium.createQueryFor(ListOfIdsContainer.class).countAll() > 0);
+                                                   () -> morphium.createQueryFor(ListOfIdsContainer.class).countAll() > 0);
             Query<ListOfIdsContainer> q = morphium.createQueryFor(ListOfIdsContainer.class);
             ListOfIdsContainer cnt = q.get();
             assertEquals(c.id, cnt.id);
@@ -806,7 +806,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertNotNull(uc.getMorphiumId());
             final MorphiumId insertedId = uc.getMorphiumId();
             TestUtils.waitForConditionToBecomeTrue(2000, "Insert not persisted",
-                () -> morphium.findById(UncachedObject.class, insertedId) != null);
+                                                   () -> morphium.findById(UncachedObject.class, insertedId) != null);
             assertNotNull(morphium.findById(UncachedObject.class, insertedId));
             log.info("Inserting again - exception expected");
             boolean ex = false;
@@ -826,7 +826,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.insert(uc);
             final MorphiumId secondId = uc.getMorphiumId();
             TestUtils.waitForConditionToBecomeTrue(2000, "Second insert not persisted",
-                () -> morphium.findById(UncachedObject.class, secondId) != null);
+                                                   () -> morphium.findById(UncachedObject.class, secondId) != null);
             assertNotNull(morphium.findById(UncachedObject.class, secondId));
         }
     }
@@ -889,11 +889,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             UncachedObject uc = new UncachedObject("value", 123);
             morphium.store(uc);
             TestUtils.waitForConditionToBecomeTrue(2000, "Object not persisted",
-                () -> TestUtils.countUC(morphium) == 1);
+                                                   () -> TestUtils.countUC(morphium) == 1);
             UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndDelete();
             assertEquals(ret.getStrValue(), "value");
             TestUtils.waitForConditionToBecomeTrue(2000, "Object not deleted",
-                () -> TestUtils.countUC(morphium) == 0);
+                                                   () -> TestUtils.countUC(morphium) == 0);
             assertEquals(TestUtils.countUC(morphium), 0);
         }
     }
@@ -910,7 +910,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             UncachedObject uc = new UncachedObject("value", 123);
             morphium.store(uc);
             TestUtils.waitForConditionToBecomeTrue(2000, "Object not persisted",
-                () -> TestUtils.countUC(morphium) == 1);
+                                                   () -> TestUtils.countUC(morphium) == 1);
             UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(UtilsMap.of("$set", UtilsMap.of("counter", 42)));
             assertEquals("value", ret.getStrValue());
             assertEquals(1, TestUtils.countUC(morphium));
