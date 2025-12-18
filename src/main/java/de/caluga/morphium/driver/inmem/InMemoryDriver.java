@@ -550,7 +550,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         String collection = settings.getColl();
-        String namespaceKey = db + "." + (collection == null ? "" : collection);
+        // Namespace key: "db" for db-only watch, "db.collection" for collection watch
+        // This must match the keys used in dispatchEvent for proper event delivery
+        String namespaceKey = collection == null || collection.isBlank() ? db : db + "." + collection;
         Object monitor = new Object();
         monitors.add(monitor);
 
@@ -4565,7 +4567,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private void registerSubscription(ChangeStreamSubscription subscription) {
-        String namespaceKey = subscription.collection == null ? subscription.db
+        // Namespace key: "db" for db-only watch, "db.collection" for collection watch
+        // Must match keys used in dispatchEvent for proper event delivery
+        String namespaceKey = (subscription.collection == null || subscription.collection.isBlank())
+                              ? subscription.db
                               : subscription.db + "." + subscription.collection;
         subscription.namespaceKey = namespaceKey;
         // log.info("registerSubscription: namespaceKey={}, driver instance={}", namespaceKey, System.identityHashCode(this));
