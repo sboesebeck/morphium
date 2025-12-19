@@ -1183,9 +1183,7 @@ public class MorphiumServer {
             in.close();
             out.close();
         } catch (Exception e) {
-            throw new RuntimeException(e);
-            // e.printStackTrace();
-            // System.exit(0);
+            log.error("Error in incoming connection: {}", e.getMessage());
         }
 
         log.info("Thread finished!");
@@ -1218,8 +1216,10 @@ public class MorphiumServer {
             }
         }
 
-        executor.shutdownNow();
-        executor = null;
+        if (executor != null) {
+            executor.shutdownNow();
+            executor = null;
+        }
         cleanupSecondaryDrivers();
     }
 
