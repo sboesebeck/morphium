@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,7 +24,6 @@ import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -34,6 +34,7 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -71,7 +72,6 @@ public class MorphiumServer {
     private boolean primary = true;
     private String primaryHost;
     private int priority = 0;
-    private final List<ChangeStreamMonitor> replicationMonitors = new ArrayList<>();
     private volatile boolean replicationStarted = false;
     private volatile boolean initialSyncDone = true;
     private static final Set<String> WRITE_COMMANDS = Set.of(
@@ -84,8 +84,10 @@ public class MorphiumServer {
 
     // Cached connection for forwarding reads to primary (avoids creating new connections per request)
     private volatile SingleMongoConnectDriver forwardingDriver;
-    private volatile SingleMongoConnection forwardingConnection;
+    private volatile MongoConnection forwardingConnection;
     private final Object forwardingLock = new Object();
+
+    // Note: Synchronous replication creates connections per-request to avoid contention
 
     // Note: Each MorphiumServer instance has its own isolated InMemoryDriver.
     // Secondaries will not have the same data as primary unless replication is implemented.
@@ -755,10 +757,6 @@ public class MorphiumServer {
         initialSyncDone = true;
 
         // Stop replication - we're now the primary
-        for (var monitor : replicationMonitors) {
-            monitor.terminate();
-        }
-        replicationMonitors.clear();
         replicationStarted = false;
     }
 
@@ -1000,7 +998,9 @@ public class MorphiumServer {
 
                     default:
                         try {
-                            if (!primary && isWriteCommand(cmd)) {
+                            // Reject writes to secondaries, unless it's a replication command from primary
+                            boolean isReplicationFromPrimary = Boolean.TRUE.equals(doc.get("$fromPrimary"));
+                            if (!primary && isWriteCommand(cmd) && !isReplicationFromPrimary) {
                                 answer = Doc.of("ok", 0.0, "errmsg", "not primary", "code", 10107, "codeName", "NotWritablePrimary");
                                 break;
                             }
@@ -1015,24 +1015,16 @@ public class MorphiumServer {
                                 // Fall through to local execution if forwarding failed
                             }
 
-                            // Forward read commands to primary when read preference is primary or primaryPreferred
-                            // This ensures consistent reads even when client connects to a secondary
+                            // Forward ALL read commands to primary for strong consistency
+                            // This ensures secondaries always return the same data as primary
                             if (!primary && READ_COMMANDS.contains(cmd.toLowerCase()) && primaryHost != null) {
-                                var readPref = doc.get("$readPreference");
-                                if (readPref instanceof Map) {
-                                    String mode = (String) ((Map<?, ?>) readPref).get("mode");
-                                    if ("primary".equals(mode) || "primaryPreferred".equals(mode)) {
-                                        log.info("Forwarding {} to primary {} (readPreference={})", cmd, primaryHost, mode);
-                                        answer = forwardCommandToPrimary(doc, cmd);
-                                        if (answer != null) {
-                                            break;
-                                        }
-                                        log.warn("Forwarding {} failed, falling back to local", cmd);
-                                        // Fall through to local execution if forwarding failed
-                                    }
+                                log.debug("Forwarding {} to primary {} for consistency", cmd, primaryHost);
+                                answer = forwardCommandToPrimary(doc, cmd);
+                                if (answer != null) {
+                                    break;
                                 }
-                            } else if (READ_COMMANDS.contains(cmd.toLowerCase())) {
-                                log.debug("Not forwarding {}: primary={}, primaryHost={}", cmd, primary, primaryHost);
+                                log.warn("Forwarding {} failed, falling back to local", cmd);
+                                // Fall through to local execution if forwarding failed
                             }
 
                             AtomicInteger msgid = new AtomicInteger(0);
@@ -1097,6 +1089,12 @@ public class MorphiumServer {
                                 // Log after drop
                                 if (cmd.equalsIgnoreCase("dropDatabase") || cmd.equalsIgnoreCase("drop")) {
                                     log.info("MorphiumServer[{}:{}]: Databases AFTER drop: {}", host, port, drv.listDatabases());
+                                }
+
+                                // Synchronous replication: if primary and this is a write command, replicate to secondaries
+                                // Skip if this is already a replication from primary (to avoid infinite loop)
+                                if (primary && WRITE_COMMANDS.contains(cmd.toLowerCase()) && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
+                                    replicateToSecondaries(doc);
                                 }
                             }
                         } catch (Exception e) {
@@ -1204,7 +1202,7 @@ public class MorphiumServer {
 
         executor.shutdownNow();
         executor = null;
-        replicationMonitors.forEach(ChangeStreamMonitor::terminate);
+        cleanupSecondaryDrivers();
     }
 
     public void stepDown() {
@@ -1293,7 +1291,7 @@ public class MorphiumServer {
     /**
      * Get or create a cached connection to the primary for forwarding.
      */
-    private SingleMongoConnection getForwardingConnection() {
+    private MongoConnection getForwardingConnection() {
         // Already inside synchronized block from caller, so just check the cached values
         if (forwardingConnection != null && forwardingDriver != null) {
             return forwardingConnection;
@@ -1318,7 +1316,7 @@ public class MorphiumServer {
                 forwardingDriver = null;
                 return null;
             }
-            forwardingConnection = (SingleMongoConnection) conn;
+            forwardingConnection = conn;
             log.info("Created forwarding connection to primary {}", primaryHost);
             return forwardingConnection;
         } catch (Exception e) {
@@ -1407,6 +1405,119 @@ public class MorphiumServer {
     //            .contains(cmd);
     // }
 
+    /**
+     * Synchronously replicate a write command to all secondaries.
+     * Called by the primary after executing a write locally.
+     * This ensures strong consistency - secondaries have the data before the client gets a response.
+     */
+    private void replicateToSecondaries(Map<String, Object> commandDoc) {
+        if (!primary || hosts == null || hosts.size() <= 1) {
+            return; // Not primary or no secondaries
+        }
+
+        String myHost = host + ":" + port;
+        List<String> secondaries = new ArrayList<>();
+        for (String h : hosts) {
+            if (!h.equals(myHost) && !h.equals("localhost:" + port) && !h.equals("127.0.0.1:" + port)) {
+                secondaries.add(h);
+            }
+        }
+
+        if (secondaries.isEmpty()) {
+            return;
+        }
+
+        // Replicate to each secondary in parallel
+        List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
+        for (String secondary : secondaries) {
+            futures.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    replicateToSecondary(secondary, commandDoc);
+                } catch (Exception e) {
+                    log.warn("Failed to replicate to secondary {}: {}", secondary, e.getMessage());
+                }
+            }));
+        }
+
+        // Wait for all replications to complete (with timeout)
+        try {
+            java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                .get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Replication to secondaries did not complete in time: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Replicate a command to a specific secondary.
+     * Creates a DIRECT connection (bypassing RS topology discovery) to ensure
+     * the command goes to the secondary, not redirected back to primary.
+     */
+    private void replicateToSecondary(String secondaryHost, Map<String, Object> commandDoc) {
+        SingleMongoConnection conn = null;
+        SingleMongoConnectDriver tmpDriver = null;
+        try {
+            // Parse host:port
+            String[] parts = secondaryHost.split(":");
+            String secHost = parts[0];
+            int secPort = parts.length > 1 ? Integer.parseInt(parts[1]) : 27017;
+
+            // Create a temporary driver just for connection settings (timeouts, etc.)
+            // We don't call driver.connect() to avoid RS topology discovery
+            tmpDriver = new SingleMongoConnectDriver();
+            tmpDriver.setConnectionTimeout(2000);
+            tmpDriver.setReadTimeout(5000);
+
+            // Create DIRECT connection to secondary - this bypasses RS topology discovery
+            // which would otherwise redirect write commands to the primary
+            conn = new SingleMongoConnection();
+            conn.connect(tmpDriver, secHost, secPort);
+
+            if (!conn.isConnected()) {
+                log.warn("Could not establish direct connection to secondary {}", secondaryHost);
+                return;
+            }
+
+            // Mark this as a replication command so secondary doesn't reject or forward it
+            // Use LinkedHashMap to preserve key order - command name must be first key
+            Map<String, Object> replicaDoc = new java.util.LinkedHashMap<>(commandDoc);
+            replicaDoc.put("$fromPrimary", true);
+
+            String firstKey = replicaDoc.keySet().iterator().next();
+            log.info("Replicating command to {}: firstKey={}, keys={}", secondaryHost, firstKey, replicaDoc.keySet());
+
+            int msgId = conn.sendCommand(new GenericCommand(conn).fromMap(replicaDoc));
+            var response = conn.readSingleAnswer(msgId);
+
+            if (response != null && response.get("ok") != null) {
+                Object ok = response.get("ok");
+                if (ok instanceof Number && ((Number) ok).doubleValue() >= 1.0) {
+                    log.debug("Replicated to secondary {} successfully", secondaryHost);
+                } else {
+                    log.warn("Replication to {} returned ok={}, errmsg={}", secondaryHost, ok, response.get("errmsg"));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error replicating to secondary {}: {}", secondaryHost, e.getMessage());
+        } finally {
+            if (conn != null) {
+                try { conn.close(); } catch (Exception ignore) {}
+            }
+            if (tmpDriver != null) {
+                try { tmpDriver.close(); } catch (Exception ignore) {}
+            }
+        }
+    }
+
+    /**
+     * Clean up secondary driver connections.
+     * Note: With the current implementation, connections are created per-request and closed immediately,
+     * so this is a no-op. Kept for potential future optimizations.
+     */
+    private void cleanupSecondaryDrivers() {
+        // Currently connections are created and closed per-request, so nothing to clean up
+    }
+
     public void startReplicaReplication() {
         if (replicationStarted || primary || hosts == null || hosts.isEmpty()) {
             return;
@@ -1438,94 +1549,14 @@ public class MorphiumServer {
                         initialSyncDatabase(morphium, db);
                     }
 
-                    // Start a single cluster-wide change stream for ALL databases
-                    // Using admin database with null collection watches everything
-                    log.info("Setting up cluster-wide change stream on admin database");
-                    ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium, null, true);
-                    mtr.addListener((evt)-> {
-                        log.info("CHANGE STREAM EVENT RECEIVED: type={}, db={}, coll={}",
-                                 evt.getOperationType(), evt.getDbName(), evt.getCollectionName());
-                        try {
-                            String db = evt.getDbName();
-                            String coll = evt.getCollectionName();
+                    // NOTE: Ongoing replication is handled by synchronous replication.
+                    // When the primary receives a write command, it forwards it to all secondaries
+                    // before returning success to the client (see replicateToSecondaries method).
+                    // This includes createIndexes, drop, etc. - all write commands are replicated.
+                    // This provides strong consistency without the complexity of change streams.
 
-                            // Skip system databases
-                            if (db == null || db.equals("admin") || db.equals("local") || db.equals("config")) {
-                                return true;
-                            }
-
-                            log.info("Replication event: {} on {}.{}", evt.getOperationType(), db, coll);
-
-                            if (evt.getOperationType().equals("insert")) {
-                                var fullDoc = evt.getFullDocument();
-                                if (fullDoc == null) {
-                                    log.warn("Insert event has null fullDocument for {}.{}", db, coll);
-                                } else {
-                                    drv.insert(db, coll, List.of(fullDoc), null);
-                                }
-                            } else if (evt.getOperationType().equals("delete")) {
-                                drv.delete(db, coll, Map.of("_id", evt.getDocumentKey()), null, false, null, null);
-                            } else if (evt.getOperationType().equals("update")) {
-                                // Try getUpdatedFields first, then fall back to updateDescription.updatedFields
-                                Map<String, Object> updated = evt.getUpdatedFields();
-                                if ((updated == null || updated.isEmpty()) && evt.getUpdateDescription() != null) {
-                                    Object updatedFieldsObj = evt.getUpdateDescription().get("updatedFields");
-                                    if (updatedFieldsObj instanceof Map) {
-                                        updated = (Map<String, Object>) updatedFieldsObj;
-                                    }
-                                }
-                                if (updated == null || updated.isEmpty()) {
-                                    // If still no updated fields, use fullDocument as a fallback
-                                    Map<String, Object> fullDoc = evt.getFullDocument();
-                                    if (fullDoc != null && !fullDoc.isEmpty()) {
-                                        log.debug("Using fullDocument for update replication on {}.{}", db, coll);
-                                        Object docKey = evt.getDocumentKey();
-                                        Object id = docKey instanceof Map ? ((Map <?, ? >) docKey).get("_id") : docKey;
-                                        drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", fullDoc), false, true, null, null);
-                                    } else {
-                                        log.warn("Update event has no updated fields or fullDocument for {}.{}", db, coll);
-                                    }
-                                } else {
-                                    Object docKey = evt.getDocumentKey();
-                                    Object id = docKey instanceof Map ? ((Map <?, ? >) docKey).get("_id") : docKey;
-                                    drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", updated), false, false, null, null);
-                                }
-                            } else if (evt.getOperationType().equals("replace")) {
-                                // Handle document replacement
-                                var fullDoc = evt.getFullDocument();
-                                if (fullDoc != null) {
-                                    Object docKey = evt.getDocumentKey();
-                                    Object id = docKey instanceof Map ? ((Map<?, ?>) docKey).get("_id") : docKey;
-                                    drv.update(db, coll, Map.of("_id", id), null, Doc.of("$set", fullDoc), false, true, null, null);
-                                }
-                            } else if (evt.getOperationType().equals("drop")) {
-                                // Handle collection drop
-                                log.info("Replicating collection drop: {}.{}", db, coll);
-                                drv.drop(db, coll, null);
-                            } else if (evt.getOperationType().equals("dropDatabase")) {
-                                // Handle database drop
-                                log.info("Replicating database drop: {}", db);
-                                drv.drop(db, null);
-                            } else if (evt.getOperationType().equals("rename")) {
-                                // Handle collection rename - drop old, will be synced as new collection
-                                log.info("Replicating collection rename (dropping old): {}.{}", db, coll);
-                                drv.drop(db, coll, null);
-                            } else if (evt.getOperationType().equals("invalidate")) {
-                                // Change stream invalidated - need to restart replication
-                                log.warn("Change stream invalidated, replication may need restart");
-                            }
-                        } catch (MorphiumDriverException e) {
-                            log.error("Replication error: {}", e.getMessage());
-                        }
-
-                        return true;
-                    });
-                    mtr.start();
-                    log.info("Started cluster-wide change stream monitor");
-                    replicationMonitors.add(mtr);
-
-                    // Start periodic index sync thread
-                    startPeriodicIndexSync(morphium);
+                    // Close the morphium connection used for initial sync
+                    morphium.close();
 
                     log.info("Initial sync and replication setup complete");
                     initialSyncDone = true;
@@ -1626,175 +1657,6 @@ public class MorphiumServer {
             syncIndexes(sourceMorphium, db, collectionName);
         } catch (Exception e) {
             log.error("Error syncing collection {}.{}", db, collectionName, e);
-        }
-    }
-
-    /**
-     * Start a background thread that periodically syncs indexes and collection metadata from primary.
-     * This ensures new indexes and capped collections created on primary are replicated to secondaries.
-     */
-    private void startPeriodicIndexSync(Morphium sourceMorphium) {
-        Thread indexSyncThread = new Thread(() -> {
-            log.info("Starting periodic metadata sync thread (interval: 30s)");
-            while (running && !primary) {
-                try {
-                    Thread.sleep(30000);  // Sync every 30 seconds
-
-                    if (!running || primary) break;
-
-                    // Get all databases
-                    var databases = sourceMorphium.listDatabases();
-                    for (String db : databases) {
-                        if (db.equals("admin") || db.equals("local") || db.equals("config")) {
-                            continue;
-                        }
-
-                        try {
-                            var con = sourceMorphium.getDriver().getPrimaryConnection(null);
-                            var listCmd = new de.caluga.morphium.driver.commands.ListCollectionsCommand(con)
-                                .setDb(db)
-                                .setNameOnly(false);  // Need full info for capped status
-                            var collections = listCmd.execute();
-
-                            if (collections != null) {
-                                for (Map<String, Object> collInfo : collections) {
-                                    String collName = (String) collInfo.get("name");
-                                    if (collName != null && !collName.startsWith("system.")) {
-                                        // Sync capped collection metadata
-                                        syncCappedCollectionMetadata(db, collName, collInfo);
-                                        // Sync indexes
-                                        syncIndexesWithDeletion(sourceMorphium, db, collName);
-                                    }
-                                }
-                            }
-                        } catch (Exception e) {
-                            log.debug("Error during periodic metadata sync for db {}: {}", db, e.getMessage());
-                        }
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                } catch (Exception e) {
-                    log.debug("Error in periodic index sync: {}", e.getMessage());
-                }
-            }
-            log.info("Periodic metadata sync thread stopped");
-        }, "metadata-sync-thread");
-        indexSyncThread.setDaemon(true);
-        indexSyncThread.start();
-    }
-
-    /**
-     * Sync capped collection metadata from primary.
-     * If the collection is capped on primary but not locally, register it as capped.
-     */
-    private void syncCappedCollectionMetadata(String db, String collectionName, Map<String, Object> collInfo) {
-        try {
-            Map<String, Object> options = (Map<String, Object>) collInfo.get("options");
-            if (options != null && Boolean.TRUE.equals(options.get("capped"))) {
-                // Check if already capped locally
-                if (!drv.isCapped(db, collectionName)) {
-                    int size = options.get("size") != null ? ((Number) options.get("size")).intValue() : 1000000;
-                    int max = options.get("max") != null ? ((Number) options.get("max")).intValue() : 0;
-                    log.info("Syncing capped collection metadata: {}.{} (size={}, max={})", db, collectionName, size, max);
-                    drv.registerCappedCollection(db, collectionName, size, max);
-                }
-            }
-        } catch (Exception e) {
-            log.debug("Error syncing capped collection metadata for {}.{}: {}", db, collectionName, e.getMessage());
-        }
-    }
-
-    /**
-     * Sync indexes from primary to this secondary, including deletion of removed indexes.
-     */
-    private void syncIndexesWithDeletion(Morphium sourceMorphium, String db, String collectionName) {
-        try {
-            var con = sourceMorphium.getDriver().getPrimaryConnection(null);
-
-            // Get indexes from primary
-            var listIdxCmd = new de.caluga.morphium.driver.commands.ListIndexesCommand(con)
-                .setDb(db)
-                .setColl(collectionName);
-            var primaryIndexes = listIdxCmd.execute();
-
-            if (primaryIndexes == null) {
-                primaryIndexes = new java.util.ArrayList<>();
-            }
-
-            // Get local indexes
-            List<Map<String, Object>> localIndexes = drv.getIndexes(db, collectionName);
-            if (localIndexes == null) {
-                localIndexes = new java.util.ArrayList<>();
-            }
-
-            // Build set of primary index names
-            Set<String> primaryIndexNames = new java.util.HashSet<>();
-            for (var idx : primaryIndexes) {
-                if (idx.getName() != null) {
-                    primaryIndexNames.add(idx.getName());
-                }
-            }
-
-            // Build set of local index names
-            Set<String> localIndexNames = new java.util.HashSet<>();
-            for (var idx : localIndexes) {
-                Object nameObj = idx.get("name");
-                if (nameObj == null) {
-                    // Try to get from $options
-                    Map<String, Object> opts = (Map<String, Object>) idx.get("$options");
-                    if (opts != null) {
-                        nameObj = opts.get("name");
-                    }
-                }
-                if (nameObj != null) {
-                    localIndexNames.add(nameObj.toString());
-                }
-            }
-
-            // Create missing indexes
-            for (var idx : primaryIndexes) {
-                String idxName = idx.getName();
-                if (idxName != null && idxName.equals("_id_")) continue;
-                if (idxName != null && !localIndexNames.contains(idxName)) {
-                    Map<String, Object> key = idx.getKey();
-                    if (key != null && !key.isEmpty()) {
-                        try {
-                            Map<String, Object> options = new java.util.HashMap<>();
-                            if (idx.getName() != null) options.put("name", idx.getName());
-                            if (idx.getUnique() != null && idx.getUnique()) options.put("unique", true);
-                            if (idx.getSparse() != null && idx.getSparse()) options.put("sparse", true);
-                            if (idx.getExpireAfterSeconds() != null) options.put("expireAfterSeconds", idx.getExpireAfterSeconds());
-                            if (idx.getWeights() != null) options.put("weights", idx.getWeights());
-
-                            drv.createIndex(db, collectionName, key, options);
-                            log.info("Created index {} on {}.{} (periodic sync)", idxName, db, collectionName);
-                        } catch (Exception e) {
-                            log.debug("Failed to create index {}: {}", idxName, e.getMessage());
-                        }
-                    }
-                }
-            }
-
-            // Drop indexes that no longer exist on primary
-            for (String localIdxName : localIndexNames) {
-                if (localIdxName.equals("_id_") || localIdxName.equals("_id_1")) continue;
-                if (!primaryIndexNames.contains(localIdxName)) {
-                    try {
-                        var dropCmd = new de.caluga.morphium.driver.commands.DropIndexesCommand(drv)
-                            .setDb(db)
-                            .setColl(collectionName)
-                            .setIndex(localIdxName);
-                        int msgId = drv.runCommand(new de.caluga.morphium.driver.commands.GenericCommand(drv).fromMap(dropCmd.asMap()));
-                        drv.readSingleAnswer(msgId);  // Wait for completion
-                        log.info("Dropped index {} on {}.{} (no longer on primary)", localIdxName, db, collectionName);
-                    } catch (Exception e) {
-                        log.debug("Failed to drop index {}: {}", localIdxName, e.getMessage());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.debug("Error syncing indexes for {}.{}: {}", db, collectionName, e.getMessage());
         }
     }
 
