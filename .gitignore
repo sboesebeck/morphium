@@ -6,7 +6,7 @@ target/
 files*.lst
 files*.txt
 classes*
-fail*
+fail_*.pid
 *.pid
 *.lck
 disabled*
