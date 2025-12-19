@@ -17,7 +17,9 @@ public class ConnectionSettings extends Settings {
     private String database;
     private int retriesOnNetworkError = 1;
     private int sleepBetweenNetworkErrorRetries = 1000;
-
+    private boolean useSSL = false;
+    private SSLContext sslContext;
+    private boolean sslInvalidHostNameAllowed = false;
 
     public int getMaxWaitTime() {
         return maxWaitTime;
@@ -72,31 +74,36 @@ public class ConnectionSettings extends Settings {
     public int getSleepBetweenNetworkErrorRetries() {
         return sleepBetweenNetworkErrorRetries;
     }
+
     public ConnectionSettings setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
         this.sleepBetweenNetworkErrorRetries = sleepBetweenNetworkErrorRetries;
         return this;
     }
 
+    public boolean isUseSSL() {
+        return useSSL;
+    }
 
-    /*  public boolean isUseSSL() {
-         return useSSL;
-     }
-     public ConnectionSettings setUseSSL(boolean useSSL) {
-         this.useSSL = useSSL;
-         return this;
-     }
-     public SSLContext getSslContext() {
-         return sslContext;
-     }
-     public ConnectionSettings setSslContext(SSLContext sslContext) {
-         this.sslContext = sslContext;
-         return this;
-     }
-     public boolean isSslInvalidHostNameAllowed() {
-         return sslInvalidHostNameAllowed;
-     }
-     public ConnectionSettings setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
-         this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
-         return this;
-     }*/
+    public ConnectionSettings setUseSSL(boolean useSSL) {
+        this.useSSL = useSSL;
+        return this;
+    }
+
+    public SSLContext getSslContext() {
+        return sslContext;
+    }
+
+    public ConnectionSettings setSslContext(SSLContext sslContext) {
+        this.sslContext = sslContext;
+        return this;
+    }
+
+    public boolean isSslInvalidHostNameAllowed() {
+        return sslInvalidHostNameAllowed;
+    }
+
+    public ConnectionSettings setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+        this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+        return this;
+    }
 }
