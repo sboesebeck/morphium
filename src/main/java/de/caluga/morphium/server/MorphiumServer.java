@@ -79,7 +79,7 @@ public class MorphiumServer {
                         "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
         );
     private static final Set<String> READ_COMMANDS = Set.of(
-                        "find", "aggregate", "count", "distinct", "countdocuments"
+                        "find", "aggregate", "count", "distinct", "countdocuments", "getmore"
         );
 
     // Cached connection for forwarding reads to primary (avoids creating new connections per request)
@@ -464,53 +464,42 @@ public class MorphiumServer {
             String myAddress = host + ":" + port;
             List<String> reachablePeers = getReachablePeers();
 
-            if (!reachablePeers.isEmpty()) {
-                String detectedPrimary = detectPrimaryFromPeers(reachablePeers);
+            // Always start as secondary - let heartbeat handle primary election
+            // This avoids race conditions where multiple nodes claim primary during startup
+            String detectedPrimary = detectPrimaryFromPeers(reachablePeers);
 
-                if (detectedPrimary != null) {
-                    primaryHost = detectedPrimary;
-                } else {
-                    String fallback = pickHighestPriorityPeer(reachablePeers);
-
-                    if (fallback != null) {
-                        primaryHost = fallback;
-                    } else {
-                        primaryHost = reachablePeers.get(0);
-                    }
-
-                    log.info("Could not detect current primary, using {} as sync source", primaryHost);
-                }
-
-                if (primary) {
-                    // Do NOT step down just because peers exist. This can lead to a "no primary" situation
-                    // when all nodes start around the same time.
-                    if (primaryHost != null && !primaryHost.equals(myAddress)) {
-                        int otherPrio = hostPriorities.getOrDefault(primaryHost, 0);
-                        if (otherPrio > priority) {
-                            log.info("Detected primary {} with higher priority ({}), staying secondary for initial sync",
-                                     primaryHost, otherPrio);
-                            primary = false;
-                            initialSyncDone = false;
-                            startReplicaReplication();
-                        } else {
-                            log.info("No higher-priority primary detected, staying primary");
-                            primary = true;
-                            primaryHost = myAddress;
-                            initialSyncDone = true;
-                        }
-                    } else {
-                        // Either no primary detected yet or it's us.
-                        primaryHost = myAddress;
-                        initialSyncDone = true;
-                    }
-                } else {
-                    startReplicaReplication();
-                }
-            } else {
+            if (detectedPrimary != null) {
+                // Another node is already primary - stay secondary
+                log.info("Detected existing primary {}, starting as secondary", detectedPrimary);
+                primary = false;
+                primaryHost = detectedPrimary;
+                initialSyncDone = false;
+                startReplicaReplication();
+            } else if (reachablePeers.isEmpty()) {
+                // No peers reachable - we're alone, become primary
                 log.info("No reachable peers detected - acting as primary");
                 primary = true;
                 primaryHost = myAddress;
                 initialSyncDone = true;
+            } else {
+                // Peers exist but no primary found - become primary if we have highest priority
+                // Otherwise stay secondary and let heartbeat sort it out
+                String highestPriorityPeer = pickHighestPriorityPeer(reachablePeers);
+                int highestPeerPrio = highestPriorityPeer != null ? hostPriorities.getOrDefault(highestPriorityPeer, 0) : 0;
+
+                if (priority >= highestPeerPrio) {
+                    log.info("No primary found, this node has highest priority ({}) - becoming primary", priority);
+                    primary = true;
+                    primaryHost = myAddress;
+                    initialSyncDone = true;
+                } else {
+                    log.info("No primary found, but {} has higher priority ({}) - starting as secondary",
+                             highestPriorityPeer, highestPeerPrio);
+                    primary = false;
+                    primaryHost = highestPriorityPeer;  // Expect this peer to become primary
+                    initialSyncDone = false;
+                    startReplicaReplication();
+                }
             }
 
             if (hosts != null && hosts.size() > 1) {
@@ -961,8 +950,20 @@ public class MorphiumServer {
                             }
                             var getMoreCursor = Doc.of("nextBatch", batch, "ns", getMoreDb + "." + getMoreCollection, "id", getMoreCursorId);
                             answer = Doc.of("ok", 1.0, "cursor", getMoreCursor);
+                        } else if (!primary && primaryHost != null) {
+                            // Secondary: forward getMore to primary where the cursor was created
+                            log.debug("getMore for cursor {} on secondary - forwarding to primary {}", getMoreCursorId, primaryHost);
+                            answer = forwardCommandToPrimary(doc, cmd);
+                            if (answer == null) {
+                                // Fallback to local if forwarding fails
+                                log.warn("getMore forwarding failed, trying local driver");
+                                int getMoreMsgId = drv.runCommand(new GenericCommand(drv).fromMap(doc));
+                                var crs = drv.readSingleAnswer(getMoreMsgId);
+                                answer = Doc.of("ok", 1.0);
+                                if (crs != null) answer.putAll(crs);
+                            }
                         } else {
-                            // Not a change stream cursor - forward to InMemoryDriver for regular query cursors
+                            // Primary or no change stream cursor - use local InMemoryDriver
                             log.debug("getMore for regular cursor {} - forwarding to driver", getMoreCursorId);
                             int getMoreMsgId = drv.runCommand(new GenericCommand(drv).fromMap(doc));
                             var crs = drv.readSingleAnswer(getMoreMsgId);
@@ -1293,10 +1294,22 @@ public class MorphiumServer {
             hostPriorities.putAll(priorities);
         }
 
-        primaryHost = findPrimaryHost(null);
         priority = hostPriorities.getOrDefault(host + ":" + port, 0);
-        primary = rsName.isEmpty() || (host + ":" + port).equals(primaryHost);
-        initialSyncDone = primary || rsName.isEmpty();
+
+        // Don't pre-determine primary status here - let start() handle it
+        // This avoids race conditions when multiple nodes start simultaneously
+        if (rsName.isEmpty()) {
+            // No replica set - act as standalone primary
+            primary = true;
+            primaryHost = host + ":" + port;
+            initialSyncDone = true;
+        } else {
+            // Replica set configured - start as secondary, let start() determine actual role
+            primary = false;
+            primaryHost = null;
+            initialSyncDone = false;
+        }
+
         drv.setReplicaSet(!rsName.isEmpty());
         drv.setReplicaSetName(rsName);
         drv.setHostSeed(hosts);

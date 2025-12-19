@@ -38,6 +38,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
     }
 
     @Test
+    @Tag("failover")
     public void testHeartbeat() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
