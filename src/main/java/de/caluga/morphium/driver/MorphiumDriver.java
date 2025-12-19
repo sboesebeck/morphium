@@ -228,8 +228,13 @@ public interface MorphiumDriver extends Closeable {
     void setDefaultBatchSize(int defaultBatchSize);
 
     boolean isUseSSL();
-
     void setUseSSL(boolean useSSL);
+
+    javax.net.ssl.SSLContext getSslContext();
+    void setSslContext(javax.net.ssl.SSLContext sslContext);
+
+    boolean isSslInvalidHostNameAllowed();
+    void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed);
 
     boolean isDefaultJ();
 
