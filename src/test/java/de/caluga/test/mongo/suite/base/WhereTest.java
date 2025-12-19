@@ -29,11 +29,19 @@ public class WhereTest extends MultiDriverTestBase {
     public void testWhere(Morphium m) throws Exception {
         log.info("Running with Driver " + m.getDriver().getName());
 
+        // When connected through MorphiumServer (via PooledDriver), skip because
+        // the MorphiumServer process doesn't have GraalJS available
+        if (m.getDriver().isInMemoryBackend()) {
+            log.info("Connected to in-memory backend (MorphiumServer) - skipping $where test (no JavaScript support)");
+            return;
+        }
+
+        // Check if using InMemoryDriver directly - only test if JavaScript is available locally
         if (m.getDriver().getName().equals(InMemoryDriver.driverName)) {
             var mgr = new ScriptEngineManager();
 
             if (mgr.getEngineByExtension("js") == null) {
-                log.error("No javascript engine available - inMem $where not running...");
+                log.info("No javascript engine available - skipping $where test for in-memory backend");
                 return;
             }
         }
@@ -56,11 +64,20 @@ public class WhereTest extends MultiDriverTestBase {
         }
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+
+        // When connected through MorphiumServer (via PooledDriver), skip because
+        // the MorphiumServer process doesn't have GraalJS available
+        if (morphium.getDriver().isInMemoryBackend()) {
+            log.info("Connected to in-memory backend (MorphiumServer) - skipping $where test (no JavaScript support)");
+            return;
+        }
+
+        // Check if using InMemoryDriver directly - only test if JavaScript is available locally
         if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)) {
             var mgr = new ScriptEngineManager();
 
             if (mgr.getEngineByExtension("js") == null) {
-                log.error("No javascript engine available - inMem $where not running...");
+                log.info("No javascript engine available - skipping $where test for in-memory backend");
                 return;
             }
         }

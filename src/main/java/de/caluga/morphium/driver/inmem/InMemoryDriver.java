@@ -1212,7 +1212,27 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             database.putIfAbsent(cmd.getDb(), new HashMap<>());
         }
 
+        // Get the name filter if specified
+        Map<String, Object> filter = cmd.getFilter();
+        String nameFilter = null;
+        if (filter != null && filter.containsKey("name")) {
+            Object filterName = filter.get("name");
+            log.debug("listCollections filter: name={}, type={}", filterName,
+                     filterName != null ? filterName.getClass().getName() : "null");
+            if (filterName instanceof String) {
+                nameFilter = (String) filterName;
+            } else if (filterName != null) {
+                // Handle non-String types by converting to string
+                nameFilter = String.valueOf(filterName);
+            }
+        }
+
         for (String coll : database.get(cmd.getDb()).keySet()) {
+            // Apply name filter if specified
+            if (nameFilter != null && !nameFilter.equals(coll)) {
+                continue;
+            }
+
             // Build options map - include capped status if applicable
             Doc options = new Doc();
             if (cappedCollections.containsKey(cmd.getDb()) && cappedCollections.get(cmd.getDb()).containsKey(coll)) {

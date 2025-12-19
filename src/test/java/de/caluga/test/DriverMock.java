@@ -412,6 +412,24 @@ public class DriverMock implements MorphiumDriver {
     }
 
     @Override
+    public javax.net.ssl.SSLContext getSslContext() {
+        return null;
+    }
+
+    @Override
+    public void setSslContext(javax.net.ssl.SSLContext sslContext) {
+    }
+
+    @Override
+    public boolean isSslInvalidHostNameAllowed() {
+        return false;
+    }
+
+    @Override
+    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+    }
+
+    @Override
     public boolean isDefaultJ() {
         return false;
     }
