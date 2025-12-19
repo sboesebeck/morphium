@@ -25,11 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Driver
 - **Host class**: New `Host` class for improved readability in connection pool management
 - **Shared connection pools**: Connection pool sharing between Morphium instances
-- **SSL/TLS support**: Added SSL/TLS support for secure connections to MongoDB
-  - `driver.setUseSSL(true)` to enable SSL connections
-  - `driver.setSslContext(sslContext)` for custom SSL configuration
-  - `driver.setSslInvalidHostNameAllowed(true)` to disable hostname verification
-  - New `SslHelper` utility class for creating SSLContext from keystores
 
 #### MorphiumServer
 - **SSL/TLS support**: MorphiumServer can now accept SSL/TLS encrypted connections
@@ -183,6 +178,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Java 21+ requirement
 - Significant architectural improvements
 - Enhanced driver support
+- **SSL/TLS support**: Added SSL/TLS support for secure connections to MongoDB
+  - `driver.setUseSSL(true)` to enable SSL connections
+  - `driver.setSslContext(sslContext)` for custom SSL configuration
+  - `driver.setSslInvalidHostNameAllowed(true)` to disable hostname verification
+  - New `SslHelper` utility class for creating SSLContext from keystores
 - Improved documentation
 
 ---
