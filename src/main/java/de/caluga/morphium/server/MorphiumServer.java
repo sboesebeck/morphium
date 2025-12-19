@@ -1094,7 +1094,24 @@ public class MorphiumServer {
                                 // Synchronous replication: if primary and this is a write command, replicate to secondaries
                                 // Skip if this is already a replication from primary (to avoid infinite loop)
                                 if (primary && WRITE_COMMANDS.contains(cmd.toLowerCase()) && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
-                                    replicateToSecondaries(doc);
+                                    ReplicationResult replicationResult = replicateToSecondaries(doc);
+
+                                    // Check if WriteConcern is satisfied
+                                    Object writeConcern = doc.get("writeConcern");
+                                    if (!replicationResult.satisfiesWriteConcern(writeConcern)) {
+                                        // WriteConcern not met - add writeConcernError to response
+                                        // Note: The write succeeded on primary, so ok=1, but we add writeConcernError
+                                        int acknowledged = 1 + replicationResult.successCount;
+                                        String errmsg = String.format(
+                                            "Write concern not satisfied: acknowledged by %d of %d nodes (required: %s)",
+                                            acknowledged, replicationResult.totalNodes, writeConcern);
+                                        answer.put("writeConcernError", Doc.of(
+                                            "code", 100,
+                                            "codeName", "UnsatisfiedWriteConcern",
+                                            "errmsg", errmsg
+                                        ));
+                                        log.warn("WriteConcern not satisfied: {}", errmsg);
+                                    }
                                 }
                             }
                         } catch (Exception e) {
@@ -1406,13 +1423,62 @@ public class MorphiumServer {
     // }
 
     /**
+     * Result of replication to secondaries.
+     */
+    private static class ReplicationResult {
+        final int successCount;
+        final int failureCount;
+        final int totalNodes; // Including primary
+
+        ReplicationResult(int successCount, int failureCount, int totalNodes) {
+            this.successCount = successCount;
+            this.failureCount = failureCount;
+            this.totalNodes = totalNodes;
+        }
+
+        boolean satisfiesWriteConcern(Object writeConcern) {
+            if (writeConcern == null) {
+                return true; // Default w:1 - just primary is enough
+            }
+
+            if (writeConcern instanceof Map) {
+                Object w = ((Map<?, ?>) writeConcern).get("w");
+                return checkW(w);
+            } else if (writeConcern instanceof Number || writeConcern instanceof String) {
+                return checkW(writeConcern);
+            }
+            return true;
+        }
+
+        private boolean checkW(Object w) {
+            if (w == null) {
+                return true; // Default
+            }
+            if ("majority".equals(w)) {
+                int majority = (totalNodes / 2) + 1;
+                int acknowledged = 1 + successCount; // Primary + successful secondaries
+                return acknowledged >= majority;
+            }
+            if (w instanceof Number) {
+                int required = ((Number) w).intValue();
+                if (required <= 0) return true; // w:0 means no acknowledgment needed
+                int acknowledged = 1 + successCount; // Primary + successful secondaries
+                return acknowledged >= required;
+            }
+            return true;
+        }
+    }
+
+    /**
      * Synchronously replicate a write command to all secondaries.
      * Called by the primary after executing a write locally.
-     * This ensures strong consistency - secondaries have the data before the client gets a response.
+     * Returns replication result for WriteConcern checking.
      */
-    private void replicateToSecondaries(Map<String, Object> commandDoc) {
+    private ReplicationResult replicateToSecondaries(Map<String, Object> commandDoc) {
+        int totalNodes = hosts != null ? hosts.size() : 1;
+
         if (!primary || hosts == null || hosts.size() <= 1) {
-            return; // Not primary or no secondaries
+            return new ReplicationResult(0, 0, totalNodes); // No secondaries to replicate to
         }
 
         String myHost = host + ":" + port;
@@ -1424,17 +1490,27 @@ public class MorphiumServer {
         }
 
         if (secondaries.isEmpty()) {
-            return;
+            return new ReplicationResult(0, 0, totalNodes);
         }
+
+        // Track success/failure for each secondary
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger failureCount = new java.util.concurrent.atomic.AtomicInteger(0);
 
         // Replicate to each secondary in parallel
         List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
         for (String secondary : secondaries) {
             futures.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
                 try {
-                    replicateToSecondary(secondary, commandDoc);
+                    boolean success = replicateToSecondary(secondary, commandDoc);
+                    if (success) {
+                        successCount.incrementAndGet();
+                    } else {
+                        failureCount.incrementAndGet();
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to replicate to secondary {}: {}", secondary, e.getMessage());
+                    failureCount.incrementAndGet();
                 }
             }));
         }
@@ -1445,15 +1521,21 @@ public class MorphiumServer {
                 .get(5, java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("Replication to secondaries did not complete in time: {}", e.getMessage());
+            // Count remaining as failures
+            int completed = successCount.get() + failureCount.get();
+            failureCount.addAndGet(secondaries.size() - completed);
         }
+
+        return new ReplicationResult(successCount.get(), failureCount.get(), totalNodes);
     }
 
     /**
      * Replicate a command to a specific secondary.
      * Creates a DIRECT connection (bypassing RS topology discovery) to ensure
      * the command goes to the secondary, not redirected back to primary.
+     * @return true if replication succeeded, false otherwise
      */
-    private void replicateToSecondary(String secondaryHost, Map<String, Object> commandDoc) {
+    private boolean replicateToSecondary(String secondaryHost, Map<String, Object> commandDoc) {
         SingleMongoConnection conn = null;
         SingleMongoConnectDriver tmpDriver = null;
         try {
@@ -1475,7 +1557,7 @@ public class MorphiumServer {
 
             if (!conn.isConnected()) {
                 log.warn("Could not establish direct connection to secondary {}", secondaryHost);
-                return;
+                return false;
             }
 
             // Mark this as a replication command so secondary doesn't reject or forward it
@@ -1493,12 +1575,16 @@ public class MorphiumServer {
                 Object ok = response.get("ok");
                 if (ok instanceof Number && ((Number) ok).doubleValue() >= 1.0) {
                     log.debug("Replicated to secondary {} successfully", secondaryHost);
+                    return true;
                 } else {
                     log.warn("Replication to {} returned ok={}, errmsg={}", secondaryHost, ok, response.get("errmsg"));
+                    return false;
                 }
             }
+            return false; // No valid response
         } catch (Exception e) {
             log.warn("Error replicating to secondary {}: {}", secondaryHost, e.getMessage());
+            return false;
         } finally {
             if (conn != null) {
                 try { conn.close(); } catch (Exception ignore) {}
