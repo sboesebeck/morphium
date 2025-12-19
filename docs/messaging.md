@@ -14,6 +14,8 @@ Concepts
 Setup
 ```java
 import de.caluga.morphium.messaging.*;
+import java.util.Map;
+import java.util.List;
 
 // Create via Morphium factory (preferred)
 MorphiumMessaging messaging = morphium.createMessaging();

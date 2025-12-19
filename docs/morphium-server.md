@@ -1,6 +1,8 @@
 # MorphiumServer: Standalone MongoDB-Compatible Server
 
-MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. **Important:** MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
+MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with **Morphium 6.1**, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true **drop-in replacement** for MongoDB during development and testing.
+
+**Important:** MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
 
 ## Key Features
 
@@ -23,10 +25,10 @@ After building the project, you can run the server directly using the `server-cl
 mvn clean package -DskipTests
 
 # Run MorphiumServer with default settings (port 17017)
-java -jar target/morphium-*-server-cli.jar
+java -jar target/morphium-6.1.1-server-cli.jar
 
 # Run on a different port
-java -jar target/morphium-*-server-cli.jar --port 27017
+java -jar target/morphium-6.1.1-server-cli.jar --port 27017
 ```
 
 ### Running Programmatically
@@ -73,7 +75,7 @@ You can configure the MorphiumServer using the following command-line arguments:
 
 Example:
 ```bash
-java -jar target/morphium-*-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
+java -jar target/morphium-6.1.1-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
 ### Replica Set Behavior (experimental)
@@ -95,21 +97,24 @@ Practical tips:
 MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.
 
 **How it works:**
-- On startup: If dump files exist in the configured directory, they are automatically restored
-- During runtime: If `--dump-interval` is set, databases are dumped periodically
-- On shutdown: A final dump is performed to capture all changes
+- On startup: If dump files exist in the configured directory, they are automatically restored.
+- During runtime: If `--dump-interval` is set, databases are dumped periodically.
+- On shutdown: A final dump is performed to capture all changes.
 
 **Quick Start with Persistence:**
 
 ```bash
 # Start with persistence - dumps every 5 minutes
-java -jar target/morphium-*-server-cli.jar -p 27017 \
+java -jar target/morphium-6.1.1-server-cli.jar -p 27017 \
   --dump-dir /var/morphium/data --dump-interval 300
 
 # Start with persistence - dump only on shutdown
-java -jar target/morphium-*-server-cli.jar -p 27017 \
+java -jar target/morphium-6.1.1-server-cli.jar -p 27017 \
   --dump-dir /var/morphium/data
 ```
+
+**Manual Snapshots:**
+You can trigger a manual dump at any time using the `dumpNow()` method programmatically (see below).
 
 **Programmatic Configuration:**
 ```java
@@ -160,7 +165,7 @@ keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
 
 2. Start the server with SSL enabled:
 ```bash
-java -jar target/morphium-*-server-cli.jar -p 27018 \
+java -jar target/morphium-6.1.1-server-cli.jar -p 27018 \
   --ssl --sslKeystore server.jks --sslKeystorePassword changeit
 ```
 
@@ -197,7 +202,7 @@ server.start();
 FROM openjdk:21-slim
 WORKDIR /app
 
-COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
+COPY target/morphium-6.1.1-server-cli.jar /app/morphium-server.jar
 COPY server.jks /app/server.jks
 
 EXPOSE 27018
@@ -323,7 +328,7 @@ jobs:
 
       - name: Start MorphiumServer
         run: |
-          java -jar target/morphium-*-server-cli.jar \
+          java -jar target/morphium-6.1.1-server-cli.jar \
                --port 27017 --host 0.0.0.0 &
           sleep 2
 
@@ -373,7 +378,7 @@ static void stopServer() {
 
 ```bash
 # Terminal 1: Start MorphiumServer
-java -jar target/morphium-*-server-cli.jar --port 27017
+java -jar target/morphium-6.1.1-server-cli.jar --port 27017
 
 # Terminal 2: Start Node.js service
 MONGO_URL=mongodb://localhost:27017 npm start
@@ -393,7 +398,7 @@ FROM openjdk:21-slim
 WORKDIR /app
 
 # Copy the executable server JAR
-COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
+COPY target/morphium-6.1.1-server-cli.jar /app/morphium-server.jar
 
 EXPOSE 27017
 
@@ -493,12 +498,12 @@ System.out.println("Active connections: " + connections);
 ```bash
 # Debug logging with Logback
 java -Dlogback.configurationFile=logback.xml \
-     -cp morphium.jar de.caluga.morphium.server.MorphiumServer \
+     -jar target/morphium-6.1.1-server-cli.jar \
      --port 27017
 
 # Simple logger
 java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
-     -cp morphium.jar de.caluga.morphium.server.MorphiumServer \
+     -jar target/morphium-6.1.1-server-cli.jar \
      --port 27017
 ```
 
@@ -596,7 +601,7 @@ mvn clean package -DskipTests
 # 2. morphium-X.Y.Z-server-cli.jar (the executable server)
 
 # Run the server:
-java -jar target/morphium-*-server-cli.jar --port 27017
+java -jar target/morphium-6.1.1-server-cli.jar --port 27017
 ```
 
 ## Maven Dependency
@@ -605,7 +610,7 @@ java -jar target/morphium-*-server-cli.jar --port 27017
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>6.0.4-SNAPSHOT</version>
+    <version>6.1.1</version>
 </dependency>
 ```
 

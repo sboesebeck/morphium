@@ -27,13 +27,18 @@ cfg.connectionSettings()
 | Method | Default | Description |
 |--------|---------|-------------|
 | `setDatabase(String)` | required | Database name to connect to |
-| `setConnectionTimeout(int)` | 1000 | Connection timeout in milliseconds |
-| `setSocketTimeout(int)` | 0 | Socket timeout in milliseconds (0 = no timeout) |
-| `setMaxConnectionIdleTime(int)` | 100000 | Max time connection can be idle (ms) |
+| `setConnectionTimeout(int)` | 0 | Connection timeout in milliseconds |
+| `setMaxConnectionIdleTime(int)` | 30000 | Max time connection can be idle (ms) |
 | `setMaxConnectionLifetime(int)` | 600000 | Max connection lifetime (ms) |
-| `setMinConnectionsPerHost(int)` | 1 | Minimum connections per host |
-| `setMaxConnectionsPerHost(int)` | 100 | Maximum connections per host |
-| `setMaxWaitTime(int)` | 30000 | Max wait time for connection from pool (ms) |
+| `setMinConnections(int)` | 1 | Minimum connections |
+| `setMaxConnections(int)` | 250 | Maximum connections |
+| `setMaxWaitTime(int)` | 2000 | Max wait time for connection from pool (ms) |
+| `setHeartbeatFrequency(int)` | 1000 | Heartbeat frequency in milliseconds |
+| `setRetriesOnNetworkError(int)` | 1 | Number of retries on network error |
+| `setSleepBetweenNetworkErrorRetries(int)` | 1000 | Sleep between network error retries (ms) |
+| `setUseSSL(boolean)` | false | Enable SSL/TLS connections |
+| `setSslContext(SSLContext)` | null | Custom SSL context |
+| `setSslInvalidHostNameAllowed(boolean)` | false | Allow invalid host names (self-signed certs) |
 
 ## Cluster Settings
 
@@ -46,9 +51,10 @@ cfg.clusterSettings()
 | Method | Default | Description |
 |--------|---------|-------------|
 | `addHostToSeed(String, int)` | required | Add host:port to seed list |
-| `setReplicaSetName(String)` | null | Replica set name (auto-detected if null) |
-| `setHeartbeatFrequency(int)` | 2000 | Heartbeat frequency in milliseconds |
-| `setServerSelectionTimeout(int)` | 2000 | Server selection timeout (ms) |
+| `setRequiredReplicaSetName(String)` | null | Replica set name (auto-detected if null) |
+| `setHeartbeatFrequency(int)` | 0 | Heartbeat frequency in milliseconds |
+| `setReplicaset(boolean)` | true | Enable replica set monitoring |
+| `setReplicaSetMonitoringTimeout(int)` | 5000 | Monitoring timeout (ms) |
 
 ### Example
 ```java
@@ -59,7 +65,7 @@ cfg.clusterSettings().addHostToSeed("localhost", 27017);
 cfg.clusterSettings().addHostToSeed("mongo1", 27017);
 cfg.clusterSettings().addHostToSeed("mongo2", 27017);
 cfg.clusterSettings().addHostToSeed("mongo3", 27017);
-cfg.clusterSettings().setReplicaSetName("myReplicaSet");
+cfg.clusterSettings().setRequiredReplicaSetName("myReplicaSet");
 ```
 
 ## Driver Settings
@@ -73,9 +79,17 @@ cfg.driverSettings()
 | Method | Default | Description |
 |--------|---------|-------------|
 | `setDriverName(String)` | "PooledDriver" | Driver implementation to use |
-| `setIdleSleepTime(int)` | 5 | Sleep time between idle checks (ms) |
+| `setIdleSleepTime(int)` | 20 | Sleep time between idle checks (ms) |
 | `setSharedConnectionPool(boolean)` | false | Share driver/connection pool across Morphium instances with same hosts+database |
 | `setInMemorySharedDatabases(boolean)` | false | Share InMemoryDriver instance across Morphium instances with same database |
+| `setServerSelectionTimeout(int)` | 30000 | Server selection timeout (ms) |
+| `setHeartbeatFrequency(int)` | 1000 | Heartbeat frequency (ms) |
+| `setRetryReads(boolean)` | false | Retry read operations |
+| `setRetryWrites(boolean)` | false | Retry write operations |
+| `setLocalThreshold(int)` | 15 | Local threshold for server selection (ms) |
+| `setMaxConnectionIdleTime(int)` | 30000 | Max connection idle time (ms) |
+| `setMaxConnectionLifeTime(int)` | 600000 | Max connection lifetime (ms) |
+| `setCursorBatchSize(int)` | 1000 | Default batch size for cursors |
 
 ### Available Drivers
 - **`PooledDriver`** (default): Connection pooling with replica set support
@@ -135,7 +149,13 @@ cfg.messagingSettings()
 | `setMessagingWindowSize(int)` | 100 | Number of messages to process per batch |
 | `setMessagingMultithreadded(boolean)` | true | Enable multithreaded message processing |
 | `setUseChangeStream(boolean)` | true | Use MongoDB Change Streams for messaging |
-| `setPollPauseTime(int)` | 500 | Pause between message polls (ms) |
+| `setMessagingPollPause(int)` | 250 | Pause between message polls (ms) |
+| `setProcessMultiple(boolean)` | true | Process multiple messages if available |
+| `setAutoAnswer(boolean)` | false | Automatically answer messages |
+| `setMessagingImplementation(String)` | "StandardMessaging" | Implementation class alias |
+| `setThreadPoolMessagingCoreSize(int)` | 0 | Thread pool core size |
+| `setThreadPoolMessagingMaxSize(int)` | 100 | Thread pool max size |
+| `setThreadPoolMessagingKeepAliveTime(long)` | 2000 | Thread keep-alive time (ms) |
 
 ## Thread Pool Settings
 
@@ -147,9 +167,9 @@ cfg.threadPoolSettings()
 
 | Method | Default | Description |
 |--------|---------|-------------|
-| `setCorePoolSize(int)` | 0 | Core thread pool size |
-| `setMaxPoolSize(int)` | Integer.MAX_VALUE | Maximum thread pool size |
-| `setKeepAliveTime(int)` | 60000 | Thread keep-alive time (ms) |
+| `setThreadPoolAsyncOpCoreSize(int)` | 1 | Core thread pool size |
+| `setThreadPoolAsyncOpMaxSize(int)` | 1000 | Maximum thread pool size |
+| `setThreadPoolAsyncOpKeepAliveTime(long)` | 1000 | Thread keep-alive time (ms) |
 
 ## Writer Settings
 
@@ -161,8 +181,15 @@ cfg.writerSettings()
 
 | Method | Default | Description |
 |--------|---------|-------------|
-| `setBufferedWriterBufferSize(int)` | 1000 | Buffer size for buffered writes |
-| `setBufferedWriterTimeout(int)` | 5000 | Buffer flush timeout (ms) |
+| `setWriteBufferTime(int)` | 1000 | Buffer flush timeout (ms) |
+| `setWriteBufferTimeGranularity(int)` | 100 | Time granularity for buffer checks (ms) |
+| `setMaximumRetriesWriter(int)` | 10 | Max retries for direct writer |
+| `setMaximumRetriesBufferedWriter(int)` | 10 | Max retries for buffered writer |
+| `setMaximumRetriesAsyncWriter(int)` | 10 | Max retries for async writer |
+| `setRetryWaitTimeWriter(int)` | 200 | Wait between writer retries (ms) |
+| `setRetryWaitTimeBufferedWriter(int)` | 200 | Wait between buffered writer retries (ms) |
+| `setRetryWaitTimeAsyncWriter(int)` | 200 | Wait between async writer retries (ms) |
+| `setThreadConnectionMultiplier(int)` | 5 | Multiplier for connections per thread |
 
 ## Object Mapping Settings
 
@@ -174,8 +201,11 @@ cfg.objectMappingSettings()
 
 | Method | Default | Description |
 |--------|---------|-------------|
-| `setTreatCollectionAsUncapped(boolean)` | false | Treat all collections as uncapped |
-| `setObjectMapper(String)` | "ObjectMapperImpl" | Object mapper implementation |
+| `setCheckForNew(boolean)` | true | Check if entity is new before store |
+| `setAutoValues(boolean)` | true | Enable automatic value generation (@LastChange, etc.) |
+| `setObjectSerializationEnabled(boolean)` | true | Enable object serialization |
+| `setCamelCaseConversionEnabled(boolean)` | true | Convert camelCase to snake_case in MongoDB |
+| `setWarnOnNoEntitySerialization(boolean)` | false | Warn if no entity serialization is available |
 
 ## Error Handling Settings
 
