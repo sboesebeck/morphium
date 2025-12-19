@@ -60,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **InMemoryDriver listCollections capped status**: Fixed `listCollections` response to include `capped`, `size`, and `max` options for capped collections. Previously the options field was always empty, causing `isCapped()` to return false even for capped collections
 - **MorphiumServer capped collection replication**: Added initial and periodic sync of capped collection metadata from primary to secondaries. Capped collections created on primary are now properly registered on secondaries, ensuring capped behavior is enforced during replication
 - **InMemory backend detection for tests**: Added `isInMemoryBackend()` method to MorphiumDriver interface and `inMemoryBackend` field to hello response from MorphiumServer. Tests that need to skip unsupported features (like Collation) can now correctly detect when connected to MorphiumServer with InMemory backend, not just when using InMemoryDriver directly
+- **MorphiumServer changestream event delivery via wire protocol**: Fixed changestream events not being delivered to clients connecting via the wire protocol. Watch cursors are now properly created with callbacks, events are queued via `LinkedBlockingQueue`, and `getMore` requests correctly return queued events to clients. This enables reliable messaging when using MorphiumServer as a messaging hub
+
+### Added (Tests)
+- **Failover tests for MorphiumServer replica sets**: Added comprehensive failover tests (`FailoverTest.java`) that verify:
+  - Primary election based on configured priorities
+  - Automatic failover when primary is terminated
+  - Write operations succeed after failover
+  - Rejoining nodes integrate correctly into the cluster
+  - Tests cover both `PooledDriver` and `SingleMongoConnectDriver`
 
 ### Changed
 - **Modernized concurrent collections**: Replaced legacy `Vector` with `CopyOnWriteArrayList` and `Hashtable` with `ConcurrentHashMap` for better performance
