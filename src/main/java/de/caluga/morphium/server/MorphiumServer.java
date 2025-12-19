@@ -27,6 +27,7 @@ import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
@@ -50,6 +51,11 @@ public class MorphiumServer {
     private AtomicInteger cursorId = new AtomicInteger(1000);
     // Map cursor IDs to their change stream queues for getMore handling
     private final Map<Long, java.util.concurrent.BlockingQueue<Map<String, Object>>> watchCursors = new java.util.concurrent.ConcurrentHashMap<>();
+
+    // Track transactions by session ID (lsid) for proper multi-threaded transaction support
+    // Since InMemoryDriver uses ThreadLocal for transactions, we need to track them here
+    // and set the context on the current thread before processing each command
+    private final Map<String, MorphiumTransactionContext> sessionTransactions = new java.util.concurrent.ConcurrentHashMap<>();
 
     private ThreadPoolExecutor executor;
     private Thread heartbeatThread;
@@ -94,6 +100,102 @@ public class MorphiumServer {
     private long dumpIntervalMs = 0; // 0 = disabled
     private java.util.concurrent.ScheduledExecutorService dumpScheduler = null;
     private volatile long lastDumpTime = 0;
+
+    /**
+     * Extract session ID string from a document's lsid field.
+     * The lsid is typically { "id": UUID } structure.
+     */
+    private String extractSessionId(Map<String, Object> doc) {
+        Object lsid = doc.get("lsid");
+        if (lsid instanceof Map) {
+            Object id = ((Map<?, ?>) lsid).get("id");
+            if (id != null) {
+                return id.toString();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Set up transaction context for the current thread if this command is part of a transaction.
+     * Returns the session ID if a transaction context was set, null otherwise.
+     */
+    private String setupTransactionContext(Map<String, Object> doc) {
+        String sessionId = extractSessionId(doc);
+        if (sessionId == null) {
+            return null;
+        }
+
+        // Check if this starts a new transaction
+        Object startTxn = doc.get("startTransaction");
+        boolean isStartTransaction = Boolean.TRUE.equals(startTxn) ||
+            (startTxn instanceof Number && ((Number)startTxn).intValue() == 1);
+
+        if (isStartTransaction) {
+            // Start a new transaction
+            log.debug("MorphiumServer: Starting transaction for session {}", sessionId);
+            MorphiumTransactionContext ctx = drv.startTransaction(false);
+            sessionTransactions.put(sessionId, ctx);
+            return sessionId;
+        }
+
+        // Check if this is part of an existing transaction
+        Object txnNumber = doc.get("txnNumber");
+        Object autocommit = doc.get("autocommit");
+        boolean isPartOfTransaction = txnNumber != null && Boolean.FALSE.equals(autocommit);
+
+        if (isPartOfTransaction && sessionTransactions.containsKey(sessionId)) {
+            // Set the existing transaction context on this thread
+            MorphiumTransactionContext ctx = sessionTransactions.get(sessionId);
+            drv.setTransactionContext(ctx);
+            log.debug("MorphiumServer: Using existing transaction context for session {}", sessionId);
+            return sessionId;
+        }
+
+        return null;
+    }
+
+    /**
+     * Clean up transaction context after command execution.
+     */
+    private void cleanupTransactionContext(String sessionId) {
+        if (sessionId != null) {
+            // Don't clear the ThreadLocal - the context needs to stay associated with the session
+            // We only clear it when the transaction ends (commit/abort)
+        }
+    }
+
+    /**
+     * Handle transaction abort - rollback changes and clean up.
+     */
+    private void handleAbortTransaction(String sessionId) {
+        if (sessionId != null && sessionTransactions.containsKey(sessionId)) {
+            log.debug("MorphiumServer: Aborting transaction for session {}", sessionId);
+            MorphiumTransactionContext ctx = sessionTransactions.remove(sessionId);
+            drv.setTransactionContext(ctx);
+            try {
+                drv.abortTransaction();
+            } catch (Exception e) {
+                log.error("Error aborting transaction", e);
+            }
+        }
+    }
+
+    /**
+     * Handle transaction commit - apply changes and clean up.
+     */
+    private void handleCommitTransaction(String sessionId) {
+        if (sessionId != null && sessionTransactions.containsKey(sessionId)) {
+            log.debug("MorphiumServer: Committing transaction for session {}", sessionId);
+            MorphiumTransactionContext ctx = sessionTransactions.remove(sessionId);
+            drv.setTransactionContext(ctx);
+            try {
+                drv.commitTransaction();
+            } catch (Exception e) {
+                log.error("Error committing transaction", e);
+            }
+        }
+    }
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads, int compressorId) {
         this.drv = new InMemoryDriver();
@@ -822,8 +924,16 @@ public class MorphiumServer {
                         break;
 
                     case "abortTransaction":
+                        // Handle transaction abort with session-based tracking
+                        String abortSessionId = extractSessionId(doc);
+                        handleAbortTransaction(abortSessionId);
+                        answer = Doc.of("ok", 1.0);
+                        break;
+
                     case "commitTransaction":
-                        // Transaction commands - just acknowledge since we don't support transactions
+                        // Handle transaction commit with session-based tracking
+                        String commitSessionId = extractSessionId(doc);
+                        handleCommitTransaction(commitSessionId);
                         answer = Doc.of("ok", 1.0);
                         break;
 
@@ -968,6 +1078,9 @@ public class MorphiumServer {
                                 answer = Doc.of("ok", 1.0, "cursor", initialCursor);
                                 // Skip normal command processing
                             } else {
+                                // Set up transaction context if this command is part of a transaction
+                                String txnSessionId = setupTransactionContext(doc);
+
                                 // Log database drop commands at INFO level for debugging test isolation issues
                                 if (cmd.equalsIgnoreCase("dropDatabase") || cmd.equalsIgnoreCase("drop")) {
                                     log.info("MorphiumServer[{}:{}]: Processing {} command for db={}, coll={}, drvHash={}",

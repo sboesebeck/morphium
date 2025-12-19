@@ -1,6 +1,7 @@
 package de.caluga.morphium.config;
 
 import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Transient;
 
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ public class ConnectionSettings extends Settings {
     private int retriesOnNetworkError = 1;
     private int sleepBetweenNetworkErrorRetries = 1000;
     private boolean useSSL = false;
+    @Transient
     private SSLContext sslContext;
     private boolean sslInvalidHostNameAllowed = false;
 
