@@ -970,6 +970,16 @@ if [ "$morphiumserverLocalMode" -eq 1 ] || [ "$startMorphiumserverLocal" -eq 1 ]
   _ms_local_ensure_cluster "$uri"
 fi
 
+# Auto-exclude failover tests when using MorphiumServer (doesn't support StepDownCommand)
+if [ "$startMorphiumserverLocal" -eq 1 ]; then
+  if [ -z "$excludeTags" ]; then
+    excludeTags="failover"
+  elif [[ ! "$excludeTags" == *"failover"* ]]; then
+    excludeTags="$excludeTags,failover"
+  fi
+  echo -e "${BL}Info:${CL} MorphiumServer selected - automatically excluding 'failover' tagged tests"
+fi
+
 # Handle --rerunfailed option early to bypass interactive prompts
 if [ "$rerunfailed" -eq 1 ]; then
   echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
