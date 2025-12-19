@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.618322db.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
       
         
         <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1744,7 +1744,8 @@
 - <strong><a href="morphium-server/">MorphiumServer</a></strong> - Standalone MongoDB-compatible server that speaks the wire protocol
   - Perfect for CI/CD pipelines, integration testing, and microservices development
   - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
-  - Run with: <code>java -cp morphium.jar de.caluga.morphium.server.MorphiumServer --port 27017</code></p>
+  - Supports <strong>Replica Sets</strong> (experimental) and <strong>Persistence (Snapshots)</strong>
+  - Run with: <code>java -jar target/morphium-6.1.1-server-cli.jar --port 27017</code></p>
 <h2 id="production-deployment">Production Deployment<a class="headerlink" href="#production-deployment" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="production-deployment-guide/">Production Deployment Guide</a></strong> - Complete guide for deploying Morphium in production environments</li>
@@ -1779,10 +1780,10 @@
 <p>With Morphium 5.0 we implemented our own MongoDB driver. The official driver includes object mapping, which interfered with Morphium’s mapping system, and we also experienced some failover issues. Building our own wire‑protocol driver gave us full control over mapping, retry/failover behavior, and performance characteristics.</p>
 <p>Benefits
 - Tailored to Morphium’s mapping and lifecycle needs; minimal impedance with Morphium’s object mapper.
-- Full control over retry/failover semantics and performance trade‑offs.</p>
+- Full control over retry/failover semantics and performance trade‑offs.
+- SSL/TLS support for secure connections (since v6.0).</p>
 <p>Limitations
-- No MongoDB Atlas support (Atlas requires features like mandatory TLS that are not supported here).
-- No SSL/TLS‑encrypted connections; use plain connections or terminate TLS outside MongoDB. (Some community distributions may not include SSL/TLS.)
+- No MongoDB Atlas support.
 - Some advanced features of the official driver are not available.</p>
 
 
@@ -1857,10 +1858,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="assets/javascripts/bundle.e71a0d61.min.js"></script>
+      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

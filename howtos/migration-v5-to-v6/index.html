@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
@@ -33,7 +33,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.618322db.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -909,6 +909,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Requirements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ssltls-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSL/TLS Support
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1024,15 +1041,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-removed-deprecated-methods-from-morphium-class" class="md-nav__link">
+  <a href="#5-removed-or-deprecated-methods-from-morphium-class" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Removed Deprecated Methods from Morphium Class
+        5. Removed or Deprecated Methods from Morphium Class
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="5. Removed Deprecated Methods from Morphium Class">
+    <nav class="md-nav" aria-label="5. Removed or Deprecated Methods from Morphium Class">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1058,10 +1075,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#other-removed-methods" class="md-nav__link">
+  <a href="#other-deprecated-or-removed-methods" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Other Removed Methods
+        Other Deprecated or Removed Methods
       
     </span>
   </a>
@@ -1866,6 +1883,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Requirements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ssltls-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSL/TLS Support
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1981,15 +2015,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-removed-deprecated-methods-from-morphium-class" class="md-nav__link">
+  <a href="#5-removed-or-deprecated-methods-from-morphium-class" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Removed Deprecated Methods from Morphium Class
+        5. Removed or Deprecated Methods from Morphium Class
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="5. Removed Deprecated Methods from Morphium Class">
+    <nav class="md-nav" aria-label="5. Removed or Deprecated Methods from Morphium Class">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2015,10 +2049,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#other-removed-methods" class="md-nav__link">
+  <a href="#other-deprecated-or-removed-methods" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Other Removed Methods
+        Other Deprecated or Removed Methods
       
     </span>
   </a>
@@ -2195,6 +2229,8 @@
 <li><strong>MongoDB 5.0+</strong> for production deployments</li>
 <li><strong>BSON library</strong>: Morphium 6 uses MongoDB's BSON library (version 4.7.1+)</li>
 </ul>
+<h3 id="ssltls-support">SSL/TLS Support<a class="headerlink" href="#ssltls-support" title="Permanent link">&para;</a></h3>
+<p>Native SSL/TLS support was introduced in the Morphium driver in v6.0.</p>
 <h2 id="breaking-changes">Breaking Changes<a class="headerlink" href="#breaking-changes" title="Permanent link">&para;</a></h2>
 <h3 id="1-configuration-api-changes">1. Configuration API Changes<a class="headerlink" href="#1-configuration-api-changes" title="Permanent link">&para;</a></h3>
 <p><strong>Old (v5):</strong>
@@ -2322,16 +2358,18 @@
 - <code>regularField</code> becomes null (default overwritten)
 - <code>protectedField</code> stays "default" (protected from null)</p>
 <p>This makes the behavior more consistent: if a field doesn't exist in MongoDB, the Java object is not modified.</p>
-<h3 id="5-removed-deprecated-methods-from-morphium-class">5. Removed Deprecated Methods from Morphium Class<a class="headerlink" href="#5-removed-deprecated-methods-from-morphium-class" title="Permanent link">&para;</a></h3>
-<p>Many deprecated methods were removed from the <code>Morphium</code> class in v6. The design principle in Morphium is:
+<h3 id="5-removed-or-deprecated-methods-from-morphium-class">5. Removed or Deprecated Methods from Morphium Class<a class="headerlink" href="#5-removed-or-deprecated-methods-from-morphium-class" title="Permanent link">&para;</a></h3>
+<p>In v6, many methods in the <code>Morphium</code> class that perform query-based operations have been marked as deprecated or moved to the <code>Query</code> class. The design principle in Morphium is:
 - <strong>Morphium class</strong>: Entity-based operations (save, delete, updates to specific entities)
 - <strong>Query class</strong>: Query-based operations (reads and updates based on query criteria)</p>
 <h4 id="query-based-update-operations-use-query-methods">Query-Based Update Operations: Use Query Methods<a class="headerlink" href="#query-based-update-operations-use-query-methods" title="Permanent link">&para;</a></h4>
-<p>The removed methods were query-based update operations that should have been in the Query class all along.</p>
-<p><strong>Removed methods (were deprecated in v5):</strong>
-- <code>morphium.set(entity, collection, values, upsert, callback)</code> - query-based update
-- <code>morphium.unset(entity, collection, field, callback)</code> - query-based update
-- <code>morphium.inc(fieldsToInc, query, upsert, multiple, callback)</code> - query-based update</p>
+<p>While many methods still exist for backward compatibility, you should migrate to the <code>Query</code> class equivalents.</p>
+<p><strong>Deprecated or to-be-removed methods:</strong>
+- <code>morphium.set(toSet, collection, values, upsert, callback)</code> - use <code>query.set()</code>
+- <code>morphium.unset(toSet, collection, field, callback)</code> - use <code>query.unset()</code>
+- <code>morphium.inc(fieldsToInc, matching, upsert, multiple, callback)</code> - use <code>query.inc()</code>
+- <code>morphium.push(query, field, value, ...)</code> - use <code>query.push()</code>
+- <code>morphium.pull(entity, field, value, ...)</code> - use <code>query.pull()</code></p>
 <p><strong>Migration:</strong></p>
 <p><strong>Old (v5):</strong>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Setting values on entities matching a query</span>
@@ -2389,25 +2427,25 @@
 </span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="n">query</span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="s">&quot;status&quot;</span><span class="p">).</span><span class="na">eq</span><span class="p">(</span><span class="s">&quot;active&quot;</span><span class="p">);</span>
 </span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="n">List</span><span class="o">&lt;</span><span class="n">MyEntity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">query</span><span class="p">.</span><span class="na">asList</span><span class="p">();</span>
 </span></code></pre></div></p>
-<h4 id="other-removed-methods">Other Removed Methods<a class="headerlink" href="#other-removed-methods" title="Permanent link">&para;</a></h4>
+<h4 id="other-deprecated-or-removed-methods">Other Deprecated or Removed Methods<a class="headerlink" href="#other-deprecated-or-removed-methods" title="Permanent link">&para;</a></h4>
 <p><strong>Read operations:</strong>
-- <code>readAll(Class)</code> - removed (use <code>createQueryFor(Class).asList()</code>)
-- <code>findByField(Class, field, value)</code> - removed (use query with field filter)
-- <code>findById(Class, id, collection)</code> - three-parameter version removed</p>
+- <code>readAll(Class)</code> - deprecated (use <code>createQueryFor(Class).asList()</code>)
+- <code>findByField(Class, field, value)</code> - deprecated (use query with field filter)
+- <code>findById(Class, id, collection)</code> - three-parameter version deprecated</p>
 <p><strong>Index operations:</strong>
-- <code>ensureIndex(Class, callback, Enum... fields)</code> - removed (use <code>ensureIndices(Class)</code>)
-- <code>getIndexesFromMongo(Class)</code> - removed (use driver-specific methods)</p>
+- <code>ensureIndex(Class, callback, Enum... fields)</code> - deprecated (use <code>ensureIndices(Class)</code>)
+- <code>getIndexesFromMongo(Class)</code> - deprecated (use driver-specific methods)</p>
 <p><strong>Other operations:</strong>
-- <code>flush(Class)</code> - removed (use buffered writer methods directly)
-- <code>createAggregator(Class, resultClass)</code> - removed (use <code>aggregate()</code> on Query)
-- <code>mapReduce(Class, map, reduce)</code> - removed (MongoDB deprecated map-reduce in favor of aggregation)</p>
+- <code>flush(Class)</code> - deprecated (use buffered writer methods directly)
+- <code>createAggregator(Class, resultClass)</code> - exists (supported)
+- <code>mapReduce(Class, map, reduce)</code> - exists (supported, but MongoDB deprecated it)</p>
 <p><strong>Migration approach:</strong>
 1. Replace <code>morphium.set/unset/inc/push/pull</code> with equivalent <code>query.set/unset/inc/push/pull</code> methods
 2. Use <code>Query</code> for all update operations instead of direct <code>Morphium</code> methods
 3. Use standard query syntax instead of template-based queries
 4. For simple operations like <code>findById</code>, use <code>query.f(Query.ID_FIELD).eq(id).get()</code></p>
 <h3 id="6-inmemorydriver-improvements-v6">6. InMemoryDriver Improvements (v6)<a class="headerlink" href="#6-inmemorydriver-improvements-v6" title="Permanent link">&para;</a></h3>
-<p>The InMemoryDriver received major enhancements in v6.0:</p>
+<p>The InMemoryDriver received major enhancements in v6.1:</p>
 <h4 id="change-streams">Change Streams<a class="headerlink" href="#change-streams" title="Permanent link">&para;</a></h4>
 <ul>
 <li><strong>Full change stream support</strong> with document snapshots</li>
@@ -2449,7 +2487,7 @@
 <h2 id="migration-checklist">Migration Checklist<a class="headerlink" href="#migration-checklist" title="Permanent link">&para;</a></h2>
 <ul>
 <li>[ ] Update to Java 21+</li>
-<li>[ ] Update pom.xml dependency to <code>6.0.0</code> or higher</li>
+<li>[ ] Update pom.xml dependency to <code>6.1.1</code> or higher</li>
 <li>[ ] Replace flat config setters with nested settings objects</li>
 <li>[ ] Change messaging instantiation to <code>morphium.createMessaging()</code></li>
 <li>[ ] Update messaging code: replace <code>getName()</code>/<code>setName()</code> with <code>getTopic()</code>/<code>setTopic()</code></li>
@@ -2549,10 +2587,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

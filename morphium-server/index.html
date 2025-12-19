@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
@@ -33,7 +33,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.618322db.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -2509,7 +2509,8 @@
 
 
 <h1 id="morphiumserver-standalone-mongodb-compatible-server">MorphiumServer: Standalone MongoDB-Compatible Server<a class="headerlink" href="#morphiumserver-standalone-mongodb-compatible-server" title="Permanent link">&para;</a></h1>
-<p>MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. <strong>Important:</strong> MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.</p>
+<p>MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with <strong>Morphium 6.1</strong>, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true <strong>drop-in replacement</strong> for MongoDB during development and testing.</p>
+<p><strong>Important:</strong> MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.</p>
 <h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
 <ul>
 <li>✅ <strong>MongoDB Wire Protocol Compatible</strong> - Works with any MongoDB client library</li>
@@ -2527,10 +2528,10 @@
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>mvn<span class="w"> </span>clean<span class="w"> </span>package<span class="w"> </span>-DskipTests
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Run MorphiumServer with default settings (port 17017)</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Run on a different port</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span></code></pre></div>
 <h3 id="running-programmatically">Running Programmatically<a class="headerlink" href="#running-programmatically" title="Permanent link">&para;</a></h3>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.server.MorphiumServer</span><span class="p">;</span>
@@ -2630,7 +2631,7 @@
 </tbody>
 </table>
 <p>Example:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span>-b<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--rs-name<span class="w"> </span>my-rs<span class="w"> </span>--rs-seed<span class="w"> </span>host1:27017,host2:27018
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span>-b<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--rs-name<span class="w"> </span>my-rs<span class="w"> </span>--rs-seed<span class="w"> </span>host1:27017,host2:27018
 </span></code></pre></div></p>
 <h3 id="replica-set-behavior-experimental">Replica Set Behavior (experimental)<a class="headerlink" href="#replica-set-behavior-experimental" title="Permanent link">&para;</a></h3>
 <p>MorphiumServer now performs a lightweight initial sync whenever you start an additional member with the same <code>--rs-name</code> / <code>--rs-seed</code>:</p>
@@ -2648,18 +2649,20 @@
 <h3 id="persistence-periodic-snapshots">Persistence (Periodic Snapshots)<a class="headerlink" href="#persistence-periodic-snapshots" title="Permanent link">&para;</a></h3>
 <p>MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.</p>
 <p><strong>How it works:</strong>
-- On startup: If dump files exist in the configured directory, they are automatically restored
-- During runtime: If <code>--dump-interval</code> is set, databases are dumped periodically
-- On shutdown: A final dump is performed to capture all changes</p>
+- On startup: If dump files exist in the configured directory, they are automatically restored.
+- During runtime: If <code>--dump-interval</code> is set, databases are dumped periodically.
+- On shutdown: A final dump is performed to capture all changes.</p>
 <p><strong>Quick Start with Persistence:</strong></p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Start with persistence - dumps every 5 minutes</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--dump-dir<span class="w"> </span>/var/morphium/data<span class="w"> </span>--dump-interval<span class="w"> </span><span class="m">300</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Start with persistence - dump only on shutdown</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--dump-dir<span class="w"> </span>/var/morphium/data
 </span></code></pre></div>
+<p><strong>Manual Snapshots:</strong>
+You can trigger a manual dump at any time using the <code>dumpNow()</code> method programmatically (see below).</p>
 <p><strong>Programmatic Configuration:</strong>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.server.MorphiumServer</span><span class="p">;</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">java.io.File</span><span class="p">;</span>
@@ -2703,7 +2706,7 @@
 </li>
 <li>
 <p>Start the server with SSL enabled:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--ssl<span class="w"> </span>--sslKeystore<span class="w"> </span>server.jks<span class="w"> </span>--sslKeystorePassword<span class="w"> </span>changeit
 </span></code></pre></div></p>
 </li>
@@ -2738,7 +2741,7 @@
 <div class="language-dockerfile highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">FROM</span><span class="w"> </span><span class="s">openjdk:21-slim</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">COPY</span><span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>/app/morphium-server.jar
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">COPY</span><span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>/app/morphium-server.jar
 </span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">COPY</span><span class="w"> </span>server.jks<span class="w"> </span>/app/server.jks
 </span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="k">EXPOSE</span><span class="w"> </span><span class="s">27018</span>
@@ -2841,7 +2844,7 @@
 </span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
 </span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Start MorphiumServer</span>
 </span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
-</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">          </span><span class="no">java -jar target/morphium-*-server-cli.jar \</span>
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">          </span><span class="no">java -jar target/morphium-6.1.1-server-cli.jar \</span>
 </span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="w">               </span><span class="no">--port 27017 --host 0.0.0.0 &amp;</span>
 </span><span id="__span-16-15"><a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="w">          </span><span class="no">sleep 2</span>
 </span><span id="__span-16-16"><a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>
@@ -2885,7 +2888,7 @@
 </span></code></pre></div>
 <h3 id="3-microservices-development">3. Microservices Development<a class="headerlink" href="#3-microservices-development" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Terminal 1: Start MorphiumServer</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
 </span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># Terminal 2: Start Node.js service</span>
 </span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nv">MONGO_URL</span><span class="o">=</span>mongodb://localhost:27017<span class="w"> </span>npm<span class="w"> </span>start
@@ -2902,7 +2905,7 @@
 </span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
 </span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
 </span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c"># Copy the executable server JAR</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="k">COPY</span><span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>/app/morphium-server.jar
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="k">COPY</span><span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>/app/morphium-server.jar
 </span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
 </span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="k">EXPOSE</span><span class="w"> </span><span class="s">27017</span>
 </span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
@@ -3016,12 +3019,12 @@
 <h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Debug logging with Logback</span>
 </span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>java<span class="w"> </span>-Dlogback.configurationFile<span class="o">=</span>logback.xml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">     </span>-cp<span class="w"> </span>morphium.jar<span class="w"> </span>de.caluga.morphium.server.MorphiumServer<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">     </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">     </span>--port<span class="w"> </span><span class="m">27017</span>
 </span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>
 </span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="c1"># Simple logger</span>
 </span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>java<span class="w"> </span>-Dorg.slf4j.simpleLogger.defaultLogLevel<span class="o">=</span>debug<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="w">     </span>-cp<span class="w"> </span>morphium.jar<span class="w"> </span>de.caluga.morphium.server.MorphiumServer<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="w">     </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-24-9"><a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="w">     </span>--port<span class="w"> </span><span class="m">27017</span>
 </span></code></pre></div>
 <h2 id="supported-admin-commands">Supported Admin Commands<a class="headerlink" href="#supported-admin-commands" title="Permanent link">&para;</a></h2>
@@ -3147,13 +3150,13 @@
 </span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1"># 2. morphium-X.Y.Z-server-cli.jar (the executable server)</span>
 </span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>
 </span><span id="__span-26-9"><a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="c1"># Run the server:</span>
-</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-*-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span></code></pre></div>
 <h2 id="maven-dependency">Maven Dependency<a class="headerlink" href="#maven-dependency" title="Permanent link">&para;</a></h2>
 <div class="language-xml highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="nt">&lt;dependency&gt;</span>
 </span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">    </span><span class="nt">&lt;groupId&gt;</span>de.caluga<span class="nt">&lt;/groupId&gt;</span>
 </span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">    </span><span class="nt">&lt;artifactId&gt;</span>morphium<span class="nt">&lt;/artifactId&gt;</span>
-</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">    </span><span class="nt">&lt;version&gt;</span>6.0.4-SNAPSHOT<span class="nt">&lt;/version&gt;</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">    </span><span class="nt">&lt;version&gt;</span>6.1.1<span class="nt">&lt;/version&gt;</span>
 </span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="nt">&lt;/dependency&gt;</span>
 </span></code></pre></div>
 <p>Then start programmatically:
@@ -3293,10 +3296,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
