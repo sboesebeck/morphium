@@ -471,8 +471,8 @@ public class QueryHelper {
                             case "$mod":
                                 Number n = (Number) checkValue;
                                 List arr = (List) commandMap.get(commandKey);
-                                int div = ((Integer) arr.get(0));
-                                int rem = ((Integer) arr.get(1));
+                                int div = ((Number) arr.get(0)).intValue();
+                                int rem = ((Number) arr.get(1)).intValue();
                                 return n.intValue() % div == rem;
 
                             case "$ne":
@@ -723,8 +723,8 @@ public class QueryHelper {
                             case "$type":
                                 MongoType type = null;
 
-                                if (commandMap.get(commandKey) instanceof Integer) {
-                                    type = MongoType.findByValue((Integer) commandMap.get(commandKey));
+                                if (commandMap.get(commandKey) instanceof Number) {
+                                    type = MongoType.findByValue(((Number) commandMap.get(commandKey)).intValue());
                                 } else if (commandMap.get(commandKey) instanceof String) {
                                     type = MongoType.findByTxt((String) commandMap.get(commandKey));
                                 } else {
@@ -990,8 +990,8 @@ public class QueryHelper {
                                     value = ((Long) commandMap.get(commandKey));
                                 } else if (commandMap.get(commandKey) instanceof List) {
                                     for (Object o : ((List) commandMap.get(commandKey))) {
-                                        if (o instanceof Integer) {
-                                            value = value | 1L << ((Integer) o);
+                                        if (o instanceof Number) {
+                                            value = value | 1L << ((Number) o).intValue();
                                         }
                                     }
                                 } else if (commandMap.get(commandKey) instanceof byte[]) {
