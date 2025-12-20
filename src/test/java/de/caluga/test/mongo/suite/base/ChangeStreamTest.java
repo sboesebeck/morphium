@@ -382,6 +382,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 return true;
             });
             mon.start();
+            Thread.sleep(1000); // Wait for changestream to be fully registered
 
             for (int i = 0; i < 10; i++) {
                 morphium.store(new UncachedObject("changeStreamPipelineTestValue " + i, i), "uncached_object", null);
