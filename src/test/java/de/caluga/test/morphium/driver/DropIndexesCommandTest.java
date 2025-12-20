@@ -4,6 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.DropIndexesCommand;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.ListIndexesCommand;
@@ -52,9 +53,9 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
             var conn = morphium.getDriver().getPrimaryConnection(null);
             try {
                 var createCmd = new CreateIndexesCommand(conn)
-                    .setDb(db)
-                    .setColl(coll)
-                    .addIndex(Doc.of("myfield", 1), Doc.of("name", "myfield_1"));
+                .setDb(db)
+                .setColl(coll)
+                .addIndex(Doc.of("myfield", 1), Doc.of("name", "myfield_1"));
                 createCmd.execute();
 
                 // Verify index exists
@@ -65,9 +66,9 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
 
                 // Drop the index using DropIndexesCommand via GenericCommand
                 var dropCmd = new DropIndexesCommand(conn)
-                    .setDb(db)
-                    .setColl(coll)
-                    .setIndex("myfield_1");
+                .setDb(db)
+                .setColl(coll)
+                .setIndex("myfield_1");
                 int msgId = conn.sendCommand(new GenericCommand(conn).fromMap(dropCmd.asMap()));
                 var result = conn.readSingleAnswer(msgId);
                 assertThat(result.get("ok")).isIn(1, 1.0);
@@ -105,11 +106,11 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
             try {
                 // Create multiple indexes
                 new CreateIndexesCommand(conn).setDb(db).setColl(coll)
-                    .addIndex(Doc.of("field1", 1), Doc.of("name", "field1_1")).execute();
+                .addIndex(Doc.of("field1", 1), Doc.of("name", "field1_1")).execute();
                 new CreateIndexesCommand(conn).setDb(db).setColl(coll)
-                    .addIndex(Doc.of("field2", -1), Doc.of("name", "field2_-1")).execute();
+                .addIndex(Doc.of("field2", -1), Doc.of("name", "field2_-1")).execute();
                 new CreateIndexesCommand(conn).setDb(db).setColl(coll)
-                    .addIndex(Doc.of("field3", 1), Doc.of("name", "field3_1")).execute();
+                .addIndex(Doc.of("field3", 1), Doc.of("name", "field3_1")).execute();
 
                 // Verify indexes created (should have _id + 3 created = 4 indexes)
                 var listCmd = new ListIndexesCommand(conn).setDb(db).setColl(coll);
@@ -118,9 +119,9 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
 
                 // Drop all indexes using "*"
                 var dropCmd = new DropIndexesCommand(conn)
-                    .setDb(db)
-                    .setColl(coll)
-                    .setIndex("*");
+                .setDb(db)
+                .setColl(coll)
+                .setIndex("*");
                 int msgId = conn.sendCommand(new GenericCommand(conn).fromMap(dropCmd.asMap()));
                 var result = conn.readSingleAnswer(msgId);
                 assertThat(result.get("ok")).isIn(1, 1.0);
@@ -157,19 +158,23 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
             var conn = morphium.getDriver().getPrimaryConnection(null);
             try {
                 new CreateIndexesCommand(conn).setDb(db).setColl(coll)
-                    .addIndex(Doc.of("field1", 1), Doc.of("name", "field1_1")).execute();
+                .addIndex(Doc.of("field1", 1), Doc.of("name", "field1_1")).execute();
 
-                // Try to drop a non-existent index
+                // Try to drop a non-existent index - should throw exception or return error
                 var dropCmd = new DropIndexesCommand(conn)
-                    .setDb(db)
-                    .setColl(coll)
-                    .setIndex("nonexistent_index");
+                .setDb(db)
+                .setColl(coll)
+                .setIndex("nonexistent_index");
                 int msgId = conn.sendCommand(new GenericCommand(conn).fromMap(dropCmd.asMap()));
-                var result = conn.readSingleAnswer(msgId);
-
-                // Should return error (ok=0)
-                assertThat(result.get("ok")).isIn(0, 0.0);
-                assertThat(result.get("errmsg")).isNotNull();
+                try {
+                    var result = conn.readSingleAnswer(msgId);
+                    // If we get here without exception, verify error response
+                    assertThat(result.get("ok")).isIn(0, 0.0);
+                    assertThat(result.get("errmsg")).isNotNull();
+                } catch (MorphiumDriverException e) {
+                    // Driver throws exception for error responses - this is also acceptable
+                    assertThat(e.getMessage()).contains("index not found");
+                }
             } finally {
                 conn.close();
                 morphium.dropCollection(TestDoc.class, coll, null);
