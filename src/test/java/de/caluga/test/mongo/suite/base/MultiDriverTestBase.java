@@ -206,80 +206,38 @@ public class MultiDriverTestBase {
             Morphium m = (Morphium) arg.get()[0];
             if (m == null) continue;
 
-            // When running tests in parallel slots, each slot uses its own base DB prefix (e.g. morphium_test_1).
-            // Never drop all "morphium*" DBs globally, otherwise different slots will fight each other and create
-            // "database is in the process of being dropped" errors and data loss.
-            String basePrefix = System.getProperty("morphium.database");
-            if (basePrefix == null || basePrefix.isBlank()) {
-                // Get the configured database name and strip trailing _N suffix to get base prefix
-                String dbName = m.getConfig().connectionSettings().getDatabase();
-                if (dbName != null && !dbName.isBlank()) {
-                    // Strip trailing _N (e.g., "morphium_tests_2" -> "morphium_tests")
-                    basePrefix = dbName.replaceAll("_\\d+$", "");
-                }
-            }
-            if (basePrefix == null || basePrefix.isBlank()) {
-                basePrefix = "morphium_test";
-            }
-            final String prefix = basePrefix;
-
-            var allDbs = m.listDatabases();
-            if (allDbs == null) continue;
-
-            log.info("Database cleanup for {}: prefix='{}', morphiumDb='{}', existing databases={}",
-                     m.getDriver().getName(), prefix, m.getConfig().connectionSettings().getDatabase(), allDbs);
-            int droppedCount = 0;
-            // Make a copy to avoid ConcurrentModificationException
-            List<String> dbsToCheck = new ArrayList<>(allDbs);
-            for (String db : dbsToCheck) {
-                if (db.equals(prefix) || db.startsWith(prefix + "_")) {
-                    log.info(m.getDriver().getName() + ": Dropping db " + db);
-
-                    try {
-                        DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
-                        cmd.setDb(db);
-                        cmd.setComment("Delete for testing");
-                        cmd.execute();
-                        cmd.releaseConnection();
-                        droppedCount++;
-                        // Wait until MongoDB actually finished dropping the database
-                        // Shorter wait for InMemoryDriver since it's synchronous
-                        int maxWait = m.getDriver() instanceof InMemoryDriver ? 1000 : 30_000;
-                        long start = System.currentTimeMillis();
-                        while (System.currentTimeMillis() - start < maxWait) {
-                            try {
-                                if (!m.listDatabases().contains(db)) {
-                                    log.info("Database '{}' confirmed dropped after {}ms", db, System.currentTimeMillis() - start);
-                                    break;
-                                }
-                                Thread.sleep(100);
-                            } catch (Exception ignore) {
-                                break;
-                            }
-                        }
-                        if (m.listDatabases().contains(db)) {
-                            log.warn("Database '{}' still exists after {}ms wait!", db, maxWait);
-                        }
-                    } catch (MorphiumDriverException e) {
-                        log.error(m.getDriver().getName() + " Dropping failed", e);
-                    }
-                }
-            }
-            log.info("Database cleanup complete for {}: dropped {} databases, remaining={}",
-                     m.getDriver().getName(), droppedCount, m.listDatabases());
-
-            // Also explicitly drop this morphium's own database to ensure it's clean
+            // IMPORTANT: Only drop THIS instance's own database, NOT all databases matching the prefix!
+            // Dropping all prefix-matching databases causes race conditions when tests run in parallel,
+            // because one test's cleanup will delete another test's data while it's still running.
             String ownDb = m.getConfig().connectionSettings().getDatabase();
             if (ownDb != null && !ownDb.isBlank()) {
                 try {
-                    log.info("{}: Also dropping own database '{}' to ensure clean state", m.getDriver().getName(), ownDb);
+                    log.info("{}: Dropping own database '{}' to ensure clean state", m.getDriver().getName(), ownDb);
                     DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
                     cmd.setDb(ownDb);
-                    cmd.setComment("Clean own database");
+                    cmd.setComment("Clean own database before test");
                     cmd.execute();
                     cmd.releaseConnection();
+
+                    // Wait for drop to complete
+                    int maxWait = m.getDriver() instanceof InMemoryDriver ? 1000 : 10_000;
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < maxWait) {
+                        try {
+                            var dbs = m.listDatabases();
+                            if (dbs == null || !dbs.contains(ownDb)) {
+                                log.info("{}: Database '{}' confirmed dropped after {}ms",
+                                         m.getDriver().getName(), ownDb, System.currentTimeMillis() - start);
+                                break;
+                            }
+                            Thread.sleep(50);
+                        } catch (Exception ignore) {
+                            break;
+                        }
+                    }
                 } catch (Exception e) {
-                    log.debug("Error dropping own database (may not exist): {}", e.getMessage());
+                    log.debug("{}: Error dropping own database (may not exist): {}",
+                              m.getDriver().getName(), e.getMessage());
                 }
             }
         }

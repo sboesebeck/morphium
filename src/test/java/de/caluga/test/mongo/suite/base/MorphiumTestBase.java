@@ -194,7 +194,8 @@ public class MorphiumTestBase {
             long start = System.currentTimeMillis();
             while (System.currentTimeMillis() - start < 10_000) {
                 try {
-                    if (!morphium.listDatabases().contains(morphium.getDatabase())) {
+                    var dbs = morphium.listDatabases();
+                    if (dbs == null || !dbs.contains(morphium.getDatabase())) {
                         break;
                     }
                     Thread.sleep(100);
