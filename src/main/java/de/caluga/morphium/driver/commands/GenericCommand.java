@@ -29,12 +29,22 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
     }
 
     public GenericCommand setCmdData(Map<String, Object> cmd) {
-        cmdData = cmd;
+        // Use LinkedHashMap to preserve key ordering
+        cmdData = cmd instanceof LinkedHashMap ? cmd : new LinkedHashMap<>(cmd);
+        // First key is the command name - critical for MongoDB wire protocol
+        if (cmd != null && !cmd.isEmpty()) {
+            commandName = cmd.keySet().iterator().next();
+        }
         return this;
     }
 
     public GenericCommand addKey(String key, Object value) {
-        if (cmdData == null) cmdData = new LinkedHashMap<>();
+        if (cmdData == null) {
+            cmdData = new LinkedHashMap<>();
+            // First key added is the command name - critical for MongoDB wire protocol
+            // where the command name must be the first key in the BSON document
+            commandName = key;
+        }
         cmdData.put(key, value);
         return this;
     }
