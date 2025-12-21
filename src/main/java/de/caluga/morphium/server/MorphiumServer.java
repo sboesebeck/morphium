@@ -79,7 +79,7 @@ public class MorphiumServer {
                         "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
         );
     private static final Set<String> READ_COMMANDS = Set.of(
-                        "find", "aggregate", "count", "distinct", "countdocuments", "getmore"
+                        "find", "aggregate", "count", "distinct", "countdocuments", "getmore", "mapreduce"
         );
 
     // Cached connection for forwarding reads to primary (avoids creating new connections per request)
