@@ -506,6 +506,12 @@ function _ms_local_start_cluster() {
     return 1
   fi
 
+  # Copy jar to stable location to prevent issues if mvn clean runs while servers are active
+  local stable_jar="${pid_dir}/morphiumserver.jar"
+  cp "$jar" "$stable_jar"
+  jar="$stable_jar"
+  echo -e "${BL}Info:${CL} Copied server jar to ${stable_jar} (safe from mvn clean)"
+
   local hostports
   hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
   if [ -z "$hostports" ]; then
