@@ -2096,6 +2096,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         continue;
                     }
 
+                    // Skip GenericCommand - it's for dynamic/unknown commands and would cause
+                    // infinite recursion if registered with its default "not_set" command name
+                    if (cls.equals(GenericCommand.class)) {
+                        continue;
+                    }
+
                     Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
                     declaredConstructor.setAccessible(true);
                     var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
