@@ -253,14 +253,14 @@
       <groupId>org.graalvm.js</groupId>
       <artifactId>js-scriptengine</artifactId>
       <version>24.2.2</version>
-      <scope>test</scope>
+      <!-- Runtime scope so it's included in server jar for MapReduce -->
     </dependency>
     <dependency>
       <groupId>org.graalvm.polyglot</groupId>
       <artifactId>js</artifactId>
       <version>24.2.2</version>
       <type>pom</type>
-      <scope>test</scope>
+      <!-- Runtime scope so it's included in server jar for MapReduce -->
     </dependency>
     <!-- https://mvnrepository.com/artifact/rhino/js -->
     <!-- <dependency> -->

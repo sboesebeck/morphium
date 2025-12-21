@@ -392,10 +392,17 @@ public class MorphiumServer {
         res.setLocalTime(new Date());
         res.setOk(1.0);
 
+        // Build complete hosts list including this server's own address
+        String myAddress = host + ":" + port;
         if (hosts == null || hosts.isEmpty()) {
-            res.setHosts(Arrays.asList(host + ":" + port));
+            res.setHosts(Arrays.asList(myAddress));
         } else {
-            res.setHosts(hosts);
+            // Ensure the hosts list includes this server's address for proper topology discovery
+            List<String> allHosts = new ArrayList<>(hosts);
+            if (!allHosts.contains(myAddress)) {
+                allHosts.add(0, myAddress);  // Add self at the beginning
+            }
+            res.setHosts(allHosts);
         }
 
         res.setConnectionId(1);
@@ -1013,7 +1020,13 @@ public class MorphiumServer {
                                 if (answer != null) {
                                     break;
                                 }
-                                // Fall through to local execution if forwarding failed
+                                // Forwarding failed - return error instead of falling back to stale local data
+                                log.error("Forwarding {} to primary failed, returning error to client", cmd);
+                                answer = Doc.of("ok", 0.0,
+                                    "errmsg", "Secondary could not forward " + cmd + " to primary",
+                                    "code", 13436,
+                                    "codeName", "NotPrimaryOrSecondary");
+                                break;
                             }
 
                             // Forward ALL read commands to primary for strong consistency
@@ -1024,8 +1037,30 @@ public class MorphiumServer {
                                 if (answer != null) {
                                     break;
                                 }
-                                log.warn("Forwarding {} failed, falling back to local", cmd);
-                                // Fall through to local execution if forwarding failed
+                                // Forwarding failed - return error instead of falling back to stale local data
+                                log.error("Forwarding {} to primary failed, returning error to client", cmd);
+                                answer = Doc.of("ok", 0.0,
+                                    "errmsg", "Secondary could not forward " + cmd + " to primary",
+                                    "code", 13436,  // NotPrimaryOrSecondary
+                                    "codeName", "NotPrimaryOrSecondary");
+                                break;
+                            }
+
+                            // Forward ALL write commands to primary - secondaries should not accept writes directly
+                            // The primary will then replicate the write back to secondaries
+                            if (!primary && WRITE_COMMANDS.contains(cmd.toLowerCase()) && primaryHost != null) {
+                                log.debug("Forwarding write {} to primary {} (secondaries don't accept direct writes)", cmd, primaryHost);
+                                answer = forwardCommandToPrimary(doc, cmd);
+                                if (answer != null) {
+                                    break;
+                                }
+                                // Forwarding failed - return error
+                                log.error("Forwarding write {} to primary failed, returning error to client", cmd);
+                                answer = Doc.of("ok", 0.0,
+                                    "errmsg", "Secondary could not forward write to primary: " + cmd,
+                                    "code", 10107,  // NotWritablePrimary
+                                    "codeName", "NotWritablePrimary");
+                                break;
                             }
 
                             AtomicInteger msgid = new AtomicInteger(0);
@@ -1376,58 +1411,80 @@ public class MorphiumServer {
     /**
      * Forward a command to primary server.
      * Uses cached connection for efficiency. Synchronized to prevent concurrent access issues.
-     * Returns null on failure (caller should fall back to local execution).
+     * Retries up to 3 times on failure.
+     * Returns null on failure (caller should return error to client).
      */
     private Map<String, Object> forwardCommandToPrimary(Map<String, Object> doc, String cmdName) {
         if (primaryHost == null || primaryHost.isEmpty()) {
             return null;
         }
 
-        // Synchronize to prevent multiple threads from using the connection simultaneously
-        synchronized (forwardingLock) {
-            try {
-                var conn = getForwardingConnection();
-                if (conn == null) {
-                    log.warn("Could not get forwarding connection for {}", cmdName);
-                    return null;
-                }
+        int maxRetries = 3;
+        Exception lastException = null;
 
-                GenericCommand cmd = new GenericCommand(conn).fromMap(doc);
-                conn.sendCommand(cmd);
-
-                // Read the full response without cursor extraction
-                var reply = conn.readNextMessage(forwardingDriver.getReadTimeout());
-
-                if (reply == null) {
-                    log.warn("Forwarding {} got null reply, resetting connection", cmdName);
-                    resetForwardingConnection();
-                    return null;
-                }
-                if (reply.getFirstDoc() == null) {
-                    log.warn("Forwarding {} got null firstDoc, resetting connection", cmdName);
-                    resetForwardingConnection();
-                    return null;
-                }
-
-                Map<String, Object> response = reply.getFirstDoc();
-                // Log response details for debugging
-                if (response.containsKey("cursor")) {
-                    var cursor = (Map<?, ?>) response.get("cursor");
-                    var batch = cursor.get("firstBatch");
-                    if (batch instanceof List) {
-                        log.debug("Forwarded {} to primary: cursor with {} results", cmdName, ((List<?>) batch).size());
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            // Synchronize to prevent multiple threads from using the connection simultaneously
+            synchronized (forwardingLock) {
+                try {
+                    var conn = getForwardingConnection();
+                    if (conn == null) {
+                        log.warn("Could not get forwarding connection for {} (attempt {}/{})", cmdName, attempt, maxRetries);
+                        resetForwardingConnection();
+                        continue;
                     }
-                } else {
-                    log.debug("Forwarded {} to primary successfully: {}", cmdName, response.keySet());
+
+                    GenericCommand cmd = new GenericCommand(conn).fromMap(doc);
+                    conn.sendCommand(cmd);
+
+                    // Read the full response without cursor extraction
+                    var reply = conn.readNextMessage(forwardingDriver.getReadTimeout());
+
+                    if (reply == null) {
+                        log.warn("Forwarding {} got null reply (attempt {}/{}), resetting connection", cmdName, attempt, maxRetries);
+                        resetForwardingConnection();
+                        continue;
+                    }
+                    if (reply.getFirstDoc() == null) {
+                        log.warn("Forwarding {} got null firstDoc (attempt {}/{}), resetting connection", cmdName, attempt, maxRetries);
+                        resetForwardingConnection();
+                        continue;
+                    }
+
+                    Map<String, Object> response = reply.getFirstDoc();
+                    // Log response details for debugging
+                    if (response.containsKey("cursor")) {
+                        var cursor = (Map<?, ?>) response.get("cursor");
+                        var batch = cursor.get("firstBatch");
+                        if (batch instanceof List) {
+                            log.debug("Forwarded {} to primary: cursor with {} results", cmdName, ((List<?>) batch).size());
+                        }
+                    } else {
+                        log.debug("Forwarded {} to primary successfully: {}", cmdName, response.keySet());
+                    }
+                    return response;
+                } catch (Exception e) {
+                    lastException = e;
+                    log.warn("Failed to forward {} to primary (attempt {}/{}): {} - {}",
+                        cmdName, attempt, maxRetries, e.getClass().getSimpleName(), e.getMessage());
+                    // Reset connection on error to force reconnect next time
+                    resetForwardingConnection();
                 }
-                return response;
-            } catch (Exception e) {
-                log.warn("Failed to forward {} to primary: {} - {}", cmdName, e.getClass().getSimpleName(), e.getMessage());
-                // Reset connection on error to force reconnect next time
-                resetForwardingConnection();
             }
-            return null;  // Return null to fall back to local execution
+            // Brief pause between retries to avoid tight loop
+            if (attempt < maxRetries) {
+                try {
+                    Thread.sleep(50 * attempt);  // Exponential backoff: 50ms, 100ms
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
+        log.error("All {} retry attempts failed for forwarding {} to primary", maxRetries, cmdName);
+        if (lastException != null) {
+            log.error("Last exception: {} - {}", lastException.getClass().getSimpleName(), lastException.getMessage());
+        }
+        return null;  // Return null to signal failure
     }
 
     // private boolean isWriteCommand(String cmd) {

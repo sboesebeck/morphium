@@ -921,6 +921,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int totalModified = 0;
         int updateIndex = 0;
         List<Map<String, Object>> upserted = new ArrayList<>();
+        List<Map<String, Object>> allWriteErrors = new ArrayList<>();
 
         for (var update : cmd.getUpdates()) {
             // Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);
@@ -959,6 +960,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     upserted.add(Doc.of("index", updateIndex, "_id", id));
                 }
             }
+
+            // accumulate writeErrors with correct index
+            if (res.containsKey("writeErrors") && res.get("writeErrors") instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> errors = (List<Map<String, Object>>) res.get("writeErrors");
+                for (Map<String, Object> err : errors) {
+                    Map<String, Object> errorWithIndex = new HashMap<>(err);
+                    errorWithIndex.put("index", updateIndex);
+                    allWriteErrors.add(errorWithIndex);
+                }
+            }
             updateIndex++;
         }
 
@@ -973,6 +985,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         stats.put("nModified", totalModified);
         if (!upserted.isEmpty()) {
             stats.put("upserted", upserted);
+        }
+        if (!allWriteErrors.isEmpty()) {
+            stats.put("writeErrors", allWriteErrors);
         }
 
         // System.out.println("[DEBUG_LOG] UpdateMongoCommand result: " + stats);
@@ -3863,6 +3878,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // This method is called with the write lock already held (either by update() or
         // findAndOneAndUpdate())
         {
+            List<Map<String, Object>> writeErrors = new ArrayList<>();
             List<Map<String, Object>> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1,
                                                  true);
             int matchedCount = (lst == null) ? 0 : lst.size();
@@ -3925,24 +3941,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     String[] path = entry.getKey().split("\\.");
                                     var current = obj;
                                     Map lastEl = null;
+                                    boolean pathError = false;
 
-                                    for (String p : path) {
-                                        if (current.get(p) != null) {
-                                            if (current.get(p) instanceof Map) {
-                                                ((Map) current.get(p)).put(p, Doc.of());
+                                    // Navigate to parent, creating intermediate documents as needed
+                                    for (int i = 0; i < path.length - 1; i++) {
+                                        String p = path[i];
+                                        Object existing = current.get(p);
+                                        if (existing != null) {
+                                            if (existing instanceof Map) {
+                                                lastEl = current;
+                                                current = (Map) existing;
                                             } else {
-                                                log.error("could not set value! " + p);
+                                                // Type mismatch - cannot create field in non-document
+                                                String errorMsg = String.format(
+                                                    "Cannot create field '%s' in element {%s: %s}",
+                                                    path[i + 1], p, existing);
+                                                log.error(errorMsg);
+                                                writeErrors.add(Doc.of(
+                                                    "index", 0,
+                                                    "code", 28,
+                                                    "errmsg", errorMsg
+                                                ));
+                                                pathError = true;
                                                 break;
                                             }
                                         } else {
-                                            current.put(p, Doc.of());
+                                            // Create intermediate document
+                                            Map<String, Object> newDoc = Doc.of();
+                                            current.put(p, newDoc);
+                                            lastEl = current;
+                                            current = newDoc;
                                         }
-
-                                        lastEl = current;
-                                        current = (Map) current.get(p);
                                     }
 
-                                    lastEl.put(path[path.length - 1], v);
+                                    if (!pathError) {
+                                        // Set the final field
+                                        current.put(path[path.length - 1], v);
+                                    }
                                 } else {
                                     obj.put(entry.getKey(), v);
                                 }
@@ -4387,6 +4422,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Doc res = Doc.of("matched", (Object) matchedCount, "nModified", modifiedCount, "modified", modifiedCount);
             if (!upsertedIds.isEmpty()) {
                 res.put("upsertedIds", upsertedIds);
+            }
+            if (!writeErrors.isEmpty()) {
+                res.put("writeErrors", writeErrors);
             }
             return res;
         }
