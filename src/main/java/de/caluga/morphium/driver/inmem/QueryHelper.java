@@ -68,6 +68,54 @@ public class QueryHelper {
         return KNOWN_OPERATORS.contains(op);
     }
 
+    /**
+     * Validates a query for unknown operators before execution.
+     * Should be called before processing to catch invalid queries even on empty collections.
+     * @param query the query to validate
+     * @throws IllegalArgumentException if an unknown operator is found
+     */
+    public static void validateQuery(Map<String, Object> query) {
+        if (query == null || query.isEmpty()) {
+            return;
+        }
+        for (String key : query.keySet()) {
+            // Check for unknown $ operators at top level (field names starting with $ that aren't known operators)
+            if (key.startsWith("$") && !isKnownOperator(key)) {
+                throw new IllegalArgumentException("unknown top level operator: " + key);
+            }
+            Object value = query.get(key);
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> subQuery = (Map<String, Object>) value;
+                // For field queries like {"field": {"$eq": value}}, validate the operators
+                for (String subKey : subQuery.keySet()) {
+                    if (subKey.startsWith("$") && !isKnownOperator(subKey)) {
+                        throw new IllegalArgumentException("unknown operator: " + subKey);
+                    }
+                    // Recursively validate nested queries (e.g., $elemMatch, $not)
+                    Object subValue = subQuery.get(subKey);
+                    if (subValue instanceof Map) {
+                        validateQuery((Map<String, Object>) subValue);
+                    } else if (subValue instanceof List) {
+                        // Handle $and, $or, $nor which contain lists of queries
+                        for (Object item : (List<?>) subValue) {
+                            if (item instanceof Map) {
+                                validateQuery((Map<String, Object>) item);
+                            }
+                        }
+                    }
+                }
+            } else if (value instanceof List) {
+                // Handle top-level $and, $or, $nor
+                for (Object item : (List<?>) value) {
+                    if (item instanceof Map) {
+                        validateQuery((Map<String, Object>) item);
+                    }
+                }
+            }
+        }
+    }
+
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;

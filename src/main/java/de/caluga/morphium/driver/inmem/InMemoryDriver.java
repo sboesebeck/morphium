@@ -2800,6 +2800,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 query = Doc.of();
             }
 
+            // Validate query operators upfront to catch invalid queries even on empty collections
+            QueryHelper.validateQuery(query);
+
             // Special handling for map field queries like "stringMap.key1"
             // System.out.println("[DEBUG_LOG] Original query: " + query);
             Map<String, Object> renamedQuery = new LinkedHashMap<>(query);
@@ -5890,59 +5893,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         log.info("MapReduce internal: found {} documents to process", documents.size());
 
-        // Initialize JavaScript engine
-        System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
-        javax.script.ScriptEngineManager mgr = new javax.script.ScriptEngineManager();
-        javax.script.ScriptEngine engine = mgr.getEngineByExtension("js");
-
-        if (engine == null) {
-            engine = mgr.getEngineByName("js");
-        }
-        if (engine == null) {
-            engine = mgr.getEngineByName("JavaScript");
-        }
-        if (engine == null) {
-            throw new MorphiumDriverException("JavaScript engine not available for MapReduce");
+        // Initialize JavaScript engine using GraalVM polyglot Context directly
+        // This avoids ScriptEngineManager issues with GraalJS option compatibility
+        org.graalvm.polyglot.Context jsContext = null;
+        try {
+            jsContext = org.graalvm.polyglot.Context.newBuilder("js")
+                .allowAllAccess(true)
+                .option("engine.WarnInterpreterOnly", "false")
+                .build();
+        } catch (Exception e) {
+            log.error("Failed to create GraalVM polyglot context: {}", e.getMessage());
+            throw new MorphiumDriverException("JavaScript engine not available for MapReduce: " + e.getMessage());
         }
 
-        log.info("JavaScript engine found: {}", engine.getClass().getName());
+        log.info("JavaScript engine found: GraalVM polyglot Context");
 
         try {
             // Prepare the JavaScript environment
             // Add emit function to collect map results
             List<Map<String, Object>> mapResults = new ArrayList<>();
 
-            // Create a Java object to handle emit calls from JavaScript
-            MapReduceEmitter emitter = new MapReduceEmitter(mapResults);
-
-            // Create a simple approach using a List that GraalJS can access
-            List<Map<String, Object>> emitResults = new ArrayList<>();
-            engine.put("emitResults", emitResults);
-
             // Test basic JavaScript functionality
-            Object basicTest = engine.eval("1 + 1");
-            log.info("Basic JS test (1+1): {}", basicTest);
-
-            // Define emit function in JavaScript that calls our Java emitter
-            // log.debug("Setting up emit function with emitter: {}", emitter);
-
-            // Define emit function by putting it directly in the bindings
-            engine.put("emit", new Object() {
-                public void emit(Object key, Object value) {
-                    log.info("Java emit function called with key={}, value={}", key, value);
-                    emitter.emit(key, value);
-                }
-            });
+            org.graalvm.polyglot.Value basicTest = jsContext.eval("js", "1 + 1");
+            log.info("Basic JS test (1+1): {}", basicTest.asInt());
 
             // Create a JavaScript array and define emit function to use it
-            engine.eval("var jsEmitResults = [];");
-            engine.eval("function emit(key, value) { " +
+            jsContext.eval("js", "var jsEmitResults = [];");
+            jsContext.eval("js", "function emit(key, value) { " +
                         "  var result = { _id: key, value: value }; " +
                         "  jsEmitResults.push(result); " +
                         "}");
 
             // Provide an ObjectId() function compatible with MongoDB map/reduce scripts
-            engine.eval("function ObjectId() { " +
+            jsContext.eval("js", "function ObjectId() { " +
                         "  var hex = '0123456789abcdef';" +
                         "  var id = '';" +
                         "  for (var i = 0; i < 24; i++) {" +
@@ -5952,47 +5935,47 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         "}");
 
             // Prepare the map function once
-            engine.eval("var mapFunc = " + mapFunction + ";");
+            jsContext.eval("js", "var mapFunc = " + mapFunction + ";");
 
             // Phase 1: Map phase - execute map function for each document
             log.info("Starting map phase with {} documents", documents.size());
             for (Map<String, Object> doc : documents) {
-                // log.debug("Processing document: {}", doc);
                 // Execute map function with document bound to `this`
                 try {
                     String jsonDoc = Utils.toJsonString(doc);
                     String escapedJson = jsonDoc.replace("\\", "\\\\").replace("'", "\\'");
                     String executable = "var __mapDoc = JSON.parse('" + escapedJson + "'); mapFunc.call(__mapDoc);";
-                    // log.debug("Executing map function for document");
-                    engine.eval(executable);
+                    jsContext.eval("js", executable);
                 } catch (Exception e) {
                     log.error("JavaScript execution error: {}", e.getMessage(), e);
                 }
-                Object jsArraySize = engine.eval("jsEmitResults.length");
-                // log.debug("Map results so far: {}", jsArraySize);
             }
 
             // Get the final JavaScript array size and convert to Java objects
-            Object finalJsArraySize = engine.eval("jsEmitResults.length");
-            log.info("Map phase completed with {} emissions", finalJsArraySize);
+            org.graalvm.polyglot.Value finalJsArraySize = jsContext.eval("js", "jsEmitResults.length");
+            log.info("Map phase completed with {} emissions", finalJsArraySize.asInt());
 
-            // Convert JavaScript array to Java List using standard ScriptEngine approach
-            JSONParser jsonParser = new JSONParser();
-            Object jsArrayLength = engine.eval("jsEmitResults.length");
-            if (jsArrayLength instanceof Number) {
-                int arrayLength = ((Number) jsArrayLength).intValue();
-                log.info("Converting {} JavaScript results to Java", arrayLength);
+            // Convert JavaScript array to Java List
+            int arrayLength = finalJsArraySize.asInt();
+            log.info("Converting {} JavaScript results to Java", arrayLength);
 
-                for (int i = 0; i < arrayLength; i++) {
-                    Object key = engine.eval("jsEmitResults[" + i + "]._id");
-                    String valueJson = (String) engine.eval("JSON.stringify(jsEmitResults[" + i + "].value)");
+            for (int i = 0; i < arrayLength; i++) {
+                org.graalvm.polyglot.Value keyVal = jsContext.eval("js", "jsEmitResults[" + i + "]._id");
+                org.graalvm.polyglot.Value valueJsonVal = jsContext.eval("js", "JSON.stringify(jsEmitResults[" + i + "].value)");
 
-                    Map<String, Object> javaResult = new HashMap<>();
-                    javaResult.put("_id", key);
-                    javaResult.put("valueJson", valueJson);
-                    mapResults.add(javaResult);
-                    // log.debug("Converted result {}: key={}, valueJson={}", i, key, valueJson);
+                Object key;
+                if (keyVal.isBoolean()) {
+                    key = keyVal.asBoolean();
+                } else if (keyVal.isNumber()) {
+                    key = keyVal.asDouble();
+                } else {
+                    key = keyVal.asString();
                 }
+
+                Map<String, Object> javaResult = new HashMap<>();
+                javaResult.put("_id", key);
+                javaResult.put("valueJson", valueJsonVal.asString());
+                mapResults.add(javaResult);
             }
 
             // Phase 2: Group by key
@@ -6005,24 +5988,37 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             if (reduceFunction != null && !reduceFunction.trim().isEmpty()) {
-                engine.eval("var reduceFunc = " + reduceFunction + ";");
+                jsContext.eval("js", "var reduceFunc = " + reduceFunction + ";");
             }
 
             if (finalizeFunction != null && !finalizeFunction.trim().isEmpty()) {
-                engine.eval("var finalizeFunc = " + finalizeFunction + ";");
+                jsContext.eval("js", "var finalizeFunc = " + finalizeFunction + ";");
             }
 
             // Phase 3: Reduce phase - execute reduce function for each key
             List<Map<String, Object>> finalResults = new ArrayList<>();
+            JSONParser jsonParser = new JSONParser();
             for (Map.Entry<Object, List<String>> entry : groupedResults.entrySet()) {
                 Object key = entry.getKey();
                 List<String> values = entry.getValue();
 
-                Object reducedValue;
+                org.graalvm.polyglot.Value reducedValue;
                 if (reduceFunction == null || reduceFunction.trim().isEmpty()) {
-                    reducedValue = values.size() == 1 ? values.get(0) : new ArrayList<>(values);
+                    // No reduce function - just return the value as-is
+                    String valueJson = values.size() == 1 ? values.get(0) : "[" + String.join(",", values) + "]";
+                    reducedValue = jsContext.eval("js", valueJson);
                 } else {
-                    engine.put("__javaKey__", key);
+                    // Set key as JavaScript variable
+                    String keyJs;
+                    if (key instanceof Boolean) {
+                        keyJs = key.toString();
+                    } else if (key instanceof Number) {
+                        keyJs = key.toString();
+                    } else {
+                        keyJs = "\"" + key.toString().replace("\"", "\\\"") + "\"";
+                    }
+                    jsContext.eval("js", "var __javaKey__ = " + keyJs + ";");
+
                     StringBuilder valuesArrayJson = new StringBuilder("[");
                     for (int i = 0; i < values.size(); i++) {
                         if (i > 0) {
@@ -6031,39 +6027,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         valuesArrayJson.append(values.get(i));
                     }
                     valuesArrayJson.append(']');
-                    engine.put("__valuesJson__", valuesArrayJson.toString());
-                    reducedValue = engine.eval("reduceFunc(__javaKey__, JSON.parse(__valuesJson__))");
+                    jsContext.eval("js", "var __valuesArray__ = " + valuesArrayJson + ";");
+                    reducedValue = jsContext.eval("js", "reduceFunc(__javaKey__, __valuesArray__)");
                 }
 
                 // Apply finalize function if provided
                 if (finalizeFunction != null && !finalizeFunction.trim().isEmpty()) {
-                    engine.put("__javaKey__", key);
-                    engine.put("__reducedValue__", reducedValue);
-                    reducedValue = engine.eval("finalizeFunc(__javaKey__, __reducedValue__)");
+                    String keyJs;
+                    if (key instanceof Boolean) {
+                        keyJs = key.toString();
+                    } else if (key instanceof Number) {
+                        keyJs = key.toString();
+                    } else {
+                        keyJs = "\"" + key.toString().replace("\"", "\\\"") + "\"";
+                    }
+                    jsContext.eval("js", "var __javaKey__ = " + keyJs + ";");
+                    jsContext.getBindings("js").putMember("__reducedValue__", reducedValue);
+                    reducedValue = jsContext.eval("js", "finalizeFunc(__javaKey__, __reducedValue__)");
                 }
 
                 // Create result document
                 Map<String, Object> result = new HashMap<>();
                 result.put("_id", key);
-                if (reducedValue instanceof Map) {
-                    result.put("value", reducedValue);
-                } else {
-                    try {
-                        engine.put("__reducedJson__", reducedValue);
-                        String reducedJson = (String) engine.eval("JSON.stringify(__reducedJson__)");
-                        Object parsed = jsonParser.parse(reducedJson);
-                        result.put("value", parsed);
-                    } catch (ParseException pe) {
-                        throw new MorphiumDriverException("Failed to parse reduce result", pe);
-                    }
+
+                // Convert polyglot Value to Java object
+                try {
+                    // Store the reduced value for stringify
+                    jsContext.getBindings("js").putMember("__reducedValue__", reducedValue);
+                    String reducedJson = jsContext.eval("js", "JSON.stringify(__reducedValue__)").asString();
+                    Object parsed = jsonParser.parse(reducedJson);
+                    result.put("value", parsed);
+                } catch (ParseException pe) {
+                    throw new MorphiumDriverException("Failed to parse reduce result", pe);
                 }
                 finalResults.add(result);
             }
 
             return finalResults;
 
-        } catch (javax.script.ScriptException e) {
+        } catch (Exception e) {
             throw new MorphiumDriverException("JavaScript error in MapReduce: " + e.getMessage(), e);
+        } finally {
+            if (jsContext != null) {
+                jsContext.close();
+            }
         }
     }
 
