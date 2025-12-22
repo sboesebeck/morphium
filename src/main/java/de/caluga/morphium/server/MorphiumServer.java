@@ -52,6 +52,8 @@ public class MorphiumServer {
     private AtomicInteger cursorId = new AtomicInteger(1000);
     // Map cursor IDs to their change stream queues for getMore handling
     private final Map<Long, java.util.concurrent.BlockingQueue<Map<String, Object>>> watchCursors = new java.util.concurrent.ConcurrentHashMap<>();
+    // Map cursor IDs to tailable cursor info (db, collection, filter) for capped collection tailing
+    private final Map<Long, TailableCursorInfo> tailableCursors = new java.util.concurrent.ConcurrentHashMap<>();
 
     // Track transactions by session ID (lsid) for proper multi-threaded transaction support
     // Since InMemoryDriver uses ThreadLocal for transactions, we need to track them here
@@ -932,13 +934,14 @@ public class MorphiumServer {
                         break;
 
                     case "getMore":
-                        // For change streams, getMore should wait for data from the queue
+                        // For change streams and tailable cursors, getMore should wait for data from the queue
                         long getMoreCursorId = ((Number) doc.get("getMore")).longValue();
                         int maxTimeMs = doc.containsKey("maxTimeMS") ? ((Number) doc.get("maxTimeMS")).intValue() : 30000;
                         String getMoreCollection = (String) doc.get("collection");
                         String getMoreDb = (String) doc.get("$db");
 
                         var queue = watchCursors.get(getMoreCursorId);
+                        var tailableInfo = tailableCursors.get(getMoreCursorId);
 
                         if (queue != null) {
                             // This is a change stream cursor - handle with blocking queue
@@ -951,6 +954,21 @@ public class MorphiumServer {
                                     // Drain any additional events that are ready
                                     queue.drainTo(batch, 99);
                                     log.debug("getMore returning {} events for cursor {}", batch.size(), getMoreCursorId);
+                                }
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                            }
+                            var getMoreCursor = Doc.of("nextBatch", batch, "ns", getMoreDb + "." + getMoreCollection, "id", getMoreCursorId);
+                            answer = Doc.of("ok", 1.0, "cursor", getMoreCursor);
+                        } else if (tailableInfo != null) {
+                            // This is a tailable cursor on a capped collection - wait for documents
+                            List<Map<String, Object>> batch = new ArrayList<>();
+                            try {
+                                Map<String, Object> doc1 = tailableInfo.queue.poll(maxTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+                                if (doc1 != null) {
+                                    batch.add(doc1);
+                                    tailableInfo.queue.drainTo(batch, 99);
+                                    log.debug("getMore returning {} docs for tailable cursor {}", batch.size(), getMoreCursorId);
                                 }
                             } catch (InterruptedException ie) {
                                 Thread.currentThread().interrupt();
@@ -1122,6 +1140,62 @@ public class MorphiumServer {
                                 log.debug("MorphiumServer: Got answer: {}", crs != null ? "cursor with " + (crs.containsKey("cursor") ? "data" : "no cursor") : "null");
                                 answer = Doc.of("ok", 1.0);
                                 if (crs != null) answer.putAll(crs);
+
+                                // Handle tailable cursors for capped collections
+                                if (cmd.equalsIgnoreCase("find") && Boolean.TRUE.equals(doc.get("tailable"))) {
+                                    Map<String, Object> cursor = (Map<String, Object>) answer.get("cursor");
+                                    if (cursor != null) {
+                                        long tailCursorId = ((Number) cursor.get("id")).longValue();
+                                        if (tailCursorId != 0) {
+                                            String tailDb = (String) doc.get("$db");
+                                            String tailColl = (String) doc.get("find");
+                                            Map<String, Object> filter = (Map<String, Object>) doc.get("filter");
+                                            log.info("Setting up tailable cursor {} for {}.{}", tailCursorId, tailDb, tailColl);
+
+                                            TailableCursorInfo info = new TailableCursorInfo(tailDb, tailColl, filter);
+                                            tailableCursors.put(tailCursorId, info);
+
+                                            // Start a watch thread to push new documents to the queue
+                                            final long cursorIdForWatch = tailCursorId;
+                                            Thread.ofVirtual().name("tailable-" + cursorIdForWatch).start(() -> {
+                                                try {
+                                                    Map<String, Object> watchQuery = prefixQueryWithFullDocument(filter);
+                                                    WatchCommand wcmd = new WatchCommand(drv)
+                                                        .setDb(tailDb)
+                                                        .setColl(tailColl)
+                                                        .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+                                                        .setPipeline(List.of(Doc.of("$match", watchQuery)))
+                                                        .setCb(new DriverTailableIterationCallback() {
+                                                            @Override
+                                                            public void incomingData(Map<String, Object> data, long dur) {
+                                                                TailableCursorInfo cursorInfo = tailableCursors.get(cursorIdForWatch);
+                                                                if (cursorInfo != null && cursorInfo.active) {
+                                                                    // Extract fullDocument for tailable cursor
+                                                                    Map<String, Object> fullDoc = (Map<String, Object>) data.get("fullDocument");
+                                                                    if (fullDoc != null) {
+                                                                        cursorInfo.queue.offer(fullDoc);
+                                                                        log.debug("Tailable cursor {} received document", cursorIdForWatch);
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            @Override
+                                                            public boolean isContinued() {
+                                                                TailableCursorInfo cursorInfo = tailableCursors.get(cursorIdForWatch);
+                                                                return cursorInfo != null && cursorInfo.active;
+                                                            }
+                                                        });
+                                                    drv.runCommand(wcmd);
+                                                } catch (Exception e) {
+                                                    log.error("Tailable cursor watch error for {}", cursorIdForWatch, e);
+                                                } finally {
+                                                    tailableCursors.remove(cursorIdForWatch);
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+
                                 // Log after drop
                                 if (cmd.equalsIgnoreCase("dropDatabase") || cmd.equalsIgnoreCase("drop")) {
                                     log.info("MorphiumServer[{}:{}]: Databases AFTER drop: {}", host, port, drv.listDatabases());
@@ -1870,6 +1944,46 @@ public class MorphiumServer {
             }
         } catch (Exception e) {
             log.warn("Error syncing indexes for {}.{}: {}", db, collectionName, e.getMessage());
+        }
+    }
+
+    /**
+     * Transforms a query to match against fullDocument fields in change stream events.
+     * For tailable cursors, the query fields need to be prefixed with "fullDocument."
+     * since change stream events have the document nested under that field.
+     */
+    private Map<String, Object> prefixQueryWithFullDocument(Map<String, Object> query) {
+        if (query == null || query.isEmpty()) {
+            return query;
+        }
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : query.entrySet()) {
+            String key = entry.getKey();
+            // Skip operators that apply to the event itself, not the document
+            if (key.startsWith("$")) {
+                result.put(key, entry.getValue());
+            } else {
+                result.put("fullDocument." + key, entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Info for tracking tailable cursors on capped collections.
+     */
+    private static class TailableCursorInfo {
+        final String db;
+        final String collection;
+        final Map<String, Object> filter;
+        final java.util.concurrent.BlockingQueue<Map<String, Object>> queue;
+        volatile boolean active = true;
+
+        TailableCursorInfo(String db, String collection, Map<String, Object> filter) {
+            this.db = db;
+            this.collection = collection;
+            this.filter = filter;
+            this.queue = new java.util.concurrent.LinkedBlockingQueue<>();
         }
     }
 }
