@@ -252,6 +252,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         break;
 
                     case WRITE_OLD:
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
 
                         // could have been written in the meantime
@@ -268,6 +269,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         break;
 
                     case DEL_OLD:
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
 
                         if (logger.isDebugEnabled()) {
@@ -293,6 +295,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 throw new RuntimeException(e);
             }
         } else {
+            opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
             opLog.get(type).add(wb);
         }
 

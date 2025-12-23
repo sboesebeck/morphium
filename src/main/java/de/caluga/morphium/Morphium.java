@@ -2156,6 +2156,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         try {
             return cmd.execute();
         } catch (MorphiumDriverException e) {
+            // Error code 26 means "ns does not exist" - collection doesn't exist yet
+            if (e.getMessage() != null && e.getMessage().contains("Error: 26")) {
+                return new ArrayList<>();
+            }
             throw new RuntimeException(e);
         } finally {
             cmd.releaseConnection();
