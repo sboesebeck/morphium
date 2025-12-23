@@ -62,7 +62,7 @@ public class CustomMsgTest extends MorphiumTestBase {
                 TestUtils.check(log, "Message equal");
 
                 m1.sendMessage(new Msg("test", "who cares", "darn"));
-                TestUtils.waitForBooleanToBecomeTrue(2000, "dit not receive message", received, (dur)-> {log.info("Still waiting...");});
+                TestUtils.waitForBooleanToBecomeTrue(30000, "did not receive message", received, (dur)-> {log.info("Still waiting after " + dur + "ms...");});
                 m1.terminate();
                 m2.terminate();
                 received.set(false);

@@ -29,6 +29,9 @@ public class IdCacheTest extends MorphiumTestBase {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
+        // Ensure clean state - drop collection first
+        morphium.dropCollection(CachedObject.class);
+        Thread.sleep(100);
         for (int i = 1; i < 100; i++) {
             CachedObject u = new CachedObject();
             u.setCounter(i);
@@ -37,14 +40,17 @@ public class IdCacheTest extends MorphiumTestBase {
         }
 
         TestUtils.waitForWrites(morphium, log);
-        long s = System.currentTimeMillis();
-        Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-        while (q.countAll() != 99) {
-            log.info("Count is still: " + q.countAll());
-            Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-        }
-        q = q.f("counter").lt(30);
+        // Wait for all objects to be replicated and queryable in replica set
+        TestUtils.waitForConditionToBecomeTrue(30000, "Objects not replicated",
+            () -> {
+                long count = morphium.createQueryFor(CachedObject.class).countAll();
+                if (count != 99) {
+                    log.info("Count is still: " + count);
+                    return false;
+                }
+                return true;
+            });
+        Query<CachedObject> q = morphium.createQueryFor(CachedObject.class).f("counter").lt(30);
         List<CachedObject> lst = q.asList();
 
         String k = morphium.getCache().getCacheKey(q);
