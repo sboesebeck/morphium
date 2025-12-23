@@ -486,9 +486,11 @@ public class QueryTest extends MorphiumTestBase {
     @Test
     public void testSetUpsert() throws Exception {
         createUncachedObjects(100);
-        Thread.sleep(50);
+        TestUtils.waitForWrites(morphium, log);
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(10002).set(UncachedObject.Fields.strValue, "new", true, true, null);
-        Thread.sleep(50);
+        // Wait for the upserted object to be queryable in replica set
+        TestUtils.waitForConditionToBecomeTrue(15000, "Upserted object not queryable",
+            () -> !morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("new").asList().isEmpty());
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("new").asList();
         assertEquals(lst.size(), 1);
         assert(lst.get(0).getCounter() == 10002);

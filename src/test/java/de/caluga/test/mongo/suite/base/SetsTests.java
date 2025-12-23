@@ -211,6 +211,9 @@ public class SetsTests extends MorphiumTestBase {
 
     @Test
     public void idListTest() throws Exception {
+        // Ensure clean state
+        morphium.dropCollection(MyIdSetContainer.class);
+        Thread.sleep(100);
         MyIdSetContainer ilst = new MyIdSetContainer();
         ilst.idList = new LinkedHashSet<>();
         ilst.idList.add(new MorphiumId());
@@ -220,10 +223,14 @@ public class SetsTests extends MorphiumTestBase {
         ilst.name = "A test";
         ilst.number = 1;
         morphium.store(ilst);
-        Thread.sleep(1000);
+        TestUtils.waitForWrites(morphium, log);
         assertNotNull(ilst.id);
-        ;
-        MyIdSetContainer ilst2 = morphium.createQueryFor(MyIdSetContainer.class).get();
+        // Wait for the specific object to be queryable in replica set
+        final MorphiumId expectedId = ilst.id;
+        TestUtils.waitForConditionToBecomeTrue(15000, "Object not queryable",
+            () -> morphium.findById(MyIdSetContainer.class, expectedId) != null);
+        MyIdSetContainer ilst2 = morphium.findById(MyIdSetContainer.class, expectedId);
+        assertNotNull(ilst2);
         assert(ilst2.idList.size() == ilst.idList.size());
         assert(ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0]));
         ilst2.idList.add(new MorphiumId());
