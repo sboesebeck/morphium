@@ -1066,7 +1066,8 @@ public class MorphiumServer {
 
                             // Forward ALL write commands to primary - secondaries should not accept writes directly
                             // The primary will then replicate the write back to secondaries
-                            if (!primary && WRITE_COMMANDS.contains(cmd.toLowerCase()) && primaryHost != null) {
+                            // But don't forward if this is already a replication from primary (avoid loop!)
+                            if (!primary && WRITE_COMMANDS.contains(cmd.toLowerCase()) && primaryHost != null && !isReplicationFromPrimary) {
                                 log.debug("Forwarding write {} to primary {} (secondaries don't accept direct writes)", cmd, primaryHost);
                                 answer = forwardCommandToPrimary(doc, cmd);
                                 if (answer != null) {
