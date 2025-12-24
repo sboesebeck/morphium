@@ -759,6 +759,11 @@ public class MorphiumServer {
     }
 
     public void incoming(Socket s) {
+        if (executor == null) {
+            log.warn("Server is shutting down, ignoring incoming connection");
+            try { s.close(); } catch (Exception e) { /* ignore */ }
+            return;
+        }
         log.info("handling incoming connection...{}", executor.getPoolSize());
 
         try {
