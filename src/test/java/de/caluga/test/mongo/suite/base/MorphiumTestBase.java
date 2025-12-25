@@ -14,6 +14,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.Timeout;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +40,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  * Time: 16:17
  * <p>
  */
+@Timeout(value = 5, unit = TimeUnit.MINUTES) // Global timeout for all tests to prevent hangs
 public class MorphiumTestBase {
 
     public static List<String> messagingsToTest = List.of("MultiCollectionMessaging", "StandardMessaging" );

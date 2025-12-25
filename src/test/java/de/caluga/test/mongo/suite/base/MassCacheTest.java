@@ -78,11 +78,16 @@ public class MassCacheTest extends MorphiumTestBase {
         log.info("Waiting for changes to be propagated...");
         dur = System.currentTimeMillis() - start;
         int goal = NO_OBJECTS * WRITING_THREADS;
+        long waitStart = System.currentTimeMillis();
+        long maxWaitTime = 120000; // 2 minute timeout
         while (true) {
             Thread.sleep(1500);
             long l = morphium.createQueryFor(CachedObject.class).countAll();
             log.info("Waiting for writes..." + l + "/" + goal);
             if (l == goal) break;
+            if (System.currentTimeMillis() - waitStart > maxWaitTime) {
+                throw new AssertionError("Timeout waiting for writes to propagate: got " + l + " of " + goal);
+            }
         }
         dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms");

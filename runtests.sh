@@ -38,7 +38,8 @@ function quitting() {
   # Stop a locally started MorphiumServer cluster (if any) before tearing down logs/state.
   if type _ms_local_cleanup >/dev/null 2>&1; then
     _ms_local_cleanup
-  else
+  elif [ "$driver" != "inmem" ]; then
+    # Only try to drop databases if not using inmem driver (no MongoDB to connect to)
     while read db rst; do
       echo "Dropping db $db"
       mongosh $uri --eval "use $db; db.dropDatabase()"
