@@ -22,7 +22,6 @@ import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Tag;
 
 @Tag("messaging")
-@Tag("morphiumserver_skip")  // Messaging timing/blocking issues with MorphiumServer
 public class MessagingBroadcastTests extends MultiDriverTestBase {
 
     private boolean gotMessage1, gotMessage2, gotMessage3, gotMessage4, error;

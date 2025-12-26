@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
-@Tag("replicaset")  // Change streams require a real MongoDB replica set - MorphiumServer has limited support
 public class ChangeStreamTest extends MultiDriverTestBase {
     volatile long start;
     volatile long count;
