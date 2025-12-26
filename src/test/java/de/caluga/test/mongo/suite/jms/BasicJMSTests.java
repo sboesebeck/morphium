@@ -15,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("jms")
-@Tag("morphiumserver_skip")  // JMS messaging timing issues with MorphiumServer
 public class BasicJMSTests extends MorphiumTestBase {
 
     @Test

@@ -20,7 +20,6 @@ import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.support.TestConfig;
 
 @Tag("driver")
-@Tag("morphiumserver_skip")  // Connection pool behavior differs with MorphiumServer
 public class PooledDriverConnectionsTests {
     private Logger log = LoggerFactory.getLogger(PooledDriverConnectionsTests.class);
 

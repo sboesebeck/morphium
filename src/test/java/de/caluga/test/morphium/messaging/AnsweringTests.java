@@ -27,7 +27,6 @@ import java.util.concurrent.locks.LockSupport;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("messaging")
-@Tag("morphiumserver_skip")  // Messaging timing/blocking issues with MorphiumServer
 public class AnsweringTests extends MultiDriverTestBase {
     public boolean gotMessage = false;
 

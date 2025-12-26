@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("messaging")
-@Tag("morphiumserver_skip")  // Messaging timing/blocking issues with MorphiumServer
 public class AnsweringNCTests extends MorphiumTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
