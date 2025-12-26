@@ -124,10 +124,9 @@ public class IteratorTest extends MultiDriverTestBase {
             for (final MorphiumIterator<UncachedObject> it : toTest) {
                 final AtomicInteger count = new AtomicInteger(0);
                 log.info("Running test with " + it.getClass().getName());
-                //        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
-                //            data = Collections.synchronizedList(new ArrayList<>());
                 final Vector<Thread> threads = new Vector<>();
                 final Vector<String> ids = new Vector<>();
+                final Object iteratorLock = new Object(); // Lock for atomic hasNext+next
 
                 for (int i = 0; i < 3; i++) {
                     log.info("Starting thread..." + i);
@@ -135,20 +134,24 @@ public class IteratorTest extends MultiDriverTestBase {
                         @Override
                         public void run() {
                             try {
-                                while (it.hasNext()) {
-                                    UncachedObject uc = it.next();
+                                while (true) {
+                                    UncachedObject uc;
+                                    // Synchronize hasNext() + next() to avoid race condition
+                                    synchronized (iteratorLock) {
+                                        if (!it.hasNext()) {
+                                            break;
+                                        }
+                                        uc = it.next();
+                                    }
 
                                     if (uc == null) {
                                         log.info("reached end concurrently - some other thread won!");
-
                                     } else {
                                         if (ids.contains(uc.getMorphiumId().toString())) {
                                             log.error("Duplicate entry!!!!");
                                         } else {
                                             ids.add(uc.getMorphiumId().toString());
                                         }
-                                        //                                assert (!data.contains(uc.getMorphiumId())); //cannot guarantee that as hasNext() and nex() are not executed atomically!
-                                        //                                data.add(uc.getMorphiumId());
                                         int cnt = count.incrementAndGet();
 
                                         if (cnt % 1000 == 0) {
