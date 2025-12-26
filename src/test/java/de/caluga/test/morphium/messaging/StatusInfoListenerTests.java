@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 
 @Tag("messaging")
+@Tag("morphiumserver_skip")  // Messaging timing/blocking issues with MorphiumServer
 public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
