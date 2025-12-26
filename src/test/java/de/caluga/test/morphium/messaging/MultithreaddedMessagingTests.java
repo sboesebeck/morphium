@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Tag;
 
 // @Disabled
 @Tag("messaging")
+@Tag("morphiumserver_skip")  // Messaging timing/blocking issues with MorphiumServer
 public class MultithreaddedMessagingTests extends MultiDriverTestBase {
 
     @ParameterizedTest

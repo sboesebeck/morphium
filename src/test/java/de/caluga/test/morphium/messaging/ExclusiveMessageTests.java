@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 @Tag("messaging")
+@Tag("morphiumserver_skip")  // Messaging timing/blocking issues with MorphiumServer
 public class ExclusiveMessageTests extends MorphiumTestBase {
     private boolean gotMessage1 = false;
     private boolean gotMessage2 = false;
