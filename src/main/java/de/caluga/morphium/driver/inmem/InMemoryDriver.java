@@ -33,6 +33,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -177,7 +179,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
-    private final List<Object> monitors = new CopyOnWriteArrayList<>();
+    private final List<WatchMonitor> monitors = new CopyOnWriteArrayList<>();
     private final BlockingQueue<Runnable> eventQueue = new LinkedBlockingDeque<>();
     private final List<Map<String, Object>> commandResults = new Vector<>();
     private final java.util.concurrent.ConcurrentHashMap<Integer, Map<String, Object>> commandResultsById = new java.util.concurrent.ConcurrentHashMap<>();
@@ -480,10 +482,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         cappedCollections.clear();
         collectionsWithTtlIndex.clear();
 
-        for (var o : monitors) {
-            synchronized (o) {
-                o.notifyAll();
-            }
+        for (var m : monitors) {
+            m.signalAll();
         }
 
         monitors.clear();
@@ -553,7 +553,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Namespace key: "db" for db-only watch, "db.collection" for collection watch
         // This must match the keys used in dispatchEvent for proper event delivery
         String namespaceKey = collection == null || collection.isBlank() ? db : db + "." + collection;
-        Object monitor = new Object();
+        WatchMonitor monitor = new WatchMonitor();
         monitors.add(monitor);
 
         // Reuse existing active subscription for the same namespace to avoid piling up watchers
@@ -599,20 +599,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return subscription.getCursorId();
             }
 
-            synchronized (monitor) {
-                while (subscription.isActive()) {
-                    Integer maxTime = settings.getMaxTimeMS();
-                    // Use maxTimeMS if set, otherwise use a 5-second fallback timeout
-                    // to periodically check if the callback wants to continue
-                    long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
-                    monitor.wait(waitTime);
+            // Use WatchMonitor with ReentrantLock/Condition to avoid pinning virtual threads
+            // synchronized blocks pin carrier threads, limiting scalability to ~256 concurrent watches
+            while (subscription.isActive()) {
+                Integer maxTime = settings.getMaxTimeMS();
+                // Use maxTimeMS if set, otherwise use a 5-second fallback timeout
+                // to periodically check if the callback wants to continue
+                long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
+                monitor.await(waitTime);
 
-                    // Check if the callback wants to continue after each wait
-                    // This ensures proper cleanup when cursors are killed
-                    if (!settings.getCb().isContinued()) {
-                        subscription.deactivate();
-                        break;
-                    }
+                // Check if the callback wants to continue after each wait
+                // This ensures proper cleanup when cursors are killed
+                if (!settings.getCb().isContinued()) {
+                    subscription.deactivate();
+                    break;
                 }
             }
         } catch (InterruptedException ie) {
@@ -2528,10 +2528,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         // Notify any waiting threads
-        for (Object m : monitors) {
-            synchronized (m) {
-                m.notifyAll();
-            }
+        for (WatchMonitor m : monitors) {
+            m.signalAll();
         }
 
         if (clearData) {
@@ -4907,7 +4905,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final WatchCommand.FullDocumentEnum fullDocumentMode;
         private final WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode;
         private final boolean showExpandedEvents;
-        private final Object monitor;
+        private final WatchMonitor monitor;
         private volatile boolean active = true;
         private final InMemAggregator aggregator; // reused per subscription
         private final boolean insertOnlyMatchPipeline;
@@ -4920,7 +4918,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                          List<Map<String, Object>> pipeline,
                                          WatchCommand.FullDocumentEnum fullDocumentMode,
                                          WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode,
-                                         boolean showExpandedEvents, Object monitor, long cursorId) {
+                                         boolean showExpandedEvents, WatchMonitor monitor, long cursorId) {
             this.db = db;
             this.collection = collection;
             this.callback = callback;
@@ -4977,9 +4975,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 subscriptionExecutor.shutdown();
             }
 
-            synchronized (monitor) {
-                monitor.notifyAll();
-            }
+            monitor.signalAll();
         }
 
         private void deliver(ChangeStreamEventInfo info) {
@@ -6124,6 +6120,34 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.remaining = remaining;
             this.namespace = namespace;
             this.defaultBatchSize = defaultBatchSize;
+        }
+    }
+
+    /**
+     * WatchMonitor uses ReentrantLock and Condition instead of synchronized/wait/notify.
+     * This allows virtual threads to properly yield their carrier thread when waiting,
+     * preventing carrier thread pinning which limits scalability to ~256 concurrent watches.
+     */
+    private static class WatchMonitor {
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Condition condition = lock.newCondition();
+
+        void await(long timeoutMs) throws InterruptedException {
+            lock.lock();
+            try {
+                condition.await(timeoutMs, TimeUnit.MILLISECONDS);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        void signalAll() {
+            lock.lock();
+            try {
+                condition.signalAll();
+            } finally {
+                lock.unlock();
+            }
         }
     }
 
