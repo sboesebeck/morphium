@@ -1027,6 +1027,48 @@ public class MorphiumServer {
 
                         break;
 
+                    case "killCursors":
+                        // Handle killCursors command - essential for cleaning up change stream watchers
+                        List<Long> cursorsToKill = new ArrayList<>();
+                        Object cursorsObj = doc.get("cursors");
+                        if (cursorsObj instanceof List) {
+                            for (Object cursorIdObj : (List<?>) cursorsObj) {
+                                if (cursorIdObj instanceof Number) {
+                                    cursorsToKill.add(((Number) cursorIdObj).longValue());
+                                }
+                            }
+                        }
+
+                        List<Long> killed = new ArrayList<>();
+                        List<Long> notFound = new ArrayList<>();
+
+                        for (Long cursorIdToKill : cursorsToKill) {
+                            boolean found = false;
+
+                            // Check and remove from watch cursors
+                            if (watchCursors.remove(cursorIdToKill) != null) {
+                                found = true;
+                                log.debug("Killed watch cursor {}", cursorIdToKill);
+                            }
+
+                            // Check and remove from tailable cursors
+                            TailableCursorInfo killedTailableInfo = tailableCursors.remove(cursorIdToKill);
+                            if (killedTailableInfo != null) {
+                                killedTailableInfo.active = false;
+                                found = true;
+                                log.debug("Killed tailable cursor {}", cursorIdToKill);
+                            }
+
+                            if (found) {
+                                killed.add(cursorIdToKill);
+                            } else {
+                                notFound.add(cursorIdToKill);
+                            }
+                        }
+
+                        answer = Doc.of("ok", 1.0, "cursorsKilled", killed, "cursorsNotFound", notFound, "cursorsAlive", List.of(), "cursorsUnknown", List.of());
+                        break;
+
                     default:
                         try {
                             // Reject writes to secondaries, unless it's a replication command from primary

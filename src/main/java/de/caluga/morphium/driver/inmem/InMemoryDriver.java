@@ -602,11 +602,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             synchronized (monitor) {
                 while (subscription.isActive()) {
                     Integer maxTime = settings.getMaxTimeMS();
+                    // Use maxTimeMS if set, otherwise use a 5-second fallback timeout
+                    // to periodically check if the callback wants to continue
+                    long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
+                    monitor.wait(waitTime);
 
-                    if (maxTime != null && maxTime > 0) {
-                        monitor.wait(maxTime);
-                    } else {
-                        monitor.wait();
+                    // Check if the callback wants to continue after each wait
+                    // This ensures proper cleanup when cursors are killed
+                    if (!settings.getCb().isContinued()) {
+                        subscription.deactivate();
+                        break;
                     }
                 }
             }
