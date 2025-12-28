@@ -41,6 +41,10 @@ public class MorphiumServerCLI {
         String dumpDir = null;
         long dumpIntervalSec = 0;
 
+        // Connection management configuration
+        int maxConnections = 500;
+        int socketTimeoutSec = 60;
+
         while (idx < args.length) {
             switch (args[idx]) {
                 case "--help":
@@ -145,6 +149,16 @@ public class MorphiumServerCLI {
                     idx += 2;
                     break;
 
+                case "--max-connections":
+                    maxConnections = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
+
+                case "--socket-timeout":
+                    socketTimeoutSec = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
+
                 default:
                     log.error("unknown parameter " + args[idx]);
                     System.exit(1);
@@ -154,6 +168,11 @@ public class MorphiumServerCLI {
         log.info("Starting server...");
         var srv = new MorphiumServer(port, host, maxThreads, minThreads, compressorId);
         srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
+
+        // Configure connection management
+        srv.setMaxConnections(maxConnections);
+        srv.setSocketReadTimeoutMs(socketTimeoutSec * 1000);
+        log.info("Connection limits: max={}, socketTimeout={}s", maxConnections, socketTimeoutSec);
 
         // Configure SSL if enabled
         if (sslEnabled) {
@@ -228,6 +247,11 @@ public class MorphiumServerCLI {
         System.out.println("  -d, --dump-dir <path>      : Directory for periodic database dumps");
         System.out.println("                               Enables persistence: restores on startup, dumps on shutdown");
         System.out.println("  --dump-interval <seconds>  : Interval between periodic dumps (default: 0 = only on shutdown)");
+        System.out.println();
+        System.out.println("Connection Management Options (for production reliability):");
+        System.out.println("  --max-connections <num>    : Maximum concurrent connections (default: 500)");
+        System.out.println("  --socket-timeout <seconds> : Idle connection timeout in seconds (default: 60)");
+        System.out.println("                               Connections idle for 3x this time are closed automatically");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();

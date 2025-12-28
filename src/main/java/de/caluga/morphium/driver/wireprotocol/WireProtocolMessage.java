@@ -18,7 +18,7 @@ public abstract class WireProtocolMessage {
     private int responseTo;
     private static Logger log = LoggerFactory.getLogger(WireProtocolMessage.class);
 
-    public static WireProtocolMessage parseFromStream(InputStream in) throws java.net.SocketException {
+    public static WireProtocolMessage parseFromStream(InputStream in) throws java.net.SocketException, java.net.SocketTimeoutException {
         byte[] inBuffer = new byte[16];
         int numRead;
 
@@ -77,6 +77,9 @@ public abstract class WireProtocolMessage {
             // } catch (java.net.SocketException se) {
             //     //probably closed - ignore
             //     return null;
+        } catch (java.net.SocketTimeoutException ste) {
+            // Propagate timeout exceptions for connection management
+            throw ste;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
