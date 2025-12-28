@@ -178,15 +178,15 @@ public abstract class WireProtocolMessage {
             OpDelete.class), OP_KILL_CURSORS(2007, OpKillCursors.class), OP_COMPRESSED(2012, OpCompressed.class), OP_MSG(2013, OpMsg.class);
 
 
-        int opCode;
-        Class<? extends WireProtocolMessage> handler;
+        public final int opCode;
+        public final Class<? extends WireProtocolMessage> handler;
 
         OpCode(int opCode, Class<? extends WireProtocolMessage> handler) {
             this.opCode = opCode;
             this.handler = handler;
         }
 
-        static OpCode findByCode(int c) {
+        public static OpCode findByCode(int c) {
             for (OpCode o : OpCode.values()) {
                 if (o.opCode == c) {
                     return o;
