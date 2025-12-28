@@ -105,6 +105,14 @@ public class MorphiumServer {
     private java.util.concurrent.ScheduledExecutorService dumpScheduler = null;
     private volatile long lastDumpTime = 0;
 
+    // Connection management for reliability under load
+    private static final int DEFAULT_SOCKET_READ_TIMEOUT_MS = 60000; // 60 seconds idle timeout
+    private static final int DEFAULT_MAX_CONNECTIONS = 500;
+    private int maxConnections = DEFAULT_MAX_CONNECTIONS;
+    private int socketReadTimeoutMs = DEFAULT_SOCKET_READ_TIMEOUT_MS;
+    private final java.util.concurrent.atomic.AtomicInteger activeConnections = new java.util.concurrent.atomic.AtomicInteger(0);
+    private final java.util.Set<Socket> trackedSockets = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
     /**
      * Extract session ID string from a document's lsid field.
      * The lsid is typically { "id": UUID } structure.
@@ -206,10 +214,21 @@ public class MorphiumServer {
         this.port = port;
         this.host = host;
         this.compressorId = compressorId;
+        this.maxConnections = maxThreads; // Use maxThreads as connection limit
         drv.connect();
-        executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
-        executor.setMaximumPoolSize(maxThreads);
-        executor.setCorePoolSize(minThreads);
+        // Use a bounded thread pool with a queue for backpressure under load
+        // This prevents OOM from unlimited thread creation
+        java.util.concurrent.BlockingQueue<Runnable> workQueue =
+            new java.util.concurrent.LinkedBlockingQueue<>(maxThreads * 2);
+        executor = new ThreadPoolExecutor(
+            minThreads,
+            maxThreads,
+            60L, java.util.concurrent.TimeUnit.SECONDS,
+            workQueue,
+            java.util.concurrent.Executors.defaultThreadFactory(),
+            new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy() // Backpressure: caller thread handles if pool is full
+        );
+        executor.allowCoreThreadTimeOut(true); // Allow core threads to terminate if idle
     }
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
@@ -306,6 +325,58 @@ public class MorphiumServer {
         } catch (org.json.simple.parser.ParseException e) {
             throw new IOException("Failed to parse dump file", e);
         }
+    }
+
+    // Connection management configuration methods
+
+    /**
+     * Set maximum number of concurrent connections.
+     * Connections beyond this limit will be rejected.
+     * @param maxConnections Maximum connections (default: 500)
+     */
+    public void setMaxConnections(int maxConnections) {
+        this.maxConnections = maxConnections;
+    }
+
+    public int getMaxConnections() {
+        return maxConnections;
+    }
+
+    /**
+     * Set socket read timeout for idle connection cleanup.
+     * Connections that are idle longer than this will be closed.
+     * @param timeoutMs Timeout in milliseconds (default: 60000)
+     */
+    public void setSocketReadTimeoutMs(int timeoutMs) {
+        this.socketReadTimeoutMs = timeoutMs;
+    }
+
+    public int getSocketReadTimeoutMs() {
+        return socketReadTimeoutMs;
+    }
+
+    /**
+     * Get number of currently active connections.
+     */
+    public int getActiveConnectionCount() {
+        return activeConnections.get();
+    }
+
+    /**
+     * Get current thread pool statistics for monitoring.
+     */
+    public Map<String, Object> getPoolStats() {
+        if (executor == null) return Map.of();
+        return Map.of(
+            "activeThreads", executor.getActiveCount(),
+            "poolSize", executor.getPoolSize(),
+            "maxPoolSize", executor.getMaximumPoolSize(),
+            "queueSize", executor.getQueue().size(),
+            "completedTasks", executor.getCompletedTaskCount(),
+            "activeConnections", activeConnections.get(),
+            "watchCursors", watchCursors.size(),
+            "tailableCursors", tailableCursors.size()
+        );
     }
 
     /**
@@ -442,7 +513,7 @@ public class MorphiumServer {
         // Start periodic dump scheduler if configured
         startDumpScheduler();
 
-        log.info("Port opened, waiting for incoming connections");
+        log.info("Port opened, waiting for incoming connections (maxConnections={}, socketTimeout={}ms)", maxConnections, socketReadTimeoutMs);
         new Thread(()-> {
             while (running) {
                 Socket s = null;
@@ -460,7 +531,19 @@ public class MorphiumServer {
                     break;
                 }
 
-                log.info("Incoming connection: " + executor.getPoolSize());
+                // Enforce connection limit for reliability under load
+                int currentConnections = activeConnections.get();
+                if (currentConnections >= maxConnections) {
+                    log.warn("Connection limit reached ({}/{}), rejecting connection", currentConnections, maxConnections);
+                    try {
+                        s.close();
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                    continue;
+                }
+
+                log.info("Incoming connection: poolSize={}, activeConnections={}/{}", executor.getPoolSize(), currentConnections, maxConnections);
                 Socket finalS = s;
                 //new Thread(() -> incoming(finalS)).start();
                 executor.execute(() -> incoming(finalS));
@@ -764,10 +847,16 @@ public class MorphiumServer {
             try { s.close(); } catch (Exception e) { /* ignore */ }
             return;
         }
-        log.info("handling incoming connection...{}", executor.getPoolSize());
+
+        // Track this connection
+        int connCount = activeConnections.incrementAndGet();
+        trackedSockets.add(s);
+        log.info("Handling incoming connection (active: {}/{})", connCount, maxConnections);
 
         try {
-            s.setSoTimeout(0);
+            // Set socket timeout to allow idle connection cleanup
+            // This prevents threads from blocking forever on dead connections
+            s.setSoTimeout(socketReadTimeoutMs);
             s.setTcpNoDelay(true);
             s.setKeepAlive(true);
             // Use buffered streams for better I/O performance
@@ -785,9 +874,25 @@ public class MorphiumServer {
             //            out.write(r.bytes());
             //            out.flush();
             //            log.info("Sent hello result");
-            while (s.isConnected()) {
+            int consecutiveTimeouts = 0;
+            final int MAX_CONSECUTIVE_TIMEOUTS = 3; // Close after 3 consecutive read timeouts (3 minutes idle)
+
+            while (s.isConnected() && running) {
                 log.debug("Thread {} waiting for incoming message", Thread.currentThread().getId());
-                var msg = WireProtocolMessage.parseFromStream(in);
+                WireProtocolMessage msg;
+                try {
+                    msg = WireProtocolMessage.parseFromStream(in);
+                    consecutiveTimeouts = 0; // Reset on successful read
+                } catch (java.net.SocketTimeoutException ste) {
+                    consecutiveTimeouts++;
+                    if (consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) {
+                        log.info("Connection idle for {}ms ({}x timeout), closing", socketReadTimeoutMs * consecutiveTimeouts, consecutiveTimeouts);
+                        break;
+                    }
+                    // Socket still good, just idle - continue waiting
+                    log.debug("Socket read timeout ({}/{}), connection still alive", consecutiveTimeouts, MAX_CONSECUTIVE_TIMEOUTS);
+                    continue;
+                }
                 log.debug("---> Thread {} got message", Thread.currentThread().getId());
 
                 //probably closed
@@ -1341,10 +1446,19 @@ public class MorphiumServer {
             out.close();
         } catch (Exception e) {
             log.error("Error in incoming connection: {}", e.getMessage());
+        } finally {
+            // Clean up connection tracking
+            trackedSockets.remove(s);
+            int remaining = activeConnections.decrementAndGet();
+            log.info("Connection closed (remaining: {}/{})", remaining, maxConnections);
+            try {
+                if (s != null && !s.isClosed()) {
+                    s.close();
+                }
+            } catch (IOException e) {
+                // ignore
+            }
         }
-
-        log.info("Thread finished!");
-        s = null;
     }
 
     public void terminate() {
@@ -1363,6 +1477,20 @@ public class MorphiumServer {
                 log.error("Failed to perform final dump: {}", e.getMessage(), e);
             }
         }
+
+        // Close all tracked client sockets
+        log.info("Closing {} active connections...", trackedSockets.size());
+        for (Socket sock : trackedSockets) {
+            try {
+                if (sock != null && !sock.isClosed()) {
+                    sock.close();
+                }
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        trackedSockets.clear();
+        activeConnections.set(0);
 
         if (serverSocket != null) {
             try {
