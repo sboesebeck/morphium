@@ -494,6 +494,19 @@ function _ms_local_start_cluster() {
   local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
   mkdir -p "$pid_dir" "$pid_dir/logs" test.log
 
+  # Calculate max-connections based on parallel slots if not explicitly set
+  # Formula: base 200 + 100 per parallel slot (enough for connection pools + watch cursors)
+  local max_conn="${morphiumserverMaxConnections}"
+  local sock_timeout="${morphiumserverSocketTimeout:-30}"
+  if [ -z "$max_conn" ]; then
+    if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
+      max_conn=$((200 + parallel * 100))
+      echo -e "${BL}Info:${CL} Auto-calculated max-connections=${max_conn} for ${parallel} parallel slots"
+    else
+      max_conn=500
+    fi
+  fi
+
   local jar
   jar=$(_ms_local_find_server_cli_jar)
   if [ -z "$jar" ] || find src/main/java -newer "$jar" 2>/dev/null | head -n 1 | grep -q .; then
@@ -528,9 +541,9 @@ function _ms_local_start_cluster() {
   seed=$(echo "$hostports" | tr '\n' ',' | sed 's/,$//')
 
   if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
-    echo -e "${BL}Info:${CL} Starting MorphiumServer single-node (${seed})"
+    echo -e "${BL}Info:${CL} Starting MorphiumServer single-node (${seed}) [maxConn=${max_conn}, timeout=${sock_timeout}s]"
   else
-    echo -e "${BL}Info:${CL} Starting MorphiumServer replica set ${GN}${rs_name}${CL} (${seed})"
+    echo -e "${BL}Info:${CL} Starting MorphiumServer replica set ${GN}${rs_name}${CL} (${seed}) [maxConn=${max_conn}, timeout=${sock_timeout}s]"
   fi
 
   local hp
@@ -551,12 +564,13 @@ function _ms_local_start_cluster() {
     fi
 
     local log_file="${pid_dir}/logs/morphiumserver_${port}.log"
+    local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout"
     if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
       # Single-node mode: no replica set arguments
-      nohup java -jar "$jar" --bind "$host" --port "$port" >"$log_file" 2>&1 &
+      nohup java -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &
     else
       # Replica set mode
-      nohup java -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" >"$log_file" 2>&1 &
+      nohup java -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" $conn_args >"$log_file" 2>&1 &
     fi
     local pid=$!
     # Detach from the job table so that the main status loop ignores these helper processes.
@@ -690,6 +704,9 @@ startMorphiumserverLocal=0
 morphiumserverSingleNode=0
 morphiumserverLocalStarted=0
 morphiumserverLocalPidDir=".morphiumserver-local"
+# Connection management for MorphiumServer (auto-calculated from --parallel if not set)
+morphiumserverMaxConnections=""
+morphiumserverSocketTimeout=""
 
 # Save original arguments for stats processing
 original_args=("$@")
@@ -723,6 +740,8 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--morphiumserver-local$CL - alias for --morphium-server-replicaset (deprecated)"
     echo -e "${BL}--localhost-rs$CL       - alias for --morphium-server-replicaset (deprecated)"
     echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
+    echo -e "${BL}--max-connections$CL ${GN}N$CL - MorphiumServer max connections (default: auto from --parallel)"
+    echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - MorphiumServer socket timeout in seconds (default: 30)"
     echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
     echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
@@ -804,6 +823,22 @@ while [ "q$1" != "q" ]; do
     shift
     if ! [[ "$parallel" =~ ^[0-9]+$ ]] || [ "$parallel" -lt 1 ] || [ "$parallel" -gt 16 ]; then
       echo -e "${RD}Error: --parallel must be a number between 1 and 16${CL}"
+      exit 1
+    fi
+  elif [ "q$1" == "q--max-connections" ]; then
+    shift
+    morphiumserverMaxConnections=$1
+    shift
+    if ! [[ "$morphiumserverMaxConnections" =~ ^[0-9]+$ ]] || [ "$morphiumserverMaxConnections" -lt 10 ]; then
+      echo -e "${RD}Error: --max-connections must be a number >= 10${CL}"
+      exit 1
+    fi
+  elif [ "q$1" == "q--socket-timeout" ]; then
+    shift
+    morphiumserverSocketTimeout=$1
+    shift
+    if ! [[ "$morphiumserverSocketTimeout" =~ ^[0-9]+$ ]] || [ "$morphiumserverSocketTimeout" -lt 5 ]; then
+      echo -e "${RD}Error: --socket-timeout must be a number >= 5 (seconds)${CL}"
       exit 1
     fi
   elif [ "q$1" == "q--uri" ]; then
