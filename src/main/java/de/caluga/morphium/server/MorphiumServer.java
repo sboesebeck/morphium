@@ -1046,7 +1046,11 @@ public class MorphiumServer {
                     case "getMore":
                         // For change streams and tailable cursors, getMore should wait for data from the queue
                         long getMoreCursorId = ((Number) doc.get("getMore")).longValue();
-                        int maxTimeMs = doc.containsKey("maxTimeMS") ? ((Number) doc.get("maxTimeMS")).intValue() : 30000;
+                        int maxTimeMs = doc.containsKey("maxTimeMS") ? ((Number) doc.get("maxTimeMS")).intValue() : 5000;
+                        // Cap the wait time to prevent connection starvation under parallel load
+                        // Unlike MongoDB which uses async I/O, we use blocking I/O so connections get tied up
+                        // Shorter wait time = faster connection turnover = better parallel performance
+                        int effectiveWaitMs = Math.min(maxTimeMs, 2000); // Max 2 seconds per getMore
                         String getMoreCollection = (String) doc.get("collection");
                         String getMoreDb = (String) doc.get("$db");
 
@@ -1057,11 +1061,11 @@ public class MorphiumServer {
                             // This is a change stream cursor - handle with blocking queue
                             List<Map<String, Object>> batch = new ArrayList<>();
                             try {
-                                // Wait for first event with timeout
-                                Map<String, Object> event = queue.poll(maxTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+                                // Wait for first event with capped timeout
+                                Map<String, Object> event = queue.poll(effectiveWaitMs, java.util.concurrent.TimeUnit.MILLISECONDS);
                                 if (event != null) {
                                     batch.add(event);
-                                    // Drain any additional events that are ready
+                                    // Drain any additional events that are ready (non-blocking)
                                     queue.drainTo(batch, 99);
                                     log.debug("getMore returning {} events for cursor {}", batch.size(), getMoreCursorId);
                                 }
@@ -1074,7 +1078,7 @@ public class MorphiumServer {
                             // This is a tailable cursor on a capped collection - wait for documents
                             List<Map<String, Object>> batch = new ArrayList<>();
                             try {
-                                Map<String, Object> doc1 = tailableInfo.queue.poll(maxTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+                                Map<String, Object> doc1 = tailableInfo.queue.poll(effectiveWaitMs, java.util.concurrent.TimeUnit.MILLISECONDS);
                                 if (doc1 != null) {
                                     batch.add(doc1);
                                     tailableInfo.queue.drainTo(batch, 99);
