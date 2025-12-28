@@ -1353,6 +1353,14 @@ if [ -z "$uri" ] && [ -n "$MONGODB_URI" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium
 if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=true"; fi
 if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
 
+# Increase connection pool for parallel tests against MorphiumServer
+# Watch cursors hold connections for long-polling, so we need more connections when running many slots
+if [ "$startMorphiumserverLocal" -eq 1 ] && [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
+  pool_size=$((100 + parallel * 50))  # Base 100 + 50 per parallel slot
+  MVN_PROPS="$MVN_PROPS -Dmorphium.maxConnections=$pool_size"
+  echo -e "${BL}Info:${CL} Increased client pool to ${pool_size} connections for ${parallel} parallel slots"
+fi
+
 mvn $MVN_PROPS compile test-compile >/dev/null || {
   echo -e "${RD}Error:${CL} Compilation failed!"
   exit 1
