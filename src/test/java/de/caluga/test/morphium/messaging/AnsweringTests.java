@@ -10,7 +10,6 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
@@ -56,7 +55,7 @@ public class AnsweringTests extends MultiDriverTestBase {
         gotMessage3 = false;
         error = false;
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
 
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -192,7 +191,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("---------> Running test " + tstName + " with " + morphium.getDriver().getName());
 
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
 
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -240,7 +239,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("-------> Running test " + tstName + " with " + morphium.getDriver().getName());
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
 
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -303,7 +302,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
 
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -377,7 +376,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
 
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -426,7 +425,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
 
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -475,7 +474,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
 
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -520,7 +519,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
 
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -596,7 +595,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             //        morphium.dropCollection(Msg.class);
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
 
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -647,7 +646,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             //        morphium.dropCollection(Msg.class);
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
 
                 MorphiumConfig cfg = morphium.getConfig().createCopy();

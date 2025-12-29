@@ -33,7 +33,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
             }
             .getClass().getEnclosingMethod().getName();
             morphium.clearCollection(Msg.class);
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 log.info(String.format("=====================> Running Test %s with Driver %s and Messaging %s <===============================", method, morphium.getDriver().getName(), msgImpl));
                 var cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -154,7 +154,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void broadcastMultiTest(Morphium morphium) throws Exception {
         try (morphium) {
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 var cfg = morphium.getConfig().createCopy();
                 log.info("Running test with {} messaging", msgImpl);
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);

@@ -61,7 +61,7 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
         }
         long dur = System.currentTimeMillis() - start;
 
-        checkStats(dur);
+        checkStats(morphium, dur);
         morphium.getCache().setDefaultCacheTime(CacheEntry.class);
     }
 
@@ -91,10 +91,10 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
         }
         long dur = System.currentTimeMillis() - start;
 
-        checkStats(dur);
+        checkStats(morphium, dur);
     }
 
-    private void checkStats(long dur) {
+    private void checkStats(Morphium morphium, long dur) {
         log.info("Duration: " + dur + "ms");
         log.info("Duration: " + dur + "ms");
 
@@ -193,7 +193,7 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
 
         long dur = System.currentTimeMillis() - start;
 
-        checkStats(dur);
+        checkStats(morphium, dur);
     }
 
 

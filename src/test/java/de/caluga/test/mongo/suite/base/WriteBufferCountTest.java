@@ -55,7 +55,7 @@ public class WriteBufferCountTest extends MultiDriverTestBase {
                 log.error("Could not write: " + error);
             }
         });
-        waitForWriteProcessToBeScheduled();
+        waitForWriteProcessToBeScheduled(morphium);
         int c = morphium.getWriteBufferCount();
         assert (c != 0);
 
@@ -67,7 +67,7 @@ public class WriteBufferCountTest extends MultiDriverTestBase {
         }
     }
 
-    private int waitForWriteProcessToBeScheduled() {
+    private int waitForWriteProcessToBeScheduled(Morphium morphium) {
         int cnt = 0;
         int c = morphium.getWriteBufferCount();
         while (c == 0) {

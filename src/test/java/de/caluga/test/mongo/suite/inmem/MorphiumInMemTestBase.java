@@ -8,7 +8,6 @@ import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;

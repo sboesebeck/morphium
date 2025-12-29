@@ -1,9 +1,9 @@
 package de.caluga.test.morphium.driver;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.support.TestConfig;
 import org.junit.jupiter.api.Test;
 

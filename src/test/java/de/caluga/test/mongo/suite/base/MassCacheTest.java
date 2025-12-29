@@ -113,12 +113,12 @@ public class MassCacheTest extends MultiDriverTestBase {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Reading all objects took: " + dur + " ms");
-        printStats();
+        printStats(morphium);
 
 
     }
 
-    private void printStats() {
+    private void printStats(Morphium morphium) {
         final Map<String, Double> statistics = morphium.getStatistics();
         for (String k : statistics.keySet()) {
             log.info(k + ": " + statistics.get(k));
@@ -200,7 +200,7 @@ public class MassCacheTest extends MultiDriverTestBase {
         long dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms\n");
 
-        printStats();
+        printStats(morphium);
 
         log.info("Test finished!");
     }
@@ -240,7 +240,7 @@ public class MassCacheTest extends MultiDriverTestBase {
 
                 }
             }
-            printStats();
+            printStats(morphium);
 
             Map<String, Double> statistics = morphium.getStatistics();
             assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == null || statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
@@ -258,7 +258,7 @@ public class MassCacheTest extends MultiDriverTestBase {
 
                 }
             }
-            printStats();
+            printStats(morphium);
             statistics = morphium.getStatistics();
             assert (statistics.get("CACHE_ENTRIES") != 0);
             assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0);
@@ -304,7 +304,7 @@ public class MassCacheTest extends MultiDriverTestBase {
 
         }
 
-        printStats();
+        printStats(morphium);
         Map<String, Double> stats = morphium.getStatistics();
         assert (stats.get("CACHE_ENTRIES") >= 100);
         assert (stats.get("CHITS") >= 200);

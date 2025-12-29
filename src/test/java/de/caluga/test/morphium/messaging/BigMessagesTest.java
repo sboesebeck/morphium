@@ -29,7 +29,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
             final AtomicInteger count = new AtomicInteger();
             morphium.dropCollection(Msg.class, "msg", null);
             Thread.sleep(1000);
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());

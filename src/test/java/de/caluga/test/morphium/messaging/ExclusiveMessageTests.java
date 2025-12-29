@@ -1,4 +1,5 @@
 package de.caluga.test.morphium.messaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,7 +32,6 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -47,7 +47,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void ignoringExclusiveMessagesTest(Morphium morphium) throws Exception  {
-        for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+        for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
             var cfg = morphium.getConfig().createCopy();
@@ -278,7 +278,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void exclusiveMessageCustomQueueTest(Morphium morphium) throws Exception  {
-        for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+        for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
             var cfg = morphium.getConfig().createCopy();
@@ -447,7 +447,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     @Tag("external")
     public void exclusivityTest(Morphium morphium) throws Exception  {
-        for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+        for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
             var cfg = morphium.getConfig().createCopy();
@@ -827,7 +827,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void exclusiveTest(Morphium morphium) throws Exception  {
-        // for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+        // for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
         // for (String msgImpl : List.of("MultiCollectionMessaging")) {
         for (String msgImpl : List.of("StandardMessaging")) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);

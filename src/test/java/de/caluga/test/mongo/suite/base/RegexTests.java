@@ -21,7 +21,7 @@ public class RegexTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleRegexTests(Morphium morphium) throws Exception  {
-        createTestData();
+        createTestData(morphium);
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
         TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", () -> waitQuery.countAll() == 100);
@@ -44,7 +44,7 @@ public class RegexTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void patternRegexTest(Morphium morphium) throws Exception  {
-        createTestData();
+        createTestData(morphium);
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
         TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->waitQuery.countAll() == 100);
@@ -67,7 +67,7 @@ public class RegexTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void regexOptionTest(Morphium morphium) throws Exception  {
-        createTestData();
+        createTestData(morphium);
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
         TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->waitQuery.countAll() == 100);
@@ -89,7 +89,7 @@ public class RegexTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void patternOptionTest(Morphium morphium) throws Exception  {
-        createTestData();
+        createTestData(morphium);
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
         TestUtils.waitForConditionToBecomeTrue(1500, "Writes failed??!?", ()->waitQuery.countAll() == 100);
@@ -111,7 +111,7 @@ public class RegexTests extends MultiDriverTestBase {
     }
 
 
-    public void createTestData() {
+    public void createTestData(Morphium morphium) {
         for (int i = 0; i < 100; i++) {
             String v;
             if (i % 2 == 0) {

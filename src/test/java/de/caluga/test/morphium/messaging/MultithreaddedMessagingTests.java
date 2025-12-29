@@ -22,7 +22,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.SingleCollectionMessaging;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
@@ -40,7 +39,7 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -108,7 +107,7 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
     // public void mutlithreaddedMessagingPerformanceTest() throws Exception {
     // morphium.clearCollection(Msg.class);
     // for (String msgImpl :
-    // de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+    // de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
     // MorphiumConfig cfg = morphium.getConfig().createCopy();
     // cfg.messagingSettings().setMessagingImplementation(msgImpl);
     // cfg.encryptionSettings()
@@ -190,7 +189,7 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);

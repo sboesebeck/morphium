@@ -84,7 +84,7 @@ public class JCacheTest extends MultiDriverTestBase {
             long start = System.currentTimeMillis();
             log.info("Testing cache " + m.getClass().getName());
             cache.setCacheManager(m);
-            cacheTest(cache);
+            cacheTest(morphium, cache);
             long dur = System.currentTimeMillis() - start;
             log.info("    duration: " + dur + "\n\n");
         }
@@ -110,7 +110,7 @@ public class JCacheTest extends MultiDriverTestBase {
         e.getCache("test").put("123", new CacheEntry<String>("test", 1));
     }
 
-    private void cacheTest(MorphiumCache cache) throws Exception {
+    private void cacheTest(Morphium morphium, MorphiumCache cache) throws Exception {
         morphium.dropCollection(CachedObject.class);
         morphium.resetStatistics();
 
