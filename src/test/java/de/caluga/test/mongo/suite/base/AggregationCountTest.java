@@ -31,7 +31,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
                .project("cnt", Expr.sum(Expr.intExpr(1)));
             List<Map> res = agg.aggregate();
             log.info(Utils.toJsonString(res));
-            assertEquals(990, agg.getCount());
+            assertEquals(989, agg.getCount());  // 0-based counters: 11-999 = 989 objects
         }
     }
 

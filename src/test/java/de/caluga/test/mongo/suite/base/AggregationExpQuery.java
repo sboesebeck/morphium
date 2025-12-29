@@ -24,7 +24,7 @@ public class AggregationExpQuery extends MultiDriverTestBase {
             q.expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(50)));
             log.debug(Utils.toJsonString(q.toQueryObject()));
             List<UncachedObject> lst = q.asList();
-            assert (lst.size() == 50) : "Size wrong: " + lst.size();
+            assert (lst.size() == 49) : "Size wrong: " + lst.size();  // 0-based counters: 51-99 = 49 objects
 
 
             for (UncachedObject u : q.q().asList()) {
