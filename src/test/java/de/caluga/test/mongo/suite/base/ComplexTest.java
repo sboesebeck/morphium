@@ -261,8 +261,8 @@ public class ComplexTest extends MultiDriverTestBase {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             UncachedObject uc = q.rawQuery(UtilsMap.of("counter", 10)).asList().get(0);
             assert(uc.getCounter() == 10);
-            assert(q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).countAll() == 50);
-            assert(q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).asList().size() == 50);
+            assert(q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).countAll() == 51);  // 0-50 inclusive = 51
+            assert(q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).asList().size() == 51);
         }
     }
 }

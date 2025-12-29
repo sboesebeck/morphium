@@ -45,7 +45,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             UncachedObject single = morphium.createQueryFor(UncachedObject.class).get();
             assertNotNull(single);
             assertNotNull(single.getMorphiumId());
-            assertTrue(single.getCounter() > 0);
+            assertTrue(single.getCounter() >= 0);  // 0-based counters
 
             // Test list retrieval
             List<UncachedObject> list = morphium.createQueryFor(UncachedObject.class).asList();
