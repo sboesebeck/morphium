@@ -10,13 +10,17 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Disabled
 @Tag("messaging")
-public class SpeedNCTests extends MorphiumTestBase {
+public class SpeedNCTests extends MultiDriverTestBase {
 
-    @Test
-    public void writeSpeed() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void writeSpeed(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
         SingleCollectionMessaging msg = new SingleCollectionMessaging(morphium, 100, false, true, 10);
         msg.setUseChangeStream(false).start();
@@ -45,8 +49,9 @@ public class SpeedNCTests extends MorphiumTestBase {
         msg.terminate();
     }
 
-    @Test
-    public void writeRecSpeed() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void writeRecSpeed(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false, true, 10);
@@ -88,8 +93,9 @@ public class SpeedNCTests extends MorphiumTestBase {
         receiver.terminate();
     }
 
-    @Test
-    public void writeExclusiveRec() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void writeExclusiveRec(Morphium morphium) throws Exception  {
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
         morphium.clearCollection(Msg.class);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false, true, 10);

@@ -13,12 +13,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("jms")
-public class BasicJMSTests extends MorphiumTestBase {
+public class BasicJMSTests extends MultiDriverTestBase {
 
-    @Test
-    public void basicSendReceiveTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void basicSendReceiveTest(Morphium morphium) throws Exception  {
         JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
         JMSContext ctx1 = factory.createContext();
         JMSContext ctx2 = factory.createContext();
@@ -74,8 +78,9 @@ public class BasicJMSTests extends MorphiumTestBase {
         ctx2.close();
     }
 
-    @Test
-    public void synchronousSendReceiveTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void synchronousSendReceiveTest(Morphium morphium) throws Exception  {
         JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
         JMSContext ctx1 = factory.createContext();
         JMSContext ctx2 = factory.createContext();
@@ -115,8 +120,9 @@ public class BasicJMSTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void consumerProducerTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void consumerProducerTest(Morphium morphium) throws Exception  {
         MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSTopic("jmstopic_test"));
         m.start();
@@ -138,8 +144,9 @@ public class BasicJMSTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void consumerProducerQueueTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void consumerProducerQueueTest(Morphium morphium) throws Exception  {
         MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSQueue());
         m.start();

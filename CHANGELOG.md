@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Programmatic API: `setDumpDirectory()`, `setDumpIntervalMs()`, `dumpNow()`, `restoreFromDump()`
 
 ### Fixed
+- **Flaky IteratorTest.concurrentAccessTest**: Fixed race condition where multiple threads sharing a single iterator would call `hasNext()` and `next()` non-atomically, causing incorrect element counts (e.g., 29130 instead of 25000). The test now properly synchronizes the hasNext+next critical section
+- **Parallel test database isolation**: Fixed race condition in MultiDriverTestBase where database cleanup would drop ALL databases matching the prefix pattern, including databases from other parallel tests that were still running. Now each test only drops its own database, preventing "expected X but was 0" failures in parallel execution
 - **MorphiumServer listDatabases**: Added explicit handler for `listDatabases` command in MorphiumServer. Previously this command returned null when forwarded through GenericCommand, causing NullPointerException in tests that call `morphium.listDatabases()`
 - **MorphiumServer stepDown for standalone servers**: Standalone MorphiumServer instances (no replica set configured) now immediately become primary again after receiving a `replSetStepDown` command. Previously, stepDown would leave the server in secondary state with no way to recover, causing "no primary" errors for subsequent operations
 - **InMemoryDriver database-level change streams via MorphiumServer**: Fixed change stream event delivery for database-level watches registered through MorphiumServer. When a client creates a database-level watch via the wire protocol, MongoDB convention sets collection to "1". The InMemoryDriver now correctly delivers events to subscribers registered under the `db.1` namespace key
@@ -61,6 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MorphiumServer capped collection replication**: Added initial and periodic sync of capped collection metadata from primary to secondaries. Capped collections created on primary are now properly registered on secondaries, ensuring capped behavior is enforced during replication
 - **InMemory backend detection for tests**: Added `isInMemoryBackend()` method to MorphiumDriver interface and `inMemoryBackend` field to hello response from MorphiumServer. Tests that need to skip unsupported features (like Collation) can now correctly detect when connected to MorphiumServer with InMemory backend, not just when using InMemoryDriver directly
 - **MorphiumServer changestream event delivery via wire protocol**: Fixed changestream events not being delivered to clients connecting via the wire protocol. Watch cursors are now properly created with callbacks, events are queued via `LinkedBlockingQueue`, and `getMore` requests correctly return queued events to clients. This enables reliable messaging when using MorphiumServer as a messaging hub
+- **MorphiumServer killCursors command handler**: Added missing `killCursors` command handler to MorphiumServer. Without this, watch cursors were never cleaned up when clients disconnected, causing virtual threads to accumulate and eventually block new watch thread creation. The fix properly removes cursors from `watchCursors` and `tailableCursors` maps
+- **InMemoryDriver watch thread cleanup**: Modified `watchInternal()` to periodically check `callback.isContinued()` after each wait timeout (max 5 seconds). This ensures watch threads properly terminate when cursors are killed, preventing resource exhaustion when many clients connect/disconnect
 
 ### Added (Tests)
 - **Failover tests for MorphiumServer replica sets**: Added comprehensive failover tests (`FailoverTest.java`) that verify:
@@ -69,6 +73,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Write operations succeed after failover
   - Rejoining nodes integrate correctly into the cluster
   - Tests cover both `PooledDriver` and `SingleMongoConnectDriver`
+
+### Changed (Test Infrastructure)
+- **Unified multi-driver test base**: Migrated 72 test classes from `MorphiumTestBase` to `MultiDriverTestBase`
+  - Converted 356+ test methods from `@Test` to `@ParameterizedTest` with `@MethodSource`
+  - Each test now declares driver compatibility via `@MethodSource`:
+    - `getMorphiumInstancesNoSingle()` - pooled + inmem (default for most tests)
+    - `getMorphiumInstances()` - all drivers including single connection
+    - `getMorphiumInstancesPooledOnly()` - pooled driver only
+    - `getMorphiumInstancesInMemOnly()` - inmem driver only
+  - Tests receive `Morphium morphium` as parameter instead of using inherited field
+
+- **Driver selection via runtests.sh**: Tests can now run against different backends:
+  ```bash
+  # InMemory only (fast, default without --external)
+  ./runtests.sh --driver inmem
+
+  # All drivers against external MongoDB
+  ./runtests.sh --uri mongodb://host1,host2/db --driver all
+
+  # Against MorphiumServer (run separately from MongoDB tests)
+  ./runtests.sh --morphium-server --driver pooled
+  ```
+
+- **Multi-backend testing workflow**: To test against all backends:
+  1. `./runtests.sh --driver inmem` - InMemory driver (fast, no dependencies)
+  2. `./runtests.sh --uri mongodb://... --driver all` - Real MongoDB with all drivers
+  3. `./runtests.sh --morphium-server --driver pooled` - MorphiumServer
 
 ### Changed
 - **Modernized concurrent collections**: Replaced legacy `Vector` with `CopyOnWriteArrayList` and `Hashtable` with `ConcurrentHashMap` for better performance

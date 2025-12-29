@@ -16,13 +16,17 @@ import java.util.Map;
 import static de.caluga.morphium.aggregation.Expr.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 @Tag("aggregation")
-public class BucketAutoTests extends MorphiumTestBase {
+public class BucketAutoTests extends MultiDriverTestBase {
 
-    @Test
-    public void bucketAutoTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void bucketAutoTest(Morphium morphium) throws Exception  {
         prepData();
         Aggregator<Artwork, Map> agg = morphium.createAggregator(Artwork.class, Map.class);
         agg.bucketAuto(field("price"), 4, null, null);
@@ -48,8 +52,9 @@ public class BucketAutoTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void bucketAutoFacets() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void bucketAutoFacets(Morphium morphium) throws Exception  {
         prepData();
         Aggregator<Artwork, Map> priceAggregator = morphium.createAggregator(Artwork.class, Map.class);
         priceAggregator.bucketAuto(field("price"), 4, null, null);

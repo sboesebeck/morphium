@@ -17,6 +17,9 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 /**
@@ -26,14 +29,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p>
  */
 @Tag("core")
-public class MorphiumCursorTest extends MorphiumTestBase {
+public class MorphiumCursorTest extends MultiDriverTestBase {
 
     private final List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());
 
     private int runningThreads = 0;
 
-    @Test
-    public void cursorSortTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void cursorSortTest(Morphium morphium) throws Exception  {
         for (int i = 0; i < 100; i++) {
             morphium.store(new SimpleEntity(((int) (Math.random() * 5.0)), (long) (Math.random() * 100000.0)));
         }
@@ -74,8 +78,9 @@ public class MorphiumCursorTest extends MorphiumTestBase {
         assert (!error);
     }
 
-    @Test
-    public void cursorSkipAheadBackTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void cursorSkipAheadBackTest(Morphium morphium) throws Exception  {
         for (int i = 0; i < 100; i++) {
             morphium.store(new SimpleEntity(i, (long) (Math.random() * 100000.0)));
         }

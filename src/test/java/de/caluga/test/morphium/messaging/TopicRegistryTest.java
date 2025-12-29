@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class TopicRegistryTest extends MorphiumTestBase {
+public class TopicRegistryTest extends MultiDriverTestBase {
 
     private void waitUntilSendAccepted(long timeoutMs, Runnable sendAttempt) throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMs;

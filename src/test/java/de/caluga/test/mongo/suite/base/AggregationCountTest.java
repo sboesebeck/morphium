@@ -55,7 +55,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
 //        morphium.getDriver().setMaxWaitTime(10000);
 //        log.info("Creating a ton of documents... this may take a while");
 //        int amount = 1500000;
-//        createUncachedObjects(amount);
+//        createUncachedObjects(morphium, amount);
 //        List<Integer> toSearch = new ArrayList<>();
 //        for (int i = 0; i < 10; i++) {
 //            toSearch.add((int) (Math.random() * amount));

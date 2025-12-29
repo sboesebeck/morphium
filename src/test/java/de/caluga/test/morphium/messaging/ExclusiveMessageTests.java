@@ -34,16 +34,19 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.TestUtils;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("messaging")
-public class ExclusiveMessageTests extends MorphiumTestBase {
+public class ExclusiveMessageTests extends MultiDriverTestBase {
     private boolean gotMessage1 = false;
     private boolean gotMessage2 = false;
     private boolean gotMessage3 = false;
     private boolean gotMessage4 = false;
 
-    @Test
-    public void ignoringExclusiveMessagesTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void ignoringExclusiveMessagesTest(Morphium morphium) throws Exception  {
         for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
@@ -106,9 +109,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
-    public void deleteAfterProcessingTest() throws Exception {
+    public void deleteAfterProcessingTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
         MorphiumMessaging sender = morphium.createMessaging();
@@ -195,9 +199,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
-    public void exclusiveMessageTest() throws Exception {
+    public void exclusiveMessageTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
         MorphiumMessaging sender = morphium.createMessaging();
@@ -270,8 +275,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageCustomQueueTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageCustomQueueTest(Morphium morphium) throws Exception  {
         for (String msgImpl : MorphiumTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
@@ -437,9 +443,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Tag("external")
-    public void exclusivityTest() throws Exception {
+    public void exclusivityTest(Morphium morphium) throws Exception  {
         for (String msgImpl : MorphiumTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
@@ -642,8 +649,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageStartupTests() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageStartupTests(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true, 1);
         MorphiumMessaging receiverNoListener = morphium.createMessaging();
         receiverNoListener.setPause(100).setMultithreadded(true).setWindowSize(10);
@@ -668,8 +676,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageDelAfterProcessingTimeOffsetTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageDelAfterProcessingTimeOffsetTest(Morphium morphium) throws Exception  {
         MorphiumMessaging sender = morphium.createMessaging();
         sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("Sender");
@@ -721,8 +730,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageCheckOnStartTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageCheckOnStartTest(Morphium morphium) throws Exception  {
         MorphiumMessaging sender = morphium.createMessaging();
         sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("Sender");
@@ -757,8 +767,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
 
 
-    @Test
-    public void msgLockTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void msgLockTest(Morphium morphium) throws Exception  {
 
         int amount = 130;
         List<Msg> msgs = new Vector<>();
@@ -813,8 +824,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void exclusiveTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveTest(Morphium morphium) throws Exception  {
         // for (String msgImpl : MorphiumTestBase.messagingsToTest) {
         // for (String msgImpl : List.of("MultiCollectionMessaging")) {
         for (String msgImpl : List.of("StandardMessaging")) {

@@ -10,6 +10,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Tests to verify that Morphium correctly distinguishes between:
@@ -32,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * - Use @IgnoreNullFromDB to protect specific fields from null contamination
  * - Missing fields ALWAYS preserve default values (regardless of annotation)
  */
-public class UseIfNullDistinctionTest extends MorphiumTestBase {
+public class UseIfNullDistinctionTest extends MultiDriverTestBase {
 
     @Entity
     public static class TestEntity {
@@ -71,8 +74,9 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testFieldMissingFromDB() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testFieldMissingFromDB(Morphium morphium) {
         // Create a document without the fields
         Map<String, Object> doc = new HashMap<>();
         doc.put("_id", new MorphiumId());
@@ -87,8 +91,9 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
             "Protected field should have default value when missing from DB");
     }
 
-    @Test
-    public void testFieldPresentWithNullValue() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testFieldPresentWithNullValue(Morphium morphium) {
         // Create a document WITH the fields, but null values
         Map<String, Object> doc = new HashMap<>();
         doc.put("_id", new MorphiumId());
@@ -110,8 +115,9 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
             "Field WITH @IgnoreNullFromDB: null in DB is ignored, default value preserved");
     }
 
-    @Test
-    public void testMixedScenario() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMixedScenario(Morphium morphium) {
         // Create a document with one field missing, one field null
         Map<String, Object> doc = new HashMap<>();
         doc.put("_id", new MorphiumId());
@@ -131,8 +137,9 @@ public class UseIfNullDistinctionTest extends MorphiumTestBase {
             "Field missing from DB keeps default value");
     }
 
-    @Test
-    public void testAnnotationAffectsBothDirections() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testAnnotationAffectsBothDirections(Morphium morphium) {
         // Demonstrate that @IgnoreNullFromDB affects BOTH writing AND reading
 
         // Scenario 1: Field WITHOUT @IgnoreNullFromDB manually set to null in DB

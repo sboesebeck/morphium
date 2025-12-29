@@ -14,13 +14,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 @Tag("core")
-public class TypeIdTests extends MorphiumTestBase {
+public class TypeIdTests extends MultiDriverTestBase {
 
-    @Test
-    public void testAdditionalDataEmbedded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testAdditionalDataEmbedded(Morphium morphium) throws Exception  {
         AdditionalDataEntity ad = new AdditionalDataEntity();
         ad.setStrValue("test");
         ad.setCounter(12);
@@ -33,18 +37,19 @@ public class TypeIdTests extends MorphiumTestBase {
         assert(adReread.getAdditionals().containsKey("test"));
         assert(adReread.getAdditionals().get("test") instanceof EmbeddedObject);
         assert(((EmbeddedObject) adReread.getAdditionals().get("test")).getName().equals("name"));
-        checkTypeId(EmbeddedObject.class, adReread, "test");
+        checkTypeId(morphium, EmbeddedObject.class, adReread, "test");
     }
 
 
-    @Test
-    public void testAdditionalDataEmbeddedUpdate() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testAdditionalDataEmbeddedUpdate(Morphium morphium) throws Exception  {
         AdditionalDataEntity ad = new AdditionalDataEntity();
         ad.setStrValue("test");
         ad.setCounter(12);
         morphium.store(ad);
         Thread.sleep(100);
-        morphium.set(getIdQuery(ad), "test", new EmbeddedObject("emb", "key", 123));
+        morphium.set(getIdQuery(morphium, ad), "test", new EmbeddedObject("emb", "key", 123));
         Thread.sleep(100);
         ad = morphium.reread(ad);
         assertNotNull(ad.getAdditionals());
@@ -52,12 +57,13 @@ public class TypeIdTests extends MorphiumTestBase {
         assert(ad.getAdditionals().containsKey("test"));
         assert(ad.getAdditionals().get("test") instanceof EmbeddedObject);
         assert(((EmbeddedObject) ad.getAdditionals().get("test")).getName().equals("emb"));
-        checkTypeId(EmbeddedObject.class, ad, "test");
+        checkTypeId(morphium, EmbeddedObject.class, ad, "test");
     }
 
 
-    @Test
-    public void testSimple() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSimple(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("str", 123);
         morphium.store(uc);
         Query<UncachedObject> eq = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId());
@@ -66,8 +72,9 @@ public class TypeIdTests extends MorphiumTestBase {
                    .get("class_name"));
     }
 
-    @Test
-    public void testList() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testList(Morphium morphium) throws Exception  {
         ListContainer lc = new ListContainer();
         lc.addEmbedded(new EmbeddedObject("name", "str", 123));
         lc.setName("embedded object #1");
@@ -75,15 +82,16 @@ public class TypeIdTests extends MorphiumTestBase {
         lc.addRef(uc);
         morphium.store(lc);
         Thread.sleep(150);
-        checkTypeId(EmbeddedObject.class, lc, "embedded_object_list.0");
-        Map<String, Object> m = getMapForEntity(lc);
+        checkTypeId(morphium, EmbeddedObject.class, lc, "embedded_object_list.0");
+        Map<String, Object> m = getMapForEntity(morphium, lc);
         String ref = (String) getValueInPath(m, "ref_list.0.referenced_class_name");
         assertEquals("uc", ref);
     }
 
 
-    @Test
-    public void testListPush() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testListPush(Morphium morphium) throws Exception  {
         ListContainer lc = new ListContainer();
         lc.addEmbedded(new EmbeddedObject("name", "str", 123));
         lc.setName("embedded object #1");
@@ -92,11 +100,11 @@ public class TypeIdTests extends MorphiumTestBase {
         morphium.store(lc);
         morphium.push(lc, ListContainer.Fields.embeddedObjectList, new EmbeddedObject("new one", "value", 1), false);
         Thread.sleep(100);
-        checkTypeId(EmbeddedObject.class, lc, "embedded_object_list.0");
-        checkTypeId(EmbeddedObject.class, lc, "embedded_object_list.1");
+        checkTypeId(morphium, EmbeddedObject.class, lc, "embedded_object_list.0");
+        checkTypeId(morphium, EmbeddedObject.class, lc, "embedded_object_list.1");
         MorphiumReference r = new MorphiumReference("uc", uc.getMorphiumId());
         morphium.push(lc, ListContainer.Fields.refList, r, false);
-        Map<String, Object> m = getMapForEntity(lc);
+        Map<String, Object> m = getMapForEntity(morphium, lc);
         String ref = (String) getValueInPath(m, "ref_list.0.referenced_class_name");
         assertEquals("uc", ref);
         ref = (String) getValueInPath(m, "ref_list.1.referenced_class_name");
@@ -109,26 +117,28 @@ public class TypeIdTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testEmbedded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testEmbedded(Morphium morphium) throws Exception  {
         ComplexObject co = new ComplexObject();
         co.setEinText("a text");
         co.setEmbed(new EmbeddedObject("name", "value", 123));
         morphium.store(co);
         Thread.sleep(150);
         //no type id there, as type is determined clearly
-        assertTrue(getMapForEntity(co).get("embed") instanceof Map);
-        assertFalse(((Map) getMapForEntity(co).get("embed")).containsKey("class_name"));
+        assertTrue(getMapForEntity(morphium, co).get("embed") instanceof Map);
+        assertFalse(((Map) getMapForEntity(morphium, co).get("embed")).containsKey("class_name"));
         //updating SETs type ID, as during update we do not know if the field has java representation that matches.
         morphium.setInEntity(co, ComplexObject.Fields.embed, new EmbeddedObject("new", "Value", 123123));
         Thread.sleep(150);
-        assertTrue(getMapForEntity(co).get("embed") instanceof Map);
-        checkTypeId(EmbeddedObject.class, co, "embed");
+        assertTrue(getMapForEntity(morphium, co).get("embed") instanceof Map);
+        checkTypeId(morphium, EmbeddedObject.class, co, "embed");
     }
 
 
-    @Test
-    public void testEmbeddedPolymorphSubClass() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testEmbeddedPolymorphSubClass(Morphium morphium) throws Exception  {
         ComplexObject co = new ComplexObject();
         co.setEinText("a text");
         co.setEmbed(new EmbSubClass("name", "value", 123, "mySub"));
@@ -136,16 +146,16 @@ public class TypeIdTests extends MorphiumTestBase {
         Thread.sleep(150);
         morphium.reread(co);
         assertTrue(co.getEmbed() instanceof EmbSubClass);
-        checkTypeId(EmbSubClass.class, co, "embed");
-        assertEquals(EmbSubClass.class.getName(), ((Map) getMapForEntity(co).get("embed")).get("class_name"));
+        checkTypeId(morphium, EmbSubClass.class, co, "embed");
+        assertEquals(EmbSubClass.class.getName(), ((Map) getMapForEntity(morphium, co).get("embed")).get("class_name"));
     }
 
 
-    private <T> Query<T> getIdQuery(T entity) {
+    private <T> Query<T> getIdQuery(Morphium morphium, T entity) {
         return (Query<T>) morphium.createQueryFor(entity.getClass()).f("_id").eq(morphium.getId(entity));
     }
 
-    private Map<String, Object> getMapForEntity(Object entity) {
+    private Map<String, Object> getMapForEntity(Morphium morphium, Object entity) {
         return morphium.createQueryFor(entity.getClass()).f("_id").eq(morphium.getARHelper().getId(entity)).asMapList().get(0);
     }
 
@@ -169,8 +179,8 @@ public class TypeIdTests extends MorphiumTestBase {
         return value;
     }
 
-    private void checkTypeId(Class cls, Object entity, String fieldName) {
-        Map<String, Object> m = getMapForEntity(entity);
+    private void checkTypeId(Morphium morphium, Class cls, Object entity, String fieldName) {
+        Map<String, Object> m = getMapForEntity(morphium, entity);
         String typeId = cls.getName();
         Entity e = (Entity) cls.getAnnotation(Entity.class);
 

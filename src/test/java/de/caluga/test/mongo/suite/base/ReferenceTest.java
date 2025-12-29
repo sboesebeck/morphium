@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -27,13 +29,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class ReferenceTest extends MorphiumTestBase {
+public class ReferenceTest extends MultiDriverTestBase {
 
     private final boolean didDeref = false;
     private final boolean wouldDeref = false;
 
-    @Test
-    public void storeReferenceTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void storeReferenceTest(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(ReferenceContainer.class);
         UncachedObject uc1 = new UncachedObject();
         uc1.setCounter(1);
@@ -121,10 +124,11 @@ public class ReferenceTest extends MorphiumTestBase {
         assert(rcRead.getId().equals(rc.getId()));
     }
 
-    @Test
-    public void backwardCompatibilityTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void backwardCompatibilityTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(ReferenceContainer.class);
-        createUncachedObjects(100);
+        createUncachedObjects(morphium, 100);
         Thread.sleep(200);
         UncachedObject referenced = morphium.createQueryFor(UncachedObject.class).get();
         Map<String, Object> reference = new HashMap<>();
@@ -149,8 +153,9 @@ public class ReferenceTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testSimpleDoublyLinkedStructure() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSimpleDoublyLinkedStructure(Morphium morphium) throws InterruptedException  {
         Morphium m = morphium;
         m.clearCollection(SimpleDoublyLinkedEntity.class);
         SimpleDoublyLinkedEntity e1 = new SimpleDoublyLinkedEntity(1);
@@ -176,8 +181,9 @@ public class ReferenceTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void mapReferenceTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mapReferenceTest(Morphium morphium) throws Exception  {
         morphium.clearCollection(ReferenceContainer.class);
         ReferenceContainer c = new ReferenceContainer();
         Map<String, UncachedObject> m = new HashMap<>();

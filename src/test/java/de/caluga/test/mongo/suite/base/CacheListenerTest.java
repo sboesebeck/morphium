@@ -7,6 +7,9 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Created with IntelliJ IDEA.
@@ -18,14 +21,15 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
 @Tag("cache")
-public class CacheListenerTest extends MorphiumTestBase {
+public class CacheListenerTest extends MultiDriverTestBase {
     private boolean wouldAdd = false;
     private boolean wouldClear = false;
     private boolean wouldRemove = false;
 
 
-    @Test
-    public void callbackTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void callbackTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -59,7 +63,7 @@ public class CacheListenerTest extends MorphiumTestBase {
             assert (morphium.getCache().isListenerRegistered(cl));
 
 
-            super.createCachedObjects(100);
+            super.createCachedObjects(morphium, 100);
 
             for (int i = 0; i < 10; i++) {
                 morphium.createQueryFor(CachedObject.class).f("counter").lte(i).asList();
@@ -68,7 +72,7 @@ public class CacheListenerTest extends MorphiumTestBase {
             Thread.sleep(1000);
             assert (wouldAdd);
 
-            super.createCachedObjects(10);
+            super.createCachedObjects(morphium, 10);
             TestUtils.waitForWrites(morphium, log);
             log.info("Waiting for would clear message");
             Thread.sleep(1500);

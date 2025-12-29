@@ -11,10 +11,13 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Disabled
 @Tag("messaging")
-public class PausingUnpausingNCTests extends MorphiumTestBase {
+public class PausingUnpausingNCTests extends MultiDriverTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
@@ -26,8 +29,9 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     public MorphiumId lastMsgId;
     public AtomicInteger procCounter = new AtomicInteger(0);
 
-    @Test
-    public void pauseUnpauseProcessingTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void pauseUnpauseProcessingTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         MorphiumMessaging sender = morphium.createMessaging();
@@ -81,8 +85,9 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
 
 
-    @Test
-    public void unpausingTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void unpausingTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(100);
         list.clear();
@@ -143,13 +148,15 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testPausingUnpausingInListenerMultithreadded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testPausingUnpausingInListenerMultithreadded(Morphium morphium) throws Exception  {
         testPausingUnpausingInListener(true);
     }
 
-    @Test
-    public void testPausingUnpausingInListenerSinglethreadded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testPausingUnpausingInListenerSinglethreadded(Morphium morphium) throws Exception  {
         testPausingUnpausingInListener(false);
     }
 
@@ -227,8 +234,9 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void exclusiveMessageTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageTest(Morphium morphium) throws Exception  {
         MorphiumMessaging sender = morphium.createMessaging();
         MorphiumMessaging receiver = morphium.createMessaging();
         sender.setUseChangeStream(false).start();
@@ -247,14 +255,16 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testPausingUnpausingInListenerExclusiveMultithreadded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testPausingUnpausingInListenerExclusiveMultithreadded(Morphium morphium) throws Exception  {
         testPausingUnpausingInListenerExclusive(true);
     }
 
 
-    @Test
-    public void testPausingUnpausingInListenerExclusiveSinglethreadded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testPausingUnpausingInListenerExclusiveSinglethreadded(Morphium morphium) throws Exception  {
         testPausingUnpausingInListenerExclusive(false);
     }
 

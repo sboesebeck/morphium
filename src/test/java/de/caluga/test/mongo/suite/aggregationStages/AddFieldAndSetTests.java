@@ -14,12 +14,16 @@ import org.junit.jupiter.api.Tag;
 
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
-public class AddFieldAndSetTests extends MorphiumTestBase {
+public class AddFieldAndSetTests extends MultiDriverTestBase {
 
-    @Test
-    public void addFieldsTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void addFieldsTest(Morphium morphium) throws Exception  {
         prepareData();
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);
@@ -63,8 +67,9 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void setTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void setTest(Morphium morphium) throws Exception  {
         prepareData();
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);

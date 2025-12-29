@@ -14,15 +14,19 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Created by stephan on 18.11.14.
  */
 @Tag("core")
-public class NonEntitySerialization extends MorphiumTestBase {
+public class NonEntitySerialization extends MultiDriverTestBase {
 
-    @Test
-    public void testNonEntity() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNonEntity(Morphium morphium) throws Exception  {
         Thread.sleep(100);
         NonEntity ne = new NonEntity();
         ne.setInteger(42);
@@ -36,8 +40,9 @@ public class NonEntitySerialization extends MorphiumTestBase {
         log.debug("Successful read:" + ne2);
     }
 
-    @Test
-    public void testNonEntityList() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNonEntityList(Morphium morphium) throws Exception  {
         morphium.dropCollection(NonEntityContainer.class);
         Thread.sleep(500);
         NonEntityContainer nc = new NonEntityContainer();
@@ -71,8 +76,9 @@ public class NonEntitySerialization extends MorphiumTestBase {
         assert (nc2.getList().get(1).equals("Some string")) : "Wrong Value: " + nc2.getList().get(1);
     }
 
-    @Test
-    public void testNonEntityMap() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNonEntityMap(Morphium morphium) throws Exception  {
         morphium.dropCollection(NonEntityContainer.class);
         Thread.sleep(500);
         NonEntityContainer nc = new NonEntityContainer();

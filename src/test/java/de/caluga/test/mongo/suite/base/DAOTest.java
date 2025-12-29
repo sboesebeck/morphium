@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -17,9 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p>
  */
 @Tag("core")
-public class DAOTest extends MorphiumTestBase {
-    @Test
-    public void daoTest() throws Exception {
+public class DAOTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void daoTest(Morphium morphium) throws Exception  {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);

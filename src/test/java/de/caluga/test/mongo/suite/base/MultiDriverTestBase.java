@@ -357,7 +357,7 @@ public class MultiDriverTestBase {
 
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
-            uc.setCounter(i + 1);
+            uc.setCounter(i);
             uc.setStrValue("v");
             lst.add(uc);
 
@@ -379,7 +379,7 @@ public class MultiDriverTestBase {
 
         for (int i = 0; i < amount; i++) {
             CachedObject uc = new CachedObject();
-            uc.setCounter(i + 1);
+            uc.setCounter(i);
             uc.setValue("v");
             lst.add(uc);
         }

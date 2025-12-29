@@ -13,12 +13,16 @@ import org.junit.jupiter.api.Tag;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
-public class GeoNearTest extends MorphiumTestBase {
+public class GeoNearTest extends MultiDriverTestBase {
 
-    @Test
-    public void testGeoNear() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testGeoNear(Morphium morphium) throws Exception  {
         morphium.dropCollection(Place.class);
         Thread.sleep(100);
         morphium.ensureIndicesFor(Place.class);

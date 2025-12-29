@@ -19,6 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 /**
@@ -29,10 +32,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class ListTests extends MorphiumTestBase {
+public class ListTests extends MultiDriverTestBase {
 
-    @Test
-    public void listStoringTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void listStoringTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Uc.class);
         TestUtils.waitForConditionToBecomeTrue(10000, "Collection was not dropped?!?!", ()-> {
             try {
@@ -56,8 +60,9 @@ public class ListTests extends MorphiumTestBase {
         assert(count == 100) : "Count wrong " + count;
     }
 
-    @Test
-    public void simpleListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void simpleListTest(Morphium morphium) throws Exception  {
         ListContainer lst = new ListContainer();
         int count = 2;
 
@@ -117,8 +122,9 @@ public class ListTests extends MorphiumTestBase {
         assertEquals(c.getId(), lst2.getId());
     }
 
-    @Test
-    public void nullValueListTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void nullValueListTest(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(ListContainer.class);
         ListContainer lst = new ListContainer();
         int count = 2;
@@ -163,8 +169,9 @@ public class ListTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void singleEntryListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void singleEntryListTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(UncachedObject.class);
         List<UncachedObject> lst = new ArrayList<>();
         lst.add(new UncachedObject());
@@ -180,8 +187,9 @@ public class ListTests extends MorphiumTestBase {
         assert(morphium.createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999);
     }
 
-    @Test
-    public void testWildcardList() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testWildcardList(Morphium morphium) throws Exception  {
         morphium.dropCollection(ListWildcardContainer.class);
         ListWildcardContainer testObjectToStore = new ListWildcardContainer();
         testObjectToStore.setId(new MorphiumId("100000000000000000000001"));
@@ -204,8 +212,9 @@ public class ListTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testHybridList() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testHybridList(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MyListContainer.class);
         MyListContainer mc = new MyListContainer();
         mc.name = "test";
@@ -245,8 +254,9 @@ public class ListTests extends MorphiumTestBase {
         assert(((ExtendedEmbeddedObject) mc2.objectList.get(2)).getValue().equals("value"));
     }
 
-    @Test
-    public void idListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idListTest(Morphium morphium) throws Exception  {
         MyIdListContainer ilst = new MyIdListContainer();
         ilst.idList = new ArrayList<>();
         ilst.idList.add(new MorphiumId());
@@ -270,8 +280,9 @@ public class ListTests extends MorphiumTestBase {
         assert(ilst2.idList.get(0).equals(ilst.idList.get(0)));
     }
 
-    @Test
-    public void unGenericListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void unGenericListTest(Morphium morphium) throws Exception  {
         MyNoGenericListContainer c = new MyNoGenericListContainer();
         c.aList = new ArrayList();
         c.aList.add("String");

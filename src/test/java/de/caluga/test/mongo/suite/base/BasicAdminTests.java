@@ -43,8 +43,9 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 @Tag("core")
 public class BasicAdminTests extends MultiDriverTestBase {
 
-    @Test
-    public void readPreferenceTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void readPreferenceTest(Morphium morphium) {
         ReadPreferenceLevel.NEAREST.setPref(ReadPreference.nearest());
         assert(ReadPreferenceLevel.NEAREST.getPref().getType().equals(ReadPreference.nearest().getType()));
     }
