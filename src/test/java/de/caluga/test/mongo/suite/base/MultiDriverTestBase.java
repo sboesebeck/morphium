@@ -358,7 +358,7 @@ public class MultiDriverTestBase {
 
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
-            uc.setCounter(i + 1);  // 1-based counters to match test expectations
+            uc.setCounter(i);  // 0-based counters
             uc.setStrValue("v");
             lst.add(uc);
 
