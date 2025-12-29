@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -21,15 +24,16 @@ import java.util.Map;
  */
 @Tag("driver")
 @Tag("external")
-public class NetworkRetryTest extends MorphiumTestBase {
+public class NetworkRetryTest extends MultiDriverTestBase {
     private final boolean doTest = false;
 
-    @Test
-    public void networRetryTestAsList() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void networRetryTestAsList(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
-        createUncachedObjects(1000);
+        createUncachedObjects(morphium, 1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
 
@@ -43,12 +47,13 @@ public class NetworkRetryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void networkRetryTestGet() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void networkRetryTestGet(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
-        createUncachedObjects(1000);
+        createUncachedObjects(morphium, 1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
         waitForAsyncOperationsToStart(morphium, 1000);
@@ -63,12 +68,13 @@ public class NetworkRetryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void networkRetryTestComplexQuery() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void networkRetryTestComplexQuery(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
-        createUncachedObjects(1000);
+        createUncachedObjects(morphium, 1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2000);
 
@@ -83,12 +89,13 @@ public class NetworkRetryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void networkRetryTestIterator() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void networkRetryTestIterator(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
-        createUncachedObjects(1000);
+        createUncachedObjects(morphium, 1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
 
@@ -104,8 +111,9 @@ public class NetworkRetryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void networkRetryTestSave() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void networkRetryTestSave(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
@@ -123,8 +131,9 @@ public class NetworkRetryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void networkRetryTestBulkSave() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void networkRetryTestBulkSave(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
@@ -147,8 +156,9 @@ public class NetworkRetryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void networkRetryTestUpdate() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void networkRetryTestUpdate(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
@@ -166,8 +176,9 @@ public class NetworkRetryTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void pushTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void pushTest(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
@@ -195,8 +206,9 @@ public class NetworkRetryTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void pushAllTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void pushAllTest(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
@@ -227,14 +239,15 @@ public class NetworkRetryTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void incTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void incTest(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
-        createUncachedObjects(1000);
+        createUncachedObjects(morphium, 1000);
 
         for (int i = 1; i < 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -245,14 +258,15 @@ public class NetworkRetryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void decTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void decTest(Morphium morphium) throws Exception  {
         if (!doTest) {
             return;
         }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
-        createUncachedObjects(1000);
+        createUncachedObjects(morphium, 1000);
 
         for (int i = 500; i < 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);

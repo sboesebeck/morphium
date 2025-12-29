@@ -9,6 +9,9 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.driver.MorphiumId;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -19,7 +22,7 @@ import de.caluga.morphium.driver.MorphiumId;
  */
 @Disabled
 @Tag("admin")
-public class TextIndexTest extends MorphiumTestBase {
+public class TextIndexTest extends MultiDriverTestBase {
     //
     //    @Test
     //    public void textIndexTest() {

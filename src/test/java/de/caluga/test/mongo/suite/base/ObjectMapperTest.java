@@ -21,6 +21,9 @@ import java.math.BigInteger;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stpehan Bösebeck
@@ -29,9 +32,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  */
 @Tag("core")
-public class ObjectMapperTest extends MorphiumTestBase {
-    @Test
-    public void mapSerializationTest() {
+public class ObjectMapperTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mapSerializationTest(Morphium morphium) {
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
         om.getMorphium().getConfig().setWarnOnNoEntitySerialization(true);
         Map<String, Object> map = om.serialize(new Simple());
@@ -60,8 +64,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         log.info("Deserialized");
     }
 
-    @Test
-    public void customTypeMapperTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void customTypeMapperTest(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(BIObject.class);
         MorphiumObjectMapper om = morphium.getMapper();
         BigInteger tst = new BigInteger("affedeadbeefaffedeadbeef42", 16);
@@ -83,8 +88,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertEquals(bio2.biValue, tst);
     }
 
-    @Test
-    public void idTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idTest(Morphium morphium) {
         UncachedObject o = new UncachedObject("test", 1234);
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> m = morphium.getMapper().serialize(o);
@@ -95,16 +101,18 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void simpleParseFromStringTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void simpleParseFromStringTest(Morphium morphium) throws Exception  {
         String json = "{ \"value\":\"test\",\"counter\":123}";
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject uc = om.deserialize(UncachedObject.class, json);
         assertEquals (123, uc.getCounter());
     }
 
-    @Test
-    public void objectToStringParseTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void objectToStringParseTest(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setStrValue("A test");
@@ -117,8 +125,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void listContainerStringParseTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void listContainerStringParseTest(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
         ListContainer o = new ListContainer();
         o.addLong(1234);
@@ -133,8 +142,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertEquals(1, uc.getLongList().size());
     }
 
-    @Test
-    public void testCreateCamelCase() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCreateCamelCase(Morphium morphium) {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         assertEquals("thisIsATest", om.createCamelCase("this_is_a_test", false));
         assertEquals("ATestThisIs", om.createCamelCase("a_test_this_is", true));
@@ -142,14 +152,16 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void testConvertCamelCase() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testConvertCamelCase(Morphium morphium) {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         assert (om.convertCamelCase("thisIsATest").equals("this_is_a_test")) : "Conversion failed!";
     }
 
-    @Test
-    public void testDisableConvertCamelCase() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDisableConvertCamelCase(Morphium morphium) {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(false);
         String fn = om.getMongoFieldName(UncachedObject.class, "intData");
 
@@ -161,8 +173,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertEquals("int_data", fn);
     }
 
-    @Test
-    public void testGetCollectionName() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testGetCollectionName(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
         assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
         assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
@@ -170,8 +183,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void massiveParallelGetCollectionNameTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelGetCollectionNameTest(Morphium morphium) {
 
         for (int i = 0; i < 100; i++) {
             new Thread(() -> {
@@ -185,8 +199,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testMarshall() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMarshall(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -201,8 +216,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         log.info("Text is: {}", o.getStrValue());
     }
 
-    @Test
-    public void testUnmarshall() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testUnmarshall(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
         Map<String, Object> dbo = new HashMap<>();
         dbo.put("counter", 12345);
@@ -210,8 +226,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         om.deserialize(UncachedObject.class, dbo);
     }
 
-    @Test
-    public void testGetId() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testGetId(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
@@ -223,16 +240,18 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testIsEntity() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testIsEntity(Morphium morphium) {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         assertTrue (om.isEntity(UncachedObject.class));
         assertTrue (om.isEntity(new UncachedObject()));
         assertTrue (!om.isEntity("")) ;
     }
 
-    @Test
-    public void testGetValue() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testGetValue(Morphium morphium) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -241,8 +260,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void testSetValue() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetValue(Morphium morphium) {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -252,8 +272,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void complexObjectTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void complexObjectTest(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -304,8 +325,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void idSerializeDeserializeTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idSerializeDeserializeTest(Morphium morphium) {
         UncachedObject uc = new UncachedObject("bla", 1234);
         uc.setMorphiumId(new MorphiumId());
 
@@ -314,8 +336,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assert (uc2.getMorphiumId().equals(uc.getMorphiumId()));
     }
 
-    @Test
-    public void serializeDeserializeTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void serializeDeserializeTest(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("value", 1234);
         uc.setMorphiumId(new MorphiumId());
         uc.setDval(123);
@@ -332,8 +355,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 //        assert (res.size() == 1);
     }
 
-    @Test
-    public void nullValueTests() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void nullValueTests(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
 
         ComplexObject o = new ComplexObject();
@@ -348,8 +372,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertFalse(obj.containsKey("trans"));
     }
 
-    @Test
-    public void listValueTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void listValueTest(Morphium morphium) {
         MapListObject o = new MapListObject();
         List lst = new ArrayList();
         lst.add("A Value");
@@ -382,8 +407,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void mapValueTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mapValueTest(Morphium morphium) {
         MapListObject o = new MapListObject();
         Map<String, Object> map = new HashMap<>();
         map.put("a_string", "This is a string");
@@ -416,9 +442,10 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
-    public void objectMapperSpeedTest() {
+    public void objectMapperSpeedTest(Morphium morphium) {
         UncachedObject o = new UncachedObject();
         o.setCounter(42);
         o.setStrValue("The meaning of life");
@@ -450,8 +477,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void rsStatusTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void rsStatusTest(Morphium morphium) throws Exception  {
         morphium.getConfig().setReplicasetMonitoring(false);
         String json = "{ \"settings\" : { \"heartbeatTimeoutSecs\" : 10, \"catchUpTimeoutMillis\" : -1, \"catchUpTakeoverDelayMillis\" : 30000, \"getLastErrorModes\" : {  } , \"getLastErrorDefaults\" : { \"wtimeout\" : 0, \"w\" : 1 } , \"electionTimeoutMillis\" : 10000, \"chainingAllowed\" : true, \"replicaSetId\" : \"5adba61c986af770bb25454e\", \"heartbeatIntervalMillis\" : 2000 } , \"members\" :  [ { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27017\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 0, \"priority\" : 10.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27018\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 1, \"priority\" : 5.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : true, \"host\" : \"localhost:27019\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 2, \"priority\" : 0.0, \"tags\" : {  }  } ], \"protocolVersion\" : 1, \"_id\" : \"tst\", \"version\" : 1 } ";
         ReplicaSetConf c = morphium.getMapper().deserialize(ReplicaSetConf.class, json);
@@ -460,8 +488,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertEquals(3, c.getMembers().size());
     }
 
-    @Test
-    public void embeddedListTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void embeddedListTest(Morphium morphium) {
         ComplexObject co = new ComplexObject();
         co.setEmbeddedObjectList(new ArrayList<>());
         co.getEmbeddedObjectList().add(new EmbeddedObject("name", "test", System.currentTimeMillis()));
@@ -478,8 +507,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void binaryDataTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void binaryDataTest(Morphium morphium) {
         UncachedObject o = new UncachedObject();
         o.setBinaryData(new byte[] {1, 2, 3, 4, 5, 5});
 
@@ -491,8 +521,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void noDefaultConstructorTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void noDefaultConstructorTest(Morphium morphium) throws Exception  {
         NoDefaultConstructorUncachedObject o = new NoDefaultConstructorUncachedObject("test", 15);
         String serialized = Utils.toJsonString(morphium.getMapper().serialize(o));
         log.info("Serialized... " + serialized);
@@ -504,8 +535,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertEquals("test", o.getStrValue());
     }
 
-    @Test
-    public void mapTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mapTest(Morphium morphium) throws Exception  {
         MorphiumObjectMapper m = morphium.getMapper();
 
 
@@ -521,8 +553,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         ;
     }
 
-    @Test
-    public void objectMapperNGTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void objectMapperNGTest(Morphium morphium) {
         MorphiumObjectMapper map = morphium.getMapper();
         UncachedObject uc = new UncachedObject("value", 123);
         uc.setMorphiumId(new MorphiumId());
@@ -558,8 +591,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void setTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void setTest(Morphium morphium) {
         SetObject so = new SetObject();
         so.id = new MorphiumId();
         so.setOfStrings = new HashSet<>();
@@ -617,16 +651,18 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertTrue(t2.contains("test21"));
     }
 
-    @Test
-    public void convertCamelCaseTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void convertCamelCaseTest(Morphium morphium) {
         String n = morphium.getARHelper().convertCamelCase("thisIsATestTT");
         assertEquals("this_is_a_test_t_t", n);
 
     }
 
 
-    @Test
-    public void testListOfEmbedded() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testListOfEmbedded(Morphium morphium) {
         MorphiumObjectMapper map = morphium.getMapper();
         log.info("--------------------- Running test with " + map.getClass().getName());
         ListOfEmbedded lst = new ListOfEmbedded();
@@ -655,8 +691,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void objectMapperListOfListOfUncachedTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void objectMapperListOfListOfUncachedTest(Morphium morphium) {
         MorphiumObjectMapper map = morphium.getMapper();
         ListOfListOfListOfUncached lst3 = new ListOfListOfListOfUncached();
         lst3.list = new ArrayList<>();
@@ -686,8 +723,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void objectMapperListOfMapOfListOfStringTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void objectMapperListOfMapOfListOfStringTest(Morphium morphium) {
         MorphiumObjectMapper map = morphium.getMapper();
         ListOfMapOfListOfString lst5 = new ListOfMapOfListOfString();
         lst5.list = new ArrayList<>();
@@ -709,8 +747,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         ;
     }
 
-    @Test
-    public void objectMapperListOfListOfStringTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void objectMapperListOfListOfStringTest(Morphium morphium) {
         MorphiumObjectMapper map = morphium.getMapper();
         ListOfListOfListOfString lst = new ListOfListOfListOfString();
         lst.list = new ArrayList<>();
@@ -733,8 +772,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void enumTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void enumTest(Morphium morphium) {
         EnumTest e = new EnumTest();
         e.anEnum = TestEnum.v1;
         e.aMap = new HashMap<>();
@@ -765,8 +805,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assertEquals(e2, e);
     }
 
-    @Test
-    public void referenceTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void referenceTest(Morphium morphium) {
         MorphiumReference r = new MorphiumReference("test", new MorphiumId());
         Map<String, Object> o = morphium.getMapper().serialize(r);
         assertNotNull(o.get("refid"));
@@ -777,8 +818,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         ;
     }
 
-    @Test
-    public void customMapperTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void customMapperTest(Morphium morphium) {
         morphium.getMapper().registerCustomMapperFor(MyClass.class, new MorphiumTypeMapper<MyClass>() {
             @Override
             public Object marshall(MyClass o) {
@@ -810,8 +852,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void testStructure() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testStructure(Morphium morphium) throws Exception  {
         Complex c = new Complex();
         c.id = new MorphiumId();
         c.structureK = new ArrayList<>();

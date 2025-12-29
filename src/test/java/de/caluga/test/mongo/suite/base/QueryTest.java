@@ -28,12 +28,16 @@ import javax.script.ScriptEngineManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("core")
-public class QueryTest extends MorphiumTestBase {
+public class QueryTest extends MultiDriverTestBase {
 
-    @Test
-    public void testQuery() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testQuery(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.or(q.q().f(UncachedObject.Fields.counter).lte(15),
              q.q().f("counter").gte(10),
@@ -67,8 +71,9 @@ public class QueryTest extends MorphiumTestBase {
         log.info("Query: " + str);
     }
 
-    @Test
-    public void testComplexAndOr() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testComplexAndOr(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(100).or(q.q().f("counter").eq(50), q.q().f(UncachedObject.Fields.counter).eq(101));
         String s = Utils.toJsonString(q.toQueryObject());
@@ -76,8 +81,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(s.trim().equals("{ \"$and\" :  [ { \"counter\" : { \"$lt\" : 100 }  } , { \"$or\" :  [ { \"counter\" : 50 } , { \"counter\" : 101 } ] } ] }"));
     }
 
-    @Test
-    public void testOrder() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testOrder(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000).f("str_value").eq("test");
         String str = Utils.toJsonString(q.toQueryObject());
@@ -98,8 +104,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(!str.equals(str2));
     }
 
-    @Test
-    public void testToString() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testToString(Morphium morphium) {
         Query<ListContainer> q = morphium.createQueryFor(ListContainer.class);
         q = q.f(ListContainer.Fields.longList).size(10);
         String qStr = q.toString();
@@ -108,8 +115,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(Utils.toJsonString(q.toQueryObject()).trim().equals("{ \"long_list\" : { \"$size\" : 10 }  }"));
     }
 
-    @Test
-    public void distinctTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void distinctTest(Morphium morphium) throws InterruptedException  {
         for (int i = 0; i < 10; i++) {
             morphium.store(new UncachedObject("uc", i % 3));
         }
@@ -119,8 +127,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(lt.size() == 3);
     }
 
-    @Test
-    public void testSize() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSize(Morphium morphium) throws InterruptedException  {
         ListContainer lc = new ListContainer();
 
         for (int i = 0; i < 10; i++) {
@@ -145,8 +154,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(lc.getName().equals("A test"));
     }
 
-    @Test
-    public void speedTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void speedTest(Morphium morphium) throws Exception  {
         int numThr = 100;
         List<Thread> threads = new ArrayList<>();
         long start = System.currentTimeMillis();
@@ -208,15 +218,17 @@ public class QueryTest extends MorphiumTestBase {
         log.info("Creating the query+field+op with " + numThr + " threads took " + dur + "ms");
     }
 
-    @Test
-    public void testWhere() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testWhere(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.where("this.value=5");
         assert(q.toQueryObject().get("$where").equals("this.value=5"));
     }
 
-    @Test
-    public void testF() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testF(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         MongoField<UncachedObject> f = q.f("_id");
         assert(f.getFieldString().equals("_id"));
@@ -233,24 +245,27 @@ public class QueryTest extends MorphiumTestBase {
     public void testGetServer() {
     }
 
-    @Test
-    public void testOverrideDB() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testOverrideDB(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         assert(q.getDB().equals(morphium.getConfig().getDatabase()));
         q.overrideDB("testDB");
         assert(q.getDB().equals("testDB"));
     }
 
-    @Test
-    public void testGetCollation() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testGetCollation(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setCollation(new Collation());
         assertNotNull(q.getCollation());
         ;
     }
 
-    @Test
-    public void testOr() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testOr(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         Query<UncachedObject> o1 = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(10);
         Query<UncachedObject> o2 = morphium.createQueryFor(UncachedObject.class).f("strValue").eq("test");
@@ -265,8 +280,9 @@ public class QueryTest extends MorphiumTestBase {
         ;
     }
 
-    @Test
-    public void testNor() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNor(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         Query<UncachedObject> o1 = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(10);
         Query<UncachedObject> o2 = morphium.createQueryFor(UncachedObject.class).f("strValue").eq("test");
@@ -281,22 +297,25 @@ public class QueryTest extends MorphiumTestBase {
         ;
     }
 
-    @Test
-    public void testLimit() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testLimit(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.limit(10);
         assert(q.getLimit() == 10);
     }
 
-    @Test
-    public void testSkip() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSkip(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.skip(10);
         assert(q.getSkip() == 10);
     }
 
-    @Test
-    public void testSort() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSort(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.sort(UncachedObject.Fields.counter, UncachedObject.Fields.strValue);
         assertNotNull(q.getSort());
@@ -313,8 +332,9 @@ public class QueryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testSortEnum() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSortEnum(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.sortEnum(UtilsMap.of((Enum) UncachedObject.Fields.counter, -1, UncachedObject.Fields.strValue, 1));
         assertNotNull(q.getSort());
@@ -331,9 +351,10 @@ public class QueryTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testCountAll() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCountAll(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.f(UncachedObject.Fields.counter).lt(100);
@@ -341,15 +362,16 @@ public class QueryTest extends MorphiumTestBase {
         assert(q.countAll() == 10) : "Wrong amount: " + q.countAll();
     }
 
-    @Test
-    public void testCountAllWhere() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCountAllWhere(Morphium morphium) throws Exception  {
         // When connected through MorphiumServer (via PooledDriver), skip because
         // the MorphiumServer process doesn't have GraalJS available
         if (morphium.getDriver().isInMemoryBackend()) {
             log.info("Connected to in-memory backend (MorphiumServer) - skipping $where test (no JavaScript support)");
             return;
         }
-        createUncachedObjects(10);
+        createUncachedObjects(morphium, 10);
         Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.where("this.counter<100");
@@ -357,9 +379,10 @@ public class QueryTest extends MorphiumTestBase {
         assert(q.countAll() == 10) : "Wrong amount: " + q.countAll();
     }
 
-    @Test
-    public void testAsyncCountAll() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testAsyncCountAll(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(100);
         final AtomicLong c = new AtomicLong(0);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -386,8 +409,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(c.get() == 10);
     }
 
-    @Test
-    public void testQ() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testQ(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.f("counter").eq(10);
         q.where("this.test=5");
@@ -399,18 +423,20 @@ public class QueryTest extends MorphiumTestBase {
         assert(q.q().getLimit() == 0);
     }
 
-    @Test
-    public void testRawQuery() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testRawQuery(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         List<UncachedObject> lst = q.rawQuery(UtilsMap.of("counter", 12)).asList();
         assertEquals(lst.size(), 1);
     }
 
-    @Test
-    public void testSet() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSet(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(100);
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).set(UncachedObject.Fields.strValue, "changed", false, false, null);
         Thread.sleep(50);
@@ -418,9 +444,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(lst.size(), 1);
     }
 
-    @Test
-    public void testSetEnum() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetEnum(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(100);
         Map<Enum, Object> m = new HashMap<>();
         m.put(UncachedObject.Fields.strValue, "changed");
@@ -430,9 +457,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(lst.size(), 1);
     }
 
-    @Test
-    public void testSetEnum2() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetEnum2(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(100);
         Map<Enum, Object> m = new HashMap<>();
         m.put(UncachedObject.Fields.strValue, "changed");
@@ -442,9 +470,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(3, lst.size());
     }
 
-    @Test
-    public void testSetEnum3() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetEnum3(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(200);
         Map<Enum, Object> m = new HashMap<>();
         m.put(UncachedObject.Fields.strValue, "changed");
@@ -454,9 +483,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(lst.size(), 1);
     }
 
-    @Test
-    public void testSetEnumAsync() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetEnumAsync(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(500);
         Map<Enum, Object> m = new HashMap<>();
         m.put(UncachedObject.Fields.strValue, "changed");
@@ -483,9 +513,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(lst.size(), 1);
     }
 
-    @Test
-    public void testSetUpsert() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetUpsert(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         TestUtils.waitForWrites(morphium, log);
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(10002).set(UncachedObject.Fields.strValue, "new", true, true, null);
         // Wait for the upserted object to be queryable in replica set
@@ -496,9 +527,10 @@ public class QueryTest extends MorphiumTestBase {
         assert(lst.get(0).getCounter() == 10002);
     }
 
-    @Test
-    public void testSet2() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSet2(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(50);
         Map<String, Object> m = new HashMap<>();
         m.put(UncachedObject.Fields.strValue.name(), "changed");
@@ -508,9 +540,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(lst.size(), 1);
     }
 
-    @Test
-    public void testSet3() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSet3(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
         Thread.sleep(100);
         Map<String, Object> m = new HashMap<>();
         m.put(UncachedObject.Fields.strValue.name(), "new");
@@ -521,8 +554,9 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(10002, lst.get(0).getCounter());
     }
 
-    @Test
-    public void testPush() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testPush(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("value", 10055);
         uc.setIntData(new int[0]); // Initialize with empty array for push to work
         morphium.store(uc);
@@ -535,8 +569,9 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(42, uc.getIntData()[0]);
     }
 
-    @Test
-    public void testPushAll() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testPushAll(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("value", 10055);
         uc.setIntData(new int[0]); // Initialize with empty array for pushAll to work
         morphium.store(uc);
@@ -550,8 +585,9 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(123, uc.getIntData()[1]);
     }
 
-    @Test
-    public void testPull() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testPull(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("value", 1021);
         uc.setIntData(new int[] {12, 23, 52, 42});
         morphium.store(uc);
@@ -569,9 +605,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(23, uc.getIntData()[0]);
     }
 
-    @Test
-    public void testInc() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testInc(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(50);
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
@@ -583,9 +620,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(1, cnt);
     }
 
-    @Test
-    public void testInc2() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testInc2(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(50);
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
@@ -605,9 +643,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(5, cnt);
     }
 
-    @Test
-    public void testInc3() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testInc3(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(250);
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
@@ -619,9 +658,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(5, cnt);
     }
 
-    @Test
-    public void testIncAsync() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testIncAsync(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(250);
         AtomicInteger ai = new AtomicInteger(0);
         morphium.createQueryFor(UncachedObject.class)
@@ -641,9 +681,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(5, cnt);
     }
 
-    @Test
-    public void testDec() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDec(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(50);
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
@@ -654,9 +695,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(cnt, 1);
     }
 
-    @Test
-    public void testDec2() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDec2(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(150);
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
@@ -668,9 +710,10 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(5, cnt);
     }
 
-    @Test
-    public void testDec3() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDec3(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         Thread.sleep(50);
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
@@ -680,9 +723,10 @@ public class QueryTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void testDecAsync() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDecAsync(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         long s = System.currentTimeMillis();
 
         TestUtils.waitForConditionToBecomeTrue((long)morphium.getConfig().getMaxWaitTime(), (dur, e)->{ log.info("Took to long");}, ()->TestUtils.countUC(morphium) >= 10, (dur)->{ log.info("waiting");}, (dur)->{log.info("Got all");});
@@ -709,8 +753,9 @@ public class QueryTest extends MorphiumTestBase {
         assertEquals(5, cnt);
     }
 
-    @Test
-    public void testSetProjection() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetProjection(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("test", 2);
         uc.setDval(3.14152);
         morphium.store(uc);
@@ -730,8 +775,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(lst.get(0).getCounter() != 0);
     }
 
-    @Test
-    public void testAddProjection2() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testAddProjection2(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("test", 22);
         uc.setDval(3.14152);
         morphium.store(uc);
@@ -752,9 +798,10 @@ public class QueryTest extends MorphiumTestBase {
         assert(lst.get(0).getCounter() != 0);
     }
 
-    @Test
-    public void testHideFieldInProjection() throws Exception {
-        createUncachedObjects(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testHideFieldInProjection(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 10);
         //Thread.sleep(550);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).hideFieldInProjection(UncachedObject.Fields.strValue).asList();
         long s = System.currentTimeMillis();
@@ -769,8 +816,9 @@ public class QueryTest extends MorphiumTestBase {
         assert(lst.get(0).getStrValue() == null);
     }
 
-    @Test
-    public void testSubDocs() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSubDocs(Morphium morphium) throws Exception  {
         SubDocTest sd = new SubDocTest();
         sd.setSubDocs(new HashMap<>());
         morphium.store(sd);

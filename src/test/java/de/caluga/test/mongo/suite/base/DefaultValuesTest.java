@@ -9,12 +9,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("core")
-public class DefaultValuesTest extends MorphiumTestBase {
+public class DefaultValuesTest extends MultiDriverTestBase {
 
-    @Test
-    public void defaultValuesTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void defaultValuesTest(Morphium morphium) throws Exception  {
         DefaultsTestEntitiy e = new DefaultsTestEntitiy();
         morphium.store(e);
         TestUtils.waitForConditionToBecomeTrue(2000, "DefaultsTestEntitiy not persisted",

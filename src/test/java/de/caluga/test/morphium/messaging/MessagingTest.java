@@ -21,7 +21,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 @SuppressWarnings("ALL")
 @Tag("messaging")
-public class MessagingTest extends MorphiumTestBase {
+public class MessagingTest extends MultiDriverTestBase {
     public boolean gotMessage = false;
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;

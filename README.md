@@ -223,7 +223,7 @@ mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 
 ### `./runtests.sh` helper
 ```bash
-# Default: in-memory driver
+# Default: in-memory driver (fast, no MongoDB required)
 ./runtests.sh
 
 # Run tagged suites
@@ -236,9 +236,6 @@ mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 ./runtests.sh --rerunfailed
 ./runtests.sh --rerunfailed --retry 3
 
-# Target a MongoDB cluster
-./runtests.sh --driver pooled --uri mongodb://mongo1,mongo2/testdb
-
 # Single test class
 ./runtests.sh CacheTests
 
@@ -246,6 +243,41 @@ mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 ./runtests.sh --stats
 ./getFailedTests.sh  # list failed methods
 ```
+
+### Multi-Backend Testing
+
+Tests are parameterized to run against multiple drivers. Use `--driver` to select:
+
+```bash
+# InMemory only (fastest, default)
+./runtests.sh --driver inmem
+
+# Against external MongoDB with all drivers (pooled + single + inmem)
+./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver all
+
+# Against external MongoDB with pooled driver only
+./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver pooled
+
+# Against MorphiumServer (auto-starts local server)
+./runtests.sh --morphium-server --driver pooled
+```
+
+**Complete test coverage** requires running against all backends:
+```bash
+# 1. Fast in-memory tests
+./runtests.sh --driver inmem
+
+# 2. Real MongoDB tests
+./runtests.sh --uri mongodb://your-mongodb/testdb --driver all
+
+# 3. MorphiumServer tests
+./runtests.sh --morphium-server --driver pooled
+```
+
+**New in v6.1**
+- ✅ **Unified test base**: All tests now use `MultiDriverTestBase` with parameterized drivers
+- ✅ **Driver selection**: Each test declares which drivers it supports via `@MethodSource`
+- ✅ **Parallel safe**: Tests isolated per parallel slot with unique databases
 
 **New in v6.0**
 - ✅ **Method-level reruns**: `--rerunfailed` only re-executes failing methods

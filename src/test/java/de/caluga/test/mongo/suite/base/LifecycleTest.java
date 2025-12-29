@@ -13,6 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -21,7 +23,7 @@ import org.junit.jupiter.api.Test;
  * <p>
  */
 @Tag("core")
-public class LifecycleTest extends MorphiumTestBase {
+public class LifecycleTest extends MultiDriverTestBase {
     private static boolean preStore = false;
     private static boolean postStore = false;
     private static boolean preRemove = false;
@@ -31,8 +33,9 @@ public class LifecycleTest extends MorphiumTestBase {
     private static boolean postUpdate = false;
 
 
-    @Test
-    public void lifecycleTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void lifecycleTest(Morphium morphium) {
         LfTestObj obj = new LfTestObj();
         obj.setValue("Ein Test");
         morphium.store(obj);
@@ -57,8 +60,9 @@ public class LifecycleTest extends MorphiumTestBase {
         assertFalse(postUpdate);
     }
 
-    @Test
-    public void testLazyLoading() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testLazyLoading(Morphium morphium) throws Exception  {
         Morphium m = morphium;
         m.clearCollection(EntityPostLoad.class);
         EntityPostLoad e = new EntityPostLoad("test");

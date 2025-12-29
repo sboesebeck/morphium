@@ -12,13 +12,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
-public class GraphLookupTest extends MorphiumTestBase {
+public class GraphLookupTest extends MultiDriverTestBase {
 
 
-    @Test
-    public void graphLookup() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void graphLookup(Morphium morphium) throws Exception  {
         morphium.dropCollection(Employee.class);
         Thread.sleep(200);
         morphium.store(new Employee(1, "Dev", null));

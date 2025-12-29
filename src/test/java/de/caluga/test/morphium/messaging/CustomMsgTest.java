@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -24,12 +26,13 @@ import org.junit.jupiter.api.Test;
  * TODO: Add documentation here
  */
 @Tag("messaging")
-public class CustomMsgTest extends MorphiumTestBase {
+public class CustomMsgTest extends MultiDriverTestBase {
 
     AtomicBoolean received = new AtomicBoolean(false);
 
-    @Test
-    public void testCustomMsgSending() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCustomMsgSending(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
             MorphiumConfig cfg = morphium.getConfig().createCopy();

@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -20,11 +22,12 @@ import org.junit.jupiter.api.Tag;
  * TODO: Add documentation here
  */
 @Tag("core")
-public class CustomCollectionNameTest extends MorphiumTestBase {
+public class CustomCollectionNameTest extends MultiDriverTestBase {
 
 
-    @Test
-    public void testUpdateInOtherCollection() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testUpdateInOtherCollection(Morphium morphium) throws Exception  {
         Morphium m = morphium;
         String collectionName = "entity_collection_name_update";
         m.clearCollection(EntityCollectionName.class, collectionName);
@@ -44,8 +47,9 @@ assert eFetched.value == 1 : "fetched s2:";
         assertNotNull(eFetched2, "fetchedd after update");
     }
 
-    @Test
-    public void testDeleteInOtherCollection() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDeleteInOtherCollection(Morphium morphium) throws Exception  {
         Morphium m = morphium;
         String collectionName = "entity_collection_name_delete";
         m.clearCollection(EntityCollectionName.class, collectionName);

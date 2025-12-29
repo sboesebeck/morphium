@@ -9,13 +9,17 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Disabled
 @Tag("messaging")
-public class BigMessagesNCTest extends MorphiumTestBase {
+public class BigMessagesNCTest extends MultiDriverTestBase {
 
-    @Test
-    public void testBigMessage() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testBigMessage(Morphium morphium) throws Exception  {
         final AtomicInteger count = new AtomicInteger();
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(1000);

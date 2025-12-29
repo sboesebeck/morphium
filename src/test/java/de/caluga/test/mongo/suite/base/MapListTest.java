@@ -19,6 +19,9 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 /**
@@ -28,9 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>
  */
 @Tag("core")
-public class MapListTest extends MorphiumTestBase {
-    @Test
-    public void mapListTest() throws InterruptedException {
+public class MapListTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mapListTest(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         MapListObject o = new MapListObject();
         Map<String, Object> map = new HashMap<>();
@@ -61,8 +65,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMapListValue().get("zweihundert").size() == 4);
     }
 
-    @Test
-    public void mapListEmbTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mapListEmbTest(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, Object> map = new HashMap<>();
@@ -115,8 +120,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap2().get("test").getTest().equals("val"));
     }
 
-    @Test
-    public void testComplexList() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testComplexList(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         List<Map<String, String >> lst = new ArrayList<>();
@@ -138,8 +144,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap7().get(1).get("tst2-2").equals("blub"));
     }
 
-    @Test
-    public void testMapOfListsString() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMapOfListsString(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, List<String >> m = new HashMap<>();
@@ -160,8 +167,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap3().get("m2").get(2).equals("grin"));
     }
 
-    @Test
-    public void testMapOfListsEmb() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMapOfListsEmb(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, List<EmbObj >> m = new HashMap<>();
@@ -186,8 +194,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap4().get("m2").get(2).getValue() == 7331);
     }
 
-    @Test
-    public void testMapOfMaps() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMapOfMaps(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, Map<String, String >> m = new HashMap<>();
@@ -210,8 +219,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap5().get("translate").get("foo").equals("bla"));
     }
 
-    @Test
-    public void testMapOfMapEmbObj() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMapOfMapEmbObj(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, Map<String, EmbObj >> m = new HashMap<>();
@@ -234,8 +244,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap5a().get("translate").get("foo").getTest().equals("bla"));
     }
 
-    @Test
-    public void testListOfListOfMap() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testListOfListOfMap(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         List<List<Map<String, String >>> lst = new ArrayList<>();
@@ -273,8 +284,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap7a().get(1).get(0).get("k15").equals("v1"));
     }
 
-    @Test
-    public void testMapListMapEmb() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMapListMapEmb(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, List<Map<String, EmbObj >>> map = new HashMap<>();
@@ -314,8 +326,9 @@ public class MapListTest extends MorphiumTestBase {
         assert(ml.getMap6a().get("list1").get(0).get("map1-v2").getTest().equals("test2"));
     }
 
-    @Test
-    public void complexMapTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void complexMapTest(Morphium morphium) throws InterruptedException  {
         MapListObject o = new MapListObject();
         o.setMapValue(UtilsMap.of("Testvalue", (Object) UtilsMap.of("$lte", "@123")));
         morphium.save(o);

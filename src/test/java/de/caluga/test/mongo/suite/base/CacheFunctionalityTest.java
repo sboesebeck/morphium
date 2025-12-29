@@ -17,16 +17,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * TODO: Add Documentation here
  **/
 @Tag("core")
 @Tag("cache")
-public class CacheFunctionalityTest extends MorphiumTestBase {
+public class CacheFunctionalityTest extends MultiDriverTestBase {
 
-    @Test
-    public void accessTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void accessTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -35,7 +39,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
 
         morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
         int amount = 1000;
-        createCachedObjects(amount);
+        createCachedObjects(morphium, amount);
         TestUtils.wait(5);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i ).get();
@@ -61,8 +65,9 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         morphium.getCache().setDefaultCacheTime(CacheEntry.class);
     }
 
-    @Test
-    public void emptyResultTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void emptyResultTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -70,7 +75,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         }
         morphium.getCache().setDefaultCacheTime(CacheEntry.class);
         int amount = 100;
-        createCachedObjects(amount);
+        createCachedObjects(morphium, amount);
         TestUtils.waitForConditionToBecomeTrue(5000, "CachedObjects not persisted",
             () -> morphium.createQueryFor(CachedObject.class).countAll() == amount);
 
@@ -99,8 +104,9 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         assert (morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90);
     }
 
-    @Test
-    public void globalCacheSettingsTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void globalCacheSettingsTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -141,8 +147,9 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void multiThreadAccessTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void multiThreadAccessTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -151,7 +158,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         morphium.dropCollection(CachedObject.class);
         TestUtils.waitForWrites(morphium, log);
         int amount = 1000;
-        createCachedObjects(amount);
+        createCachedObjects(morphium, amount);
         TestUtils.waitForConditionToBecomeTrue(15000, "CachedObjects not persisted for multithread test",
             () -> morphium.createQueryFor(CachedObject.class).countAll() == amount);
         for (int i = 0; i < amount; i++) {

@@ -14,12 +14,16 @@ import org.junit.jupiter.api.Tag;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("encryption")
-public class EncryptedObjectMappingTests extends MorphiumTestBase {
+public class EncryptedObjectMappingTests extends MultiDriverTestBase {
 
-    @Test
-    public void objectMapperTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void objectMapperTest(Morphium morphium) throws Exception  {
         morphium.getEncryptionKeyProvider().setEncryptionKey("key", "1234567890abcdef".getBytes());
         morphium.getEncryptionKeyProvider().setDecryptionKey("key", "1234567890abcdef".getBytes());
         MorphiumObjectMapper om = morphium.getMapper();

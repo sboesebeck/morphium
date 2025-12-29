@@ -7,13 +7,17 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class FieldShadowingTest extends MorphiumTestBase {
+public class FieldShadowingTest extends MultiDriverTestBase {
 
-    @Test
-    public void shadowFieldTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void shadowFieldTest(Morphium morphium) throws Exception  {
         Shadowed it = new Shadowed();
         it.value = "A test";
         String marshall = Utils.toJsonString(morphium.getMapper().serialize(it));

@@ -11,12 +11,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.regex.Pattern;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("core")
-public class RegexTests extends MorphiumTestBase {
+public class RegexTests extends MultiDriverTestBase {
 
-    @Test
-    public void simpleRegexTests() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void simpleRegexTests(Morphium morphium) throws Exception  {
         createTestData();
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
@@ -37,8 +41,9 @@ public class RegexTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void patternRegexTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void patternRegexTest(Morphium morphium) throws Exception  {
         createTestData();
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
@@ -59,8 +64,9 @@ public class RegexTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void regexOptionTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void regexOptionTest(Morphium morphium) throws Exception  {
         createTestData();
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);
@@ -80,8 +86,9 @@ public class RegexTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void patternOptionTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void patternOptionTest(Morphium morphium) throws Exception  {
         createTestData();
         Query<UncachedObject> waitQuery = morphium.createQueryFor(UncachedObject.class);
         waitQuery.setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY);

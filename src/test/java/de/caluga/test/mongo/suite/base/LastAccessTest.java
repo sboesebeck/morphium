@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -17,9 +20,10 @@ import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecome
  * <p>
  */
 @Tag("core")
-public class LastAccessTest extends MorphiumTestBase {
-    @Test
-    public void createdTest() throws Exception {
+public class LastAccessTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void createdTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(TstObjLA.class);
         TstObjLA tst = new TstObjLA();
         tst.setValue("A value");
@@ -71,8 +75,9 @@ public class LastAccessTest extends MorphiumTestBase {
         assert(tst.getCreationTime() == creationTime);
     }
 
-    @Test
-    public void createOnUpsert() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void createOnUpsert(Morphium morphium) throws Exception  {
         morphium.dropCollection(TstObjLA.class);
         morphium.set(morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12), "value", "a test", true, false, null);
 
@@ -86,8 +91,9 @@ public class LastAccessTest extends MorphiumTestBase {
         assert(tst.getCreationTime() != 0);
     }
 
-    @Test
-    public void createdTestStringId() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void createdTestStringId(Morphium morphium) throws Exception  {
         morphium.dropCollection(TstObjAutoValuesStringId.class);
 
         // Wait for collection to be dropped
@@ -145,8 +151,9 @@ public class LastAccessTest extends MorphiumTestBase {
         assert(tst.getCreationTime() == creationTime);
     }
 
-    @Test
-    public void testLastAccessInc() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testLastAccessInc(Morphium morphium) throws Exception  {
         TstObjLA la = new TstObjLA();
         la.setValue("value");
         morphium.store(la);

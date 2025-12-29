@@ -18,21 +18,25 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * @author stephan
  */
 @Tag("core")
 @Tag("cache")
-public class MassCacheTest extends MorphiumTestBase {
+public class MassCacheTest extends MultiDriverTestBase {
 
     public static final int NO_OBJECTS = 100;
     public static final int WRITING_THREADS = 5;
     public static final int READING_THREADS = 5;
     private static final Logger log = LoggerFactory.getLogger(MassCacheTest.class);
 
-    @Test
-    public void massiveParallelWritingTest()  throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelWritingTest(Morphium morphium)  throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -121,8 +125,9 @@ public class MassCacheTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void massiveParallelAccessTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelAccessTest(Morphium morphium) {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -201,8 +206,9 @@ public class MassCacheTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void disableCacheTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void disableCacheTest(Morphium morphium) {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -263,8 +269,9 @@ public class MassCacheTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void cacheTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void cacheTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);

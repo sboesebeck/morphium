@@ -8,16 +8,19 @@ import de.caluga.test.support.TestConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Test for shared connection pool feature.
  * When sharedConnectionPool is enabled, multiple Morphium instances connecting
  * to the same hosts+database will share the same driver instance.
  */
-public class SharedConnectionPoolTest extends MorphiumTestBase {
+public class SharedConnectionPoolTest extends MultiDriverTestBase {
 
-    @Test
-    public void testSharedConnectionPoolEnabled() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSharedConnectionPoolEnabled(Morphium morphium) throws InterruptedException  {
         // Load base config from test environment
         MorphiumConfig cfg1 = TestConfig.load();
         if (cfg1.driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
@@ -41,8 +44,9 @@ public class SharedConnectionPoolTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testSharedConnectionPoolDisabledByDefault() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSharedConnectionPoolDisabledByDefault(Morphium morphium) throws InterruptedException  {
         // Load base config from test environment
         MorphiumConfig cfg1 = TestConfig.load();
         if (cfg1.driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
@@ -65,8 +69,9 @@ public class SharedConnectionPoolTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testSharedConnectionPoolDifferentDatabases() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSharedConnectionPoolDifferentDatabases(Morphium morphium) throws InterruptedException  {
         // Load base config from test environment
         MorphiumConfig cfg1 = TestConfig.load();
         if (cfg1.driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {

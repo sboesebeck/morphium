@@ -42,10 +42,11 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 @Tag("external")
-public class ShardingTests extends MorphiumTestBase {
+public class ShardingTests extends MultiDriverTestBase {
 
-    @Test
-    public void shardingReplacementTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void shardingReplacementTest(Morphium morphium) throws Exception  {
         GenericCommand cmd = null;
 
         try {
@@ -102,8 +103,9 @@ public class ShardingTests extends MorphiumTestBase {
         assert(uc.getStrValue().equals("another value"));
     }
 
-    @Test
-    public void shardingStringIdReplacementTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void shardingStringIdReplacementTest(Morphium morphium) throws Exception  {
         GenericCommand cmd = null;
 
         try {

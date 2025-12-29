@@ -18,6 +18,9 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 /**
@@ -28,10 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class SetsTests extends MorphiumTestBase {
+public class SetsTests extends MultiDriverTestBase {
 
-    @Test
-    public void setStoringTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void setStoringTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Uc.class);
         Set<UncachedObject> lst = new LinkedHashSet<>();
 
@@ -48,8 +52,9 @@ public class SetsTests extends MorphiumTestBase {
         assert(count == 100) : "Count wrong " + count;
     }
 
-    @Test
-    public void simpleSetTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void simpleSetTest(Morphium morphium) throws Exception  {
         SetContainer lst = new SetContainer();
         int count = 2;
 
@@ -104,8 +109,9 @@ public class SetsTests extends MorphiumTestBase {
         assert(c.getId().equals(lst2.getId()));
     }
 
-    @Test
-    public void nullValueListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void nullValueListTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(SetContainer.class);
         SetContainer lst = new SetContainer();
         int count = 2;
@@ -150,8 +156,9 @@ public class SetsTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void singleEntryListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void singleEntryListTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(UncachedObject.class);
         Set<UncachedObject> lst = new LinkedHashSet<>();
         lst.add(new UncachedObject());
@@ -168,8 +175,9 @@ public class SetsTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testHybridSet() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testHybridSet(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MySetContainer.class);
         MySetContainer mc = new MySetContainer();
         mc.name = "test";
@@ -209,8 +217,9 @@ public class SetsTests extends MorphiumTestBase {
         assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getValue().equals("value"));
     }
 
-    @Test
-    public void idListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idListTest(Morphium morphium) throws Exception  {
         // Ensure clean state
         morphium.dropCollection(MyIdSetContainer.class);
         Thread.sleep(100);

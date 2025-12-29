@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -20,10 +23,11 @@ import java.util.Map;
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
 @Tag("cache")
-public class IdCacheTest extends MorphiumTestBase {
+public class IdCacheTest extends MultiDriverTestBase {
 
-    @Test
-    public void idTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);

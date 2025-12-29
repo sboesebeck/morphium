@@ -18,14 +18,17 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Disabled
 @Tag("messaging")
-public class AdvancedMessagingNCTests extends MorphiumTestBase {
+public class AdvancedMessagingNCTests extends MultiDriverTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
-    @Test
-    public void testExclusiveXTimes() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testExclusiveXTimes(Morphium morphium) throws Exception  {
         //        morphium.watchAsync("msg", true,new ChangeStreamListener(){
         //
         //            @Override
@@ -198,8 +201,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void messageAnswerTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void messageAnswerTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(100);
         counts.clear();
@@ -304,8 +308,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
     //
     //    }
 
-    @Test
-    public void answerWithDifferentNameTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void answerWithDifferentNameTest(Morphium morphium) throws Exception  {
         counts.clear();
         SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100,  true, 1);
         producer.setUseChangeStream(false).start();
@@ -330,8 +335,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void ownAnsweringHandler() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void ownAnsweringHandler(Morphium morphium) throws Exception  {
         SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100,  true, 1);
         producer.setUseChangeStream(false).start();
         SingleCollectionMessaging consumer = new SingleCollectionMessaging(morphium, 100,  true, 1);

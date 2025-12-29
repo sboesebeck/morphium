@@ -12,13 +12,17 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("core")
-public class MultiUpdateTests extends MorphiumTestBase {
+public class MultiUpdateTests extends MultiDriverTestBase {
 
-    @Test
-    public void mutlipleUpdateTests() throws Exception {
-        createUncachedObjects(1000);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mutlipleUpdateTests(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 1000);
         TestUtils.waitForConditionToBecomeTrue(1000, "not stored?!?!?", ()->morphium.createQueryFor(UncachedObject.class).countAll() == 1000);
         Runnable lock = ()->{
             String lockId = UUID.randomUUID().toString();
