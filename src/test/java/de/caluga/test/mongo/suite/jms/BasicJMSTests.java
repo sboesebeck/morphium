@@ -1,9 +1,9 @@
 package de.caluga.test.mongo.suite.jms;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
 import de.caluga.morphium.messaging.jms.*;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 

@@ -1,4 +1,5 @@
 package de.caluga.test.mongo.suite.encrypt;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -7,7 +8,6 @@ import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 

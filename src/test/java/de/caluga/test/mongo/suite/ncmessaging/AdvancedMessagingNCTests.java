@@ -1,4 +1,5 @@
 package de.caluga.test.mongo.suite.ncmessaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -7,7 +8,6 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.SingleCollectionMessaging;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -51,10 +51,10 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
         //            }
         //        });
         for (int i = 0; i < 2; i++)
-            runExclusiveMessagesTest((int)(Math.random() * 1500), (int)(55 * Math.random()) + 2);
+            runExclusiveMessagesTest(morphium, (int)(Math.random() * 1500), (int)(55 * Math.random()) + 2);
     }
 
-    private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
+    private void runExclusiveMessagesTest(Morphium morphium, int amount, int receivers) throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(1000);
         List<Morphium> morphiums = new ArrayList<>();

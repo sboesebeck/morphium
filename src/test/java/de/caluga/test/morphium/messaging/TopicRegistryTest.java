@@ -1,11 +1,11 @@
 package de.caluga.test.morphium.messaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -52,7 +52,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
     @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
     public void testThrowOnNoListeners(Morphium morphium) throws Exception {
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -81,7 +81,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
     public void testSuccessfulSendWithListener(Morphium morphium) throws Exception {
         log.info("Running test: testSuccessfulSendWithListener");
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -123,7 +123,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
     public void testWarnOnNoListeners(Morphium morphium) throws Exception {
         log.info("Running test: testWarnOnNoListeners");
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -153,7 +153,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
     public void testRecipientCheck(Morphium morphium) throws Exception {
         log.info("Running test: testRecipientCheck");
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);

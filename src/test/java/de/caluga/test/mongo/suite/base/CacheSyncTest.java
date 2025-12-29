@@ -259,7 +259,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
         }
     }
 
-    private void waitForWriteToStart(int max) {
+    private void waitForWriteToStart(Morphium morphium, int max) {
         int cnt = 0;
         while (morphium.getWriteBufferCount() == 0) {
             //wait for things to get started...
@@ -662,7 +662,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
         sync.start();
 
         createCachedObjects(morphium, 100);
-        waitForWriteToStart(1000);
+        waitForWriteToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
 
         //filling cache
@@ -684,7 +684,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
         // morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
         //stored some object avoiding cache handling in morphium
         //now cache should be empty
-        waitForWriteToStart(1000);
+        waitForWriteToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
 
         Thread.sleep(1200);

@@ -18,7 +18,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Tag;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 @Tag("messaging")
@@ -34,7 +33,7 @@ public class TimeoutTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -90,7 +89,7 @@ public class TimeoutTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);

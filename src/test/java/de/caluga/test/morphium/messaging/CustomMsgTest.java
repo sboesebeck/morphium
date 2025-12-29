@@ -1,4 +1,5 @@
 package de.caluga.test.morphium.messaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -6,7 +7,6 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,7 +34,7 @@ public class CustomMsgTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testCustomMsgSending(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
-        for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+        for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
             MorphiumConfig cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());

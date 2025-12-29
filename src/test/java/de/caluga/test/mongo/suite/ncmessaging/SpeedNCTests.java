@@ -1,10 +1,10 @@
 package de.caluga.test.mongo.suite.ncmessaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

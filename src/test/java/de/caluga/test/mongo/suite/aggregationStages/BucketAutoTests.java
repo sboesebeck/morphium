@@ -1,4 +1,5 @@
 package de.caluga.test.mongo.suite.aggregationStages;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
@@ -6,7 +7,6 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -27,7 +27,7 @@ public class BucketAutoTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void bucketAutoTest(Morphium morphium) throws Exception  {
-        prepData();
+        prepData(morphium);
         Aggregator<Artwork, Map> agg = morphium.createAggregator(Artwork.class, Map.class);
         agg.bucketAuto(field("price"), 4, null, null);
         List<Map> list = agg.aggregate();
@@ -55,7 +55,7 @@ public class BucketAutoTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void bucketAutoFacets(Morphium morphium) throws Exception  {
-        prepData();
+        prepData(morphium);
         Aggregator<Artwork, Map> priceAggregator = morphium.createAggregator(Artwork.class, Map.class);
         priceAggregator.bucketAuto(field("price"), 4, null, null);
         Aggregator<Artwork, Map> yearAggregator = morphium.createAggregator(Artwork.class, Map.class);
@@ -88,7 +88,7 @@ public class BucketAutoTests extends MultiDriverTestBase {
         //     result.get("year").toString());
     }
 
-    private void prepData() throws Exception {
+    private void prepData(Morphium morphium) throws Exception {
         morphium.clearCollection(Artwork.class);
         Thread.sleep(100);
         morphium.store(new Artwork("The Pillars of Society", "Grosz", 1926,

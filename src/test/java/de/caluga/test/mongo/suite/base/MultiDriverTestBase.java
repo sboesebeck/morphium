@@ -42,6 +42,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 @Timeout(value = 5, unit = TimeUnit.MINUTES) // Global timeout for all tests to prevent hangs
 public class MultiDriverTestBase {
 
+    public static List<String> messagingsToTest = List.of("MultiCollectionMessaging", "StandardMessaging");
     public static AtomicInteger number = new AtomicInteger(0);
     protected static Logger log = LoggerFactory.getLogger(MultiDriverTestBase.class);
 
@@ -57,7 +58,7 @@ public class MultiDriverTestBase {
 
     @AfterAll
     public static void tearDownClass() {
-        // LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
+        // Not shutting down - might be reused
         //        morphium.close();
     }
 
