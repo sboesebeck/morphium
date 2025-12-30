@@ -2,7 +2,6 @@ package de.caluga.morphium.server;
 
 import de.caluga.morphium.driver.wire.SslHelper;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
-import de.caluga.morphium.server.netty.NettyMorphiumServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +24,6 @@ public class MorphiumServerCLI {
         log.info("Starting up server... parsing commandline params");
         String host = "localhost";
         int port = 17017;
-        int maxThreads = 1000;
-        int minThreads = 10;
         String rsNameArg = "";
         String hostSeedArg = "";
         List<String> hostsArg = new ArrayList<>();
@@ -46,9 +43,6 @@ public class MorphiumServerCLI {
         int maxConnections = 500;
         int socketTimeoutSec = 60;
 
-        // Async I/O mode (Netty)
-        boolean useNetty = false;
-
         while (idx < args.length) {
             switch (args[idx]) {
                 case "--help":
@@ -59,18 +53,6 @@ public class MorphiumServerCLI {
                 case "-p":
                 case "--port":
                     port = Integer.parseInt(args[idx + 1]);
-                    idx += 2;
-                    break;
-
-                case "-mt":
-                case "--maxThreads":
-                    maxThreads = Integer.parseInt(args[idx + 1]);
-                    idx += 2;
-                    break;
-
-                case "-mint":
-                case "--minThreads":
-                    minThreads = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
 
@@ -163,12 +145,6 @@ public class MorphiumServerCLI {
                     idx += 2;
                     break;
 
-                case "--use-netty":
-                case "--async":
-                    useNetty = true;
-                    idx += 1;
-                    break;
-
                 default:
                     log.error("unknown parameter " + args[idx]);
                     System.exit(1);
@@ -177,133 +153,71 @@ public class MorphiumServerCLI {
 
         log.info("Starting server...");
 
-        if (useNetty) {
-            // Use Netty async I/O server (recommended for high concurrency)
-            log.info("Using Netty async I/O server");
-            var srv = new NettyMorphiumServer(port, host, maxConnections, socketTimeoutSec, compressorId);
-            srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
+        var srv = new MorphiumServer(port, host, maxConnections, socketTimeoutSec, compressorId);
+        srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
 
-            // Configure SSL if enabled
-            if (sslEnabled) {
-                log.info("SSL/TLS enabled");
-                if (keystorePath != null) {
-                    log.info("Loading keystore from: {}", keystorePath);
-                    try {
-                        SSLContext sslContext = SslHelper.createServerSslContext(keystorePath, keystorePassword);
-                        srv.setSslContext(sslContext);
-                    } catch (Exception e) {
-                        log.error("Failed to load SSL keystore: {}", e.getMessage());
-                        System.exit(1);
-                    }
-                }
-                srv.setSslEnabled(true);
-            }
-
-            // Configure persistence if enabled
-            if (dumpDir != null) {
-                java.io.File dir = new java.io.File(dumpDir);
-                srv.setDumpDirectory(dir);
-                log.info("Persistence enabled: dump directory = {}", dir.getAbsolutePath());
-
-                if (dumpIntervalSec > 0) {
-                    srv.setDumpIntervalMs(dumpIntervalSec * 1000);
-                    log.info("Periodic dumps every {} seconds", dumpIntervalSec);
-                }
-
-                // Restore previous state if dump files exist
+        // Configure SSL if enabled
+        if (sslEnabled) {
+            log.info("SSL/TLS enabled");
+            if (keystorePath != null) {
+                log.info("Loading keystore from: {}", keystorePath);
                 try {
-                    int restored = srv.restoreFromDump();
-                    if (restored > 0) {
-                        log.info("Restored {} databases from previous dump", restored);
-                    }
+                    SSLContext sslContext = SslHelper.createServerSslContext(keystorePath, keystorePassword);
+                    srv.setSslContext(sslContext);
                 } catch (Exception e) {
-                    log.warn("Failed to restore from dump (starting fresh): {}", e.getMessage());
+                    log.error("Failed to load SSL keystore: {}", e.getMessage());
+                    System.exit(1);
                 }
             }
+            srv.setSslEnabled(true);
+        }
 
-            srv.start();
+        // Configure persistence if enabled
+        if (dumpDir != null) {
+            java.io.File dir = new java.io.File(dumpDir);
+            srv.setDumpDirectory(dir);
+            log.info("Persistence enabled: dump directory = {}", dir.getAbsolutePath());
 
-            // Add shutdown hook
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                log.info("Shutdown hook triggered");
-                srv.shutdown();
-            }));
-
-            while (srv.isRunning()) {
-                log.info("NettyMorphiumServer alive - connections: {}", srv.getConnectionCount());
-                sleep(10000);
+            if (dumpIntervalSec > 0) {
+                srv.setDumpIntervalMs(dumpIntervalSec * 1000);
+                log.info("Periodic dumps every {} seconds", dumpIntervalSec);
             }
-        } else {
-            // Use blocking I/O server (legacy)
-            log.info("Using blocking I/O server (use --use-netty for async I/O)");
-            var srv = new MorphiumServer(port, host, maxThreads, minThreads, compressorId);
-            srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
 
-            // Configure connection management
-            srv.setMaxConnections(maxConnections);
-            srv.setSocketReadTimeoutMs(socketTimeoutSec * 1000);
-            log.info("Connection limits: max={}, socketTimeout={}s", maxConnections, socketTimeoutSec);
-
-            // Configure SSL if enabled
-            if (sslEnabled) {
-                log.info("SSL/TLS enabled");
-                if (keystorePath != null) {
-                    log.info("Loading keystore from: {}", keystorePath);
-                    try {
-                        SSLContext sslContext = SslHelper.createServerSslContext(keystorePath, keystorePassword);
-                        srv.setSslContext(sslContext);
-                    } catch (Exception e) {
-                        log.error("Failed to load SSL keystore: {}", e.getMessage());
-                        System.exit(1);
-                    }
+            // Restore previous state if dump files exist
+            try {
+                int restored = srv.restoreFromDump();
+                if (restored > 0) {
+                    log.info("Restored {} databases from previous dump", restored);
                 }
-                srv.setSslEnabled(true);
+            } catch (Exception e) {
+                log.warn("Failed to restore from dump (starting fresh): {}", e.getMessage());
             }
+        }
 
-            // Configure persistence if enabled
-            if (dumpDir != null) {
-                java.io.File dir = new java.io.File(dumpDir);
-                srv.setDumpDirectory(dir);
-                log.info("Persistence enabled: dump directory = {}", dir.getAbsolutePath());
+        srv.start();
 
-                if (dumpIntervalSec > 0) {
-                    srv.setDumpIntervalMs(dumpIntervalSec * 1000);
-                    log.info("Periodic dumps every {} seconds", dumpIntervalSec);
-                }
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("Shutdown hook triggered");
+            srv.shutdown();
+        }));
 
-                // Restore previous state if dump files exist
-                try {
-                    int restored = srv.restoreFromDump();
-                    if (restored > 0) {
-                        log.info("Restored {} databases from previous dump", restored);
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to restore from dump (starting fresh): {}", e.getMessage());
-                }
-            }
-
-            srv.start();
-
-            if (!rsNameArg.isEmpty()) {
-                log.info("Building replicaset with seed {}", hostSeedArg);
-                srv.startReplicaReplication();
-            }
-
-            while (srv.isRunning()) {
-                log.info("Alive and kickin'");
-                sleep(10000);
-            }
+        while (srv.isRunning()) {
+            log.info("MorphiumServer alive - connections: {}", srv.getConnectionCount());
+            sleep(10000);
         }
     }
 
 
     private static void printHelp() {
         System.out.println("Usage: java -jar morphium-server.jar [options]");
+        System.out.println();
+        System.out.println("MorphiumServer is a MongoDB-compatible in-memory server using async I/O (Netty).");
+        System.out.println("It can handle thousands of concurrent connections efficiently.");
+        System.out.println();
         System.out.println("Options:");
         System.out.println("  -p, --port <port>          : Port to listen on (default: 17017)");
         System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
-        System.out.println("  -mt, --maxThreads <threads>: Maximum number of threads (default: 1000)");
-        System.out.println("  -mint, --minThreads <threads>: Minimum number of threads (default: 10)");
         System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
         System.out.println("  --rs-name <name>           : Name of the replica set");
         System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts to seed the replica set.");
@@ -319,20 +233,16 @@ public class MorphiumServerCLI {
         System.out.println("                               Enables persistence: restores on startup, dumps on shutdown");
         System.out.println("  --dump-interval <seconds>  : Interval between periodic dumps (default: 0 = only on shutdown)");
         System.out.println();
-        System.out.println("Connection Management Options (for production reliability):");
+        System.out.println("Connection Management Options:");
         System.out.println("  --max-connections <num>    : Maximum concurrent connections (default: 500)");
         System.out.println("  --socket-timeout <seconds> : Idle connection timeout in seconds (default: 60)");
-        System.out.println("                               Connections idle for 3x this time are closed automatically");
-        System.out.println();
-        System.out.println("Async I/O Options:");
-        System.out.println("  --use-netty, --async       : Use Netty async I/O server (recommended for high concurrency)");
-        System.out.println("                               Handles 10,000+ concurrent connections with few threads");
-        System.out.println("                               Better for parallel test execution and messaging");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
         System.out.println("Examples:");
+        System.out.println("  java -jar morphium-server.jar -p 27017");
         System.out.println("  java -jar morphium-server.jar -p 27018 --ssl --sslKeystore server.jks --sslKeystorePassword changeit");
         System.out.println("  java -jar morphium-server.jar -p 27017 --dump-dir /var/morphium/data --dump-interval 300");
+        System.out.println("  java -jar morphium-server.jar --rs-name myrs --rs-seed localhost:27017,localhost:27018,localhost:27019");
     }
 }

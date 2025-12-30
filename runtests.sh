@@ -592,7 +592,7 @@ function _ms_local_start_cluster() {
     fi
 
     local log_file="${pid_dir}/logs/morphiumserver_${port}.log"
-    local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout --use-netty"
+    local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout"
     if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
       # Single-node mode: no replica set arguments (using Netty async I/O)
       nohup java -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &

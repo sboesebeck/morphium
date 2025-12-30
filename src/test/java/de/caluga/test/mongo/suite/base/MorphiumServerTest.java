@@ -104,7 +104,7 @@ public class MorphiumServerTest {
             msg2.terminate();
             morphium.close();
         } finally {
-            srv.terminate();
+            srv.shutdown();
         }
     }
 
@@ -129,7 +129,7 @@ public class MorphiumServerTest {
         log.info("connection established");
         drv.close();
         drv2.close();
-        srv.terminate();
+        srv.shutdown();
     }
 
 
@@ -184,7 +184,7 @@ public class MorphiumServerTest {
 
         running.set(false);
         morphium.close();
-        srv.terminate();
+        srv.shutdown();
     }
 
     @Test
@@ -223,7 +223,7 @@ public class MorphiumServerTest {
             long dur = recTime.get() - start;
             log.info("Got message after {}ms", dur);
         } finally {
-            srv.terminate();
+            srv.shutdown();
         }
     }
 
@@ -271,7 +271,7 @@ public class MorphiumServerTest {
             long dur = recTime.get() - start;
             log.info("Got message after {}ms", dur);
         } finally {
-            srv.terminate();
+            srv.shutdown();
         }
     }
 
@@ -313,7 +313,7 @@ public class MorphiumServerTest {
             var lst = morphium.createQueryFor(UncachedObject.class).asList();
             assertEquals(100, lst.size());
         } finally {
-            srv.terminate();
+            srv.shutdown();
         }
     }
 
@@ -399,7 +399,7 @@ public class MorphiumServerTest {
             log.info("First Message after {}ms - last message after {}ms", first, last);
             log.info("Longest roundtrip {}ms - quickest {}ms", maxDur, minDur);
         } finally {
-            srv.terminate();
+            srv.shutdown();
         }
     }
 
@@ -469,7 +469,7 @@ public class MorphiumServerTest {
         } finally {
             morphium.close();
             morphium2.close();
-            srv.terminate();
+            srv.shutdown();
         }
     }
 
@@ -541,8 +541,8 @@ public class MorphiumServerTest {
     //             assert(msgCountById.get(id).get() == 1);
     //         }
     //     } finally {
-    //         producer.terminate();
-    //         consumer.terminate();
+    //         producer.shutdown();
+    //         consumer.shutdown();
     //     }
     // }
 
@@ -561,30 +561,13 @@ public class MorphiumServerTest {
         Thread.sleep(500);
         assertTrue(s1.isPrimary());
         assertFalse(s2.isPrimary());
-        s1.terminate();
-        s2.terminate();
+        s1.shutdown();
+        s2.shutdown();
     }
 
-    @Test
-    public void stepDownPromotesNextPriority() throws Exception {
-        int port1 = nextPort();
-        int port2 = nextPort();
-        MorphiumServer s1 = new MorphiumServer(port1, "localhost", 10, 1);
-        MorphiumServer s2 = new MorphiumServer(port2, "localhost", 10, 1);
-        var hosts = List.of("localhost:" + port1, "localhost:" + port2);
-        var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 200);
-        s1.configureReplicaSet("rsTest2", hosts, prio);
-        s2.configureReplicaSet("rsTest2", hosts, prio);
-        startServer(s1, port1);
-        startServer(s2, port2);
-        Thread.sleep(500);
-        s1.stepDown();
-        Thread.sleep(300);
-        assertFalse(s1.isPrimary());
-        assertEquals("localhost:" + port2, s1.getPrimaryHost());
-        s1.terminate();
-        s2.terminate();
-    }
+    // Test removed - stepDown functionality no longer exists in simplified MorphiumServer
+    // @Test
+    // public void stepDownPromotesNextPriority() throws Exception { ... }
 
     private void startServer(MorphiumServer srv, int port) throws Exception {
         srv.start();
@@ -666,8 +649,8 @@ public class MorphiumServerTest {
         // Clean up
         morphiumPrimary.close();
         morphiumSecondary.close();
-        primary.terminate();
-        secondary.terminate();
+        primary.shutdown();
+        secondary.shutdown();
     }
 
     @Test
@@ -722,8 +705,8 @@ public class MorphiumServerTest {
         // Clean up
         morphiumPrimary.close();
         morphiumSecondary.close();
-        primary.terminate();
-        secondary.terminate();
+        primary.shutdown();
+        secondary.shutdown();
     }
 
     @Test
@@ -772,8 +755,8 @@ public class MorphiumServerTest {
 
         morphiumPrimary.close();
         morphiumLate.close();
-        primary.terminate();
-        secondary.terminate();
-        lateJoiner.terminate();
+        primary.shutdown();
+        secondary.shutdown();
+        lateJoiner.shutdown();
     }
 }
