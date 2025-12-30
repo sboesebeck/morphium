@@ -68,18 +68,16 @@ public class WatchCursorManager {
             }
         });
 
-        // Run the watch in a virtual thread
-        Thread.ofVirtual().name("watch-" + cursorId).start(() -> {
-            try {
-                log.info("Starting watch thread for cursor {}", cursorId);
-                driver.runCommand(wcmd);
-                log.info("Watch thread ended for cursor {}", cursorId);
-            } catch (Exception e) {
-                log.error("Watch command error for cursor {}", cursorId, e);
-            } finally {
-                watchCursors.remove(cursorId);
-            }
-        });
+        // Start the watch in the driver - it will register the subscription and return immediately
+        // The async loop in InMemoryDriver will handle calling the callback when events arrive
+        try {
+            log.info("Starting watch for cursor {}", cursorId);
+            driver.runCommand(wcmd);
+            log.info("Watch started for cursor {}", cursorId);
+        } catch (Exception e) {
+            log.error("Watch command error for cursor {}", cursorId, e);
+            watchCursors.remove(cursorId);
+        }
 
         return cursorId;
     }
