@@ -57,7 +57,10 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morph = new Morphium(cfg)) {
-                    morph.clearCollection(Msg.class);
+                    // Clear all msg-related collections to ensure clean state between messaging implementations
+                    morph.listCollections().stream()
+                        .filter(c -> c.startsWith("msg") || c.startsWith("dm_"))
+                        .forEach(c -> morph.dropCollection(Msg.class, c, null));
                     final MorphiumMessaging m1;
                     final MorphiumMessaging m2;
                     final MorphiumMessaging onlyAnswers;

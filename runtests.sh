@@ -33,17 +33,45 @@ function createFileList() {
   mv files_$PID.tmp $filesList
 
 }
+function cleanup_test_databases() {
+  # Drop all morphium_test* databases to ensure clean state
+  # Only runs if not using inmem driver (no MongoDB to connect to)
+  local cleanup_uri="${1:-$uri}"
+  if [ -z "$cleanup_uri" ] && [ -n "$MONGODB_URI" ]; then
+    cleanup_uri="$MONGODB_URI"
+  fi
+  if [ -z "$cleanup_uri" ]; then
+    echo -e "${YL}Warning:${CL} No URI available for database cleanup"
+    return 1
+  fi
+  if [ "$driver" == "inmem" ]; then
+    return 0
+  fi
+
+  echo -e "${BL}Info:${CL} Cleaning up morphium_test* databases..."
+  local count=0
+  while read db rst; do
+    if [[ "$db" == morphium_test* ]]; then
+      echo -e "  Dropping db ${YL}$db${CL}"
+      mongosh "$cleanup_uri" --quiet --eval "use $db; db.dropDatabase()" >/dev/null 2>&1
+      ((count++))
+    fi
+  done < <(mongosh "$cleanup_uri" --quiet --eval "show databases" 2>/dev/null)
+  if [ "$count" -gt 0 ]; then
+    echo -e "${GN}Info:${CL} Dropped $count test database(s)"
+  fi
+}
+
 function quitting() {
 
   # Stop a locally started MorphiumServer cluster (if any) before tearing down logs/state.
   if type _ms_local_cleanup >/dev/null 2>&1; then
     _ms_local_cleanup
-  elif [ "$driver" != "inmem" ]; then
-    # Only try to drop databases if not using inmem driver (no MongoDB to connect to)
-    while read db rst; do
-      echo "Dropping db $db"
-      mongosh $uri --eval "use $db; db.dropDatabase()"
-    done < <(mongosh $uri --quiet --eval "show databases")
+  fi
+
+  # Clean up test databases on abort (only morphium_test* databases)
+  if [ "$driver" != "inmem" ]; then
+    cleanup_test_databases
   fi
 
   if [ -e $testPid ]; then
@@ -1335,6 +1363,8 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   rm -rf test.log >/dev/null 2>&1
   rm -f startTS >/dev/null 2>&1
   mkdir test.log
+  # Clean up test databases before starting fresh
+  cleanup_test_databases
 fi
 if [ "$nodel" -eq 0 ]; then
   echo -e "${BL}Info:${CL} Cleaning up - mvn clean..."
