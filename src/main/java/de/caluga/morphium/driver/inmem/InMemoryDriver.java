@@ -1006,10 +1006,75 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public int runCommand(WatchCommand cmd) throws MorphiumDriverException {
         log.info("InMemoryDriver.runCommand(WatchCommand) called: db={}, coll={}", cmd.getDb(), cmd.getColl());
         int ret = commandNumber.incrementAndGet();
-        long cursorId = watchInternal(cmd, null);
-        log.info("watchInternal returned cursorId={}", cursorId);
-        Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(),
-                                            "id", cursorId);
+
+        // For server use: register subscription synchronously, run watch loop asynchronously
+        // This ensures the cursor ID is available immediately
+        if (cmd == null || cmd.getCb() == null) {
+            log.warn("WatchCommand has no callback, returning empty cursor");
+            Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0L);
+            addResult(ret, prepareResult(Doc.of("ok", 1.0, "cursor", cursor)));
+            return ret;
+        }
+
+        String db = cmd.getDb();
+        if (db == null || db.isBlank()) {
+            db = "admin";
+        }
+        String collection = cmd.getColl();
+        String namespaceKey = collection == null || collection.isBlank() ? db : db + "." + collection;
+
+        // Generate cursor ID upfront
+        long cursorId = cursorIdSequence.incrementAndGet();
+
+        // Create monitor for this watch
+        WatchMonitor monitor = new WatchMonitor();
+        monitors.add(monitor);
+
+        // Create subscription with known cursor ID
+        ChangeStreamSubscription subscription = new ChangeStreamSubscription(
+            db, collection, cmd.getCb(), cmd.getPipeline(),
+            cmd.getFullDocument() == null ? WatchCommand.FullDocumentEnum.defaultValue : cmd.getFullDocument(),
+            cmd.getFullDocumentBeforeChange() == null ? WatchCommand.FullDocumentBeforeChangeEnum.off : cmd.getFullDocumentBeforeChange(),
+            Boolean.TRUE.equals(cmd.getShowExpandedEvents()),
+            monitor, cursorId);
+
+        // Register subscription synchronously
+        registerSubscription(subscription);
+        log.info("Watch registered with cursorId={}", cursorId);
+
+        // Start watch loop asynchronously
+        final String finalDb = db;
+        exec.execute(() -> {
+            try {
+                // Handle resume tokens if present
+                Long resumeAfterToken = extractResumeToken(cmd.getResumeAfter());
+                Long startAfterToken = resumeAfterToken == null ? extractResumeToken(cmd.getStartAfter()) : null;
+                Long startingToken = resumeAfterToken != null ? resumeAfterToken : startAfterToken;
+
+                if (startingToken != null) {
+                    replayHistory(subscription, startingToken);
+                }
+
+                // Wait for events until subscription is deactivated
+                while (subscription.isActive()) {
+                    Integer maxTime = cmd.getMaxTimeMS();
+                    long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
+                    monitor.await(waitTime);
+
+                    if (!cmd.getCb().isContinued()) {
+                        subscription.deactivate();
+                        break;
+                    }
+                }
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            } finally {
+                unregisterSubscription(subscription);
+                monitors.remove(monitor);
+            }
+        });
+
+        Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(), "id", cursorId);
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "cursor", cursor)));
         return ret;
     }

@@ -74,6 +74,9 @@ public class MorphiumServer {
     private java.util.concurrent.ScheduledExecutorService dumpScheduler = null;
     private volatile long lastDumpTime = 0;
 
+    // Replication
+    private ReplicationManager replicationManager = null;
+
     public MorphiumServer(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
         this.host = host;
@@ -179,6 +182,9 @@ public class MorphiumServer {
 
         // Start dump scheduler if configured
         startDumpScheduler();
+
+        // Start replication if this is a secondary
+        startReplication();
     }
 
     /**
@@ -191,6 +197,9 @@ public class MorphiumServer {
 
         log.info("Shutting down MorphiumServer...");
         running = false;
+
+        // Stop replication
+        stopReplication();
 
         // Stop dump scheduler
         stopDumpScheduler();
@@ -362,6 +371,45 @@ public class MorphiumServer {
         }
     }
 
+    // Replication methods
+
+    private void startReplication() {
+        // Only secondaries need to replicate from primary
+        if (primary || primaryHost == null || primaryHost.isEmpty()) {
+            log.debug("Not starting replication - this is the primary");
+            return;
+        }
+
+        try {
+            // Parse primary host and port
+            String[] parts = primaryHost.split(":");
+            String pHost = parts[0];
+            int pPort = parts.length > 1 ? Integer.parseInt(parts[1]) : 27017;
+
+            log.info("Starting replication from primary {}:{}", pHost, pPort);
+
+            replicationManager = new ReplicationManager(driver, pHost, pPort);
+            replicationManager.start();
+
+            // Wait for initial sync (up to 30 seconds)
+            boolean synced = replicationManager.waitForInitialSync(30, TimeUnit.SECONDS);
+            if (synced) {
+                log.info("Initial sync complete, secondary is ready");
+            } else {
+                log.warn("Initial sync did not complete within 30 seconds, continuing anyway");
+            }
+        } catch (Exception e) {
+            log.error("Failed to start replication: {}", e.getMessage(), e);
+        }
+    }
+
+    private void stopReplication() {
+        if (replicationManager != null) {
+            replicationManager.stop();
+            replicationManager = null;
+        }
+    }
+
     public int dumpNow() throws IOException {
         if (dumpDirectory == null) {
             throw new IOException("Dump directory not configured");
@@ -402,6 +450,9 @@ public class MorphiumServer {
         stats.put("running", running);
         stats.put("primary", primary);
         stats.putAll(cursorManager.getStats());
+        if (replicationManager != null) {
+            stats.put("replication", replicationManager.getStats());
+        }
         return stats;
     }
 

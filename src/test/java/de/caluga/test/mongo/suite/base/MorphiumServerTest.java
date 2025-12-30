@@ -321,7 +321,7 @@ public class MorphiumServerTest {
     @Test
     public void multithreaddedMessagingTest() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 100, 1);
+        var srv = new MorphiumServer(port, "localhost", 100, 60);  // 60 second idle timeout
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
@@ -406,7 +406,7 @@ public class MorphiumServerTest {
     @Test
     public void multithreaddedMessaging() throws Exception {
         int port = PORT.incrementAndGet();
-        var srv = new MorphiumServer(port, "localhost", 100, 1);
+        var srv = new MorphiumServer(port, "localhost", 100, 60);  // 60 second idle timeout
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:" + port);
