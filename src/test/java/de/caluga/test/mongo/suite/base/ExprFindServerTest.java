@@ -39,7 +39,8 @@ public class ExprFindServerTest extends MultiDriverTestBase {
             createUncachedObjects(morphium, 100);
             TestUtils.waitForWrites(morphium, log);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            q.expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(50)));
+            // With 0-based counters (0-99), counter >= 50 matches: 50, 51, ..., 99 = 50 values
+            q.expr(Expr.gte(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(50)));
             log.debug(Utils.toJsonString(q.toQueryObject()));
 
             List<UncachedObject> lst = q.asList();
