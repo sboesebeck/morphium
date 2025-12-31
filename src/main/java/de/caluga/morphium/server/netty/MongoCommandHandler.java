@@ -14,6 +14,7 @@ import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.server.ReplicationCoordinator;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wireprotocol.*;
 
@@ -50,11 +51,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private final boolean primary;
     private final String primaryHost;
     private final int compressorId;
+    private final ReplicationCoordinator replicationCoordinator;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
-                               int compressorId) {
+                               int compressorId, ReplicationCoordinator replicationCoordinator) {
         this.driver = driver;
         this.cursorManager = cursorManager;
         this.msgId = msgId;
@@ -65,6 +67,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         this.primary = primary;
         this.primaryHost = primaryHost;
         this.compressorId = compressorId;
+        this.replicationCoordinator = replicationCoordinator;
     }
 
     @Override
@@ -218,6 +221,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 }
                 break;
 
+            case "replSetProgress":
+                answer = processReplSetProgress(doc);
+                break;
+
             default:
                 answer = processDefaultCommand(ctx, doc, cmd);
         }
@@ -295,8 +302,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private Map<String, Object> processDefaultCommand(ChannelHandlerContext ctx,
                                                        Map<String, Object> doc, String cmd) {
         try {
+            boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
+
             // Reject writes to secondaries
-            if (!primary && WRITE_COMMANDS.contains(cmd.toLowerCase()) &&
+            if (!primary && isWriteCommand &&
                     !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
                 return Doc.of("ok", 0.0, "errmsg", "not primary", "code", 10107, "codeName", "NotWritablePrimary");
             }
@@ -322,6 +331,30 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> answer = Doc.of("ok", 1.0);
             if (result != null) answer.putAll(result);
 
+            // Handle write concern for write commands on primary
+            if (isWriteCommand && primary && replicationCoordinator != null) {
+                // Get the sequence from the InMemoryDriver's change stream
+                // This is the sequence number of the change event that was just created
+                long writeSeq = driver.getChangeStreamSequence();
+
+                // Extract write concern from command
+                int w = getWriteConcernW(doc);
+                long wtimeout = getWriteConcernTimeout(doc);
+
+                if (w > 1) {
+                    boolean acknowledged = replicationCoordinator.waitForReplication(writeSeq, w, wtimeout);
+                    if (!acknowledged) {
+                        // Write succeeded but replication timed out
+                        answer.put("writeConcernError", Doc.of(
+                            "code", 64,
+                            "codeName", "WriteConcernFailed",
+                            "errmsg", "waiting for replication timed out",
+                            "errInfo", Doc.of("wtimeout", true)
+                        ));
+                    }
+                }
+            }
+
             // Handle tailable cursors
             if (cmd.equalsIgnoreCase("find") && Boolean.TRUE.equals(doc.get("tailable"))) {
                 setupTailableCursor(doc, answer);
@@ -341,6 +374,67 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             log.error("Error executing command {}: {}", cmd, errorMsg, e);
             return Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd);
         }
+    }
+
+    /**
+     * Process replication progress report from a secondary.
+     * This is called when a secondary sends its current replication sequence.
+     */
+    private Map<String, Object> processReplSetProgress(Map<String, Object> doc) {
+        if (replicationCoordinator == null) {
+            // Not a primary with replication enabled
+            return Doc.of("ok", 0.0, "errmsg", "not primary or replication not enabled");
+        }
+
+        String secondaryAddress = (String) doc.get("secondaryAddress");
+        Object seqObj = doc.get("sequenceNumber");
+
+        if (secondaryAddress == null || seqObj == null) {
+            return Doc.of("ok", 0.0, "errmsg", "missing secondaryAddress or sequenceNumber");
+        }
+
+        long sequenceNumber = seqObj instanceof Number ? ((Number) seqObj).longValue() : 0;
+
+        log.debug("Received replication progress from {}: seq={}", secondaryAddress, sequenceNumber);
+        replicationCoordinator.reportProgress(secondaryAddress, sequenceNumber);
+
+        return Doc.of("ok", 1.0);
+    }
+
+    /**
+     * Extract write concern 'w' value from command document.
+     * Returns 1 if not specified (primary only).
+     */
+    @SuppressWarnings("unchecked")
+    private int getWriteConcernW(Map<String, Object> doc) {
+        Object wc = doc.get("writeConcern");
+        if (wc instanceof Map) {
+            Object w = ((Map<String, Object>) wc).get("w");
+            if (w instanceof Number) {
+                return ((Number) w).intValue();
+            } else if ("majority".equals(w)) {
+                // Majority = (replicaSetSize / 2) + 1
+                return (hosts.size() / 2) + 1;
+            }
+        }
+        // Default: w=1 (primary only acknowledgment)
+        return 1;
+    }
+
+    /**
+     * Extract write concern timeout from command document.
+     * Returns 0 if not specified (use default).
+     */
+    @SuppressWarnings("unchecked")
+    private long getWriteConcernTimeout(Map<String, Object> doc) {
+        Object wc = doc.get("writeConcern");
+        if (wc instanceof Map) {
+            Object wtimeout = ((Map<String, Object>) wc).get("wtimeout");
+            if (wtimeout instanceof Number) {
+                return ((Number) wtimeout).longValue();
+            }
+        }
+        return 0; // Use default timeout
     }
 
     @SuppressWarnings("unchecked")

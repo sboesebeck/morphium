@@ -36,14 +36,23 @@ public class ReplicationManager {
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final AtomicLong eventsApplied = new AtomicLong(0);
     private final AtomicLong lastEventTime = new AtomicLong(0);
+    private final AtomicLong lastAppliedSequence = new AtomicLong(0);
+    private final AtomicLong lastReportedSequence = new AtomicLong(0);
+
+    // Secondary's address for reporting back to primary
+    private String myAddress;
 
     private Morphium primaryMorphium;
     private ExecutorService replicationExecutor;
+    private ScheduledExecutorService progressReporter;
     private volatile long watchCursorId = -1;
 
     // Initial sync state
     private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
+
+    // Progress reporting interval
+    private static final long PROGRESS_REPORT_INTERVAL_MS = 100;
 
     public ReplicationManager(InMemoryDriver localDriver, String primaryHost, int primaryPort) {
         this.localDriver = localDriver;
@@ -52,11 +61,19 @@ public class ReplicationManager {
     }
 
     /**
+     * Set this secondary's address for reporting to primary.
+     */
+    public void setMyAddress(String myAddress) {
+        this.myAddress = myAddress;
+    }
+
+    /**
      * Start the replication process.
      * This will:
      * 1. Connect to the primary
      * 2. Perform initial sync (copy all data)
      * 3. Start watching for changes
+     * 4. Start reporting progress to primary
      */
     public void start() throws Exception {
         if (running.getAndSet(true)) {
@@ -76,6 +93,67 @@ public class ReplicationManager {
 
         // Start replication in background
         replicationExecutor.submit(this::replicationLoop);
+
+        // Start progress reporter
+        startProgressReporter();
+    }
+
+    /**
+     * Start a background task to periodically report replication progress to primary.
+     */
+    private void startProgressReporter() {
+        progressReporter = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "MorphiumServer-ProgressReporter");
+            t.setDaemon(true);
+            return t;
+        });
+
+        progressReporter.scheduleAtFixedRate(this::reportProgressToPrimary,
+                PROGRESS_REPORT_INTERVAL_MS, PROGRESS_REPORT_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Report current replication progress to the primary.
+     */
+    private void reportProgressToPrimary() {
+        if (!connected.get() || primaryMorphium == null || myAddress == null) {
+            return;
+        }
+
+        long currentSeq = lastAppliedSequence.get();
+        long lastReported = lastReportedSequence.get();
+
+        // Only report if there's new progress
+        if (currentSeq <= lastReported) {
+            return;
+        }
+
+        MongoConnection con = null;
+        try {
+            // Get a connection and send replSetProgress command to primary
+            con = primaryMorphium.getDriver().getPrimaryConnection(null);
+            GenericCommand cmd = new GenericCommand(con);
+            cmd.setDb("admin");
+            cmd.setCmdData(Doc.of(
+                "replSetProgress", 1,
+                "secondaryAddress", myAddress,
+                "sequenceNumber", currentSeq
+            ));
+
+            cmd.executeAsync();  // Fire and forget - we don't need to wait for response
+            lastReportedSequence.set(currentSeq);
+            log.debug("Reported progress to primary: seq={}", currentSeq);
+        } catch (Exception e) {
+            log.debug("Failed to report progress: {}", e.getMessage());
+        } finally {
+            if (con != null) {
+                try {
+                    primaryMorphium.getDriver().releaseConnection(con);
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }
     }
 
     /**
@@ -88,13 +166,25 @@ public class ReplicationManager {
 
         log.info("Stopping replication...");
 
+        // Stop progress reporter
+        if (progressReporter != null) {
+            progressReporter.shutdownNow();
+            try {
+                progressReporter.awaitTermination(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            progressReporter = null;
+        }
+
         if (replicationExecutor != null) {
             replicationExecutor.shutdownNow();
         }
 
         disconnectFromPrimary();
 
-        log.info("Replication stopped. Events applied: {}", eventsApplied.get());
+        log.info("Replication stopped. Events applied: {}, lastSequence: {}",
+                eventsApplied.get(), lastAppliedSequence.get());
     }
 
     private void connectToPrimary() throws Exception {
@@ -310,11 +400,18 @@ public class ReplicationManager {
     @SuppressWarnings("unchecked")
     private void applyChangeEvent(Map<String, Object> event) {
         try {
+            // Extract sequence number from resume token
+            long sequenceNumber = extractSequenceFromEvent(event);
+
             String operationType = (String) event.get("operationType");
             Map<String, Object> ns = (Map<String, Object>) event.get("ns");
 
             if (ns == null) {
                 log.debug("Ignoring event without namespace: {}", operationType);
+                // Still update sequence for non-namespace events
+                if (sequenceNumber > 0) {
+                    lastAppliedSequence.set(sequenceNumber);
+                }
                 return;
             }
 
@@ -323,10 +420,14 @@ public class ReplicationManager {
 
             // Skip system databases
             if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+                // Still update sequence for skipped events
+                if (sequenceNumber > 0) {
+                    lastAppliedSequence.set(sequenceNumber);
+                }
                 return;
             }
 
-            log.debug("Applying change event: {} on {}.{}", operationType, db, coll);
+            log.debug("Applying change event: {} on {}.{} seq={}", operationType, db, coll, sequenceNumber);
 
             switch (operationType) {
                 case "insert": {
@@ -418,9 +519,36 @@ public class ReplicationManager {
             eventsApplied.incrementAndGet();
             lastEventTime.set(System.currentTimeMillis());
 
+            // Update last applied sequence after successful application
+            if (sequenceNumber > 0) {
+                lastAppliedSequence.set(sequenceNumber);
+            }
+
         } catch (Exception e) {
             log.error("Error applying change event: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Extract the sequence number from a change event's resume token.
+     * The InMemoryDriver uses format: {_id: {_data: "hex-encoded-sequence"}}
+     */
+    @SuppressWarnings("unchecked")
+    private long extractSequenceFromEvent(Map<String, Object> event) {
+        try {
+            Object idObj = event.get("_id");
+            if (idObj instanceof Map) {
+                Map<String, Object> idMap = (Map<String, Object>) idObj;
+                Object dataObj = idMap.get("_data");
+                if (dataObj instanceof String) {
+                    String hexData = (String) dataObj;
+                    return Long.parseLong(hexData, 16);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract sequence from event: {}", e.getMessage());
+        }
+        return 0;
     }
 
     /**
@@ -461,7 +589,17 @@ public class ReplicationManager {
         stats.put("initialSyncComplete", initialSyncComplete.get());
         stats.put("eventsApplied", eventsApplied.get());
         stats.put("lastEventTime", lastEventTime.get());
+        stats.put("lastAppliedSequence", lastAppliedSequence.get());
+        stats.put("lastReportedSequence", lastReportedSequence.get());
         stats.put("primaryHost", primaryHost + ":" + primaryPort);
+        stats.put("myAddress", myAddress);
         return stats;
+    }
+
+    /**
+     * Get the last applied sequence number.
+     */
+    public long getLastAppliedSequence() {
+        return lastAppliedSequence.get();
     }
 }
