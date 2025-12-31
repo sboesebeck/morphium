@@ -2345,6 +2345,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return true;
     }
 
+    /**
+     * Get the current change stream sequence number.
+     * Used by MorphiumServer for write concern coordination.
+     */
+    public long getChangeStreamSequence() {
+        return changeStreamSequence.get();
+    }
+
     @Override
     public String getConnectedTo() {
         return "inMem:0000";

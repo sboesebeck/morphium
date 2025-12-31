@@ -76,6 +76,7 @@ public class MorphiumServer {
 
     // Replication
     private ReplicationManager replicationManager = null;
+    private ReplicationCoordinator replicationCoordinator = null;
 
     public MorphiumServer(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
@@ -164,7 +165,8 @@ public class MorphiumServer {
                         pipeline.addLast("commandHandler", new MongoCommandHandler(
                                 driver, cursorManager, msgId,
                                 host, port, rsName, hosts,
-                                primary, primaryHost, compressorId
+                                primary, primaryHost, compressorId,
+                                replicationCoordinator
                         ));
 
                         // Track the channel
@@ -307,6 +309,12 @@ public class MorphiumServer {
                      myAddress, primary, primaryHost);
         }
 
+        // Initialize replication coordinator for primary nodes in replica sets
+        if (primary && !rsName.isEmpty() && hosts.size() > 1) {
+            replicationCoordinator = new ReplicationCoordinator(hosts.size());
+            log.info("Replication coordinator initialized for {} nodes", hosts.size());
+        }
+
         driver.setReplicaSet(!rsName.isEmpty());
         driver.setReplicaSetName(rsName);
         driver.setHostSeed(hosts);
@@ -389,6 +397,8 @@ public class MorphiumServer {
             log.info("Starting replication from primary {}:{}", pHost, pPort);
 
             replicationManager = new ReplicationManager(driver, pHost, pPort);
+            // Set this secondary's address for progress reporting
+            replicationManager.setMyAddress(host + ":" + port);
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -453,7 +463,14 @@ public class MorphiumServer {
         if (replicationManager != null) {
             stats.put("replication", replicationManager.getStats());
         }
+        if (replicationCoordinator != null) {
+            stats.put("replicationCoordinator", replicationCoordinator.getStats());
+        }
         return stats;
+    }
+
+    public ReplicationCoordinator getReplicationCoordinator() {
+        return replicationCoordinator;
     }
 
     public InMemoryDriver getDriver() {
