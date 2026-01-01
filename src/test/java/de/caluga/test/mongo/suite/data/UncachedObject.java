@@ -16,7 +16,7 @@ import java.util.Objects;
  */
 @NoCache
 @Entity(typeId = "uc")
-@WriteSafety(timeout = -1, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+@WriteSafety(timeout = 10000, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {
     @Index

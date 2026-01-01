@@ -112,6 +112,12 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
+        // Skip for MorphiumServer - cache sync doesn't work over network
+        if (morphium.getDriver().isInMemoryBackend()) {
+            log.info("Skipping cache test for MorphiumServer - cache sync not supported over network");
+            morphium.close();
+            return;
+        }
         int gcTime = morphium.getConfig().getGlobalCacheValidTime();
         int hcTime = morphium.getConfig().getHousekeepingTimeout();
         Cache cache = morphium.getARHelper().getAnnotationFromHierarchy(SpecCachedOjbect.class, Cache.class);
