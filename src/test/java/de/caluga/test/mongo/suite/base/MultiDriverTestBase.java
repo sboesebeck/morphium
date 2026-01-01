@@ -371,7 +371,9 @@ public class MultiDriverTestBase {
         morphium.storeList(lst);
 
         long targetCount = amount;
-        TestUtils.waitForConditionToBecomeTrue(targetCount * 100, (dur, e)->log.error("Could not store"), ()->q.countAll() >= targetCount, (dur)->log.info("Waiting for data to be stored...{}/{}", q.countAll(), targetCount));
+        // Wait longer for replica set replication - MorphiumServer needs more time
+        long waitTimeout = Math.max(targetCount * 100, 15000);  // At least 15 seconds for replication
+        TestUtils.waitForConditionToBecomeTrue(waitTimeout, (dur, e)->log.error("Could not store after {}ms", dur), ()->q.countAll() >= targetCount, (dur)->log.info("Waiting for data to be stored...{}/{}", q.countAll(), targetCount));
         log.info("createUncachedObjects complete: created {} objects, total now {}", amount, q.countAll());
     }
 

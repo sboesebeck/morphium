@@ -339,7 +339,8 @@ public class CacheTests extends MultiDriverTestBase {
                 morphium.store(co);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(3000, "Objects not stored",
+            // MorphiumServer RS mode: 100 individual writes can take 30+ seconds with replication
+            TestUtils.waitForConditionToBecomeTrue(60000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == objectCount);
 
             // Query all objects to populate cache

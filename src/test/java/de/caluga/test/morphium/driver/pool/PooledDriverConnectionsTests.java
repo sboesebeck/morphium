@@ -20,6 +20,7 @@ import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.support.TestConfig;
 
 @Tag("driver")
+@Tag("failover")  // Skip on MorphiumServer - connection pool stress tests require real MongoDB
 public class PooledDriverConnectionsTests {
     private Logger log = LoggerFactory.getLogger(PooledDriverConnectionsTests.class);
 

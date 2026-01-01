@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
+@Tag("external")  // Requires MongoDB - $geoNear not supported by InMemoryDriver
 public class GeoNearTest extends MultiDriverTestBase {
 
     @ParameterizedTest
