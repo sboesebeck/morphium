@@ -54,6 +54,12 @@ public class ReplicationManager {
     // Progress reporting interval
     private static final long PROGRESS_REPORT_INTERVAL_MS = 100;
 
+    // Batching configuration for efficient replication
+    private static final int BATCH_SIZE = 100;
+    private static final long BATCH_FLUSH_INTERVAL_MS = 10;
+    private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>();
+    private ScheduledExecutorService batchProcessor;
+
     public ReplicationManager(InMemoryDriver localDriver, String primaryHost, int primaryPort) {
         this.localDriver = localDriver;
         this.primaryHost = primaryHost;
@@ -94,8 +100,134 @@ public class ReplicationManager {
         // Start replication in background
         replicationExecutor.submit(this::replicationLoop);
 
+        // Start batch processor for efficient event application
+        startBatchProcessor();
+
         // Start progress reporter
         startProgressReporter();
+    }
+
+    /**
+     * Start the batch processor that efficiently applies change events.
+     */
+    private void startBatchProcessor() {
+        batchProcessor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "MorphiumServer-BatchProcessor");
+            t.setDaemon(true);
+            return t;
+        });
+
+        batchProcessor.scheduleAtFixedRate(this::processBatch,
+                BATCH_FLUSH_INTERVAL_MS, BATCH_FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Process queued events in batches for better performance.
+     */
+    private void processBatch() {
+        if (eventQueue.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> batch = new ArrayList<>(BATCH_SIZE);
+        eventQueue.drainTo(batch, BATCH_SIZE);
+
+        if (batch.isEmpty()) {
+            return;
+        }
+
+        // Group events by type and collection for bulk operations
+        Map<String, List<Map<String, Object>>> insertsByCollection = new HashMap<>();
+        List<Map<String, Object>> otherEvents = new ArrayList<>();
+
+        for (Map<String, Object> event : batch) {
+            String operationType = (String) event.get("operationType");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> ns = (Map<String, Object>) event.get("ns");
+
+            if (ns == null || !"insert".equals(operationType)) {
+                otherEvents.add(event);
+                continue;
+            }
+
+            String db = (String) ns.get("db");
+            String coll = (String) ns.get("coll");
+            String key = db + "." + coll;
+
+            insertsByCollection.computeIfAbsent(key, k -> new ArrayList<>()).add(event);
+        }
+
+        // Apply bulk inserts
+        for (Map.Entry<String, List<Map<String, Object>>> entry : insertsByCollection.entrySet()) {
+            applyBulkInserts(entry.getKey(), entry.getValue());
+        }
+
+        // Apply other events individually
+        for (Map<String, Object> event : otherEvents) {
+            applyChangeEvent(event);
+        }
+    }
+
+    /**
+     * Apply multiple insert events as a single bulk insert.
+     */
+    @SuppressWarnings("unchecked")
+    private void applyBulkInserts(String collKey, List<Map<String, Object>> events) {
+        if (events.isEmpty()) return;
+
+        String[] parts = collKey.split("\\.", 2);
+        String db = parts[0];
+        String coll = parts[1];
+
+        // Skip system databases
+        if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+            // Still update sequence for skipped events
+            for (Map<String, Object> event : events) {
+                long seq = extractSequenceFromEvent(event);
+                if (seq > 0) {
+                    lastAppliedSequence.updateAndGet(current -> Math.max(current, seq));
+                }
+            }
+            return;
+        }
+
+        List<Map<String, Object>> documents = new ArrayList<>(events.size());
+        long maxSeq = 0;
+
+        for (Map<String, Object> event : events) {
+            Map<String, Object> fullDoc = (Map<String, Object>) event.get("fullDocument");
+            if (fullDoc != null) {
+                documents.add(fullDoc);
+            }
+            long seq = extractSequenceFromEvent(event);
+            if (seq > maxSeq) {
+                maxSeq = seq;
+            }
+        }
+
+        if (!documents.isEmpty()) {
+            try {
+                GenericCommand cmd = new GenericCommand(localDriver);
+                cmd.setDb(db);
+                cmd.setColl(coll);
+                cmd.setCmdData(Doc.of(
+                    "insert", coll,
+                    "$db", db,
+                    "documents", documents
+                ));
+                localDriver.runCommand(cmd);
+                eventsApplied.addAndGet(documents.size());
+                log.debug("Bulk inserted {} documents into {}.{}", documents.size(), db, coll);
+            } catch (Exception e) {
+                log.error("Error applying bulk insert to {}.{}: {}", db, coll, e.getMessage());
+            }
+        }
+
+        // Update sequence
+        final long finalMaxSeq = maxSeq;
+        if (finalMaxSeq > 0) {
+            lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
+        }
     }
 
     /**
@@ -165,6 +297,19 @@ public class ReplicationManager {
         }
 
         log.info("Stopping replication...");
+
+        // Stop batch processor first to flush remaining events
+        if (batchProcessor != null) {
+            // Process any remaining events
+            processBatch();
+            batchProcessor.shutdownNow();
+            try {
+                batchProcessor.awaitTermination(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            batchProcessor = null;
+        }
 
         // Stop progress reporter
         if (progressReporter != null) {
@@ -374,7 +519,8 @@ public class ReplicationManager {
                         if (!running.get()) {
                             return;
                         }
-                        applyChangeEvent(data);
+                        // Queue for batch processing instead of immediate application
+                        eventQueue.offer(data);
                     }
 
                     @Override

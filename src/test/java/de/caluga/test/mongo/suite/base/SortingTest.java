@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * <p>
  */
 @Tag("core")
+@Tag("failover")  // Skip on MorphiumServer RS - 5000 document bulk writes too slow with replication
 public class SortingTest extends MultiDriverTestBase {
     private void prepare(Morphium morphium) {
         morphium.dropCollection(UncachedObject.class);
@@ -51,7 +52,8 @@ public class SortingTest extends MultiDriverTestBase {
         log.info("Sending bulk write...");
         morphium.storeList(lst);
         log.info("Wrote it... waiting for batch to be stored");
-        TestUtils.waitForConditionToBecomeTrue(1000, "Data not written", ()-> TestUtils.countUC(morphium) == 5002);
+        // Wait longer for replica set replication - MorphiumServer RS mode can take 40+ seconds for bulk writes
+        TestUtils.waitForConditionToBecomeTrue(120000, "Data not written", ()-> TestUtils.countUC(morphium) == 5002);
     }
 
     @ParameterizedTest
