@@ -331,6 +331,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> answer = Doc.of("ok", 1.0);
             if (result != null) answer.putAll(result);
 
+            // Notify tailable cursors about inserted documents
+            if (cmd.equalsIgnoreCase("insert")) {
+                notifyTailableCursorsOnInsert(doc);
+            }
+
             // Handle write concern for write commands on primary
             if (isWriteCommand && primary && replicationCoordinator != null) {
                 // Get the sequence from the InMemoryDriver's change stream
@@ -462,9 +467,40 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 String coll = (String) doc.get("find");
                 Map<String, Object> filter = (Map<String, Object>) doc.get("filter");
                 log.info("Setting up tailable cursor {} for {}.{}", tailCursorId, db, coll);
-                // Register with cursor manager for async handling
-                // The actual cursor ID is already created by the driver
+                // Register the driver's cursor with our cursor manager for notification handling
+                cursorManager.registerTailableCursor(tailCursorId, db, coll, filter);
             }
+        }
+    }
+
+    /**
+     * Notify tailable cursors about newly inserted documents.
+     */
+    @SuppressWarnings("unchecked")
+    private void notifyTailableCursorsOnInsert(Map<String, Object> doc) {
+        try {
+            String db = (String) doc.get("$db");
+            String coll = (String) doc.get("insert");
+            Object docsObj = doc.get("documents");
+
+            if (db == null || coll == null || docsObj == null) {
+                return;
+            }
+
+            List<Map<String, Object>> documents;
+            if (docsObj instanceof List) {
+                documents = (List<Map<String, Object>>) docsObj;
+            } else {
+                return;
+            }
+
+            if (!documents.isEmpty()) {
+                log.debug("Notifying tailable cursors about {} inserted documents in {}.{}",
+                         documents.size(), db, coll);
+                cursorManager.notifyTailableCursors(db, coll, documents);
+            }
+        } catch (Exception e) {
+            log.debug("Error notifying tailable cursors: {}", e.getMessage());
         }
     }
 
