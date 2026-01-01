@@ -253,6 +253,19 @@ public class WatchCursorManager {
     }
 
     /**
+     * Register an external cursor ID as a tailable cursor.
+     * Used when the driver creates the cursor but we need to track it for notifications.
+     */
+    public void registerTailableCursor(long cursorId, String db, String collection, Map<String, Object> filter) {
+        if (tailableCursors.containsKey(cursorId)) {
+            return; // Already registered
+        }
+        TailableCursorState state = new TailableCursorState(cursorId, db, collection, filter);
+        tailableCursors.put(cursorId, state);
+        log.info("Registered external tailable cursor {} for {}.{}", cursorId, db, collection);
+    }
+
+    /**
      * Add a document to a tailable cursor (called when new documents are inserted).
      */
     public void onTailableDocument(long cursorId, Map<String, Object> document) {
@@ -269,6 +282,58 @@ public class WatchCursorManager {
             List<Map<String, Object>> batch = drainEvents(state.documents);
             pending.future.complete(batch);
         }
+    }
+
+    /**
+     * Notify all tailable cursors watching a specific collection about new documents.
+     * Called when documents are inserted into a capped collection.
+     */
+    public void notifyTailableCursors(String db, String collection, List<Map<String, Object>> documents) {
+        for (TailableCursorState state : tailableCursors.values()) {
+            if (!state.active) {
+                continue;
+            }
+            if (!db.equals(state.db) || !collection.equals(state.collection)) {
+                continue;
+            }
+
+            // Add all documents to the cursor's queue
+            for (Map<String, Object> doc : documents) {
+                // Check if document matches the cursor's filter (if any)
+                if (state.filter == null || state.filter.isEmpty() || matchesFilter(doc, state.filter)) {
+                    state.documents.offer(doc);
+                }
+            }
+
+            // Complete any pending getMore requests
+            PendingGetMore pending;
+            while ((pending = state.pendingGetMores.poll()) != null) {
+                List<Map<String, Object>> batch = drainEvents(state.documents);
+                pending.future.complete(batch);
+            }
+        }
+    }
+
+    /**
+     * Simple filter matching for tailable cursor queries.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean matchesFilter(Map<String, Object> doc, Map<String, Object> filter) {
+        if (filter == null || filter.isEmpty()) {
+            return true;
+        }
+        for (Map.Entry<String, Object> entry : filter.entrySet()) {
+            String key = entry.getKey();
+            Object filterValue = entry.getValue();
+            Object docValue = doc.get(key);
+
+            if (filterValue == null) {
+                if (docValue != null) return false;
+            } else if (!filterValue.equals(docValue)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
