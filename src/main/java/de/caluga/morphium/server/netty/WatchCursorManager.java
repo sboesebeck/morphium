@@ -132,19 +132,30 @@ public class WatchCursorManager {
             return CompletableFuture.completedFuture(batch);
         }
 
+        // If not running, return empty immediately
+        if (!running) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+
         // No events available - set up async wait
         CompletableFuture<List<Map<String, Object>>> future = new CompletableFuture<>();
         PendingGetMore pending = new PendingGetMore(future);
         state.pendingGetMores.offer(pending);
 
-        // Schedule timeout
-        scheduler.schedule(() -> {
-            if (state.pendingGetMores.remove(pending)) {
-                // Timeout - return whatever events are available (may be empty)
-                List<Map<String, Object>> batch = drainEvents(state.events);
-                future.complete(batch);
-            }
-        }, maxTimeMs, TimeUnit.MILLISECONDS);
+        // Schedule timeout - handle rejected execution during shutdown
+        try {
+            scheduler.schedule(() -> {
+                if (state.pendingGetMores.remove(pending)) {
+                    // Timeout - return whatever events are available (may be empty)
+                    List<Map<String, Object>> batch = drainEvents(state.events);
+                    future.complete(batch);
+                }
+            }, maxTimeMs, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException e) {
+            // Scheduler is shutting down - complete immediately
+            state.pendingGetMores.remove(pending);
+            future.complete(Collections.emptyList());
+        }
 
         return future;
     }
@@ -156,18 +167,29 @@ public class WatchCursorManager {
             return CompletableFuture.completedFuture(batch);
         }
 
+        // If not running, return empty immediately
+        if (!running) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+
         // No documents available - set up async wait
         CompletableFuture<List<Map<String, Object>>> future = new CompletableFuture<>();
         PendingGetMore pending = new PendingGetMore(future);
         state.pendingGetMores.offer(pending);
 
-        // Schedule timeout
-        scheduler.schedule(() -> {
-            if (state.pendingGetMores.remove(pending)) {
-                List<Map<String, Object>> batch = drainEvents(state.documents);
-                future.complete(batch);
-            }
-        }, maxTimeMs, TimeUnit.MILLISECONDS);
+        // Schedule timeout - handle rejected execution during shutdown
+        try {
+            scheduler.schedule(() -> {
+                if (state.pendingGetMores.remove(pending)) {
+                    List<Map<String, Object>> batch = drainEvents(state.documents);
+                    future.complete(batch);
+                }
+            }, maxTimeMs, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException e) {
+            // Scheduler is shutting down - complete immediately
+            state.pendingGetMores.remove(pending);
+            future.complete(Collections.emptyList());
+        }
 
         return future;
     }
