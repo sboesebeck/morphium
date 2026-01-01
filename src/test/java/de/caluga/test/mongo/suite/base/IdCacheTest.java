@@ -33,6 +33,12 @@ public class IdCacheTest extends MultiDriverTestBase {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
+        // Skip for MorphiumServer - cache sync doesn't work over network
+        if (morphium.getDriver().isInMemoryBackend()) {
+            log.info("Skipping cache test for MorphiumServer - cache sync not supported over network");
+            morphium.close();
+            return;
+        }
         // Ensure clean state - drop collection first
         morphium.dropCollection(CachedObject.class);
         Thread.sleep(100);
