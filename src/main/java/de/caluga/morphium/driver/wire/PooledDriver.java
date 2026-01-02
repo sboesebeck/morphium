@@ -287,6 +287,22 @@ public class PooledDriver extends DriverBase {
         // Keep track of server-advertised vs reachable names.
         registerAlias(hello.getMe(), hostConnected);
 
+        // IMPORTANT: Add hosts from hello BEFORE checking for primary node.
+        // Otherwise, when connecting to a secondary first, the advertised primary
+        // won't be in the hosts map and we can't set primaryNode from it.
+        if (hello.getHosts() != null && !hello.getHosts().isEmpty()) {
+            lastHostsFromHello = hello.getHosts();
+
+            for (String hst : hello.getHosts()) {
+                String resolved = resolveAlias(hst);
+                if (!hosts.containsKey(resolved)) {
+                    hosts.put(resolved, new Host(getHost(resolved), getPortFromHost(resolved)));
+                }
+
+                addToHostSeed(resolved);
+            }
+        }
+
         if (hello.getWritablePrimary() != null && hello.getWritablePrimary() && hello.getMe() == null) {
             if (hello.getWritablePrimary() && primaryNode == null) {
                 primaryNode = hostConnected;
@@ -319,16 +335,6 @@ public class PooledDriver extends DriverBase {
         }
 
         if (hello.getHosts() != null && !hello.getHosts().isEmpty()) {
-            lastHostsFromHello = hello.getHosts();
-
-            for (String hst : hello.getHosts()) {
-                String resolved = resolveAlias(hst);
-                if (!hosts.containsKey(resolved)) {
-                    hosts.put(resolved, new Host(getHost(resolved), getPortFromHost(resolved)));
-                }
-
-                addToHostSeed(resolved);
-            }
 
             // Do NOT remove existing host seed entries here.
             // Users might provide a seed list using different (but resolvable) hostnames than those
@@ -781,6 +787,12 @@ public class PooledDriver extends DriverBase {
             var type = rp.getType();
 
             if (isTransactionInProgress()) {
+                type = ReadPreferenceType.PRIMARY;
+            }
+
+            // Force PRIMARY reads for InMemory backend (MorphiumServer) to ensure read-your-writes consistency
+            // InMemory backend replication is eventually consistent, so NEAREST/SECONDARY reads may return stale data
+            if (inMemoryBackend && type != ReadPreferenceType.PRIMARY) {
                 type = ReadPreferenceType.PRIMARY;
             }
 
