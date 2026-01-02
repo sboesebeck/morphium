@@ -862,7 +862,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Constructor declaredConstructor = commandClass.getDeclaredConstructor(MongoConnection.class);
             declaredConstructor.setAccessible(true);
             var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
-            mongoCommand.fromMap(cmdMap);
+            try {
+                mongoCommand.fromMap(cmdMap);
+            } catch (Exception e) {
+                log.error("Error in fromMap for {}: {}", commandClass.getSimpleName(), e.getMessage());
+                throw new RuntimeException("Error parsing command " + commandClass.getSimpleName() + ": " + e.getMessage(), e);
+            }
 
             try {
                 Method method = this.getClass().getDeclaredMethod("runCommand", commandClass);
@@ -877,6 +882,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } catch (NoSuchMethodException ex) {
                 log.error("No method for command " + commandClass.getSimpleName() + " - "
                           + mongoCommand.getCommandName());
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                // Unwrap InvocationTargetException to get the actual cause
+                Throwable cause = e.getCause();
+                if (cause instanceof RuntimeException) {
+                    throw (RuntimeException) cause;
+                } else if (cause != null) {
+                    throw new RuntimeException("Error executing command " + commandClass.getSimpleName() + ": " + cause.getMessage(), cause);
+                } else {
+                    throw new RuntimeException("Error executing command " + commandClass.getSimpleName(), e);
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -918,8 +933,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(UpdateMongoCommand cmd) throws MorphiumDriverException {
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        log.debug("runCommand(UpdateMongoCommand) called - updates count: {}",
+            cmd.getUpdates() != null ? cmd.getUpdates().size() : "null");
+        if (cmd.getUpdates() != null && !cmd.getUpdates().isEmpty()) {
+            log.debug("First update element type: {}", cmd.getUpdates().get(0).getClass());
+        }
         int ret = commandNumber.incrementAndGet();
         Map<String, Object> stats = new HashMap<>();
         int totalMatched = 0;
@@ -946,8 +964,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (update.containsKey("collation") && update.get("collation") instanceof Map) {
                 collation = (Map<String, Object>) update.get("collation");
             }
-            var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) update.get("q"), null,
-                             (Map<String, Object>) update.get("u"), multi, upsert, collation, cmd.getWriteConcern());
+
+            // Debug type checking
+            Object queryObj = update.get("q");
+            Object updateObj = update.get("u");
+            if (!(queryObj instanceof Map)) {
+                log.error("update.q is not a Map! Type: {}, value: {}", queryObj != null ? queryObj.getClass() : "null", queryObj);
+                throw new RuntimeException("Query must be a Map, got: " + (queryObj != null ? queryObj.getClass() : "null"));
+            }
+            if (!(updateObj instanceof Map)) {
+                log.error("update.u is not a Map! Type: {}, value: {}", updateObj != null ? updateObj.getClass() : "null", updateObj);
+                throw new RuntimeException("Update document must be a Map, got: " + (updateObj != null ? updateObj.getClass() : "null"));
+            }
+
+            var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) queryObj, null,
+                             (Map<String, Object>) updateObj, multi, upsert, collation, cmd.getWriteConcern());
 
             // accumulate matched and modified
             Object m = res.get("matched");
@@ -3989,12 +4020,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<Object> upsertedIds = new ArrayList<>();
             int modifiedCount = 0;
 
+            // Check if this is a replacement document (no $ operators) vs an update document (has $ operators)
+            boolean isReplacement = op.keySet().stream().noneMatch(k -> k.startsWith("$"));
+
             for (Map<String, Object> obj : lst) {
                 // keep a deep copy to detect if the object actually changed
                 Map<String, Object> original = deepClone(obj);
                 if (original == null) {
                     original = new HashMap<>(obj); // fallback
                 }
+
+                // Handle replacement document: replace entire document except _id
+                if (isReplacement) {
+                    Object idValue = obj.get("_id");
+                    obj.clear();
+                    if (idValue != null) {
+                        obj.put("_id", idValue);
+                    }
+                    obj.putAll(op);  // Copy all fields from replacement document
+                    // Track modifications for watchers
+                    if (!obj.equals(original)) {
+                        modified.add(obj.get("_id"));
+                        modifiedCount++;
+                    }
+                    continue;  // Skip to next document, no need to process as update operators
+                }
+
                 for (String operand : op.keySet()) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> cmd = (Map<String, Object>) op.get(operand);

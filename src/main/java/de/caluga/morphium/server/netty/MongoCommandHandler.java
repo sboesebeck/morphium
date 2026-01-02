@@ -376,6 +376,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
 
             String errorMsg = getDeepestCauseMessage(e);
+            // Log full stack trace for debugging
             log.error("Error executing command {}: {}", cmd, errorMsg, e);
             return Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd);
         }
@@ -636,13 +637,26 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private String getDeepestCauseMessage(Throwable e) {
         String msg = e.getMessage();
         Throwable current = e;
-        while (current.getCause() != null) {
-            current = current.getCause();
-            if (current.getMessage() != null) {
-                msg = current.getMessage();
+        StringBuilder sb = new StringBuilder();
+        while (current != null) {
+            String currentMsg = current.getMessage();
+            if (currentMsg != null && !currentMsg.isEmpty()) {
+                // Skip generic exception wrapper messages
+                if (!currentMsg.equals("java.lang.reflect.InvocationTargetException") &&
+                    !currentMsg.startsWith("java.lang.")) {
+                    msg = currentMsg;
+                }
             }
+            // Also check class name for debugging
+            sb.append(current.getClass().getSimpleName());
+            if (current.getMessage() != null) {
+                sb.append(": ").append(current.getMessage());
+            }
+            sb.append(" -> ");
+            current = current.getCause();
         }
-        return msg;
+        log.debug("Exception chain: {}", sb.toString());
+        return msg != null ? msg : e.getClass().getSimpleName();
     }
 
     @Override

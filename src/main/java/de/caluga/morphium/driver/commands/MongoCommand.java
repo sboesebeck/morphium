@@ -107,6 +107,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
     public T fromMap(Map<String, Object> m) {
         setColl("" + m.get(getCommandName()));
+        LoggerFactory.getLogger(this.getClass()).debug("fromMap for {}: map keys = {}", this.getClass().getSimpleName(), m.keySet());
 
         for (Field f : an.getAllFields(this.getClass())) {
             if (Modifier.isStatic(f.getModifiers())) {
@@ -147,10 +148,29 @@ public abstract class MongoCommand<T extends MongoCommand> {
                 }
 
                 if (v != null) {
-                    if (f.getType().equals(UUID.class)) {
-                        f.set(this, ((Map)v).get("id"));
-                    } else {
-                        f.set(this, v);
+                    try {
+                        if (f.getType().equals(UUID.class)) {
+                            // Handle UUID values that might be actual UUIDs or Maps containing id
+                            if (v instanceof UUID) {
+                                f.set(this, v);
+                            } else if (v instanceof Map) {
+                                f.set(this, ((Map)v).get("id"));
+                            } else if (v instanceof String) {
+                                f.set(this, UUID.fromString((String) v));
+                            } else {
+                                LoggerFactory.getLogger(this.getClass()).warn(
+                                    "Unexpected type for UUID field {}: {}", n, v.getClass());
+                            }
+                        } else {
+                            LoggerFactory.getLogger(this.getClass()).debug("Setting field {} (type {}) to value of type {}",
+                                n, f.getType().getSimpleName(), v.getClass().getSimpleName());
+                            f.set(this, v);
+                        }
+                    } catch (ClassCastException | IllegalArgumentException cce) {
+                        LoggerFactory.getLogger(this.getClass()).error(
+                            "Type mismatch setting field {} (type {}) with value {} (type {})",
+                            n, f.getType().getName(), v, v.getClass().getName(), cce);
+                        throw cce;
                     }
                 }
             } catch (IllegalAccessException e) {
