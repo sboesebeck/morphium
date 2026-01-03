@@ -267,6 +267,13 @@
       <version>24.2.2</version>
       <type>pom</type>
       <!-- POM type pulls in transitive dependencies for JS language -->
+      <exclusions>
+        <!-- Exclude enterprise module - causes ServiceConfigurationError in fat jar -->
+        <exclusion>
+          <groupId>org.graalvm.truffle</groupId>
+          <artifactId>truffle-enterprise</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <!-- https://mvnrepository.com/artifact/rhino/js -->
     <!-- <dependency> -->
