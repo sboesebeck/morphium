@@ -160,7 +160,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         for (WriteBufferEntry entry : localQueue) {
-            morphium.clearCacheforClassIfNecessary(entry.getEntityType());
+            // Check if cache is still available (may be null during shutdown)
+            if (morphium.getCache() != null) {
+                morphium.clearCacheforClassIfNecessary(entry.getEntityType());
+            }
 
             if (!didNotWrite.contains(entry)) {
                 q.remove(entry);

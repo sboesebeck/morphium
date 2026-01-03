@@ -51,8 +51,8 @@ public class ReplicationManager {
     private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
 
-    // Progress reporting interval
-    private static final long PROGRESS_REPORT_INTERVAL_MS = 100;
+    // Progress reporting interval - low value for faster write concern acknowledgment
+    private static final long PROGRESS_REPORT_INTERVAL_MS = 10;
 
     // Batching configuration for efficient replication
     private static final int BATCH_SIZE = 100;
