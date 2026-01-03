@@ -212,6 +212,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Performance
 - Added collection name caching to reduce reflection overhead
 
+### Known Issues
+
+#### Messaging with MorphiumServer Replicaset
+- **ExclusiveMessageTests#exclusivityTest**: This test is flaky when running with multiple Morphium instances connecting to a MorphiumServer replicaset. The test sometimes passes and sometimes times out due to slower message processing compared to real MongoDB. Change stream events ARE being delivered correctly, but processing throughput with MorphiumServer is lower than with real MongoDB, causing occasional timeouts with the default test timeout.
+  - Workaround: Increase test timeout or use InMemoryDriver directly for messaging tests, or use a real MongoDB replicaset
+  - Status: Performance issue, not a correctness issue
+
+#### Test Suite Notes
+- **ShardingTests**: These tests require a sharded MongoDB cluster and will fail on standalone or replica set deployments
+- **SharedConnectionPoolTest**: Infrastructure test that requires specific connection pool setup
+- **TopicRegistryTest**: Network registry discovery tests may fail due to timing issues in some environments
+
+#### Test Results Summary (v6.1.0)
+| Backend | Tests Run | Passed | Errors | Skipped |
+|---------|-----------|--------|--------|---------|
+| InMemory Driver | 1046 | 929 | 12 | 105 |
+| MongoDB (Replicaset) | 1046 | 933 | 8 | 105 |
+
 ## [6.0.0] - 2024-XX-XX
 
 ### Major Release

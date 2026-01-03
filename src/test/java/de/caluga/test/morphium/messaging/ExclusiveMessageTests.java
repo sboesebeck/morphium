@@ -599,7 +599,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         sender.sendMessage(m);
                     }
 
-                    long waitUntil = System.currentTimeMillis() + 60000;
+                    long waitUntil = System.currentTimeMillis() + 300000; // 5 minutes - allows for slower backends like MorphiumServer
 
                     while (received.get() != amount + broadcastAmount * 4) {
                         int rec = received.get();

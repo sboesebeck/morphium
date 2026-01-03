@@ -52,13 +52,17 @@ public class ReplicationManager {
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
 
     // Progress reporting interval - low value for faster write concern acknowledgment
-    private static final long PROGRESS_REPORT_INTERVAL_MS = 10;
+    private static final long PROGRESS_REPORT_INTERVAL_MS = 5;
 
     // Batching configuration for efficient replication
-    private static final int BATCH_SIZE = 100;
-    private static final long BATCH_FLUSH_INTERVAL_MS = 10;
+    // Using smaller batch interval for lower latency
+    private static final int BATCH_SIZE = 50;
+    private static final long BATCH_FLUSH_INTERVAL_MS = 2;
     private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>();
     private ScheduledExecutorService batchProcessor;
+
+    // Flag to enable immediate progress reporting after each batch
+    private volatile boolean immediateProgressReporting = true;
 
     public ReplicationManager(InMemoryDriver localDriver, String primaryHost, int primaryPort) {
         this.localDriver = localDriver;
@@ -165,6 +169,11 @@ public class ReplicationManager {
         // Apply other events individually
         for (Map<String, Object> event : otherEvents) {
             applyChangeEvent(event);
+        }
+
+        // Immediately report progress after processing batch for faster write concern acknowledgment
+        if (immediateProgressReporting) {
+            reportProgressToPrimary();
         }
     }
 
@@ -510,7 +519,7 @@ public class ReplicationManager {
         try {
             cmd = new WatchCommand(con)
                 .setDb("admin")  // Watch at cluster level
-                .setMaxTimeMS(5000)
+                .setMaxTimeMS(100)  // Short timeout for faster replication - server will return quickly with any events
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
                 .setPipeline(List.of())  // Empty = watch everything
                 .setCb(new DriverTailableIterationCallback() {
