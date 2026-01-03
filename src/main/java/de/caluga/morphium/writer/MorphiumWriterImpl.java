@@ -317,9 +317,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
 
                                 cleared.add(o.getClass());
-                                morphium.getCache().clearCacheIfNecessary(o.getClass());
+                                var cache = morphium.getCache();
+                                if (cache != null) {
+                                    cache.clearCacheIfNecessary(o.getClass());
+                                }
                             }
-                            morphium.firePostStore(isNew);
+                            if (morphium.getConfig() != null) {
+                                morphium.firePostStore(isNew);
+                            }
 
                             if (callback != null) {
                                 callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, entry.getValue());

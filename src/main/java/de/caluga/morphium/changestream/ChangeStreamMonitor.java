@@ -210,7 +210,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     public void run() {
         WatchCommand watch = null;
 
-        while (running) {
+        while (running && morphium.getConfig() != null) {
             try {
                 DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
                     @Override
@@ -251,7 +251,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     }
                     @Override
                     public boolean isContinued() {
-                        return ChangeStreamMonitor.this.running;
+                        return ChangeStreamMonitor.this.running && morphium.getConfig() != null;
                     }
                 };
 
@@ -278,6 +278,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     watch.watch();
                 }
             } catch (Exception e) {
+                // Check if we should stop before handling errors
+                if (!running || morphium.getConfig() == null) {
+                    log.debug("ChangeStreamMonitor stopping due to shutdown");
+                    break;
+                }
+
                 if (e.getMessage() == null) {
                     log.warn("Restarting changestream", e);
                 } else if (e.getMessage().contains("reply is null")) {
