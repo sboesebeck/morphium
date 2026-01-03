@@ -593,13 +593,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
-                    // For InMemoryDriver: always poll to ensure messages aren't missed
-                    // For other drivers: only poll if requested or change streams disabled
-                    boolean forcePolling = morphium.getDriver() != null && morphium.getDriver().getName().contains("InMem");
-                    if (requestPoll.get() > 0 || !useChangeStream || forcePolling) {
-                        // if (forcePolling || requestPoll.get() > 0) {
-                        //     log.info("Polling (forced={}, requested={})", forcePolling, requestPoll.get() > 0);
-                        // }
+                    if (requestPoll.get() > 0 || !useChangeStream) {
                         lastRun.set(System.currentTimeMillis());
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
