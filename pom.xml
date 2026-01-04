@@ -61,9 +61,9 @@
         <configuration>
           <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED
                     --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</argLine>
-          <!-- JUnit 5 tag selection -->
-          <includeTags>${test.includeTags}</includeTags>
-          <excludeTags>${test.excludeTags}</excludeTags>
+          <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
+          <groups>${test.includeTags}</groups>
+          <excludedGroups>${test.excludeTags}</excludedGroups>
           <properties>
             <configurationParameters>
               junit.jupiter.extensions.autodetection.enabled=true

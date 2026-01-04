@@ -523,15 +523,16 @@ function _ms_local_start_cluster() {
   mkdir -p "$pid_dir" "$pid_dir/logs" test.log
 
   # Calculate max-connections based on parallel slots if not explicitly set
-  # Formula: base 200 + 100 per parallel slot (enough for connection pools + watch cursors)
+  # Formula: base 2000 + 500 per parallel slot (MorphiumServer uses NIO, can handle many connections)
+  # AsyncOperationTest alone uses 1134+ connections, so we need large pool for parallel tests
   local max_conn="${morphiumserverMaxConnections}"
   local sock_timeout="${morphiumserverSocketTimeout:-30}"
   if [ -z "$max_conn" ]; then
     if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
-      max_conn=$((200 + parallel * 100))
+      max_conn=$((2000 + parallel * 500))
       echo -e "${BL}Info:${CL} Auto-calculated max-connections=${max_conn} for ${parallel} parallel slots"
     else
-      max_conn=500
+      max_conn=2000
     fi
   fi
 
@@ -1384,9 +1385,10 @@ if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=tru
 if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
 
 # Increase connection pool for parallel tests against MorphiumServer
-# Watch cursors hold connections for long-polling, so we need more connections when running many slots
+# MorphiumServer uses NIO so can handle many connections efficiently
+# AsyncOperationTest alone uses 1134+ connections, messaging tests need many more for parallel ops
 if [ "$startMorphiumserverLocal" -eq 1 ] && [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
-  pool_size=$((100 + parallel * 50))  # Base 100 + 50 per parallel slot
+  pool_size=$((2000 + parallel * 500))  # Base 2000 + 500 per parallel slot (matches server side)
   MVN_PROPS="$MVN_PROPS -Dmorphium.maxConnections=$pool_size"
   echo -e "${BL}Info:${CL} Increased client pool to ${pool_size} connections for ${parallel} parallel slots"
 fi
