@@ -65,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MorphiumServer changestream event delivery via wire protocol**: Fixed changestream events not being delivered to clients connecting via the wire protocol. Watch cursors are now properly created with callbacks, events are queued via `LinkedBlockingQueue`, and `getMore` requests correctly return queued events to clients. This enables reliable messaging when using MorphiumServer as a messaging hub
 - **MorphiumServer killCursors command handler**: Added missing `killCursors` command handler to MorphiumServer. Without this, watch cursors were never cleaned up when clients disconnected, causing virtual threads to accumulate and eventually block new watch thread creation. The fix properly removes cursors from `watchCursors` and `tailableCursors` maps
 - **InMemoryDriver watch thread cleanup**: Modified `watchInternal()` to periodically check `callback.isContinued()` after each wait timeout (max 5 seconds). This ensures watch threads properly terminate when cursors are killed, preventing resource exhaustion when many clients connect/disconnect
+- **PooledDriver connection leak**: Fixed connection leak in `releaseConnection()` where connections were removed from `inUse` set but not returned to the pool when the connection's host was no longer in the valid hosts set. Connections are now properly closed instead of being leaked
+- **InMemoryDriver serverMode premature shutdown**: Fixed InMemoryDriver to not clear data or shut down when `serverMode=true` and `close()` is called. MorphiumServer instances now properly maintain their data when client Morphium instances disconnect
+- **SingleMongoConnection watch loop termination**: Fixed watch loop to check `isContinued()` after each individual event instead of only after processing the entire batch. This ensures watches terminate immediately when the callback returns false, matching InMemoryDriver behavior
+- **ChangeStreamMonitor reconnection loop on shutdown**: Fixed ChangeStreamMonitor to stop gracefully when receiving "No such host" errors instead of endlessly retrying. Also added driver connectivity check before attempting to get connections. This prevents resource exhaustion when MorphiumServer instances are shut down
 
 ### Added (Tests)
 - **Failover tests for MorphiumServer replica sets**: Added comprehensive failover tests (`FailoverTest.java`) that verify:
@@ -100,6 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   1. `./runtests.sh --driver inmem` - InMemory driver (fast, no dependencies)
   2. `./runtests.sh --uri mongodb://... --driver all` - Real MongoDB with all drivers
   3. `./runtests.sh --morphium-server --driver pooled` - MorphiumServer
+
+- **External test tagging**: Added `@Tag("external")` to driver tests that require a real MongoDB connection (PooledDriverTest, PooledDriverConnectionsTests, SharedConnectionPoolTest). Fixed pom.xml to use correct `<excludedGroups>` parameter instead of invalid `<excludeTags>` for Maven Surefire plugin JUnit 5 tag filtering
 
 ### Changed
 - **Modernized concurrent collections**: Replaced legacy `Vector` with `CopyOnWriteArrayList` and `Hashtable` with `ConcurrentHashMap` for better performance
