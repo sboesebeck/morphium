@@ -88,6 +88,8 @@ public class MorphiumServer {
         this.driver = new InMemoryDriver();
         this.cursorManager = new WatchCursorManager();
         driver.connect();
+        // Enable server mode to prevent internal Morphium instances from shutting down the driver
+        driver.setServerMode(true);
     }
 
     public MorphiumServer(int port, String host, int maxConnections, int idleTimeoutSeconds) {
@@ -236,6 +238,9 @@ public class MorphiumServer {
         if (bossGroup != null) {
             bossGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
         }
+
+        // Shutdown the driver (force shutdown since it's in server mode)
+        driver.forceShutdown();
 
         log.info("MorphiumServer shutdown complete");
     }

@@ -438,20 +438,30 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     public AggregateMongoCommand getAggregateCmd() {
-        MongoConnection readConnection = morphium.getDriver().getReadConnection(morphium.getReadPreferenceForClass(getSearchType()));
-        AggregateMongoCommand cmd = new AggregateMongoCommand(readConnection);
-        cmd.setDb(morphium.getDatabase())
-        .setColl(getCollectionName())
-        .setPipeline(getPipeline())
-        .setExplain(isExplain())
-        .setAllowDiskUse(isUseDisk());
+        MongoConnection readConnection = null;
+        AggregateMongoCommand cmd = null;
+        try {
+            readConnection = morphium.getDriver().getReadConnection(morphium.getReadPreferenceForClass(getSearchType()));
+            cmd = new AggregateMongoCommand(readConnection);
+            cmd.setDb(morphium.getDatabase())
+            .setColl(getCollectionName())
+            .setPipeline(getPipeline())
+            .setExplain(isExplain())
+            .setAllowDiskUse(isUseDisk());
 
-        if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
-        if (morphium.getReadConcernForClass(getSearchType())!=null){
-            cmd.setReadConcern(Map.of("level",morphium.getReadConcernForClass(getSearchType()).name()));
+            if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
+            if (morphium.getReadConcernForClass(getSearchType())!=null){
+                cmd.setReadConcern(Map.of("level",morphium.getReadConcernForClass(getSearchType()).name()));
+            }
+
+            return cmd;
+        } catch (Exception e) {
+            // Release connection on failure since caller won't get the command
+            if (readConnection != null) {
+                morphium.getDriver().releaseConnection(readConnection);
+            }
+            throw e;
         }
-
-        return cmd;
     }
 
     @Override

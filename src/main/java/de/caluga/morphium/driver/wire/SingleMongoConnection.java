@@ -593,16 +593,22 @@ public class SingleMongoConnection implements MongoConnection {
             if (result == null) {
                 result = (List<Map<String, Object >>) cursor.get("nextBatch");
             }
+            // Track whether we should exit after processing events
+            boolean shouldExit = false;
             if (result != null && !result.isEmpty()) {
                 for (Map<String, Object> o : result) {
                     command.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
+                    // Check isContinued() after EACH event, matching InMemoryDriver behavior
+                    // This ensures we stop immediately when callback returns false
+                    if (!command.getCb().isContinued()) {
+                        shouldExit = true;
+                        break;
+                    }
                 }
-                // } else {
-                // log.info("No/empty result");
             }
 
-            if (!command.getCb().isContinued()) {
+            if (shouldExit || !command.getCb().isContinued()) {
                 String coll = command.getColl();
 
                 if (coll == null) {

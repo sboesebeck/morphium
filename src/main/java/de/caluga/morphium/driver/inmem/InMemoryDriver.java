@@ -245,6 +245,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // Used to support the "aggregate" wire command (e.g. when running against MorphiumServer).
     // NOTE: These Morphium instances must NOT be closed, as they would close this driver as well.
     private final ConcurrentHashMap<String, Morphium> aggregationMorphiumByDb = new ConcurrentHashMap<>();
+    // When true, close() is a no-op. Used when InMemoryDriver is managed by MorphiumServer
+    // to prevent internal Morphium instances from shutting down the driver via their shutdown hooks.
+    private volatile boolean serverMode = false;
 
     private Morphium getAggregationMorphium(String db) {
         return aggregationMorphiumByDb.computeIfAbsent(db, dbName -> {
@@ -264,6 +267,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public InMemoryDriver() {
+    }
+
+    /**
+     * Enable server mode. When enabled, close() becomes a no-op to prevent
+     * internal Morphium instances from shutting down the driver via their shutdown hooks.
+     * Use forceShutdown() to actually shutdown the driver in server mode.
+     */
+    public void setServerMode(boolean serverMode) {
+        this.serverMode = serverMode;
+    }
+
+    public boolean isServerMode() {
+        return serverMode;
     }
 
     @Override
@@ -2575,14 +2591,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * Close method for when InMemoryDriver itself is used as a connection.
      * This happens in some legacy code paths.
      *
-     * NOTE: This should NOT affect the driver's scheduler or database!
-     * For proper driver shutdown, use shutdown(boolean clearData) instead.
+     * NOTE: In server mode (when used by MorphiumServer), this is a no-op to prevent
+     * internal Morphium instances from shutting down the driver via their shutdown hooks.
+     * Use forceShutdown() to actually shutdown the driver in server mode.
      */
     public void close() {
-        log.info("InMemoryDriver.close() called - instance {}", System.identityHashCode(this));
+        log.info("InMemoryDriver.close() called - instance {}, serverMode={}", System.identityHashCode(this), serverMode);
+        if (serverMode) {
+            log.info("InMemoryDriver in server mode, ignoring close() call");
+            return;
+        }
         // When Morphium.close() is called, shutdown the driver completely
         shutdown(true);
         log.info("InMemoryDriver.close() completed - instance {}", System.identityHashCode(this));
+    }
+
+    /**
+     * Force shutdown of the InMemoryDriver, even in server mode.
+     * Called by MorphiumServer.shutdown() to properly shut down the driver.
+     */
+    public void forceShutdown() {
+        log.info("InMemoryDriver.forceShutdown() called - instance {}", System.identityHashCode(this));
+        boolean wasServerMode = serverMode;
+        serverMode = false; // Temporarily disable server mode to allow shutdown
+        shutdown(true);
+        log.info("InMemoryDriver.forceShutdown() completed - instance {}, wasServerMode={}", System.identityHashCode(this), wasServerMode);
     }
 
     /**

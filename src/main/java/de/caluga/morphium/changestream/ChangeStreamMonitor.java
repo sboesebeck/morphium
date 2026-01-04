@@ -255,7 +255,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     }
                 };
 
-                if (dedicatedConnection == null) break;
+                if (dedicatedConnection == null || !dedicatedConnection.isConnected()) {
+                    log.debug("Driver not available, stopping changestream monitor");
+                    break;
+                }
 
                 var con = dedicatedConnection.getPrimaryConnection(null);
                 activeConnection = con;
@@ -296,6 +299,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.debug("changestream iteration");
                 } else if (e.getMessage().contains("closed") || morphium.getConfig() == null) {
                     log.warn("connection closed!", e);
+                    break;
+                } else if (e.getMessage().contains("No such host")) {
+                    // Server was shut down, stop trying to reconnect
+                    log.debug("Server no longer available, stopping changestream monitor");
                     break;
                 } else {
                     if (running) {

@@ -212,7 +212,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 @Override
                 public void run() {
                     // Skip if morphium is closed
-                    if (morphium.getConfig() == null) {
+                    if (morphium.getConfig() == null || morphium.getDriver() == null) {
                         logger.debug("Skipping async insert - morphium is closed");
                         return;
                     }
@@ -884,17 +884,27 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @SuppressWarnings("CatchMayIgnoreException")
     public <T> Map<String, Object> submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
+        // Early termination if morphium is closed
+        if (morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+            logger.debug("Skipping operation - morphium is closed");
+            return null;
+        }
         if (callback == null) {
             var retries = 0;
 
             while (true) {
+                // Check again before each retry
+                if (morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+                    logger.debug("Aborting operation - morphium is closed");
+                    return null;
+                }
                 try {
                     r.run();
                     break;
                 } catch (Exception e) {
                     retries++;
 
-                    if (morphium != null && morphium.getConfig() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
+                    if (morphium != null && morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
                         //log.error("Error executing... retrying");
                         // Utils.pause(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
                         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
@@ -911,13 +921,18 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 var retries = 0;
 
                 while (true) {
+                    // Check before each retry in async operation
+                    if (morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+                        logger.debug("Aborting async operation - morphium is closed");
+                        return;
+                    }
                     try {
                         r.run();
                         break;
                     } catch (Exception e) {
                         retries++;
 
-                        if (morphium.getConfig() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
+                        if (morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
                             if (morphium.getConfig().connectionSettings() != null) {
                                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
                             } else {
@@ -926,6 +941,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             // Utils.pause(morphium.getConfig().getRetriesOnNetworkError());
                         } else {
                             callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null);
+                            break; // Exit loop after reporting error
                         }
                     }
                 }
@@ -934,6 +950,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             boolean retry = true;
 
             while (retry) {
+                // Check if morphium is closed during executor retry loop
+                if (morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+                    logger.debug("Aborting executor submit - morphium is closed");
+                    return null;
+                }
                 try {
                     tries++;
                     executor.execute(retryRunnable);

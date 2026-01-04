@@ -6,6 +6,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.test.support.TestConfig;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,6 +18,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * When sharedConnectionPool is enabled, multiple Morphium instances connecting
  * to the same hosts+database will share the same driver instance.
  */
+@Tag("external")
+@Tag("driver")
 public class SharedConnectionPoolTest extends MultiDriverTestBase {
 
     @ParameterizedTest

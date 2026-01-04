@@ -83,20 +83,26 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         CreateCommand cmd = null;
+        MongoConnection primaryConnection = null;
 
         try {
-            MongoConnection primaryConnection = morphium.getDriver().getPrimaryConnection(null);
+            primaryConnection = morphium.getDriver().getPrimaryConnection(null);
             cmd = new CreateCommand(primaryConnection);
             cmd.setCapped(true);
             cmd.setSize(capped.maxSize()).setMax(capped.maxEntries());
             cmd.setDb(morphium.getConfig().connectionSettings().getDatabase());
             //primaryConnection.sendCommand(cmd);
             cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+            primaryConnection = null;
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
+            } else if (primaryConnection != null) {
+                morphium.getDriver().releaseConnection(primaryConnection);
             }
         }
     }
