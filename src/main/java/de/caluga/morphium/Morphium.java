@@ -864,19 +864,31 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         log.debug("Collection does not exist - ensuring indices / capped" + " status");
                     }
 
-                    MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(getWriteConcernForClass(c));
-                    var create = new CreateCommand(primaryConnection);
-                    create.setColl(getMapper().getCollectionName(c)).setDb(getDatabase());
-                    Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                    MongoConnection primaryConnection = null;
+                    CreateCommand create = null;
+                    try {
+                        primaryConnection = morphiumDriver.getPrimaryConnection(getWriteConcernForClass(c));
+                        create = new CreateCommand(primaryConnection);
+                        create.setColl(getMapper().getCollectionName(c)).setDb(getDatabase());
+                        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
 
-                    if (capped != null) {
-                        create.setSize(capped.maxSize()).setCapped(true).setMax(capped.maxEntries());
+                        if (capped != null) {
+                            create.setSize(capped.maxSize()).setCapped(true).setMax(capped.maxEntries());
+                        }
+
+                        // cmd.put("autoIndexId",
+                        // (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
+                        create.execute();
+                        create.releaseConnection();
+                        create = null;
+                        primaryConnection = null;
+                    } finally {
+                        if (create != null) {
+                            create.releaseConnection();
+                        } else if (primaryConnection != null) {
+                            morphiumDriver.releaseConnection(primaryConnection);
+                        }
                     }
-
-                    // cmd.put("autoIndexId",
-                    // (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
-                    create.execute();
-                    create.releaseConnection();
                 } else {
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
 
@@ -1214,12 +1226,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         Map<String, Object> srch = new HashMap<>();
         srch.put("_id", id);
         FindCommand settings = null;
+        MongoConnection con = null;
 
         try {
-            MongoConnection con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
+            con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
             settings = new FindCommand(con).setDb(getConfig().connectionSettings().getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
             List<Map<String, Object >> found = settings.execute();
             settings.releaseConnection();
+            settings = null;
+            con = null;
 
             // log.info("Reread took: "+settings.getMetaData().get("duration"));
             if (found != null && !found.isEmpty()) {
@@ -1255,6 +1270,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
+            } else if (con != null) {
+                morphiumDriver.releaseConnection(con);
             }
         }
 
@@ -1684,6 +1701,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
+            } else if (con != null) {
+                getDriver().releaseConnection(con);
             }
         }
     }
@@ -1704,7 +1723,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            settings.releaseConnection();
+            if (settings != null) {
+                settings.releaseConnection();
+            } else if (con != null) {
+                morphiumDriver.releaseConnection(con);
+            }
         }
     }
 
@@ -1723,7 +1746,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (con != null) {
+                getDriver().releaseConnection(con);
+            }
         }
     }
 
@@ -2149,11 +2176,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public List<IndexDescription> getIndexesFromMongo(String collection) {
-        MongoConnection readConnection = getDriver().getReadConnection(getConfig().driverSettings().getDefaultReadPreference());
-        ListIndexesCommand cmd = new ListIndexesCommand(readConnection);
-        cmd.setDb(getDatabase()).setColl(collection);
+        MongoConnection readConnection = null;
+        ListIndexesCommand cmd = null;
 
         try {
+            readConnection = getDriver().getReadConnection(getConfig().driverSettings().getDefaultReadPreference());
+            cmd = new ListIndexesCommand(readConnection);
+            cmd.setDb(getDatabase()).setColl(collection);
             return cmd.execute();
         } catch (MorphiumDriverException e) {
             // Error code 26 means "ns does not exist" - collection doesn't exist yet
@@ -2162,7 +2191,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
             throw new RuntimeException(e);
         } finally {
-            cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (readConnection != null) {
+                getDriver().releaseConnection(readConnection);
+            }
         }
     }
 
