@@ -64,6 +64,10 @@ public class ReplicationManager {
     // Flag to enable immediate progress reporting after each batch
     private volatile boolean immediateProgressReporting = true;
 
+    // Staleness detection - track last response time to detect broken connections
+    private final AtomicLong lastWatchResponseTime = new AtomicLong(0);
+    private static final long STALENESS_THRESHOLD_MS = 30000; // 30 seconds without response = stale
+
     public ReplicationManager(InMemoryDriver localDriver, String primaryHost, int primaryPort) {
         this.localDriver = localDriver;
         this.primaryHost = primaryHost;
@@ -403,6 +407,16 @@ public class ReplicationManager {
                 // Watch for changes
                 watchForChanges();
 
+                // Check if watch ended due to staleness (no response for too long)
+                long lastResponse = lastWatchResponseTime.get();
+                long now = System.currentTimeMillis();
+                if (lastResponse > 0 && (now - lastResponse) > STALENESS_THRESHOLD_MS) {
+                    log.warn("Watch ended due to staleness, forcing reconnection to primary");
+                    disconnectFromPrimary();
+                    connected.set(false);
+                    // Will reconnect on next iteration
+                }
+
             } catch (InterruptedException e) {
                 log.debug("Replication loop interrupted");
                 Thread.currentThread().interrupt();
@@ -514,6 +528,9 @@ public class ReplicationManager {
     private void watchForChanges() throws Exception {
         log.info("Starting change stream watch on primary...");
 
+        // Initialize staleness tracker
+        lastWatchResponseTime.set(System.currentTimeMillis());
+
         MongoConnection con = primaryMorphium.getDriver().getPrimaryConnection(null);
         WatchCommand cmd = null;
         try {
@@ -528,13 +545,26 @@ public class ReplicationManager {
                         if (!running.get()) {
                             return;
                         }
+                        // Update staleness tracker - we received a response
+                        lastWatchResponseTime.set(System.currentTimeMillis());
                         // Queue for batch processing instead of immediate application
                         eventQueue.offer(data);
                     }
 
                     @Override
                     public boolean isContinued() {
-                        return running.get();
+                        if (!running.get()) {
+                            return false;
+                        }
+                        // Check for staleness - if no response for too long, assume connection is broken
+                        long lastResponse = lastWatchResponseTime.get();
+                        long now = System.currentTimeMillis();
+                        if (lastResponse > 0 && (now - lastResponse) > STALENESS_THRESHOLD_MS) {
+                            log.warn("Watch connection appears stale (no response for {}ms), forcing reconnection",
+                                    now - lastResponse);
+                            return false;
+                        }
+                        return true;
                     }
                 });
 

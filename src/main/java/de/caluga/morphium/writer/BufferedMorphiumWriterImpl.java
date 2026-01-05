@@ -55,9 +55,21 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     public void close() {
         running = false;
 
-        // There is no way to stop a thread forcefully.
-        // Because running is set to false,
-        // this thread will stop eventually
+        // Wait for the housekeeping thread to finish current operations
+        // This prevents "Driver is shutting down" errors when the thread
+        // tries to flush pending writes after the driver has been closed
+        if (housekeeping != null && housekeeping.isAlive()) {
+            housekeeping.interrupt(); // Wake up if sleeping
+            try {
+                // Wait up to 5 seconds for the thread to finish
+                housekeeping.join(5000);
+                if (housekeeping.isAlive()) {
+                    logger.warn("Housekeeping thread did not stop in time, proceeding with shutdown");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @SuppressWarnings("unused")
@@ -750,9 +762,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             List < Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
                             for (Class<?> clz : localBuffer) {
-                                if (!running) {
-                                    return;
-                                }
                                 if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                                     continue;
                                 }
@@ -806,7 +815,23 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                 Thread.sleep(1000);
                             }
                         } catch (InterruptedException e) {
+                            // Interrupted - check running flag and exit if needed
                         }
+                    }
+
+                    // Flush any remaining data on shutdown
+                    try {
+                        List<Class<?>> remainingClasses = new ArrayList<>(opLog.keySet());
+                        for (Class<?> clz : remainingClasses) {
+                            if (opLog.get(clz) != null && !opLog.get(clz).isEmpty()) {
+                                logger.debug("Flushing remaining {} entries for {} on shutdown",
+                                    opLog.get(clz).size(), clz.getSimpleName());
+                                runIt(clz);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Driver may already be closed, log and continue
+                        logger.debug("Could not flush remaining entries on shutdown: {}", e.getMessage());
                     }
                 }
 

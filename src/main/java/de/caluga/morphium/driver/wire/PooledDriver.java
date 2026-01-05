@@ -524,27 +524,39 @@ public class PooledDriver extends DriverBase {
                                         synchronized (waitCounterSignal) {
                                             waitCounterSignal.wait();
                                         }
-                
+
                                         for (String hst : getHostSeed()) {
                                             try {
-                                                BlockingQueue<ConnectionContainer> queue = null;
-                                                if (hosts.get(hst) != null) {
-                                                    queue = hosts.get(hst).getConnectionPool();
-                                                }
-                
-                
-                                                int loopCounter = 0;
-                
-                                                while (getHostSeed().contains(hst) && queue != null
-                                                        && loopCounter < getMaxConnectionsPerHost() &&
-                                                        (queue.size() < getWaitCounterForHost(hst)
-                                                         && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
-                                                    loopCounter++;
-                                                    // log.debug("Creating connection to {} - WaitCounter is {}", hst,
-                                                    // getWaitCounterForHost(hst));
-                                                    // System.out.println("Creating new connection to " + hst + " WaitCounter is: "
-                                                    // + waitCounter.get(hst).get());
-                                                    createNewConnection(hst);
+                                                if (hosts.get(hst) == null) continue;
+
+                                                // Calculate how many new connections we need
+                                                int waitCount = getWaitCounterForHost(hst);
+                                                int poolSize = hosts.get(hst).getConnectionPool().size();
+                                                int totalConnections = getTotalConnectionsToHost(hst);
+                                                int maxConnections = getMaxConnectionsPerHost();
+
+                                                // Number of connections to create (limited by max and available capacity)
+                                                int needed = Math.min(waitCount - poolSize, maxConnections - totalConnections);
+
+                                                if (needed > 0 && getHostSeed().contains(hst)) {
+                                                    // Create connections in parallel for burst scenarios
+                                                    int parallelCreators = Math.min(needed, 10); // Cap at 10 parallel creators
+                                                    final String host = hst;
+
+                                                    for (int i = 0; i < parallelCreators; i++) {
+                                                        Thread.ofVirtual().name("ConnectionCreator-" + i).start(() -> {
+                                                            try {
+                                                                // Each creator can create multiple connections
+                                                                while (running && getHostSeed().contains(host)
+                                                                        && hosts.get(host).getConnectionPool().size() < getWaitCounterForHost(host)
+                                                                        && getTotalConnectionsToHost(host) < getMaxConnectionsPerHost()) {
+                                                                    createNewConnection(host);
+                                                                }
+                                                            } catch (Exception e) {
+                                                                log.debug("Connection creator finished: {}", e.getMessage());
+                                                            }
+                                                        });
+                                                    }
                                                 }
                                             } catch (Exception e) {
                                                 log.error("Could not create connection to {}", hst, e);
