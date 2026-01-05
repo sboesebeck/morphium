@@ -17,6 +17,9 @@ import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
+import de.caluga.morphium.server.election.ElectionConfig;
+import de.caluga.morphium.server.election.ElectionManager;
+import de.caluga.morphium.server.election.ElectionNetworkClient;
 import de.caluga.morphium.server.netty.MongoCommandHandler;
 import de.caluga.morphium.server.netty.MongoWireProtocolDecoder;
 import de.caluga.morphium.server.netty.MongoWireProtocolEncoder;
@@ -61,8 +64,14 @@ public class MorphiumServer {
     // Replica set configuration
     private String rsName = "";
     private List<String> hosts = new ArrayList<>();
-    private boolean primary = true;
-    private String primaryHost;
+    private volatile boolean primary = true;
+    private volatile String primaryHost;
+
+    // Election configuration
+    private boolean electionEnabled = false;
+    private ElectionConfig electionConfig = null;
+    private ElectionManager electionManager = null;
+    private ElectionNetworkClient electionNetworkClient = null;
 
     // SSL configuration
     private boolean sslEnabled = false;
@@ -163,12 +172,13 @@ public class MorphiumServer {
                         pipeline.addLast("decoder", new MongoWireProtocolDecoder());
                         pipeline.addLast("encoder", new MongoWireProtocolEncoder(compressorId));
 
-                        // Command handler
+                        // Command handler - capture current primary state for this connection
+                        // Note: primary/primaryHost are volatile and may change during election
                         pipeline.addLast("commandHandler", new MongoCommandHandler(
                                 driver, cursorManager, msgId,
                                 host, port, rsName, hosts,
                                 primary, primaryHost, compressorId,
-                                replicationCoordinator
+                                replicationCoordinator, electionManager
                         ));
 
                         // Track the channel
@@ -187,8 +197,14 @@ public class MorphiumServer {
         // Start dump scheduler if configured
         startDumpScheduler();
 
-        // Start replication if this is a secondary
-        startReplication();
+        // Start election system if enabled
+        startElection();
+
+        // Start replication if this is a secondary (for static mode)
+        // In election mode, replication is started when leader is discovered
+        if (!electionEnabled) {
+            startReplication();
+        }
     }
 
     /**
@@ -201,6 +217,9 @@ public class MorphiumServer {
 
         log.info("Shutting down MorphiumServer...");
         running = false;
+
+        // Stop election system
+        stopElection();
 
         // Stop replication
         stopReplication();
@@ -277,8 +296,24 @@ public class MorphiumServer {
     // Configuration methods
 
     public void configureReplicaSet(String name, List<String> hostList, Map<String, Integer> priorities) {
+        configureReplicaSet(name, hostList, priorities, false, null);
+    }
+
+    /**
+     * Configure replica set with optional automatic election.
+     *
+     * @param name        Replica set name
+     * @param hostList    List of all hosts in the replica set
+     * @param priorities  Priority map for static primary selection (ignored if election enabled)
+     * @param enableElection If true, enable automatic leader election
+     * @param config      Election configuration (optional, uses defaults if null)
+     */
+    public void configureReplicaSet(String name, List<String> hostList, Map<String, Integer> priorities,
+                                     boolean enableElection, ElectionConfig config) {
         rsName = name == null ? "" : name;
-        hosts = hostList == null ? new ArrayList<>() : hostList;
+        hosts = hostList == null ? new ArrayList<>() : new ArrayList<>(hostList);
+        this.electionEnabled = enableElection;
+        this.electionConfig = config != null ? config : new ElectionConfig();
 
         String myAddress = host + ":" + port;
 
@@ -286,13 +321,31 @@ public class MorphiumServer {
             // No replica set - act as standalone primary
             primary = true;
             primaryHost = myAddress;
+            electionEnabled = false;
         } else if (hosts.isEmpty()) {
             // Replica set with no hosts list - act as standalone primary
             primary = true;
             primaryHost = myAddress;
+            electionEnabled = false;
+        } else if (electionEnabled) {
+            // Election mode: start as follower, election will determine primary
+            primary = false;
+            primaryHost = null;
+
+            // Create election manager
+            electionManager = new ElectionManager(myAddress, hosts, electionConfig);
+
+            // Set up leadership change callback
+            electionManager.setOnLeadershipChange(this::onLeadershipChange);
+            electionManager.setOnLeaderDiscovered(this::onLeaderDiscovered);
+
+            // Create network client for inter-node communication
+            electionNetworkClient = new ElectionNetworkClient(electionManager);
+
+            log.info("Replica set configured with election: myAddress={}, hosts={}",
+                     myAddress, hosts);
         } else {
-            // Replica set mode: determine primary based on priority or first host
-            // The first host in the list (or highest priority) is the primary
+            // Static mode: determine primary based on priority or first host
             String electedPrimary = hosts.get(0);  // Default to first host
 
             // If priorities are provided, find the highest priority host
@@ -310,12 +363,12 @@ public class MorphiumServer {
             primaryHost = electedPrimary;
             primary = myAddress.equals(electedPrimary);
 
-            log.info("Replica set configured: myAddress={}, primary={}, primaryHost={}",
+            log.info("Replica set configured (static): myAddress={}, primary={}, primaryHost={}",
                      myAddress, primary, primaryHost);
         }
 
-        // Initialize replication coordinator for primary nodes in replica sets
-        if (primary && !rsName.isEmpty() && hosts.size() > 1) {
+        // Initialize replication coordinator for primary nodes in replica sets (static mode only)
+        if (!electionEnabled && primary && !rsName.isEmpty() && hosts.size() > 1) {
             replicationCoordinator = new ReplicationCoordinator(hosts.size());
             log.info("Replication coordinator initialized for {} nodes", hosts.size());
         }
@@ -323,6 +376,66 @@ public class MorphiumServer {
         driver.setReplicaSet(!rsName.isEmpty());
         driver.setReplicaSetName(rsName);
         driver.setHostSeed(hosts);
+    }
+
+    /**
+     * Called when this node's leadership status changes.
+     */
+    private void onLeadershipChange(boolean isLeader) {
+        log.info("Leadership change: {} is now {}", host + ":" + port, isLeader ? "LEADER" : "FOLLOWER");
+
+        if (isLeader) {
+            // Becoming leader
+            primary = true;
+            primaryHost = host + ":" + port;
+
+            // Initialize replication coordinator
+            if (replicationCoordinator == null && hosts.size() > 1) {
+                replicationCoordinator = new ReplicationCoordinator(hosts.size());
+                log.info("Replication coordinator initialized for {} nodes", hosts.size());
+            }
+
+            // Stop replication from old primary (if any)
+            if (replicationManager != null) {
+                replicationManager.stop();
+                replicationManager = null;
+            }
+        } else {
+            // Stepping down from leader
+            primary = false;
+
+            // Clean up replication coordinator
+            replicationCoordinator = null;
+
+            // Start replication from new primary (will be set by onLeaderDiscovered)
+        }
+    }
+
+    /**
+     * Called when a new leader is discovered.
+     */
+    private void onLeaderDiscovered(String leaderId) {
+        log.info("Discovered leader: {}", leaderId);
+        primaryHost = leaderId;
+
+        // If we're a follower and not already replicating, start replication
+        if (!primary && replicationManager == null && leaderId != null) {
+            String[] parts = leaderId.split(":");
+            if (parts.length == 2) {
+                String leaderHost = parts[0];
+                int leaderPort = Integer.parseInt(parts[1]);
+
+                // Start replication from new leader
+                replicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+                replicationManager.setMyAddress(host + ":" + port);
+                try {
+                    replicationManager.start();
+                    log.info("Started replication from new leader {}", leaderId);
+                } catch (Exception e) {
+                    log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
+                }
+            }
+        }
     }
 
     public void setSslEnabled(boolean sslEnabled) {
@@ -381,6 +494,33 @@ public class MorphiumServer {
                 Thread.currentThread().interrupt();
             }
             dumpScheduler = null;
+        }
+    }
+
+    // Election methods
+
+    private void startElection() {
+        if (!electionEnabled || electionManager == null) {
+            return;
+        }
+
+        log.info("Starting election system");
+
+        // Start network client first (wires up callbacks)
+        if (electionNetworkClient != null) {
+            electionNetworkClient.start();
+        }
+
+        // Start election manager
+        electionManager.start();
+    }
+
+    private void stopElection() {
+        if (electionManager != null) {
+            electionManager.stop();
+        }
+        if (electionNetworkClient != null) {
+            electionNetworkClient.stop();
         }
     }
 
@@ -464,6 +604,8 @@ public class MorphiumServer {
         stats.put("maxConnections", maxConnections);
         stats.put("running", running);
         stats.put("primary", primary);
+        stats.put("primaryHost", primaryHost);
+        stats.put("electionEnabled", electionEnabled);
         stats.putAll(cursorManager.getStats());
         if (replicationManager != null) {
             stats.put("replication", replicationManager.getStats());
@@ -471,11 +613,22 @@ public class MorphiumServer {
         if (replicationCoordinator != null) {
             stats.put("replicationCoordinator", replicationCoordinator.getStats());
         }
+        if (electionManager != null) {
+            stats.put("election", electionManager.getStats());
+        }
         return stats;
     }
 
     public ReplicationCoordinator getReplicationCoordinator() {
         return replicationCoordinator;
+    }
+
+    public ElectionManager getElectionManager() {
+        return electionManager;
+    }
+
+    public boolean isElectionEnabled() {
+        return electionEnabled;
     }
 
     public InMemoryDriver getDriver() {

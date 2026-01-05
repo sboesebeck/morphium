@@ -15,6 +15,7 @@ import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.server.ReplicationCoordinator;
+import de.caluga.morphium.server.election.*;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wireprotocol.*;
 
@@ -52,11 +53,21 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private final String primaryHost;
     private final int compressorId;
     private final ReplicationCoordinator replicationCoordinator;
+    private final ElectionManager electionManager;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
                                int compressorId, ReplicationCoordinator replicationCoordinator) {
+        this(driver, cursorManager, msgId, host, port, rsName, hosts, primary, primaryHost,
+             compressorId, replicationCoordinator, null);
+    }
+
+    public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               AtomicInteger msgId, String host, int port, String rsName,
+                               List<String> hosts, boolean primary, String primaryHost,
+                               int compressorId, ReplicationCoordinator replicationCoordinator,
+                               ElectionManager electionManager) {
         this.driver = driver;
         this.cursorManager = cursorManager;
         this.msgId = msgId;
@@ -68,6 +79,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         this.primaryHost = primaryHost;
         this.compressorId = compressorId;
         this.replicationCoordinator = replicationCoordinator;
+        this.electionManager = electionManager;
     }
 
     @Override
@@ -223,6 +235,19 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             case "replSetProgress":
                 answer = processReplSetProgress(doc);
+                break;
+
+            // Election protocol commands
+            case "requestVote":
+                answer = processRequestVote(doc);
+                break;
+
+            case "appendEntries":
+                answer = processAppendEntries(doc);
+                break;
+
+            case "replSetGetStatus":
+                answer = processReplSetGetStatus();
                 break;
 
             default:
@@ -657,6 +682,128 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
         log.debug("Exception chain: {}", sb.toString());
         return msg != null ? msg : e.getClass().getSimpleName();
+    }
+
+    // ==================== Election Protocol Handlers ====================
+
+    /**
+     * Handle vote request from a candidate.
+     */
+    private Map<String, Object> processRequestVote(Map<String, Object> doc) {
+        if (electionManager == null) {
+            log.warn("Election not enabled, rejecting vote request");
+            return Doc.of("ok", 0, "errmsg", "Election not enabled on this node");
+        }
+
+        try {
+            VoteRequest request = VoteRequest.fromMap(doc);
+            log.debug("Processing vote request: {}", request);
+
+            VoteResponse response = electionManager.handleVoteRequest(request);
+            return response.toMap();
+        } catch (Exception e) {
+            log.error("Error processing vote request: {}", e.getMessage(), e);
+            return Doc.of("ok", 0, "errmsg", "Error processing vote request: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handle append entries (heartbeat) from leader.
+     */
+    private Map<String, Object> processAppendEntries(Map<String, Object> doc) {
+        if (electionManager == null) {
+            log.warn("Election not enabled, rejecting append entries");
+            return Doc.of("ok", 0, "errmsg", "Election not enabled on this node");
+        }
+
+        try {
+            AppendEntriesRequest request = AppendEntriesRequest.fromMap(doc);
+            log.trace("Processing append entries: {}", request);
+
+            AppendEntriesResponse response = electionManager.handleAppendEntries(request);
+            return response.toMap();
+        } catch (Exception e) {
+            log.error("Error processing append entries: {}", e.getMessage(), e);
+            return Doc.of("ok", 0, "errmsg", "Error processing append entries: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get replica set status including election state.
+     */
+    private Map<String, Object> processReplSetGetStatus() {
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("set", rsName);
+        status.put("ok", 1.0);
+
+        if (electionManager != null) {
+            // Include election manager stats
+            Map<String, Object> electionStats = electionManager.getStats();
+            status.put("term", electionStats.get("term"));
+
+            // Determine myState based on election state
+            ElectionState state = electionManager.getState();
+            int myState = switch (state) {
+                case LEADER -> 1;    // PRIMARY
+                case FOLLOWER -> 2;  // SECONDARY
+                case CANDIDATE -> 3; // RECOVERING (closest match)
+            };
+            status.put("myState", myState);
+
+            // Build members list
+            List<Map<String, Object>> members = new ArrayList<>();
+            String myAddress = electionManager.getMyAddress();
+            String currentLeader = electionManager.getCurrentLeader();
+
+            // Add self
+            Map<String, Object> selfMember = new LinkedHashMap<>();
+            selfMember.put("_id", 0);
+            selfMember.put("name", myAddress);
+            selfMember.put("state", myState);
+            selfMember.put("stateStr", state.name());
+            selfMember.put("self", true);
+            members.add(selfMember);
+
+            // Add peers
+            int memberId = 1;
+            for (String peer : electionManager.getPeerAddresses()) {
+                Map<String, Object> peerMember = new LinkedHashMap<>();
+                peerMember.put("_id", memberId++);
+                peerMember.put("name", peer);
+
+                // Determine peer state (we know leader, others are likely followers)
+                if (peer.equals(currentLeader)) {
+                    peerMember.put("state", 1);
+                    peerMember.put("stateStr", "PRIMARY");
+                } else {
+                    peerMember.put("state", 2);
+                    peerMember.put("stateStr", "SECONDARY");
+                }
+                members.add(peerMember);
+            }
+
+            status.put("members", members);
+        } else {
+            // No election manager - static configuration
+            status.put("myState", primary ? 1 : 2);
+            status.put("term", 0);
+
+            List<Map<String, Object>> members = new ArrayList<>();
+            int memberId = 0;
+            for (String h : hosts) {
+                Map<String, Object> member = new LinkedHashMap<>();
+                member.put("_id", memberId++);
+                member.put("name", h);
+                boolean isPrimary = h.equals(primaryHost);
+                member.put("state", isPrimary ? 1 : 2);
+                member.put("stateStr", isPrimary ? "PRIMARY" : "SECONDARY");
+                member.put("self", h.equals(host + ":" + port));
+                members.add(member);
+            }
+            status.put("members", members);
+        }
+
+        return status;
     }
 
     @Override
