@@ -127,7 +127,10 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     private MorphiumCursor getMongoCursor() {
         if (cursor == null) {
             try {
-                cursor = aggregator.getAggregateCmd().executeIterable(aggregator.getMorphium().getConfig().getCursorBatchSize());
+                var morphium = aggregator.getMorphium();
+                var config = morphium != null ? morphium.getConfig() : null;
+                int batchSize = config != null ? config.getCursorBatchSize() : 1000; // default batch size
+                cursor = aggregator.getAggregateCmd().executeIterable(batchSize);
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }

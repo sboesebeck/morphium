@@ -303,6 +303,12 @@ public class SingleMongoConnection implements MongoConnection {
             throw new MorphiumDriverException("Connection closed");
         }
 
+        // For watch/tailable scenarios, limit consecutive socket timeouts
+        // This allows calling code to check isContinued() periodically
+        // 100 retries with 100ms timeout = ~10 seconds before returning to allow checks
+        int maxConsecutiveTimeouts = 100;
+        int consecutiveTimeouts = 0;
+
         while (true) {
             try {
                 s.setSoTimeout(timeout);
@@ -333,10 +339,20 @@ public class SingleMongoConnection implements MongoConnection {
                 stats.get(REPLY_RECEIVED).incrementAndGet();
                 return msg;
             } catch (SocketTimeoutException ste) {
-                log.debug("socket timeout - retrying");
+                consecutiveTimeouts++;
+                if (consecutiveTimeouts >= maxConsecutiveTimeouts) {
+                    log.debug("socket timeout - max retries reached, returning null to allow continuation check");
+                    return null;
+                }
+                log.debug("socket timeout - retrying ({}/{})", consecutiveTimeouts, maxConsecutiveTimeouts);
             } catch (Exception e) {
                 if (e.getCause() instanceof SocketTimeoutException) {
-                    log.debug("socket timeout - retry");
+                    consecutiveTimeouts++;
+                    if (consecutiveTimeouts >= maxConsecutiveTimeouts) {
+                        log.debug("socket timeout - max retries reached, returning null to allow continuation check");
+                        return null;
+                    }
+                    log.debug("socket timeout - retry ({}/{})", consecutiveTimeouts, maxConsecutiveTimeouts);
                     continue;
                 } else if (running) {
                     close();
@@ -572,12 +588,23 @@ public class SingleMongoConnection implements MongoConnection {
             }
 
             //log.info("got answer for watch!");
-            checkForError(reply);
 
+            // Handle null reply (can happen after max socket timeout retries)
+            // Check isContinued() to allow caller to detect staleness and decide to stop
             if (reply == null) {
-                log.debug("Got null as reply");
-                throw new MorphiumDriverException("Could not watch - reply is null");
+                log.debug("Got null as reply - checking if should continue");
+                if (!command.getCb().isContinued()) {
+                    log.debug("Callback indicates stop - exiting watch loop");
+                    break;
+                }
+                // Callback wants to continue - restart the watch
+                log.debug("Restarting watch after null reply");
+                msg.setMessageId(msgId.incrementAndGet());
+                sendQuery(msg);
+                continue;
             }
+
+            checkForError(reply);
 
             Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
 
