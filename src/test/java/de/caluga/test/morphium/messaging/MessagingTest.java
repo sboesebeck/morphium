@@ -64,7 +64,10 @@ public class MessagingTest extends MultiDriverTestBase {
             TestUtils.waitForBooleanToBecomeTrue(5000, "Did not get message", received, (dur)->log.info("Still waiting"));
             OutputHelper.figletOutput(log, "Got V5 Msg");
 
-            //checking  answer
+            //checking  answer - wait for answer to be visible on replica sets
+            final String collName = receiver.getCollectionName();
+            TestUtils.waitForConditionToBecomeTrue(10000, "Answer not visible",
+                () -> morphium.createQueryFor(Msg.class, collName).f(Msg.Fields.inAnswerTo).ne(null).countAll() >= 1);
             var q = morphium.createQueryFor(Msg.class, receiver.getCollectionName());
             q.f(Msg.Fields.inAnswerTo).ne(null);
             var answers = q.asMapList();

@@ -108,7 +108,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                     receiver.start();
 
                     log.info("Waiting for network discovery (registry update)...");
-                    waitUntilSendAccepted(15_000, () -> sender.sendMessage(new Msg("listener-topic", "warmup", "value")));
+                    waitUntilSendAccepted(45_000, () -> sender.sendMessage(new Msg("listener-topic", "warmup", "value")));
 
                     log.info("Sending message to topic with listener...");
                     sender.sendMessage(new Msg("listener-topic", "msg", "value"));
@@ -185,7 +185,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                             log.info("Waiting for initial discovery...");
                             log.info("Receiver ID: " + receiverId);
                             // Should work (wait for registry to see receiver)
-                            waitUntilSendAccepted(15_000, () -> {
+                            waitUntilSendAccepted(45_000, () -> {
                                 Msg directMsg = new Msg("direct", "msg", "value");
                                 directMsg.addRecipient(receiverId);
                                 sender.sendMessage(directMsg);
@@ -198,7 +198,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                     }
 
                     log.info("Receiver is now terminated. Waiting for participant timeout...");
-                    waitUntilSendRejected(15_000, () -> {
+                    waitUntilSendRejected(45_000, () -> {
                         Msg directMsg = new Msg("direct", "msg", "value");
                         directMsg.addRecipient(receiverId);
                         log.info("Sending message to inactive recipient...");

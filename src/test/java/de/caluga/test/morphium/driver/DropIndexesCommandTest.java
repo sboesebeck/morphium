@@ -73,6 +73,11 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
                 var result = conn.readSingleAnswer(msgId);
                 assertThat(result.get("ok")).isIn(1, 1.0);
 
+                // Release connection before verification to avoid connection issues
+                conn.close();
+                Thread.sleep(100);
+                conn = morphium.getDriver().getPrimaryConnection(null);
+
                 // Verify index no longer exists
                 listCmd = new ListIndexesCommand(conn).setDb(db).setColl(coll);
                 indexes = listCmd.execute();

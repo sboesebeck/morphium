@@ -96,14 +96,14 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
                             query.setExclusive(true);
-                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 5000);
+                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 15000);
                             assertEquals(1, ans.size(), "more than one answer for exclusive message");
                         }
 
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
                             query.setExclusive(false);
-                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 5000);
+                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 15000);
                             assertEquals(3, ans.size(), "not enough answers for non-exclusive message");
                         }
                     } finally {

@@ -181,6 +181,13 @@ public class LastAccessTest extends MultiDriverTestBase {
         long lc = la.getLastChange();
         assert(la.getCreationTime() != la.getLastChange());
         morphium.setInEntity(la, "value", "set");
+        // Wait for setInEntity to be visible on replica sets
+        final long lcBeforeSet = lc;
+        waitForConditionToBecomeTrue(10000, "lastChange not updated after setInEntity",
+            () -> {
+                TstObjLA found = morphium.findById(TstObjLA.class, laId);
+                return found != null && found.getLastChange() != lcBeforeSet;
+            });
         morphium.reread(la);
         assert(lc != la.getLastChange());
         lc = la.getLastChange();

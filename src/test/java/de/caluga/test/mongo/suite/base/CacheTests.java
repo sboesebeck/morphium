@@ -50,7 +50,7 @@ public class CacheTests extends MultiDriverTestBase {
                 morphium.store(co);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(2000, "Objects not stored",
+            TestUtils.waitForConditionToBecomeTrue(10000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == 10);
 
             // First query - should hit database and populate cache

@@ -57,10 +57,16 @@ public class CustomMsgTest extends MultiDriverTestBase {
                 cm.setCustomBuiltValue("test a avalue");
                 cm.setTopic("test");
                 m1.sendMessage(cm);
-                assertEquals(1, m.createQueryFor(CustomMsg.class, m1.getCollectionName(cm)).countAll());
+                // Wait for message to be stored and visible on replica sets
+                final String collName = m1.getCollectionName(cm);
+                // Use findById to query by exact msgId to avoid race conditions
+                final var msgId = cm.getMsgId();
+                TestUtils.waitForConditionToBecomeTrue(10000, "Message not stored",
+                    () -> m.createQueryFor(CustomMsg.class, collName).f("_id").eq(msgId).get() != null);
 
                 TestUtils.check(log, "Message stored");
-                var msg = m.createQueryFor(CustomMsg.class, m1.getCollectionName(cm)).get();
+                var msg = m.createQueryFor(CustomMsg.class, collName).f("_id").eq(msgId).get();
+                assertEquals(1, m.createQueryFor(CustomMsg.class, collName).countAll());
                 assertEquals(msg.getMsgId(), cm.getMsgId());
                 TestUtils.check(log, "Message equal");
 
