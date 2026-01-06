@@ -81,14 +81,21 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         Msg mm = new Msg("test", "ignore me please", "value", 20000, true);
                         m1.sendMessage(mm);
                         long start = System.currentTimeMillis();
+                        final String collName = m1.getCollectionName(mm);
+                        final MorphiumId msgId = mm.getMsgId();
                         while (true) {
                             Thread.sleep(50);
-                            mm = m.reread(mm, m1.getCollectionName(mm));
-                            assertNotNull(mm);
+                            // Use query to fetch by ID to handle replication lag
+                            mm = m.createQueryFor(Msg.class, collName).f("_id").eq(msgId).get();
+                            if (mm == null) {
+                                assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for message to be visible");
+                                continue;
+                            }
                             if (mm.getProcessedBy() != null && mm.getProcessedBy().size() != 0)
                                 break;
                             assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for processing");
                         }
+                        assertNotNull(mm);
                         assertEquals(1, mm.getProcessedBy().size());
                     }
                 } finally {

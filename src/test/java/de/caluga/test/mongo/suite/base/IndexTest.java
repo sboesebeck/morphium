@@ -149,9 +149,14 @@ public class IndexTest extends MultiDriverTestBase {
     public void ensureIndexHierarchyTest(Morphium morphium) throws Exception {
         try (morphium) {
             morphium.dropCollection(IndexedSubObject.class);
-            Thread.sleep(250);
+            Thread.sleep(500);
             morphium.ensureIndicesFor(IndexedSubObject.class);
+            Thread.sleep(500); // Wait for indices to be fully created on replica sets
             var idx = morphium.getIndexesFromMongo(IndexedSubObject.class);
+            // Log all indices for debugging
+            for (IndexDescription i : idx) {
+                log.info("Index found: " + i.getKey());
+            }
             boolean foundnew1 = false;
             boolean foundnew2 = false;
             boolean foundId = false;
@@ -189,7 +194,7 @@ public class IndexTest extends MultiDriverTestBase {
                 }
             }
 
-            log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2 + " SubIndex1: " + foundnew1 +
+            log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2 + " lst: " + foundLst + " SubIndex1: " + foundnew1 +
                      " subIndex2: " + foundnew2);
             assert(foundnew1 && foundnew2 && foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
         }

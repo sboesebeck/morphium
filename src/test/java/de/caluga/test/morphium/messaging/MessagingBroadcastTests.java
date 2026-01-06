@@ -210,8 +210,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
-                    long maxTotalTimeout = 60000; // Max 60 seconds total (safety net for slow machines)
-                    long idleTimeout = 20000; // 20 seconds after last message received (increased from 10s)
+                    long maxTotalTimeout = 120000; // Max 120 seconds total (for parallel test execution)
+                    long idleTimeout = 45000; // 45 seconds after last message received (for parallel load)
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;
 

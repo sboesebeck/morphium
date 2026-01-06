@@ -16,6 +16,7 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -673,8 +674,7 @@ public class QueryTest extends MultiDriverTestBase {
             }
         });
 
-        Thread.sleep(250);
-        assert(ai.get() == 1);
+        TestUtils.waitForConditionToBecomeTrue(10000, "Async inc callback not called", () -> ai.get() == 1);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                    .f(UncachedObject.Fields.dval).eq(0.2).countAll();
         assertNotEquals(0, cnt);
@@ -745,8 +745,7 @@ public class QueryTest extends MultiDriverTestBase {
             }
         });
 
-        Thread.sleep(150);
-        assertEquals(1, ai.get());
+        TestUtils.waitForConditionToBecomeTrue(10000, "Async dec callback not called", () -> ai.get() == 1);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                    .f(UncachedObject.Fields.dval).eq(-0.2).countAll();
         assertNotEquals(0, cnt);
@@ -826,6 +825,12 @@ public class QueryTest extends MultiDriverTestBase {
         Query<SubDocTest> q = morphium.createQueryFor(SubDocTest.class).f(SubDocTest.Fields.id).eq(sd.getId());
         q.push("sub_docs.test.subtest", "this value added");
         q.push("sub_docs.test.subtest", "this value added2");
+        // Wait for push operations to be visible on replica sets
+        waitForConditionToBecomeTrue(10000, "subDocs not updated after push",
+            () -> {
+                SubDocTest result = q.get();
+                return result != null && result.subDocs != null && result.subDocs.size() != 0;
+            });
         assert(q.get().subDocs.size() != 0);
     }
 

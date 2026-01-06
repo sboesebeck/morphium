@@ -43,6 +43,8 @@ assert eFetched.value == 1 : "fetched s2:";
         m.updateUsingFields(e, collectionName, null, new String[] {"value"});
         Query<EntityCollectionName> q2 = m.createQueryFor(EntityCollectionName.class).f("value").eq(2);
         q2.setCollectionName(collectionName);
+        // Wait for update to be visible on replica sets
+        TestUtils.waitForConditionToBecomeTrue(10000, "Update not visible", () -> q2.get() != null);
         EntityCollectionName eFetched2 = q2.get();
         assertNotNull(eFetched2, "fetchedd after update");
     }
@@ -61,8 +63,8 @@ assert eFetched.value == 1 : "fetched s2:";
         EntityCollectionName eFetched = q.get();
 assert eFetched != null : "fetched before delete";
         m.delete(q, (AsyncOperationCallback<EntityCollectionName>) null);
-        EntityCollectionName eFetched2 = q.get();
-assert eFetched2 == null : "fetched after delete";
+        // Wait for delete to be visible (replication lag on replica sets)
+        TestUtils.waitForConditionToBecomeTrue(10000, "Delete not visible", () -> q.get() == null);
     }
 
 
