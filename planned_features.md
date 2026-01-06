@@ -341,11 +341,11 @@ public enum ElectionState {
 ```
 
 **Tasks:**
-- [ ] Create `ElectionState` enum with FOLLOWER, CANDIDATE, LEADER states
-- [ ] Add `currentTerm` (long) - monotonically increasing election term number
-- [ ] Add `votedFor` (String) - who this node voted for in current term (null if none)
-- [ ] Add `currentLeader` (String) - address of current known leader
-- [ ] Add state transition methods with proper synchronization
+- [x] Create `ElectionState` enum with FOLLOWER, CANDIDATE, LEADER states
+- [x] Add `currentTerm` (long) - monotonically increasing election term number
+- [x] Add `votedFor` (String) - who this node voted for in current term (null if none)
+- [x] Add `currentLeader` (String) - address of current known leader
+- [x] Add state transition methods with proper synchronization
 - [ ] Persist term/votedFor to disk to survive restarts (optional for first version)
 
 #### 1.2 Create ElectionManager class
@@ -359,15 +359,15 @@ public enum ElectionState {
 - Coordinate with ReplicationCoordinator
 
 **Tasks:**
-- [ ] Create `ElectionManager` class with constructor taking MorphiumServer reference
-- [ ] Add configuration: `electionTimeoutMin` (default 150ms), `electionTimeoutMax` (default 300ms)
-- [ ] Add configuration: `heartbeatInterval` (default 50ms) - leader sends heartbeats at this rate
-- [ ] Add `electionTimer` - randomized timeout that triggers election if no heartbeat received
-- [ ] Implement `resetElectionTimer()` - called when heartbeat received from leader
-- [ ] Implement `startElection()` - transition to CANDIDATE and request votes
-- [ ] Implement `becomeLeader()` - transition to LEADER when majority votes received
-- [ ] Implement `becomeFollower(term, leaderId)` - transition to FOLLOWER
-- [ ] Add scheduled executor for election timeout and heartbeat threads
+- [x] Create `ElectionManager` class with constructor taking MorphiumServer reference
+- [x] Add configuration: `electionTimeoutMin` (default 150ms), `electionTimeoutMax` (default 300ms)
+- [x] Add configuration: `heartbeatInterval` (default 50ms) - leader sends heartbeats at this rate
+- [x] Add `electionTimer` - randomized timeout that triggers election if no heartbeat received
+- [x] Implement `resetElectionTimer()` - called when heartbeat received from leader
+- [x] Implement `startElection()` - transition to CANDIDATE and request votes
+- [x] Implement `becomeLeader()` - transition to LEADER when majority votes received
+- [x] Implement `becomeFollower(term, leaderId)` - transition to FOLLOWER
+- [x] Add scheduled executor for election timeout and heartbeat threads
 
 #### 1.3 Implement vote request/response protocol
 
@@ -391,15 +391,15 @@ public enum ElectionState {
 ```
 
 **Tasks:**
-- [ ] Create `VoteRequest` class with term, candidateId, lastLogIndex, lastLogTerm
-- [ ] Create `VoteResponse` class with voteGranted, term
-- [ ] Add `handleVoteRequest(VoteRequest)` method to ElectionManager
+- [x] Create `VoteRequest` class with term, candidateId, lastLogIndex, lastLogTerm
+- [x] Create `VoteResponse` class with voteGranted, term
+- [x] Add `handleVoteRequest(VoteRequest)` method to ElectionManager
   - Grant vote if: term >= currentTerm AND (votedFor is null OR votedFor == candidateId) AND candidate's log is at least as up-to-date
   - Update currentTerm if request term is higher
-- [ ] Add `handleVoteResponse(VoteResponse)` method to ElectionManager
+- [x] Add `handleVoteResponse(VoteResponse)` method to ElectionManager
   - Count votes, become leader if majority received
   - Step down to follower if response term > currentTerm
-- [ ] Register vote request handler in MongoCommandHandler
+- [x] Register vote request handler in MongoCommandHandler
 
 ---
 
@@ -430,23 +430,23 @@ public enum ElectionState {
 ```
 
 **Tasks:**
-- [ ] Implement `sendHeartbeat()` in ElectionManager - leader sends to all followers
-- [ ] Schedule heartbeat at `heartbeatInterval` (50ms default) when in LEADER state
-- [ ] Implement `handleAppendEntries(AppendEntriesRequest)` in ElectionManager
+- [x] Implement `sendHeartbeat()` in ElectionManager - leader sends to all followers
+- [x] Schedule heartbeat at `heartbeatInterval` (50ms default) when in LEADER state
+- [x] Implement `handleAppendEntries(AppendEntriesRequest)` in ElectionManager
   - Reset election timer on valid heartbeat
   - Update currentLeader
   - Step down if term > currentTerm
   - Return success=false if term < currentTerm
-- [ ] Track follower responses to detect slow/dead followers
-- [ ] Register appendEntries handler in MongoCommandHandler
+- [x] Track follower responses to detect slow/dead followers
+- [x] Register appendEntries handler in MongoCommandHandler
 
 #### 2.2 Election timeout and leader detection
 
 **Tasks:**
-- [ ] Implement randomized election timeout (150-300ms default range)
-- [ ] On timeout without heartbeat: start election (transition to CANDIDATE)
-- [ ] Add `isLeaderAlive()` method - returns true if heartbeat received within timeout
-- [ ] Add leader lease mechanism - leader considers itself leader only if majority responded recently
+- [x] Implement randomized election timeout (150-300ms default range)
+- [x] On timeout without heartbeat: start election (transition to CANDIDATE)
+- [x] Add `isLeaderAlive()` method - returns true if heartbeat received within timeout
+- [x] Add leader lease mechanism - leader considers itself leader only if majority responded recently
 - [ ] Handle network partitions - leader steps down if can't reach majority
 
 ---
@@ -480,40 +480,40 @@ public void setPrimary(boolean isPrimary) {
 ```
 
 **Tasks:**
-- [ ] Make `primary` field volatile for thread-safe reads
-- [ ] Add `setPrimary(boolean)` method callable by ElectionManager
-- [ ] Add `onBecomeLeader()` callback:
+- [x] Make `primary` field volatile for thread-safe reads
+- [x] Add `setPrimary(boolean)` method callable by ElectionManager
+- [x] Add `onBecomeLeader()` callback:
   - Initialize ReplicationCoordinator
   - Start accepting writes
   - Begin sending heartbeats
   - Log leader transition
-- [ ] Add `onBecomeFollower()` callback:
+- [x] Add `onBecomeFollower()` callback:
   - Stop ReplicationCoordinator
   - Reject writes with "not master" error
   - Start ReplicationManager to sync from new leader
   - Log follower transition
-- [ ] Update `configureReplicaSet()` to initialize ElectionManager instead of static primary assignment
+- [x] Update `configureReplicaSet()` to initialize ElectionManager instead of static primary assignment
 
 #### 3.2 Write rejection on non-primary
 
 **File:** `src/main/java/de/caluga/morphium/server/netty/MongoCommandHandler.java`
 
 **Tasks:**
-- [ ] Add write check in `handleInsert()`, `handleUpdate()`, `handleDelete()`
-- [ ] If not primary, return error: `{"ok": 0, "errmsg": "not master", "code": 10107}`
-- [ ] Include `primaryHost` in error response so client can redirect
-- [ ] Allow reads on secondaries (when readPreference allows)
+- [x] Add write check in `handleInsert()`, `handleUpdate()`, `handleDelete()`
+- [x] If not primary, return error: `{"ok": 0, "errmsg": "not master", "code": 10107}`
+- [x] Include `primaryHost` in error response so client can redirect
+- [x] Allow reads on secondaries (when readPreference allows)
 
 #### 3.3 Primary discovery for clients
 
 **Tasks:**
-- [ ] Update `hello`/`isMaster` response with dynamic primary info:
+- [x] Update `hello`/`isMaster` response with dynamic primary info:
   ```java
   res.setWritablePrimary(isPrimary());
   res.setPrimary(electionManager.getCurrentLeader());
   res.setSecondary(!isPrimary());
   ```
-- [ ] Ensure clients reconnect to new primary automatically (PooledDriver already handles this via heartbeat)
+- [x] Ensure clients reconnect to new primary automatically (PooledDriver already handles this via heartbeat)
 
 ---
 
@@ -551,7 +551,7 @@ public void setPrimary(boolean isPrimary) {
 **File:** `src/main/java/de/caluga/morphium/server/netty/MongoCommandHandler.java`
 
 **Tasks:**
-- [ ] Handle `replSetStepDown` command:
+- [x] Handle `replSetStepDown` command:
   ```java
   {
       "replSetStepDown": <seconds>,
@@ -559,20 +559,20 @@ public void setPrimary(boolean isPrimary) {
       "force": <boolean>                        // Optional
   }
   ```
-- [ ] On stepdown:
+- [x] On stepdown:
   1. Stop accepting new writes
   2. Wait for secondaries to catch up (up to secondaryCatchUpPeriodSecs)
   3. Transition to FOLLOWER state
   4. Refuse to become primary for `stepDownSecs` seconds
   5. Trigger new election
-- [ ] Return success response once stepped down
+- [x] Return success response once stepped down
 
 #### 5.2 Pre-election notification
 
 **Tasks:**
-- [ ] Add `replSetFreeze` command - prevent node from seeking election for N seconds
+- [x] Add `replSetFreeze` command - prevent node from seeking election for N seconds
 - [ ] Add `replSetMaintenance` command - put node in maintenance mode (not eligible for election)
-- [ ] Allow admin to prepare for maintenance window
+- [x] Allow admin to prepare for maintenance window
 
 #### 5.3 Rolling update procedure
 
@@ -608,18 +608,18 @@ public void setPrimary(boolean isPrimary) {
 #### 6.1 Quorum requirements
 
 **Tasks:**
-- [ ] Require majority votes to become leader: `votesReceived > (clusterSize / 2)`
-- [ ] Leader must maintain contact with majority to remain leader
-- [ ] If leader can't reach majority for `leaderLeaseTimeout`, step down
-- [ ] Add configuration: `leaderLeaseTimeout` (default 10 seconds)
+- [x] Require majority votes to become leader: `votesReceived > (clusterSize / 2)`
+- [x] Leader must maintain contact with majority to remain leader
+- [x] If leader can't reach majority for `leaderLeaseTimeout`, step down
+- [x] Add configuration: `leaderLeaseTimeout` (default 10 seconds)
 
 #### 6.2 Term-based consistency
 
 **Tasks:**
-- [ ] Every message includes sender's term
-- [ ] Node receiving higher term immediately becomes follower
-- [ ] Reject messages from lower terms
-- [ ] Increment term on each election attempt
+- [x] Every message includes sender's term
+- [x] Node receiving higher term immediately becomes follower
+- [x] Reject messages from lower terms
+- [x] Increment term on each election attempt
 
 #### 6.3 Network partition handling
 
@@ -644,7 +644,7 @@ public void setPrimary(boolean isPrimary) {
 #### 7.1 Election status commands
 
 **Tasks:**
-- [ ] Add `replSetGetStatus` command response with election info:
+- [x] Add `replSetGetStatus` command response with election info:
   ```json
   {
       "set": "rs0",
@@ -661,7 +661,7 @@ public void setPrimary(boolean isPrimary) {
       ]
   }
   ```
-- [ ] Add election event logging (term changes, state transitions, vote results)
+- [x] Add election event logging (term changes, state transitions, vote results)
 - [ ] Add metrics: elections_total, election_duration_ms, time_since_last_heartbeat
 
 #### 7.2 Health checks
