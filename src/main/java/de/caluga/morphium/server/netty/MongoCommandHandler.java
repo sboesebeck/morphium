@@ -250,6 +250,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 answer = processReplSetGetStatus();
                 break;
 
+            case "replSetStepDown":
+                answer = processReplSetStepDown(doc);
+                break;
+
+            case "replSetFreeze":
+                answer = processReplSetFreeze(doc);
+                break;
+
             default:
                 answer = processDefaultCommand(ctx, doc, cmd);
         }
@@ -329,10 +337,22 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         try {
             boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
 
-            // Reject writes to secondaries
-            if (!primary && isWriteCommand &&
+            // Reject writes to secondaries (use dynamic election state if available)
+            boolean isPrimary = isCurrentPrimary();
+            if (!isPrimary && isWriteCommand &&
                     !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
-                return Doc.of("ok", 0.0, "errmsg", "not primary", "code", 10107, "codeName", "NotWritablePrimary");
+                // Include primary host so client can redirect
+                String currentPrimary = getCurrentPrimaryHost();
+                Map<String, Object> errorResponse = Doc.of(
+                    "ok", 0.0,
+                    "errmsg", "not primary",
+                    "code", 10107,
+                    "codeName", "NotWritablePrimary"
+                );
+                if (currentPrimary != null) {
+                    errorResponse.put("primaryHost", currentPrimary);
+                }
+                return errorResponse;
             }
 
             // Check for change stream aggregation
@@ -547,19 +567,56 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             res.setHosts(allHosts);
         }
 
+        // Use dynamic election state if available
+        boolean isPrimary = isCurrentPrimary();
+        String currentPrimaryHost = getCurrentPrimaryHost();
+
         res.setConnectionId(1);
         res.setMaxWireVersion(17);
         res.setMinWireVersion(13);
         res.setMaxMessageSizeBytes(100000);
         res.setMaxBsonObjectSize(10000);
-        res.setWritablePrimary(primary);
-        res.setSecondary(!primary);
+        res.setWritablePrimary(isPrimary);
+        res.setSecondary(!isPrimary);
         res.setSetName(rsName);
-        res.setPrimary(primary ? host + ":" + port : primaryHost);
-        res.setMe(host + ":" + port);
+        res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
+        res.setMe(myAddress);
         res.setLogicalSessionTimeoutMinutes(30);
         res.setMsg("MorphiumServer V0.1ALPHA (Netty)");
         return res;
+    }
+
+    /**
+     * Check if this node is currently the primary/leader.
+     * Uses ElectionManager if available (dynamic elections), otherwise falls back to static configuration.
+     */
+    private boolean isCurrentPrimary() {
+        if (electionManager != null) {
+            return electionManager.isLeader();
+        }
+        return primary;
+    }
+
+    /**
+     * Get the current primary host address.
+     * Uses ElectionManager if available for dynamic primary detection.
+     */
+    private String getCurrentPrimaryHost() {
+        if (electionManager != null) {
+            String leader = electionManager.getCurrentLeader();
+            if (leader != null) {
+                return leader;
+            }
+            // If this node is leader, return own address
+            if (electionManager.isLeader()) {
+                return host + ":" + port;
+            }
+        }
+        // Fall back to static configuration
+        if (primary) {
+            return host + ":" + port;
+        }
+        return primaryHost;
     }
 
     private void sendResponse(ChannelHandlerContext ctx, int requestId, Map<String, Object> answer) {
@@ -804,6 +861,102 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
 
         return status;
+    }
+
+    /**
+     * Process replSetStepDown command for graceful leadership handoff.
+     * This is essential for rolling updates and maintenance operations.
+     *
+     * Command format:
+     * {
+     *   replSetStepDown: <seconds>,           // Time to refuse re-election
+     *   secondaryCatchUpPeriodSecs: <seconds>,// Time to wait for secondaries to catch up
+     *   force: <boolean>                      // Force stepdown even if no eligible secondary
+     * }
+     */
+    private Map<String, Object> processReplSetStepDown(Map<String, Object> doc) {
+        if (electionManager == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Election not enabled on this server", "code", 76);
+        }
+
+        if (!electionManager.isLeader()) {
+            return Doc.of("ok", 0.0, "errmsg", "not primary so can't step down", "code", 10107);
+        }
+
+        // Parse step down duration (default 60 seconds)
+        int stepDownSecs = 60;
+        Object stepDownVal = doc.get("replSetStepDown");
+        if (stepDownVal instanceof Number) {
+            stepDownSecs = ((Number) stepDownVal).intValue();
+        }
+
+        // Parse secondary catch-up period (default 10 seconds)
+        int catchUpSecs = 10;
+        Object catchUpVal = doc.get("secondaryCatchUpPeriodSecs");
+        if (catchUpVal instanceof Number) {
+            catchUpSecs = ((Number) catchUpVal).intValue();
+        }
+
+        // Parse force flag
+        boolean force = Boolean.TRUE.equals(doc.get("force"));
+
+        log.info("Processing replSetStepDown: stepDownSecs={}, catchUpSecs={}, force={}",
+                stepDownSecs, catchUpSecs, force);
+
+        try {
+            // Perform graceful stepdown
+            boolean success = electionManager.stepDown(stepDownSecs, catchUpSecs, force);
+            if (success) {
+                log.info("Successfully stepped down as leader");
+                return Doc.of("ok", 1.0);
+            } else {
+                return Doc.of("ok", 0.0, "errmsg", "Step down failed - no eligible secondary caught up", "code", 189);
+            }
+        } catch (Exception e) {
+            log.error("Error during stepdown: {}", e.getMessage(), e);
+            return Doc.of("ok", 0.0, "errmsg", "Step down error: " + e.getMessage(), "code", 1);
+        }
+    }
+
+    /**
+     * Process replSetFreeze command to temporarily prevent this node from seeking election.
+     * Used for maintenance operations and controlled failover.
+     *
+     * Command format:
+     * {
+     *   replSetFreeze: <seconds>  // 0 to unfreeze, positive to freeze for N seconds
+     * }
+     */
+    private Map<String, Object> processReplSetFreeze(Map<String, Object> doc) {
+        if (electionManager == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Election not enabled on this server", "code", 76);
+        }
+
+        int freezeSecs = 0;
+        Object freezeVal = doc.get("replSetFreeze");
+        if (freezeVal instanceof Number) {
+            freezeSecs = ((Number) freezeVal).intValue();
+        }
+
+        if (freezeSecs < 0) {
+            return Doc.of("ok", 0.0, "errmsg", "freeze time must be >= 0", "code", 1);
+        }
+
+        log.info("Processing replSetFreeze: {} seconds", freezeSecs);
+
+        try {
+            if (freezeSecs == 0) {
+                electionManager.unfreeze();
+                log.info("Node unfrozen - can seek election");
+            } else {
+                electionManager.freeze(freezeSecs);
+                log.info("Node frozen for {} seconds - will not seek election", freezeSecs);
+            }
+            return Doc.of("ok", 1.0);
+        } catch (Exception e) {
+            log.error("Error during freeze: {}", e.getMessage(), e);
+            return Doc.of("ok", 0.0, "errmsg", "Freeze error: " + e.getMessage(), "code", 1);
+        }
     }
 
     @Override

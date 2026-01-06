@@ -57,6 +57,13 @@ public class ElectionManager {
     // State for tracking pending vote requests
     private volatile boolean electionInProgress = false;
 
+    // Frozen state - prevents this node from starting elections
+    private volatile boolean frozen = false;
+    private volatile long frozenUntil = 0;  // System.currentTimeMillis() when freeze expires
+
+    // Step down state - prevents re-election after stepping down
+    private volatile long noElectionUntil = 0;  // System.currentTimeMillis() when we can seek election again
+
     // Running state
     private volatile boolean running = false;
 
@@ -187,6 +194,20 @@ public class ElectionManager {
     private void becomeCandidate() {
         if (!config.isCanBecomeLeader()) {
             log.debug("{} cannot become leader (canBecomeLeader=false), staying follower", myAddress);
+            resetElectionTimer();
+            return;
+        }
+
+        // Check if frozen
+        if (isFrozen()) {
+            log.debug("{} is frozen, cannot start election", myAddress);
+            resetElectionTimer();
+            return;
+        }
+
+        // Check if blocked from recent stepdown
+        if (isElectionBlocked()) {
+            log.debug("{} is blocked from election (recent stepdown), waiting...", myAddress);
             resetElectionTimer();
             return;
         }
@@ -728,18 +749,103 @@ public class ElectionManager {
     }
 
     /**
-     * Force step down (for graceful shutdown or admin command).
+     * Simple stepdown - immediately becomes follower.
      */
     public void stepDown() {
-        log.info("{} forced stepdown requested", myAddress);
+        stepDown(60, 0, true);
+    }
+
+    /**
+     * Graceful stepdown with configurable parameters.
+     *
+     * @param stepDownSecs Seconds to refuse re-election after stepping down
+     * @param catchUpSecs  Seconds to wait for secondaries to catch up (not yet implemented)
+     * @param force        If true, step down even if no secondary is caught up
+     * @return true if stepdown succeeded, false otherwise
+     */
+    public boolean stepDown(int stepDownSecs, int catchUpSecs, boolean force) {
+        log.info("{} stepdown requested: stepDownSecs={}, catchUpSecs={}, force={}",
+                myAddress, stepDownSecs, catchUpSecs, force);
+
         stateLock.lock();
         try {
-            if (state == ElectionState.LEADER) {
-                becomeFollower(currentTerm.get(), null);
+            if (state != ElectionState.LEADER) {
+                log.warn("{} cannot step down - not leader (state={})", myAddress, state);
+                return false;
             }
+
+            // TODO: In future, implement catch-up wait
+            // For now, we proceed directly if force=true or skip the wait
+            if (!force && catchUpSecs > 0) {
+                log.info("{} would wait {} seconds for catch-up (not implemented yet)", myAddress, catchUpSecs);
+                // In future: wait for followers to acknowledge current sequence
+            }
+
+            // Set the no-election period
+            if (stepDownSecs > 0) {
+                noElectionUntil = System.currentTimeMillis() + (stepDownSecs * 1000L);
+                log.info("{} will not seek election until {} ms", myAddress, noElectionUntil);
+            }
+
+            // Become follower
+            becomeFollower(currentTerm.get(), null);
+            log.info("{} successfully stepped down from leader", myAddress);
+            return true;
+
         } finally {
             stateLock.unlock();
         }
+    }
+
+    /**
+     * Freeze this node - prevent it from seeking election.
+     * Used for maintenance operations.
+     *
+     * @param freezeSecs Seconds to remain frozen
+     */
+    public void freeze(int freezeSecs) {
+        log.info("{} freezing for {} seconds", myAddress, freezeSecs);
+        frozen = true;
+        frozenUntil = System.currentTimeMillis() + (freezeSecs * 1000L);
+    }
+
+    /**
+     * Unfreeze this node - allow it to seek election again.
+     */
+    public void unfreeze() {
+        log.info("{} unfreezing", myAddress);
+        frozen = false;
+        frozenUntil = 0;
+    }
+
+    /**
+     * Check if this node is currently frozen (cannot seek election).
+     */
+    public boolean isFrozen() {
+        if (!frozen) {
+            return false;
+        }
+        // Check if freeze has expired
+        if (System.currentTimeMillis() > frozenUntil) {
+            frozen = false;
+            frozenUntil = 0;
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Check if this node is currently blocked from seeking election (due to recent stepdown).
+     */
+    public boolean isElectionBlocked() {
+        if (noElectionUntil == 0) {
+            return false;
+        }
+        if (System.currentTimeMillis() > noElectionUntil) {
+            noElectionUntil = 0;
+            return false;
+        }
+        return true;
     }
 
     /**

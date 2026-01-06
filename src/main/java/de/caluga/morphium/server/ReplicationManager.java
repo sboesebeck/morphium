@@ -51,13 +51,13 @@ public class ReplicationManager {
     private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
 
-    // Progress reporting interval - low value for faster write concern acknowledgment
-    private static final long PROGRESS_REPORT_INTERVAL_MS = 5;
+    // Progress reporting interval - very low value for faster write concern acknowledgment
+    private static final long PROGRESS_REPORT_INTERVAL_MS = 1;
 
     // Batching configuration for efficient replication
-    // Using smaller batch interval for lower latency
-    private static final int BATCH_SIZE = 50;
-    private static final long BATCH_FLUSH_INTERVAL_MS = 2;
+    // Using very small batch interval for lowest latency
+    private static final int BATCH_SIZE = 100;
+    private static final long BATCH_FLUSH_INTERVAL_MS = 1;
     private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>();
     private ScheduledExecutorService batchProcessor;
 
@@ -67,6 +67,9 @@ public class ReplicationManager {
     // Staleness detection - track last response time to detect broken connections
     private final AtomicLong lastWatchResponseTime = new AtomicLong(0);
     private static final long STALENESS_THRESHOLD_MS = 30000; // 30 seconds without response = stale
+
+    // Callback to notify when log index is updated (for election consistency)
+    private java.util.function.BiConsumer<Long, Long> onLogIndexUpdate;
 
     public ReplicationManager(InMemoryDriver localDriver, String primaryHost, int primaryPort) {
         this.localDriver = localDriver;
@@ -79,6 +82,15 @@ public class ReplicationManager {
      */
     public void setMyAddress(String myAddress) {
         this.myAddress = myAddress;
+    }
+
+    /**
+     * Set callback to be notified when log index is updated.
+     * This is used to keep ElectionManager's log indices in sync with replication.
+     * The callback receives (logIndex, logTerm).
+     */
+    public void setOnLogIndexUpdate(java.util.function.BiConsumer<Long, Long> callback) {
+        this.onLogIndexUpdate = callback;
     }
 
     /**
@@ -173,6 +185,13 @@ public class ReplicationManager {
         // Apply other events individually
         for (Map<String, Object> event : otherEvents) {
             applyChangeEvent(event);
+        }
+
+        // Notify about log index update for election consistency
+        long currentSeq = lastAppliedSequence.get();
+        if (onLogIndexUpdate != null && currentSeq > 0) {
+            // Term is 0 for now - will be updated when we receive term from leader
+            onLogIndexUpdate.accept(currentSeq, 0L);
         }
 
         // Immediately report progress after processing batch for faster write concern acknowledgment
