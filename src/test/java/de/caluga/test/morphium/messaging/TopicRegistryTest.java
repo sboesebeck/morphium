@@ -81,6 +81,11 @@ public class TopicRegistryTest extends MultiDriverTestBase {
     public void testSuccessfulSendWithListener(Morphium morphium) throws Exception {
         log.info("Running test: testSuccessfulSendWithListener");
         try (morphium) {
+            // Skip for InMemDriver - each Morphium instance has isolated data store
+            if (morphium.getDriver().getName().equals("InMemDriver")) {
+                log.info("Skipping multi-instance test for InMemDriver (isolated data stores)");
+                return;
+            }
             for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
@@ -153,6 +158,11 @@ public class TopicRegistryTest extends MultiDriverTestBase {
     public void testRecipientCheck(Morphium morphium) throws Exception {
         log.info("Running test: testRecipientCheck");
         try (morphium) {
+            // Skip for InMemDriver - each Morphium instance has isolated data store
+            if (morphium.getDriver().getName().equals("InMemDriver")) {
+                log.info("Skipping multi-instance test for InMemDriver (isolated data stores)");
+                return;
+            }
             for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();

@@ -116,12 +116,12 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m2.start();
 
                     // morphium.ensureIndicesFor(Msg.class, m1.getCollectionName("test"));
-                    log.info("Indexes: {}", morphium.getIndexesFromMongo(m1.getCollectionName("test")));
+                    log.info("Indexes: {}", m.getIndexesFromMongo(m1.getCollectionName("test")));
                     TestUtils.waitForConditionToBecomeTrue(5000, "Message not stored within timeout",
                                                            () -> m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll() == 1);
                     TestUtils.waitForBooleanToBecomeTrue(5000, "Message not received?", gotmsg, (dur)-> {log.info("Waiting for receiver...{}ms", dur);});
                     TestUtils.wait(2);
-                    var theMsg = morphium.createQueryFor(Msg.class, m1.getCollectionName("test")).get();
+                    var theMsg = m.createQueryFor(Msg.class, m1.getCollectionName("test")).get();
                     assertNotNull(theMsg, "Message should still exist after processing (deleteAfterProcessingTime is 15000ms, TTL should not have triggered yet)");
                     log.info("Delete at is set to {}", theMsg.getDeleteAt());
                     // MongoDB's TTL monitor runs periodically; allow enough time for real clusters.

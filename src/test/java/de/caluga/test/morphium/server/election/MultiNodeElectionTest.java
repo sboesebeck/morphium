@@ -235,4 +235,160 @@ public class MultiNodeElectionTest {
         // Note: It keeps trying elections but can't get majority votes
         assertFalse(server.isPrimary(), "Single node in 3-node cluster should not become primary");
     }
+
+    @Test
+    void testGracefulStepDown() throws Exception {
+        log.info("Testing graceful stepdown");
+
+        List<String> hosts = List.of("localhost:27100", "localhost:27101", "localhost:27102");
+
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(150)
+                .setElectionTimeoutMaxMs(300)
+                .setHeartbeatIntervalMs(50);
+
+        // Create and start servers
+        for (int i = 0; i < 3; i++) {
+            int port = 27100 + i;
+            MorphiumServer server = new MorphiumServer(port, "localhost", 100, 60);
+            server.configureReplicaSet("rs0", hosts, null, true, config);
+            servers.add(server);
+        }
+
+        for (MorphiumServer server : servers) {
+            server.start();
+        }
+
+        // Wait for initial election
+        Thread.sleep(2000);
+
+        // Find the current leader
+        MorphiumServer leader = null;
+        for (MorphiumServer server : servers) {
+            ElectionManager em = server.getElectionManager();
+            if (em != null && em.getState() == ElectionState.LEADER) {
+                leader = server;
+                break;
+            }
+        }
+        assertNotNull(leader, "Should have a leader");
+        String originalLeaderAddress = leader.getHost() + ":" + leader.getPort();
+        log.info("Original leader: {}", originalLeaderAddress);
+
+        // Request stepdown with short period so new election can happen
+        ElectionManager leaderEm = leader.getElectionManager();
+        log.info("Requesting stepdown...");
+        boolean stepdownResult = leaderEm.stepDown(2, 0, true);  // 2 second no-election period
+        assertTrue(stepdownResult, "Stepdown should succeed");
+
+        // Wait for new election
+        Thread.sleep(2000);
+
+        // The original leader should not be leader anymore (it's blocked)
+        assertNotEquals(ElectionState.LEADER, leaderEm.getState(),
+                "Original leader should have stepped down");
+
+        // Count leaders among all servers
+        int leaderCount = 0;
+        String newLeaderAddress = null;
+        for (MorphiumServer server : servers) {
+            ElectionManager em = server.getElectionManager();
+            if (em != null && em.getState() == ElectionState.LEADER) {
+                leaderCount++;
+                newLeaderAddress = server.getHost() + ":" + server.getPort();
+                log.info("New leader: {}", newLeaderAddress);
+            }
+        }
+
+        assertEquals(1, leaderCount, "Should have exactly one new leader");
+        assertNotEquals(originalLeaderAddress, newLeaderAddress,
+                "New leader should be different from original (which is blocked)");
+
+        log.info("Stepdown test passed: {} -> {}", originalLeaderAddress, newLeaderAddress);
+    }
+
+    @Test
+    void testFreezePreventElection() throws Exception {
+        log.info("Testing freeze prevents election");
+
+        List<String> hosts = List.of("localhost:27100", "localhost:27101", "localhost:27102");
+
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(100)
+                .setElectionTimeoutMaxMs(200)
+                .setHeartbeatIntervalMs(50);
+
+        // Create and start servers
+        for (int i = 0; i < 3; i++) {
+            int port = 27100 + i;
+            MorphiumServer server = new MorphiumServer(port, "localhost", 100, 60);
+            server.configureReplicaSet("rs0", hosts, null, true, config);
+            servers.add(server);
+        }
+
+        for (MorphiumServer server : servers) {
+            server.start();
+        }
+
+        // Wait for initial election
+        Thread.sleep(2000);
+
+        // Find the current leader and freeze the other two nodes
+        MorphiumServer leader = null;
+        for (MorphiumServer server : servers) {
+            ElectionManager em = server.getElectionManager();
+            if (em != null && em.getState() == ElectionState.LEADER) {
+                leader = server;
+            } else if (em != null) {
+                // Freeze non-leader nodes
+                em.freeze(10);
+                log.info("Froze node {}:{}", server.getHost(), server.getPort());
+            }
+        }
+        assertNotNull(leader, "Should have a leader");
+
+        // Stop the leader
+        String originalLeaderAddress = leader.getHost() + ":" + leader.getPort();
+        log.info("Stopping leader: {}", originalLeaderAddress);
+        leader.shutdown();
+        servers.remove(leader);
+
+        // Wait for potential new election
+        Thread.sleep(1000);
+
+        // No new leader should be elected because remaining nodes are frozen
+        int leaderCount = 0;
+        for (MorphiumServer server : servers) {
+            ElectionManager em = server.getElectionManager();
+            if (em != null && em.getState() == ElectionState.LEADER) {
+                leaderCount++;
+            }
+        }
+
+        assertEquals(0, leaderCount, "No new leader should be elected while nodes are frozen");
+
+        // Unfreeze nodes and wait for election
+        for (MorphiumServer server : servers) {
+            ElectionManager em = server.getElectionManager();
+            if (em != null) {
+                em.unfreeze();
+                log.info("Unfroze node {}:{}", server.getHost(), server.getPort());
+            }
+        }
+
+        // Wait for election
+        Thread.sleep(1500);
+
+        // Now we should have a new leader
+        leaderCount = 0;
+        for (MorphiumServer server : servers) {
+            ElectionManager em = server.getElectionManager();
+            if (em != null && em.getState() == ElectionState.LEADER) {
+                leaderCount++;
+                log.info("New leader after unfreeze: {}:{}", server.getHost(), server.getPort());
+            }
+        }
+
+        assertEquals(1, leaderCount, "Should have exactly one leader after unfreeze");
+    }
 }
