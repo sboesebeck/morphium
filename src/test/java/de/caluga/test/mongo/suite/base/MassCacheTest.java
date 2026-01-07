@@ -287,7 +287,8 @@ public class MassCacheTest extends MultiDriverTestBase {
         }
         Thread.sleep(1200);
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(25000);
+        TestUtils.waitForConditionToBecomeTrue(60000, "CachedObjects not persisted for cache test",
+            () -> morphium.createQueryFor(CachedObject.class).countAll() == NO_OBJECTS);
         log.info("Done.");
 
         for (int j = 0; j < 3; j++) {

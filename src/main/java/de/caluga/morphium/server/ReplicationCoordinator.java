@@ -119,8 +119,8 @@ public class ReplicationCoordinator {
                 }
 
                 try {
-                    // Wait for progress reports or timeout - very short interval for fastest acknowledgment
-                    replicationCondition.await(Math.min(remainingMs, 2), TimeUnit.MILLISECONDS);
+                    // Wait for progress reports or timeout - balanced for good throughput
+                    replicationCondition.await(Math.min(remainingMs, 10), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return false;

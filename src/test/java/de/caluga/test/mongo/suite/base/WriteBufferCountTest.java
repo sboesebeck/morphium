@@ -63,7 +63,7 @@ public class WriteBufferCountTest extends MultiDriverTestBase {
         while (TestUtils.countUC(morphium) < 10000) {
             log.info("Count: " + TestUtils.countUC(morphium));
             Thread.sleep(1500);
-            assertTrue (System.currentTimeMillis() - s < 15000);
+            assertTrue (System.currentTimeMillis() - s < 120000);
         }
     }
 

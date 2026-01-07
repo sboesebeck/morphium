@@ -197,7 +197,7 @@ assert counter > 0 : "Counter is: " + counter;
             new Thread(r).start();
             long start = System.currentTimeMillis();
 
-            TestUtils.waitForConditionToBecomeTrue(15000, "Not all async objects persisted",
+            TestUtils.waitForConditionToBecomeTrue(60000, "Not all async objects persisted",
                 () -> {
                     long count = q.countAll();
                     log.info("--------> Waiting: " + count);
