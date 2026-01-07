@@ -51,13 +51,14 @@ public class ReplicationManager {
     private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
 
-    // Progress reporting interval - very low value for faster write concern acknowledgment
-    private static final long PROGRESS_REPORT_INTERVAL_MS = 1;
+    // Progress reporting interval - balanced for good throughput and write concern latency
+    // 50ms gives good responsiveness while not overwhelming the primary with reports
+    private static final long PROGRESS_REPORT_INTERVAL_MS = 50;
 
     // Batching configuration for efficient replication
-    // Using very small batch interval for lowest latency
+    // Using reasonable batch interval for good throughput
     private static final int BATCH_SIZE = 100;
-    private static final long BATCH_FLUSH_INTERVAL_MS = 1;
+    private static final long BATCH_FLUSH_INTERVAL_MS = 5;
     private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>();
     private ScheduledExecutorService batchProcessor;
 
@@ -278,6 +279,7 @@ public class ReplicationManager {
 
     /**
      * Report current replication progress to the primary.
+     * Uses synchronous communication to ensure acknowledgment is received.
      */
     private void reportProgressToPrimary() {
         if (!connected.get() || primaryMorphium == null || myAddress == null) {
@@ -304,11 +306,18 @@ public class ReplicationManager {
                 "sequenceNumber", currentSeq
             ));
 
-            cmd.executeAsync();  // Fire and forget - we don't need to wait for response
-            lastReportedSequence.set(currentSeq);
-            log.debug("Reported progress to primary: seq={}", currentSeq);
+            // Use synchronous execution to ensure the progress report is acknowledged
+            int msgId = cmd.executeAsync();
+            Map<String, Object> result = con.readSingleAnswer(msgId);
+            if (result != null && Double.valueOf(1.0).equals(result.get("ok"))) {
+                lastReportedSequence.set(currentSeq);
+                log.debug("Reported progress to primary: seq={}", currentSeq);
+            } else {
+                log.warn("Progress report not acknowledged by primary: seq={}, result={}", currentSeq, result);
+            }
         } catch (Exception e) {
-            log.debug("Failed to report progress: {}", e.getMessage());
+            // Don't update lastReportedSequence - will retry on next interval
+            log.debug("Failed to report progress (will retry): {}", e.getMessage());
         } finally {
             if (con != null) {
                 try {
@@ -371,18 +380,22 @@ public class ReplicationManager {
             MorphiumConfig config = new MorphiumConfig();
             config.setDatabase("admin");  // Default db for admin operations
             config.setHostSeed(primaryHost + ":" + primaryPort);
-            config.setMaxConnections(3);
-            config.setMinConnections(1);
-            config.setConnectionTimeout(5000);
-            config.setReadTimeout(30000);
-            config.setRetryReads(false);  // Don't retry on replication client
-            config.setRetryWrites(false);
+            // Increase connection pool for handling watch + progress reporting under load
+            config.setMaxConnections(10);
+            config.setMinConnections(2);
+            config.setConnectionTimeout(10000);  // 10s connection timeout
+            config.setReadTimeout(60000);  // 60s read timeout for long-running watch
+            config.setMaxWaitTime(5000);  // 5s max wait for connection from pool
+            config.setRetryReads(true);  // Retry on transient failures
+            config.setRetryWrites(true);
+            config.setRetriesOnNetworkError(3);
+            config.setSleepBetweenNetworkErrorRetries(500);
 
             primaryMorphium = new Morphium(config);
             primaryMorphium.getDriver();  // Force connection
 
             connected.set(true);
-            log.info("Connected to primary");
+            log.info("Connected to primary with enhanced connection pool");
         } catch (Exception e) {
             log.error("Failed to connect to primary: {}", e.getMessage());
             connected.set(false);
@@ -555,7 +568,7 @@ public class ReplicationManager {
         try {
             cmd = new WatchCommand(con)
                 .setDb("admin")  // Watch at cluster level
-                .setMaxTimeMS(100)  // Short timeout for faster replication - server will return quickly with any events
+                .setMaxTimeMS(5000)  // 5 second timeout - balanced for responsiveness vs efficiency
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
                 .setPipeline(List.of())  // Empty = watch everything
                 .setCb(new DriverTailableIterationCallback() {

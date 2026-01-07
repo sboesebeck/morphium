@@ -431,6 +431,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 o.setStrValue("Uncached " + i);
                 morphium.store(o);
             }
+            TestUtils.waitForWrites(morphium, log);
+            TestUtils.waitForConditionToBecomeTrue(30000, "Objects not persisted for orTest",
+                () -> morphium.createQueryFor(UncachedObject.class).countAll() == NO_OBJECTS);
 
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.or(q.q().f("counter").lt(10), q.q().f("strValue").eq("Uncached 50"));

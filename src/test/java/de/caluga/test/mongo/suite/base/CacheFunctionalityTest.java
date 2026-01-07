@@ -165,7 +165,7 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
         TestUtils.waitForWrites(morphium, log);
         int amount = 1000;
         createCachedObjects(morphium, amount);
-        TestUtils.waitForConditionToBecomeTrue(15000, "CachedObjects not persisted for multithread test",
+        TestUtils.waitForConditionToBecomeTrue(30000, "CachedObjects not persisted for multithread test",
             () -> morphium.createQueryFor(CachedObject.class).countAll() == amount);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i).get();

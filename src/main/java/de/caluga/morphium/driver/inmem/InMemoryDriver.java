@@ -181,9 +181,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // size/max
     private final List<WatchMonitor> monitors = new CopyOnWriteArrayList<>();
     private final BlockingQueue<Runnable> eventQueue = new LinkedBlockingDeque<>();
-    private final List<Map<String, Object>> commandResults = new Vector<>();
+    private final java.util.concurrent.ConcurrentLinkedQueue<Map<String, Object>> commandResults = new java.util.concurrent.ConcurrentLinkedQueue<>();
     private final java.util.concurrent.ConcurrentHashMap<Integer, Map<String, Object>> commandResultsById = new java.util.concurrent.ConcurrentHashMap<>();
-    private final Object commandLock = new Object();
+    // Method cache for lock-free command dispatch
+    private final java.util.concurrent.ConcurrentHashMap<Class<?>, Method> commandMethodCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private void addResult(int id, Map<String, Object> res) {
         Map<String, Object> toStore = res == null ? prepareResult(Doc.of("ok", 0.0, "errmsg", "null result")) : res;
@@ -192,9 +193,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private void addQueuedResult(Map<String, Object> res) {
         Map<String, Object> toStore = res == null ? prepareResult(Doc.of("ok", 0.0, "errmsg", "null result")) : res;
-        synchronized (commandResults) {
-            commandResults.add(toStore);
-        }
+        commandResults.offer(toStore);
     }
 
     private void addResultAndQueue(int id, Map<String, Object> res) {
@@ -663,11 +662,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         Map<String, Object> data = commandResultsById.remove(queryId);
         if (data == null) {
-            synchronized (commandResults) {
-                if (!commandResults.isEmpty()) {
-                    data = commandResults.remove(0);
-                }
-            }
+            data = commandResults.poll();
         }
         if (data == null) {
             return List.of();
@@ -695,11 +690,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         Map<String, Object> data = commandResultsById.remove(queryId);
         if (data == null) {
-            synchronized (commandResults) {
-                if (!commandResults.isEmpty()) {
-                    data = commandResults.remove(0);
-                }
-            }
+            data = commandResults.poll();
         }
         if (data == null) {
             return new SingleBatchCursor(List.of());
@@ -765,17 +756,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         try {
-            synchronized (commandLock) {
-                Method method = this.getClass().getDeclaredMethod("runCommand", cmd.getClass());
-                var o = method.invoke(this, cmd);
-                stats.get(DriverStatsKey.REPLY_RECEIVED);
-
-                if (o instanceof Integer) {
-                    return (Integer) o;
+            // Use cached method lookup for lock-free command dispatch
+            Class<?> cmdClass = cmd.getClass();
+            Method method = commandMethodCache.computeIfAbsent(cmdClass, cls -> {
+                try {
+                    return this.getClass().getDeclaredMethod("runCommand", cls);
+                } catch (NoSuchMethodException e) {
+                    throw new RuntimeException(e);
                 }
+            });
+
+            var o = method.invoke(this, cmd);
+            stats.get(DriverStatsKey.REPLY_RECEIVED);
+
+            if (o instanceof Integer) {
+                return (Integer) o;
             }
-        } catch (NoSuchMethodException nsmex) {
-            throw new RuntimeException(nsmex);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
@@ -788,15 +784,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             throw new RuntimeException(t);
         }
-        // } catch (Exception e) {
-        // try {
-        // log.error("got exception", e);
-        // } catch (InterruptedException e1) {
-        // // TODO Auto-generated catch block
-        // // e1.printStackTrace();
-        // }
-        // throw new RuntimeException(e);
-        // }
 
         return 0;
     }
@@ -2044,7 +2031,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return 0L;
         }
 
-        Deque<Map<String, Object>> remaining = new ArrayDeque<>(allResults.subList(batchSize, allResults.size()));
+        // Use ConcurrentLinkedDeque for lock-free cursor operations
+        Deque<Map<String, Object>> remaining = new java.util.concurrent.ConcurrentLinkedDeque<>(allResults.subList(batchSize, allResults.size()));
         long cursorId = cursorIdSequence.getAndIncrement();
         activeQueryCursors.put(cursorId, new CursorResultBuffer(remaining, namespace, batchSize));
         return cursorId;
@@ -2053,21 +2041,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private List<Map<String, Object>> drainNextBatch(long cursorId, int requestedBatchSize) {
         List<Map<String, Object>> result = new ArrayList<>();
 
+        // Lock-free drain using ConcurrentLinkedDeque - no synchronized block needed
         activeQueryCursors.computeIfPresent(cursorId, (id, buffer) -> {
-            synchronized (buffer) {
-                int size = requestedBatchSize > 0 ? requestedBatchSize : buffer.defaultBatchSize;
+            int size = requestedBatchSize > 0 ? requestedBatchSize : buffer.defaultBatchSize;
 
-                if (size <= 0) {
-                    size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
-                }
-
-                for (int i = 0; i < size && !buffer.remaining.isEmpty(); i++) {
-                    result.add(buffer.remaining.pollFirst());
-                }
-
-                // Return null to remove the cursor if empty, otherwise keep it
-                return buffer.remaining.isEmpty() ? null : buffer;
+            if (size <= 0) {
+                size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
             }
+
+            for (int i = 0; i < size; i++) {
+                Map<String, Object> doc = buffer.remaining.pollFirst();
+                if (doc == null) break;
+                result.add(doc);
+            }
+
+            // Return null to remove the cursor if empty, otherwise keep it
+            return buffer.remaining.isEmpty() ? null : buffer;
         });
 
         return result;
@@ -3925,11 +3914,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, Object> result = null;
 
         while (result == null) {
-            synchronized (commandResults) {
-                if (!commandResults.isEmpty()) {
-                    result = commandResults.remove(0);
-                }
-            }
+            // Lock-free poll from ConcurrentLinkedQueue
+            result = commandResults.poll();
 
             if (result == null) {
                 if (System.currentTimeMillis() >= deadline) {
@@ -3939,10 +3925,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     msg.setFirstDoc(emptyResponse);
                     return msg;
                 }
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                // Use LockSupport.parkNanos for virtual thread compatibility (doesn't pin carrier thread)
+                java.util.concurrent.locks.LockSupport.parkNanos(10_000_000L); // 10ms
+                if (Thread.interrupted()) {
                     break;
                 }
             }
@@ -3961,32 +3946,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
-        synchronized (commandLock) {
-            // prefer id-based lookup to avoid cross-talk between concurrent commands
-            Map<String, Object> direct = commandResultsById.remove(id);
+        // Lock-free lookup from ConcurrentHashMap - results are always stored by ID
+        Map<String, Object> direct = commandResultsById.remove(id);
+        if (direct != null) {
+            return direct;
+        }
+
+        // Brief wait with backoff - should rarely happen as commands store results immediately
+        int attempts = 0;
+        while (attempts < 20) {
+            // Use LockSupport.parkNanos for virtual thread compatibility
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L); // 1ms
+            if (Thread.interrupted()) {
+                break;
+            }
+
+            attempts++;
+            direct = commandResultsById.remove(id);
             if (direct != null) {
                 return direct;
             }
-
-            int attempts = 0;
-
-            while (commandResults.isEmpty() && attempts < 50) {
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-
-                attempts++;
-                direct = commandResultsById.remove(id);
-                if (direct != null) {
-                    return direct;
-                }
-            }
-
-            return null;
         }
+
+        return null;
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -5144,6 +5126,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (insertOnlyMatchPipeline && "insert".equals(info.event.get("operationType"))) {
                 try {
                     callback.incomingData(deepCopyDoc(info.event), System.currentTimeMillis() - info.createdAt);
+                    // Signal monitor to wake up watchInternal() thread immediately
+                    monitor.signalAll();
                 } catch (Exception e) {
                     log.error("Error calling change-stream callback", e);
                 }
@@ -5173,6 +5157,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             try {
                 callback.incomingData(processed, System.currentTimeMillis() - info.createdAt);
+                // Signal monitor to wake up watchInternal() thread immediately
+                monitor.signalAll();
             } catch (Exception e) {
                 log.error("Error calling change-stream callback", e);
             }
@@ -6311,6 +6297,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private class InMemoryFindCursor extends MorphiumCursor {
         private int internalIndex = 0;
         private int index = 0;
+        // Use ReentrantLock instead of synchronized to avoid carrier thread pinning with virtual threads
+        private final java.util.concurrent.locks.ReentrantLock cursorLock = new java.util.concurrent.locks.ReentrantLock();
 
         InMemoryFindCursor(long cursorId, String namespace, List<Map<String, Object>> firstBatch, int batchSize) {
             setCursorId(cursorId);
@@ -6338,7 +6326,42 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         @Override
-        public synchronized boolean hasNext() {
+        public boolean hasNext() {
+            cursorLock.lock();
+            try {
+                if (getBatch() != null && internalIndex < getBatch().size()) {
+                    return true;
+                }
+
+                if (getCursorId() == 0) {
+                    return false;
+                }
+
+                loadNextBatch();
+                return getBatch() != null && internalIndex < getBatch().size();
+            } finally {
+                cursorLock.unlock();
+            }
+        }
+
+        @Override
+        public Map<String, Object> next() {
+            cursorLock.lock();
+            try {
+                if (!hasNextInternal()) {
+                    return null;
+                }
+
+                Map<String, Object> doc = getBatch().get(internalIndex++);
+                index++;
+                return doc;
+            } finally {
+                cursorLock.unlock();
+            }
+        }
+
+        // Internal hasNext without locking (called when lock is already held)
+        private boolean hasNextInternal() {
             if (getBatch() != null && internalIndex < getBatch().size()) {
                 return true;
             }
@@ -6352,85 +6375,101 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         @Override
-        public synchronized Map<String, Object> next() {
-            if (!hasNext()) {
-                return null;
-            }
+        public void close() {
+            cursorLock.lock();
+            try {
+                if (getCursorId() != 0) {
+                    closeCursor(getCursorId());
+                    setCursorId(0);
+                }
 
-            Map<String, Object> doc = getBatch().get(internalIndex++);
-            index++;
-            return doc;
+                setBatch(Collections.emptyList());
+                internalIndex = 0;
+            } finally {
+                cursorLock.unlock();
+            }
         }
 
         @Override
-        public synchronized void close() {
-            if (getCursorId() != 0) {
-                closeCursor(getCursorId());
-                setCursorId(0);
+        public int available() {
+            cursorLock.lock();
+            try {
+                if (getBatch() == null) {
+                    return 0;
+                }
+                return Math.max(0, getBatch().size() - internalIndex);
+            } finally {
+                cursorLock.unlock();
             }
-
-            setBatch(Collections.emptyList());
-            internalIndex = 0;
         }
 
         @Override
-        public synchronized int available() {
-            if (getBatch() == null) {
-                return 0;
+        public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+            cursorLock.lock();
+            try {
+                List<Map<String, Object>> res = new ArrayList<>();
+
+                while (hasNextInternal()) {
+                    Map<String, Object> doc = getBatch().get(internalIndex++);
+                    index++;
+                    res.add(doc);
+                }
+
+                return res;
+            } finally {
+                cursorLock.unlock();
             }
-            return Math.max(0, getBatch().size() - internalIndex);
         }
 
         @Override
-        public synchronized List<Map<String, Object>> getAll() throws MorphiumDriverException {
-            List<Map<String, Object>> res = new ArrayList<>();
-
-            while (hasNext()) {
-                res.add(next());
-            }
-
-            return res;
-        }
-
-        @Override
-        public synchronized void ahead(int jump) throws MorphiumDriverException {
+        public void ahead(int jump) throws MorphiumDriverException {
             if (jump < 0) {
                 throw new IllegalArgumentException("jump must be >= 0");
             }
 
-            internalIndex += jump;
-            index += jump;
+            cursorLock.lock();
+            try {
+                internalIndex += jump;
+                index += jump;
 
-            while (getBatch() != null && internalIndex >= getBatch().size()) {
-                int diff = internalIndex - getBatch().size();
+                while (getBatch() != null && internalIndex >= getBatch().size()) {
+                    int diff = internalIndex - getBatch().size();
 
-                if (getCursorId() == 0) {
-                    internalIndex = getBatch() != null ? getBatch().size() : 0;
-                    break;
+                    if (getCursorId() == 0) {
+                        internalIndex = getBatch() != null ? getBatch().size() : 0;
+                        break;
+                    }
+
+                    loadNextBatch();
+
+                    if (getBatch() == null || getBatch().isEmpty()) {
+                        internalIndex = 0;
+                        break;
+                    }
+
+                    internalIndex = diff;
                 }
-
-                loadNextBatch();
-
-                if (getBatch() == null || getBatch().isEmpty()) {
-                    internalIndex = 0;
-                    break;
-                }
-
-                internalIndex = diff;
+            } finally {
+                cursorLock.unlock();
             }
         }
 
         @Override
-        public synchronized void back(int jump) throws MorphiumDriverException {
+        public void back(int jump) throws MorphiumDriverException {
             if (jump < 0) {
                 throw new IllegalArgumentException("jump must be >= 0");
             }
 
-            internalIndex -= jump;
-            index -= jump;
+            cursorLock.lock();
+            try {
+                internalIndex -= jump;
+                index -= jump;
 
-            if (internalIndex < 0) {
-                throw new IllegalArgumentException("cannot jump back over batch boundaries!");
+                if (internalIndex < 0) {
+                    throw new IllegalArgumentException("cannot jump back over batch boundaries!");
+                }
+            } finally {
+                cursorLock.unlock();
             }
         }
 

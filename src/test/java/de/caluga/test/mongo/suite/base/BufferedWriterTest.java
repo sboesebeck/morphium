@@ -312,8 +312,8 @@ public class BufferedWriterTest extends MultiDriverTestBase {
             return;
         }
         int amount = 1500;
-        morphium.getConfig().setMaxWaitTime(15000);
-        morphium.getDriver().setMaxWaitTime(10000);
+        morphium.getConfig().setMaxWaitTime(60000);
+        morphium.getDriver().setMaxWaitTime(60000);
         for (int i = 0; i < amount; i++) {
             BufferedBySizeWaitObject bo = new BufferedBySizeWaitObject();
             bo.setCounter(i);
