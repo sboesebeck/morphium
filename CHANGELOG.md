@@ -146,9 +146,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ZLIB decompression buffer**: Increased from 100 bytes to 8KB with pre-sized output buffer
 - **Reduced redundant serialization**: Avoid calling `bytes()` multiple times in logging paths
 
-### Known Limitations
-- **MorphiumServer replica set data synchronization**: When running multiple MorphiumServer instances as a replica set, each instance has its own isolated InMemoryDriver. Data written to the primary is not automatically replicated to secondaries. For testing purposes, use single-node mode or a real MongoDB replica set.
-
 ---
 
 ## [6.0.3] - 2025-11-28
