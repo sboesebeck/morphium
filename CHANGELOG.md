@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### InMemoryDriver
 - **Tailable cursor support**: InMemoryDriver now supports tailable queries
 - **Shared InMemory databases**: Multiple Morphium instances can share the same InMemory database (configurable via `DriverSettings.setShareInMemoryDatabase()`)
+- **MongoDB-compatible `$text` query support**: Full text search with MongoDB-standard query syntax
+  - Root-level queries: `{ $text: { $search: "search terms" } }`
+  - Phrase search: `{ $text: { $search: "\"exact phrase\"" } }`
+  - Term negation: `{ $text: { $search: "include -exclude" } }`
+  - Case sensitivity: `{ $text: { $search: "...", $caseSensitive: true } }`
+  - Automatically searches fields defined in text indexes
 
 #### Driver
 - **Host class**: New `Host` class for improved readability in connection pool management
