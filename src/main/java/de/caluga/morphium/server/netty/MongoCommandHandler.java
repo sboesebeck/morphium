@@ -21,6 +21,8 @@ import de.caluga.morphium.driver.wireprotocol.*;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -30,6 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(MongoCommandHandler.class);
+
+    // Dedicated executor for replication waits - don't block Netty I/O threads
+    private static final ExecutorService REPLICATION_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     // Channel attributes for per-connection state
     private static final AttributeKey<MorphiumTransactionContext> TX_CONTEXT_KEY =
@@ -259,7 +264,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
 
             default:
-                answer = processDefaultCommand(ctx, doc, cmd);
+                // Handle write commands that need replication wait asynchronously
+                processDefaultCommandAsync(ctx, doc, cmd, requestId);
+                return; // Async response
         }
 
         sendResponse(ctx, requestId, answer);
@@ -331,9 +338,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 "cursorsAlive", List.of(), "cursorsUnknown", List.of());
     }
 
+    /**
+     * Process commands asynchronously - handles write concern waits without blocking Netty I/O threads.
+     */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processDefaultCommand(ChannelHandlerContext ctx,
-                                                       Map<String, Object> doc, String cmd) {
+    private void processDefaultCommandAsync(ChannelHandlerContext ctx, Map<String, Object> doc,
+                                            String cmd, int requestId) {
         try {
             boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
 
@@ -352,7 +362,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 if (currentPrimary != null) {
                     errorResponse.put("primaryHost", currentPrimary);
                 }
-                return errorResponse;
+                sendResponse(ctx, requestId, errorResponse);
+                return;
             }
 
             // Check for change stream aggregation
@@ -361,7 +372,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 if (pipelineObj instanceof List && !((List<?>) pipelineObj).isEmpty()) {
                     Object firstStage = ((List<?>) pipelineObj).get(0);
                     if (firstStage instanceof Map && ((Map<?, ?>) firstStage).containsKey("$changeStream")) {
-                        return processChangeStream(doc);
+                        sendResponse(ctx, requestId, processChangeStream(doc));
+                        return;
                     }
                 }
             }
@@ -381,49 +393,56 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 notifyTailableCursorsOnInsert(doc);
             }
 
-            // Handle write concern for write commands on primary
-            if (isWriteCommand && primary && replicationCoordinator != null) {
-                // Get the sequence from the InMemoryDriver's change stream
-                // This is the sequence number of the change event that was just created
-                long writeSeq = driver.getChangeStreamSequence();
-
-                // Extract write concern from command
-                int w = getWriteConcernW(doc);
-                long wtimeout = getWriteConcernTimeout(doc);
-
-                if (w > 1) {
-                    boolean acknowledged = replicationCoordinator.waitForReplication(writeSeq, w, wtimeout);
-                    if (!acknowledged) {
-                        // Write succeeded but replication timed out
-                        answer.put("writeConcernError", Doc.of(
-                            "code", 64,
-                            "codeName", "WriteConcernFailed",
-                            "errmsg", "waiting for replication timed out",
-                            "errInfo", Doc.of("wtimeout", true)
-                        ));
-                    }
-                }
-            }
-
             // Handle tailable cursors
             if (cmd.equalsIgnoreCase("find") && Boolean.TRUE.equals(doc.get("tailable"))) {
                 setupTailableCursor(doc, answer);
             }
 
-            return answer;
+            // Handle write concern for write commands on primary - ASYNC to not block Netty I/O
+            if (isWriteCommand && primary && replicationCoordinator != null) {
+                long writeSeq = driver.getChangeStreamSequence();
+                int w = getWriteConcernW(doc);
+                long wtimeout = getWriteConcernTimeout(doc);
+
+                if (w > 1) {
+                    // Wait for replication on a separate thread to not block Netty I/O
+                    final Map<String, Object> finalAnswer = answer;
+                    log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
+                    REPLICATION_EXECUTOR.execute(() -> {
+                        try {
+                            boolean acknowledged = replicationCoordinator.waitForReplication(writeSeq, w, wtimeout);
+                            if (!acknowledged) {
+                                finalAnswer.put("writeConcernError", Doc.of(
+                                    "code", 64,
+                                    "codeName", "WriteConcernFailed",
+                                    "errmsg", "waiting for replication timed out",
+                                    "errInfo", Doc.of("wtimeout", true)
+                                ));
+                            }
+                        } finally {
+                            // Send response back on the Netty event loop
+                            ctx.executor().execute(() -> sendResponse(ctx, requestId, finalAnswer));
+                        }
+                    });
+                    return; // Response will be sent asynchronously
+                }
+            }
+
+            // No replication wait needed - send response immediately
+            sendResponse(ctx, requestId, answer);
 
         } catch (Exception e) {
             // Handle duplicate key errors
             String duplicateKeyMsg = findDuplicateKeyError(e);
             if (duplicateKeyMsg != null) {
                 var writeError = Doc.of("index", 0, "code", 11000, "errmsg", "E11000 duplicate key error: " + duplicateKeyMsg);
-                return Doc.of("ok", 1.0, "n", 0, "writeErrors", List.of(writeError));
+                sendResponse(ctx, requestId, Doc.of("ok", 1.0, "n", 0, "writeErrors", List.of(writeError)));
+                return;
             }
 
             String errorMsg = getDeepestCauseMessage(e);
-            // Log full stack trace for debugging
             log.error("Error executing command {}: {}", cmd, errorMsg, e);
-            return Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd);
+            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd));
         }
     }
 

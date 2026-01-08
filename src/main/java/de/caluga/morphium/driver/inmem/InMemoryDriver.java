@@ -4715,23 +4715,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // The eventDispatcher then queues events to each subscription's executor
         try {
             eventDispatcher.execute(() -> {
-                // log.info("Dispatching event: db={}, coll={}, op={}, driver instance={}", eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"), System.identityHashCode(InMemoryDriver.this));
+                log.trace("Dispatching event: db={}, coll={}, op={}", eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"));
 
                 // Deliver to database-level subscribers
                 var dbSubs = changeStreamSubscribers.get(eventInfo.db);
-                // log.debug("DB subscribers for '{}': {}", eventInfo.db, dbSubs != null ? dbSubs.size() : 0);
                 deliverToSubscribers(dbSubs, eventInfo);
 
                 // Deliver to database-level watches registered via MorphiumServer (with collection="1")
                 // When aggregate with $changeStream comes through wire protocol, collection is set to "1" for db-level watches
                 var dbAllSubs = changeStreamSubscribers.get(eventInfo.db + ".1");
-                // log.debug("DB-level (via MorphiumServer) subscribers for '{}.1': {}", eventInfo.db, dbAllSubs != null ? dbAllSubs.size() : 0);
                 deliverToSubscribers(dbAllSubs, eventInfo);
 
                 // Deliver to collection-level subscribers
                 if (eventInfo.collection != null) {
                     var collSubs = changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection);
-                    // log.debug("Collection subscribers for '{}.{}': {}", eventInfo.db, eventInfo.collection, collSubs != null ? collSubs.size() : 0);
                     deliverToSubscribers(collSubs, eventInfo);
                 }
 
@@ -4782,9 +4779,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                               ? subscription.db
                               : subscription.db + "." + subscription.collection;
         subscription.namespaceKey = namespaceKey;
-        // log.info("registerSubscription: namespaceKey={}, driver instance={}", namespaceKey, System.identityHashCode(this));
+        log.debug("registerSubscription: namespaceKey={}", namespaceKey);
         changeStreamSubscribers.computeIfAbsent(namespaceKey, k -> new CopyOnWriteArrayList<>()).add(subscription);
-        // log.info("After registration, subscribers for {}: {}", namespaceKey, changeStreamSubscribers.get(namespaceKey).size());
     }
 
     private void unregisterSubscription(ChangeStreamSubscription subscription) {
