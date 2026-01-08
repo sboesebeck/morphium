@@ -24,13 +24,18 @@ public class AggregationExpQuery extends MultiDriverTestBase {
             q.expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(50)));
             log.debug(Utils.toJsonString(q.toQueryObject()));
             List<UncachedObject> lst = q.asList();
-            assert (lst.size() == 50) : "Size wrong: " + lst.size();
+            assert (lst.size() == 49) : "Size wrong: " + lst.size();  // 0-based counters: 51-99 = 49 objects
 
 
-            for (UncachedObject u : q.q().asList()) {
+            // Update all objects with random dval values
+            List<UncachedObject> allObjects = q.q().asList();
+            for (UncachedObject u : allObjects) {
                 u.setDval(Math.random() * 100);
-                morphium.store(u);
             }
+            // Use storeList for batch update - more efficient and works better with MorphiumServer
+            morphium.storeList(allObjects);
+            // Wait for writes to complete
+            TestUtils.waitForWrites(morphium, log);
 
             q = q.q().expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.field(UncachedObject.Fields.dval)));
             lst = q.asList();

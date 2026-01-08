@@ -1,5 +1,6 @@
 package de.caluga.morphium;
 
+import javax.net.ssl.SSLContext;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -1744,29 +1745,29 @@ public class MorphiumConfig {
         return this;
     }
 
-// public SSLContext getSslContext() {
-//     return sslContext;
-// }
+    public SSLContext getSslContext() {
+        return connectionSettings.getSslContext();
+    }
 
-// public void setSslContext(SSLContext sslContext) {
-//     this.sslContext = sslContext;
-// }
+    public void setSslContext(SSLContext sslContext) {
+        connectionSettings.setSslContext(sslContext);
+    }
 
-// public boolean isUseSSL() {
-//     return useSSL;
-// }
+    public boolean isUseSSL() {
+        return connectionSettings.isUseSSL();
+    }
 
-// public void setUseSSL(boolean useSSL) {
-//     this.useSSL = useSSL;
-// }
+    public void setUseSSL(boolean useSSL) {
+        connectionSettings.setUseSSL(useSSL);
+    }
 
-// public boolean isSslInvalidHostNameAllowed() {
-//     return sslInvalidHostNameAllowed;
-// }
+    public boolean isSslInvalidHostNameAllowed() {
+        return connectionSettings.isSslInvalidHostNameAllowed();
+    }
 
-// public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
-//     this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
-// }
+    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+        connectionSettings.setSslInvalidHostNameAllowed(sslInvalidHostNameAllowed);
+    }
     @Deprecated
     public int getReadTimeout() {
         return driverSettings.getReadTimeout();

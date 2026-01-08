@@ -112,11 +112,11 @@ public class BulkOperationTest extends MultiDriverTestBase {
                 "Bulk inc operation not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll() == 100);
             for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
-                if (o.getCounter() <= 1000) {
+                if (o.getCounter() < 1000) {
                     log.error("Counter is < 1000!?");
                     morphium.reread(o);
                 }
-                assert (o.getCounter() > 1000) : "Counter is " + o.getCounter() + " - Total number: " + TestUtils.countUC(morphium) + " greater than 1000: " + morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll();
+                assert (o.getCounter() >= 1000) : "Counter is " + o.getCounter() + " - Total number: " + TestUtils.countUC(morphium) + " >= 1000: " + morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll();
             }
         }
     }

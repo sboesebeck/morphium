@@ -7,6 +7,9 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -15,7 +18,7 @@ import org.junit.jupiter.api.Test;
  * <p>
  */
 @Tag("core")
-public class HierarchyTest extends MorphiumTestBase {
+public class HierarchyTest extends MultiDriverTestBase {
 
     public static class SubClass extends UncachedObject {
         private String additionalProperty;
@@ -29,8 +32,9 @@ public class HierarchyTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testHierarchy() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testHierarchy(Morphium morphium) {
         assert (new AnnotationAndReflectionHelper(true).isAnnotationPresentInHierarchy(SubClass.class, Entity.class)) : "hierarchy not found";
         String n = new ObjectMapperImpl().getCollectionName(HierarchyTest.SubClass.class);
         assert (!n.equals("uncached_object")) : "Wrong collection name!";

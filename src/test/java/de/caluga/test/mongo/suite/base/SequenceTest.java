@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -29,9 +31,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>
  */
 @Tag("core")
-public class SequenceTest extends MorphiumTestBase {
-    @Test
-    public void singleSequenceTest() {
+public class SequenceTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void singleSequenceTest(Morphium morphium) {
         morphium.dropCollection(Sequence.class);
         morphium.dropCollection(SeqLock.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "tstseq", 1, 1);
@@ -41,8 +44,9 @@ public class SequenceTest extends MorphiumTestBase {
         assertEquals(2, v);
     }
 
-    @Test
-    public void multiSequenceTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void multiSequenceTest(Morphium morphium) {
         morphium.dropCollection(Sequence.class);
         morphium.dropCollection(SeqLock.class);
         SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq1", 1, 1);
@@ -59,8 +63,9 @@ public class SequenceTest extends MorphiumTestBase {
         assertEquals(4, v);
     }
 
-    @Test
-    public void errorLockedSequenceTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void errorLockedSequenceTest(Morphium morphium) {
         morphium.dropCollection(Sequence.class);
         morphium.dropCollection(SeqLock.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "test", 1, 1);
@@ -81,8 +86,9 @@ public class SequenceTest extends MorphiumTestBase {
         assertEquals(v, 2);
     }
 
-    @Test
-    public void massiveMultiSequenceTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveMultiSequenceTest(Morphium morphium) {
         morphium.dropCollection(Sequence.class);
         Vector<SequenceGenerator> gens = new Vector<>();
 
@@ -106,8 +112,9 @@ public class SequenceTest extends MorphiumTestBase {
         log.info("done");
     }
 
-    @Test
-    public void massiveParallelSingleSequenceTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelSingleSequenceTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Sequence.class);
         final SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq", 1, 0);
         Vector<Thread> thr = new Vector<>();
@@ -147,8 +154,9 @@ public class SequenceTest extends MorphiumTestBase {
         log.info("done");
     }
 
-    @Test
-    public void massiveParallelMultiSequenceTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelMultiSequenceTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Sequence.class);
         Thread.sleep(100);
         Vector<SequenceGenerator> gens = new Vector<>();
@@ -198,8 +206,9 @@ public class SequenceTest extends MorphiumTestBase {
         log.info("done!");
     }
 
-    @Test
-    public void massiveParallelMulticonnectSingleSequenceTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelMulticonnectSingleSequenceTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Sequence.class);
         morphium.dropCollection(SeqLock.class);
         Thread.sleep(100); //wait for the drop to be persisted
@@ -278,9 +287,10 @@ public class SequenceTest extends MorphiumTestBase {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
-    public void sequenceSpeedTest() throws Exception {
+    public void sequenceSpeedTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Sequence.class);
         Thread.sleep(100); //wait for the drop to be persisted
         SequenceGenerator sg = new SequenceGenerator(morphium, "test1");

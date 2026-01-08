@@ -13,6 +13,8 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -21,15 +23,17 @@ import org.junit.jupiter.api.Test;
  * <p>
  */
 @Tag("core")
-public class NameProviderTest extends MorphiumTestBase {
-    @Test
-    public void testNameProvider() {
+public class NameProviderTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNameProvider(Morphium morphium) {
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
     }
 
-    @Test
-    public void testStoreWithNameProvider() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testStoreWithNameProvider(Morphium morphium) {
         morphium.dropCollection(LogObject.class);
         morphium.dropCollection(LogObject.class, "LogObject_Test", null);
         for (int i = 0; i < 100; i++) {
@@ -39,7 +43,7 @@ public class NameProviderTest extends MorphiumTestBase {
             lo.setTimestamp(System.currentTimeMillis());
             morphium.store(lo);
         }
-        waitForAsyncOperationsToStart(1000);
+        waitForAsyncOperationsToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
@@ -49,8 +53,9 @@ public class NameProviderTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void overrideNameProviderTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void overrideNameProviderTest(Morphium morphium) {
         morphium.clearCollection(UncachedObject.class);
         morphium.getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
         String col = morphium.getMapper().getCollectionName(UncachedObject.class);

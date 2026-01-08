@@ -342,12 +342,17 @@ public class Query<T> implements Cloneable {
             }
 
             ret = settings.execute();
+            settings.releaseConnection();
+            settings = null;
+            con = null;
         } catch (MorphiumDriverException e) {
             // e.printStackTrace();
             log.error("Error while talking to mongo", e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
             }
         }
 
@@ -433,12 +438,17 @@ public class Query<T> implements Cloneable {
             }
 
             ret = settings.execute();
+            settings.releaseConnection();
+            settings = null;
+            con = null;
         } catch (MorphiumDriverException e) {
             // e.printStackTrace();
             log.error("Error", e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
             }
         }
 
@@ -504,21 +514,30 @@ public class Query<T> implements Cloneable {
 
     public long complexQueryCount(Map<String, Object> query) {
         long ret = 0;
-        MongoConnection con = morphium.getDriver().getReadConnection(getRP());
-        CountMongoCommand cmd = new CountMongoCommand(con).setColl(collectionName).setDb(getDB()).setQuery(Doc.of(query));
-        Entity et = getARHelper().getAnnotationFromClass(getType(), Entity.class);
-
-        if (et != null) {
-            cmd.setReadConcern(Doc.of("level", et.readConcernLevel().name()));
-        }
-
+        MongoConnection con = null;
+        CountMongoCommand cmd = null;
         try {
+            con = morphium.getDriver().getReadConnection(getRP());
+            cmd = new CountMongoCommand(con).setColl(collectionName).setDb(getDB()).setQuery(Doc.of(query));
+            Entity et = getARHelper().getAnnotationFromClass(getType(), Entity.class);
+
+            if (et != null) {
+                cmd.setReadConcern(Doc.of("level", et.readConcernLevel().name()));
+            }
+
             ret = cmd.getCount();
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
         } catch (MorphiumDriverException e) {
             // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
-            cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
+            }
         }
 
         return ret;
@@ -684,12 +703,18 @@ public class Query<T> implements Cloneable {
                 cmd.setCollation(getCollation().toQueryObject());
             }
 
-            return cmd.explain(verbosity);
+            var result = cmd.explain(verbosity);
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
+            return result;
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
             }
         }
     }
@@ -706,12 +731,18 @@ public class Query<T> implements Cloneable {
                 cmd.setCollation(getCollation().toQueryObject());
             }
 
-            return cmd.execute();
+            var result = cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
+            return result;
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
             }
         }
     }
@@ -1005,14 +1036,22 @@ public class Query<T> implements Cloneable {
     }
 
     public Map<String, Object> explainCount(ExplainVerbosity verbosity) throws MorphiumDriverException {
+        MongoConnection con = null;
         CountMongoCommand cmd = null;
 
         try {
-            cmd = getCountCommand(getMorphium().getDriver().getReadConnection(getRP()));
-            return cmd.explain(verbosity);
+            con = getMorphium().getDriver().getReadConnection(getRP());
+            cmd = getCountCommand(con);
+            var result = cmd.explain(verbosity);
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
+            return result;
         } finally {
-            if (cmd != null && cmd.getConnection() != null) {
+            if (cmd != null) {
                 cmd.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
             }
         }
     }
@@ -1043,17 +1082,23 @@ public class Query<T> implements Cloneable {
             return count;
         }
 
-        MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
+        MongoConnection con = null;
         CountMongoCommand cmd = null;
 
         try {
+            con = getMorphium().getDriver().getReadConnection(getRP());
             cmd = getCountCommand(con);
             ret = cmd.getCount();
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
         } catch (MorphiumDriverException e) {
             log.error("Error counting", e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
             }
         }
 
@@ -1480,11 +1525,18 @@ public class Query<T> implements Cloneable {
                         settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
                             Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
+                        settings.releaseConnection();
+                        settings = null;
+                        con = null;
                     } catch (Exception e) {
                         log.error("Could not set modification time");
                         throw new RuntimeException(e);
                     } finally {
-                        if (settings != null) settings.releaseConnection();
+                        if (settings != null) {
+                            settings.releaseConnection();
+                        } else if (con != null) {
+                            morphium.getDriver().releaseConnection(con);
+                        }
                     }
                 }
             }
@@ -2230,16 +2282,27 @@ public class Query<T> implements Cloneable {
         }
 
         Map<String, Object> result = null;
+        MongoConnection con = null;
+        GenericCommand cmd = null;
 
         try {
-            GenericCommand cmd = new GenericCommand(morphium.getDriver().getPrimaryConnection(null));
+            con = morphium.getDriver().getPrimaryConnection(null);
+            cmd = new GenericCommand(con);
             cmd.setDb(getDB());
             cmd.setCmdData(Doc.of(txt));
             result = cmd.getConnection().readSingleAnswer(cmd.executeAsync());
             cmd.releaseConnection();
+            cmd = null;
+            con = null;
         } catch (MorphiumDriverException e) {
             // TODO: Implement Handling
             throw new RuntimeException(e);
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
+            }
         }
 
         @SuppressWarnings("unchecked")
@@ -2459,19 +2522,29 @@ public class Query<T> implements Cloneable {
     }
 
     public FindCommand getFindCmd() {
-        MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
-        FindCommand settings = new FindCommand(con).setDb(getMorphium().getConfig().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
-        .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint);
-        settings.setBatchSize(getBatchSize());
-        int ms = getMaxTimeMS();
+        MongoConnection con = null;
+        FindCommand settings = null;
+        try {
+            con = getMorphium().getDriver().getReadConnection(getRP());
+            settings = new FindCommand(con).setDb(getMorphium().getConfig().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
+            .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint);
+            settings.setBatchSize(getBatchSize());
+            int ms = getMaxTimeMS();
 
-        if (ms <= 0) {
-            settings.setNoCursorTimeout(true);
-        } else {
-            settings.setMaxTimeMS(ms);
+            if (ms <= 0) {
+                settings.setNoCursorTimeout(true);
+            } else {
+                settings.setMaxTimeMS(ms);
+            }
+
+            return settings;
+        } catch (Exception e) {
+            // Release connection on failure since caller won't get the FindCommand
+            if (con != null) {
+                morphium.getDriver().releaseConnection(con);
+            }
+            throw e;
         }
-
-        return settings;
     }
 
     public void setMaxTimeMS(Integer max) {

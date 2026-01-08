@@ -1,4 +1,5 @@
 package de.caluga.test.morphium.messaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,20 +32,22 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.TestUtils;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("messaging")
-public class ExclusiveMessageTests extends MorphiumTestBase {
+public class ExclusiveMessageTests extends MultiDriverTestBase {
     private boolean gotMessage1 = false;
     private boolean gotMessage2 = false;
     private boolean gotMessage3 = false;
     private boolean gotMessage4 = false;
 
-    @Test
-    public void ignoringExclusiveMessagesTest() throws Exception {
-        for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void ignoringExclusiveMessagesTest(Morphium morphium) throws Exception  {
+        for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
             var cfg = morphium.getConfig().createCopy();
@@ -78,14 +81,21 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                         Msg mm = new Msg("test", "ignore me please", "value", 20000, true);
                         m1.sendMessage(mm);
                         long start = System.currentTimeMillis();
+                        final String collName = m1.getCollectionName(mm);
+                        final MorphiumId msgId = mm.getMsgId();
                         while (true) {
                             Thread.sleep(50);
-                            mm = m.reread(mm, m1.getCollectionName(mm));
-                            assertNotNull(mm);
+                            // Use query to fetch by ID to handle replication lag
+                            mm = m.createQueryFor(Msg.class, collName).f("_id").eq(msgId).get();
+                            if (mm == null) {
+                                assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for message to be visible");
+                                continue;
+                            }
                             if (mm.getProcessedBy() != null && mm.getProcessedBy().size() != 0)
                                 break;
                             assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for processing");
                         }
+                        assertNotNull(mm);
                         assertEquals(1, mm.getProcessedBy().size());
                     }
                 } finally {
@@ -106,9 +116,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
-    public void deleteAfterProcessingTest() throws Exception {
+    public void deleteAfterProcessingTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
         MorphiumMessaging sender = morphium.createMessaging();
@@ -195,9 +206,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
-    public void exclusiveMessageTest() throws Exception {
+    public void exclusiveMessageTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
         MorphiumMessaging sender = morphium.createMessaging();
@@ -270,9 +282,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageCustomQueueTest() throws Exception {
-        for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageCustomQueueTest(Morphium morphium) throws Exception  {
+        for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
             var cfg = morphium.getConfig().createCopy();
@@ -437,10 +450,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Tag("external")
-    public void exclusivityTest() throws Exception {
-        for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+    public void exclusivityTest(Morphium morphium) throws Exception  {
+        for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
             var cfg = morphium.getConfig().createCopy();
@@ -592,7 +606,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                         sender.sendMessage(m);
                     }
 
-                    long waitUntil = System.currentTimeMillis() + 60000;
+                    long waitUntil = System.currentTimeMillis() + 300000; // 5 minutes - allows for slower backends like MorphiumServer
 
                     while (received.get() != amount + broadcastAmount * 4) {
                         int rec = received.get();
@@ -642,8 +656,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageStartupTests() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageStartupTests(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true, 1);
         MorphiumMessaging receiverNoListener = morphium.createMessaging();
         receiverNoListener.setPause(100).setMultithreadded(true).setWindowSize(10);
@@ -668,8 +683,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageDelAfterProcessingTimeOffsetTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageDelAfterProcessingTimeOffsetTest(Morphium morphium) throws Exception  {
         MorphiumMessaging sender = morphium.createMessaging();
         sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("Sender");
@@ -721,8 +737,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageCheckOnStartTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageCheckOnStartTest(Morphium morphium) throws Exception  {
         MorphiumMessaging sender = morphium.createMessaging();
         sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("Sender");
@@ -757,8 +774,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
 
 
-    @Test
-    public void msgLockTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void msgLockTest(Morphium morphium) throws Exception  {
 
         int amount = 130;
         List<Msg> msgs = new Vector<>();
@@ -813,9 +831,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void exclusiveTest() throws Exception {
-        // for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveTest(Morphium morphium) throws Exception  {
+        // for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
         // for (String msgImpl : List.of("MultiCollectionMessaging")) {
         for (String msgImpl : List.of("StandardMessaging")) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);

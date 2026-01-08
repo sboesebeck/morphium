@@ -8,6 +8,8 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Timeout;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Utils;
@@ -38,6 +40,8 @@ public class SingleConnectDriverTests extends DriverTestBase {
     }
 
     @Test
+    @Tag("failover")
+    @Timeout(value = 60, unit = TimeUnit.SECONDS)
     public void testHeartbeat() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
@@ -48,6 +52,13 @@ public class SingleConnectDriverTests extends DriverTestBase {
         StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(15).setForce(Boolean.TRUE);
         var res = cmd.execute();
         log.info("result: " + Utils.toJsonString(res));
+        // Check if stepdown is supported - MorphiumServer returns "stepping down not supported in memory"
+        if (res.containsKey("msg") && res.get("msg").toString().contains("not supported")) {
+            log.info("Stepdown not supported on this server (likely MorphiumServer) - skipping failover test");
+            cmd.releaseConnection();
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "Stepdown not supported on this server");
+            return;
+        }
         cmd.releaseConnection();
 
         while (true) {

@@ -1,6 +1,8 @@
 # MorphiumServer: Standalone MongoDB-Compatible Server
 
-MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. It allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database. **Important:** MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
+MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with **Morphium 6.1**, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true **drop-in replacement** for MongoDB during development and testing.
+
+**Important:** MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
 
 ## Key Features
 
@@ -23,10 +25,10 @@ After building the project, you can run the server directly using the `server-cl
 mvn clean package -DskipTests
 
 # Run MorphiumServer with default settings (port 17017)
-java -jar target/morphium-*-server-cli.jar
+java -jar target/morphium-6.1.1-server-cli.jar
 
 # Run on a different port
-java -jar target/morphium-*-server-cli.jar --port 27017
+java -jar target/morphium-6.1.1-server-cli.jar --port 27017
 ```
 
 ### Running Programmatically
@@ -73,7 +75,7 @@ You can configure the MorphiumServer using the following command-line arguments:
 
 Example:
 ```bash
-java -jar target/morphium-*-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
+java -jar target/morphium-6.1.1-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
 ### Replica Set Behavior (experimental)
@@ -90,26 +92,62 @@ Practical tips:
 2. Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.
 3. Keep in mind that this is still meant for testing: persistence and durability are unchanged.
 
+### Programmatic Replica Set Configuration
+
+You can configure a replica set programmatically using the `configureReplicaSet()` method:
+
+```java
+MorphiumServer primary = new MorphiumServer(27017, "localhost", 100, 10);
+
+// Configure as a 2-node replica set with host priorities
+var hosts = List.of("localhost:27017", "localhost:27018");
+var priorities = Map.of("localhost:27017", 300, "localhost:27018", 100);
+primary.configureReplicaSet("myReplicaSet", hosts, priorities);
+
+primary.start();
+
+// Start secondary later
+MorphiumServer secondary = new MorphiumServer(27018, "localhost", 100, 10);
+secondary.configureReplicaSet("myReplicaSet", hosts, priorities);
+secondary.start();
+```
+
+**Write Concern Behavior with Partial Replica Sets:**
+
+When using entities with `@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)` or explicit write concerns with `w > 1`, MorphiumServer handles the case where not all secondaries are available:
+
+- If no secondaries have connected yet, the server returns a `writeConcernError` after a brief grace period (100ms) instead of waiting for the full `wtimeout`
+- This allows you to store documents on the primary before starting secondary nodes
+- Once secondaries connect, writes will properly wait for replication acknowledgment
+
+This is particularly useful for testing scenarios where you want to:
+1. Start a primary node
+2. Store initial test data
+3. Start secondary nodes and verify data replication
+
 ### Persistence (Periodic Snapshots)
 
 MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.
 
 **How it works:**
-- On startup: If dump files exist in the configured directory, they are automatically restored
-- During runtime: If `--dump-interval` is set, databases are dumped periodically
-- On shutdown: A final dump is performed to capture all changes
+- On startup: If dump files exist in the configured directory, they are automatically restored.
+- During runtime: If `--dump-interval` is set, databases are dumped periodically.
+- On shutdown: A final dump is performed to capture all changes.
 
 **Quick Start with Persistence:**
 
 ```bash
 # Start with persistence - dumps every 5 minutes
-java -jar target/morphium-*-server-cli.jar -p 27017 \
+java -jar target/morphium-6.1.1-server-cli.jar -p 27017 \
   --dump-dir /var/morphium/data --dump-interval 300
 
 # Start with persistence - dump only on shutdown
-java -jar target/morphium-*-server-cli.jar -p 27017 \
+java -jar target/morphium-6.1.1-server-cli.jar -p 27017 \
   --dump-dir /var/morphium/data
 ```
+
+**Manual Snapshots:**
+You can trigger a manual dump at any time using the `dumpNow()` method programmatically (see below).
 
 **Programmatic Configuration:**
 ```java
@@ -160,7 +198,7 @@ keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
 
 2. Start the server with SSL enabled:
 ```bash
-java -jar target/morphium-*-server-cli.jar -p 27018 \
+java -jar target/morphium-6.1.1-server-cli.jar -p 27018 \
   --ssl --sslKeystore server.jks --sslKeystorePassword changeit
 ```
 
@@ -197,7 +235,7 @@ server.start();
 FROM openjdk:21-slim
 WORKDIR /app
 
-COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
+COPY target/morphium-6.1.1-server-cli.jar /app/morphium-server.jar
 COPY server.jks /app/server.jks
 
 EXPOSE 27018
@@ -323,7 +361,7 @@ jobs:
 
       - name: Start MorphiumServer
         run: |
-          java -jar target/morphium-*-server-cli.jar \
+          java -jar target/morphium-6.1.1-server-cli.jar \
                --port 27017 --host 0.0.0.0 &
           sleep 2
 
@@ -373,7 +411,7 @@ static void stopServer() {
 
 ```bash
 # Terminal 1: Start MorphiumServer
-java -jar target/morphium-*-server-cli.jar --port 27017
+java -jar target/morphium-6.1.1-server-cli.jar --port 27017
 
 # Terminal 2: Start Node.js service
 MONGO_URL=mongodb://localhost:27017 npm start
@@ -393,7 +431,7 @@ FROM openjdk:21-slim
 WORKDIR /app
 
 # Copy the executable server JAR
-COPY target/morphium-*-server-cli.jar /app/morphium-server.jar
+COPY target/morphium-6.1.1-server-cli.jar /app/morphium-server.jar
 
 EXPOSE 27017
 
@@ -493,13 +531,55 @@ System.out.println("Active connections: " + connections);
 ```bash
 # Debug logging with Logback
 java -Dlogback.configurationFile=logback.xml \
-     -cp morphium.jar de.caluga.morphium.server.MorphiumServer \
+     -jar target/morphium-6.1.1-server-cli.jar \
      --port 27017
 
 # Simple logger
 java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
-     -cp morphium.jar de.caluga.morphium.server.MorphiumServer \
+     -jar target/morphium-6.1.1-server-cli.jar \
      --port 27017
+```
+
+## Supported Admin Commands
+
+MorphiumServer implements the following MongoDB admin commands:
+
+| Command | Description |
+|---------|-------------|
+| `ping` | Basic connectivity test |
+| `hello` / `isMaster` / `ismaster` | Server status and topology information |
+| `listDatabases` | List all databases with sizes |
+| `buildInfo` | Server version information |
+| `getCmdLineOpts` | Command line options |
+| `getParameter` | Server parameters |
+| `getLog` | Server logs |
+| `replSetStepDown` | Step down from primary (for replica sets) |
+| `startSession` / `endSessions` / `refreshSessions` | Session management |
+| `getMore` | Cursor iteration for both regular queries and change streams |
+
+### Standalone Server Behavior
+
+When running MorphiumServer as a standalone server (without replica set configuration):
+
+- The server always reports itself as primary (`isWritablePrimary: true`)
+- `replSetStepDown` commands are acknowledged but the server immediately becomes primary again
+- This ensures compatibility with clients and tests that issue replica set commands
+
+### Change Stream Support
+
+MorphiumServer fully supports change streams for real-time notifications:
+
+- **Collection-level watches**: Watch changes on a specific collection
+- **Database-level watches**: Watch all collections in a database
+- **Cluster-level watches**: Watch all databases
+
+Example with mongosh:
+```javascript
+// Watch a collection
+db.users.watch().on('change', console.log);
+
+// Watch entire database
+db.watch().on('change', console.log);
 ```
 
 ## Limitations
@@ -554,7 +634,7 @@ mvn clean package -DskipTests
 # 2. morphium-X.Y.Z-server-cli.jar (the executable server)
 
 # Run the server:
-java -jar target/morphium-*-server-cli.jar --port 27017
+java -jar target/morphium-6.1.1-server-cli.jar --port 27017
 ```
 
 ## Maven Dependency
@@ -563,7 +643,7 @@ java -jar target/morphium-*-server-cli.jar --port 27017
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>6.0.4-SNAPSHOT</version>
+    <version>6.1.1</version>
 </dependency>
 ```
 

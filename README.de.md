@@ -1,4 +1,4 @@
-# Morphium 6.0
+# Morphium 6.1.1
 
 **Feature-reiches MongoDB ODM und Messaging-Framework für Java 21+**
 
@@ -49,6 +49,15 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 - Production-Deployment: `docs/production-deployment-guide.md`
 - Monitoring & Troubleshooting: `docs/monitoring-metrics-guide.md`
 
+## 🚀 Neu in Version 6.1
+
+### MorphiumServer – Der "Drop-in"-Ersatz
+Morphium 6.1 macht den **MorphiumServer** zu einem echten "Drop-in"-Ersatz für MongoDB in Entwicklungs- und Testumgebungen:
+- ✅ **Volle Wire-Protocol-Unterstützung**: Verwendung jedes Standard-MongoDB-Clients (mongosh, Compass, etc.)
+- ✅ **CLI-Tooling**: Eigener `morphium-server-cli` für einfache Bereitstellung
+- ✅ **Replica-Set-Emulation**: Testen von Multi-Node-Cluster-Verhalten ohne echtes MongoDB
+- ✅ **Persistenz**: Snapshot-Unterstützung zur Bewahrung von In-Memory-Daten über Neustarts hinweg
+
 ## 🚀 Neu in Version 6.0
 
 ### JDK 21 & Moderne Java-Features
@@ -56,6 +65,10 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 - **Pattern Matching**: Verbesserte Code-Klarheit und Typ-Sicherheit
 - **Records Support**: Volle Unterstützung für Java Records als Entities
 - **Sealed Classes**: Bessere Typ-Hierarchien in Domain-Models
+
+### Treiber & Konnektivität
+- **SSL/TLS-Unterstützung**: Sichere Verbindungen zu MongoDB-Instanzen (seit v6.0)
+- **Virtual Threads** im Treiber für optimale Performance
 
 ### Verbessertes Messaging-System
 - **Weniger Duplikate**: Optimierte Message-Processing-Logik
@@ -85,7 +98,7 @@ Maven-Abhaengigkeiten:
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>[6.0.0,)</version>
+  <version>[6.1.1,)</version>
 </dependency>
 <dependency>
   <groupId>org.mongodb</groupId>
@@ -104,7 +117,7 @@ Migration von v5? → `docs/howtos/migration-v5-to-v6.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.0.0</version>
+  <version>6.1.1</version>
 </dependency>
 ```
 
@@ -116,6 +129,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import java.time.LocalDateTime;
+import java.util.List;
 
 // Entity definieren
 @Entity
@@ -169,7 +183,6 @@ messaging.sendMessage(message);
 
 // Nachrichten empfangen
 messaging.addListenerForTopic("orderQueue", (m, msg) -> {
-    log.info("Processing {}", msg.getValue());
     // Order verarbeiten...
     return null; // keine Antwort senden
 });
@@ -287,10 +300,21 @@ MorphiumServer ist ein eigenständiger Prozess, der das MongoDB Wire Protocol im
 
 ```bash
 # Server starten
-java -jar morphium-6.0.0.jar de.caluga.morphium.server.MorphiumServer
+java -jar target/morphium-6.1.1-server-cli.jar
 
 # Clients verbinden (z.B. MongoDB Compass, mongosh)
 mongosh mongodb://localhost:27017
+
+# Start mit Persistenz (Snapshots)
+java -jar target/morphium-6.1.1-server-cli.jar --dump-dir ./data --dump-interval 300
+```
+
+**Replica Set Unterstützung (experimentell)**
+
+MorphiumServer unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
+
+```bash
+java -jar target/morphium-6.1.1-server-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use Cases:**
@@ -300,9 +324,10 @@ mongosh mongodb://localhost:27017
 - Testing von MongoDB-Tools (Compass, mongodump, etc.)
 
 **Einschränkungen:**
-- Keine Replica Sets (geplant für 6.x)
 - Keine Sharding-Unterstützung
 - Einige erweiterte Aggregation-Operatoren und Joins fehlen noch (siehe `docs/howtos/inmemory-driver.md`)
+
+Weitere Details zu Persistenz und Replica Sets finden Sie in `docs/morphium-server.md`.
 
 ## 🚀 Production Use Cases
 
@@ -357,6 +382,6 @@ Vielen Dank an alle Contributors die diese Release möglich gemacht haben, und a
 
 **Upgrade geplant?** Siehe [Migration Guide](docs/howtos/migration-v5-to-v6.md) für Schritt-für-Schritt-Anleitung.
 
-Viel Erfolg mit Morphium 6.0! 🚀
+Viel Erfolg mit Morphium 6.1.1! 🚀
 
 *Stephan Bösebeck & das Morphium-Team*

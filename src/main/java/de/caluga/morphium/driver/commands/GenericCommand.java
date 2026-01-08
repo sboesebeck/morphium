@@ -29,12 +29,22 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
     }
 
     public GenericCommand setCmdData(Map<String, Object> cmd) {
-        cmdData = cmd;
+        // Use LinkedHashMap to preserve key ordering
+        cmdData = cmd instanceof LinkedHashMap ? cmd : new LinkedHashMap<>(cmd);
+        // First key is the command name - critical for MongoDB wire protocol
+        if (cmd != null && !cmd.isEmpty()) {
+            commandName = cmd.keySet().iterator().next();
+        }
         return this;
     }
 
     public GenericCommand addKey(String key, Object value) {
-        if (cmdData == null) cmdData = new LinkedHashMap<>();
+        if (cmdData == null) {
+            cmdData = new LinkedHashMap<>();
+            // First key added is the command name - critical for MongoDB wire protocol
+            // where the command name must be the first key in the BSON document
+            commandName = key;
+        }
         cmdData.put(key, value);
         return this;
     }
@@ -51,15 +61,26 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
     @Override
     public GenericCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);
-        cmdData = new HashMap<>();
+        // Use LinkedHashMap to preserve key ordering - critical for MongoDB wire protocol
+        // where the command name must be the first key
+        cmdData = new LinkedHashMap<>();
         cmdData.putAll(m);
         commandName = m.keySet().toArray(new String[m.size()])[0];
-        if (cmdData.get(commandName) instanceof String) {
+        Object commandValue = cmdData.get(commandName);
+        if (commandValue instanceof String) {
+            // Simple command where value is the collection name (e.g., find, insert, delete)
             setColl((String) cmdData.remove(commandName));
-        } else {
-            Object removed = cmdData.remove(commandName);
-            if (removed != null)
-                setColl(removed.toString());
+        } else if (commandValue instanceof Map) {
+            // Complex command where value is a nested command (e.g., explain)
+            // Keep the command data in cmdData, don't remove it
+            // Don't set coll from a Map - the nested command has its own collection
+        } else if (commandValue instanceof Number) {
+            // Command with numeric value (e.g., getMore with cursor id)
+            // Keep the value in cmdData
+        } else if (commandValue != null) {
+            // Other types - remove and set coll for backwards compatibility
+            cmdData.remove(commandName);
+            setColl(commandValue.toString());
         }
 
         return this;

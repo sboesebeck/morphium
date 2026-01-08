@@ -14,23 +14,28 @@ import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: martinstolz
  * Date: 29.08.12
  */
 @Tag("core")
-public class ValidationTest extends MorphiumTestBase {
+public class ValidationTest extends MultiDriverTestBase {
 
-    @Test
-    public void testAllValid() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testAllValid(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         ValidationTestObject o = getValidObject();
         morphium.store(o);
     }
 
-    @Test
-    public void testNotNull() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNotNull(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
@@ -39,8 +44,9 @@ public class ValidationTest extends MorphiumTestBase {
         });
     }
 
-    @Test
-    public void testMinMax() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMinMax(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
@@ -49,8 +55,9 @@ public class ValidationTest extends MorphiumTestBase {
         });
     }
 
-    @Test
-    public void testMinMaxList() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMinMaxList(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
@@ -59,8 +66,9 @@ public class ValidationTest extends MorphiumTestBase {
         });
     }
 
-    @Test
-    public void testEmail() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testEmail(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
@@ -69,8 +77,9 @@ public class ValidationTest extends MorphiumTestBase {
         });
     }
 
-    @Test
-    public void testDateFuture() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDateFuture(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
@@ -79,8 +88,9 @@ public class ValidationTest extends MorphiumTestBase {
         });
     }
 
-    @Test
-    public void testRegex() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testRegex(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
@@ -89,8 +99,9 @@ public class ValidationTest extends MorphiumTestBase {
         });
     }
 
-    @Test
-    public void testMultipleValidationErrors() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMultipleValidationErrors(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
@@ -103,8 +114,9 @@ public class ValidationTest extends MorphiumTestBase {
         });
     }
 
-    @Test
-    public void testEmbeddedObjectsValidationErrors() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testEmbeddedObjectsValidationErrors(Morphium morphium) {
         if (!morphium.isValidationEnabled()) return;
         assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();

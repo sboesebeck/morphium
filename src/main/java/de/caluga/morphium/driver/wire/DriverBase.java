@@ -405,6 +405,11 @@ public abstract class DriverBase implements MorphiumDriver {
         this.replicaSet = replicaSet;
     }
 
+    @Override
+    public boolean isInMemoryBackend() {
+        return false;
+    }
+
     public int getNextId() {
         synchronized (DriverBase.class) {
             return rqid.incrementAndGet();

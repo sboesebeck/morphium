@@ -6,6 +6,9 @@
 - **MongoDB 5.0+** for production deployments
 - **BSON library**: Morphium 6 uses MongoDB's BSON library (version 4.7.1+)
 
+### SSL/TLS Support
+Native SSL/TLS support was introduced in the Morphium driver in v6.0.
+
 ## Breaking Changes
 
 ### 1. Configuration API Changes
@@ -172,20 +175,22 @@ public class Example {
 
 This makes the behavior more consistent: if a field doesn't exist in MongoDB, the Java object is not modified.
 
-### 5. Removed Deprecated Methods from Morphium Class
+### 5. Removed or Deprecated Methods from Morphium Class
 
-Many deprecated methods were removed from the `Morphium` class in v6. The design principle in Morphium is:
+In v6, many methods in the `Morphium` class that perform query-based operations have been marked as deprecated or moved to the `Query` class. The design principle in Morphium is:
 - **Morphium class**: Entity-based operations (save, delete, updates to specific entities)
 - **Query class**: Query-based operations (reads and updates based on query criteria)
 
 #### Query-Based Update Operations: Use Query Methods
 
-The removed methods were query-based update operations that should have been in the Query class all along.
+While many methods still exist for backward compatibility, you should migrate to the `Query` class equivalents.
 
-**Removed methods (were deprecated in v5):**
-- `morphium.set(entity, collection, values, upsert, callback)` - query-based update
-- `morphium.unset(entity, collection, field, callback)` - query-based update
-- `morphium.inc(fieldsToInc, query, upsert, multiple, callback)` - query-based update
+**Deprecated or to-be-removed methods:**
+- `morphium.set(toSet, collection, values, upsert, callback)` - use `query.set()`
+- `morphium.unset(toSet, collection, field, callback)` - use `query.unset()`
+- `morphium.inc(fieldsToInc, matching, upsert, multiple, callback)` - use `query.inc()`
+- `morphium.push(query, field, value, ...)` - use `query.push()`
+- `morphium.pull(entity, field, value, ...)` - use `query.pull()`
 
 **Migration:**
 
@@ -258,21 +263,21 @@ query.f("status").eq("active");
 List<MyEntity> results = query.asList();
 ```
 
-#### Other Removed Methods
+#### Other Deprecated or Removed Methods
 
 **Read operations:**
-- `readAll(Class)` - removed (use `createQueryFor(Class).asList()`)
-- `findByField(Class, field, value)` - removed (use query with field filter)
-- `findById(Class, id, collection)` - three-parameter version removed
+- `readAll(Class)` - deprecated (use `createQueryFor(Class).asList()`)
+- `findByField(Class, field, value)` - deprecated (use query with field filter)
+- `findById(Class, id, collection)` - three-parameter version deprecated
 
 **Index operations:**
-- `ensureIndex(Class, callback, Enum... fields)` - removed (use `ensureIndices(Class)`)
-- `getIndexesFromMongo(Class)` - removed (use driver-specific methods)
+- `ensureIndex(Class, callback, Enum... fields)` - deprecated (use `ensureIndices(Class)`)
+- `getIndexesFromMongo(Class)` - deprecated (use driver-specific methods)
 
 **Other operations:**
-- `flush(Class)` - removed (use buffered writer methods directly)
-- `createAggregator(Class, resultClass)` - removed (use `aggregate()` on Query)
-- `mapReduce(Class, map, reduce)` - removed (MongoDB deprecated map-reduce in favor of aggregation)
+- `flush(Class)` - deprecated (use buffered writer methods directly)
+- `createAggregator(Class, resultClass)` - exists (supported)
+- `mapReduce(Class, map, reduce)` - exists (supported, but MongoDB deprecated it)
 
 **Migration approach:**
 1. Replace `morphium.set/unset/inc/push/pull` with equivalent `query.set/unset/inc/push/pull` methods
@@ -282,7 +287,7 @@ List<MyEntity> results = query.asList();
 
 ### 6. InMemoryDriver Improvements (v6)
 
-The InMemoryDriver received major enhancements in v6.0:
+The InMemoryDriver received major enhancements in v6.1:
 
 #### Change Streams
 - **Full change stream support** with document snapshots
@@ -325,7 +330,7 @@ Morphium 6 uses Java 21 virtual threads for:
 ## Migration Checklist
 
 - [ ] Update to Java 21+
-- [ ] Update pom.xml dependency to `6.0.0` or higher
+- [ ] Update pom.xml dependency to `6.1.1` or higher
 - [ ] Replace flat config setters with nested settings objects
 - [ ] Change messaging instantiation to `morphium.createMessaging()`
 - [ ] Update messaging code: replace `getName()`/`setName()` with `getTopic()`/`setTopic()`

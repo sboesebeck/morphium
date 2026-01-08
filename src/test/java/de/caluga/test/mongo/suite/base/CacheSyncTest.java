@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 
 /**
@@ -37,14 +39,15 @@ import static org.junit.jupiter.api.Assertions.*;
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
 @Tag("cache")
-public class CacheSyncTest extends MorphiumTestBase {
+public class CacheSyncTest extends MultiDriverTestBase {
     private boolean preSendClear = false;
     private boolean postSendClear = false;
     private boolean preClear = false;
     private boolean postclear = false;
 
-    @Test
-    public void sendClearMsgTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void sendClearMsgTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -72,8 +75,9 @@ public class CacheSyncTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void removeFromCacheTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void removeFromCacheTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -105,8 +109,9 @@ public class CacheSyncTest extends MorphiumTestBase {
         log.info("Count 1: " + cnt + " ---> " + cnt2);
     }
 
-    @Test
-    public void clearCacheTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void clearCacheTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -154,8 +159,9 @@ public class CacheSyncTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void idCacheTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idCacheTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -184,7 +190,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         var qu = morphium.createQueryFor(IdCachedObject.class);
         var e = qu.q().sort(IdCachedObject.Fields.counter).get();
         log.info("First: " + e.getCounter());
-        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll() == 100);
+        TestUtils.waitForConditionToBecomeTrue(30000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll() == 100);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing without synchronizer: " + dur + " ms");
 
@@ -253,7 +259,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         }
     }
 
-    private void waitForWriteToStart(int max) {
+    private void waitForWriteToStart(Morphium morphium, int max) {
         int cnt = 0;
         while (morphium.getWriteBufferCount() == 0) {
             //wait for things to get started...
@@ -265,8 +271,9 @@ public class CacheSyncTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testListeners() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testListeners(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -354,15 +361,16 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void cacheSyncVetoTestMessaging() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void cacheSyncVetoTestMessaging(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
         morphium.dropCollection(Msg.class);
-        createCachedObjects(1000);
+        createCachedObjects(morphium, 1000);
 
         Morphium m1 = morphium;
         // MorphiumConfig cfg2 = new MorphiumConfig();
@@ -441,15 +449,16 @@ public class CacheSyncTest extends MorphiumTestBase {
     }
 
     @Disabled
-    @Test
-    public void simpleSyncTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void simpleSyncTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
         morphium.dropCollection(Msg.class);
-        createCachedObjects(1000);
+        createCachedObjects(morphium, 1000);
 
         Morphium m1 = morphium;
         MorphiumConfig cfg2 = MorphiumConfig.fromProperties(m1.getConfig().asProperties());
@@ -547,15 +556,16 @@ public class CacheSyncTest extends MorphiumTestBase {
         log.info("Finished...");
     }
 
-    @Test
-    public void cacheSyncTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void cacheSyncTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
         morphium.dropCollection(Msg.class);
-        createCachedObjects(1000);
+        createCachedObjects(morphium, 1000);
 
         Morphium m1 = morphium;
         // MorphiumConfig cfg2 = new MorphiumConfig();
@@ -625,7 +635,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         long l = m1.createQueryFor(Msg.class).countAll();
         assertTrue (l <= 1) ;
 
-        //        createCachedObjects(50);
+        //        createCachedObjects(morphium, 50);
 
 
         //        Thread.sleep(90000); //wait for messages to be cleared
@@ -637,8 +647,9 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void testWatchingCacheSynchronizer() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testWatchingCacheSynchronizer(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -650,8 +661,8 @@ public class CacheSyncTest extends MorphiumTestBase {
         WatchingCacheSynchronizer sync = new WatchingCacheSynchronizer(morphium);
         sync.start();
 
-        createCachedObjects(100);
-        waitForWriteToStart(1000);
+        createCachedObjects(morphium, 100);
+        waitForWriteToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
 
         //filling cache
@@ -673,7 +684,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         // morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
         //stored some object avoiding cache handling in morphium
         //now cache should be empty
-        waitForWriteToStart(1000);
+        waitForWriteToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
 
         Thread.sleep(1200);

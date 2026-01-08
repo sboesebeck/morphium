@@ -1,11 +1,11 @@
 package de.caluga.test.mongo.suite.aggregationStages;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -14,13 +14,17 @@ import java.util.List;
 
 import static de.caluga.morphium.aggregation.Expr.*;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
-public class BucketTests extends MorphiumTestBase {
+public class BucketTests extends MultiDriverTestBase {
 
 
-    @Test
-    public void bucketTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void bucketTest(Morphium morphium) throws Exception  {
         morphium.clearCollection(Artist.class);
         Thread.sleep(100);
         morphium.store(new Artist("Bernard", "Emil", 1868, 1941, "France"));

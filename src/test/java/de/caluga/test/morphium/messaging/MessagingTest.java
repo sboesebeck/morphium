@@ -1,4 +1,5 @@
 package de.caluga.test.morphium.messaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,7 +14,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.*;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,7 +21,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 @SuppressWarnings("ALL")
 @Tag("messaging")
-public class MessagingTest extends MorphiumTestBase {
+public class MessagingTest extends MultiDriverTestBase {
     public boolean gotMessage = false;
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;
@@ -64,7 +64,10 @@ public class MessagingTest extends MorphiumTestBase {
             TestUtils.waitForBooleanToBecomeTrue(5000, "Did not get message", received, (dur)->log.info("Still waiting"));
             OutputHelper.figletOutput(log, "Got V5 Msg");
 
-            //checking  answer
+            //checking  answer - wait for answer to be visible on replica sets
+            final String collName = receiver.getCollectionName();
+            TestUtils.waitForConditionToBecomeTrue(10000, "Answer not visible",
+                () -> morphium.createQueryFor(Msg.class, collName).f(Msg.Fields.inAnswerTo).ne(null).countAll() >= 1);
             var q = morphium.createQueryFor(Msg.class, receiver.getCollectionName());
             q.f(Msg.Fields.inAnswerTo).ne(null);
             var answers = q.asMapList();
@@ -82,7 +85,7 @@ public class MessagingTest extends MorphiumTestBase {
             String method = new Object() {} .getClass().getEnclosingMethod().getName();
             log.info("Running Test {} with {}", method, morphium.getDriver().getName());
 
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);

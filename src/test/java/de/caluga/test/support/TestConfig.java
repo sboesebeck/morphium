@@ -7,10 +7,12 @@ import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.driver.wire.SslHelper;
 
 import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.util.*;
 
 /**
@@ -31,7 +33,21 @@ public final class TestConfig {
            .setMaxWaitTime(intProp(props, "morphium.maxWaitTime", 10000))
            .setMaxConnections(intProp(props, "morphium.maxConnections", 100))
            .setConnectionTimeout(intProp(props, "morphium.connectionTimeout", 2000))
-           .setMinConnections(intProp(props, "morphium.minConnections", 1));
+           .setMinConnections(intProp(props, "morphium.minConnections", 1))
+           .setUseSSL(booleanProp(props, "morphium.useSSL", false))
+           .setSslInvalidHostNameAllowed(booleanProp(props, "morphium.sslInvalidHostNameAllowed", false));
+
+        // For testing with self-signed certificates, use a trust-all SSLContext
+        if (booleanProp(props, "morphium.sslTrustAll", false)) {
+            try {
+                cfg.connectionSettings().setSslContext(SslHelper.createTrustAllSslContext());
+                org.slf4j.LoggerFactory.getLogger(TestConfig.class).warn(
+                    "Using trust-all SSLContext - INSECURE, only use for testing!");
+            } catch (GeneralSecurityException e) {
+                org.slf4j.LoggerFactory.getLogger(TestConfig.class).error(
+                    "Failed to create trust-all SSLContext", e);
+            }
+        }
 
         cfg.cacheSettings()
            .setWriteCacheTimeout(intProp(props, "morphium.writeCacheTimeout", 1000))
@@ -123,11 +139,10 @@ public final class TestConfig {
                 cfg.clusterSettings().addHostToSeed(s.trim());
             }
         } else {
-            // default replicaset-ish local setup
+            // Default to single host for simpler test setup
+            // Use morphium.hostSeed property or MORPHIUM_HOSTSEED env to configure replica set
             cfg.clusterSettings()
-               .addHostToSeed("localhost", 27017)
-               .addHostToSeed("localhost", 27018)
-               .addHostToSeed("localhost", 27019);
+               .addHostToSeed("localhost", 27017);
         }
 
         applyExplicitAuth(cfg, props, true);

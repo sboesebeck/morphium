@@ -46,16 +46,18 @@ mvn test -Dmorphium.driver=inmem
 - ✅ **Basic Stages**: $match, $group, $sort, $limit, $skip, $project
 - ✅ **Group Operators**: $sum, $avg, $min, $max, $first, $last, $push, $addToSet
 - ✅ **MapReduce**: Full JavaScript-based MapReduce with GraalJS engine
-- ⚠️ **Advanced Stages**: $lookup, $unwind, $facet (limited support)
+- ✅ **Advanced Stages**: $lookup, $unwind, $facet, $graphLookup, $bucket, $mergeObjects
 
-### Change Streams (v6.0)
+### Change Streams (v6.1)
 - ✅ **Event Types**: insert, update, delete, drop operations
 - ✅ **Document Snapshots**: Immutable snapshots prevent dirty reads
 - ✅ **Pipeline Filtering**: Filter events with aggregation pipelines
 - ✅ **Full Document Support**: Access complete document in change events
 - ✅ **Database-scoped Sharing**: Optional driver sharing for multiple Morphium instances (opt-in)
+- ✅ **Database-level Watches**: Watch all collections in a database (v6.1.0)
+- ✅ **MorphiumServer Integration**: Full change stream support via wire protocol (v6.1.0)
 
-### Messaging System (v6.0)
+### Messaging System (v6.1)
 - ✅ **StandardMessaging**: Single-collection messaging with change streams
 - ✅ **MultiCollectionMessaging**: Multi-collection messaging
 - ✅ **Exclusive Messages**: Single-consumer message processing
@@ -65,18 +67,20 @@ mvn test -Dmorphium.driver=inmem
 ### Indexes
 - ✅ **Single Field Indexes**: Basic indexing support
 - ⚠️ **Compound Indexes**: Limited support
-- ❌ **Text Indexes**: Not fully implemented
+- ⚠️ **Text Indexes**: Index creation and metadata supported; `$text` queries not yet implemented
 - ❌ **Geospatial Indexes**: Limited geospatial support
 
 ### Transactions
 - ✅ **Basic Transactions**: start, commit, abort (single-instance)
 - ❌ **Multi-document ACID**: Limited to single instance
-- ❌ **Distributed Transactions**: No replica set support
+- ⚠️ **Replica Sets**: Experimental support in `MorphiumServer` (v6.1); no replica set simulation within a single `InMemoryDriver` instance.
 
-## V6.0 Improvements
+## V6.1 Improvements
+
+Morphium 6.1 introduced the features that make MorphiumServer a true **drop-in replacement** for MongoDB:
 
 ### Change Stream Enhancements
-The v6.0 release significantly improved change stream reliability:
+The v6.1 release significantly improved change stream reliability and feature parity:
 
 **Deep Copy Snapshots**
 ```java
@@ -90,7 +94,7 @@ morphium.watch(UncachedObject.class, evt -> {
 
 **Database-scoped Driver Sharing (Opt-in)**
 
-By default, each Morphium instance gets its own separate InMemoryDriver. To enable sharing between instances with the same database name, use `setInMemorySharedDatabases(true)`:
+By default, each Morphium instance gets its own separate InMemoryDriver. To enable sharing between instances with the same database name (crucial for messaging and cross-instance consistency), use `setInMemorySharedDatabases(true)`:
 
 ```java
 // Enable driver sharing for multiple Morphium instances
@@ -300,12 +304,12 @@ For large-scale MapReduce, consider using real MongoDB with sharding.
 ### Not Supported
 - ❌ **Replica Sets**: No replica set simulation
 - ❌ **Sharding**: No shard key or distributed queries
-- ❌ **Full Text Search**: Limited $text operator support
+- ⚠️ **Full Text Search**: Text indexes can be created with proper metadata, but `$text` queries are not yet implemented (planned feature)
 - ❌ **Advanced Geospatial**: Basic $near/$geoWithin only
 - ❌ **GridFS**: No file storage support
 - ❌ **Time Series Collections**: Not implemented
 - ❌ **Authentication**: No user/role management
-- ❌ **$lookup Joins**: Not yet implemented
+- ✅ **$lookup Joins**: Supported via aggregation pipeline
 
 ### Performance Considerations
 - **Memory Usage**: All data stored in memory
@@ -351,8 +355,9 @@ public void testMultipleInstances() {
 
         // Both share the same driver (sharing enabled)
         // Write with m1, read with m2
-        m1.store(new MyEntity("test"));
-        MyEntity found = m2.findById(MyEntity.class, id);
+        MyEntity entity = new MyEntity("test");
+        m1.store(entity);
+        MyEntity found = m2.findById(MyEntity.class, entity.getId());
 
         // Works correctly!
     }
@@ -424,16 +429,16 @@ See **[Messaging - Built-in Status Monitoring](./messaging.md#built-in-status-mo
 ## Troubleshooting
 
 ### Issue: Change streams not working
-**Solution**: Ensure you're using v6.0+ with the deep copy snapshot fix
+**Solution**: Ensure you're using v6.1+ with the deep copy snapshot fix
 
 ### Issue: Messages not received by all listeners
 **Solution**: Use database-scoped sharing by ensuring all Morphium instances use the same database name
 
 ### Issue: NullPointerException in insert()
-**Solution**: Upgrade to v6.0+ which includes index data structure initialization fix
+**Solution**: Upgrade to v6.1+ which includes index data structure initialization fix
 
 ### Issue: Driver shutdown too early
-**Solution**: v6.0+ includes reference counting to prevent premature shutdown
+**Solution**: v6.1+ includes reference counting to prevent premature shutdown
 
 ## See Also
 

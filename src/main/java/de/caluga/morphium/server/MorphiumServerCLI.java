@@ -24,8 +24,6 @@ public class MorphiumServerCLI {
         log.info("Starting up server... parsing commandline params");
         String host = "localhost";
         int port = 17017;
-        int maxThreads = 1000;
-        int minThreads = 10;
         String rsNameArg = "";
         String hostSeedArg = "";
         List<String> hostsArg = new ArrayList<>();
@@ -41,6 +39,10 @@ public class MorphiumServerCLI {
         String dumpDir = null;
         long dumpIntervalSec = 0;
 
+        // Connection management configuration
+        int maxConnections = 500;
+        int socketTimeoutSec = 60;
+
         while (idx < args.length) {
             switch (args[idx]) {
                 case "--help":
@@ -51,18 +53,6 @@ public class MorphiumServerCLI {
                 case "-p":
                 case "--port":
                     port = Integer.parseInt(args[idx + 1]);
-                    idx += 2;
-                    break;
-
-                case "-mt":
-                case "--maxThreads":
-                    maxThreads = Integer.parseInt(args[idx + 1]);
-                    idx += 2;
-                    break;
-
-                case "-mint":
-                case "--minThreads":
-                    minThreads = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
 
@@ -145,6 +135,16 @@ public class MorphiumServerCLI {
                     idx += 2;
                     break;
 
+                case "--max-connections":
+                    maxConnections = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
+
+                case "--socket-timeout":
+                    socketTimeoutSec = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
+
                 default:
                     log.error("unknown parameter " + args[idx]);
                     System.exit(1);
@@ -152,7 +152,8 @@ public class MorphiumServerCLI {
         }
 
         log.info("Starting server...");
-        var srv = new MorphiumServer(port, host, maxThreads, minThreads, compressorId);
+
+        var srv = new MorphiumServer(port, host, maxConnections, socketTimeoutSec, compressorId);
         srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
 
         // Configure SSL if enabled
@@ -195,13 +196,14 @@ public class MorphiumServerCLI {
 
         srv.start();
 
-        if (!rsNameArg.isEmpty()) {
-            log.info("Building replicaset with seed {}", hostSeedArg);
-            srv.startReplicaReplication();
-        }
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("Shutdown hook triggered");
+            srv.shutdown();
+        }));
 
         while (srv.isRunning()) {
-            log.info("Alive and kickin'");
+            log.info("MorphiumServer alive - connections: {}", srv.getConnectionCount());
             sleep(10000);
         }
     }
@@ -209,11 +211,13 @@ public class MorphiumServerCLI {
 
     private static void printHelp() {
         System.out.println("Usage: java -jar morphium-server.jar [options]");
+        System.out.println();
+        System.out.println("MorphiumServer is a MongoDB-compatible in-memory server using async I/O (Netty).");
+        System.out.println("It can handle thousands of concurrent connections efficiently.");
+        System.out.println();
         System.out.println("Options:");
         System.out.println("  -p, --port <port>          : Port to listen on (default: 17017)");
         System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
-        System.out.println("  -mt, --maxThreads <threads>: Maximum number of threads (default: 1000)");
-        System.out.println("  -mint, --minThreads <threads>: Minimum number of threads (default: 10)");
         System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
         System.out.println("  --rs-name <name>           : Name of the replica set");
         System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts to seed the replica set.");
@@ -229,10 +233,16 @@ public class MorphiumServerCLI {
         System.out.println("                               Enables persistence: restores on startup, dumps on shutdown");
         System.out.println("  --dump-interval <seconds>  : Interval between periodic dumps (default: 0 = only on shutdown)");
         System.out.println();
+        System.out.println("Connection Management Options:");
+        System.out.println("  --max-connections <num>    : Maximum concurrent connections (default: 500)");
+        System.out.println("  --socket-timeout <seconds> : Idle connection timeout in seconds (default: 60)");
+        System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
         System.out.println("Examples:");
+        System.out.println("  java -jar morphium-server.jar -p 27017");
         System.out.println("  java -jar morphium-server.jar -p 27018 --ssl --sslKeystore server.jks --sslKeystorePassword changeit");
         System.out.println("  java -jar morphium-server.jar -p 27017 --dump-dir /var/morphium/data --dump-interval 300");
+        System.out.println("  java -jar morphium-server.jar --rs-name myrs --rs-seed localhost:27017,localhost:27018,localhost:27019");
     }
 }

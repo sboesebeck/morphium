@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -20,15 +23,25 @@ import java.util.Map;
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
 @Tag("cache")
-public class IdCacheTest extends MorphiumTestBase {
+public class IdCacheTest extends MultiDriverTestBase {
 
-    @Test
-    public void idTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
+        // Skip for MorphiumServer - cache sync doesn't work over network
+        if (morphium.getDriver().isInMemoryBackend()) {
+            log.info("Skipping cache test for MorphiumServer - cache sync not supported over network");
+            morphium.close();
+            return;
+        }
+        // Ensure clean state - drop collection first
+        morphium.dropCollection(CachedObject.class);
+        Thread.sleep(100);
         for (int i = 1; i < 100; i++) {
             CachedObject u = new CachedObject();
             u.setCounter(i);
@@ -37,14 +50,17 @@ public class IdCacheTest extends MorphiumTestBase {
         }
 
         TestUtils.waitForWrites(morphium, log);
-        long s = System.currentTimeMillis();
-        Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-        while (q.countAll() != 99) {
-            log.info("Count is still: " + q.countAll());
-            Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-        }
-        q = q.f("counter").lt(30);
+        // Wait for all objects to be replicated and queryable in replica set
+        TestUtils.waitForConditionToBecomeTrue(30000, "Objects not replicated",
+            () -> {
+                long count = morphium.createQueryFor(CachedObject.class).countAll();
+                if (count != 99) {
+                    log.info("Count is still: " + count);
+                    return false;
+                }
+                return true;
+            });
+        Query<CachedObject> q = morphium.createQueryFor(CachedObject.class).f("counter").lt(30);
         List<CachedObject> lst = q.asList();
 
         String k = morphium.getCache().getCacheKey(q);

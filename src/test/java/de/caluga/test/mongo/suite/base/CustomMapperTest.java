@@ -38,6 +38,9 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -47,10 +50,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class CustomMapperTest extends MorphiumTestBase {
+public class CustomMapperTest extends MultiDriverTestBase {
 
-    @Test
-    public void testMongoTypes() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMongoTypes(Morphium morphium) throws Exception  {
         MongoTypesTestClass cls = new MongoTypesTestClass();
         cls.stringValue = "strValue";
         cls.charValue = new Character('c');
@@ -153,8 +157,9 @@ public class CustomMapperTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void BsonGeoMapperTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void BsonGeoMapperTest(Morphium morphium) {
         BsonGeoMapper m = new BsonGeoMapper();
         Geo g = new Point(12.0, 13.0);
         Object marshalled = m.marshall(g);
@@ -165,8 +170,9 @@ public class CustomMapperTest extends MorphiumTestBase {
         assert(((List) res.getCoordinates()).get(1).equals(13.0));
     }
 
-    @Test
-    public void customMappedObjectTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void customMappedObjectTest(Morphium morphium) {
         morphium.getMapper().registerCustomMapperFor(CustomMappedObject.class, new CustomMappedObjectMapper());
         morphium.dropCollection(ObjectWithCustomMappedObject.class);
         ObjectWithCustomMappedObject containingObject = new ObjectWithCustomMappedObject();
@@ -216,8 +222,9 @@ public class CustomMapperTest extends MorphiumTestBase {
         containingObject.setCustomMappedObjectMap(map);
     }
 
-    @Test
-    public void customMapperObjectIdTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void customMapperObjectIdTest(Morphium morphium) {
         MorphiumTypeMapper<ObjectIdTest> mapper = new MorphiumTypeMapper<ObjectIdTest>() {
             @Override
             public Object marshall(ObjectIdTest o) {
@@ -256,8 +263,9 @@ public class CustomMapperTest extends MorphiumTestBase {
         morphium.getMapper().deregisterCustomMapperFor(ObjectIdTest.class);
     }
 
-    @Test
-    public void complexCustomMappingTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void complexCustomMappingTest(Morphium morphium) {
         morphium.getMapper().registerCustomMapperFor(CustomMappedObject.class, new CustomMappedObjectMapper());
         morphium.dropCollection(ObjectWithCustomMappedObject.class);
         ComplexCustomMapperObject containingObject = new ComplexCustomMapperObject();

@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -20,11 +22,12 @@ import org.junit.jupiter.api.Tag;
  * TODO: Add documentation here
  */
 @Tag("core")
-public class CustomCollectionNameTest extends MorphiumTestBase {
+public class CustomCollectionNameTest extends MultiDriverTestBase {
 
 
-    @Test
-    public void testUpdateInOtherCollection() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testUpdateInOtherCollection(Morphium morphium) throws Exception  {
         Morphium m = morphium;
         String collectionName = "entity_collection_name_update";
         m.clearCollection(EntityCollectionName.class, collectionName);
@@ -40,12 +43,15 @@ assert eFetched.value == 1 : "fetched s2:";
         m.updateUsingFields(e, collectionName, null, new String[] {"value"});
         Query<EntityCollectionName> q2 = m.createQueryFor(EntityCollectionName.class).f("value").eq(2);
         q2.setCollectionName(collectionName);
+        // Wait for update to be visible on replica sets
+        TestUtils.waitForConditionToBecomeTrue(10000, "Update not visible", () -> q2.get() != null);
         EntityCollectionName eFetched2 = q2.get();
         assertNotNull(eFetched2, "fetchedd after update");
     }
 
-    @Test
-    public void testDeleteInOtherCollection() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDeleteInOtherCollection(Morphium morphium) throws Exception  {
         Morphium m = morphium;
         String collectionName = "entity_collection_name_delete";
         m.clearCollection(EntityCollectionName.class, collectionName);
@@ -57,8 +63,8 @@ assert eFetched.value == 1 : "fetched s2:";
         EntityCollectionName eFetched = q.get();
 assert eFetched != null : "fetched before delete";
         m.delete(q, (AsyncOperationCallback<EntityCollectionName>) null);
-        EntityCollectionName eFetched2 = q.get();
-assert eFetched2 == null : "fetched after delete";
+        // Wait for delete to be visible (replication lag on replica sets)
+        TestUtils.waitForConditionToBecomeTrue(10000, "Delete not visible", () -> q.get() == null);
     }
 
 

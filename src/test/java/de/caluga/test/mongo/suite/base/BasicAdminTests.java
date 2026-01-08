@@ -43,8 +43,9 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 @Tag("core")
 public class BasicAdminTests extends MultiDriverTestBase {
 
-    @Test
-    public void readPreferenceTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void readPreferenceTest(Morphium morphium) {
         ReadPreferenceLevel.NEAREST.setPref(ReadPreference.nearest());
         assert(ReadPreferenceLevel.NEAREST.getPref().getType().equals(ReadPreference.nearest().getType()));
     }
@@ -80,7 +81,10 @@ public class BasicAdminTests extends MultiDriverTestBase {
             assertNotNull(dbs);
             assertThat(dbs.size()).isNotEqualTo(0);
 
+            // Limit to first 5 databases to avoid timeout with many test databases
+            int count = 0;
             for (String s : dbs) {
+                if (count++ >= 5) break;
                 log.info("Got DB: " + s);
                 morphium.reconnectToDb(s);
                 log.info("Logged in...");

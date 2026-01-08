@@ -1,10 +1,10 @@
 package de.caluga.test.mongo.suite.aggregationStages;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -12,13 +12,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
-public class GraphLookupTest extends MorphiumTestBase {
+public class GraphLookupTest extends MultiDriverTestBase {
 
 
-    @Test
-    public void graphLookup() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void graphLookup(Morphium morphium) throws Exception  {
         morphium.dropCollection(Employee.class);
         Thread.sleep(200);
         morphium.store(new Employee(1, "Dev", null));

@@ -10,7 +10,6 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Tag;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,7 +34,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void messageAnswerTest(Morphium baseMorphium) throws Exception {
         try (baseMorphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 MorphiumConfig cfg = baseMorphium.getConfig().createCopy();
                 cfg.driverSettings().setSharedConnectionPool(true);
                 cfg.driverSettings().setInMemorySharedDatabases(true);
@@ -97,14 +96,14 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
                             query.setExclusive(true);
-                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 5000);
+                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 15000);
                             assertEquals(1, ans.size(), "more than one answer for exclusive message");
                         }
 
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
                             query.setExclusive(false);
-                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 5000);
+                            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 15000);
                             assertEquals(3, ans.size(), "not enough answers for non-exclusive message");
                         }
                     } finally {
@@ -125,7 +124,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void answerWithDifferentNameTest(Morphium baseMorphium) throws Exception {
         try (baseMorphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 MorphiumConfig cfg = baseMorphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
@@ -172,7 +171,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void ownAnsweringHandler(Morphium baseMorphium) throws Exception {
         try (baseMorphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 MorphiumConfig cfg = baseMorphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());

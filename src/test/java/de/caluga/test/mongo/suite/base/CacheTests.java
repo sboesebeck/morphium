@@ -50,7 +50,7 @@ public class CacheTests extends MultiDriverTestBase {
                 morphium.store(co);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(2000, "Objects not stored",
+            TestUtils.waitForConditionToBecomeTrue(30000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == 10);
 
             // First query - should hit database and populate cache
@@ -196,8 +196,9 @@ public class CacheTests extends MultiDriverTestBase {
             original.setValue("Original");
             morphium.store(original);
 
-            TestUtils.waitForConditionToBecomeTrue(5000, "Objects not stored",
-                                                   () -> morphium.createQueryFor(CachedObject.class).countAll() != 0);
+            // Wait for the specific object to be queryable (replica set lag can cause countAll to succeed before specific queries)
+            TestUtils.waitForConditionToBecomeTrue(15000, "Object not stored or queryable",
+                                                   () -> morphium.createQueryFor(CachedObject.class).f("counter").eq(100).get() != null);
             // Query to populate cache
             CachedObject cached = morphium.createQueryFor(CachedObject.class).f("counter").eq(100).get();
             assertNotNull(cached);
@@ -338,7 +339,8 @@ public class CacheTests extends MultiDriverTestBase {
                 morphium.store(co);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(3000, "Objects not stored",
+            // MorphiumServer RS mode: 100 individual writes can take 30+ seconds with replication
+            TestUtils.waitForConditionToBecomeTrue(60000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == objectCount);
 
             // Query all objects to populate cache

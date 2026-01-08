@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -17,9 +20,10 @@ import java.util.List;
  * <p>
  */
 @Tag("core")
-public class ListOfListTests extends MorphiumTestBase {
-    @Test
-    public void storeListOfLists() {
+public class ListOfListTests extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void storeListOfLists(Morphium morphium) {
         morphium.clearCollection(LoLType.class);
         List<List<String>> val = new ArrayList<>();
         List<String> v1 = new ArrayList<>();
@@ -50,8 +54,9 @@ public class ListOfListTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void jsonListTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void jsonListTest(Morphium morphium) throws Exception  {
 
         String s = "{ \"_id\" : \"5321be491c26b5f02eec7bd7\" , \"string_list\" : [ \"Hi\" , \"Ho\"] , \"uc_list\" : [ { \"counter\" : 5 } , { \"counter\" : 7} , { \"counter\" : 12 }]}";
         ListTypes l = morphium.getMapper().deserialize(ListTypes.class, s);

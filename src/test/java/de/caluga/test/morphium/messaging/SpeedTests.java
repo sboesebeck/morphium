@@ -25,7 +25,7 @@ public class SpeedTests extends MultiDriverTestBase {
 
         try (morphium) {
             morphium.clearCollection(Msg.class);
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
@@ -78,7 +78,7 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.clearCollection(Msg.class);
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
@@ -141,7 +141,7 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
             morphium.clearCollection(Msg.class);
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());

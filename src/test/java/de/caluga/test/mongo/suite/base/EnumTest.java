@@ -12,6 +12,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -21,10 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @SuppressWarnings("unchecked")
 @Tag("core")
-public class EnumTest extends MorphiumTestBase {
+public class EnumTest extends MultiDriverTestBase {
 
-    @Test
-    public void enumTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void enumTest(Morphium morphium) throws InterruptedException  {
         morphium.clearCollection(EnumEntity.class);
         EnumEntity ent = new EnumEntity();
         ent.setTst(TestEnum.TEST1);
@@ -39,8 +43,9 @@ public class EnumTest extends MorphiumTestBase {
         assert(ent.getTst().equals(TestEnum.TEST1)) : "Enum error!";
     }
 
-    @Test
-    public void enumListTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void enumListTest(Morphium morphium) throws InterruptedException  {
         morphium.clearCollection(EnumEntity.class);
         EnumEntity ent = new EnumEntity();
         ent.setTst(TestEnum.TEST1);
@@ -65,8 +70,9 @@ public class EnumTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void enumIteratorTest() throws InterruptedException {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void enumIteratorTest(Morphium morphium) throws InterruptedException  {
         morphium.clearCollection(EnumEntity.class);
 
         for (int i = 0; i < 100; i++) {

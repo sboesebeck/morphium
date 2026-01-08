@@ -1,8 +1,8 @@
 package de.caluga.test.morphium.messaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.*;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -12,13 +12,17 @@ import java.util.Map;
 import java.util.concurrent.PriorityBlockingQueue;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 @Tag("messaging")
-public class StatusInfoListenerTests extends MorphiumTestBase {
+public class StatusInfoListenerTests extends MultiDriverTestBase {
 
-    @Test
-    public void disablingEnablingStatusListener() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void disablingEnablingStatusListener(Morphium morphium) throws Exception  {
         MorphiumMessaging m1 = morphium.createMessaging();
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
@@ -48,8 +52,9 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         sender.terminate();
     }
 
-    @Test
-    public void getStatusInfo() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void getStatusInfo(Morphium morphium) throws Exception  {
         MorphiumMessaging m1 = morphium.createMessaging();
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
@@ -136,8 +141,9 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testStatusInfoListener() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testStatusInfoListener(Morphium morphium) throws Exception  {
         MorphiumMessaging m = morphium.createMessaging();
         m.setWindowSize(1);
         m.setMultithreadded(false);
@@ -184,8 +190,9 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void prioQueueTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void prioQueueTest(Morphium morphium) throws Exception  {
         PriorityBlockingQueue<de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement> qu = new PriorityBlockingQueue<>();
         de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement el = new de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement(500, 123, new MorphiumId());
         qu.add(el);

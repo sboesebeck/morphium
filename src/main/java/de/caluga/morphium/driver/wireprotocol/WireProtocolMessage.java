@@ -18,7 +18,7 @@ public abstract class WireProtocolMessage {
     private int responseTo;
     private static Logger log = LoggerFactory.getLogger(WireProtocolMessage.class);
 
-    public static WireProtocolMessage parseFromStream(InputStream in) throws java.net.SocketException {
+    public static WireProtocolMessage parseFromStream(InputStream in) throws java.net.SocketException, java.net.SocketTimeoutException {
         byte[] inBuffer = new byte[16];
         int numRead;
 
@@ -77,6 +77,9 @@ public abstract class WireProtocolMessage {
             // } catch (java.net.SocketException se) {
             //     //probably closed - ignore
             //     return null;
+        } catch (java.net.SocketTimeoutException ste) {
+            // Propagate timeout exceptions for connection management
+            throw ste;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -175,15 +178,15 @@ public abstract class WireProtocolMessage {
             OpDelete.class), OP_KILL_CURSORS(2007, OpKillCursors.class), OP_COMPRESSED(2012, OpCompressed.class), OP_MSG(2013, OpMsg.class);
 
 
-        int opCode;
-        Class<? extends WireProtocolMessage> handler;
+        public final int opCode;
+        public final Class<? extends WireProtocolMessage> handler;
 
         OpCode(int opCode, Class<? extends WireProtocolMessage> handler) {
             this.opCode = opCode;
             this.handler = handler;
         }
 
-        static OpCode findByCode(int c) {
+        public static OpCode findByCode(int c) {
             for (OpCode o : OpCode.values()) {
                 if (o.opCode == c) {
                     return o;

@@ -1,4 +1,5 @@
 package de.caluga.test.mongo.suite.ncmessaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -8,7 +9,6 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("messaging")
-public class AnsweringNCTests extends MorphiumTestBase {
+public class AnsweringNCTests extends MultiDriverTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
@@ -48,7 +48,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         error = false;
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -57,7 +57,10 @@ public class AnsweringNCTests extends MorphiumTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morph = new Morphium(cfg)) {
-                    morph.clearCollection(Msg.class);
+                    // Clear all msg-related collections to ensure clean state between messaging implementations
+                    morph.listCollections().stream()
+                        .filter(c -> c.startsWith("msg") || c.startsWith("dm_"))
+                        .forEach(c -> morph.dropCollection(Msg.class, c, null));
                     final MorphiumMessaging m1;
                     final MorphiumMessaging m2;
                     final MorphiumMessaging onlyAnswers;
@@ -169,8 +172,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
 
 
-    @Test
-    public void answerExclusiveMessagesTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void answerExclusiveMessagesTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
@@ -196,8 +200,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void answers3NodesTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void answers3NodesTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
@@ -239,9 +244,10 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
-    public void getAnswersTest() throws Exception {
+    public void getAnswersTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         SingleCollectionMessaging mTst = new SingleCollectionMessaging(morphium, 10, false, true, 10);
@@ -287,8 +293,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
         mTst.terminate();
     }
 
-    @Test
-    public void waitForAnswerTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void waitForAnswerTest(Morphium morphium) throws Exception  {
 
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
@@ -318,9 +325,10 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m2.terminate();
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
-    public void answerWithoutListener() throws Exception {
+    public void answerWithoutListener(Morphium morphium) throws Exception  {
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
 
@@ -341,8 +349,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void answerTestDifferentType() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void answerTestDifferentType(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true);
         SingleCollectionMessaging recipient = new SingleCollectionMessaging(morphium, 100, true);
         sender.setUseChangeStream(false).start();
@@ -383,8 +392,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void sendAndWaitforAnswerTestFailing() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void sendAndWaitforAnswerTestFailing(Morphium morphium) {
         // When sending a message to yourself (without using sendMessageToSelf),
         // you should NOT receive it, so this should timeout
         assertThrows(RuntimeException.class, ()-> {
@@ -408,8 +418,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void sendAndWaitforAnswerTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void sendAndWaitforAnswerTest(Morphium morphium) throws Exception  {
 //        morphium.dropCollection(Msg.class);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();

@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.1.0</version>
+  <version>6.1.1-SNAPSHOT</version>
   <packaging>jar</packaging>
   <!--    <parent>-->
   <!--        <groupId>org.sonatype.oss</groupId>-->
@@ -26,7 +26,7 @@
     <url>https://github.com/sboesebeck/morphium</url>
     <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
     <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-    <tag>v6.1.0</tag>
+    <tag>v5.1.19</tag>
   </scm>
   <developers>
     <developer>
@@ -61,9 +61,9 @@
         <configuration>
           <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED
                     --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</argLine>
-          <!-- JUnit 5 tag selection -->
-          <includeTags>${test.includeTags}</includeTags>
-          <excludeTags>${test.excludeTags}</excludeTags>
+          <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
+          <groups>${test.includeTags}</groups>
+          <excludedGroups>${test.excludeTags}</excludedGroups>
           <properties>
             <configurationParameters>
               junit.jupiter.extensions.autodetection.enabled=true
@@ -253,14 +253,27 @@
       <groupId>org.graalvm.js</groupId>
       <artifactId>js-scriptengine</artifactId>
       <version>24.2.2</version>
-      <scope>test</scope>
+      <!-- Compile scope so it's included in server jar for MapReduce -->
+    </dependency>
+    <dependency>
+      <groupId>org.graalvm.polyglot</groupId>
+      <artifactId>polyglot</artifactId>
+      <version>24.2.2</version>
+      <!-- Compile scope so it's included in server jar for MapReduce -->
     </dependency>
     <dependency>
       <groupId>org.graalvm.polyglot</groupId>
       <artifactId>js</artifactId>
       <version>24.2.2</version>
       <type>pom</type>
-      <scope>test</scope>
+      <!-- POM type pulls in transitive dependencies for JS language -->
+      <exclusions>
+        <!-- Exclude enterprise module - causes ServiceConfigurationError in fat jar -->
+        <exclusion>
+          <groupId>org.graalvm.truffle</groupId>
+          <artifactId>truffle-enterprise</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <!-- https://mvnrepository.com/artifact/rhino/js -->
     <!-- <dependency> -->
@@ -392,6 +405,13 @@
       <artifactId>assertj-core</artifactId>
       <version>3.23.1</version>
       <scope>test</scope>
+    </dependency>
+    <!-- Netty for async I/O in MorphiumServer (optional - not needed for Morphium client) -->
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-all</artifactId>
+      <version>4.1.100.Final</version>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>de.caluga</groupId>
