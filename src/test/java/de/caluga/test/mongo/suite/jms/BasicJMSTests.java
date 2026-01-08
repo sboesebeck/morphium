@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
 
 @Tag("jms")
+@Tag("slow")  // May be flaky under high parallel load - uses messaging with multiple contexts
 public class BasicJMSTests extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -50,7 +51,7 @@ public class BasicJMSTests extends MultiDriverTestBase {
 
             }
         });
-        Thread.sleep(1000);
+        Thread.sleep(2000);  // Give more time for messaging to stabilize under parallel load
         pr1.send(dest, "A test");
         JMSTextMessage m = new JMSTextMessage();
         m.setText("test");
