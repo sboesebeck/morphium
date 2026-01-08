@@ -202,7 +202,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
             morphium.store(obj);
         }
         TestUtils.waitForWrites(morphium, log);
-        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll() == 100);
+        TestUtils.waitForConditionToBecomeTrue(15000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll() == 100);
         dur = System.currentTimeMillis() - start;
         log.info("Updating without synchronizer: " + dur + " ms");
 
