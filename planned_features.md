@@ -1,6 +1,20 @@
 # Planned Features
 
-## InMemoryDriver Index Refactoring
+## Implementation Status Summary
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| InMemoryDriver Index Refactoring | ⏳ Not Started | TreeMap indexes, range query optimization |
+| MorphiumServer Netty Architecture | ✅ Done | Full Netty-based NIO implementation |
+| InMemoryDriver Cursor Synchronization | ✅ Done | ConcurrentHashMap replaces global mutex |
+| MorphiumServer SSL/TLS | ✅ Done | Full SSL/TLS support via Netty |
+| MorphiumServer Authentication | ⏳ Not Started | SCRAM-SHA-256 server-side needed |
+| InMemoryDriver Text Index | ✅ Done | Full MongoDB-compatible $text query support |
+| MorphiumServer Election/Failover | ✅ Mostly Done | Phases 1-3, 5-6 complete; Phase 4, 7 partial |
+
+---
+
+## InMemoryDriver Index Refactoring ⏳ NOT IMPLEMENTED
 
 **Current limitation:** The index system uses hash-based buckets (`hashCode()` of field values), which only supports exact equality matches efficiently. Range queries (`$gt`, `$lt`, `$in`, etc.) cannot use the index and fall back to full collection scans.
 
@@ -39,22 +53,28 @@
 
 ---
 
-## MorphiumServer Architecture Improvements
+## MorphiumServer Architecture Improvements ✅ MOSTLY DONE
 
-**Current limitations:** The server uses blocking I/O with one thread per connection, which limits scalability under high connection counts.
+**Current limitations:** ~~The server uses blocking I/O with one thread per connection, which limits scalability under high connection counts.~~ Now uses Netty-based non-blocking I/O.
 
 **Proposed improvements:**
 
-### 1. Non-blocking I/O (NIO/NIO2)
-- Replace blocking `Socket` with `SocketChannel` and `Selector`
-- Single thread can handle multiple connections
-- Significantly reduces thread overhead for many concurrent connections
+### 1. Non-blocking I/O (NIO/NIO2) ✅ DONE (via Netty)
+- ~~Replace blocking `Socket` with `SocketChannel` and `Selector`~~
+- ~~Single thread can handle multiple connections~~
+- ~~Significantly reduces thread overhead for many concurrent connections~~
 
-### 2. Netty-based networking (alternative to NIO)
-- Use Netty framework for high-performance networking
-- Built-in support for connection pooling, backpressure, SSL/TLS
-- Well-tested, production-ready solution
-- Easier to maintain than raw NIO
+### 2. Netty-based networking (alternative to NIO) ✅ DONE
+- ~~Use Netty framework for high-performance networking~~
+- ~~Built-in support for connection pooling, backpressure, SSL/TLS~~
+- ~~Well-tested, production-ready solution~~
+- ~~Easier to maintain than raw NIO~~
+
+**Implementation:** See `src/main/java/de/caluga/morphium/server/netty/` package:
+- `MongoCommandHandler.java` - handles all MongoDB wire protocol commands
+- `MongoWireProtocolDecoder.java` - decodes incoming wire protocol messages
+- `MongoWireProtocolEncoder.java` - encodes outgoing wire protocol messages
+- `WatchCursorManager.java` - manages change stream cursors
 
 ### 3. Async replication
 - Current replication blocks during sync operations
@@ -82,36 +102,43 @@
 
 ---
 
-## InMemoryDriver Cursor Synchronization
+## InMemoryDriver Cursor Synchronization ✅ DONE
 
-**Current limitation:** The InMemoryDriver uses a single global lock (`cursorsMutex`) for cursor operations. This causes contention when multiple concurrent operations access different cursors.
+**~~Current limitation:~~ RESOLVED:** ~~The InMemoryDriver uses a single global lock (`cursorsMutex`) for cursor operations. This causes contention when multiple concurrent operations access different cursors.~~
 
-**Proposed improvements:**
+**Implementation:** Changed from global mutex to `ConcurrentHashMap`:
+```java
+private final Map<Long, FindCommand> cursors = new ConcurrentHashMap<>();
+```
 
-### Per-cursor or striped locking
-- Replace global `cursorsMutex` with per-cursor synchronization
-- Alternative: Use striped locking based on cursor ID hash
-- Significantly reduces contention for concurrent cursor operations
+This provides thread-safe cursor operations without global contention. The `ConcurrentHashMap` allows concurrent access to different cursors while maintaining consistency for operations on the same cursor.
 
-**Files to modify:**
+~~**Proposed improvements:**~~
+
+### ~~Per-cursor or striped locking~~ ✅ Using ConcurrentHashMap
+- ~~Replace global `cursorsMutex` with per-cursor synchronization~~ → Now uses ConcurrentHashMap
+- ~~Alternative: Use striped locking based on cursor ID hash~~
+- ~~Significantly reduces contention for concurrent cursor operations~~
+
+**Files modified:**
 - `src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java`
-  - `cursorsMutex` field and all synchronized blocks using it
-  - Consider using `ConcurrentHashMap.compute()` for atomic cursor operations
 
-**Estimated effort:** Medium - requires careful analysis of cursor lifecycle and concurrent access patterns.
+~~**Estimated effort:** Medium - requires careful analysis of cursor lifecycle and concurrent access patterns.~~
 
 ---
 
-## MorphiumServer SSL/TLS Support
+## MorphiumServer SSL/TLS Support ✅ DONE
 
-**Current limitation:** MorphiumServer only supports unencrypted connections, making it unsuitable for production environments where data in transit must be protected.
+**~~Current limitation:~~ RESOLVED:** ~~MorphiumServer only supports unencrypted connections, making it unsuitable for production environments where data in transit must be protected.~~ SSL/TLS is now implemented.
 
 **Proposed improvements:**
 
-### 1. SSL/TLS encrypted connections
-- Support for `SSLServerSocket` / `SSLSocket` wrapper around existing sockets
-- Configurable via server settings (enabled/disabled, port)
-- Support for both self-signed and CA-signed certificates
+### 1. SSL/TLS encrypted connections ✅ DONE
+- ~~Support for `SSLServerSocket` / `SSLSocket` wrapper around existing sockets~~ Now uses Netty SSL
+- ~~Configurable via server settings (enabled/disabled, port)~~
+- ~~Support for both self-signed and CA-signed certificates~~
+
+**Implementation:** See `MorphiumServer.java` - `setSslEnabled()`, `setSslContext()` methods.
 
 ### 2. Certificate configuration
 - **Keystore support**: Load server certificate and private key from JKS/PKCS12 keystore
@@ -148,9 +175,11 @@ config.setTlsMinVersion("TLSv1.2");
 
 ---
 
-## MorphiumServer Authentication
+## MorphiumServer Authentication ⏳ NOT IMPLEMENTED
 
 **Current limitation:** MorphiumServer accepts all connections without authentication, making it unsuitable for multi-tenant or security-sensitive deployments.
+
+> **Note:** SCRAM-SHA-256 authentication is implemented client-side in Morphium for connecting to MongoDB, but server-side authentication in MorphiumServer is not yet implemented.
 
 **Proposed improvements:**
 
@@ -205,16 +234,25 @@ config.setAdminPassword("secure_password");
 
 ---
 
-## InMemoryDriver Text Index Support
+## InMemoryDriver Text Index Support ✅ DONE
 
-**Current state:** Text indexes can be created and are properly returned by `listIndexes` with correct metadata (`weights`, `textIndexVersion`). However, the actual `$text` query operator is not implemented - text search queries will not work.
+**~~Current state:~~ COMPLETED:** Text search is now fully implemented with MongoDB-compatible query syntax.
 
 **What works now:**
 - ✅ Creating text indexes via `createIndex({field: "text"})`
 - ✅ Listing text indexes with correct metadata (weights, textIndexVersion)
 - ✅ Index comparison between entity annotations and MongoDB indexes
-- ❌ `$text` query operator (queries will fail or return no results)
-- ❌ `$meta: "textScore"` for relevance scoring
+- ✅ **Root-level `$text` query** - MongoDB-standard format fully supported:
+  - `{ "$text": { "$search": "search terms" } }` ✅
+  - `{ "$text": { "$search": "\"exact phrase\"" } }` ✅ (phrase search)
+  - `{ "$text": { "$search": "word -excluded" } }` ✅ (negation)
+  - `{ "$text": { "$search": "...", "$caseSensitive": true } }` ✅
+- ✅ Field-level `$text` query (legacy/non-standard)
+- ⚠️ `$meta: "textScore"` for relevance scoring (not yet implemented)
+
+**Implementation:**
+- `InMemoryDriver.java` find() method - transforms `$text` to internal `$textSearch` format with text index fields
+- `QueryHelper.java` matchesTextSearch() method - handles tokenization, phrase matching, negation, case sensitivity
 
 **Proposed implementation:**
 
@@ -290,11 +328,19 @@ db.collection.createIndex(
 
 ---
 
-## MorphiumServer Automatic Election and Failover
+## MorphiumServer Automatic Election and Failover ✅ MOSTLY DONE
 
-**Current limitation:** MorphiumServer replicaset uses static primary assignment at startup. When the primary goes down, secondaries cannot take over - all writes fail until the original primary is restarted. This makes MorphiumServer unsuitable for production high-availability deployments.
+**~~Current limitation:~~ RESOLVED:** ~~MorphiumServer replicaset uses static primary assignment at startup. When the primary goes down, secondaries cannot take over - all writes fail until the original primary is restarted.~~ Automatic election is now implemented.
 
-**Goal:** Enable automatic leader election so that when the primary fails, a secondary can be promoted to primary automatically, enabling rolling updates and uninterrupted service.
+**Goal:** ~~Enable automatic leader election so that when the primary fails, a secondary can be promoted to primary automatically, enabling rolling updates and uninterrupted service.~~ **ACHIEVED**
+
+**Implementation:** See `src/main/java/de/caluga/morphium/server/election/` package:
+- `ElectionManager.java` - Core election logic and state machine
+- `ElectionState.java` - FOLLOWER, CANDIDATE, LEADER states
+- `VoteRequest.java` / `VoteResponse.java` - Vote protocol messages
+- `AppendEntriesRequest.java` / `AppendEntriesResponse.java` - Heartbeat/replication messages
+- `ElectionConfig.java` - Configuration (timeouts, intervals)
+- `ElectionNetworkClient.java` - Network communication for election
 
 ---
 

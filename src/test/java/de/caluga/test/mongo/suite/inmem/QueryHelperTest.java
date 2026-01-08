@@ -251,6 +251,81 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void rootLevelTextSearchTest() {
+        // Test MongoDB-compatible root-level $text query format
+        // { $text: { $search: "search terms" } }
+
+        // Create test documents
+        Map<String, Object> doc1 = UtilsMap.of(
+            "title", (Object) "The quick brown fox",
+            "content", "jumps over the lazy dog"
+        );
+        Map<String, Object> doc2 = UtilsMap.of(
+            "title", (Object) "A slow hedgehog",
+            "content", "walks in the garden"
+        );
+
+        // Internal format for $textSearch (as transformed by InMemoryDriver)
+        // This tests the QueryHelper.matchesTextSearch method directly
+        Map<String, Object> textSearchQuery = Doc.of("$textSearch", Doc.of(
+            "search", "quick fox",
+            "fields", List.of("title", "content"),
+            "caseSensitive", false
+        ));
+
+        assertTrue(QueryHelper.matchesQuery(textSearchQuery, doc1, null),
+            "Should match doc1 with 'quick fox' in title");
+        assertFalse(QueryHelper.matchesQuery(textSearchQuery, doc2, null),
+            "Should not match doc2 - no 'quick' or 'fox'");
+
+        // Test phrase search
+        textSearchQuery = Doc.of("$textSearch", Doc.of(
+            "search", "\"brown fox\"",
+            "fields", List.of("title"),
+            "caseSensitive", false
+        ));
+        assertTrue(QueryHelper.matchesQuery(textSearchQuery, doc1, null),
+            "Should match phrase 'brown fox' in title");
+
+        // Test negation
+        textSearchQuery = Doc.of("$textSearch", Doc.of(
+            "search", "quick -lazy",
+            "fields", List.of("title", "content"),
+            "caseSensitive", false
+        ));
+        assertFalse(QueryHelper.matchesQuery(textSearchQuery, doc1, null),
+            "Should not match - has 'lazy' (negated)");
+
+        // Test case sensitivity
+        textSearchQuery = Doc.of("$textSearch", Doc.of(
+            "search", "QUICK",
+            "fields", List.of("title"),
+            "caseSensitive", true
+        ));
+        assertFalse(QueryHelper.matchesQuery(textSearchQuery, doc1, null),
+            "Case sensitive search for 'QUICK' should not match 'quick'");
+
+        textSearchQuery = Doc.of("$textSearch", Doc.of(
+            "search", "QUICK",
+            "fields", List.of("title"),
+            "caseSensitive", false
+        ));
+        assertTrue(QueryHelper.matchesQuery(textSearchQuery, doc1, null),
+            "Case insensitive search for 'QUICK' should match 'quick'");
+
+        // Test search across all fields (empty fields list)
+        textSearchQuery = Doc.of("$textSearch", Doc.of(
+            "search", "garden",
+            "fields", List.of(),
+            "caseSensitive", false
+        ));
+        assertTrue(QueryHelper.matchesQuery(textSearchQuery, doc2, null),
+            "Should find 'garden' when searching all fields");
+        assertFalse(QueryHelper.matchesQuery(textSearchQuery, doc1, null),
+            "Should not find 'garden' in doc1");
+    }
+
+    @Test
     public void inOperatorMatchesObjectIds() {
         MorphiumId morphiumId = new MorphiumId();
         Map<String, Object> doc = UtilsMap.of("_id", (Object) morphiumId);
@@ -312,4 +387,5 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
           morphium.getMapper().serialize(p), null);
         assertTrue(ret);
     }
+
 }

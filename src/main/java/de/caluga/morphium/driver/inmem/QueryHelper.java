@@ -61,7 +61,9 @@ public class QueryHelper {
         "$geoIntersects", "$geoWithin", "$near", "$nearSphere", "$box", "$center",
         "$centerSphere", "$geometry", "$maxDistance", "$minDistance", "$polygon",
         // Miscellaneous
-        "$comment", "$meta", "$slice", "$natural"
+        "$comment", "$meta", "$slice", "$natural",
+        // Internal operators (transformed by InMemoryDriver)
+        "$textSearch"
     );
 
     private static boolean isKnownOperator(String op) {
@@ -318,6 +320,15 @@ public class QueryHelper {
 
                 case "$where":
                     ret = runWhere(query, toCheck);
+                    continue;
+
+                case "$textSearch":
+                    // Internal operator for root-level $text queries (transformed by InMemoryDriver)
+                    // Format: { $textSearch: { search: "terms", fields: ["field1", "field2"], caseSensitive: false } }
+                    if (!matchesTextSearch(query.get(keyQuery), toCheck)) {
+                        return false;
+                    }
+                    ret = true;
                     continue;
 
                 default:
@@ -2657,6 +2668,146 @@ public class QueryHelper {
         }
 
         return result.toString();
+    }
+
+    /**
+     * Matches a document against a $textSearch query (internal format for root-level $text).
+     * Format: { search: "terms", fields: ["field1", "field2"], caseSensitive: false }
+     * If fields is empty, searches all string fields in the document.
+     */
+    @SuppressWarnings("unchecked")
+    private static boolean matchesTextSearch(Object textSearchParams, Map<String, Object> toCheck) {
+        if (!(textSearchParams instanceof Map)) {
+            return false;
+        }
+        Map<String, Object> params = (Map<String, Object>) textSearchParams;
+        String searchString = params.get("search") != null ? params.get("search").toString() : "";
+        if (searchString.isEmpty()) {
+            return false;
+        }
+
+        List<String> fields = (List<String>) params.get("fields");
+        boolean caseSensitive = Boolean.TRUE.equals(params.get("caseSensitive"));
+
+        // Parse search string into tokens (handling phrases in quotes)
+        String srch = caseSensitive ? searchString : searchString.toLowerCase();
+        List<String> tokens = new ArrayList<>();
+        List<String> negatedTokens = new ArrayList<>();
+
+        // Extract quoted phrases first (can also be negated like -"phrase")
+        var matcher = TEXT_PHRASE_PATTERN.matcher(srch);
+        while (matcher.find()) {
+            String phrase = matcher.group(1);
+            // Check if preceded by minus for negation
+            int start = matcher.start();
+            if (start > 0 && srch.charAt(start - 1) == '-') {
+                negatedTokens.add(phrase);
+            } else {
+                tokens.add(phrase);
+            }
+        }
+        // Remove phrases (and their potential negation prefix)
+        srch = srch.replaceAll("-?\"[^\"]+\"", " ");
+
+        // Split on spaces first, then check for negation before cleaning
+        for (String rawToken : srch.trim().split("\\s+")) {
+            if (rawToken == null || rawToken.isBlank()) {
+                continue;
+            }
+            boolean negated = rawToken.startsWith("-");
+            if (negated) {
+                rawToken = rawToken.substring(1);
+            }
+            // Clean up the token (remove punctuation)
+            String cleanToken = TEXT_CLEANUP_PATTERN.matcher(rawToken).replaceAll("").trim();
+            if (cleanToken.isEmpty()) {
+                continue;
+            }
+            if (negated) {
+                negatedTokens.add(cleanToken);
+            } else {
+                tokens.add(cleanToken);
+            }
+        }
+
+        if (tokens.isEmpty() && negatedTokens.isEmpty()) {
+            return false;
+        }
+
+        // Collect text from specified fields (or all string fields if none specified)
+        StringBuilder combinedText = new StringBuilder();
+        if (fields == null || fields.isEmpty()) {
+            // Search all string fields in the document
+            collectStringValues(toCheck, combinedText);
+        } else {
+            // Search only specified fields
+            for (String field : fields) {
+                Object value = getNestedValue(toCheck, field);
+                if (value != null) {
+                    appendStringValue(value, combinedText);
+                }
+            }
+        }
+
+        String textToSearch = caseSensitive ? combinedText.toString() : combinedText.toString().toLowerCase();
+
+        // All positive tokens must be present
+        for (String token : tokens) {
+            if (!textToSearch.contains(token)) {
+                return false;
+            }
+        }
+
+        // No negated tokens should be present
+        for (String negToken : negatedTokens) {
+            if (textToSearch.contains(negToken)) {
+                return false;
+            }
+        }
+
+        return !tokens.isEmpty() || !negatedTokens.isEmpty();
+    }
+
+    /**
+     * Recursively collects all string values from a document into a StringBuilder.
+     */
+    private static void collectStringValues(Map<String, Object> doc, StringBuilder sb) {
+        for (Object value : doc.values()) {
+            appendStringValue(value, sb);
+        }
+    }
+
+    /**
+     * Appends string representation of a value to StringBuilder, recursing into maps and lists.
+     */
+    @SuppressWarnings("unchecked")
+    private static void appendStringValue(Object value, StringBuilder sb) {
+        if (value instanceof String) {
+            sb.append(" ").append(value);
+        } else if (value instanceof Map) {
+            collectStringValues((Map<String, Object>) value, sb);
+        } else if (value instanceof List) {
+            for (Object item : (List<?>) value) {
+                appendStringValue(item, sb);
+            }
+        }
+    }
+
+    /**
+     * Gets a nested value from a document using dot notation (e.g., "address.city").
+     */
+    private static Object getNestedValue(Map<String, Object> doc, String field) {
+        if (!field.contains(".")) {
+            return doc.get(field);
+        }
+        String[] parts = field.split("\\.", 2);
+        Object value = doc.get(parts[0]);
+        if (value instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nested = (Map<String, Object>) value;
+            return getNestedValue(nested, parts[1]);
+        }
+        return null;
     }
 
     private static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {
