@@ -92,6 +92,39 @@ Practical tips:
 2. Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.
 3. Keep in mind that this is still meant for testing: persistence and durability are unchanged.
 
+### Programmatic Replica Set Configuration
+
+You can configure a replica set programmatically using the `configureReplicaSet()` method:
+
+```java
+MorphiumServer primary = new MorphiumServer(27017, "localhost", 100, 10);
+
+// Configure as a 2-node replica set with host priorities
+var hosts = List.of("localhost:27017", "localhost:27018");
+var priorities = Map.of("localhost:27017", 300, "localhost:27018", 100);
+primary.configureReplicaSet("myReplicaSet", hosts, priorities);
+
+primary.start();
+
+// Start secondary later
+MorphiumServer secondary = new MorphiumServer(27018, "localhost", 100, 10);
+secondary.configureReplicaSet("myReplicaSet", hosts, priorities);
+secondary.start();
+```
+
+**Write Concern Behavior with Partial Replica Sets:**
+
+When using entities with `@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)` or explicit write concerns with `w > 1`, MorphiumServer handles the case where not all secondaries are available:
+
+- If no secondaries have connected yet, the server returns a `writeConcernError` after a brief grace period (100ms) instead of waiting for the full `wtimeout`
+- This allows you to store documents on the primary before starting secondary nodes
+- Once secondaries connect, writes will properly wait for replication acknowledgment
+
+This is particularly useful for testing scenarios where you want to:
+1. Start a primary node
+2. Store initial test data
+3. Start secondary nodes and verify data replication
+
 ### Persistence (Periodic Snapshots)
 
 MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.

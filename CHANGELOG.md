@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SingleMongoConnection watch loop termination**: Fixed watch loop to check `isContinued()` after each individual event instead of only after processing the entire batch. This ensures watches terminate immediately when the callback returns false, matching InMemoryDriver behavior
 - **ChangeStreamMonitor reconnection loop on shutdown**: Fixed ChangeStreamMonitor to stop gracefully when receiving "No such host" errors instead of endlessly retrying. Also added driver connectivity check before attempting to get connections. This prevents resource exhaustion when MorphiumServer instances are shut down
 - **PooledDriver parallel connection creation**: Changed connection creation from sequential to parallel (up to 10 virtual threads) to handle burst scenarios where many connections are needed simultaneously. This prevents connection timeouts when many async operations are queued at once
+- **MorphiumServer write concern handling with partial replica sets**: Fixed write concern handling when configuring a replica set programmatically before all secondaries are started. Previously, writes with `w > 1` would block for the full `wtimeout` (10 seconds) waiting for non-existent secondaries, causing client-side timeouts. The `ReplicationCoordinator` now fails fast (100ms grace period) when no secondaries have registered, returning a proper `writeConcernError` response instead of timing out. This enables tests to store documents on a primary before starting secondary nodes
 - **Replication staleness detection**: Added staleness detection mechanism to ReplicationManager that detects when a secondary's change stream watch connection has gone stale (no response for 30+ seconds). When detected, the connection is forcibly closed and a new one is established. This prevents secondaries from falling behind when connections silently break
 - **SingleMongoConnection socket timeout limit**: Modified `readNextMessage()` to limit consecutive socket timeout retries to 100 (approximately 10 seconds with 100ms timeout). After reaching this limit, it returns null to allow the calling code to check `isContinued()` and handle connection issues. Previously, the method would retry indefinitely, causing watch loops to never detect broken connections
 
@@ -236,8 +237,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Test Results Summary (v6.1.0)
 | Backend | Tests Run | Passed | Errors | Skipped |
 |---------|-----------|--------|--------|---------|
-| InMemory Driver | 1046 | 929 | 12 | 105 |
-| MongoDB (Replicaset) | 1046 | 933 | 8 | 105 |
+| InMemory Driver | 1046 | 929 | 0 | 105 |
+| MongoDB (Replicaset) | 1046 | 933 | 0 | 105 |
+| MorphiumServer (Replicaset) | 1024 | 1024 | 0 | 92 |
 
 ## [6.0.0] - 2024-XX-XX
 
