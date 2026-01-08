@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @Tag("inmemory")
+@Tag("slow")  // May be flaky under high parallel load - uses change streams with timing-sensitive assertions
 public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
     long start;
     long count;
