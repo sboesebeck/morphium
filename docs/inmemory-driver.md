@@ -67,7 +67,7 @@ mvn test -Dmorphium.driver=inmem
 ### Indexes
 - ✅ **Single Field Indexes**: Basic indexing support
 - ⚠️ **Compound Indexes**: Limited support
-- ⚠️ **Text Indexes**: Index creation and metadata supported; `$text` queries not yet implemented
+- ✅ **Text Indexes**: Full text search support with MongoDB-compatible `$text` queries (v6.1)
 - ❌ **Geospatial Indexes**: Limited geospatial support
 
 ### Transactions
@@ -299,17 +299,105 @@ MapReduce in InMemory driver is:
 
 For large-scale MapReduce, consider using real MongoDB with sharding.
 
+## Text Search (v6.1)
+
+The InMemory driver supports MongoDB-compatible full text search using the `$text` query operator.
+
+### Creating a Text Index
+
+```java
+// Using annotations
+@Entity
+@Index(value = "title:text,content:text", options = "name:myTextIndex")
+public class Article {
+    @Id
+    private MorphiumId id;
+    private String title;
+    private String content;
+}
+
+// Or programmatically
+morphium.ensureIndicesFor(Article.class);
+```
+
+### Basic Text Search
+
+```java
+// MongoDB-compatible $text query syntax
+Query<Article> query = morphium.createQueryFor(Article.class);
+query.setRawQuery(Doc.of("$text", Doc.of("$search", "mongodb tutorial")));
+List<Article> results = query.asList();
+```
+
+### Phrase Search
+
+```java
+// Search for exact phrase using quotes
+Query<Article> query = morphium.createQueryFor(Article.class);
+query.setRawQuery(Doc.of("$text", Doc.of("$search", "\"getting started\"")));
+List<Article> results = query.asList();
+```
+
+### Excluding Terms (Negation)
+
+```java
+// Find articles about mongodb but NOT about sharding
+Query<Article> query = morphium.createQueryFor(Article.class);
+query.setRawQuery(Doc.of("$text", Doc.of("$search", "mongodb -sharding")));
+List<Article> results = query.asList();
+```
+
+### Case-Sensitive Search
+
+```java
+// Case-sensitive search (default is case-insensitive)
+Query<Article> query = morphium.createQueryFor(Article.class);
+query.setRawQuery(Doc.of("$text", Doc.of(
+    "$search", "MongoDB",
+    "$caseSensitive", true
+)));
+List<Article> results = query.asList();
+```
+
+### Combining with Other Query Conditions
+
+```java
+// Text search with additional filters
+Query<Article> query = morphium.createQueryFor(Article.class);
+query.setRawQuery(Doc.of(
+    "$text", Doc.of("$search", "tutorial"),
+    "published", true,
+    "category", "technology"
+));
+List<Article> results = query.asList();
+```
+
+### Supported Features
+
+| Feature | Syntax | Example |
+|---------|--------|---------|
+| Word search | `word1 word2` | `"mongodb tutorial"` - matches docs with both words |
+| Phrase search | `"phrase"` | `"\"getting started\""` - matches exact phrase |
+| Negation | `-word` | `"mongodb -sharding"` - excludes docs with "sharding" |
+| Case sensitivity | `$caseSensitive: true` | Case-sensitive matching |
+
+### Not Yet Supported
+
+- `$meta: "textScore"` for relevance scoring
+- `$language` option for language-specific stemming
+- `$diacriticSensitive` option
+
 ## Limitations
 
 ### Not Supported
 - ❌ **Replica Sets**: No replica set simulation
 - ❌ **Sharding**: No shard key or distributed queries
-- ⚠️ **Full Text Search**: Text indexes can be created with proper metadata, but `$text` queries are not yet implemented (planned feature)
 - ❌ **Advanced Geospatial**: Basic $near/$geoWithin only
 - ❌ **GridFS**: No file storage support
 - ❌ **Time Series Collections**: Not implemented
 - ❌ **Authentication**: No user/role management
 - ✅ **$lookup Joins**: Supported via aggregation pipeline
+- ✅ **Full Text Search**: MongoDB-compatible `$text` queries supported (v6.1)
 
 ### Performance Considerations
 - **Memory Usage**: All data stored in memory
