@@ -31,7 +31,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
                .project("cnt", Expr.sum(Expr.intExpr(1)));
             List<Map> res = agg.aggregate();
             log.info(Utils.toJsonString(res));
-            assertEquals(990, agg.getCount());
+            assertEquals(989, agg.getCount());  // 0-based counters: 11-999 = 989 objects
         }
     }
 
@@ -55,7 +55,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
 //        morphium.getDriver().setMaxWaitTime(10000);
 //        log.info("Creating a ton of documents... this may take a while");
 //        int amount = 1500000;
-//        createUncachedObjects(amount);
+//        createUncachedObjects(morphium, amount);
 //        List<Integer> toSearch = new ArrayList<>();
 //        for (int i = 0; i < 10; i++) {
 //            toSearch.add((int) (Math.random() * amount));

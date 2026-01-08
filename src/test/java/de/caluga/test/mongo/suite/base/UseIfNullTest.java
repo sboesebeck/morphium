@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Tests for null handling behavior with @IgnoreNullFromDB annotation.
@@ -17,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * NEW BEHAVIOR: By default, null values are stored and accepted from DB.
  * Use @IgnoreNullFromDB to protect specific fields from null contamination.
  */
-public class UseIfNullTest extends MorphiumTestBase {
+public class UseIfNullTest extends MultiDriverTestBase {
 
     @Entity
     public static class TestEntity {
@@ -79,8 +82,9 @@ public class UseIfNullTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testNullValueStoredByDefault() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNullValueStoredByDefault(Morphium morphium) {
         // NEW BEHAVIOR: Test that fields WITHOUT @IgnoreNullFromDB store null values
         TestEntity entity = new TestEntity();
         entity.setRegularField(null);
@@ -102,8 +106,9 @@ public class UseIfNullTest extends MorphiumTestBase {
             "Field with value should be stored. Actual keys: " + serialized.keySet());
     }
 
-    @Test
-    public void testNullValueNotStoredWithProtection() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testNullValueNotStoredWithProtection(Morphium morphium) {
         // NEW BEHAVIOR: Test that fields with @IgnoreNullFromDB don't store null values
         TestEntity entity = new TestEntity();
         entity.setRegularField("not null");
@@ -120,8 +125,9 @@ public class UseIfNullTest extends MorphiumTestBase {
             "Field with value should be stored");
     }
 
-    @Test
-    public void testDefaultValuePreservedWhenFieldMissing() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDefaultValuePreservedWhenFieldMissing(Morphium morphium) {
         // NEW BEHAVIOR: Simulate reading from DB where protectedCounter field is missing
         TestEntity entity = new TestEntity();
         entity.setRegularField("test");
@@ -139,8 +145,9 @@ public class UseIfNullTest extends MorphiumTestBase {
             "Default value should be preserved when field is missing from DB");
     }
 
-    @Test
-    public void testDefaultValueOverwrittenWhenNullInDB() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testDefaultValueOverwrittenWhenNullInDB(Morphium morphium) {
         // NEW BEHAVIOR: Simulate reading from DB where counter is explicitly null
         TestEntity entity = new TestEntity();
         entity.setRegularField("test");
@@ -160,8 +167,9 @@ public class UseIfNullTest extends MorphiumTestBase {
             "Field without @IgnoreNullFromDB should be null from DB, overriding default value");
     }
 
-    @Test
-    public void testFullRoundTrip() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testFullRoundTrip(Morphium morphium) {
         // NEW BEHAVIOR: Create entity with various null/non-null values
         TestEntity entity = new TestEntity();
         entity.setRegularField(null);        // Stored as null (default behavior)

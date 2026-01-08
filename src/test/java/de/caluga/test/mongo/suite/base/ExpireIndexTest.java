@@ -25,6 +25,7 @@ public class ExpireIndexTest extends MultiDriverTestBase {
     public void testExpiry(Morphium morphium) throws Exception {
         log.info("==========> Running test with: " + morphium.getDriver().getName());
 
+        String driverName = morphium.getDriver().getName();;
         try (morphium) {
             morphium.dropCollection(UCobj.class);
             Thread.sleep(500);
@@ -71,52 +72,52 @@ public class ExpireIndexTest extends MultiDriverTestBase {
             }
 
             Thread.sleep(1000);
-            TestUtils.waitForConditionToBecomeTrue(5000, morphium.getDriver().getName() + ": Writing failed?!?!",
-                    () -> morphium.createQueryFor(UCobj.class).countAll() == docCount);
+            TestUtils.waitForConditionToBecomeTrue(5000, driverName + ": Writing failed?!?!",
+                                                   () -> morphium.createQueryFor(UCobj.class).countAll() == docCount);
 
             // Check if documents have creation time set
             var sample = morphium.createQueryFor(UCobj.class).limit(1).asList().get(0);
             log.info("Sample document - created: " + sample.getCreated() + ", counter: " + sample.getCounter());
             log.info("Current time: " + new Date() + ", time until expiry: "
-                    + (sample.getCreated() != null
-                            ? (sample.getCreated().getTime() + 5000 - System.currentTimeMillis()) + "ms"
-                            : "N/A"));
+                     + (sample.getCreated() != null
+                        ? (sample.getCreated().getTime() + 5000 - System.currentTimeMillis()) + "ms"
+                        : "N/A"));
 
             // Check what's actually stored in MongoDB (not just the Java object)
             var rawDoc = morphium.getMapper().serialize(sample);
             log.info("Serialized document (what should be in MongoDB): " + rawDoc);
             log.info("Serialized 'created' field type: "
-                    + (rawDoc.get("created") != null ? rawDoc.get("created").getClass().getName() : "NULL"));
+                     + (rawDoc.get("created") != null ? rawDoc.get("created").getClass().getName() : "NULL"));
             log.info("Serialized 'created' field value: " + rawDoc.get("created"));
 
             log.info(
-                    "Waiting for mongo to clear it (TTL monitor runs ~every 60s for real MongoDB, ~10s for InMemory, expiry is 5s)");
+                            "Waiting for mongo to clear it (TTL monitor runs ~every 60s for real MongoDB, ~10s for InMemory, expiry is 5s)");
 
             // TTL monitor runs every ~60s for MongoDB, ~10s for InMemory, expiry is 5s
             // Worst case for MongoDB: created just after TTL pass = wait 60s for next pass
             // + 5s expiry + 10s buffer = 75s
             // For InMemory: worst case ~15s
             // Use 120s timeout to handle worst-case cluster scenarios
-            int timeout = morphium.getDriver().getName().contains("InMem") ? 30000 : 280000;
-            TestUtils.waitForConditionToBecomeTrue(timeout, morphium.getDriver().getName() + ": Did not clear?!?!",
-                    () -> morphium.createQueryFor(UCobj.class).countAll() == 0,
-                    (dur) -> {
-                        long count = morphium.createQueryFor(UCobj.class).countAll();
-                        if (count > 0) {
-                            var doc = morphium.createQueryFor(UCobj.class).limit(1).asList().get(0);
-                            log.info("Still waiting after " + (dur / 1000) + "s - current count: " + count +
-                                    ", sample created: " + doc.getCreated() +
-                                    ", age: "
-                                    + (doc.getCreated() != null
-                                            ? (System.currentTimeMillis() - doc.getCreated().getTime()) / 1000 + "s"
-                                            : "N/A"));
-                        } else {
-                            log.info("Still waiting after " + (dur / 1000) + "s - current count: " + count);
-                        }
-                    });
-            log.info(morphium.getDriver().getName() + ": done.");
+            int timeout = driverName.contains("InMem") ? 30000 : 280000;
+            TestUtils.waitForConditionToBecomeTrue(timeout, driverName + ": Did not clear?!?!",
+                                                   () -> morphium.createQueryFor(UCobj.class).countAll() == 0,
+            (dur) -> {
+                long count = morphium.createQueryFor(UCobj.class).countAll();
+                if (count > 0) {
+                    var doc = morphium.createQueryFor(UCobj.class).limit(1).asList().get(0);
+                    log.info("Still waiting after " + (dur / 1000) + "s - current count: " + count +
+                             ", sample created: " + doc.getCreated() +
+                             ", age: "
+                             + (doc.getCreated() != null
+                                ? (System.currentTimeMillis() - doc.getCreated().getTime()) / 1000 + "s"
+                                : "N/A"));
+                } else {
+                    log.info("Still waiting after " + (dur / 1000) + "s - current count: " + count);
+                }
+            });
+            log.info(driverName + ": done.");
         } catch (Exception e) {
-            log.error(morphium.getDriver().getName() + ":Got Exception", e);
+            log.error( "{}:Got Exception", driverName, e);
             throw (e);
         }
     }

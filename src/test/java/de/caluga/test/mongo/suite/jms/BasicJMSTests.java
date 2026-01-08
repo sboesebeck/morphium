@@ -1,9 +1,9 @@
 package de.caluga.test.mongo.suite.jms;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
 import de.caluga.morphium.messaging.jms.*;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -13,12 +13,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("jms")
-public class BasicJMSTests extends MorphiumTestBase {
+@Tag("slow")  // May be flaky under high parallel load - uses messaging with multiple contexts
+public class BasicJMSTests extends MultiDriverTestBase {
 
-    @Test
-    public void basicSendReceiveTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void basicSendReceiveTest(Morphium morphium) throws Exception  {
         JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
         JMSContext ctx1 = factory.createContext();
         JMSContext ctx2 = factory.createContext();
@@ -46,7 +51,7 @@ public class BasicJMSTests extends MorphiumTestBase {
 
             }
         });
-        Thread.sleep(1000);
+        Thread.sleep(2000);  // Give more time for messaging to stabilize under parallel load
         pr1.send(dest, "A test");
         JMSTextMessage m = new JMSTextMessage();
         m.setText("test");
@@ -74,8 +79,9 @@ public class BasicJMSTests extends MorphiumTestBase {
         ctx2.close();
     }
 
-    @Test
-    public void synchronousSendReceiveTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void synchronousSendReceiveTest(Morphium morphium) throws Exception  {
         JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
         JMSContext ctx1 = factory.createContext();
         JMSContext ctx2 = factory.createContext();
@@ -115,8 +121,9 @@ public class BasicJMSTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void consumerProducerTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void consumerProducerTest(Morphium morphium) throws Exception  {
         MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSTopic("jmstopic_test"));
         m.start();
@@ -138,8 +145,9 @@ public class BasicJMSTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void consumerProducerQueueTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void consumerProducerQueueTest(Morphium morphium) throws Exception  {
         MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSQueue());
         m.start();

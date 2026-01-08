@@ -12,21 +12,25 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("core")
-public class MorphiumTest extends MorphiumTestBase {
+public class MorphiumTest extends MultiDriverTestBase {
 
-    @Test
-    public void testListDatabases() throws Exception {
-        createUncachedObjects(1);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testListDatabases(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 1);
         Thread.sleep(10);
         assert (morphium.listDatabases().size() != 0);
         assert (morphium.listDatabases().contains(morphium.getConfig().getDatabase()));
         assert (morphium.listCollections().contains(morphium.getMapper().getCollectionName(UncachedObject.class)));
     }
 
-    @Test
-    public void testStorageListener() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testStorageListener(Morphium morphium) throws Exception  {
         AtomicInteger preStore = new AtomicInteger(0);
 
         AtomicInteger postStore = new AtomicInteger(0);
@@ -152,8 +156,9 @@ public class MorphiumTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testUnset() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testUnset(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
         Thread.sleep(50);
@@ -163,8 +168,9 @@ public class MorphiumTest extends MorphiumTestBase {
         assert (uc.getStrValue() == null);
     }
 
-    @Test
-    public void testSet() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSet(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
         Thread.sleep(50);

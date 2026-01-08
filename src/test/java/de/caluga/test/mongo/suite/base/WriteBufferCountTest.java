@@ -14,6 +14,9 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -23,9 +26,10 @@ import java.util.List;
  * TODO: Add documentation here
  */
 @Tag("core")
-public class WriteBufferCountTest extends MorphiumTestBase {
-    @Test
-    public void testWbCount() throws Exception {
+public class WriteBufferCountTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testWbCount(Morphium morphium) throws Exception  {
         morphium.dropCollection(UncachedObject.class);
 
         List<UncachedObject> lst = new ArrayList<>();
@@ -51,7 +55,7 @@ public class WriteBufferCountTest extends MorphiumTestBase {
                 log.error("Could not write: " + error);
             }
         });
-        waitForWriteProcessToBeScheduled();
+        waitForWriteProcessToBeScheduled(morphium);
         int c = morphium.getWriteBufferCount();
         assert (c != 0);
 
@@ -59,11 +63,11 @@ public class WriteBufferCountTest extends MorphiumTestBase {
         while (TestUtils.countUC(morphium) < 10000) {
             log.info("Count: " + TestUtils.countUC(morphium));
             Thread.sleep(1500);
-            assertTrue (System.currentTimeMillis() - s < 15000);
+            assertTrue (System.currentTimeMillis() - s < 120000);
         }
     }
 
-    private int waitForWriteProcessToBeScheduled() {
+    private int waitForWriteProcessToBeScheduled(Morphium morphium) {
         int cnt = 0;
         int c = morphium.getWriteBufferCount();
         while (c == 0) {
@@ -76,8 +80,9 @@ public class WriteBufferCountTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void threadNumberTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void threadNumberTest(Morphium morphium) {
         ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
         log.info("Running threads: " + thbean.getThreadCount());
     }

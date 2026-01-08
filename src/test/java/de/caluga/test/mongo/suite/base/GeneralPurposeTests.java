@@ -76,6 +76,9 @@ public class GeneralPurposeTests extends MultiDriverTestBase {
                 morphium.store(simple);
             }
 
+            // Wait for all objects to be visible on replica sets
+            TestUtils.waitForConditionToBecomeTrue(10000, "Not all 100 objects visible",
+                () -> morphium.createQueryFor(SimpleEntity.class).countAll() >= 100);
             long count = morphium.createQueryFor(SimpleEntity.class).countAll();
             assertEquals(100, count);
 

@@ -1,4 +1,5 @@
 package de.caluga.test.mongo.suite.aggregationStages;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
@@ -8,19 +9,22 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
-public class AddFieldAndSetTests extends MorphiumTestBase {
+public class AddFieldAndSetTests extends MultiDriverTestBase {
 
-    @Test
-    public void addFieldsTest() throws Exception {
-        prepareData();
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void addFieldsTest(Morphium morphium) throws Exception  {
+        prepareData(morphium);
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);
         agg.addFields(UtilsMap.of("total_homework", (Object) UtilsMap.of("$sum", "$homework"), "total_quiz", UtilsMap.of("$sum", "$quiz"))
@@ -38,7 +42,7 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
 
     }
 
-    private void prepareData()  throws Exception {
+    private void prepareData(Morphium morphium)  throws Exception {
         morphium.clearCollection(Student.class);
         Thread.sleep(100);
         Student s1 = new Student();
@@ -63,9 +67,10 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void setTest() throws Exception {
-        prepareData();
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void setTest(Morphium morphium) throws Exception  {
+        prepareData(morphium);
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);
         agg.set(UtilsMap.of("total_homework", Expr.sum(Expr.field("homework")), "total_quiz", Expr.sum(Expr.field("quiz")))

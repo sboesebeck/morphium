@@ -21,6 +21,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * User: Stephan Bösebeck
@@ -30,13 +32,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class LazyLoadingTest extends MorphiumTestBase {
+public class LazyLoadingTest extends MultiDriverTestBase {
 
     private final boolean wouldDeref = false;
     private final boolean didDeref = false;
 
-    @Test
-    public void deRefTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void deRefTest(Morphium morphium) throws Exception  {
         morphium.clearCollection(LazyLoadingObject.class);
         LazyLoadingObject lz = new LazyLoadingObject();
         UncachedObject o = new UncachedObject();
@@ -74,8 +77,9 @@ public class LazyLoadingTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void lazyLoadingTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void lazyLoadingTest(Morphium morphium) {
         Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
         morphium.delete(q);
@@ -157,9 +161,10 @@ public class LazyLoadingTest extends MorphiumTestBase {
     }
 
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
-    public void lazyLoadingPerformanceTest() {
+    public void lazyLoadingPerformanceTest(Morphium morphium) {
         Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
         morphium.delete(q);
@@ -250,8 +255,9 @@ public class LazyLoadingTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testLazyRef() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testLazyRef(Morphium morphium) throws Exception  {
         Morphium m = morphium;
         m.clearCollection(SimpleEntity.class);
 

@@ -43,6 +43,79 @@ public class QueryHelper {
     private static final Pattern TEXT_CLEANUP_PATTERN = Pattern.compile("[^a-z0-9 ]");
     private static final Pattern TEXT_SPLIT_PATTERN = Pattern.compile(" +");
 
+    // Known MongoDB query operators - prevents false positives when checking for unknown operators
+    private static final Set<String> KNOWN_OPERATORS = Set.of(
+        // Comparison
+        "$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin",
+        // Logical
+        "$and", "$or", "$not", "$nor",
+        // Element
+        "$exists", "$type",
+        // Evaluation
+        "$expr", "$jsonSchema", "$mod", "$regex", "$options", "$text", "$where",
+        // Array
+        "$all", "$elemMatch", "$size",
+        // Bitwise
+        "$bitsAllClear", "$bitsAllSet", "$bitsAnyClear", "$bitsAnySet",
+        // Geospatial
+        "$geoIntersects", "$geoWithin", "$near", "$nearSphere", "$box", "$center",
+        "$centerSphere", "$geometry", "$maxDistance", "$minDistance", "$polygon",
+        // Miscellaneous
+        "$comment", "$meta", "$slice", "$natural"
+    );
+
+    private static boolean isKnownOperator(String op) {
+        return KNOWN_OPERATORS.contains(op);
+    }
+
+    /**
+     * Validates a query for unknown operators before execution.
+     * Should be called before processing to catch invalid queries even on empty collections.
+     * @param query the query to validate
+     * @throws IllegalArgumentException if an unknown operator is found
+     */
+    public static void validateQuery(Map<String, Object> query) {
+        if (query == null || query.isEmpty()) {
+            return;
+        }
+        for (String key : query.keySet()) {
+            // Check for unknown $ operators at top level (field names starting with $ that aren't known operators)
+            if (key.startsWith("$") && !isKnownOperator(key)) {
+                throw new IllegalArgumentException("unknown top level operator: " + key);
+            }
+            Object value = query.get(key);
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> subQuery = (Map<String, Object>) value;
+                // For field queries like {"field": {"$eq": value}}, validate the operators
+                for (String subKey : subQuery.keySet()) {
+                    if (subKey.startsWith("$") && !isKnownOperator(subKey)) {
+                        throw new IllegalArgumentException("unknown operator: " + subKey);
+                    }
+                    // Recursively validate nested queries (e.g., $elemMatch, $not)
+                    Object subValue = subQuery.get(subKey);
+                    if (subValue instanceof Map) {
+                        validateQuery((Map<String, Object>) subValue);
+                    } else if (subValue instanceof List) {
+                        // Handle $and, $or, $nor which contain lists of queries
+                        for (Object item : (List<?>) subValue) {
+                            if (item instanceof Map) {
+                                validateQuery((Map<String, Object>) item);
+                            }
+                        }
+                    }
+                }
+            } else if (value instanceof List) {
+                // Handle top-level $and, $or, $nor
+                for (Object item : (List<?>) value) {
+                    if (item instanceof Map) {
+                        validateQuery((Map<String, Object>) item);
+                    }
+                }
+            }
+        }
+    }
+
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
@@ -216,6 +289,7 @@ public class QueryHelper {
                     }
 
                 case "$expr": {
+                        org.slf4j.LoggerFactory.getLogger(QueryHelper.class).debug("QueryHelper: evaluating $expr = {}", query.get(keyQuery));
                         Expr expr = Expr.parse(query.get(keyQuery));
                         var result = expr.evaluate(toCheck);
 
@@ -223,6 +297,7 @@ public class QueryHelper {
                             result = ((Expr) result).evaluate(toCheck);
                         }
 
+                        org.slf4j.LoggerFactory.getLogger(QueryHelper.class).debug("QueryHelper: $expr result = {}", result);
                         return Boolean.TRUE.equals(result);
                     }
 
@@ -246,6 +321,11 @@ public class QueryHelper {
                     continue;
 
                 default:
+                    // Check if this is an unknown $ operator (like $big$)
+                    // But allow known operators that may appear in recursive calls
+                    if (keyQuery.startsWith("$") && !isKnownOperator(keyQuery)) {
+                        throw new IllegalArgumentException("unknown top level operator: " + keyQuery);
+                    }
 
                     // field check
                     if (query.get(keyQuery) instanceof Map) {
@@ -469,8 +549,8 @@ public class QueryHelper {
                             case "$mod":
                                 Number n = (Number) checkValue;
                                 List arr = (List) commandMap.get(commandKey);
-                                int div = ((Integer) arr.get(0));
-                                int rem = ((Integer) arr.get(1));
+                                int div = ((Number) arr.get(0)).intValue();
+                                int rem = ((Number) arr.get(1)).intValue();
                                 return n.intValue() % div == rem;
 
                             case "$ne":
@@ -721,8 +801,8 @@ public class QueryHelper {
                             case "$type":
                                 MongoType type = null;
 
-                                if (commandMap.get(commandKey) instanceof Integer) {
-                                    type = MongoType.findByValue((Integer) commandMap.get(commandKey));
+                                if (commandMap.get(commandKey) instanceof Number) {
+                                    type = MongoType.findByValue(((Number) commandMap.get(commandKey)).intValue());
                                 } else if (commandMap.get(commandKey) instanceof String) {
                                     type = MongoType.findByTxt((String) commandMap.get(commandKey));
                                 } else {
@@ -988,8 +1068,8 @@ public class QueryHelper {
                                     value = ((Long) commandMap.get(commandKey));
                                 } else if (commandMap.get(commandKey) instanceof List) {
                                     for (Object o : ((List) commandMap.get(commandKey))) {
-                                        if (o instanceof Integer) {
-                                            value = value | 1L << ((Integer) o);
+                                        if (o instanceof Number) {
+                                            value = value | 1L << ((Number) o).intValue();
                                         }
                                     }
                                 } else if (commandMap.get(commandKey) instanceof byte[]) {
@@ -1027,6 +1107,10 @@ public class QueryHelper {
                                 break;
 
                             default:
+                                // Check if this is an unknown $ operator
+                                if (commandKey.startsWith("$") && !isKnownOperator(commandKey)) {
+                                    throw new IllegalArgumentException("unknown operator: " + commandKey);
+                                }
 
                                 //equals check
                                 if (toCheck.containsKey(commandKey)) {

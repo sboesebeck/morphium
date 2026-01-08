@@ -6,7 +6,7 @@ target/
 files*.lst
 files*.txt
 classes*
-fail*
+fail_*.pid
 *.pid
 *.lck
 disabled*
@@ -45,3 +45,4 @@ package.json
 
 # MkDocs build output
 site/
+.morphiumserver-local

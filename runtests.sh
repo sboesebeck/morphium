@@ -33,7 +33,46 @@ function createFileList() {
   mv files_$PID.tmp $filesList
 
 }
+function cleanup_test_databases() {
+  # Drop all morphium_test* databases to ensure clean state
+  # Only runs if not using inmem driver (no MongoDB to connect to)
+  local cleanup_uri="${1:-$uri}"
+  if [ -z "$cleanup_uri" ] && [ -n "$MONGODB_URI" ]; then
+    cleanup_uri="$MONGODB_URI"
+  fi
+  if [ -z "$cleanup_uri" ]; then
+    echo -e "${YL}Warning:${CL} No URI available for database cleanup"
+    return 1
+  fi
+  if [ "$driver" == "inmem" ]; then
+    return 0
+  fi
+
+  echo -e "${BL}Info:${CL} Cleaning up morphium_test* databases..."
+  local count=0
+  while read db rst; do
+    if [[ "$db" == morphium_test* ]]; then
+      echo -e "  Dropping db ${YL}$db${CL}"
+      mongosh "$cleanup_uri" --quiet --eval "use $db; db.dropDatabase()" >/dev/null 2>&1
+      ((count++))
+    fi
+  done < <(mongosh "$cleanup_uri" --quiet --eval "show databases" 2>/dev/null)
+  if [ "$count" -gt 0 ]; then
+    echo -e "${GN}Info:${CL} Dropped $count test database(s)"
+  fi
+}
+
 function quitting() {
+
+  # Stop a locally started MorphiumServer cluster (if any) before tearing down logs/state.
+  if type _ms_local_cleanup >/dev/null 2>&1; then
+    _ms_local_cleanup
+  fi
+
+  # Clean up test databases on abort (only morphium_test* databases)
+  if [ "$driver" != "inmem" ]; then
+    cleanup_test_databases
+  fi
 
   if [ -e $testPid ]; then
     kill -9 $(<$testPid) >/dev/null 2>&1
@@ -300,6 +339,376 @@ function aggregate_slot_logs() {
   return 0
 }
 
+function _ms_local_port_open() {
+  local host="$1"
+  local port="$2"
+  python3 - "$host" "$port" <<'PY'
+import socket, sys
+host = sys.argv[1]
+port = int(sys.argv[2])
+s = socket.socket()
+s.settimeout(0.5)
+try:
+    s.connect((host, port))
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+finally:
+    try:
+        s.close()
+    except Exception:
+        pass
+PY
+}
+
+function _ms_local_wait_for_port() {
+  local host="$1"
+  local port="$2"
+  local timeout_s="${3:-30}"
+  python3 - "$host" "$port" "$timeout_s" <<'PY'
+import socket, sys, time
+host = sys.argv[1]
+port = int(sys.argv[2])
+deadline = time.time() + float(sys.argv[3])
+last = None
+while time.time() < deadline:
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            sys.exit(0)
+    except Exception as e:
+        last = e
+        time.sleep(0.2)
+print(f"Timed out waiting for {host}:{port} - last error: {last}", file=sys.stderr)
+sys.exit(1)
+PY
+}
+
+function _ms_local_wait_for_primary() {
+  local uri_in="$1"
+  local timeout_s="${2:-45}"
+  local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
+  local jar
+  jar=$(_ms_local_find_server_cli_jar)
+  if [ -z "$jar" ]; then
+    echo -e "${RD}Error:${CL} Cannot probe local cluster readiness - server-cli jar missing under target/"
+    return 1
+  fi
+
+  mkdir -p "$pid_dir"
+  local probe_java="${pid_dir}/MorphiumServerProbe_${PID}.java"
+  local probe_class="MorphiumServerProbe_${PID}"
+
+  cat >"$probe_java" <<'JAVA'
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.PooledDriver;
+public class MorphiumServerProbe_0 {
+  public static void main(String[] args) throws Exception {
+    String uri = args[0];
+    String hostsCsv = args[1];
+    String[] hosts = hostsCsv.split(",");
+    PooledDriver d = new PooledDriver();
+    d.setHostSeed(hosts);
+    d.connect(null);
+    // Primary must be selectable for any write-heavy tests.
+    d.getPrimaryConnection(null).close();
+    System.out.println("OK primary selectable for " + uri);
+  }
+}
+JAVA
+
+  # Replace placeholder class name with unique name
+  if sed --version >/dev/null 2>&1; then
+    sed -i.bak "s/public class MorphiumServerProbe_0/public class ${probe_class}/" "$probe_java" 2>/dev/null || true
+  else
+    sed -i '' -e "s/public class MorphiumServerProbe_0/public class ${probe_class}/" "$probe_java" 2>/dev/null || true
+  fi
+  rm -f "$probe_java.bak" >/dev/null 2>&1 || true
+
+  javac -cp "$jar" "$probe_java" >/dev/null 2>&1 || true
+
+  # Parse hosts for seeding the driver (no DB part, no scheme)
+  local hostports
+  hostports=$(_ms_local_parse_hosts_from_uri "$uri_in" | tr '\n' ',' | sed 's/,$//')
+  if [ -z "$hostports" ]; then
+    hostports="localhost:27017,localhost:27018,localhost:27019"
+  fi
+
+  python3 - "$jar" "$pid_dir" "$probe_class" "$uri_in" "$hostports" "$timeout_s" <<'PY'
+import subprocess, sys, time
+jar, pid_dir, cls, uri, hosts, timeout_s = sys.argv[1:]
+deadline = time.time() + float(timeout_s)
+last = None
+while time.time() < deadline:
+    try:
+        p = subprocess.run(["java", "-cp", f"{jar}:{pid_dir}", cls, uri, hosts],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10)
+        if p.returncode == 0:
+            sys.exit(0)
+        last = p.stdout.strip()
+    except Exception as e:
+        last = str(e)
+    time.sleep(0.5)
+print(f"Timed out waiting for primary to become selectable - last output: {last}", file=sys.stderr)
+sys.exit(1)
+PY
+}
+
+function _ms_local_parse_hosts_from_uri() {
+  local uri_in="$1"
+  local u="$uri_in"
+
+  # Strip scheme
+  u="${u#mongodb://}"
+  u="${u#mongodb+srv://}"
+
+  # Strip everything after first /
+  u="${u%%/*}"
+
+  # Strip credentials if present
+  if [[ "$u" == *"@"* ]]; then
+    u="${u##*@}"
+  fi
+
+  local IFS=,
+  local parts=($u)
+  local p
+  for p in "${parts[@]}"; do
+    # remove query (if any leaked into host list)
+    p="${p%%\?*}"
+    p="${p// /}"
+    [ -z "$p" ] && continue
+
+    local host=""
+    local port=""
+
+    # # IPv6 in brackets: [::1]:27017
+    # if [[ "$p" == \[*\]* ]]; then
+    #   host="${p%%]*}"
+    #   host="${host#[}"
+    #   local rest="${p#*]}"
+    #   if [[ "$rest" == :* ]]; then
+    #     port="${rest#:}"
+    #   else
+    #     port="27017"
+    #   fi
+    # else
+    #   if [[ "$p" == *":"* ]]; then
+    #     host="${p%:*}"
+    #     port="${p##*:}"
+    #   else
+    #     host="$p"
+    #     port="27017"
+    #   fi
+    # fi
+
+    [ -z "$host" ] && continue
+    [ -z "$port" ] && port="27017"
+    echo "${host}:${port}"
+  done
+}
+
+function _ms_local_find_server_cli_jar() {
+  local jar
+  jar=$(ls -1 target/*server-cli*.jar 2>/dev/null | head -n 1)
+  if [ -z "$jar" ]; then
+    jar=$(ls -1 target/*-server-cli.jar 2>/dev/null | head -n 1)
+  fi
+  echo "$jar"
+}
+
+function _ms_local_start_cluster() {
+  local uri_in="$1"
+  local rs_name="${2:-rs0}"
+  local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
+  mkdir -p "$pid_dir" "$pid_dir/logs" test.log
+
+  # Calculate max-connections based on parallel slots if not explicitly set
+  # Formula: base 2000 + 500 per parallel slot (MorphiumServer uses NIO, can handle many connections)
+  # AsyncOperationTest alone uses 1134+ connections, so we need large pool for parallel tests
+  local max_conn="${morphiumserverMaxConnections}"
+  local sock_timeout="${morphiumserverSocketTimeout:-30}"
+  if [ -z "$max_conn" ]; then
+    if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
+      max_conn=$((2000 + parallel * 500))
+      echo -e "${BL}Info:${CL} Auto-calculated max-connections=${max_conn} for ${parallel} parallel slots"
+    else
+      max_conn=2000
+    fi
+  fi
+
+  local jar
+  jar=$(_ms_local_find_server_cli_jar)
+  if [ -z "$jar" ] || find src/main/java -newer "$jar" 2>/dev/null | head -n 1 | grep -q .; then
+    echo -e "${BL}Info:${CL} Building MorphiumServer CLI jar (mvn -DskipTests package)..."
+    mvn -DskipTests -Dmaven.javadoc.skip=true package
+    jar=$(_ms_local_find_server_cli_jar)
+  fi
+
+  if [ -z "$jar" ]; then
+    echo -e "${RD}Error:${CL} Could not locate server-cli jar under target/ (build failed?)"
+    return 1
+  fi
+
+  # Copy jar to stable location to prevent issues if mvn clean runs while servers are active
+  local stable_jar="${pid_dir}/morphiumserver.jar"
+  cp "$jar" "$stable_jar"
+  jar="$stable_jar"
+  echo -e "${BL}Info:${CL} Copied server jar to ${stable_jar} (safe from mvn clean)"
+
+  local hostports
+  hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
+  if [ -z "$hostports" ]; then
+    if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+      hostports="localhost:27017"
+    else
+      hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+    fi
+  fi
+
+  # Build seed list from the URI host list to support non-default ports.
+  local seed
+  seed=$(echo "$hostports" | tr '\n' ',' | sed 's/,$//')
+
+  if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+    echo -e "${BL}Info:${CL} Starting MorphiumServer single-node (${seed}) [maxConn=${max_conn}, timeout=${sock_timeout}s]"
+  else
+    echo -e "${BL}Info:${CL} Starting MorphiumServer replica set ${GN}${rs_name}${CL} (${seed}) [maxConn=${max_conn}, timeout=${sock_timeout}s]"
+  fi
+
+  local hp
+  while IFS= read -r hp; do
+    [ -z "$hp" ] && continue
+    local host="${hp%:*}"
+    local port="${hp##*:}"
+
+    # Only auto-start for local addresses. If the URI points elsewhere, we can't safely start it.
+    if [[ "$host" != "localhost" && "$host" != "127.0.0.1" && "$host" != "::1" ]]; then
+      echo -e "${YL}Warning:${CL} --morphium-server only starts local hosts; skipping ${host}:${port}"
+      continue
+    fi
+
+    if _ms_local_port_open "$host" "$port"; then
+      echo -e "${BL}Info:${CL} ${host}:${port} already listening - not starting"
+      continue
+    fi
+
+    local log_file="${pid_dir}/logs/morphiumserver_${port}.log"
+    local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout"
+    if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+      # Single-node mode: no replica set arguments (using Netty async I/O)
+      nohup java -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &
+    else
+      # Replica set mode (using Netty async I/O)
+      nohup java -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" $conn_args >"$log_file" 2>&1 &
+    fi
+    local pid=$!
+    # Detach from the job table so that the main status loop ignores these helper processes.
+    disown
+    echo "$pid" >"${pid_dir}/${host}_${port}.pid"
+    morphiumserverLocalStarted=1
+    echo -e "${BL}Info:${CL} Started MorphiumServer on ${host}:${port} (pid ${pid}) - log ${log_file}"
+  done <<<"$hostports"
+
+  # Wait for the requested ports to be reachable (best-effort).
+  while IFS= read -r hp; do
+    [ -z "$hp" ] && continue
+    local host="${hp%:*}"
+    local port="${hp##*:}"
+    _ms_local_wait_for_port "$host" "$port" 30 || return 1
+  done <<<"$hostports"
+
+  # Ports being open is not enough; wait until a primary is actually selectable.
+  _ms_local_wait_for_primary "$uri_in" 60 || return 1
+
+  return 0
+}
+
+function _ms_local_cleanup() {
+  if [ "${morphiumserverLocalStarted:-0}" -ne 1 ]; then
+    return 0
+  fi
+
+  local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
+  if [ ! -d "$pid_dir" ]; then
+    return 0
+  fi
+
+  local pidfile
+  for pidfile in "$pid_dir"/*.pid; do
+    [ -f "$pidfile" ] || continue
+    local pid
+    pid=$(cat "$pidfile" 2>/dev/null)
+    if [ -n "$pid" ]; then
+      kill "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+
+  # Give processes a moment to stop cleanly
+  sleep 1
+
+  for pidfile in "$pid_dir"/*.pid; do
+    [ -f "$pidfile" ] || continue
+    local pid
+    pid=$(cat "$pidfile" 2>/dev/null)
+    if [ -n "$pid" ]; then
+      kill -9 "$pid" >/dev/null 2>&1 || true
+    fi
+    rm -f "$pidfile" >/dev/null 2>&1 || true
+  done
+
+  rmdir "$pid_dir" >/dev/null 2>&1 || true
+  morphiumserverLocalStarted=0
+  return 0
+}
+
+function _ms_local_ensure_cluster() {
+  local uri_in="$1"
+
+  local hostports
+  hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
+  if [ -z "$hostports" ]; then
+    if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
+      hostports="localhost:27017"
+    else
+      hostports="localhost:27017"$'\n'"localhost:27018"$'\n'"localhost:27019"
+    fi
+  fi
+
+  local all_ok=1
+  local hp
+  while IFS= read -r hp; do
+    [ -z "$hp" ] && continue
+    local host="${hp%:*}"
+    local port="${hp##*:}"
+    if ! _ms_local_port_open "$host" "$port"; then
+      all_ok=0
+      break
+    fi
+  done <<<"$hostports"
+
+  if [ "$all_ok" -eq 1 ]; then
+    if [ "${startMorphiumserverLocal:-0}" -eq 1 ] && [ "${morphiumserverLocalStarted:-0}" -ne 1 ]; then
+      echo -e "${YL}Warning:${CL} Local cluster already listening for ${GN}${uri_in}${CL} - not auto-starting MorphiumServer."
+    fi
+    return 0
+  fi
+
+  if [ "${startMorphiumserverLocal:-0}" -eq 1 ]; then
+    _ms_local_start_cluster "$uri_in" "rs0" || return 1
+    return 0
+  fi
+
+  echo -e "${RD}Error:${CL} Local cluster is not reachable for URI:"
+  echo -e "  ${GN}${uri_in}${CL}"
+  echo -e ""
+  echo -e "Start it first (MongoDB or MorphiumServer), or to auto-start MorphiumServer use:"
+  echo -e "  ${BL}./runtests.sh --morphium-server ...${CL}  (single node, recommended)"
+  echo -e "  ${BL}./runtests.sh --morphium-server-replicaset ...${CL}  (3-node replica set)"
+  echo -e ""
+  echo -e "Tip: check ports and MorphiumServer logs under ${GN}${morphiumserverLocalPidDir:-.morphiumserver-local}/logs/${CL}"
+  exit 1
+}
+
 nodel=0
 skip=0
 refresh=5
@@ -319,6 +728,14 @@ useExternal=0
 rerunfailed=0
 explicitRestart=0
 showStats=0
+morphiumserverLocalMode=0
+startMorphiumserverLocal=0
+morphiumserverSingleNode=0
+morphiumserverLocalStarted=0
+morphiumserverLocalPidDir=".morphiumserver-local"
+# Connection management for MorphiumServer (auto-calculated from --parallel if not set)
+morphiumserverMaxConnections=""
+morphiumserverSocketTimeout=""
 
 # Save original arguments for stats processing
 original_args=("$@")
@@ -328,10 +745,10 @@ while [ "q$1" != "q" ]; do
   if [ "q$1" == "q--nodel" ]; then
     nodel=1
     shift
-	  elif [ "q$1" == "q--help" ] || [ "q$1" == "-h" ]; then
-	    echo -e "Usage ${BL}$0$CL [--OPTION...] [TESTNAME] [METHOD]"
-	    echo -e "${BL}--skip$CL        - if presen, allready run tests will be skipped"
-	    echo -e "${BL}--restart$CL     - forget about existing test logs, restart"
+  elif [ "q$1" == "q--help" ] || [ "q$1" == "-h" ]; then
+    echo -e "Usage ${BL}$0$CL [--OPTION...] [TESTNAME] [METHOD]"
+    echo -e "${BL}--skip$CL | ${BL}--continue$CL        - if presen, allready run tests will be skipped"
+    echo -e "${BL}--restart$CL     - forget about existing test logs, restart"
     echo -e "${BL}--logs$CL ${GN}NUM$CL    - number of log lines to show"
     echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
     echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
@@ -343,14 +760,21 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--verbose$CL     - enable verbose test logs"
     echo -e "${BL}--user$CL ${GN}USESRNAME$CL     - authenticate as user"
     echo -e "${BL}--pass$CL ${GN}password$CL     - authenticate with password"
-	    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
-	    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
-	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
-	    echo -e "${BL}--morphiumserver-local$CL - run against local MorphiumServer cluster (pooled driver + default URI)"
-	    echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
-	    echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
-	    echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
-	    echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
+    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
+    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
+    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
+    echo -e "${BL}--morphium-server$CL    - start single MorphiumServer on localhost:27017"
+    echo -e "${BL}--morphium-server-replicaset$CL - start 3-node MorphiumServer replica set (27017-27019)"
+    echo -e "                     ${YL}NOTE:${CL} Replica set mode has limited data sync - prefer single node for testing"
+    echo -e "${BL}--morphiumserver-local$CL - alias for --morphium-server-replicaset (deprecated)"
+    echo -e "${BL}--localhost-rs$CL       - alias for --morphium-server-replicaset (deprecated)"
+    echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
+    echo -e "${BL}--max-connections$CL ${GN}N$CL - MorphiumServer max connections (default: auto from --parallel)"
+    echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - MorphiumServer socket timeout in seconds (default: 30)"
+    echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
+    echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
+    echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
+    echo -e "${BL}--test$CL         - Specify a pattern to run only matching tests (see maveon -Dtest=)"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
     echo "Test name is the classname to run, and method is method name in that class"
     echo
@@ -362,15 +786,16 @@ while [ "q$1" != "q" ]; do
     echo -e "  ${BL}./runtests.sh --external --tags driver${CL}       # External MongoDB driver tests"
     echo -e "  ${BL}./runtests.sh --tags core,messaging --exclude-tags admin${CL} # Combined filters"
     echo
-	    echo -e "${YL}Driver/External Examples:${CL}"
-	    echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
-	    echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
-	    echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
-	    echo -e "  ${BL}./runtests.sh --morphiumserver-local${CL}        # Local MorphiumServer replica set (localhost:27017-27019)"
-	    echo
-	    echo -e "${YL}Parallel Examples:${CL}"
-	    echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
-	    echo -e "  ${BL}./runtests.sh --parallel 8 --tags core${CL}       # 8 parallel slots, core tests only"
+    echo -e "${YL}Driver/External Examples:${CL}"
+    echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
+    echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
+    echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
+    echo -e "  ${BL}./runtests.sh --morphium-server${CL}             # Single-node MorphiumServer (recommended)"
+    echo -e "  ${BL}./runtests.sh --morphium-server-replicaset${CL}  # 3-node MorphiumServer replica set"
+    echo
+    echo -e "${YL}Parallel Examples:${CL}"
+    echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
+    echo -e "  ${BL}./runtests.sh --parallel 8 --tags core${CL}       # 8 parallel slots, core tests only"
     echo
     echo -e "${YL}Rerun Examples:${CL}"
     echo -e "  ${BL}./runtests.sh --rerunfailed${CL}                  # Rerun all previously failed tests"
@@ -429,6 +854,22 @@ while [ "q$1" != "q" ]; do
       echo -e "${RD}Error: --parallel must be a number between 1 and 16${CL}"
       exit 1
     fi
+  elif [ "q$1" == "q--max-connections" ]; then
+    shift
+    morphiumserverMaxConnections=$1
+    shift
+    if ! [[ "$morphiumserverMaxConnections" =~ ^[0-9]+$ ]] || [ "$morphiumserverMaxConnections" -lt 10 ]; then
+      echo -e "${RD}Error: --max-connections must be a number >= 10${CL}"
+      exit 1
+    fi
+  elif [ "q$1" == "q--socket-timeout" ]; then
+    shift
+    morphiumserverSocketTimeout=$1
+    shift
+    if ! [[ "$morphiumserverSocketTimeout" =~ ^[0-9]+$ ]] || [ "$morphiumserverSocketTimeout" -lt 5 ]; then
+      echo -e "${RD}Error: --socket-timeout must be a number >= 5 (seconds)${CL}"
+      exit 1
+    fi
   elif [ "q$1" == "q--uri" ]; then
     shift
     uri=$1
@@ -436,23 +877,50 @@ while [ "q$1" != "q" ]; do
   elif [ "q$1" == "q--verbose" ]; then
     verbose=1
     shift
-	  elif [ "q$1" == "q--external" ]; then
-	    useExternal=1
-	    shift
-	  elif [ "q$1" == "q--morphiumserver-local" ]; then
-	    # Convenience mode for running tests against a local MorphiumServer replica set on 27017-27019.
-	    # This option only sets sensible defaults (URI + pooled driver) and leaves tag filtering up to the caller.
-	    useExternal=1
-	    if [ -z "$uri" ]; then
-	      uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
-	    fi
-	    if [ -z "$driver" ]; then
-	      driver="pooled"
-	    fi
-	    shift
-	  elif [ "q$1" == "q--rerunfailed" ]; then
-	    rerunfailed=1
-	    shift
+  elif [ "q$1" == "q--external" ]; then
+    useExternal=1
+    shift
+  elif [ "q$1" == "q--morphium-server" ]; then
+    # Single-node MorphiumServer on localhost:27017 (recommended for testing)
+    startMorphiumserverLocal=1
+    morphiumserverSingleNode=1
+    useExternal=1
+    if [ -z "$uri" ]; then
+      uri="mongodb://localhost:27017/morphium_tests"
+    fi
+    if [ -z "$driver" ]; then
+      driver="pooled"
+    fi
+    shift
+  elif [ "q$1" == "q--morphium-server-replicaset" ] || [ "q$1" == "q--start-morphiumserver-local" ]; then
+    # 3-node MorphiumServer replica set on 27017-27019
+    # Note: Each node has isolated InMemoryDriver - limited data sync between nodes
+    startMorphiumserverLocal=1
+    morphiumserverSingleNode=0
+    useExternal=1
+    if [ -z "$uri" ]; then
+      uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+    fi
+    if [ -z "$driver" ]; then
+      driver="pooled"
+    fi
+    shift
+  elif [ "q$1" == "q--localhost-rs" ] || [ "q$1" == "q--morphiumserver-local" ]; then
+    # Deprecated aliases for --morphium-server-replicaset
+    echo -e "${YL}Warning:${CL} $1 is deprecated, use --morphium-server or --morphium-server-replicaset instead"
+    startMorphiumserverLocal=1
+    morphiumserverSingleNode=0
+    useExternal=1
+    if [ -z "$uri" ]; then
+      uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+    fi
+    if [ -z "$driver" ]; then
+      driver="pooled"
+    fi
+    shift
+  elif [ "q$1" == "q--rerunfailed" ]; then
+    rerunfailed=1
+    shift
   elif [ "q$1" == "q--stats" ]; then
     showStats=1
     shift
@@ -468,9 +936,16 @@ while [ "q$1" != "q" ]; do
     shift
     refresh=$1
     shift
+  elif [ "q$1" == "q--test" ]; then
+    shift
+    testname=$1
+    skip=1
+    shift
   else
-    echo "Do not know option $1 - assuming it is a testname"
-    break
+    echo "Unknown option $1"
+    exit 1
+    # echo "Do not know option $1 - assuming it is a testname"
+    # break
   fi
 done
 
@@ -529,9 +1004,14 @@ if [ "$showStats" -eq 1 ]; then
   exit 0
 fi
 
-if [ -z "$driver" ] && [ "$useExternal" -eq 0 ]; then
-  driver="inmem"
-  echo -e "${YL}Info:${CL} No driver specified, defaulting to --driver inmem (use --external for external MongoDB drivers)"
+if [ -z "$driver" ]; then
+  if [ "$useExternal" -eq 1 ]; then
+    driver="pooled"
+    echo -e "${BL}Info:${CL} External mode detected - defaulting to --driver pooled"
+  else
+    driver="inmem"
+    echo -e "${YL}Info:${CL} No driver specified, defaulting to --driver inmem (use --external for external MongoDB drivers)"
+  fi
 fi
 
 # Auto-exclude external tests when using inmem driver
@@ -543,6 +1023,37 @@ if [ "$driver" == "inmem" ]; then
   fi
   echo -e "${BL}Info:${CL} InMemory driver selected - automatically excluding 'external' tagged tests"
 fi
+
+# If requested, ensure a local MorphiumServer cluster is reachable (and optionally start it).
+if [ "$startMorphiumserverLocal" -eq 1 ]; then
+  useExternal=1
+fi
+
+if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$uri" ]; then
+  uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+fi
+
+if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$driver" ]; then
+  driver="pooled"
+fi
+
+if [ "$morphiumserverLocalMode" -eq 1 ] || [ "$startMorphiumserverLocal" -eq 1 ]; then
+  _ms_local_ensure_cluster "$uri"
+fi
+
+# Auto-exclude failover tests when using MorphiumServer
+# (MorphiumServer doesn't support StepDownCommand for failover testing)
+if [ "$startMorphiumserverLocal" -eq 1 ]; then
+  if [ -z "$excludeTags" ]; then
+    excludeTags="failover"
+  else
+    if [[ ! "$excludeTags" == *"failover"* ]]; then
+      excludeTags="$excludeTags,failover"
+    fi
+  fi
+  echo -e "${BL}Info:${CL} MorphiumServer selected - automatically excluding 'failover' tagged tests"
+fi
+
 # Handle --rerunfailed option early to bypass interactive prompts
 if [ "$rerunfailed" -eq 1 ]; then
   echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
@@ -563,9 +1074,9 @@ if [ "$rerunfailed" -eq 1 ]; then
 
   # Filter by class pattern if provided (e.g., ./runtests.sh --rerunfailed DataTypeTests)
   # Note: $1 contains the class pattern since we're processing this before p=$1 assignment
-  if [ "q$1" != "q" ] && [ "$1" != "." ]; then
-    failed_tests=$(echo "$failed_tests" | grep "$1")
-    echo "Filtering failed tests by pattern: $1"
+  if [ "q$testname" != "q" ] && [ "$testname" != "." ]; then
+    failed_tests=$(echo "$failed_tests" | grep "$testname")
+    echo "Filtering failed tests by pattern: $testname"
   fi
 
   if [ -z "$failed_tests" ]; then
@@ -607,7 +1118,7 @@ if [ "$rerunfailed" -eq 1 ]; then
   # Skip the normal file creation logic
   skip_file_creation=1
 fi
-if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
+if [ "$explicitRestart" -eq 0 ] && [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   if [ -z "$(ls -A 'test.log')" ]; then
     count=0
   else
@@ -639,8 +1150,9 @@ fi
 # trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
+trap _ms_local_cleanup EXIT
 
-p=$1
+p=$testname
 if [ "q$p" == "q" ]; then
   # echo "No pattern given, running all tests"
   p="."
@@ -758,7 +1270,7 @@ if [ -n "$includeTags" ]; then
   rm -f $tmpTagged
 fi
 
-if [ "q$1" = "q" ]; then
+if [ "q$testname" = "q" ]; then
   # no test to run specified
   # Handle exclude tags
   if [ -n "$excludeTags" ]; then
@@ -821,8 +1333,8 @@ if [ "q$1" = "q" ]; then
     fi
   fi
 else
-  echo "Limiting to test $1"
-  echo "$1" >$classList
+  echo "Limiting to test $testname"
+  echo "$testname" >$classList
 fi
 # read
 cnt=$(wc -l <$classList | tr -d ' ')
@@ -852,6 +1364,8 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   rm -rf test.log >/dev/null 2>&1
   rm -f startTS >/dev/null 2>&1
   mkdir test.log
+  # Clean up test databases before starting fresh
+  cleanup_test_databases
 fi
 if [ "$nodel" -eq 0 ]; then
   echo -e "${BL}Info:${CL} Cleaning up - mvn clean..."
@@ -869,6 +1383,15 @@ if [ -n "$uri" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.uri=$uri"; fi
 if [ -z "$uri" ] && [ -n "$MONGODB_URI" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.uri=$MONGODB_URI"; fi
 if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=true"; fi
 if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
+
+# Increase connection pool for parallel tests against MorphiumServer
+# MorphiumServer uses NIO so can handle many connections efficiently
+# AsyncOperationTest alone uses 1134+ connections, messaging tests need many more for parallel ops
+if [ "$startMorphiumserverLocal" -eq 1 ] && [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
+  pool_size=$((2000 + parallel * 500))  # Base 2000 + 500 per parallel slot (matches server side)
+  MVN_PROPS="$MVN_PROPS -Dmorphium.maxConnections=$pool_size"
+  echo -e "${BL}Info:${CL} Increased client pool to ${pool_size} connections for ${parallel} parallel slots"
+fi
 
 mvn $MVN_PROPS compile test-compile >/dev/null || {
   echo -e "${RD}Error:${CL} Compilation failed!"
@@ -1548,7 +2071,7 @@ else
   [[ ! "$fail" =~ ^[0-9]+$ ]] && fail=0
   [[ ! "$err" =~ ^[0-9]+$ ]] && err=0
   num=$numRetries
-  if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ] && [ "q$1" = "q" ]; then
+  if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ] && [ "q$testname" = "q" ]; then
     while [ "$num" -gt 0 ]; do
       echo -e "${YL}Some tests failed$CL - retrying...."
 

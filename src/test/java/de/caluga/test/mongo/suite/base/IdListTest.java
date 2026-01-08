@@ -12,14 +12,18 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 
 @Tag("core")
-public class IdListTest extends MorphiumTestBase {
+public class IdListTest extends MultiDriverTestBase {
 
-    @Test
-    public void idList() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void idList(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gte(10);
         List<Object> lst = q.idList();

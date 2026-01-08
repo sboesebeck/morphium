@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.bson.MongoJSScript;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import org.slf4j.LoggerFactory;
@@ -207,6 +208,27 @@ public class MapReduceCommand extends ReadMongoCommand<MapReduceCommand> {
 
     @Override
     public MapReduceCommand fromMap(Map<String, Object> m) {
+        // Handle MongoJSScript objects for map, reduce, finalize before super.fromMap
+        // which uses reflection and expects String types
+        if (m.containsKey("map")) {
+            Object mapVal = m.get("map");
+            if (mapVal instanceof MongoJSScript) {
+                m.put("map", ((MongoJSScript) mapVal).getJs());
+            }
+        }
+        if (m.containsKey("reduce")) {
+            Object reduceVal = m.get("reduce");
+            if (reduceVal instanceof MongoJSScript) {
+                m.put("reduce", ((MongoJSScript) reduceVal).getJs());
+            }
+        }
+        if (m.containsKey("finalize")) {
+            Object finalizeVal = m.get("finalize");
+            if (finalizeVal instanceof MongoJSScript) {
+                m.put("finalize", ((MongoJSScript) finalizeVal).getJs());
+            }
+        }
+
         super.fromMap(m);
         if (m.containsKey("out") && (m.get("out") instanceof String)){
             outColl= (String) m.get("out");

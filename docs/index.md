@@ -10,11 +10,14 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 
 ## Testing & Development
 Morphium includes a complete in-memory MongoDB-compatible implementation for testing and development:
+- **[Developer Testing Guide](./developer-testing-guide.md)** - How to run and write tests, MultiDriverTestBase, runtests.sh
+- **[Test Runner](./test-runner.md)** - Quick reference for the `runtests.sh` script
 - **[InMemory Driver](./howtos/inmemory-driver.md)** - Embedded in-memory driver for unit tests (no MongoDB installation required!)
 - **[MorphiumServer](./morphium-server.md)** - Standalone MongoDB-compatible server that speaks the wire protocol
   - Perfect for CI/CD pipelines, integration testing, and microservices development
   - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
-  - Run with: `java -cp morphium.jar de.caluga.morphium.server.MorphiumServer --port 27017`
+  - Supports **Replica Sets** (experimental) and **Persistence (Snapshots)**
+  - Run with: `java -jar target/morphium-6.1.1-server-cli.jar --port 27017`
 
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
@@ -56,8 +59,8 @@ With Morphium 5.0 we implemented our own MongoDB driver. The official driver inc
 Benefits
 - Tailored to Morphium’s mapping and lifecycle needs; minimal impedance with Morphium’s object mapper.
 - Full control over retry/failover semantics and performance trade‑offs.
+- SSL/TLS support for secure connections (since v6.0).
 
 Limitations
-- No MongoDB Atlas support (Atlas requires features like mandatory TLS that are not supported here).
-- No SSL/TLS‑encrypted connections; use plain connections or terminate TLS outside MongoDB. (Some community distributions may not include SSL/TLS.)
+- No MongoDB Atlas support.
 - Some advanced features of the official driver are not available.

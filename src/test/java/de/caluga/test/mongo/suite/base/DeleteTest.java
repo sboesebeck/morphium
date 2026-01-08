@@ -91,7 +91,9 @@ public class DeleteTest extends MultiDriverTestBase {
             CachedObject co = morphium.createQueryFor(CachedObject.class).get();
             morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
             TestUtils.waitForWrites(morphium, log);
-            Thread.sleep(100);
+            // Wait for delete to be visible (cache invalidation and replication)
+            TestUtils.waitForConditionToBecomeTrue(10000, "Delete not visible",
+                () -> morphium.createQueryFor(CachedObject.class).countAll() == 9);
             cnt = morphium.createQueryFor(CachedObject.class).countAll();
             assert (cnt == 9);
             List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();

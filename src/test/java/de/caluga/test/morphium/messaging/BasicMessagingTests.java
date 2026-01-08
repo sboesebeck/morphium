@@ -9,7 +9,6 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Tag;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -39,7 +38,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -101,7 +100,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -154,7 +153,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -218,7 +217,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -287,7 +286,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);

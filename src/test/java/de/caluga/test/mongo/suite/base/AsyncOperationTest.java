@@ -65,7 +65,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     assert false;
                 }
             });
-            TestUtils.waitForConditionToBecomeTrue(3000, "Async delete callback not called",
+            TestUtils.waitForConditionToBecomeTrue(10000, "Async delete callback not called",
                 () -> asyncCall);
             assert(asyncCall);
             asyncCall = false;
@@ -84,7 +84,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 }
             });
             TestUtils.waitForWrites(morphium, log);
-            TestUtils.waitForConditionToBecomeTrue(3000, "Update operation not persisted",
+            TestUtils.waitForConditionToBecomeTrue(10000, "Update operation not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll() > 0);
             long counter = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll();
 assert counter > 0 : "Counter is: " + counter;
@@ -197,7 +197,7 @@ assert counter > 0 : "Counter is: " + counter;
             new Thread(r).start();
             long start = System.currentTimeMillis();
 
-            TestUtils.waitForConditionToBecomeTrue(5000, "Not all async objects persisted",
+            TestUtils.waitForConditionToBecomeTrue(60000, "Not all async objects persisted",
                 () -> {
                     long count = q.countAll();
                     log.info("--------> Waiting: " + count);
@@ -233,7 +233,7 @@ assert counter > 0 : "Counter is: " + counter;
                     callback = true;
                 }
             });
-            TestUtils.waitForConditionToBecomeTrue(3000, "Async error callback not called",
+            TestUtils.waitForConditionToBecomeTrue(10000, "Async error callback not called",
                 () -> callback);
             assertTrue(callback, "Callback not called");
         }

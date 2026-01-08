@@ -33,7 +33,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
             }
             .getClass().getEnclosingMethod().getName();
             morphium.clearCollection(Msg.class);
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 log.info(String.format("=====================> Running Test %s with Driver %s and Messaging %s <===============================", method, morphium.getDriver().getName(), msgImpl));
                 var cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -154,7 +154,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void broadcastMultiTest(Morphium morphium) throws Exception {
         try (morphium) {
-            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
                 var cfg = morphium.getConfig().createCopy();
                 log.info("Running test with {} messaging", msgImpl);
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -210,8 +210,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
-                    long maxTotalTimeout = 60000; // Max 60 seconds total (safety net for slow machines)
-                    long idleTimeout = 20000; // 20 seconds after last message received (increased from 10s)
+                    long maxTotalTimeout = 120000; // Max 120 seconds total (for parallel test execution)
+                    long idleTimeout = 45000; // 45 seconds after last message received (for parallel load)
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;
 

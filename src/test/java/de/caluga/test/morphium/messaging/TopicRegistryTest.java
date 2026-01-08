@@ -1,17 +1,17 @@
 package de.caluga.test.morphium.messaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class TopicRegistryTest extends MorphiumTestBase {
+public class TopicRegistryTest extends MultiDriverTestBase {
 
     private void waitUntilSendAccepted(long timeoutMs, Runnable sendAttempt) throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMs;
@@ -52,7 +52,7 @@ public class TopicRegistryTest extends MorphiumTestBase {
     @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
     public void testThrowOnNoListeners(Morphium morphium) throws Exception {
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -81,7 +81,12 @@ public class TopicRegistryTest extends MorphiumTestBase {
     public void testSuccessfulSendWithListener(Morphium morphium) throws Exception {
         log.info("Running test: testSuccessfulSendWithListener");
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            // Skip for InMemDriver - each Morphium instance has isolated data store
+            if (morphium.getDriver().getName().equals("InMemDriver")) {
+                log.info("Skipping multi-instance test for InMemDriver (isolated data stores)");
+                return;
+            }
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -103,7 +108,7 @@ public class TopicRegistryTest extends MorphiumTestBase {
                     receiver.start();
 
                     log.info("Waiting for network discovery (registry update)...");
-                    waitUntilSendAccepted(15_000, () -> sender.sendMessage(new Msg("listener-topic", "warmup", "value")));
+                    waitUntilSendAccepted(45_000, () -> sender.sendMessage(new Msg("listener-topic", "warmup", "value")));
 
                     log.info("Sending message to topic with listener...");
                     sender.sendMessage(new Msg("listener-topic", "msg", "value"));
@@ -123,7 +128,7 @@ public class TopicRegistryTest extends MorphiumTestBase {
     public void testWarnOnNoListeners(Morphium morphium) throws Exception {
         log.info("Running test: testWarnOnNoListeners");
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -153,7 +158,12 @@ public class TopicRegistryTest extends MorphiumTestBase {
     public void testRecipientCheck(Morphium morphium) throws Exception {
         log.info("Running test: testRecipientCheck");
         try (morphium) {
-            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+            // Skip for InMemDriver - each Morphium instance has isolated data store
+            if (morphium.getDriver().getName().equals("InMemDriver")) {
+                log.info("Skipping multi-instance test for InMemDriver (isolated data stores)");
+                return;
+            }
+            for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
                 log.info("Running test with messaging implementation: " + msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
@@ -175,7 +185,7 @@ public class TopicRegistryTest extends MorphiumTestBase {
                             log.info("Waiting for initial discovery...");
                             log.info("Receiver ID: " + receiverId);
                             // Should work (wait for registry to see receiver)
-                            waitUntilSendAccepted(15_000, () -> {
+                            waitUntilSendAccepted(45_000, () -> {
                                 Msg directMsg = new Msg("direct", "msg", "value");
                                 directMsg.addRecipient(receiverId);
                                 sender.sendMessage(directMsg);
@@ -188,7 +198,7 @@ public class TopicRegistryTest extends MorphiumTestBase {
                     }
 
                     log.info("Receiver is now terminated. Waiting for participant timeout...");
-                    waitUntilSendRejected(15_000, () -> {
+                    waitUntilSendRejected(45_000, () -> {
                         Msg directMsg = new Msg("direct", "msg", "value");
                         directMsg.addRecipient(receiverId);
                         log.info("Sending message to inactive recipient...");

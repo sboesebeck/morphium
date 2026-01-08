@@ -39,6 +39,12 @@ public class User {
   @Id private MorphiumId id;
   @Index private String username;
   private String email;
+
+  // getters and setters omitted for brevity
+  public String getUsername() { return username; }
+  public void setUsername(String username) { this.username = username; }
+  public String getEmail() { return email; }
+  public void setEmail(String email) { this.email = email; }
 }
 ```
 
@@ -66,5 +72,5 @@ Next steps
 
 Driver notes
 - Morphium uses its own wire‑protocol driver tailored to Morphium’s mapping.
-- Limitations: no MongoDB Atlas support and no SSL/TLS connections.
+- Limitations: No MongoDB Atlas support.
 

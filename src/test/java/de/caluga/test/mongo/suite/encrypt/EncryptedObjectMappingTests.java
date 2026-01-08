@@ -1,4 +1,5 @@
 package de.caluga.test.mongo.suite.encrypt;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -7,19 +8,22 @@ import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("encryption")
-public class EncryptedObjectMappingTests extends MorphiumTestBase {
+public class EncryptedObjectMappingTests extends MultiDriverTestBase {
 
-    @Test
-    public void objectMapperTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void objectMapperTest(Morphium morphium) throws Exception  {
         morphium.getEncryptionKeyProvider().setEncryptionKey("key", "1234567890abcdef".getBytes());
         morphium.getEncryptionKeyProvider().setDecryptionKey("key", "1234567890abcdef".getBytes());
         MorphiumObjectMapper om = morphium.getMapper();

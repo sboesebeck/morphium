@@ -46,6 +46,10 @@ public class HelloResult {
     private Map<String, Object> topologyVersion;
     private Long operationTime;
 
+    // MorphiumServer-specific fields
+    private Boolean morphiumServer;
+    private Boolean inMemoryBackend;
+
     public static HelloResult fromMsg(Map<String, Object> msg) {
         if (msg == null) return null;
 
@@ -353,6 +357,24 @@ public class HelloResult {
 
     public HelloResult setHelloOk(Boolean helloOk) {
         this.helloOk = helloOk;
+        return this;
+    }
+
+    public Boolean getMorphiumServer() {
+        return morphiumServer;
+    }
+
+    public HelloResult setMorphiumServer(Boolean morphiumServer) {
+        this.morphiumServer = morphiumServer;
+        return this;
+    }
+
+    public Boolean getInMemoryBackend() {
+        return inMemoryBackend;
+    }
+
+    public HelloResult setInMemoryBackend(Boolean inMemoryBackend) {
+        this.inMemoryBackend = inMemoryBackend;
         return this;
     }
 

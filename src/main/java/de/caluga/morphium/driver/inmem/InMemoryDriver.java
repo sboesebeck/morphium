@@ -30,8 +30,11 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -84,6 +87,7 @@ import de.caluga.morphium.driver.commands.DeleteMongoCommand;
 import de.caluga.morphium.driver.commands.DistinctMongoCommand;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.DropMongoCommand;
+import de.caluga.morphium.driver.commands.DropIndexesCommand;
 import de.caluga.morphium.driver.commands.ExplainCommand;
 import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
@@ -175,11 +179,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
-    private final List<Object> monitors = new CopyOnWriteArrayList<>();
+    private final List<WatchMonitor> monitors = new CopyOnWriteArrayList<>();
     private final BlockingQueue<Runnable> eventQueue = new LinkedBlockingDeque<>();
-    private final List<Map<String, Object>> commandResults = new Vector<>();
+    private final java.util.concurrent.ConcurrentLinkedQueue<Map<String, Object>> commandResults = new java.util.concurrent.ConcurrentLinkedQueue<>();
     private final java.util.concurrent.ConcurrentHashMap<Integer, Map<String, Object>> commandResultsById = new java.util.concurrent.ConcurrentHashMap<>();
-    private final Object commandLock = new Object();
+    // Method cache for lock-free command dispatch
+    private final java.util.concurrent.ConcurrentHashMap<Class<?>, Method> commandMethodCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private void addResult(int id, Map<String, Object> res) {
         Map<String, Object> toStore = res == null ? prepareResult(Doc.of("ok", 0.0, "errmsg", "null result")) : res;
@@ -188,9 +193,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private void addQueuedResult(Map<String, Object> res) {
         Map<String, Object> toStore = res == null ? prepareResult(Doc.of("ok", 0.0, "errmsg", "null result")) : res;
-        synchronized (commandResults) {
-            commandResults.add(toStore);
-        }
+        commandResults.offer(toStore);
     }
 
     private void addResultAndQueue(int id, Map<String, Object> res) {
@@ -237,12 +240,45 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Deque<Map<String, Object>> oplog = new ConcurrentLinkedDeque<>();
     private static final int OPLOG_MAX = 5000;
     private final AtomicLong oplogInc = new AtomicLong();
+    private final AtomicBoolean initialized = new AtomicBoolean(false);
+    // Used to support the "aggregate" wire command (e.g. when running against MorphiumServer).
+    // NOTE: These Morphium instances must NOT be closed, as they would close this driver as well.
+    private final ConcurrentHashMap<String, Morphium> aggregationMorphiumByDb = new ConcurrentHashMap<>();
+    // When true, close() is a no-op. Used when InMemoryDriver is managed by MorphiumServer
+    // to prevent internal Morphium instances from shutting down the driver via their shutdown hooks.
+    private volatile boolean serverMode = false;
+
+    private Morphium getAggregationMorphium(String db) {
+        return aggregationMorphiumByDb.computeIfAbsent(db, dbName -> {
+            MorphiumConfig cfg = new MorphiumConfig(dbName, 100, 5000, 5000);
+            cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+            // Ensure this internal Morphium uses the already running InMemoryDriver instance.
+            // This avoids ClassGraph-based driver discovery, which may not work in some packaged runtimes.
+            Morphium m = new Morphium();
+            m.setDriver(this);
+            m.setConfig(cfg);
+            return m;
+        });
+    }
 
     public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
         return database.get(dbn);
     }
 
     public InMemoryDriver() {
+    }
+
+    /**
+     * Enable server mode. When enabled, close() becomes a no-op to prevent
+     * internal Morphium instances from shutting down the driver via their shutdown hooks.
+     * Use forceShutdown() to actually shutdown the driver in server mode.
+     */
+    public void setServerMode(boolean serverMode) {
+        this.serverMode = serverMode;
+    }
+
+    public boolean isServerMode() {
+        return serverMode;
     }
 
     @Override
@@ -461,10 +497,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         cappedCollections.clear();
         collectionsWithTtlIndex.clear();
 
-        for (var o : monitors) {
-            synchronized (o) {
-                o.notifyAll();
-            }
+        for (var m : monitors) {
+            m.signalAll();
         }
 
         monitors.clear();
@@ -531,8 +565,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         String collection = settings.getColl();
-        String namespaceKey = db + "." + (collection == null ? "" : collection);
-        Object monitor = new Object();
+        // Namespace key: "db" for db-only watch, "db.collection" for collection watch
+        // This must match the keys used in dispatchEvent for proper event delivery
+        String namespaceKey = collection == null || collection.isBlank() ? db : db + "." + collection;
+        WatchMonitor monitor = new WatchMonitor();
         monitors.add(monitor);
 
         // Reuse existing active subscription for the same namespace to avoid piling up watchers
@@ -578,15 +614,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return subscription.getCursorId();
             }
 
-            synchronized (monitor) {
-                while (subscription.isActive()) {
-                    Integer maxTime = settings.getMaxTimeMS();
+            // Use WatchMonitor with ReentrantLock/Condition to avoid pinning virtual threads
+            // synchronized blocks pin carrier threads, limiting scalability to ~256 concurrent watches
+            while (subscription.isActive()) {
+                Integer maxTime = settings.getMaxTimeMS();
+                // Use maxTimeMS if set, otherwise use a 5-second fallback timeout
+                // to periodically check if the callback wants to continue
+                long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
+                monitor.await(waitTime);
 
-                    if (maxTime != null && maxTime > 0) {
-                        monitor.wait(maxTime);
-                    } else {
-                        monitor.wait();
-                    }
+                // Check if the callback wants to continue after each wait
+                // This ensures proper cleanup when cursors are killed
+                if (!settings.getCb().isContinued()) {
+                    subscription.deactivate();
+                    break;
                 }
             }
         } catch (InterruptedException ie) {
@@ -621,11 +662,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         Map<String, Object> data = commandResultsById.remove(queryId);
         if (data == null) {
-            synchronized (commandResults) {
-                if (!commandResults.isEmpty()) {
-                    data = commandResults.remove(0);
-                }
-            }
+            data = commandResults.poll();
         }
         if (data == null) {
             return List.of();
@@ -653,11 +690,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         Map<String, Object> data = commandResultsById.remove(queryId);
         if (data == null) {
-            synchronized (commandResults) {
-                if (!commandResults.isEmpty()) {
-                    data = commandResults.remove(0);
-                }
-            }
+            data = commandResults.poll();
         }
         if (data == null) {
             return new SingleBatchCursor(List.of());
@@ -723,17 +756,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         try {
-            synchronized (commandLock) {
-                Method method = this.getClass().getDeclaredMethod("runCommand", cmd.getClass());
-                var o = method.invoke(this, cmd);
-                stats.get(DriverStatsKey.REPLY_RECEIVED);
-
-                if (o instanceof Integer) {
-                    return (Integer) o;
+            // Use cached method lookup for lock-free command dispatch
+            Class<?> cmdClass = cmd.getClass();
+            Method method = commandMethodCache.computeIfAbsent(cmdClass, cls -> {
+                try {
+                    return this.getClass().getDeclaredMethod("runCommand", cls);
+                } catch (NoSuchMethodException e) {
+                    throw new RuntimeException(e);
                 }
+            });
+
+            var o = method.invoke(this, cmd);
+            stats.get(DriverStatsKey.REPLY_RECEIVED);
+
+            if (o instanceof Integer) {
+                return (Integer) o;
             }
-        } catch (NoSuchMethodException nsmex) {
-            throw new RuntimeException(nsmex);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
@@ -746,15 +784,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             throw new RuntimeException(t);
         }
-        // } catch (Exception e) {
-        // try {
-        // log.error("got exception", e);
-        // } catch (InterruptedException e1) {
-        // // TODO Auto-generated catch block
-        // // e1.printStackTrace();
-        // }
-        // throw new RuntimeException(e);
-        // }
 
         return 0;
     }
@@ -816,9 +845,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int runCommand(GenericCommand cmd) {
-        // log.info("Trying to handle generic Command");
         Map<String, Object> cmdMap = cmd.asMap();
         var commandName = cmdMap.keySet().stream().findFirst().get();
+        log.debug("InMemoryDriver.runCommand(GenericCommand): commandName={}, filter={}", commandName, cmdMap.get("filter"));
         Class <? extends MongoCommand > commandClass = commandsCache.get(commandName);
 
         if (commandName.equals("aggreagate") && cmdMap.containsKey("pipeline")
@@ -836,7 +865,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Constructor declaredConstructor = commandClass.getDeclaredConstructor(MongoConnection.class);
             declaredConstructor.setAccessible(true);
             var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
-            mongoCommand.fromMap(cmdMap);
+            try {
+                mongoCommand.fromMap(cmdMap);
+            } catch (Exception e) {
+                log.error("Error in fromMap for {}: {}", commandClass.getSimpleName(), e.getMessage());
+                throw new RuntimeException("Error parsing command " + commandClass.getSimpleName() + ": " + e.getMessage(), e);
+            }
 
             try {
                 Method method = this.getClass().getDeclaredMethod("runCommand", commandClass);
@@ -851,6 +885,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } catch (NoSuchMethodException ex) {
                 log.error("No method for command " + commandClass.getSimpleName() + " - "
                           + mongoCommand.getCommandName());
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                // Unwrap InvocationTargetException to get the actual cause
+                Throwable cause = e.getCause();
+                if (cause instanceof RuntimeException) {
+                    throw (RuntimeException) cause;
+                } else if (cause != null) {
+                    throw new RuntimeException("Error executing command " + commandClass.getSimpleName() + ": " + cause.getMessage(), cause);
+                } else {
+                    throw new RuntimeException("Error executing command " + commandClass.getSimpleName(), e);
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -892,14 +936,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(UpdateMongoCommand cmd) throws MorphiumDriverException {
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        log.debug("runCommand(UpdateMongoCommand) called - updates count: {}",
+            cmd.getUpdates() != null ? cmd.getUpdates().size() : "null");
+        if (cmd.getUpdates() != null && !cmd.getUpdates().isEmpty()) {
+            log.debug("First update element type: {}", cmd.getUpdates().get(0).getClass());
+        }
         int ret = commandNumber.incrementAndGet();
         Map<String, Object> stats = new HashMap<>();
         int totalMatched = 0;
         int totalModified = 0;
         int updateIndex = 0;
         List<Map<String, Object>> upserted = new ArrayList<>();
+        List<Map<String, Object>> allWriteErrors = new ArrayList<>();
 
         for (var update : cmd.getUpdates()) {
             // Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);
@@ -919,8 +967,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (update.containsKey("collation") && update.get("collation") instanceof Map) {
                 collation = (Map<String, Object>) update.get("collation");
             }
-            var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) update.get("q"), null,
-                             (Map<String, Object>) update.get("u"), multi, upsert, collation, cmd.getWriteConcern());
+
+            // Debug type checking
+            Object queryObj = update.get("q");
+            Object updateObj = update.get("u");
+            if (!(queryObj instanceof Map)) {
+                log.error("update.q is not a Map! Type: {}, value: {}", queryObj != null ? queryObj.getClass() : "null", queryObj);
+                throw new RuntimeException("Query must be a Map, got: " + (queryObj != null ? queryObj.getClass() : "null"));
+            }
+            if (!(updateObj instanceof Map)) {
+                log.error("update.u is not a Map! Type: {}, value: {}", updateObj != null ? updateObj.getClass() : "null", updateObj);
+                throw new RuntimeException("Update document must be a Map, got: " + (updateObj != null ? updateObj.getClass() : "null"));
+            }
+
+            var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) queryObj, null,
+                             (Map<String, Object>) updateObj, multi, upsert, collation, cmd.getWriteConcern());
 
             // accumulate matched and modified
             Object m = res.get("matched");
@@ -938,6 +999,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     upserted.add(Doc.of("index", updateIndex, "_id", id));
                 }
             }
+
+            // accumulate writeErrors with correct index
+            if (res.containsKey("writeErrors") && res.get("writeErrors") instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> errors = (List<Map<String, Object>>) res.get("writeErrors");
+                for (Map<String, Object> err : errors) {
+                    Map<String, Object> errorWithIndex = new HashMap<>(err);
+                    errorWithIndex.put("index", updateIndex);
+                    allWriteErrors.add(errorWithIndex);
+                }
+            }
             updateIndex++;
         }
 
@@ -953,6 +1025,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (!upserted.isEmpty()) {
             stats.put("upserted", upserted);
         }
+        if (!allWriteErrors.isEmpty()) {
+            stats.put("writeErrors", allWriteErrors);
+        }
 
         // System.out.println("[DEBUG_LOG] UpdateMongoCommand result: " + stats);
         Map<String, Object> preparedResult = prepareResult(stats);
@@ -965,10 +1040,75 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public int runCommand(WatchCommand cmd) throws MorphiumDriverException {
         log.info("InMemoryDriver.runCommand(WatchCommand) called: db={}, coll={}", cmd.getDb(), cmd.getColl());
         int ret = commandNumber.incrementAndGet();
-        long cursorId = watchInternal(cmd, null);
-        log.info("watchInternal returned cursorId={}", cursorId);
-        Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(),
-                                            "id", cursorId);
+
+        // For server use: register subscription synchronously, run watch loop asynchronously
+        // This ensures the cursor ID is available immediately
+        if (cmd == null || cmd.getCb() == null) {
+            log.warn("WatchCommand has no callback, returning empty cursor");
+            Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0L);
+            addResult(ret, prepareResult(Doc.of("ok", 1.0, "cursor", cursor)));
+            return ret;
+        }
+
+        String db = cmd.getDb();
+        if (db == null || db.isBlank()) {
+            db = "admin";
+        }
+        String collection = cmd.getColl();
+        String namespaceKey = collection == null || collection.isBlank() ? db : db + "." + collection;
+
+        // Generate cursor ID upfront
+        long cursorId = cursorIdSequence.incrementAndGet();
+
+        // Create monitor for this watch
+        WatchMonitor monitor = new WatchMonitor();
+        monitors.add(monitor);
+
+        // Create subscription with known cursor ID
+        ChangeStreamSubscription subscription = new ChangeStreamSubscription(
+            db, collection, cmd.getCb(), cmd.getPipeline(),
+            cmd.getFullDocument() == null ? WatchCommand.FullDocumentEnum.defaultValue : cmd.getFullDocument(),
+            cmd.getFullDocumentBeforeChange() == null ? WatchCommand.FullDocumentBeforeChangeEnum.off : cmd.getFullDocumentBeforeChange(),
+            Boolean.TRUE.equals(cmd.getShowExpandedEvents()),
+            monitor, cursorId);
+
+        // Register subscription synchronously
+        registerSubscription(subscription);
+        log.info("Watch registered with cursorId={}", cursorId);
+
+        // Start watch loop asynchronously
+        final String finalDb = db;
+        exec.execute(() -> {
+            try {
+                // Handle resume tokens if present
+                Long resumeAfterToken = extractResumeToken(cmd.getResumeAfter());
+                Long startAfterToken = resumeAfterToken == null ? extractResumeToken(cmd.getStartAfter()) : null;
+                Long startingToken = resumeAfterToken != null ? resumeAfterToken : startAfterToken;
+
+                if (startingToken != null) {
+                    replayHistory(subscription, startingToken);
+                }
+
+                // Wait for events until subscription is deactivated
+                while (subscription.isActive()) {
+                    Integer maxTime = cmd.getMaxTimeMS();
+                    long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
+                    monitor.await(waitTime);
+
+                    if (!cmd.getCb().isContinued()) {
+                        subscription.deactivate();
+                        break;
+                    }
+                }
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            } finally {
+                unregisterSubscription(subscription);
+                monitors.remove(monitor);
+            }
+        });
+
+        Map<String, Object> cursor = Doc.of("firstBatch", List.of(), "ns", cmd.getDb() + "." + cmd.getColl(), "id", cursorId);
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "cursor", cursor)));
         return ret;
     }
@@ -1130,7 +1270,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     index.put("hidden", opt.get("hidden"));
                 }
 
-                // todo: add index features
+                // Handle text indexes - add weights and textIndexVersion
+                Doc keyDoc = (Doc) index.get("key");
+                boolean isTextIndex = false;
+                Map<String, Object> weights = new HashMap<>();
+                for (var entry : keyDoc.entrySet()) {
+                    if ("text".equals(entry.getValue())) {
+                        isTextIndex = true;
+                        weights.put(entry.getKey(), 1);  // default weight is 1
+                    }
+                }
+                if (isTextIndex) {
+                    index.put("weights", weights);
+                    index.put("textIndexVersion", 3);  // MongoDB 3.2+ uses version 3
+                }
+
                 indices.add(index);
             }
         addResult(ret, prepareResult(
@@ -1177,8 +1331,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             database.putIfAbsent(cmd.getDb(), new HashMap<>());
         }
 
+        // Get the name filter if specified
+        Map<String, Object> filter = cmd.getFilter();
+        String nameFilter = null;
+        if (filter != null && filter.containsKey("name")) {
+            Object filterName = filter.get("name");
+            log.debug("listCollections filter: name={}, type={}", filterName,
+                     filterName != null ? filterName.getClass().getName() : "null");
+            if (filterName instanceof String) {
+                nameFilter = (String) filterName;
+            } else if (filterName != null) {
+                // Handle non-String types by converting to string
+                nameFilter = String.valueOf(filterName);
+            }
+        }
+
         for (String coll : database.get(cmd.getDb()).keySet()) {
-            cursorData.add(Doc.of("name", coll, "type", "collection", "options", new Doc(), "info",
+            // Apply name filter if specified
+            if (nameFilter != null && !nameFilter.equals(coll)) {
+                continue;
+            }
+
+            // Build options map - include capped status if applicable
+            Doc options = new Doc();
+            if (cappedCollections.containsKey(cmd.getDb()) && cappedCollections.get(cmd.getDb()).containsKey(coll)) {
+                options.put("capped", true);
+                Map<String, Integer> cappedInfo = cappedCollections.get(cmd.getDb()).get(coll);
+                if (cappedInfo.containsKey("size")) {
+                    options.put("size", cappedInfo.get("size"));
+                }
+                if (cappedInfo.containsKey("max")) {
+                    options.put("max", cappedInfo.get("max"));
+                }
+            }
+            cursorData.add(Doc.of("name", coll, "type", "collection", "options", options, "info",
                                   Doc.of("readonly", false, "UUID", UUID.randomUUID())).add("idIndex",
                                           Doc.of("v", 2.0, "key", Doc.of("_id", 1), "name", "_id_1", "ns",
                                                  cmd.getDb() + "." + coll)));
@@ -1307,6 +1493,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int skip = normalizeSkip(cmd.getSkip());
 
         var filter = cmd.getFilter();
+        log.debug("InMemoryDriver.runFind: db={}, coll={}, filter={}", cmd.getDb(), cmd.getColl(), filter);
 
         if (filter == null) {
             filter = Doc.of();
@@ -1314,6 +1501,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         var result = find(cmd.getDb(), cmd.getColl(), filter, cmd.getSort(), cmd.getProjection(), cmd.getCollation(),
                           skip, limit, false);
+        log.debug("InMemoryDriver.runFind: returned {} results", result.size());
         return result;
     }
 
@@ -1439,11 +1627,129 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DropDatabaseMongoCommand cmd) {
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        log.info("InMemoryDriver: dropDatabase command for db='{}' (databases before: {})",
+                 cmd.getDb(), database.keySet());
         int ret = commandNumber.incrementAndGet();
         drop(cmd.getDb(), null);
+        log.info("InMemoryDriver: dropped database '{}' (databases after: {})", cmd.getDb(), database.keySet());
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "msg", "dropped database " + cmd.getDb())));
+        return ret;
+    }
+
+    private int runCommand(DropIndexesCommand cmd) {
+        int ret = commandNumber.incrementAndGet();
+        String db = cmd.getDb();
+        String coll = cmd.getColl();
+        Object index = cmd.getIndex();
+
+        if (index == null) {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "index field is required")));
+            return ret;
+        }
+
+        String indexName;
+        if (index instanceof String) {
+            indexName = (String) index;
+        } else if (index instanceof Map) {
+            // Key specification - build index name from it
+            StringBuilder b = new StringBuilder();
+            for (var entry : ((Map<String, Object>) index).entrySet()) {
+                if (b.length() > 0) b.append("_");
+                b.append(entry.getKey()).append("_").append(entry.getValue());
+            }
+            indexName = b.toString();
+        } else {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "invalid index specification")));
+            return ret;
+        }
+
+        // Get indexes for this collection
+        Map<String, List<Map<String, Object>>> indexesForDB = indicesByDbCollection.get(db);
+        if (indexesForDB == null) {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "database not found: " + db)));
+            return ret;
+        }
+
+        List<Map<String, Object>> indexesForCollection = indexesForDB.get(coll);
+        if (indexesForCollection == null) {
+            addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "collection not found: " + coll)));
+            return ret;
+        }
+
+        int droppedCount = 0;
+
+        if ("*".equals(indexName)) {
+            // Drop all indexes except _id
+            List<Map<String, Object>> toRemove = new ArrayList<>();
+            for (Map<String, Object> idx : indexesForCollection) {
+                // Index name is stored in $options.name
+                String name = null;
+                Map<String, Object> opts = (Map<String, Object>) idx.get("$options");
+                if (opts != null) {
+                    name = (String) opts.get("name");
+                }
+                if (name == null) {
+                    name = (String) idx.get("name");  // Fallback to top-level
+                }
+                if (!"_id_".equals(name)) {
+                    toRemove.add(idx);
+                }
+            }
+            indexesForCollection.removeAll(toRemove);
+            droppedCount = toRemove.size();
+
+            // Clear index data
+            if (indexDataByDBCollection.containsKey(db) && indexDataByDBCollection.get(db).containsKey(coll)) {
+                indexDataByDBCollection.get(db).get(coll).clear();
+            }
+
+            log.info("Dropped {} indexes from {}.{}", droppedCount, db, coll);
+        } else {
+            // Drop specific index by name
+            Map<String, Object> toRemove = null;
+            for (Map<String, Object> idx : indexesForCollection) {
+                // Index name is stored in $options.name
+                String name = null;
+                Map<String, Object> opts = (Map<String, Object>) idx.get("$options");
+                if (opts != null) {
+                    name = (String) opts.get("name");
+                }
+                if (name == null) {
+                    name = (String) idx.get("name");  // Fallback to top-level
+                }
+                if (indexName.equals(name)) {
+                    toRemove = idx;
+                    break;
+                }
+            }
+
+            if (toRemove != null) {
+                indexesForCollection.remove(toRemove);
+                droppedCount = 1;
+
+                // Remove index data for this specific index
+                // Key fields are stored at top level (all entries except $options)
+                if (indexDataByDBCollection.containsKey(db)
+                        && indexDataByDBCollection.get(db).containsKey(coll)) {
+                    StringBuilder fields = new StringBuilder();
+                    for (var entry : toRemove.entrySet()) {
+                        if (entry.getKey().startsWith("$")) continue;  // Skip $options
+                        if (fields.length() > 0) fields.append(",");
+                        fields.append(entry.getKey());
+                    }
+                    if (fields.length() > 0) {
+                        indexDataByDBCollection.get(db).get(coll).remove(fields.toString());
+                    }
+                }
+
+                log.info("Dropped index {} from {}.{}", indexName, db, coll);
+            } else {
+                addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "index not found: " + indexName)));
+                return ret;
+            }
+        }
+
+        addResult(ret, prepareResult(Doc.of("ok", 1.0, "nIndexesWas", indexesForCollection.size() + droppedCount)));
         return ret;
     }
 
@@ -1626,12 +1932,54 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(AggregateMongoCommand cmd) {
-        if (cmd.getDb().equals("admin") && cmd.getColl().equals("atlascli")) {
-            int ret = commandNumber.incrementAndGet();
+        int ret = commandNumber.incrementAndGet();
+
+        // Keep compatibility with older tooling probing for atlascli in admin
+        if ("admin".equals(cmd.getDb()) && "atlascli".equals(cmd.getColl())) {
             addResult(ret, prepareResult(Doc.of("ok", 0.0, "msg", "not found")));
             return ret;
         }
-        throw new IllegalArgumentException("please use morphium for aggregation in Memory!");
+
+        try {
+            Morphium m = getAggregationMorphium(cmd.getDb());
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            InMemAggregator<Map<String, Object>, Map<String, Object>> agg = new InMemAggregator(m, (Class) Map.class, (Class) Map.class);
+            agg.setCollectionName(cmd.getColl());
+
+            if (cmd.getPipeline() != null) {
+                agg.getPipeline().addAll(cmd.getPipeline());
+            }
+
+            List<Map<String, Object>> allResults = agg.aggregateMap();
+
+            int batchSize = 0;
+            if (cmd.getBatchSize() != null && cmd.getBatchSize() > 0) {
+                batchSize = cmd.getBatchSize();
+            } else if (cmd.getCursor() != null && cmd.getCursor().get("batchSize") instanceof Number n && n.intValue() > 0) {
+                batchSize = n.intValue();
+            } else if (getDefaultBatchSize() > 0) {
+                batchSize = getDefaultBatchSize();
+            } else {
+                batchSize = Math.min(allResults.size(), 101);
+            }
+
+            String namespace = cmd.getDb() + "." + cmd.getColl();
+            long cursorId = registerCursorBuffer(namespace, allResults, batchSize);
+
+            List<Map<String, Object>> firstBatch;
+            if (cursorId != 0L && allResults.size() > batchSize) {
+                firstBatch = new ArrayList<>(allResults.subList(0, batchSize));
+            } else {
+                firstBatch = allResults;
+            }
+
+            Map<String, Object> cursor = Doc.of("firstBatch", firstBatch, "ns", namespace, "id", cursorId);
+            addResult(ret, prepareResult(Doc.of("cursor", cursor)));
+            return ret;
+        } catch (Exception e) {
+            addResult(ret, prepareResult(Doc.of("ok", 0.0, "errmsg", "aggregate failed: " + e.getMessage())));
+            return ret;
+        }
     }
 
     private int runCommand(MongoCommand cmd) {
@@ -1683,7 +2031,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return 0L;
         }
 
-        Deque<Map<String, Object>> remaining = new ArrayDeque<>(allResults.subList(batchSize, allResults.size()));
+        // Use ConcurrentLinkedDeque for lock-free cursor operations
+        Deque<Map<String, Object>> remaining = new java.util.concurrent.ConcurrentLinkedDeque<>(allResults.subList(batchSize, allResults.size()));
         long cursorId = cursorIdSequence.getAndIncrement();
         activeQueryCursors.put(cursorId, new CursorResultBuffer(remaining, namespace, batchSize));
         return cursorId;
@@ -1692,21 +2041,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private List<Map<String, Object>> drainNextBatch(long cursorId, int requestedBatchSize) {
         List<Map<String, Object>> result = new ArrayList<>();
 
+        // Lock-free drain using ConcurrentLinkedDeque - no synchronized block needed
         activeQueryCursors.computeIfPresent(cursorId, (id, buffer) -> {
-            synchronized (buffer) {
-                int size = requestedBatchSize > 0 ? requestedBatchSize : buffer.defaultBatchSize;
+            int size = requestedBatchSize > 0 ? requestedBatchSize : buffer.defaultBatchSize;
 
-                if (size <= 0) {
-                    size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
-                }
-
-                for (int i = 0; i < size && !buffer.remaining.isEmpty(); i++) {
-                    result.add(buffer.remaining.pollFirst());
-                }
-
-                // Return null to remove the cursor if empty, otherwise keep it
-                return buffer.remaining.isEmpty() ? null : buffer;
+            if (size <= 0) {
+                size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
             }
+
+            for (int i = 0; i < size; i++) {
+                Map<String, Object> doc = buffer.remaining.pollFirst();
+                if (doc == null) break;
+                result.add(doc);
+            }
+
+            // Return null to remove the cursor if empty, otherwise keep it
+            return buffer.remaining.isEmpty() ? null : buffer;
         });
 
         return result;
@@ -1763,6 +2113,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @Override
     public String getName() {
         return driverName;
+    }
+
+    @Override
+    public boolean isInMemoryBackend() {
+        return true;
     }
 
     @Override
@@ -1830,6 +2185,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void connect() {
+        if (initialized.get() && running && exec != null && !exec.isShutdown()) {
+            return;
+        }
+
+        synchronized (this) {
+            if (initialized.get() && running && exec != null && !exec.isShutdown()) {
+                return;
+            }
+            initialized.set(true);
+            running = true;
+        }
+
         try (ScanResult scanResult = new ClassGraph()
             // .verbose() // Enable verbose logging
             .enableAnnotationInfo()
@@ -1847,6 +2214,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
 
                     if (cls.isInterface()) {
+                        continue;
+                    }
+
+                    // Skip GenericCommand - it's for dynamic/unknown commands and would cause
+                    // infinite recursion if registered with its default "not_set" command name
+                    if (cls.equals(GenericCommand.class)) {
                         continue;
                     }
 
@@ -2006,6 +2379,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public boolean isConnected() {
         return true;
+    }
+
+    /**
+     * Get the current change stream sequence number.
+     * Used by MorphiumServer for write concern coordination.
+     */
+    public long getChangeStreamSequence() {
+        return changeStreamSequence.get();
     }
 
     @Override
@@ -2199,14 +2580,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * Close method for when InMemoryDriver itself is used as a connection.
      * This happens in some legacy code paths.
      *
-     * NOTE: This should NOT affect the driver's scheduler or database!
-     * For proper driver shutdown, use shutdown(boolean clearData) instead.
+     * NOTE: In server mode (when used by MorphiumServer), this is a no-op to prevent
+     * internal Morphium instances from shutting down the driver via their shutdown hooks.
+     * Use forceShutdown() to actually shutdown the driver in server mode.
      */
     public void close() {
-        log.info("InMemoryDriver.close() called - instance {}", System.identityHashCode(this));
+        log.info("InMemoryDriver.close() called - instance {}, serverMode={}", System.identityHashCode(this), serverMode);
+        if (serverMode) {
+            log.info("InMemoryDriver in server mode, ignoring close() call");
+            return;
+        }
         // When Morphium.close() is called, shutdown the driver completely
         shutdown(true);
         log.info("InMemoryDriver.close() completed - instance {}", System.identityHashCode(this));
+    }
+
+    /**
+     * Force shutdown of the InMemoryDriver, even in server mode.
+     * Called by MorphiumServer.shutdown() to properly shut down the driver.
+     */
+    public void forceShutdown() {
+        log.info("InMemoryDriver.forceShutdown() called - instance {}", System.identityHashCode(this));
+        boolean wasServerMode = serverMode;
+        serverMode = false; // Temporarily disable server mode to allow shutdown
+        shutdown(true);
+        log.info("InMemoryDriver.forceShutdown() completed - instance {}, wasServerMode={}", System.identityHashCode(this), wasServerMode);
     }
 
     /**
@@ -2226,6 +2624,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
         running = false;
+        initialized.set(false);
 
         // Shutdown the scheduler - this is driver-level, not connection-level
         if (exec != null && !exec.isShutdown()) {
@@ -2255,10 +2654,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         // Notify any waiting threads
-        for (Object m : monitors) {
-            synchronized (m) {
-                m.notifyAll();
-            }
+        for (WatchMonitor m : monitors) {
+            m.signalAll();
         }
 
         if (clearData) {
@@ -2532,6 +2929,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 query = Doc.of();
             }
 
+            // Validate query operators upfront to catch invalid queries even on empty collections
+            QueryHelper.validateQuery(query);
+
             // Special handling for map field queries like "stringMap.key1"
             // System.out.println("[DEBUG_LOG] Original query: " + query);
             Map<String, Object> renamedQuery = new LinkedHashMap<>(query);
@@ -2727,35 +3127,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             }
                             o = projected;
                         } else {
-                            // exclusion style: start with full doc copy and remove excluded fields
-                            while (true) {
-                                try {
-                                    o = deepCopyDoc(o);
-                                    break;
-                                } catch (ConcurrentModificationException c) {
-                                    // retry until it works
-                                }
-                            }
+                            // exclusion style: copy only non-excluded fields
+                            // Build set of excluded top-level fields for O(1) lookup
+                            Set<String> excludedFields = new HashSet<>();
+                            Set<String> nestedExclusions = new HashSet<>();
                             for (var e : projection.entrySet()) {
                                 var k = e.getKey();
                                 var v = e.getValue();
                                 boolean exclude = (v instanceof Number && ((Number) v).intValue() == 0)
                                                   || (v instanceof Boolean && !(Boolean) v);
                                 if (exclude) {
-                                    removeByPath(o, k);
+                                    if (k.contains(".")) {
+                                        nestedExclusions.add(k);
+                                    } else {
+                                        excludedFields.add(k);
+                                    }
                                 }
                             }
+                            o = deepCopyDocExcluding(o, excludedFields, nestedExclusions);
                         }
                     } else {
                         // No projection - need full deep copy for external callers
-                        while (true) {
-                            try {
-                                o = deepCopyDoc(o);
-                                break;
-                            } catch (ConcurrentModificationException c) {
-                                // retry until it works
-                            }
-                        }
+                        o = deepCopyDocWithRetry(o);
                     }
 
                     // Convert ObjectId after copy
@@ -2840,7 +3233,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private static Map<String, Object> deepCopyDoc(Map<String, Object> src) {
-        Map<String, Object> out = new HashMap<>();
+        // Pre-size HashMap to avoid rehashing
+        Map<String, Object> out = new HashMap<>((int) (src.size() / 0.75) + 1);
         for (var e : src.entrySet()) {
             Object v = e.getValue();
             if (v instanceof Map) {
@@ -2848,13 +3242,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } else if (v instanceof List) {
                 v = deepCopyList((List) v);
             }
+            // Primitive types, Strings, Numbers, Dates, ObjectIds etc. are immutable - safe to share
             out.put(e.getKey(), v);
         }
         return out;
     }
 
     private static List deepCopyList(List src) {
-        List<Object> out = new ArrayList<>();
+        // Pre-size ArrayList to avoid resizing
+        List<Object> out = new ArrayList<>(src.size());
         for (Object item : src) {
             if (item instanceof Map) {
                 out.add(deepCopyDoc((Map<String, Object>) item));
@@ -2876,6 +3272,113 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         // Primitive types, Strings, Numbers, etc. are immutable and safe to share
         return v;
+    }
+
+    /**
+     * Deep copy with retry logic for handling concurrent modifications.
+     * Uses exponential backoff with a maximum number of retries.
+     */
+    private static Map<String, Object> deepCopyDocWithRetry(Map<String, Object> src) {
+        final int maxRetries = 10;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return deepCopyDoc(src);
+            } catch (ConcurrentModificationException e) {
+                if (attempt == maxRetries - 1) {
+                    throw new RuntimeException("Failed to deep copy document after " + maxRetries + " attempts", e);
+                }
+                // Exponential backoff: yield, then short sleep
+                Thread.yield();
+                if (attempt > 2) {
+                    try {
+                        Thread.sleep(1L << (attempt - 2)); // 1, 2, 4, 8, 16, 32, 64 ms
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during deep copy retry", ie);
+                    }
+                }
+            }
+        }
+        // Should not reach here, but compiler needs this
+        throw new RuntimeException("Failed to deep copy document");
+    }
+
+    /**
+     * Deep copy a document while excluding specified fields.
+     * More efficient than copy-then-remove for exclusion projections.
+     *
+     * @param src source document
+     * @param excludedFields top-level fields to exclude (no dots)
+     * @param nestedExclusions nested paths to exclude (with dots, e.g., "a.b.c")
+     */
+    private static Map<String, Object> deepCopyDocExcluding(Map<String, Object> src,
+            Set<String> excludedFields, Set<String> nestedExclusions) {
+        final int maxRetries = 10;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return deepCopyDocExcludingInternal(src, excludedFields, nestedExclusions, "");
+            } catch (ConcurrentModificationException e) {
+                if (attempt == maxRetries - 1) {
+                    throw new RuntimeException("Failed to deep copy document after " + maxRetries + " attempts", e);
+                }
+                Thread.yield();
+                if (attempt > 2) {
+                    try {
+                        Thread.sleep(1L << (attempt - 2));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during deep copy retry", ie);
+                    }
+                }
+            }
+        }
+        throw new RuntimeException("Failed to deep copy document");
+    }
+
+    private static Map<String, Object> deepCopyDocExcludingInternal(Map<String, Object> src,
+            Set<String> excludedFields, Set<String> nestedExclusions, String currentPath) {
+        Map<String, Object> out = new HashMap<>((int) (src.size() / 0.75) + 1);
+        for (var e : src.entrySet()) {
+            String key = e.getKey();
+
+            // Check if this top-level field should be excluded
+            if (currentPath.isEmpty() && excludedFields.contains(key)) {
+                continue;
+            }
+
+            // Build the full path for nested exclusion checks
+            String fullPath = currentPath.isEmpty() ? key : currentPath + "." + key;
+
+            // Check if this exact path should be excluded
+            if (nestedExclusions.contains(fullPath)) {
+                continue;
+            }
+
+            Object v = e.getValue();
+            if (v instanceof Map) {
+                // Check if any nested exclusions apply to children of this field
+                boolean hasNestedExclusion = false;
+                String prefix = fullPath + ".";
+                for (String nested : nestedExclusions) {
+                    if (nested.startsWith(prefix)) {
+                        hasNestedExclusion = true;
+                        break;
+                    }
+                }
+                if (hasNestedExclusion) {
+                    // Recurse with exclusion handling
+                    v = deepCopyDocExcludingInternal((Map<String, Object>) v,
+                            Collections.emptySet(), nestedExclusions, fullPath);
+                } else {
+                    // No nested exclusions for this subtree, use regular deep copy
+                    v = deepCopyDoc((Map<String, Object>) v);
+                }
+            } else if (v instanceof List) {
+                v = deepCopyList((List) v);
+            }
+            out.put(key, v);
+        }
+        return out;
     }
 
     private static Object applySlice(Object arrayVal, Object sliceSpec) {
@@ -3411,11 +3914,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, Object> result = null;
 
         while (result == null) {
-            synchronized (commandResults) {
-                if (!commandResults.isEmpty()) {
-                    result = commandResults.remove(0);
-                }
-            }
+            // Lock-free poll from ConcurrentLinkedQueue
+            result = commandResults.poll();
 
             if (result == null) {
                 if (System.currentTimeMillis() >= deadline) {
@@ -3425,10 +3925,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     msg.setFirstDoc(emptyResponse);
                     return msg;
                 }
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                // Use LockSupport.parkNanos for virtual thread compatibility (doesn't pin carrier thread)
+                java.util.concurrent.locks.LockSupport.parkNanos(10_000_000L); // 10ms
+                if (Thread.interrupted()) {
                     break;
                 }
             }
@@ -3447,32 +3946,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
-        synchronized (commandLock) {
-            // prefer id-based lookup to avoid cross-talk between concurrent commands
-            Map<String, Object> direct = commandResultsById.remove(id);
+        // Lock-free lookup from ConcurrentHashMap - results are always stored by ID
+        Map<String, Object> direct = commandResultsById.remove(id);
+        if (direct != null) {
+            return direct;
+        }
+
+        // Brief wait with backoff - should rarely happen as commands store results immediately
+        int attempts = 0;
+        while (attempts < 20) {
+            // Use LockSupport.parkNanos for virtual thread compatibility
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L); // 1ms
+            if (Thread.interrupted()) {
+                break;
+            }
+
+            attempts++;
+            direct = commandResultsById.remove(id);
             if (direct != null) {
                 return direct;
             }
-
-            int attempts = 0;
-
-            while (commandResults.isEmpty() && attempts < 50) {
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-
-                attempts++;
-                direct = commandResultsById.remove(id);
-                if (direct != null) {
-                    return direct;
-                }
-            }
-
-            return null;
         }
+
+        return null;
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -3507,6 +4003,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // This method is called with the write lock already held (either by update() or
         // findAndOneAndUpdate())
         {
+            List<Map<String, Object>> writeErrors = new ArrayList<>();
             List<Map<String, Object>> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1,
                                                  true);
             int matchedCount = (lst == null) ? 0 : lst.size();
@@ -3538,12 +4035,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<Object> upsertedIds = new ArrayList<>();
             int modifiedCount = 0;
 
+            // Check if this is a replacement document (no $ operators) vs an update document (has $ operators)
+            boolean isReplacement = op.keySet().stream().noneMatch(k -> k.startsWith("$"));
+
             for (Map<String, Object> obj : lst) {
                 // keep a deep copy to detect if the object actually changed
                 Map<String, Object> original = deepClone(obj);
                 if (original == null) {
                     original = new HashMap<>(obj); // fallback
                 }
+
+                // Handle replacement document: replace entire document except _id
+                if (isReplacement) {
+                    Object idValue = obj.get("_id");
+                    obj.clear();
+                    if (idValue != null) {
+                        obj.put("_id", idValue);
+                    }
+                    obj.putAll(op);  // Copy all fields from replacement document
+                    // Track modifications for watchers
+                    if (!obj.equals(original)) {
+                        modified.add(obj.get("_id"));
+                        modifiedCount++;
+                    }
+                    continue;  // Skip to next document, no need to process as update operators
+                }
+
                 for (String operand : op.keySet()) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
@@ -3569,24 +4086,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     String[] path = entry.getKey().split("\\.");
                                     var current = obj;
                                     Map lastEl = null;
+                                    boolean pathError = false;
 
-                                    for (String p : path) {
-                                        if (current.get(p) != null) {
-                                            if (current.get(p) instanceof Map) {
-                                                ((Map) current.get(p)).put(p, Doc.of());
+                                    // Navigate to parent, creating intermediate documents as needed
+                                    for (int i = 0; i < path.length - 1; i++) {
+                                        String p = path[i];
+                                        Object existing = current.get(p);
+                                        if (existing != null) {
+                                            if (existing instanceof Map) {
+                                                lastEl = current;
+                                                current = (Map) existing;
                                             } else {
-                                                log.error("could not set value! " + p);
+                                                // Type mismatch - cannot create field in non-document
+                                                String errorMsg = String.format(
+                                                    "Cannot create field '%s' in element {%s: %s}",
+                                                    path[i + 1], p, existing);
+                                                log.error(errorMsg);
+                                                writeErrors.add(Doc.of(
+                                                    "index", 0,
+                                                    "code", 28,
+                                                    "errmsg", errorMsg
+                                                ));
+                                                pathError = true;
                                                 break;
                                             }
                                         } else {
-                                            current.put(p, Doc.of());
+                                            // Create intermediate document
+                                            Map<String, Object> newDoc = Doc.of();
+                                            current.put(p, newDoc);
+                                            lastEl = current;
+                                            current = newDoc;
                                         }
-
-                                        lastEl = current;
-                                        current = (Map) current.get(p);
                                     }
 
-                                    lastEl.put(path[path.length - 1], v);
+                                    if (!pathError) {
+                                        // Set the final field
+                                        current.put(path[path.length - 1], v);
+                                    }
                                 } else {
                                     obj.put(entry.getKey(), v);
                                 }
@@ -4032,6 +4568,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (!upsertedIds.isEmpty()) {
                 res.put("upsertedIds", upsertedIds);
             }
+            if (!writeErrors.isEmpty()) {
+                res.put("writeErrors", writeErrors);
+            }
             return res;
         }
     }
@@ -4176,17 +4715,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // The eventDispatcher then queues events to each subscription's executor
         try {
             eventDispatcher.execute(() -> {
-                // log.info("Dispatching event: db={}, coll={}, op={}, driver instance={}", eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"), System.identityHashCode(InMemoryDriver.this));
+                log.trace("Dispatching event: db={}, coll={}, op={}", eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"));
 
                 // Deliver to database-level subscribers
                 var dbSubs = changeStreamSubscribers.get(eventInfo.db);
-                // log.debug("DB subscribers for '{}': {}", eventInfo.db, dbSubs != null ? dbSubs.size() : 0);
                 deliverToSubscribers(dbSubs, eventInfo);
+
+                // Deliver to database-level watches registered via MorphiumServer (with collection="1")
+                // When aggregate with $changeStream comes through wire protocol, collection is set to "1" for db-level watches
+                var dbAllSubs = changeStreamSubscribers.get(eventInfo.db + ".1");
+                deliverToSubscribers(dbAllSubs, eventInfo);
 
                 // Deliver to collection-level subscribers
                 if (eventInfo.collection != null) {
                     var collSubs = changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection);
-                    // rog.debug("Collection subscribers for '{}.{}': {}", eventInfo.db, eventInfo.collection, collSubs != null ? collSubs.size() : 0);
                     deliverToSubscribers(collSubs, eventInfo);
                 }
 
@@ -4231,12 +4773,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private void registerSubscription(ChangeStreamSubscription subscription) {
-        String namespaceKey = subscription.collection == null ? subscription.db
+        // Namespace key: "db" for db-only watch, "db.collection" for collection watch
+        // Must match keys used in dispatchEvent for proper event delivery
+        String namespaceKey = (subscription.collection == null || subscription.collection.isBlank())
+                              ? subscription.db
                               : subscription.db + "." + subscription.collection;
         subscription.namespaceKey = namespaceKey;
-        // log.info("registerSubscription: namespaceKey={}, driver instance={}", namespaceKey, System.identityHashCode(this));
+        log.debug("registerSubscription: namespaceKey={}", namespaceKey);
         changeStreamSubscribers.computeIfAbsent(namespaceKey, k -> new CopyOnWriteArrayList<>()).add(subscription);
-        // log.info("After registration, subscribers for {}: {}", namespaceKey, changeStreamSubscribers.get(namespaceKey).size());
     }
 
     private void unregisterSubscription(ChangeStreamSubscription subscription) {
@@ -4309,6 +4853,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<ChangeStreamSubscription> dbSubs = changeStreamSubscribers.get(db);
 
         if (dbSubs != null && !dbSubs.isEmpty()) {
+            return true;
+        }
+
+        // Check for database-level watches registered via MorphiumServer (with collection="1")
+        List<ChangeStreamSubscription> dbAllSubs = changeStreamSubscribers.get(db + ".1");
+
+        if (dbAllSubs != null && !dbAllSubs.isEmpty()) {
             return true;
         }
 
@@ -4489,7 +5040,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final WatchCommand.FullDocumentEnum fullDocumentMode;
         private final WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode;
         private final boolean showExpandedEvents;
-        private final Object monitor;
+        private final WatchMonitor monitor;
         private volatile boolean active = true;
         private final InMemAggregator aggregator; // reused per subscription
         private final boolean insertOnlyMatchPipeline;
@@ -4502,7 +5053,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                          List<Map<String, Object>> pipeline,
                                          WatchCommand.FullDocumentEnum fullDocumentMode,
                                          WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode,
-                                         boolean showExpandedEvents, Object monitor, long cursorId) {
+                                         boolean showExpandedEvents, WatchMonitor monitor, long cursorId) {
             this.db = db;
             this.collection = collection;
             this.callback = callback;
@@ -4525,6 +5076,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             if (!Objects.equals(db, info.db)) {
                 return false;
+            }
+
+            // Database-level watch: collection="1" means watch all collections in this db
+            if ("1".equals(collection)) {
+                return true;
             }
 
             if (collection == null) {
@@ -4554,32 +5110,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 subscriptionExecutor.shutdown();
             }
 
-            synchronized (monitor) {
-                monitor.notifyAll();
-            }
+            monitor.signalAll();
         }
 
         private void deliver(ChangeStreamEventInfo info) {
             if (!active) {
-                // log.debug("Subscription inactive, skipping delivery for {}.{}", info.db, info.collection);
                 return;
             }
 
-            // log.debug("Delivering change stream event for {}.{}, op={}", info.db, info.collection,
-            // info.event.get("operationType"));
-
-            // Messaging fast-path: pipeline is only matching on inserts; deliver a mutable copy directly
+            // Fast-path: insert-only pipeline matching inserts
             if (insertOnlyMatchPipeline && "insert".equals(info.event.get("operationType"))) {
                 try {
                     callback.incomingData(deepCopyDoc(info.event), System.currentTimeMillis() - info.createdAt);
+                    // Signal monitor to wake up watchInternal() thread immediately
+                    monitor.signalAll();
                 } catch (Exception e) {
                     log.error("Error calling change-stream callback", e);
                 }
-
                 if (!callback.isContinued()) {
                     deactivate();
                 }
+                return;
+            }
 
+            // Early check for required fullDocumentBeforeChange - skip copy if it would be filtered
+            if (beforeChangeMode == WatchCommand.FullDocumentBeforeChangeEnum.required
+                    && info.event.get("fullDocumentBeforeChange") == null) {
                 return;
             }
 
@@ -4587,19 +5143,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             adjustFullDocument(working);
 
             if (!applyFullDocumentBeforeChange(working)) {
-                // log.debug("Filtered out by fullDocumentBeforeChange requirement");
                 return;
             }
 
             Map<String, Object> processed = applyPipeline(working);
-
             if (processed == null) {
-                // log.debug("Filtered out by pipeline");
                 return;
             }
 
             try {
                 callback.incomingData(processed, System.currentTimeMillis() - info.createdAt);
+                // Signal monitor to wake up watchInternal() thread immediately
+                monitor.signalAll();
             } catch (Exception e) {
                 log.error("Error calling change-stream callback", e);
             }
@@ -5206,6 +5761,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(coll);
     }
 
+    /**
+     * Register a collection as capped. Used for replication to sync capped collection metadata.
+     */
+    public void registerCappedCollection(String db, String coll, int size, int max) {
+        cappedCollections.putIfAbsent(db, new HashMap<>());
+        cappedCollections.get(db).putIfAbsent(coll, new HashMap<>());
+        cappedCollections.get(db).get(coll).put("size", size);
+        cappedCollections.get(db).get(coll).put("max", max);
+    }
+
     @Override
     public Map<String, Integer> getNumConnectionsByHost() {
         return Map.of("inMem", 1);
@@ -5468,59 +6033,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         log.info("MapReduce internal: found {} documents to process", documents.size());
 
-        // Initialize JavaScript engine
-        System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
-        javax.script.ScriptEngineManager mgr = new javax.script.ScriptEngineManager();
-        javax.script.ScriptEngine engine = mgr.getEngineByExtension("js");
-
-        if (engine == null) {
-            engine = mgr.getEngineByName("js");
-        }
-        if (engine == null) {
-            engine = mgr.getEngineByName("JavaScript");
-        }
-        if (engine == null) {
-            throw new MorphiumDriverException("JavaScript engine not available for MapReduce");
+        // Initialize JavaScript engine using GraalVM polyglot Context directly
+        // This avoids ScriptEngineManager issues with GraalJS option compatibility
+        org.graalvm.polyglot.Context jsContext = null;
+        try {
+            jsContext = org.graalvm.polyglot.Context.newBuilder("js")
+                .allowAllAccess(true)
+                .option("engine.WarnInterpreterOnly", "false")
+                .build();
+        } catch (Exception e) {
+            log.error("Failed to create GraalVM polyglot context: {}", e.getMessage());
+            throw new MorphiumDriverException("JavaScript engine not available for MapReduce: " + e.getMessage());
         }
 
-        log.info("JavaScript engine found: {}", engine.getClass().getName());
+        log.info("JavaScript engine found: GraalVM polyglot Context");
 
         try {
             // Prepare the JavaScript environment
             // Add emit function to collect map results
             List<Map<String, Object>> mapResults = new ArrayList<>();
 
-            // Create a Java object to handle emit calls from JavaScript
-            MapReduceEmitter emitter = new MapReduceEmitter(mapResults);
-
-            // Create a simple approach using a List that GraalJS can access
-            List<Map<String, Object>> emitResults = new ArrayList<>();
-            engine.put("emitResults", emitResults);
-
             // Test basic JavaScript functionality
-            Object basicTest = engine.eval("1 + 1");
-            log.info("Basic JS test (1+1): {}", basicTest);
-
-            // Define emit function in JavaScript that calls our Java emitter
-            // log.debug("Setting up emit function with emitter: {}", emitter);
-
-            // Define emit function by putting it directly in the bindings
-            engine.put("emit", new Object() {
-                public void emit(Object key, Object value) {
-                    log.info("Java emit function called with key={}, value={}", key, value);
-                    emitter.emit(key, value);
-                }
-            });
+            org.graalvm.polyglot.Value basicTest = jsContext.eval("js", "1 + 1");
+            log.info("Basic JS test (1+1): {}", basicTest.asInt());
 
             // Create a JavaScript array and define emit function to use it
-            engine.eval("var jsEmitResults = [];");
-            engine.eval("function emit(key, value) { " +
+            jsContext.eval("js", "var jsEmitResults = [];");
+            jsContext.eval("js", "function emit(key, value) { " +
                         "  var result = { _id: key, value: value }; " +
                         "  jsEmitResults.push(result); " +
                         "}");
 
             // Provide an ObjectId() function compatible with MongoDB map/reduce scripts
-            engine.eval("function ObjectId() { " +
+            jsContext.eval("js", "function ObjectId() { " +
                         "  var hex = '0123456789abcdef';" +
                         "  var id = '';" +
                         "  for (var i = 0; i < 24; i++) {" +
@@ -5530,47 +6075,47 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         "}");
 
             // Prepare the map function once
-            engine.eval("var mapFunc = " + mapFunction + ";");
+            jsContext.eval("js", "var mapFunc = " + mapFunction + ";");
 
             // Phase 1: Map phase - execute map function for each document
             log.info("Starting map phase with {} documents", documents.size());
             for (Map<String, Object> doc : documents) {
-                // log.debug("Processing document: {}", doc);
                 // Execute map function with document bound to `this`
                 try {
                     String jsonDoc = Utils.toJsonString(doc);
                     String escapedJson = jsonDoc.replace("\\", "\\\\").replace("'", "\\'");
                     String executable = "var __mapDoc = JSON.parse('" + escapedJson + "'); mapFunc.call(__mapDoc);";
-                    // log.debug("Executing map function for document");
-                    engine.eval(executable);
+                    jsContext.eval("js", executable);
                 } catch (Exception e) {
                     log.error("JavaScript execution error: {}", e.getMessage(), e);
                 }
-                Object jsArraySize = engine.eval("jsEmitResults.length");
-                // log.debug("Map results so far: {}", jsArraySize);
             }
 
             // Get the final JavaScript array size and convert to Java objects
-            Object finalJsArraySize = engine.eval("jsEmitResults.length");
-            log.info("Map phase completed with {} emissions", finalJsArraySize);
+            org.graalvm.polyglot.Value finalJsArraySize = jsContext.eval("js", "jsEmitResults.length");
+            log.info("Map phase completed with {} emissions", finalJsArraySize.asInt());
 
-            // Convert JavaScript array to Java List using standard ScriptEngine approach
-            JSONParser jsonParser = new JSONParser();
-            Object jsArrayLength = engine.eval("jsEmitResults.length");
-            if (jsArrayLength instanceof Number) {
-                int arrayLength = ((Number) jsArrayLength).intValue();
-                log.info("Converting {} JavaScript results to Java", arrayLength);
+            // Convert JavaScript array to Java List
+            int arrayLength = finalJsArraySize.asInt();
+            log.info("Converting {} JavaScript results to Java", arrayLength);
 
-                for (int i = 0; i < arrayLength; i++) {
-                    Object key = engine.eval("jsEmitResults[" + i + "]._id");
-                    String valueJson = (String) engine.eval("JSON.stringify(jsEmitResults[" + i + "].value)");
+            for (int i = 0; i < arrayLength; i++) {
+                org.graalvm.polyglot.Value keyVal = jsContext.eval("js", "jsEmitResults[" + i + "]._id");
+                org.graalvm.polyglot.Value valueJsonVal = jsContext.eval("js", "JSON.stringify(jsEmitResults[" + i + "].value)");
 
-                    Map<String, Object> javaResult = new HashMap<>();
-                    javaResult.put("_id", key);
-                    javaResult.put("valueJson", valueJson);
-                    mapResults.add(javaResult);
-                    // log.debug("Converted result {}: key={}, valueJson={}", i, key, valueJson);
+                Object key;
+                if (keyVal.isBoolean()) {
+                    key = keyVal.asBoolean();
+                } else if (keyVal.isNumber()) {
+                    key = keyVal.asDouble();
+                } else {
+                    key = keyVal.asString();
                 }
+
+                Map<String, Object> javaResult = new HashMap<>();
+                javaResult.put("_id", key);
+                javaResult.put("valueJson", valueJsonVal.asString());
+                mapResults.add(javaResult);
             }
 
             // Phase 2: Group by key
@@ -5583,24 +6128,37 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             if (reduceFunction != null && !reduceFunction.trim().isEmpty()) {
-                engine.eval("var reduceFunc = " + reduceFunction + ";");
+                jsContext.eval("js", "var reduceFunc = " + reduceFunction + ";");
             }
 
             if (finalizeFunction != null && !finalizeFunction.trim().isEmpty()) {
-                engine.eval("var finalizeFunc = " + finalizeFunction + ";");
+                jsContext.eval("js", "var finalizeFunc = " + finalizeFunction + ";");
             }
 
             // Phase 3: Reduce phase - execute reduce function for each key
             List<Map<String, Object>> finalResults = new ArrayList<>();
+            JSONParser jsonParser = new JSONParser();
             for (Map.Entry<Object, List<String>> entry : groupedResults.entrySet()) {
                 Object key = entry.getKey();
                 List<String> values = entry.getValue();
 
-                Object reducedValue;
+                org.graalvm.polyglot.Value reducedValue;
                 if (reduceFunction == null || reduceFunction.trim().isEmpty()) {
-                    reducedValue = values.size() == 1 ? values.get(0) : new ArrayList<>(values);
+                    // No reduce function - just return the value as-is
+                    String valueJson = values.size() == 1 ? values.get(0) : "[" + String.join(",", values) + "]";
+                    reducedValue = jsContext.eval("js", valueJson);
                 } else {
-                    engine.put("__javaKey__", key);
+                    // Set key as JavaScript variable
+                    String keyJs;
+                    if (key instanceof Boolean) {
+                        keyJs = key.toString();
+                    } else if (key instanceof Number) {
+                        keyJs = key.toString();
+                    } else {
+                        keyJs = "\"" + key.toString().replace("\"", "\\\"") + "\"";
+                    }
+                    jsContext.eval("js", "var __javaKey__ = " + keyJs + ";");
+
                     StringBuilder valuesArrayJson = new StringBuilder("[");
                     for (int i = 0; i < values.size(); i++) {
                         if (i > 0) {
@@ -5609,39 +6167,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         valuesArrayJson.append(values.get(i));
                     }
                     valuesArrayJson.append(']');
-                    engine.put("__valuesJson__", valuesArrayJson.toString());
-                    reducedValue = engine.eval("reduceFunc(__javaKey__, JSON.parse(__valuesJson__))");
+                    jsContext.eval("js", "var __valuesArray__ = " + valuesArrayJson + ";");
+                    reducedValue = jsContext.eval("js", "reduceFunc(__javaKey__, __valuesArray__)");
                 }
 
                 // Apply finalize function if provided
                 if (finalizeFunction != null && !finalizeFunction.trim().isEmpty()) {
-                    engine.put("__javaKey__", key);
-                    engine.put("__reducedValue__", reducedValue);
-                    reducedValue = engine.eval("finalizeFunc(__javaKey__, __reducedValue__)");
+                    String keyJs;
+                    if (key instanceof Boolean) {
+                        keyJs = key.toString();
+                    } else if (key instanceof Number) {
+                        keyJs = key.toString();
+                    } else {
+                        keyJs = "\"" + key.toString().replace("\"", "\\\"") + "\"";
+                    }
+                    jsContext.eval("js", "var __javaKey__ = " + keyJs + ";");
+                    jsContext.getBindings("js").putMember("__reducedValue__", reducedValue);
+                    reducedValue = jsContext.eval("js", "finalizeFunc(__javaKey__, __reducedValue__)");
                 }
 
                 // Create result document
                 Map<String, Object> result = new HashMap<>();
                 result.put("_id", key);
-                if (reducedValue instanceof Map) {
-                    result.put("value", reducedValue);
-                } else {
-                    try {
-                        engine.put("__reducedJson__", reducedValue);
-                        String reducedJson = (String) engine.eval("JSON.stringify(__reducedJson__)");
-                        Object parsed = jsonParser.parse(reducedJson);
-                        result.put("value", parsed);
-                    } catch (ParseException pe) {
-                        throw new MorphiumDriverException("Failed to parse reduce result", pe);
-                    }
+
+                // Convert polyglot Value to Java object
+                try {
+                    // Store the reduced value for stringify
+                    jsContext.getBindings("js").putMember("__reducedValue__", reducedValue);
+                    String reducedJson = jsContext.eval("js", "JSON.stringify(__reducedValue__)").asString();
+                    Object parsed = jsonParser.parse(reducedJson);
+                    result.put("value", parsed);
+                } catch (ParseException pe) {
+                    throw new MorphiumDriverException("Failed to parse reduce result", pe);
                 }
                 finalResults.add(result);
             }
 
             return finalResults;
 
-        } catch (javax.script.ScriptException e) {
+        } catch (Exception e) {
             throw new MorphiumDriverException("JavaScript error in MapReduce: " + e.getMessage(), e);
+        } finally {
+            if (jsContext != null) {
+                jsContext.close();
+            }
         }
     }
 
@@ -5693,9 +6262,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
+    /**
+     * WatchMonitor uses ReentrantLock and Condition instead of synchronized/wait/notify.
+     * This allows virtual threads to properly yield their carrier thread when waiting,
+     * preventing carrier thread pinning which limits scalability to ~256 concurrent watches.
+     */
+    private static class WatchMonitor {
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Condition condition = lock.newCondition();
+
+        void await(long timeoutMs) throws InterruptedException {
+            lock.lock();
+            try {
+                condition.await(timeoutMs, TimeUnit.MILLISECONDS);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        void signalAll() {
+            lock.lock();
+            try {
+                condition.signalAll();
+            } finally {
+                lock.unlock();
+            }
+        }
+    }
+
     private class InMemoryFindCursor extends MorphiumCursor {
         private int internalIndex = 0;
         private int index = 0;
+        // Use ReentrantLock instead of synchronized to avoid carrier thread pinning with virtual threads
+        private final java.util.concurrent.locks.ReentrantLock cursorLock = new java.util.concurrent.locks.ReentrantLock();
 
         InMemoryFindCursor(long cursorId, String namespace, List<Map<String, Object>> firstBatch, int batchSize) {
             setCursorId(cursorId);
@@ -5723,7 +6322,42 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         @Override
-        public synchronized boolean hasNext() {
+        public boolean hasNext() {
+            cursorLock.lock();
+            try {
+                if (getBatch() != null && internalIndex < getBatch().size()) {
+                    return true;
+                }
+
+                if (getCursorId() == 0) {
+                    return false;
+                }
+
+                loadNextBatch();
+                return getBatch() != null && internalIndex < getBatch().size();
+            } finally {
+                cursorLock.unlock();
+            }
+        }
+
+        @Override
+        public Map<String, Object> next() {
+            cursorLock.lock();
+            try {
+                if (!hasNextInternal()) {
+                    return null;
+                }
+
+                Map<String, Object> doc = getBatch().get(internalIndex++);
+                index++;
+                return doc;
+            } finally {
+                cursorLock.unlock();
+            }
+        }
+
+        // Internal hasNext without locking (called when lock is already held)
+        private boolean hasNextInternal() {
             if (getBatch() != null && internalIndex < getBatch().size()) {
                 return true;
             }
@@ -5737,85 +6371,101 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         @Override
-        public synchronized Map<String, Object> next() {
-            if (!hasNext()) {
-                return null;
-            }
+        public void close() {
+            cursorLock.lock();
+            try {
+                if (getCursorId() != 0) {
+                    closeCursor(getCursorId());
+                    setCursorId(0);
+                }
 
-            Map<String, Object> doc = getBatch().get(internalIndex++);
-            index++;
-            return doc;
+                setBatch(Collections.emptyList());
+                internalIndex = 0;
+            } finally {
+                cursorLock.unlock();
+            }
         }
 
         @Override
-        public synchronized void close() {
-            if (getCursorId() != 0) {
-                closeCursor(getCursorId());
-                setCursorId(0);
+        public int available() {
+            cursorLock.lock();
+            try {
+                if (getBatch() == null) {
+                    return 0;
+                }
+                return Math.max(0, getBatch().size() - internalIndex);
+            } finally {
+                cursorLock.unlock();
             }
-
-            setBatch(Collections.emptyList());
-            internalIndex = 0;
         }
 
         @Override
-        public synchronized int available() {
-            if (getBatch() == null) {
-                return 0;
+        public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+            cursorLock.lock();
+            try {
+                List<Map<String, Object>> res = new ArrayList<>();
+
+                while (hasNextInternal()) {
+                    Map<String, Object> doc = getBatch().get(internalIndex++);
+                    index++;
+                    res.add(doc);
+                }
+
+                return res;
+            } finally {
+                cursorLock.unlock();
             }
-            return Math.max(0, getBatch().size() - internalIndex);
         }
 
         @Override
-        public synchronized List<Map<String, Object>> getAll() throws MorphiumDriverException {
-            List<Map<String, Object>> res = new ArrayList<>();
-
-            while (hasNext()) {
-                res.add(next());
-            }
-
-            return res;
-        }
-
-        @Override
-        public synchronized void ahead(int jump) throws MorphiumDriverException {
+        public void ahead(int jump) throws MorphiumDriverException {
             if (jump < 0) {
                 throw new IllegalArgumentException("jump must be >= 0");
             }
 
-            internalIndex += jump;
-            index += jump;
+            cursorLock.lock();
+            try {
+                internalIndex += jump;
+                index += jump;
 
-            while (getBatch() != null && internalIndex >= getBatch().size()) {
-                int diff = internalIndex - getBatch().size();
+                while (getBatch() != null && internalIndex >= getBatch().size()) {
+                    int diff = internalIndex - getBatch().size();
 
-                if (getCursorId() == 0) {
-                    internalIndex = getBatch() != null ? getBatch().size() : 0;
-                    break;
+                    if (getCursorId() == 0) {
+                        internalIndex = getBatch() != null ? getBatch().size() : 0;
+                        break;
+                    }
+
+                    loadNextBatch();
+
+                    if (getBatch() == null || getBatch().isEmpty()) {
+                        internalIndex = 0;
+                        break;
+                    }
+
+                    internalIndex = diff;
                 }
-
-                loadNextBatch();
-
-                if (getBatch() == null || getBatch().isEmpty()) {
-                    internalIndex = 0;
-                    break;
-                }
-
-                internalIndex = diff;
+            } finally {
+                cursorLock.unlock();
             }
         }
 
         @Override
-        public synchronized void back(int jump) throws MorphiumDriverException {
+        public void back(int jump) throws MorphiumDriverException {
             if (jump < 0) {
                 throw new IllegalArgumentException("jump must be >= 0");
             }
 
-            internalIndex -= jump;
-            index -= jump;
+            cursorLock.lock();
+            try {
+                internalIndex -= jump;
+                index -= jump;
 
-            if (internalIndex < 0) {
-                throw new IllegalArgumentException("cannot jump back over batch boundaries!");
+                if (internalIndex < 0) {
+                    throw new IllegalArgumentException("cannot jump back over batch boundaries!");
+                }
+            } finally {
+                cursorLock.unlock();
             }
         }
 

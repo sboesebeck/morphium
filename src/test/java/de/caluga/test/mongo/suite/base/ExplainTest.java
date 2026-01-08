@@ -10,14 +10,18 @@ import org.junit.jupiter.api.Test;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("core")
-public class ExplainTest extends MorphiumTestBase {
+public class ExplainTest extends MultiDriverTestBase {
 
 
-    @Test
-    public void queryExplainTest() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void queryExplainTest(Morphium morphium) throws Exception  {
+        createUncachedObjects(morphium, 100);
 
         var q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42);
 

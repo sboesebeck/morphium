@@ -1,11 +1,11 @@
 package de.caluga.test.mongo.suite.aggregationStages;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -14,12 +14,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 @Tag("aggregation")
-public class LookupTests extends MorphiumTestBase {
+public class LookupTests extends MultiDriverTestBase {
 
-    @Test
-    public void singleEqualityJoinTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void singleEqualityJoinTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Order.class);
         morphium.dropCollection(Inventory.class);
         morphium.store(new Order(1, "almonds", 12.0, 2));
@@ -49,8 +53,9 @@ public class LookupTests extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void multipleConditionAndPipelines() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void multipleConditionAndPipelines(Morphium morphium) throws Exception  {
         morphium.dropCollection(Order.class);
         morphium.dropCollection(Inventory.class);
         Thread.sleep(100);

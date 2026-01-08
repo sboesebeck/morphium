@@ -41,6 +41,9 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import de.caluga.test.support.TestConfig;
 
 // @Disabled
+@Tag("driver")
+@Tag("external")  // Requires real MongoDB - directly creates PooledDriver
+@Tag("failover")  // Skip on MorphiumServer - connection pool stress tests require real MongoDB
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
     private int amount = 100;

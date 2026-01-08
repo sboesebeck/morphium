@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Created with IntelliJ IDEA.
@@ -27,9 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class PolymorphismTest extends MorphiumTestBase {
-    @Test
-    public void polymorphTest() throws Exception {
+public class PolymorphismTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void polymorphTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(PolyTest.class);
         OtherSubClass p = new OtherSubClass();
         p.setPoly("poly");
@@ -56,8 +59,9 @@ public class PolymorphismTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void subClasstest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void subClasstest(Morphium morphium) throws Exception  {
         PolyContainer pc = new PolyContainer();
         pc.aSubClass = new SubClass();
         ((SubClass) pc.aSubClass).setSub("Subclass");

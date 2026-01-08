@@ -16,12 +16,24 @@ public class ThrowOnError {
         if (mongoResponse.containsKey("writeErrors")) {
             throw new IllegalStateException("Mongo write error: " + mongoResponse.get("writeErrors"));
         }
+        // Also check for command-level errors (ok != 1)
+        Object ok = mongoResponse.get("ok");
+        if (ok instanceof Number && ((Number) ok).doubleValue() < 1.0) {
+            String errmsg = (String) mongoResponse.get("errmsg");
+            throw new IllegalStateException("Mongo command error: " + (errmsg != null ? errmsg : mongoResponse));
+        }
         return mongoResponse;
     }
 
     public static Map throwOnErrorOrExpectationMismatch(Map mongoResponse, Predicate<Map> expectation) {
         if (mongoResponse.containsKey("writeErrors")) {
             throw new IllegalStateException("Mongo write error: " + mongoResponse.get("writeErrors"));
+        }
+        // Also check for command-level errors (ok != 1)
+        Object ok = mongoResponse.get("ok");
+        if (ok instanceof Number && ((Number) ok).doubleValue() < 1.0) {
+            String errmsg = (String) mongoResponse.get("errmsg");
+            throw new IllegalStateException("Mongo command error: " + (errmsg != null ? errmsg : mongoResponse));
         }
         if (!expectation.test(mongoResponse)) {
             throw new IllegalStateException("Mongo write error, MongoResponse was: " + mongoResponse);

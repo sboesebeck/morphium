@@ -18,21 +18,25 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * @author stephan
  */
 @Tag("core")
 @Tag("cache")
-public class MassCacheTest extends MorphiumTestBase {
+public class MassCacheTest extends MultiDriverTestBase {
 
     public static final int NO_OBJECTS = 100;
     public static final int WRITING_THREADS = 5;
     public static final int READING_THREADS = 5;
     private static final Logger log = LoggerFactory.getLogger(MassCacheTest.class);
 
-    @Test
-    public void massiveParallelWritingTest()  throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelWritingTest(Morphium morphium)  throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -78,11 +82,16 @@ public class MassCacheTest extends MorphiumTestBase {
         log.info("Waiting for changes to be propagated...");
         dur = System.currentTimeMillis() - start;
         int goal = NO_OBJECTS * WRITING_THREADS;
+        long waitStart = System.currentTimeMillis();
+        long maxWaitTime = 120000; // 2 minute timeout
         while (true) {
             Thread.sleep(1500);
             long l = morphium.createQueryFor(CachedObject.class).countAll();
             log.info("Waiting for writes..." + l + "/" + goal);
             if (l == goal) break;
+            if (System.currentTimeMillis() - waitStart > maxWaitTime) {
+                throw new AssertionError("Timeout waiting for writes to propagate: got " + l + " of " + goal);
+            }
         }
         dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms");
@@ -104,20 +113,21 @@ public class MassCacheTest extends MorphiumTestBase {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Reading all objects took: " + dur + " ms");
-        printStats();
+        printStats(morphium);
 
 
     }
 
-    private void printStats() {
+    private void printStats(Morphium morphium) {
         final Map<String, Double> statistics = morphium.getStatistics();
         for (String k : statistics.keySet()) {
             log.info(k + ": " + statistics.get(k));
         }
     }
 
-    @Test
-    public void massiveParallelAccessTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveParallelAccessTest(Morphium morphium) {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -190,14 +200,15 @@ public class MassCacheTest extends MorphiumTestBase {
         long dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms\n");
 
-        printStats();
+        printStats(morphium);
 
         log.info("Test finished!");
     }
 
 
-    @Test
-    public void disableCacheTest() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void disableCacheTest(Morphium morphium) {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -229,7 +240,7 @@ public class MassCacheTest extends MorphiumTestBase {
 
                 }
             }
-            printStats();
+            printStats(morphium);
 
             Map<String, Double> statistics = morphium.getStatistics();
             assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == null || statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
@@ -247,7 +258,7 @@ public class MassCacheTest extends MorphiumTestBase {
 
                 }
             }
-            printStats();
+            printStats(morphium);
             statistics = morphium.getStatistics();
             assert (statistics.get("CACHE_ENTRIES") != 0);
             assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0);
@@ -258,8 +269,9 @@ public class MassCacheTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void cacheTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void cacheTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -275,7 +287,8 @@ public class MassCacheTest extends MorphiumTestBase {
         }
         Thread.sleep(1200);
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(25000);
+        TestUtils.waitForConditionToBecomeTrue(60000, "CachedObjects not persisted for cache test",
+            () -> morphium.createQueryFor(CachedObject.class).countAll() == NO_OBJECTS);
         log.info("Done.");
 
         for (int j = 0; j < 3; j++) {
@@ -292,7 +305,7 @@ public class MassCacheTest extends MorphiumTestBase {
 
         }
 
-        printStats();
+        printStats(morphium);
         Map<String, Double> stats = morphium.getStatistics();
         assert (stats.get("CACHE_ENTRIES") >= 100);
         assert (stats.get("CHITS") >= 200);

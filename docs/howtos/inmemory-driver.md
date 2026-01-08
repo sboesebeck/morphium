@@ -26,7 +26,7 @@ If you want to run a **MongoDB-compatible server** that other applications can c
 - Standalone network server
 - MongoDB wire protocol compatible
 - Any MongoDB client can connect
-- Run with: `java -cp morphium.jar de.caluga.morphium.server.MorphiumServer --port 27017`
+- Run with: `java -jar target/morphium-6.1.1-server-cli.jar --port 27017`
 
 ### Core Operations
 - ✅ **CRUD Operations**: insert, find, update, delete, upsert
@@ -40,16 +40,16 @@ If you want to run a **MongoDB-compatible server** that other applications can c
 - ✅ **Basic Stages**: $match, $group, $sort, $limit, $skip, $project
 - ✅ **Group Operators**: $sum, $avg, $min, $max, $first, $last, $push, $addToSet
 - ✅ **MapReduce**: Full JavaScript-based MapReduce with GraalJS engine
-- ⚠️ **Advanced Stages**: $lookup, $unwind, $facet (limited support)
+- ✅ **Advanced Stages**: $lookup, $unwind, $facet, $graphLookup, $bucket, $mergeObjects (v6.0)
 
-### Change Streams (v6.0)
+### Change Streams (v6.1)
 - ✅ **Event Types**: insert, update, delete, drop operations
 - ✅ **Document Snapshots**: Immutable snapshots prevent dirty reads
 - ✅ **Pipeline Filtering**: Filter events with aggregation pipelines
 - ✅ **Full Document Support**: Access complete document in change events
 - ✅ **Database-scoped Sharing**: Optional driver sharing for multiple Morphium instances (opt-in)
 
-### Messaging System (v6.0)
+### Messaging System (v6.1)
 - ✅ **StandardMessaging**: Single-collection messaging with change streams
 - ✅ **MultiCollectionMessaging**: Multi-collection messaging
 - ✅ **Exclusive Messages**: Single-consumer message processing
@@ -65,12 +65,12 @@ If you want to run a **MongoDB-compatible server** that other applications can c
 ### Transactions
 - ✅ **Basic Transactions**: start, commit, abort (single-instance)
 - ❌ **Multi-document ACID**: Limited to single instance
-- ❌ **Distributed Transactions**: No replica set support
+- ⚠️ **Replica Sets**: Experimental support in `MorphiumServer` (v6.1); no replica set simulation within a single `InMemoryDriver` instance.
 
-## V6.0 Improvements
+## V6.1 Improvements
 
 ### Change Stream Enhancements
-The v6.0 release significantly improved change stream reliability:
+The v6.1 release significantly improved change stream reliability and feature parity:
 
 **Deep Copy Snapshots**
 ```java
@@ -84,8 +84,7 @@ morphium.watch(UncachedObject.class, evt -> {
 
 **Database-scoped Driver Sharing (Opt-in)**
 
-By default, each Morphium instance gets its own separate InMemoryDriver. To enable sharing between instances with the same database name, use `setInMemorySharedDatabases(true)`:
-
+By default, each Morphium instance gets its own separate InMemoryDriver. To enable sharing between instances with the same database name (crucial for messaging and cross-instance consistency), use `setInMemorySharedDatabases(true)`:
 ```java
 // Enable driver sharing for multiple Morphium instances
 MorphiumConfig cfg1 = new MorphiumConfig();
@@ -116,7 +115,7 @@ Morphium m2 = new Morphium(cfg2);
 **No More Re-reads**
 ```java
 // v5: messaging layer re-read documents from change stream events
-// v6: uses evt.getFullDocument() directly - more efficient, no dirty reads
+// v6.1: uses evt.getFullDocument() directly - more efficient, no dirty reads
 MorphiumMessaging msg = morphium.createMessaging();
 msg.addListenerForTopic("events", (m, message) -> {
     // message is from the immutable snapshot, not a re-read
@@ -249,8 +248,9 @@ public void testMultipleInstances() {
 
         // Both share the same driver (sharing enabled)
         // Write with m1, read with m2
-        m1.store(new MyEntity("test"));
-        MyEntity found = m2.findById(MyEntity.class, id);
+        MyEntity entity = new MyEntity("test");
+        m1.store(entity);
+        MyEntity found = m2.findById(MyEntity.class, entity.getId());
 
         // Works correctly!
     }
@@ -322,16 +322,16 @@ See **[Messaging - Built-in Status Monitoring](../messaging.md#built-in-status-m
 ## Troubleshooting
 
 ### Issue: Change streams not working
-**Solution**: Ensure you're using v6.0+ with the deep copy snapshot fix
+**Solution**: Ensure you're using v6.1+ with the deep copy snapshot fix
 
 ### Issue: Messages not received by all listeners
 **Solution**: Use database-scoped sharing by ensuring all Morphium instances use the same database name
 
 ### Issue: NullPointerException in insert()
-**Solution**: Upgrade to v6.0+ which includes index data structure initialization fix
+**Solution**: Upgrade to v6.1+ which includes index data structure initialization fix
 
 ### Issue: Driver shutdown too early
-**Solution**: v6.0+ includes reference counting to prevent premature shutdown
+**Solution**: v6.1+ includes reference counting to prevent premature shutdown
 
 ## See Also
 

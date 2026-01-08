@@ -11,6 +11,9 @@ import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Created with IntelliJ IDEA.
@@ -20,10 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * To change this template use File | Settings | File Templates.
  */
 @Tag("core")
-public class CheckForNewTest extends MorphiumTestBase {
+public class CheckForNewTest extends MultiDriverTestBase {
 
-    @Test
-    public void testCheckForNew() {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCheckForNew(Morphium morphium) {
         //although checkfornew is enabled, it will not update created
         //as the @CreationTime annotation disables it
         morphium.getConfig().setCheckForNew(true);
@@ -61,8 +65,9 @@ public class CheckForNewTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testCheckForNew2() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCheckForNew2(Morphium morphium) throws Exception  {
         morphium.getConfig().setCheckForNew(true);
         morphium.dropCollection(TestID2.class);
 

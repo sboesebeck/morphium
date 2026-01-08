@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Created with IntelliJ IDEA.
@@ -19,9 +22,10 @@ import java.util.List;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
-public class InterfacePolymorphismTest extends MorphiumTestBase {
-    @Test
-    public void polymorphTest() throws Exception {
+public class InterfacePolymorphismTest extends MultiDriverTestBase {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void polymorphTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(IfaceTestType.class);
         IfaceTestType ifaceTestType = new IfaceTestType();
         ifaceTestType.setName("A Complex Type");

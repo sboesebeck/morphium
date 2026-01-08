@@ -75,6 +75,37 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
     }
 
     @Override
+    public CountMongoCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+
+        if (m.containsKey("query")) {
+            setQuery((Map<String, Object>) m.get("query"));
+        }
+
+        if (m.containsKey("limit")) {
+            setLimit(((Number) m.get("limit")).intValue());
+        }
+
+        if (m.containsKey("skip")) {
+            setSkip(((Number) m.get("skip")).intValue());
+        }
+
+        if (m.containsKey("hint")) {
+            setHint(m.get("hint"));
+        }
+
+        if (m.containsKey("readConcern")) {
+            setReadConcern((Map<String, Object>) m.get("readConcern"));
+        }
+
+        if (m.containsKey("collation")) {
+            setCollation((Map<String, Object>) m.get("collation"));
+        }
+
+        return this;
+    }
+
+    @Override
     public String getCommandName() {
         return "count";
     }

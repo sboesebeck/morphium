@@ -52,6 +52,13 @@ public interface MorphiumDriver extends Closeable {
 
     void setReplicaSet(boolean replicaSet);
 
+    /**
+     * Returns true if the backend is an InMemory database (either InMemoryDriver directly
+     * or connecting to a MorphiumServer with InMemory backend).
+     * This is useful for tests that need to skip features not supported by the InMemory backend.
+     */
+    boolean isInMemoryBackend();
+
     boolean getDefaultJ();
 
     int getDefaultWriteTimeout();
@@ -221,8 +228,13 @@ public interface MorphiumDriver extends Closeable {
     void setDefaultBatchSize(int defaultBatchSize);
 
     boolean isUseSSL();
-
     void setUseSSL(boolean useSSL);
+
+    javax.net.ssl.SSLContext getSslContext();
+    void setSslContext(javax.net.ssl.SSLContext sslContext);
+
+    boolean isSslInvalidHostNameAllowed();
+    void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed);
 
     boolean isDefaultJ();
 

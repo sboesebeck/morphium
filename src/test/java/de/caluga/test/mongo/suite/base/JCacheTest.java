@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -30,11 +33,12 @@ import java.util.Map;
  */
 @Tag("core")
 @Tag("cache")
-public class JCacheTest extends MorphiumTestBase {
+public class JCacheTest extends MultiDriverTestBase {
     private final Logger log = LoggerFactory.getLogger(JCacheTest.class);
 
-    @Test
-    public void getProviderTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void getProviderTest(Morphium morphium) throws Exception  {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
             log.info("Skipping test %s for InMemoryDriver", tstName);
@@ -80,7 +84,7 @@ public class JCacheTest extends MorphiumTestBase {
             long start = System.currentTimeMillis();
             log.info("Testing cache " + m.getClass().getName());
             cache.setCacheManager(m);
-            cacheTest(cache);
+            cacheTest(morphium, cache);
             long dur = System.currentTimeMillis() - start;
             log.info("    duration: " + dur + "\n\n");
         }
@@ -106,7 +110,7 @@ public class JCacheTest extends MorphiumTestBase {
         e.getCache("test").put("123", new CacheEntry<String>("test", 1));
     }
 
-    private void cacheTest(MorphiumCache cache) throws Exception {
+    private void cacheTest(Morphium morphium, MorphiumCache cache) throws Exception {
         morphium.dropCollection(CachedObject.class);
         morphium.resetStatistics();
 

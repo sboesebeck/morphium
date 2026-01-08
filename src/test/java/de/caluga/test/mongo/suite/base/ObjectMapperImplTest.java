@@ -141,7 +141,7 @@ public class ObjectMapperImplTest {
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
         // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assert (MorphiumTestBase.stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } ")) : "String creation failed?" + s;
+        assert (MultiDriverTestBase.stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } ")) : "String creation failed?" + s;
         o = OM.deserialize(UncachedObject.class, dbo);
         log.info("Text is: " + o.getStrValue());
     }
@@ -225,7 +225,7 @@ public class ObjectMapperImplTest {
         // manually, as it won't
         // be stored!
         String st2 = Utils.toJsonString(co);
-        assert (MorphiumTestBase.stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
+        assert (MultiDriverTestBase.stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
         assertNotNull(co.getEmbed(), "Embedded value not found!");
     }
 
@@ -271,7 +271,7 @@ public class ObjectMapperImplTest {
         // class_name=de.caluga.test.mongo.suite.data.UncachedObject}],
         // name=Simple List}")) : "Marshall not ok: " + m;
         // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assert (MorphiumTestBase.stringWordCompare(m, "{list_value=[A Value, 27.0, {float_data=null, dval=0.0, double_data=null, str_value=null, long_data=null, binary_data=null, counter=0, class_name=uc, int_data=null}], map_value=null, name=Simple List, map_list_value=null}"));
+        assert (MultiDriverTestBase.stringWordCompare(m, "{list_value=[A Value, 27.0, {float_data=null, dval=0.0, double_data=null, str_value=null, long_data=null, binary_data=null, counter=0, class_name=uc, int_data=null}], map_value=null, name=Simple List, map_list_value=null}"));
 
         MapListObject mo = OM.deserialize(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
@@ -309,7 +309,7 @@ public class ObjectMapperImplTest {
         // \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value
         // not marshalled corectly";
         // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assert (MorphiumTestBase.stringWordCompare(m, "{ \"list_value\" : null, \"map_value\" : { \"Entity\" : { \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : null, \"long_data\" : null, \"binary_data\" : null, \"counter\" : 0, \"class_name\" : \"uc\", \"int_data\" : null } , \"a primitive value\" : 42, \"null\" : null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\", \"map_list_value\" : null }")) : "Value not marshalled corectly";
+        assert (MultiDriverTestBase.stringWordCompare(m, "{ \"list_value\" : null, \"map_value\" : { \"Entity\" : { \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : null, \"long_data\" : null, \"binary_data\" : null, \"counter\" : 0, \"class_name\" : \"uc\", \"int_data\" : null } , \"a primitive value\" : 42, \"null\" : null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\", \"map_list_value\" : null }")) : "Value not marshalled corectly";
 
         MapListObject mo = OM.deserialize(MapListObject.class, marshall);
         assert (mo.getName().equals("A map-value")) : "Name error";

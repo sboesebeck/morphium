@@ -55,9 +55,21 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     public void close() {
         running = false;
 
-        // There is no way to stop a thread forcefully.
-        // Because running is set to false,
-        // this thread will stop eventually
+        // Wait for the housekeeping thread to finish current operations
+        // This prevents "Driver is shutting down" errors when the thread
+        // tries to flush pending writes after the driver has been closed
+        if (housekeeping != null && housekeeping.isAlive()) {
+            housekeeping.interrupt(); // Wake up if sleeping
+            try {
+                // Wait up to 5 seconds for the thread to finish
+                housekeeping.join(5000);
+                if (housekeeping.isAlive()) {
+                    logger.warn("Housekeeping thread did not stop in time, proceeding with shutdown");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @SuppressWarnings("unused")
@@ -83,20 +95,26 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         CreateCommand cmd = null;
+        MongoConnection primaryConnection = null;
 
         try {
-            MongoConnection primaryConnection = morphium.getDriver().getPrimaryConnection(null);
+            primaryConnection = morphium.getDriver().getPrimaryConnection(null);
             cmd = new CreateCommand(primaryConnection);
             cmd.setCapped(true);
             cmd.setSize(capped.maxSize()).setMax(capped.maxEntries());
             cmd.setDb(morphium.getConfig().connectionSettings().getDatabase());
             //primaryConnection.sendCommand(cmd);
             cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+            primaryConnection = null;
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
+            } else if (primaryConnection != null) {
+                morphium.getDriver().releaseConnection(primaryConnection);
             }
         }
     }
@@ -160,7 +178,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         for (WriteBufferEntry entry : localQueue) {
-            morphium.clearCacheforClassIfNecessary(entry.getEntityType());
+            // Check if cache is still available (may be null during shutdown)
+            if (morphium.getCache() != null) {
+                morphium.clearCacheforClassIfNecessary(entry.getEntityType());
+            }
 
             if (!didNotWrite.contains(entry)) {
                 q.remove(entry);
@@ -252,6 +273,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         break;
 
                     case WRITE_OLD:
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
 
                         // could have been written in the meantime
@@ -268,6 +290,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         break;
 
                     case DEL_OLD:
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
 
                         if (logger.isDebugEnabled()) {
@@ -293,6 +316,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 throw new RuntimeException(e);
             }
         } else {
+            opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
             opLog.get(type).add(wb);
         }
 
@@ -738,9 +762,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             List < Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
                             for (Class<?> clz : localBuffer) {
-                                if (!running) {
-                                    return;
-                                }
                                 if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                                     continue;
                                 }
@@ -794,7 +815,23 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                 Thread.sleep(1000);
                             }
                         } catch (InterruptedException e) {
+                            // Interrupted - check running flag and exit if needed
                         }
+                    }
+
+                    // Flush any remaining data on shutdown
+                    try {
+                        List<Class<?>> remainingClasses = new ArrayList<>(opLog.keySet());
+                        for (Class<?> clz : remainingClasses) {
+                            if (opLog.get(clz) != null && !opLog.get(clz).isEmpty()) {
+                                logger.debug("Flushing remaining {} entries for {} on shutdown",
+                                    opLog.get(clz).size(), clz.getSimpleName());
+                                runIt(clz);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Driver may already be closed, log and continue
+                        logger.debug("Could not flush remaining entries on shutdown: {}", e.getMessage());
                     }
                 }
 

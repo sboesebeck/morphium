@@ -105,6 +105,7 @@ public class PooledDriver extends DriverBase {
     private volatile String fastestHost = null;
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private volatile String primaryNode;
+    private volatile boolean inMemoryBackend = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
         Thread.ofVirtual().name("MCon-", 0).factory());
 
@@ -278,8 +279,29 @@ public class PooledDriver extends DriverBase {
         if (hello == null)
             return;
 
+        // Check if connected to InMemory backend (MorphiumServer with InMemory)
+        if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
+            inMemoryBackend = true;
+        }
+
         // Keep track of server-advertised vs reachable names.
         registerAlias(hello.getMe(), hostConnected);
+
+        // IMPORTANT: Add hosts from hello BEFORE checking for primary node.
+        // Otherwise, when connecting to a secondary first, the advertised primary
+        // won't be in the hosts map and we can't set primaryNode from it.
+        if (hello.getHosts() != null && !hello.getHosts().isEmpty()) {
+            lastHostsFromHello = hello.getHosts();
+
+            for (String hst : hello.getHosts()) {
+                String resolved = resolveAlias(hst);
+                if (!hosts.containsKey(resolved)) {
+                    hosts.put(resolved, new Host(getHost(resolved), getPortFromHost(resolved)));
+                }
+
+                addToHostSeed(resolved);
+            }
+        }
 
         if (hello.getWritablePrimary() != null && hello.getWritablePrimary() && hello.getMe() == null) {
             if (hello.getWritablePrimary() && primaryNode == null) {
@@ -313,16 +335,6 @@ public class PooledDriver extends DriverBase {
         }
 
         if (hello.getHosts() != null && !hello.getHosts().isEmpty()) {
-            lastHostsFromHello = hello.getHosts();
-
-            for (String hst : hello.getHosts()) {
-                String resolved = resolveAlias(hst);
-                if (!hosts.containsKey(resolved)) {
-                    hosts.put(resolved, new Host(getHost(resolved), getPortFromHost(resolved)));
-                }
-
-                addToHostSeed(resolved);
-            }
 
             // Do NOT remove existing host seed entries here.
             // Users might provide a seed list using different (but resolvable) hostnames than those
@@ -512,27 +524,39 @@ public class PooledDriver extends DriverBase {
                                         synchronized (waitCounterSignal) {
                                             waitCounterSignal.wait();
                                         }
-                
+
                                         for (String hst : getHostSeed()) {
                                             try {
-                                                BlockingQueue<ConnectionContainer> queue = null;
-                                                if (hosts.get(hst) != null) {
-                                                    queue = hosts.get(hst).getConnectionPool();
-                                                }
-                
-                
-                                                int loopCounter = 0;
-                
-                                                while (getHostSeed().contains(hst) && queue != null
-                                                        && loopCounter < getMaxConnectionsPerHost() &&
-                                                        (queue.size() < getWaitCounterForHost(hst)
-                                                         && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
-                                                    loopCounter++;
-                                                    // log.debug("Creating connection to {} - WaitCounter is {}", hst,
-                                                    // getWaitCounterForHost(hst));
-                                                    // System.out.println("Creating new connection to " + hst + " WaitCounter is: "
-                                                    // + waitCounter.get(hst).get());
-                                                    createNewConnection(hst);
+                                                if (hosts.get(hst) == null) continue;
+
+                                                // Calculate how many new connections we need
+                                                int waitCount = getWaitCounterForHost(hst);
+                                                int poolSize = hosts.get(hst).getConnectionPool().size();
+                                                int totalConnections = getTotalConnectionsToHost(hst);
+                                                int maxConnections = getMaxConnectionsPerHost();
+
+                                                // Number of connections to create (limited by max and available capacity)
+                                                int needed = Math.min(waitCount - poolSize, maxConnections - totalConnections);
+
+                                                if (needed > 0 && getHostSeed().contains(hst)) {
+                                                    // Create connections in parallel for burst scenarios
+                                                    int parallelCreators = Math.min(needed, 10); // Cap at 10 parallel creators
+                                                    final String host = hst;
+
+                                                    for (int i = 0; i < parallelCreators; i++) {
+                                                        Thread.ofVirtual().name("ConnectionCreator-" + i).start(() -> {
+                                                            try {
+                                                                // Each creator can create multiple connections
+                                                                while (running && getHostSeed().contains(host)
+                                                                        && hosts.get(host).getConnectionPool().size() < getWaitCounterForHost(host)
+                                                                        && getTotalConnectionsToHost(host) < getMaxConnectionsPerHost()) {
+                                                                    createNewConnection(host);
+                                                                }
+                                                            } catch (Exception e) {
+                                                                log.debug("Connection creator finished: {}", e.getMessage());
+                                                            }
+                                                        });
+                                                    }
                                                 }
                                             } catch (Exception e) {
                                                 log.error("Could not create connection to {}", hst, e);
@@ -778,6 +802,12 @@ public class PooledDriver extends DriverBase {
                 type = ReadPreferenceType.PRIMARY;
             }
 
+            // Force PRIMARY reads for InMemory backend (MorphiumServer) to ensure read-your-writes consistency
+            // InMemory backend replication is eventually consistent, so NEAREST/SECONDARY reads may return stale data
+            if (inMemoryBackend && type != ReadPreferenceType.PRIMARY) {
+                type = ReadPreferenceType.PRIMARY;
+            }
+
             switch (type) {
                 case PRIMARY:
                     long start = System.currentTimeMillis();
@@ -997,6 +1027,24 @@ public class PooledDriver extends DriverBase {
                     h.getConnectionPool().add(c);
                     h.decrementBorrowedConnections();
                     markStatsDirty();
+                } else {
+                    // Host was removed from pool - close the connection to avoid leak
+                    log.debug("Host {} no longer available, closing connection", con.getConnectedTo());
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    markStatsDirty();
+                    try {
+                        con.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+            } else {
+                // Connection has no target host - close it
+                log.debug("Connection has no target host, closing");
+                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                markStatsDirty();
+                try {
+                    con.close();
+                } catch (Exception ignored) {
                 }
             }
         } else {
@@ -1049,6 +1097,11 @@ public class PooledDriver extends DriverBase {
     @Override
     public String getName() {
         return driverName;
+    }
+
+    @Override
+    public boolean isInMemoryBackend() {
+        return inMemoryBackend;
     }
 
     @Override
@@ -1187,19 +1240,42 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
-        CollStatsCommand cmd = new CollStatsCommand(getPrimaryConnection(null)).setColl(coll).setDb(db);
-        return cmd.execute();
-    }
-
-    public List<Map<String, Object>> currentOp(int threshold) throws MorphiumDriverException {
-        CurrentOpCommand cmd = null;
-
+        MongoConnection con = null;
+        CollStatsCommand cmd = null;
         try {
-            cmd = new CurrentOpCommand(getPrimaryConnection(null)).setColl("admin").setSecsRunning(threshold);
-            return cmd.execute();
+            con = getPrimaryConnection(null);
+            cmd = new CollStatsCommand(con).setColl(coll).setDb(db);
+            var result = cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
+            return result;
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
+            } else if (con != null) {
+                releaseConnection(con);
+            }
+        }
+    }
+
+    public List<Map<String, Object>> currentOp(int threshold) throws MorphiumDriverException {
+        MongoConnection con = null;
+        CurrentOpCommand cmd = null;
+
+        try {
+            con = getPrimaryConnection(null);
+            cmd = new CurrentOpCommand(con).setColl("admin").setSecsRunning(threshold);
+            var result = cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
+            return result;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (con != null) {
+                releaseConnection(con);
             }
         }
     }
@@ -1333,44 +1409,83 @@ public class PooledDriver extends DriverBase {
                                     break;
                                 }
 
-                                InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(wc));
-                                settings.setDb(db).setColl(collection).setComment("Bulk insert")
-                                        .setDocuments(insert.getToInsert())
-                                        .setWriteConcern(wc != null ? wc.asMap() : null);
-                                Map<String, Object> result = settings.execute();
-                                settings.releaseConnection();
-                                insertCount += insert.getToInsert().size();
+                                MongoConnection con = null;
+                                InsertMongoCommand settings = null;
+                                try {
+                                    con = getPrimaryConnection(wc);
+                                    settings = new InsertMongoCommand(con);
+                                    settings.setDb(db).setColl(collection).setComment("Bulk insert")
+                                            .setDocuments(insert.getToInsert())
+                                            .setWriteConcern(wc != null ? wc.asMap() : null);
+                                    Map<String, Object> result = settings.execute();
+                                    settings.releaseConnection();
+                                    settings = null;
+                                    con = null;
+                                    insertCount += insert.getToInsert().size();
+                                } finally {
+                                    if (settings != null) {
+                                        settings.releaseConnection();
+                                    } else if (con != null) {
+                                        releaseConnection(con);
+                                    }
+                                }
                             }
                             case UpdateBulkRequest update -> {
-                                UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(wc));
-                                upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
-                                        update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())))
-                                    .setWriteConcern(wc != null ? wc.asMap() : null);
-                                Map<String, Object> result = upCmd.execute();
-                                upCmd.releaseConnection();
-                                if (result.containsKey("n")) {
-                                    matchedCount += ((Number) result.get("n")).intValue();
-                                }
-                                if (result.containsKey("nModified")) {
-                                    modifiedCount += ((Number) result.get("nModified")).intValue();
-                                }
-                                if (result.containsKey("upserted")) {
-                                    @SuppressWarnings("unchecked")
-                                    List<Map<String, Object>> upserted = (List<Map<String, Object>>) result.get("upserted");
-                                    for (Map<String, Object> u : upserted) {
-                                        upsertedIds.add(u.get("_id"));
+                                MongoConnection con = null;
+                                UpdateMongoCommand upCmd = null;
+                                try {
+                                    con = getPrimaryConnection(wc);
+                                    upCmd = new UpdateMongoCommand(con);
+                                    upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
+                                            update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())))
+                                        .setWriteConcern(wc != null ? wc.asMap() : null);
+                                    Map<String, Object> result = upCmd.execute();
+                                    upCmd.releaseConnection();
+                                    upCmd = null;
+                                    con = null;
+                                    if (result.containsKey("n")) {
+                                        matchedCount += ((Number) result.get("n")).intValue();
+                                    }
+                                    if (result.containsKey("nModified")) {
+                                        modifiedCount += ((Number) result.get("nModified")).intValue();
+                                    }
+                                    if (result.containsKey("upserted")) {
+                                        @SuppressWarnings("unchecked")
+                                        List<Map<String, Object>> upserted = (List<Map<String, Object>>) result.get("upserted");
+                                        for (Map<String, Object> u : upserted) {
+                                            upsertedIds.add(u.get("_id"));
+                                        }
+                                    }
+                                } finally {
+                                    if (upCmd != null) {
+                                        upCmd.releaseConnection();
+                                    } else if (con != null) {
+                                        releaseConnection(con);
                                     }
                                 }
                             }
                             case DeleteBulkRequest delete -> {
-                                DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(wc));
-                                del.setColl(collection).setDb(db).setDeletes(
-                                                   Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)))
-                                    .setWriteConcern(wc != null ? wc.asMap() : null);
-                                Map<String, Object> result = del.execute();
-                                del.releaseConnection();
-                                if (result.containsKey("n")) {
-                                    delCount += ((Number) result.get("n")).intValue();
+                                MongoConnection con = null;
+                                DeleteMongoCommand del = null;
+                                try {
+                                    con = getPrimaryConnection(wc);
+                                    del = new DeleteMongoCommand(con);
+                                    del.setColl(collection).setDb(db).setDeletes(
+                                                       Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)))
+                                        .setWriteConcern(wc != null ? wc.asMap() : null);
+                                    Map<String, Object> result = del.execute();
+                                    del.releaseConnection();
+                                    del = null;
+                                    con = null;
+                                    if (result.containsKey("n")) {
+                                        delCount += ((Number) result.get("n")).intValue();
+                                    }
+                                } finally {
+                                    if (del != null) {
+                                        del.releaseConnection();
+                                    } else if (con != null) {
+                                        releaseConnection(con);
+                                    }
                                 }
                             }
                             default -> throw new RuntimeException("Unknown operation " + r.getClass().getName());

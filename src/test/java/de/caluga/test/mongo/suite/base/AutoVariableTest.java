@@ -14,6 +14,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Created with IntelliJ IDEA.
@@ -23,10 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * To change this template use File | Settings | File Templates.
  */
 @Tag("core")
-public class AutoVariableTest extends MorphiumTestBase {
+public class AutoVariableTest extends MultiDriverTestBase {
 
-    @Test
-    public void disableAutoVariablesThreadded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void disableAutoVariablesThreadded(Morphium morphium) throws Exception  {
         //side Thread
         Thread t = new Thread() {
             public void run() {
@@ -171,8 +175,9 @@ public class AutoVariableTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void disableAutoValues() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void disableAutoValues(Morphium morphium) throws Exception  {
         morphium.getConfig().objectMappingSettings().disableAutoValues();
         CTimeTest ct = new CTimeTest();
         ct.value = "should not work";
@@ -215,8 +220,9 @@ public class AutoVariableTest extends MorphiumTestBase {
         morphium.getConfig().objectMappingSettings().enableAutoValues();
     }
 
-    @Test
-    public void testCreationTime() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCreationTime(Morphium morphium) throws Exception  {
         morphium.dropCollection(CTimeTest.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, CTimeTest.class);
         CTimeTest ct = new CTimeTest();
@@ -263,8 +269,9 @@ public class AutoVariableTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testLastAccess() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testLastAccess(Morphium morphium) throws Exception  {
         morphium.dropCollection(LATest.class);
         LATest la = new LATest();
         la.value = "value1";
@@ -289,8 +296,9 @@ public class AutoVariableTest extends MorphiumTestBase {
         assertNotNull(la.lastAccessString);
     }
 
-    @Test
-    public void testAutoVariablesBulkWrite() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testAutoVariablesBulkWrite(Morphium morphium) throws Exception  {
         morphium.dropCollection(CTimeTest.class);
         List<CTimeTest> lst = new ArrayList<>();
 
@@ -314,8 +322,9 @@ public class AutoVariableTest extends MorphiumTestBase {
         log.info("Done");
     }
 
-    @Test
-    public void testLastChange() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testLastChange(Morphium morphium) throws Exception  {
         morphium.dropCollection(LCTest.class);
         LCTest lc = new LCTest();
         lc.value = "value1";
@@ -358,8 +367,9 @@ public class AutoVariableTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void testCTNonOjbectId() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testCTNonOjbectId(Morphium morphium) throws Exception  {
         morphium.getConfig().objectMappingSettings().setCheckForNew(true);
         morphium.dropCollection(CTimeTestStringId.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, CTimeTestStringId.class);

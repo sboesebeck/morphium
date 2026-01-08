@@ -1,4 +1,4 @@
-# Morphium 6.0
+# Morphium 6.1.1
 
 **Feature-rich MongoDB ODM and messaging framework for Java 21+**
 
@@ -46,12 +46,25 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 - Production deployment: `docs/production-deployment-guide.md`
 - Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
 
+## 🚀 What’s New in v6.1
+
+### MorphiumServer – The "Drop-in" Replacement
+Morphium 6.1 transforms **MorphiumServer** into a true drop-in replacement for MongoDB in development and testing:
+- ✅ **Full Wire Protocol Support**: Use any standard MongoDB client (mongosh, Compass, etc.)
+- ✅ **CLI Tooling**: Dedicated `morphium-server-cli` for easy deployment
+- ✅ **Replica Set Emulation**: Test multi-node cluster behavior without real MongoDB
+- ✅ **Persistence**: Snapshot support to preserve in-memory data across restarts
+
 ## 🚀 What’s New in v6.0
 
 ### Java 21 & Modern Language Features
 - **Virtual threads** for high-throughput messaging and change streams
 - **Pattern matching & records** across driver and mapping layers
 - **Sealed class support** for cleaner domain models
+
+### Driver & Connectivity
+- **SSL/TLS Support**: Secure connections to MongoDB instances (added in v6.0)
+- **Virtual threads** in the driver for optimal concurrency
 
 ### Messaging Improvements
 - **Fewer duplicates** thanks to refined message processing
@@ -85,7 +98,7 @@ Maven dependencies:
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>[6.0.0,)</version>
+  <version>[6.1.1,)</version>
 </dependency>
 <dependency>
   <groupId>org.mongodb</groupId>
@@ -104,7 +117,7 @@ Migrating from v5? → `docs/howtos/migration-v5-to-v6.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.0.0</version>
+  <version>6.1.1</version>
 </dependency>
 ```
 
@@ -116,6 +129,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import java.time.LocalDateTime;
+import java.util.List;
 
 // Entity definition
 @Entity
@@ -169,7 +183,6 @@ messaging.sendMessage(message);
 
 // Receive messages
 messaging.addListenerForTopic("orderQueue", (m, msg) -> {
-    log.info("Processing {}", msg.getValue());
     // process order ...
     return null; // no reply
 });
@@ -210,7 +223,7 @@ mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 
 ### `./runtests.sh` helper
 ```bash
-# Default: in-memory driver
+# Default: in-memory driver (fast, no MongoDB required)
 ./runtests.sh
 
 # Run tagged suites
@@ -223,9 +236,6 @@ mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 ./runtests.sh --rerunfailed
 ./runtests.sh --rerunfailed --retry 3
 
-# Target a MongoDB cluster
-./runtests.sh --driver pooled --uri mongodb://mongo1,mongo2/testdb
-
 # Single test class
 ./runtests.sh CacheTests
 
@@ -233,6 +243,41 @@ mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 ./runtests.sh --stats
 ./getFailedTests.sh  # list failed methods
 ```
+
+### Multi-Backend Testing
+
+Tests are parameterized to run against multiple drivers. Use `--driver` to select:
+
+```bash
+# InMemory only (fastest, default)
+./runtests.sh --driver inmem
+
+# Against external MongoDB with all drivers (pooled + single + inmem)
+./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver all
+
+# Against external MongoDB with pooled driver only
+./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver pooled
+
+# Against MorphiumServer (auto-starts local server)
+./runtests.sh --morphium-server --driver pooled
+```
+
+**Complete test coverage** requires running against all backends:
+```bash
+# 1. Fast in-memory tests
+./runtests.sh --driver inmem
+
+# 2. Real MongoDB tests
+./runtests.sh --uri mongodb://your-mongodb/testdb --driver all
+
+# 3. MorphiumServer tests
+./runtests.sh --morphium-server --driver pooled
+```
+
+**New in v6.1**
+- ✅ **Unified test base**: All tests now use `MultiDriverTestBase` with parameterized drivers
+- ✅ **Driver selection**: Each test declares which drivers it supports via `@MethodSource`
+- ✅ **Parallel safe**: Tests isolated per parallel slot with unique databases
 
 **New in v6.0**
 - ✅ **Method-level reruns**: `--rerunfailed` only re-executes failing methods
@@ -293,7 +338,7 @@ First, build the project using Maven. This will generate the executable JAR in t
 mvn clean package -DskipTests
 ```
 
-This creates `target/morphium-X.Y.Z-server-cli.jar` (where X.Y.Z is the current version).
+This creates `target/morphium-6.1.1-server-cli.jar` (where 6.1.1 is the current version).
 
 **Running the Server**
 
@@ -301,16 +346,21 @@ You can run the server directly from the command line:
 
 ```bash
 # Start the server on the default port (17017)
-java -jar target/morphium-*-server-cli.jar
+java -jar target/morphium-6.1.1-server-cli.jar
 
 # Start on a different port
-java -jar target/morphium-*-server-cli.jar --port 8080
+java -jar target/morphium-6.1.1-server-cli.jar --port 8080
+
+# Start with persistence (snapshots)
+java -jar target/morphium-6.1.1-server-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
-You can then connect to it with any standard MongoDB tool:
+**Replica Set Support (Experimental)**
+
+MorphiumServer supports basic replica set emulation. Start multiple instances with the same replica set name and seed list:
+
 ```bash
-# Connect with mongosh or MongoDB Compass
-mongosh mongodb://localhost:17017
+java -jar target/morphium-6.1.1-server-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use cases**
@@ -320,9 +370,10 @@ mongosh mongodb://localhost:17017
 - Smoke-testing MongoDB tooling (mongosh, Compass, mongodump, …)
 
 **Current limitations**
-- No replica set emulation (planned for 6.x)
 - No sharding support
 - Some advanced aggregation operators and joins still missing
+
+See `docs/morphium-server.md` for more details on persistence and replica sets.
 
 ## 🚀 Production Use Cases
 
@@ -367,7 +418,7 @@ Apache License 2.0 – see [LICENSE](LICENSE) for details.
 
 ## 🙏 Thanks
 
-Thanks to every contributor who helped ship Morphium 6.0 and to the MongoDB community for continuous feedback.
+Thanks to every contributor who helped ship Morphium 6.1.1 and to the MongoDB community for continuous feedback.
 
 ---
 
@@ -375,6 +426,6 @@ Thanks to every contributor who helped ship Morphium 6.0 and to the MongoDB comm
 
 **Planning an upgrade?** Follow the [migration guide](docs/howtos/migration-v5-to-v6.md).
 
-Enjoy Morphium 6.0! 🚀
+Enjoy Morphium 6.1.1! 🚀
 
 *Stephan Bösebeck & the Morphium team*

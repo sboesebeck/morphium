@@ -1,10 +1,10 @@
 package de.caluga.test.mongo.suite.ncmessaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.*;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 import org.junit.jupiter.api.Disabled;
@@ -16,6 +16,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -26,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SuppressWarnings("ALL")
 @Disabled
 @Tag("messaging")
-public class MessagingNCTest extends MorphiumTestBase {
+public class MessagingNCTest extends MultiDriverTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
@@ -38,8 +41,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     public MorphiumId lastMsgId;
     public AtomicInteger procCounter = new AtomicInteger(0);
 
-    @Test
-    public void testMsgQueName() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMsgQueName(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         morphium.dropCollection(Msg.class, "mmsg_msg2", null);
 
@@ -85,8 +89,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void testMsgLifecycle() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testMsgLifecycle(Morphium morphium) throws Exception  {
         Msg m = new Msg();
         m.setSender("Meine wunderbare ID " + System.currentTimeMillis());
         m.setMsgId(new MorphiumId());
@@ -98,8 +103,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
     @SuppressWarnings("Duplicates")
-    @Test
-    public void multithreaddingTestSingle() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void multithreaddingTestSingle(Morphium morphium) throws Exception  {
         int amount = 65;
         SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 500, false);
         producer.start();
@@ -133,8 +139,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void mutlithreaddingTestMultiple() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mutlithreaddingTestMultiple(Morphium morphium) throws Exception  {
         int amount = 650;
         SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 500, false);
         producer.start();
@@ -171,8 +178,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         log.info("Messages left: " + consumer.getPendingMessagesCount());
     }
 
-    @Test
-    public void messagingTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void messagingTest(Morphium morphium) throws Exception  {
         error = false;
 
         morphium.dropCollection(Msg.class);
@@ -218,8 +226,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void systemTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void systemTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         gotMessage1 = false;
         gotMessage2 = false;
@@ -275,8 +284,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void severalSystemsTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void severalSystemsTest(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
         gotMessage1 = false;
         gotMessage2 = false;
@@ -371,8 +381,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void testRejectExclusiveMessage() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testRejectExclusiveMessage(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = null;
         SingleCollectionMessaging rec1 = null;
         SingleCollectionMessaging rec2 = null;
@@ -434,8 +445,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void testRejectMessage() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testRejectMessage(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = null;
         SingleCollectionMessaging rec1 = null;
         SingleCollectionMessaging rec2 = null;
@@ -487,8 +499,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void directedMessageTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void directedMessageTest(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
         final SingleCollectionMessaging m1;
         final SingleCollectionMessaging m2;
@@ -605,8 +618,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void ignoringMessagesTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void ignoringMessagesTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
@@ -628,8 +642,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void ignoringExclusiveMessagesTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void ignoringExclusiveMessagesTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
@@ -664,8 +679,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void severalMessagingsTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void severalMessagingsTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
@@ -714,8 +730,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void massiveMessagingTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void massiveMessagingTest(Morphium morphium) throws Exception  {
         List<SingleCollectionMessaging> systems;
         systems = new ArrayList<>();
         try {
@@ -820,8 +837,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void broadcastTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void broadcastTest(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
         final SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 1000, true);
         final SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, true);
@@ -911,8 +929,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void messagingSendReceiveThreaddedTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void messagingSendReceiveThreaddedTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(2500);
         final SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100, true, false, 10);
@@ -956,8 +975,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void messagingSendReceiveTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void messagingSendReceiveTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
         final SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100, true);
@@ -1002,8 +1022,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void mutlithreaddedMessagingPerformanceTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void mutlithreaddedMessagingPerformanceTest(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
         final SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100, true);
         final SingleCollectionMessaging consumer = new SingleCollectionMessaging(morphium, 10, true, true, 2000);
@@ -1064,8 +1085,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void exclusiveMessageCustomQueueTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageCustomQueueTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = null;
         SingleCollectionMessaging sender2 = null;
         SingleCollectionMessaging m1 = null;
@@ -1190,8 +1212,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveMessageTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
@@ -1254,8 +1277,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void removeMessageTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void removeMessageTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 1000, false);
         try {
             Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setTopic("name").setValue("a value");
@@ -1270,8 +1294,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void timeoutMessages() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void timeoutMessages(Morphium morphium) throws Exception  {
         final AtomicInteger cnt = new AtomicInteger();
         SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 1000, false);
         try {
@@ -1293,8 +1318,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void selfMessages() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void selfMessages(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
@@ -1329,8 +1355,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void getPendingMessagesOnStartup() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void getPendingMessagesOnStartup(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
@@ -1394,8 +1421,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void waitingForMessagesIfNonMultithreadded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void waitingForMessagesIfNonMultithreadded(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false, false, 10);
@@ -1429,8 +1457,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void waitingForMessagesIfMultithreadded() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void waitingForMessagesIfMultithreadded(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         morphium.getConfig().setThreadPoolMessagingCoreSize(5);
         log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
@@ -1466,8 +1495,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void priorityTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void priorityTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
         Thread.sleep(250);
@@ -1535,8 +1565,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void markExclusiveMessageTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void markExclusiveMessageTest(Morphium morphium) throws Exception  {
 
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
@@ -1600,8 +1631,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void exclusivityPausedUnpausingTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusivityPausedUnpausingTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 1000, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
@@ -1741,8 +1773,9 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void exclusivityTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusivityTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
@@ -1869,8 +1902,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void exclusiveMessageStartupTests() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveMessageStartupTests(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         SingleCollectionMessaging receiverNoListener = new SingleCollectionMessaging(morphium, 100, true);
         try {
@@ -1893,8 +1927,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void exclusiveTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void exclusiveTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         SingleCollectionMessaging sender;
         List<SingleCollectionMessaging> recs;
@@ -1951,8 +1986,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     }
 
 
-    @Test
-    public void severalRecipientsTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void severalRecipientsTest(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setSenderId("sender");
         sender.setUseChangeStream(false).start();

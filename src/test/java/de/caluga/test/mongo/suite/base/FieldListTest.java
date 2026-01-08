@@ -13,6 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * Created with IntelliJ IDEA.
@@ -22,11 +25,12 @@ import java.util.Map;
  * To change this template use File | Settings | File Templates.
  */
 @Tag("core")
-public class FieldListTest extends MorphiumTestBase {
+public class FieldListTest extends MultiDriverTestBase {
 
-    @Test
-    public void testFieldList() {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testFieldList(Morphium morphium) {
+        createUncachedObjects(morphium, 100);
         TestUtils.waitForWrites(morphium, log);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -37,8 +41,9 @@ public class FieldListTest extends MorphiumTestBase {
         assert (uc.getStrValue() == null) : "Value is " + uc.getStrValue();
     }
 
-    @Test
-    public void testReadOnly() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testReadOnly(Morphium morphium) throws Exception  {
         morphium.dropCollection(ReadOnlyObject.class);
         ReadOnlyObject ro = new ReadOnlyObject();
         ro.setStrValue("ReadOnlyTest");

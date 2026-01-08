@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import de.caluga.morphium.Morphium;
 
 /**
  * User: Stephan Bösebeck
@@ -15,15 +18,24 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  * <p>
  */
 @Tag("core")
-public class TransactionTest extends MorphiumTestBase {
+public class TransactionTest extends MultiDriverTestBase {
 
-    @Test
-    public void transactionTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void transactionTest(Morphium morphium) throws Exception  {
+        // Skip for MorphiumServer - transactions require connection affinity which PooledDriver
+        // doesn't maintain when connecting to MorphiumServer. Each operation in a transaction
+        // may use a different connection, causing transaction context to be lost.
+        if (morphium.getDriver().isInMemoryBackend() && !morphium.getDriver().getName().equals("InMemDriver")) {
+            log.info("Skipping transaction test for MorphiumServer - connection affinity not maintained");
+            morphium.close();
+            return;
+        }
         for (int i = 0; i < 10; i++) {
             try {
                 morphium.createQueryFor(UncachedObject.class).delete();
                 TestUtils.waitForConditionToBecomeTrue(5000, "did not clear", ()->TestUtils.countUC(morphium) == 0);
-                createUncachedObjects(10);
+                createUncachedObjects(morphium, 10);
                 morphium.startTransaction();
                 log.info("Transaction started: " + morphium.getTransaction().getTxnNumber());
                 log.info("Count after transaction start: " + TestUtils.countUC(morphium));
