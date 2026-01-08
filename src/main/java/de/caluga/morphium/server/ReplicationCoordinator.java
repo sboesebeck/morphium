@@ -101,6 +101,25 @@ public class ReplicationCoordinator {
         int requiredSecondaries = w - 1; // Subtract 1 for primary
         long deadline = System.currentTimeMillis() + timeoutMs;
 
+        // Fail fast if no secondaries have ever connected and timeout is long
+        // This prevents blocking for the full timeout when secondary isn't started
+        if (secondaryHeartbeats.isEmpty() && timeoutMs > 100) {
+            // Give a short grace period for secondaries to connect
+            long graceDeadline = System.currentTimeMillis() + 100;
+            while (System.currentTimeMillis() < graceDeadline && secondaryHeartbeats.isEmpty()) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            if (secondaryHeartbeats.isEmpty()) {
+                log.warn("Write concern cannot be satisfied: no secondaries available, w={}", w);
+                return false;
+            }
+        }
+
         replicationLock.lock();
         try {
             while (true) {

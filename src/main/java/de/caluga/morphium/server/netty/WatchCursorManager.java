@@ -52,7 +52,7 @@ public class WatchCursorManager {
         WatchCursorState state = new WatchCursorState(cursorId, wcmd.getDb(), wcmd.getColl());
         watchCursors.put(cursorId, state);
 
-        log.info("Created watch cursor {} for {}.{}", cursorId, wcmd.getDb(), wcmd.getColl());
+        log.debug("Created watch cursor {} for {}.{}", cursorId, wcmd.getDb(), wcmd.getColl());
 
         // Set up callback to queue events
         wcmd.setCb(new DriverTailableIterationCallback() {
@@ -71,9 +71,9 @@ public class WatchCursorManager {
         // Start the watch in the driver - it will register the subscription and return immediately
         // The async loop in InMemoryDriver will handle calling the callback when events arrive
         try {
-            log.info("Starting watch for cursor {}", cursorId);
+            log.debug("Starting watch for cursor {}", cursorId);
             driver.runCommand(wcmd);
-            log.info("Watch started for cursor {}", cursorId);
+            log.debug("Watch started for cursor {}", cursorId);
         } catch (Exception e) {
             log.error("Watch command error for cursor {}", cursorId, e);
             watchCursors.remove(cursorId);
@@ -86,7 +86,7 @@ public class WatchCursorManager {
      * Called when a watch event arrives. Notifies any pending getMore requests.
      */
     private void onWatchEvent(long cursorId, Map<String, Object> event) {
-        log.info("onWatchEvent: cursorId={}, event operationType={}", cursorId, event != null ? event.get("operationType") : "null");
+        log.trace("onWatchEvent: cursorId={}, event operationType={}", cursorId, event != null ? event.get("operationType") : "null");
         WatchCursorState state = watchCursors.get(cursorId);
         if (state == null) {
             log.warn("onWatchEvent: cursor {} not found, event will be lost!", cursorId);
@@ -94,19 +94,16 @@ public class WatchCursorManager {
         }
 
         state.events.offer(event);
-        log.info("onWatchEvent: queued event for cursor {}, queue size now: {}", cursorId, state.events.size());
+        log.trace("onWatchEvent: queued event for cursor {}, queue size now: {}", cursorId, state.events.size());
 
         // Complete any pending getMore request
         PendingGetMore pending;
         int completedCount = 0;
         while ((pending = state.pendingGetMores.poll()) != null) {
             List<Map<String, Object>> batch = drainEvents(state.events);
-            log.info("onWatchEvent: completing pending getMore for cursor {} with {} events", cursorId, batch.size());
+            log.debug("onWatchEvent: completing pending getMore for cursor {} with {} events", cursorId, batch.size());
             pending.future.complete(batch);
             completedCount++;
-        }
-        if (completedCount == 0) {
-            log.debug("onWatchEvent: no pending getMore for cursor {}, event queued for later", cursorId);
         }
     }
 
@@ -135,12 +132,12 @@ public class WatchCursorManager {
     }
 
     private CompletableFuture<List<Map<String, Object>>> getMoreWatch(WatchCursorState state, int maxTimeMs) {
-        log.info("getMoreWatch: cursorId={}, maxTimeMs={}, events in queue={}", state.cursorId, maxTimeMs, state.events.size());
+        log.debug("getMoreWatch: cursorId={}, maxTimeMs={}, events in queue={}", state.cursorId, maxTimeMs, state.events.size());
 
         // Check if there are already events available
         if (!state.events.isEmpty()) {
             List<Map<String, Object>> batch = drainEvents(state.events);
-            log.info("getMoreWatch: returning {} existing events for cursor {}", batch.size(), state.cursorId);
+            log.debug("getMoreWatch: returning {} existing events for cursor {}", batch.size(), state.cursorId);
             return CompletableFuture.completedFuture(batch);
         }
 
@@ -151,10 +148,23 @@ public class WatchCursorManager {
         }
 
         // No events available - set up async wait
-        log.info("getMoreWatch: no events available, setting up async wait for cursor {} ({}ms)", state.cursorId, maxTimeMs);
+        log.debug("getMoreWatch: no events available, setting up async wait for cursor {} ({}ms)", state.cursorId, maxTimeMs);
         CompletableFuture<List<Map<String, Object>>> future = new CompletableFuture<>();
         PendingGetMore pending = new PendingGetMore(future);
         state.pendingGetMores.offer(pending);
+
+        // CRITICAL: Re-check events after adding to pendingGetMores to avoid race condition
+        // Events might have arrived between the initial isEmpty check and adding the pending
+        if (!state.events.isEmpty()) {
+            // Try to remove our pending entry and return events immediately
+            if (state.pendingGetMores.remove(pending)) {
+                List<Map<String, Object>> batch = drainEvents(state.events);
+                log.debug("getMoreWatch: race avoided - found {} events after adding pending for cursor {}", batch.size(), state.cursorId);
+                future.complete(batch);
+                return future;
+            }
+            // If remove failed, onWatchEvent already completed our future - just return it
+        }
 
         // Schedule timeout - handle rejected execution during shutdown
         try {
@@ -162,6 +172,7 @@ public class WatchCursorManager {
                 if (state.pendingGetMores.remove(pending)) {
                     // Timeout - return whatever events are available (may be empty)
                     List<Map<String, Object>> batch = drainEvents(state.events);
+                    log.debug("getMoreWatch: timeout for cursor {}, returning {} events", state.cursorId, batch.size());
                     future.complete(batch);
                 }
             }, maxTimeMs, TimeUnit.MILLISECONDS);
@@ -190,6 +201,15 @@ public class WatchCursorManager {
         CompletableFuture<List<Map<String, Object>>> future = new CompletableFuture<>();
         PendingGetMore pending = new PendingGetMore(future);
         state.pendingGetMores.offer(pending);
+
+        // CRITICAL: Re-check documents after adding to pendingGetMores to avoid race condition
+        if (!state.documents.isEmpty()) {
+            if (state.pendingGetMores.remove(pending)) {
+                List<Map<String, Object>> batch = drainEvents(state.documents);
+                future.complete(batch);
+                return future;
+            }
+        }
 
         // Schedule timeout - handle rejected execution during shutdown
         try {
@@ -262,7 +282,7 @@ public class WatchCursorManager {
         long cursorId = nextCursorId();
         TailableCursorState state = new TailableCursorState(cursorId, db, collection, filter);
         tailableCursors.put(cursorId, state);
-        log.info("Created tailable cursor {} for {}.{}", cursorId, db, collection);
+        log.debug("Created tailable cursor {} for {}.{}", cursorId, db, collection);
         return cursorId;
     }
 
@@ -276,7 +296,7 @@ public class WatchCursorManager {
         }
         TailableCursorState state = new TailableCursorState(cursorId, db, collection, filter);
         tailableCursors.put(cursorId, state);
-        log.info("Registered external tailable cursor {} for {}.{}", cursorId, db, collection);
+        log.debug("Registered external tailable cursor {} for {}.{}", cursorId, db, collection);
     }
 
     /**
