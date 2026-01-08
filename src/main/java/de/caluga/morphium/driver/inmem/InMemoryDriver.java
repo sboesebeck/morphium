@@ -2932,6 +2932,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Validate query operators upfront to catch invalid queries even on empty collections
             QueryHelper.validateQuery(query);
 
+            // Handle root-level $text query - MongoDB-compatible text search
+            // Format: { $text: { $search: "search terms", $language: "...", $caseSensitive: false } }
+            if (query.containsKey("$text")) {
+                Object textQuery = query.get("$text");
+                if (textQuery instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> textOpts = (Map<String, Object>) textQuery;
+                    String searchString = null;
+                    if (textOpts.containsKey("$search")) {
+                        searchString = textOpts.get("$search").toString();
+                    }
+                    if (searchString != null && !searchString.isEmpty()) {
+                        // Get text index fields for this collection
+                        List<String> textFields = getTextIndexFields(db, collection);
+                        if (textFields.isEmpty()) {
+                            // No text index - MongoDB would throw an error, we'll search all string fields
+                            log.warn("$text query on collection without text index - searching all string fields");
+                        }
+                        // Store text search params in query for QueryHelper to process
+                        // Transform to internal format that QueryHelper can handle
+                        Map<String, Object> newQuery = new LinkedHashMap<>(query);
+                        newQuery.remove("$text");
+                        newQuery.put("$textSearch", Doc.of(
+                            "search", searchString,
+                            "fields", textFields,
+                            "caseSensitive", textOpts.getOrDefault("$caseSensitive", false),
+                            "diacriticSensitive", textOpts.getOrDefault("$diacriticSensitive", false)
+                        ));
+                        query = newQuery;
+                    }
+                }
+            }
+
             // Special handling for map field queries like "stringMap.key1"
             // System.out.println("[DEBUG_LOG] Original query: " + query);
             Map<String, Object> renamedQuery = new LinkedHashMap<>(query);
@@ -5548,6 +5581,27 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return getIndexesForDB(db).get(collection);
+    }
+
+    /**
+     * Get the list of fields that have a text index for the given collection.
+     * Returns empty list if no text index exists.
+     */
+    private List<String> getTextIndexFields(String db, String collection) {
+        List<String> textFields = new ArrayList<>();
+        List<Map<String, Object>> indexes = getIndexes(db, collection);
+        if (indexes == null) {
+            return textFields;
+        }
+        for (Map<String, Object> idx : indexes) {
+            // Check each key in the index - text indexes have "text" as the value
+            for (Map.Entry<String, Object> entry : idx.entrySet()) {
+                if (!"$options".equals(entry.getKey()) && "text".equals(entry.getValue())) {
+                    textFields.add(entry.getKey());
+                }
+            }
+        }
+        return textFields;
     }
 
     private void enforceUniqueOrThrow(String db, String collection, Map<String, Object> doc)
