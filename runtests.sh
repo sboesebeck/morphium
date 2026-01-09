@@ -527,6 +527,9 @@ function _ms_local_start_cluster() {
   # AsyncOperationTest alone uses 1134+ connections, so we need large pool for parallel tests
   local max_conn="${morphiumserverMaxConnections}"
   local sock_timeout="${morphiumserverSocketTimeout:-30}"
+  local heap_size="${morphiumserverHeapSize:-8g}"
+  local jvm_opts="${morphiumserverJvmOpts:--Xmx${heap_size} -Xms${heap_size} -XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:+ParallelRefProcEnabled}"
+  echo -e "${BL}Info:${CL} JVM settings: heap=${heap_size}, GC=G1GC"
   if [ -z "$max_conn" ]; then
     if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
       max_conn=$((2000 + parallel * 500))
@@ -596,10 +599,10 @@ function _ms_local_start_cluster() {
     local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout"
     if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
       # Single-node mode: no replica set arguments (using Netty async I/O)
-      nohup java -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &
+      nohup java $jvm_opts -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &
     else
       # Replica set mode (using Netty async I/O)
-      nohup java -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" $conn_args >"$log_file" 2>&1 &
+      nohup java $jvm_opts -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" $conn_args >"$log_file" 2>&1 &
     fi
     local pid=$!
     # Detach from the job table so that the main status loop ignores these helper processes.

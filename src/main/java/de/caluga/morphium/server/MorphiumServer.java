@@ -121,10 +121,12 @@ public class MorphiumServer {
                 host, port, maxConnections, idleTimeoutSeconds);
 
         // Configure event loop groups
-        // Boss group handles incoming connections
+        // Boss group handles incoming connections (can be tuned via system property)
         // Worker group handles I/O for established connections
-        int bossThreads = 1;
-        int workerThreads = Runtime.getRuntime().availableProcessors() * 2;
+        int bossThreads = Integer.getInteger("morphiumserver.bossThreads", 2);
+        // Default: 4x CPU cores for better load handling under high concurrency
+        int defaultWorkers = Runtime.getRuntime().availableProcessors() * 4;
+        int workerThreads = Integer.getInteger("morphiumserver.workerThreads", defaultWorkers);
         bossGroup = new NioEventLoopGroup(bossThreads);
         workerGroup = new NioEventLoopGroup(workerThreads);
 
@@ -143,10 +145,14 @@ public class MorphiumServer {
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
-                .option(ChannelOption.SO_BACKLOG, 1024)
+                // Increase backlog for high connection rate scenarios
+                .option(ChannelOption.SO_BACKLOG, 4096)
                 .option(ChannelOption.SO_REUSEADDR, true)
                 .childOption(ChannelOption.TCP_NODELAY, true)
                 .childOption(ChannelOption.SO_KEEPALIVE, true)
+                // Increase socket buffer sizes for better throughput (256KB each)
+                .childOption(ChannelOption.SO_RCVBUF, 256 * 1024)
+                .childOption(ChannelOption.SO_SNDBUF, 256 * 1024)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {

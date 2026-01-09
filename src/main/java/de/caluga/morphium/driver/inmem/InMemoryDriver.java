@@ -210,7 +210,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // command-level cursor buffers (simulate MongoDB batches)
     private final Map<Long, CursorResultBuffer> activeQueryCursors = new ConcurrentHashMap<>();
     private final AtomicLong cursorIdSequence = new AtomicLong(1);
-    private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(10);
+    // Configurable thread pool for scheduled tasks (TTL cleanup, etc.)
+    // Default: max(20, 2 * CPU cores) for better parallel operation handling
+    private static final int DEFAULT_EXEC_THREADS = Math.max(20, Runtime.getRuntime().availableProcessors() * 2);
+    private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(
+        Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
     // Executor for dispatching change stream events asynchronously
     // This prevents insert/update/delete operations from blocking on event delivery
     // Using cached thread pool with virtual threads to handle high event volumes
@@ -2253,7 +2257,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         database.put("test", new ConcurrentHashMap<>());
 
         if (exec.isShutdown()) {
-            exec = new ScheduledThreadPoolExecutor(10);
+            exec = new ScheduledThreadPoolExecutor(
+                Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
         }
 
         // Start per-instance event processor for change streams
