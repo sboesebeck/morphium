@@ -366,6 +366,30 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
 
+            // Check read preference for read commands on secondaries
+            // If read preference requires primary, reject on secondaries to ensure consistency
+            if (!isPrimary && !isWriteCommand) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
+                if (readPref != null) {
+                    String mode = (String) readPref.get("mode");
+                    if ("primary".equalsIgnoreCase(mode)) {
+                        String currentPrimary = getCurrentPrimaryHost();
+                        Map<String, Object> errorResponse = Doc.of(
+                            "ok", 0.0,
+                            "errmsg", "not primary and read preference is primary",
+                            "code", 10107,
+                            "codeName", "NotPrimaryNoSecondaryOk"
+                        );
+                        if (currentPrimary != null) {
+                            errorResponse.put("primaryHost", currentPrimary);
+                        }
+                        sendResponse(ctx, requestId, errorResponse);
+                        return;
+                    }
+                }
+            }
+
             // Check for change stream aggregation
             if (doc.containsKey("pipeline")) {
                 Object pipelineObj = doc.get("pipeline");
