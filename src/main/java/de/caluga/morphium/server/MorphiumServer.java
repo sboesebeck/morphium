@@ -524,6 +524,54 @@ public class MorphiumServer {
 
         // Start election manager
         electionManager.start();
+
+        // Wait for election to complete (either we become leader or discover one)
+        // This prevents clients from connecting before primary is known
+        waitForElectionResult();
+    }
+
+    /**
+     * Wait for election to produce a result (either this node becomes leader or a leader is discovered).
+     * Times out after 10 seconds to prevent deadlock in case of network issues.
+     */
+    private void waitForElectionResult() {
+        long timeout = 10000; // 10 seconds
+        long start = System.currentTimeMillis();
+        long pollInterval = 50; // Check every 50ms
+
+        log.info("Waiting for election to complete (timeout: {}ms)...", timeout);
+
+        while (primaryHost == null && running) {
+            if (System.currentTimeMillis() - start > timeout) {
+                log.warn("Election did not complete within {}ms, proceeding anyway. " +
+                        "Clients may see 'no primary' errors initially.", timeout);
+                break;
+            }
+
+            try {
+                Thread.sleep(pollInterval);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while waiting for election result");
+                break;
+            }
+
+            // Check if we became leader or found one
+            if (electionManager.isLeader()) {
+                primary = true;
+                primaryHost = host + ":" + port;
+                log.info("Election complete: this node is the leader");
+                break;
+            } else if (electionManager.getCurrentLeader() != null) {
+                primaryHost = electionManager.getCurrentLeader();
+                log.info("Election complete: leader is {}", primaryHost);
+                break;
+            }
+        }
+
+        if (primaryHost != null) {
+            log.info("Election completed, primary is: {}", primaryHost);
+        }
     }
 
     private void stopElection() {
