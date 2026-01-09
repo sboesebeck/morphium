@@ -40,12 +40,20 @@ public class ElectionConfig {
     private int stepdownCatchupTimeoutMs = 30000;
 
     /**
-     * Priority for this node in leader election.
-     * Higher priority nodes are more likely to become leader.
-     * Used as tie-breaker when logs are equally up-to-date.
-     * Default: 1
+     * Priority for this node in leader election (0-100).
+     * Higher priority nodes are more likely to become leader due to shorter election timeouts.
+     * - Priority 0: Node can never become primary (like MongoDB arbiter)
+     * - Priority 1-100: Higher values = shorter election timeout = more likely to win elections
+     * Default: 50 (middle priority)
+     *
+     * Similar to MongoDB's replica set member priority.
      */
-    private int electionPriority = 1;
+    private int electionPriority = 50;
+
+    /**
+     * Maximum priority value. Used to calculate relative election timeout delays.
+     */
+    public static final int MAX_PRIORITY = 100;
 
     /**
      * Whether this node can become leader.
@@ -166,11 +174,49 @@ public class ElectionConfig {
     }
 
     /**
-     * Generate a random election timeout within the configured range.
+     * Generate a random election timeout within the configured range,
+     * adjusted by this node's priority.
+     *
+     * Higher priority nodes get shorter timeouts, making them more likely
+     * to start elections first and become leader.
+     *
+     * Formula: baseTimeout + priorityDelay
+     * - baseTimeout: random value between min and max
+     * - priorityDelay: additional delay for lower priority nodes
+     *   - Priority 100 (max): no additional delay
+     *   - Priority 50: adds ~50% of the timeout range as delay
+     *   - Priority 1: adds ~99% of the timeout range as delay
+     *   - Priority 0: should never call this (handled by canBecomeLeader)
+     *
+     * This ensures higher priority nodes have election timeouts that are
+     * consistently shorter than lower priority nodes, similar to MongoDB.
      */
     public int randomElectionTimeout() {
         int range = electionTimeoutMaxMs - electionTimeoutMinMs;
-        return electionTimeoutMinMs + (int) (Math.random() * range);
+        int baseTimeout = electionTimeoutMinMs + (int) (Math.random() * range);
+
+        // Priority 0 nodes should not start elections (handled elsewhere),
+        // but if they do, give them maximum delay
+        if (electionPriority <= 0) {
+            return baseTimeout + range * 2;  // Very long timeout
+        }
+
+        // Calculate priority-based delay:
+        // Priority 100 -> delay factor 0 (no delay)
+        // Priority 50 -> delay factor 0.5 (50% of range added)
+        // Priority 1 -> delay factor 0.99 (99% of range added)
+        double priorityFactor = 1.0 - ((double) electionPriority / MAX_PRIORITY);
+        int priorityDelay = (int) (range * priorityFactor);
+
+        return baseTimeout + priorityDelay;
+    }
+
+    /**
+     * Check if this node can become leader based on priority.
+     * Priority 0 nodes can never become leader (like MongoDB arbiters).
+     */
+    public boolean canBecomeLeaderByPriority() {
+        return electionPriority > 0 && canBecomeLeader;
     }
 
     @Override

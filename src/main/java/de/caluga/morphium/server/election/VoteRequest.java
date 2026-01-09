@@ -31,14 +31,26 @@ public class VoteRequest {
      */
     private long lastLogTerm;
 
+    /**
+     * Candidate's election priority (0-100).
+     * Higher priority candidates are preferred when logs are equally up-to-date.
+     * Similar to MongoDB's replica set member priority.
+     */
+    private int candidatePriority;
+
     public VoteRequest() {
     }
 
     public VoteRequest(long term, String candidateId, long lastLogIndex, long lastLogTerm) {
+        this(term, candidateId, lastLogIndex, lastLogTerm, ElectionConfig.MAX_PRIORITY / 2);
+    }
+
+    public VoteRequest(long term, String candidateId, long lastLogIndex, long lastLogTerm, int candidatePriority) {
         this.term = term;
         this.candidateId = candidateId;
         this.lastLogIndex = lastLogIndex;
         this.lastLogTerm = lastLogTerm;
+        this.candidatePriority = candidatePriority;
     }
 
     public long getTerm() {
@@ -77,6 +89,15 @@ public class VoteRequest {
         return this;
     }
 
+    public int getCandidatePriority() {
+        return candidatePriority;
+    }
+
+    public VoteRequest setCandidatePriority(int candidatePriority) {
+        this.candidatePriority = candidatePriority;
+        return this;
+    }
+
     /**
      * Convert to Map for wire protocol transmission.
      * Uses LinkedHashMap to ensure command name is first key (MongoDB wire protocol requirement).
@@ -88,6 +109,7 @@ public class VoteRequest {
         map.put("candidateId", candidateId);
         map.put("lastLogIndex", lastLogIndex);
         map.put("lastLogTerm", lastLogTerm);
+        map.put("candidatePriority", candidatePriority);
         return map;
     }
 
@@ -100,6 +122,12 @@ public class VoteRequest {
         req.setCandidateId((String) map.get("candidateId"));
         req.setLastLogIndex(((Number) map.get("lastLogIndex")).longValue());
         req.setLastLogTerm(((Number) map.get("lastLogTerm")).longValue());
+        // Handle backwards compatibility - default to mid priority if not present
+        if (map.containsKey("candidatePriority")) {
+            req.setCandidatePriority(((Number) map.get("candidatePriority")).intValue());
+        } else {
+            req.setCandidatePriority(ElectionConfig.MAX_PRIORITY / 2);
+        }
         return req;
     }
 
@@ -110,6 +138,7 @@ public class VoteRequest {
                 ", candidateId='" + candidateId + '\'' +
                 ", lastLogIndex=" + lastLogIndex +
                 ", lastLogTerm=" + lastLogTerm +
+                ", candidatePriority=" + candidatePriority +
                 '}';
     }
 }

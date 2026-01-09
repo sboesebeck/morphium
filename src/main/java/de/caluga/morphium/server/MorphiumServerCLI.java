@@ -28,6 +28,7 @@ public class MorphiumServerCLI {
         String hostSeedArg = "";
         List<String> hostsArg = new ArrayList<>();
         Map<String, Integer> hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
+        String prioritiesArg = "";  // Optional explicit priorities
         int compressorId = OpCompressed.COMPRESSOR_NOOP;
 
         // SSL configuration
@@ -69,13 +70,11 @@ public class MorphiumServerCLI {
                     hostSeedArg = args[idx + 1];
                     idx += 2;
                     hostsArg = new ArrayList<>();
-                    hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
-                    int basePrio = 1000;
-                    for (int i = 0; i < hostSeedArg.split(",").length; i++) {
-                        var s = hostSeedArg.split(",")[i].trim();
+                    // Parse hosts - priorities will be assigned after all args are parsed
+                    for (String s : hostSeedArg.split(",")) {
+                        s = s.trim();
                         int rsport = 27017;
                         String hst = s;
-                        int prio = basePrio - i;
 
                         if (hst.contains(":")) {
                             rsport = Integer.parseInt(hst.split(":")[1]);
@@ -84,8 +83,12 @@ public class MorphiumServerCLI {
 
                         String entry = hst + ":" + rsport;
                         hostsArg.add(entry);
-                        hostPrioritiesArg.put(entry, prio);
                     }
+                    break;
+
+                case "--rs-priorities":
+                    prioritiesArg = args[idx + 1];
+                    idx += 2;
                     break;
 
                 case "-c":
@@ -153,8 +156,45 @@ public class MorphiumServerCLI {
 
         log.info("Starting server...");
 
+        // Assign priorities to hosts
+        // Default: all nodes have equal priority (50)
+        // If --rs-priorities is specified, use those values
+        hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
+        if (!hostsArg.isEmpty()) {
+            if (prioritiesArg.isEmpty()) {
+                // Default: all equal priority
+                for (String h : hostsArg) {
+                    hostPrioritiesArg.put(h, 50);
+                }
+                log.info("All nodes have equal election priority (50)");
+            } else {
+                // Parse explicit priorities
+                String[] prioValues = prioritiesArg.split(",");
+                if (prioValues.length != hostsArg.size()) {
+                    log.error("Number of priorities ({}) must match number of hosts ({})",
+                            prioValues.length, hostsArg.size());
+                    System.exit(1);
+                }
+                for (int i = 0; i < hostsArg.size(); i++) {
+                    int prio = Integer.parseInt(prioValues[i].trim());
+                    if (prio < 0 || prio > 100) {
+                        log.error("Priority must be between 0 and 100, got: {}", prio);
+                        System.exit(1);
+                    }
+                    hostPrioritiesArg.put(hostsArg.get(i), prio);
+                }
+                log.info("Election priorities: {}", hostPrioritiesArg);
+            }
+        }
+
         var srv = new MorphiumServer(port, host, maxConnections, socketTimeoutSec, compressorId);
-        srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg);
+
+        // Configure replica set - election is always enabled for multi-node replica sets
+        boolean enableElection = !rsNameArg.isEmpty() && hostsArg.size() > 1;
+        if (enableElection) {
+            log.info("Replica set configured with {} members, election enabled", hostsArg.size());
+        }
+        srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg, enableElection, null);
 
         // Configure SSL if enabled
         if (sslEnabled) {
@@ -220,8 +260,14 @@ public class MorphiumServerCLI {
         System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
         System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
         System.out.println("  --rs-name <name>           : Name of the replica set");
-        System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts to seed the replica set.");
-        System.out.println("                               The first host in the list will have the highest priority.");
+        System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts in the replica set");
+        System.out.println("                               Example: localhost:27017,localhost:27018,localhost:27019");
+        System.out.println("  --rs-priorities <list>     : Comma-separated list of election priorities (0-100) matching seed order");
+        System.out.println("                               Default: all nodes have equal priority (50)");
+        System.out.println("                               Higher priority = more likely to become primary");
+        System.out.println("                               Priority 0 = node can never become primary (like MongoDB arbiter)");
+        System.out.println("                               Example: --rs-priorities 100,50,50");
+        System.out.println("                               IMPORTANT: All nodes must use the same --rs-seed and --rs-priorities!");
         System.out.println();
         System.out.println("SSL/TLS Options:");
         System.out.println("  --ssl, --tls               : Enable SSL/TLS encrypted connections");

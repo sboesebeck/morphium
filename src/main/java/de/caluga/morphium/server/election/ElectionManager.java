@@ -192,8 +192,9 @@ public class ElectionManager {
      * Transition to CANDIDATE state and start election.
      */
     private void becomeCandidate() {
-        if (!config.isCanBecomeLeader()) {
-            log.debug("{} cannot become leader (canBecomeLeader=false), staying follower", myAddress);
+        if (!config.canBecomeLeaderByPriority()) {
+            log.debug("{} cannot become leader (priority={}, canBecomeLeader={}), staying follower",
+                    myAddress, config.getElectionPriority(), config.isCanBecomeLeader());
             resetElectionTimer();
             return;
         }
@@ -352,7 +353,8 @@ public class ElectionManager {
             return;
         }
 
-        VoteRequest request = new VoteRequest(term, myAddress, lastLogIndex.get(), lastLogTerm.get());
+        VoteRequest request = new VoteRequest(term, myAddress, lastLogIndex.get(), lastLogTerm.get(),
+                config.getElectionPriority());
 
         log.debug("{} requesting votes for term {} from {} peers", myAddress, term, peerAddresses.size());
 
@@ -373,6 +375,12 @@ public class ElectionManager {
     /**
      * Handle incoming vote request from a candidate.
      *
+     * Priority-aware voting logic (similar to MongoDB):
+     * 1. Standard Raft checks: term comparison, log up-to-date check
+     * 2. Priority consideration: prefer higher priority candidates when logs are equal
+     * 3. If we're a higher priority node and can become leader, we may delay voting
+     *    for lower priority candidates to give ourselves a chance to run
+     *
      * @return VoteResponse to send back
      */
     public VoteResponse handleVoteRequest(VoteRequest request) {
@@ -380,9 +388,11 @@ public class ElectionManager {
         try {
             long requestTerm = request.getTerm();
             long myTerm = currentTerm.get();
+            int candidatePriority = request.getCandidatePriority();
+            int myPriority = config.getElectionPriority();
 
-            log.debug("{} received vote request from {} for term {} (my term={})",
-                    myAddress, request.getCandidateId(), requestTerm, myTerm);
+            log.debug("{} received vote request from {} for term {} (my term={}, candidate priority={}, my priority={})",
+                    myAddress, request.getCandidateId(), requestTerm, myTerm, candidatePriority, myPriority);
 
             // If request term is higher, update our term and become follower
             if (requestTerm > myTerm) {
@@ -405,16 +415,31 @@ public class ElectionManager {
             // Check if candidate's log is at least as up-to-date as ours
             boolean logOk = isLogAtLeastAsUpToDate(request.getLastLogTerm(), request.getLastLogIndex());
 
-            if (canVote && logOk) {
+            // Priority-based voting decision:
+            // If we're a higher priority node that can become leader and haven't voted yet,
+            // we should not vote for a lower priority candidate (give ourselves a chance first)
+            boolean priorityOk = true;
+            if (canVote && logOk && votedFor == null) {
+                // We haven't voted yet - consider priority
+                if (config.canBecomeLeaderByPriority() && myPriority > candidatePriority) {
+                    // We're higher priority - don't vote for lower priority candidate
+                    // This gives us a chance to start our own election
+                    log.debug("{} (priority {}) not voting for lower priority candidate {} (priority {})",
+                            myAddress, myPriority, request.getCandidateId(), candidatePriority);
+                    priorityOk = false;
+                }
+            }
+
+            if (canVote && logOk && priorityOk) {
                 votedFor = request.getCandidateId();
                 resetElectionTimer();  // Reset timer since we're participating in election
 
-                log.info("{} granted vote to {} for term {}",
-                        myAddress, request.getCandidateId(), requestTerm);
+                log.info("{} granted vote to {} for term {} (candidate priority={})",
+                        myAddress, request.getCandidateId(), requestTerm, candidatePriority);
                 return new VoteResponse(myTerm, true, myAddress);
             } else {
-                log.debug("{} denied vote to {} (canVote={}, logOk={}, votedFor={})",
-                        myAddress, request.getCandidateId(), canVote, logOk, votedFor);
+                log.debug("{} denied vote to {} (canVote={}, logOk={}, priorityOk={}, votedFor={})",
+                        myAddress, request.getCandidateId(), canVote, logOk, priorityOk, votedFor);
                 return new VoteResponse(myTerm, false, myAddress);
             }
 
@@ -863,9 +888,18 @@ public class ElectionManager {
         stats.put("peerCount", peerAddresses.size());
         stats.put("peers", peerAddresses);
         stats.put("running", running);
+        stats.put("priority", config.getElectionPriority());
+        stats.put("canBecomeLeader", config.canBecomeLeaderByPriority());
         if (state == ElectionState.LEADER) {
             stats.put("leaseExpiryMs", Math.max(0, leaseExpiryTime - System.currentTimeMillis()));
         }
         return stats;
+    }
+
+    /**
+     * Get this node's election priority.
+     */
+    public int getPriority() {
+        return config.getElectionPriority();
     }
 }

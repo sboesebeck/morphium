@@ -304,7 +304,7 @@ public class MorphiumServer {
      *
      * @param name        Replica set name
      * @param hostList    List of all hosts in the replica set
-     * @param priorities  Priority map for static primary selection (ignored if election enabled)
+     * @param priorities  Priority map for each host (used in both static and election modes)
      * @param enableElection If true, enable automatic leader election
      * @param config      Election configuration (optional, uses defaults if null)
      */
@@ -316,6 +316,17 @@ public class MorphiumServer {
         this.electionConfig = config != null ? config : new ElectionConfig();
 
         String myAddress = host + ":" + port;
+
+        // Set this node's election priority from the priorities map
+        // Priorities should be 0-100, where 0 = cannot become primary
+        // All nodes in the cluster must use the same priority configuration
+        if (priorities != null && !priorities.isEmpty()) {
+            int myPriority = priorities.getOrDefault(myAddress, 50);
+            // Clamp to valid range
+            myPriority = Math.max(0, Math.min(100, myPriority));
+            this.electionConfig.setElectionPriority(myPriority);
+            log.info("Node {} election priority: {}", myAddress, myPriority);
+        }
 
         if (rsName.isEmpty()) {
             // No replica set - act as standalone primary
@@ -332,7 +343,7 @@ public class MorphiumServer {
             primary = false;
             primaryHost = null;
 
-            // Create election manager
+            // Create election manager with priority-aware config
             electionManager = new ElectionManager(myAddress, hosts, electionConfig);
 
             // Set up leadership change callback
