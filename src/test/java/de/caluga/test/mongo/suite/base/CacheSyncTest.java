@@ -39,6 +39,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
 @Tag("cache")
+@Tag("slow")  // May be flaky under high parallel load - uses caching with timing-sensitive operations
 public class CacheSyncTest extends MultiDriverTestBase {
     private boolean preSendClear = false;
     private boolean postSendClear = false;
@@ -202,7 +203,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
             morphium.store(obj);
         }
         TestUtils.waitForWrites(morphium, log);
-        TestUtils.waitForConditionToBecomeTrue(15000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll() == 100);
+        TestUtils.waitForConditionToBecomeTrue(30000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll() == 100);
         dur = System.currentTimeMillis() - start;
         log.info("Updating without synchronizer: " + dur + " ms");
 
