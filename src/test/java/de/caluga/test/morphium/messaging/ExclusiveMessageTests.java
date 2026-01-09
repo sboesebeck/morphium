@@ -38,6 +38,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("messaging")
+@Tag("slow")  // Timing-sensitive messaging tests - may be flaky under high parallel load
 public class ExclusiveMessageTests extends MultiDriverTestBase {
     private boolean gotMessage1 = false;
     private boolean gotMessage2 = false;

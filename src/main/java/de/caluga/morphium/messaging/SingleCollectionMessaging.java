@@ -590,10 +590,22 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // always run this find in addition to changestream
         try {
             AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
+            // Fallback poll interval when using change streams - poll at least every N pauses
+            // to catch any events that might be missed by the change stream
+            final int FALLBACK_POLL_INTERVAL = 10; // Poll every 10th pause cycle as fallback
+            final AtomicInteger pollCycleCounter = new AtomicInteger(0);
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
-                    if (requestPoll.get() > 0 || !useChangeStream) {
+                    // Poll when:
+                    // 1. requestPoll > 0 (lock deleted, new messages likely available)
+                    // 2. change streams disabled (always poll)
+                    // 3. fallback: every FALLBACK_POLL_INTERVAL cycles when change streams are enabled
+                    //    to catch any events that might be missed by the change stream
+                    boolean shouldFallbackPoll = useChangeStream &&
+                        (pollCycleCounter.incrementAndGet() % FALLBACK_POLL_INTERVAL == 0);
+
+                    if (requestPoll.get() > 0 || !useChangeStream || shouldFallbackPoll) {
                         lastRun.set(System.currentTimeMillis());
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);

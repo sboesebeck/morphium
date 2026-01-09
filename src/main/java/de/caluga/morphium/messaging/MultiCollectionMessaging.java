@@ -161,6 +161,18 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     pollTrigger.get(name).set(0);
                 }
             }
+            // Fallback polling for broadcast messages when change streams are enabled
+            // Change streams can miss events due to network issues or MongoDB internal issues
+            // This ensures broadcast messages are eventually delivered even if change stream events are lost
+            if (isUseChangeStream() && running.get()) {
+                for (var topicName : monitorsByTopic.keySet()) {
+                    try {
+                        pollAndProcess(topicName);
+                    } catch (Exception e) {
+                        log.debug("Error in fallback poll for topic {}", topicName, e);
+                    }
+                }
+            }
             Map<MorphiumId, CallbackRequest> cp = new HashMap<>(waitingForCallbacks); // copy to avoid concurrent
             // Modification in loop
             for (var entry : cp.entrySet()) {
