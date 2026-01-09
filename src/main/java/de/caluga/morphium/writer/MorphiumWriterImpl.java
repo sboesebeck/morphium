@@ -1548,6 +1548,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     private void sumUp(Map<String, Object> toAdd, Map<String, Object> target) {
+        if (toAdd == null) {
+            return;
+        }
         for (var e : toAdd.entrySet()) {
             try {
                 if (e.getValue() instanceof Integer) {
