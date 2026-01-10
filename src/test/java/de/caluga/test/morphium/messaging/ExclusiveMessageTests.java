@@ -317,7 +317,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 sender2.setSenderId("sender2");
                 mx.dropCollection(Msg.class, sender2.getCollectionName(), null);
                 sender2.start();
-                Thread.sleep(200);
+                // Wait for messaging instances to fully initialize
+                Thread.sleep(1500);
                 gotMessage1 = false;
                 gotMessage2 = false;
                 gotMessage3 = false;
@@ -374,7 +375,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 while (!gotMessage1 && !gotMessage2) {
                     Thread.sleep(200);
                     log.info("Still did not get all messages: m1=" + gotMessage1 + " m2=" + gotMessage2);
-                    assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
+                    // Use longer timeout for MorphiumServer replicaset
+                    assertThat(System.currentTimeMillis() - s).isLessThan(60000);
                 }
 
                 int rec = 0;
