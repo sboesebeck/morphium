@@ -64,6 +64,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private MessagingSettings effectiveSettings;
     private ThreadPoolExecutor threadPool;
     private Set<MorphiumId> processingMessages = ConcurrentHashMap.newKeySet();
+    // Track recently completed messages with their completion timestamp
+    // This prevents race conditions where a poll query built before processedBy update
+    // returns a message that was just processed, but processingMessages no longer contains it
+    private Map<MorphiumId, Long> recentlyCompletedMessages = new ConcurrentHashMap<>();
+    // How long to keep message IDs in recentlyCompletedMessages (ms)
+    private static final long RECENTLY_COMPLETED_RETENTION_MS = 10000;
 
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
@@ -184,6 +190,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 }
             }
 
+            // Cleanup recently completed messages that have expired
+            long now = System.currentTimeMillis();
+            recentlyCompletedMessages.entrySet().removeIf(entry ->
+                now - entry.getValue() > RECENTLY_COMPLETED_RETENTION_MS);
+
         }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS);
 
         String dmCollectionName = getDMCollectionName();
@@ -264,6 +275,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                                 // CRITICAL: Only remove from processingMessages when ALL listeners have finished
                                 // This prevents race condition where message is re-processed while listeners are still running
                                 if (remainingListeners.decrementAndGet() == 0) {
+                                    // Move to recentlyCompletedMessages before removing from processingMessages
+                                    recentlyCompletedMessages.put(msg.getMsgId(), System.currentTimeMillis());
                                     processingMessages.remove(msg.getMsgId());
                                 }
                             }
@@ -577,6 +590,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             return; // cannot process message, as there is no listener? HOW?
         }
 
+        // Check if recently completed - prevents race condition where poll query was built
+        // before processedBy was updated, but message was just processed
+        if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
+            return;  // Skip - recently processed
+        }
+
         // Use atomic add operation - if already present, skip processing
         // CRITICAL: Check BEFORE looping through listeners, not inside loop
         if (!processingMessages.add(m.getMsgId())) {
@@ -646,6 +665,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     // CRITICAL: Only remove from processingMessages when ALL listeners have finished
                     // This prevents race condition where message is re-processed while listeners are still running
                     if (remainingListeners.decrementAndGet() == 0) {
+                        // Move to recentlyCompletedMessages before removing from processingMessages
+                        // This prevents race condition where a poll query built before processedBy update
+                        // returns this message after we remove it from processingMessages
+                        recentlyCompletedMessages.put(m.getMsgId(), System.currentTimeMillis());
                         processingMessages.remove(m.getMsgId());
                     }
                 }
@@ -752,6 +775,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 // Check if already being processed (from change stream or another poll)
                 if (processingMessages.contains(m.getMsgId())) {
                     continue;  // Skip - already being processed
+                }
+
+                // Check if recently completed - prevents race condition where poll query was built
+                // before processedBy was updated, but message was just processed
+                if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
+                    continue;  // Skip - recently processed
                 }
 
                 if (m.isExclusive()) {
@@ -971,6 +1000,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             if (doc.getSender().equals(getSenderId()))
                 return running.get();
 
+            // Check if recently completed - prevents race condition where fallback poll
+            // or change stream delivers a message that was just processed
+            if (recentlyCompletedMessages.containsKey(doc.getMsgId())) {
+                return running.get();
+            }
+
             // Use atomic add operation - if already present, skip processing
             // CRITICAL: This must happen BEFORE queueing the Runnable to prevent duplicates
             if (!processingMessages.add(doc.getMsgId())) {
@@ -1037,6 +1072,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 } finally {
                     // CRITICAL: Remove from processingMessages in ALL code paths
                     // This must be in the outer finally to catch early returns
+                    // Move to recentlyCompletedMessages before removing to prevent race conditions
+                    recentlyCompletedMessages.put(doc.getMsgId(), System.currentTimeMillis());
                     processingMessages.remove(doc.getMsgId());
                 }
             };

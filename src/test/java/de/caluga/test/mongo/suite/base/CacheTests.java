@@ -248,6 +248,12 @@ public class CacheTests extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(5000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == 20);
 
+            // Allow cache sync messages from stores to be processed before testing cache
+            Thread.sleep(1500);
+
+            // Clear cache to start fresh for cache hit testing
+            morphium.getCache().clearCachefor(CachedObject.class);
+
             // First list query - should hit database and populate cache
             List<CachedObject> firstList = morphium.createQueryFor(CachedObject.class)
                                            .f("counter").lt(10).asList();

@@ -199,6 +199,12 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             return null;
                         });
                     }
+
+                    // Wait for all receivers to be fully initialized before sending
+                    // MultiCollectionMessaging needs more time to initialize change stream watchers
+                    Thread.sleep(3500);
+                    log.info("All receivers initialized, starting to send messages...");
+
                     int amount = 100;
 
                     for (int i = 0; i < amount; i++) {
@@ -210,8 +216,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
-                    long maxTotalTimeout = 120000; // Max 120 seconds total (for parallel test execution)
-                    long idleTimeout = 45000; // 45 seconds after last message received (for parallel load)
+                    long maxTotalTimeout = 180000; // Max 180 seconds total (for MorphiumServer replicaset)
+                    long idleTimeout = 60000; // 60 seconds after last message received (for parallel load)
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;
 

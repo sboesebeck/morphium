@@ -405,7 +405,7 @@ public class MorphiumServerTest {
 
     @Test
     public void multithreaddedMessaging() throws Exception {
-        int port = PORT.incrementAndGet();
+        int port = nextPort();
         var srv = new MorphiumServer(port, "localhost", 100, 60);  // 60 second idle timeout
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
@@ -452,11 +452,14 @@ public class MorphiumServerTest {
                 msg1.sendMessage(msg);
                 log.info("Message sent...");
 
+                long waitStart = System.currentTimeMillis();
                 while (recAmount.get() != i + 1) {
                     log.info("Waiting....{} != {}", i + 1, recAmount.get());
-
+                    if (System.currentTimeMillis() - waitStart > 30000) {
+                        throw new RuntimeException("Timeout waiting for message " + (i + 1) + ", only received " + recAmount.get());
+                    }
                     synchronized (recAmount) {
-                        recAmount.wait();
+                        recAmount.wait(1000);  // Wait with timeout
                     }
                 }
 

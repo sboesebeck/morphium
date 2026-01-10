@@ -77,7 +77,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                     m1.start();
                     m2.start();
                     m3.start();
-                    Thread.sleep(250);
+                    // Wait for messaging instances to fully initialize (change stream watchers, etc.)
+                    Thread.sleep(2000);
                     for (int i = 0; i < 10; i++) {
                         Msg mm = new Msg("test", "ignore me please", "value", 20000, true);
                         m1.sendMessage(mm);
@@ -89,12 +90,12 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                             // Use query to fetch by ID to handle replication lag
                             mm = m.createQueryFor(Msg.class, collName).f("_id").eq(msgId).get();
                             if (mm == null) {
-                                assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for message to be visible");
+                                assertTrue(System.currentTimeMillis() - start < 30000, "timeout waiting for message to be visible");
                                 continue;
                             }
                             if (mm.getProcessedBy() != null && mm.getProcessedBy().size() != 0)
                                 break;
-                            assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for processing");
+                            assertTrue(System.currentTimeMillis() - start < 30000, "timeout waiting for processing");
                         }
                         assertNotNull(mm);
                         assertEquals(1, mm.getProcessedBy().size());

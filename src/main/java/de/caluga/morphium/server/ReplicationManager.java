@@ -568,7 +568,7 @@ public class ReplicationManager {
         try {
             cmd = new WatchCommand(con)
                 .setDb("admin")  // Watch at cluster level
-                .setMaxTimeMS(5000)  // 5 second timeout - balanced for responsiveness vs efficiency
+                .setMaxTimeMS(500)  // 500ms timeout - low latency for messaging tests
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
                 .setPipeline(List.of())  // Empty = watch everything
                 .setCb(new DriverTailableIterationCallback() {
