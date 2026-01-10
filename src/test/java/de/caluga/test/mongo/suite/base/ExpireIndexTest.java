@@ -25,6 +25,14 @@ public class ExpireIndexTest extends MultiDriverTestBase {
     public void testExpiry(Morphium morphium) throws Exception {
         log.info("==========> Running test with: " + morphium.getDriver().getName());
 
+        // Skip for MorphiumServer - TTL indices rely on MongoDB's background thread which
+        // is not available in InMemoryDriver used by MorphiumServer
+        if (morphium.getDriver().isInMemoryBackend()) {
+            log.info("Skipping TTL index test for MorphiumServer - TTL background thread not supported");
+            morphium.close();
+            return;
+        }
+
         String driverName = morphium.getDriver().getName();;
         try (morphium) {
             morphium.dropCollection(UCobj.class);

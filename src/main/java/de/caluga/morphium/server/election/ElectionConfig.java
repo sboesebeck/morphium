@@ -9,29 +9,36 @@ public class ElectionConfig {
     /**
      * Minimum election timeout in milliseconds.
      * The actual timeout is randomized between min and max to prevent split votes.
-     * Default: 150ms (Raft paper recommendation)
+     * Default: 2000ms (more production-ready than Raft paper's 150ms)
+     *
+     * Note: The Raft paper recommends 150ms, but in practice this is too aggressive
+     * for systems under high load. MongoDB uses 10 seconds by default.
+     * Can be overridden via system property "morphiumserver.electionTimeoutMinMs".
      */
-    private int electionTimeoutMinMs = 150;
+    private int electionTimeoutMinMs = Integer.getInteger("morphiumserver.electionTimeoutMinMs", 2000);
 
     /**
      * Maximum election timeout in milliseconds.
-     * Default: 300ms (Raft paper recommendation)
+     * Default: 4000ms (more production-ready than Raft paper's 300ms)
+     * Can be overridden via system property "morphiumserver.electionTimeoutMaxMs".
      */
-    private int electionTimeoutMaxMs = 300;
+    private int electionTimeoutMaxMs = Integer.getInteger("morphiumserver.electionTimeoutMaxMs", 4000);
 
     /**
      * Interval at which the leader sends heartbeats to followers.
      * Should be significantly less than election timeout to prevent unnecessary elections.
-     * Default: 50ms
+     * Default: 500ms (allows for GC pauses and high load situations)
+     * Can be overridden via system property "morphiumserver.heartbeatIntervalMs".
      */
-    private int heartbeatIntervalMs = 50;
+    private int heartbeatIntervalMs = Integer.getInteger("morphiumserver.heartbeatIntervalMs", 500);
 
     /**
      * Time without majority contact before leader steps down.
      * Prevents split-brain by ensuring leader maintains quorum.
      * Default: 10 seconds
+     * Can be overridden via system property "morphiumserver.leaderLeaseTimeoutMs".
      */
-    private int leaderLeaseTimeoutMs = 10000;
+    private int leaderLeaseTimeoutMs = Integer.getInteger("morphiumserver.leaderLeaseTimeoutMs", 10000);
 
     /**
      * Maximum time to wait for secondaries to catch up during stepdown.
@@ -65,9 +72,10 @@ public class ElectionConfig {
     /**
      * Timeout for vote requests in milliseconds.
      * If a node doesn't respond within this time, assume vote denied.
-     * Default: 100ms
+     * Default: 1000ms (allows for network latency and load)
+     * Can be overridden via system property "morphiumserver.voteRequestTimeoutMs".
      */
-    private int voteRequestTimeoutMs = 100;
+    private int voteRequestTimeoutMs = Integer.getInteger("morphiumserver.voteRequestTimeoutMs", 1000);
 
     /**
      * Whether to persist election state (term, votedFor) to disk.
