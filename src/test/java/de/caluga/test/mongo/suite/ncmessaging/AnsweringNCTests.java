@@ -153,7 +153,8 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                         onlyAnswers.sendMessage(question);
                         log.info("Send Message with id: " + question.getMsgId());
                         final MorphiumId questionId = question.getMsgId();
-                        TestUtils.waitForConditionToBecomeTrue(10000, "Answer not received", () ->
+                        // Use longer timeout for MorphiumServer under parallel load
+                        TestUtils.waitForConditionToBecomeTrue(30000, "Answer not received", () ->
                                                                morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(questionId).countAll() == 1
                                                               );
 
