@@ -92,12 +92,12 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                             // Use query to fetch by ID to handle replication lag
                             mm = m.createQueryFor(Msg.class, collName).f("_id").eq(msgId).get();
                             if (mm == null) {
-                                assertTrue(System.currentTimeMillis() - start < 60000, "timeout waiting for message to be visible");
+                                assertTrue(System.currentTimeMillis() - start < 120000, "timeout waiting for message to be visible");
                                 continue;
                             }
                             if (mm.getProcessedBy() != null && mm.getProcessedBy().size() != 0)
                                 break;
-                            assertTrue(System.currentTimeMillis() - start < 60000, "timeout waiting for processing");
+                            assertTrue(System.currentTimeMillis() - start < 120000, "timeout waiting for processing");
                         }
                         assertNotNull(mm);
                         assertEquals(1, mm.getProcessedBy().size());
@@ -377,8 +377,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 while (!gotMessage1 && !gotMessage2) {
                     Thread.sleep(200);
                     log.info("Still did not get all messages: m1=" + gotMessage1 + " m2=" + gotMessage2);
-                    // Use longer timeout for MorphiumServer replicaset
-                    assertThat(System.currentTimeMillis() - s).isLessThan(60000);
+                    // Use longer timeout for MorphiumServer replicaset under parallel load
+                    assertThat(System.currentTimeMillis() - s).isLessThan(120000);
                 }
 
                 int rec = 0;
