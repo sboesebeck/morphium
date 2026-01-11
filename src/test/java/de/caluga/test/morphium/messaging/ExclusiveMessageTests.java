@@ -471,6 +471,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                                morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(
                                morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+            // Configure to use shared connection pool to avoid exhaustion during parallel tests
+            cfg.driverSettings().setSharedConnectionPool(true);
             try (Morphium mx = new Morphium(cfg)) {
                 MorphiumMessaging sender = mx.createMessaging();
                 sender.setPause(100).setMultithreadded(true).setWindowSize(1);
@@ -479,10 +481,11 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 mx.dropCollection(MsgLock.class, sender.getLockCollectionName(), null);
                 Thread.sleep(2000);
                 sender.start();
-                // additional Morphium instances
+                // additional Morphium instances - use shared connection pool
                 MorphiumConfig c2 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c2.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c2.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
+                c2.driverSettings().setSharedConnectionPool(true);
                 Morphium morphium2 = new Morphium(c2);
                 morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
                 morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
@@ -494,6 +497,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 MorphiumConfig c3 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c3.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c3.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
+                c3.driverSettings().setSharedConnectionPool(true);
                 Morphium morphium3 = new Morphium(c3);
                 morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
                 morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
@@ -505,6 +509,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 MorphiumConfig c4 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c4.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c4.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
+                c4.driverSettings().setSharedConnectionPool(true);
                 Morphium morphium4 = new Morphium(c4);
                 morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
                 morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
@@ -516,6 +521,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 MorphiumConfig c5 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c5.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c5.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
+                c5.driverSettings().setSharedConnectionPool(true);
                 Morphium morphium5 = new Morphium(c5);
                 morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
                 morphium5.getConfig().setThreadPoolMessagingCoreSize(5);

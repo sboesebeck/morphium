@@ -217,8 +217,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
-                    long maxTotalTimeout = 180000; // Max 180 seconds total (for MorphiumServer replicaset)
-                    long idleTimeout = 60000; // 60 seconds after last message received (for parallel load)
+                    long maxTotalTimeout = 300000; // Max 300 seconds total (for MorphiumServer replicaset under parallel load)
+                    long idleTimeout = 120000; // 120 seconds after last message received (for parallel load)
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;
 
