@@ -31,7 +31,7 @@ public final class TestConfig {
         cfg.connectionSettings()
            .setDatabase(valueOr(props, "morphium.database", "morphium_test"))
            .setMaxWaitTime(intProp(props, "morphium.maxWaitTime", 10000))
-           .setMaxConnections(intProp(props, "morphium.maxConnections", 100))
+           .setMaxConnections(intProp(props, "morphium.maxConnections", 50))
            .setConnectionTimeout(intProp(props, "morphium.connectionTimeout", 2000))
            .setMinConnections(intProp(props, "morphium.minConnections", 1))
            .setUseSSL(booleanProp(props, "morphium.useSSL", false))
