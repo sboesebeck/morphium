@@ -236,8 +236,11 @@ public class ListTests extends MultiDriverTestBase {
         mc.objectList.add(eo);
         mc.objectList.add(extendedEmbeddedObject);
         morphium.store(mc);
-        Thread.sleep(100);
-        MyListContainer mc2 = morphium.createQueryFor(MyListContainer.class).asList().get(0);
+        // Wait for write to propagate in replica set
+        final MorphiumId expectedId = mc.id;
+        TestUtils.waitForConditionToBecomeTrue(15000, "Object not queryable",
+            () -> morphium.findById(MyListContainer.class, expectedId) != null);
+        MyListContainer mc2 = morphium.findById(MyListContainer.class, expectedId);
         assert(mc2.id.equals(mc.id));
         assert(mc2.objectList.size() == mc.objectList.size());
         assert(mc2.objectList.get(0) instanceof UncachedObject);

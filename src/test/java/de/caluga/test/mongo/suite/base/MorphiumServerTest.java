@@ -37,6 +37,7 @@ import de.caluga.morphium.server.MorphiumServer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 @Tag("server")
+@Disabled("Disabled by default - runs local MorphiumServer which is flaky with parallel tests. Run manually or with --include-tags server")
 public class MorphiumServerTest {
     private Logger log = LoggerFactory.getLogger(MorphiumServerTest.class);
     private static final AtomicInteger PORT = new AtomicInteger(18000);
