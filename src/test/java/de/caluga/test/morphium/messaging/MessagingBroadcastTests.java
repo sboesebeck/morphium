@@ -202,7 +202,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
 
                     // Wait for all receivers to be fully initialized before sending
                     // MultiCollectionMessaging needs more time to initialize change stream watchers
-                    Thread.sleep(3500);
+                    // MorphiumServer replicaset may need additional time for change stream propagation
+                    Thread.sleep(5000);
                     log.info("All receivers initialized, starting to send messages...");
 
                     int amount = 100;
@@ -248,17 +249,11 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
 
                         int expectedTotal = amount * receivers.size() + amount;
-                        // Accept 99% delivery rate to handle occasional message loss under load
-                        int minAcceptable = (int) (expectedTotal * 0.99);
-                        if (totalNum >= minAcceptable) {
-                            if (totalNum < expectedTotal) {
-                                log.warn("Accepted {} of {} messages ({}% delivery rate) using messaging {} and driver {}",
-                                        totalNum, expectedTotal, (totalNum * 100 / expectedTotal), msgImpl, morphium.getDriver().getName());
-                            }
+                        if (totalNum >= expectedTotal) {
                             break;
                         } else {
-                            log.info("Did not receive enough: {} of {} (min acceptable: {}) using messaging {} and driver {}",
-                                    totalNum, expectedTotal, minAcceptable, msgImpl, morphium.getDriver().getName());
+                            log.info("Did not receive enough: {} of {} using messaging {} and driver {}",
+                                    totalNum, expectedTotal, msgImpl, morphium.getDriver().getName());
                         }
 
                         assertEquals(0, errorCount.get(), "There were errors during processing using " + morphium.getDriver().getName() + "/" + msgImpl);
