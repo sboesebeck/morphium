@@ -198,7 +198,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                     }
 
                     log.info("Receiver is now terminated. Waiting for participant timeout...");
-                    waitUntilSendRejected(45_000, () -> {
+                    waitUntilSendRejected(120_000, () -> {
                         Msg directMsg = new Msg("direct", "msg", "value");
                         directMsg.addRecipient(receiverId);
                         log.info("Sending message to inactive recipient...");

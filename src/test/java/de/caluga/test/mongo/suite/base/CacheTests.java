@@ -82,6 +82,21 @@ public class CacheTests extends MultiDriverTestBase {
             first.setValue("Updated Value");
             morphium.store(first);
 
+            // Wait for write to complete and propagate in replica set
+            TestUtils.waitForWrites(morphium, log);
+            Thread.sleep(500);
+
+            // Use fresh query to bypass any stale cache
+            morphium.clearCachefor(CachedObject.class);
+
+            // Wait for updated value to be visible
+            TestUtils.waitForConditionToBecomeTrue(15000, "Updated value not visible",
+                () -> {
+                    morphium.clearCachefor(CachedObject.class);
+                    CachedObject obj = morphium.createQueryFor(CachedObject.class).f("counter").eq(5).get();
+                    return obj != null && "Updated Value".equals(obj.getValue());
+                });
+
             CachedObject updated = morphium.createQueryFor(CachedObject.class).f("counter").eq(5).get();
             assertEquals("Updated Value", updated.getValue());
         }

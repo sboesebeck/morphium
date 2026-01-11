@@ -43,8 +43,9 @@ public class PolymorphismTest extends MultiDriverTestBase {
         sb.setPoly("poly super");
         sb.setSub("sub");
         morphium.store(sb);
-        Thread.sleep(100);
-        assert (morphium.createQueryFor(PolyTest.class).countAll() == 2);
+        // Wait for writes to propagate in replica set
+        TestUtils.waitForConditionToBecomeTrue(15000, "Expected 2 documents but got fewer",
+            () -> morphium.createQueryFor(PolyTest.class).countAll() == 2);
         List<PolyTest> lst = morphium.createQueryFor(PolyTest.class).asList();
         for (PolyTest tst : lst) {
             log.info("Class " + tst.getClass().toString());

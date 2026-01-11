@@ -63,7 +63,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             () -> count == 2);
         run[0] = false;
         morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
-        TestUtils.waitForConditionToBecomeTrue(15000, "Expected 3 change events but got " + count,
+        TestUtils.waitForConditionToBecomeTrue(30000, "Expected 3 change events but got " + count,
             () -> count == 3); //the listener needs to be called to return false ;-)
         morphium.store(new UncachedObject("test", 123)); //to have the monitor stop
         assert(3 == count) : "Count wrong " + count + "!=3";

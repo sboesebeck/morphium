@@ -59,8 +59,10 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     List<Msg> receivedMessages = new ArrayList<>();
 
                     receiver.addListenerForTopic("test", (msg, m) -> {
-                        msgCount.incrementAndGet();
-                        receivedMessages.add(m);
+                        synchronized (receivedMessages) {
+                            receivedMessages.add(m);
+                            msgCount.incrementAndGet();
+                        }
                         return null;
                     });
 
@@ -74,8 +76,10 @@ public class BasicMessagingTests extends MultiDriverTestBase {
 
                     TestUtils.waitForConditionToBecomeTrue(5000, "Did not receive message", () -> msgCount.get() >= 1);
                     assertEquals(1, msgCount.get());
-                    assertEquals("Basic message", receivedMessages.get(0).getMsg());
-                    assertEquals("value1", receivedMessages.get(0).getValue());
+                    synchronized (receivedMessages) {
+                        assertEquals("Basic message", receivedMessages.get(0).getMsg());
+                        assertEquals("value1", receivedMessages.get(0).getValue());
+                    }
 
                     // Test multiple messages
                     for (int i = 0; i < 5; i++) {

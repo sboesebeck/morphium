@@ -199,8 +199,11 @@ public class SetsTests extends MultiDriverTestBase {
         mc.objectList.add(eo);
         mc.objectList.add(extendedEmbeddedObject);
         morphium.store(mc);
-        Thread.sleep(100);
-        MySetContainer mc2 = morphium.createQueryFor(MySetContainer.class).asList().get(0);
+        // Wait for write to propagate in replica set
+        final MorphiumId expectedId = mc.id;
+        TestUtils.waitForConditionToBecomeTrue(15000, "Object not queryable",
+            () -> morphium.findById(MySetContainer.class, expectedId) != null);
+        MySetContainer mc2 = morphium.findById(MySetContainer.class, expectedId);
         assert(mc2.id.equals(mc.id));
         assert(mc2.objectList.size() == mc.objectList.size());
         assert(mc2.objectList.toArray()[0] instanceof UncachedObject);
