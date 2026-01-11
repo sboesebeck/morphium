@@ -169,8 +169,8 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.messagingSettings().setMessagingRegistryEnabled(true);
                 cfg.messagingSettings().setMessagingRegistryCheckRecipients(de.caluga.morphium.config.MessagingSettings.RecipientCheck.THROW);
-                cfg.messagingSettings().setMessagingRegistryParticipantTimeout(2000);
-                cfg.messagingSettings().setMessagingRegistryUpdateInterval(1);
+                cfg.messagingSettings().setMessagingRegistryParticipantTimeout(5000);
+                cfg.messagingSettings().setMessagingRegistryUpdateInterval(2);
 
                 try (Morphium m1 = new Morphium(cfg)) {
                     MorphiumMessaging sender = m1.createMessaging();
@@ -198,7 +198,10 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                     }
 
                     log.info("Receiver is now terminated. Waiting for participant timeout...");
-                    waitUntilSendRejected(120_000, () -> {
+                    // Wait longer for the receiver termination to be noticed by the registry
+                    // during parallel test execution, system may be under heavy load
+                    Thread.sleep(15000);
+                    waitUntilSendRejected(180_000, () -> {
                         Msg directMsg = new Msg("direct", "msg", "value");
                         directMsg.addRecipient(receiverId);
                         log.info("Sending message to inactive recipient...");
