@@ -122,7 +122,6 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
-    @Disabled
     public void deleteAfterProcessingTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
@@ -171,7 +170,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
             Thread.sleep(1000);
             // Message should NOT be received since processedBy contains someone_else
             assertFalse(gotMessage1 || gotMessage2 || gotMessage3 || gotMessage4);
-            morphium.setInEntity(m, m1.getCollectionName(), Map.of(Msg.Fields.processedBy, new ArrayList<String>()));
+            morphium.setInEntity(m, m1.getCollectionName(), Map.of(Msg.Fields.processedBy.name(), new ArrayList<String>()));
             Thread.sleep(100);
             long s = System.currentTimeMillis();
 
@@ -212,7 +211,6 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
-    @Disabled
     public void exclusiveMessageTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
@@ -458,7 +456,6 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
-    @Tag("external")
     public void exclusivityTest(Morphium morphium) throws Exception  {
         for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
