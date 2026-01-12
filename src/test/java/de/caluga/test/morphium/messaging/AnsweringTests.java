@@ -555,7 +555,8 @@ public class AnsweringTests extends MultiDriverTestBase {
 
                     msgs.add(rec);
                 }
-                Thread.sleep(1000);
+                // Wait longer for MorphiumServer change stream initialization
+                Thread.sleep(5000);
 
                 Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 12000, true), 12000, false);
                 log.info("Got answer {}", a);
