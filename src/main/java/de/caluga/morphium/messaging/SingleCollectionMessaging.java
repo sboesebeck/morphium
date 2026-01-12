@@ -1224,7 +1224,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
 
                 if (l.markAsProcessedBeforeExec() && !alreadyUpdatedProcessedBy) {
-                    updateProcessedBy(msg);
+                    boolean updated = updateProcessedBy(msg);
+                    if (!updated) {
+                        // processed_by update failed - don't call listener, keep lock
+                        log.error("Failed to update processed_by before exec for message {} - keeping lock", msg.getMsgId());
+                        return;
+                    }
+                    alreadyUpdatedProcessedBy = true;
                 }
 
                 // Call listener
@@ -1277,7 +1283,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         if (wasProcessed && !msg.getProcessedBy().contains(id) && !alreadyUpdatedProcessedBy) {
-            updateProcessedBy(msg);
+            boolean updated = updateProcessedBy(msg);
+            if (!updated) {
+                // CRITICAL: Don't release lock if processed_by update failed
+                // This prevents another receiver from processing the message again
+                // The lock will expire via TTL and the message will be retried
+                log.error("Failed to update processed_by for message {} - keeping lock to prevent duplicate", msg.getMsgId());
+                return;
+            }
         }
 
         if (!wasRejected && wasProcessed) {
