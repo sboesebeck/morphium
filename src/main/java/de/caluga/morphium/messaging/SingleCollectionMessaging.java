@@ -1083,9 +1083,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // Messages can be queued for processing before the exclusive lock exists.
             // If another instance already processed and unlocked, a stale queued message
             // could otherwise be processed again. Re-fetch to ensure processed_by state is current.
+            // CRITICAL: Use PRIMARY read preference to avoid reading stale data from secondary replicas
             Msg fresh = null;
             try {
-                fresh = morphium.findById(Msg.class, obj.getMsgId(), getCollectionName());
+                fresh = morphium.createQueryFor(Msg.class, getCollectionName())
+                    .setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY)
+                    .f("_id").eq(obj.getMsgId())
+                    .get();
             } catch (Exception ignored) {
             }
 
