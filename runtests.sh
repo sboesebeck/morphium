@@ -526,13 +526,13 @@ if [ "$rerunfailed" -eq 1 ]; then
   nodel=1
 
   # Use getFailedTests.sh to get method-level failures
-  if [ ! -f "./getFailedTests.sh" ]; then
-    echo -e "${RD}Error:${CL} getFailedTests.sh not found!"
+  if [ ! -f "$(dirname "$0")/scripts/getFailedTests.sh" ]; then
+    echo -e "${RD}Error:${CL} scripts/getFailedTests.sh not found!"
     exit 1
   fi
 
   # Get failed tests in ClassName.methodName format (skip the "Looking for" message)
-  failed_tests=$(./getFailedTests.sh 2>/dev/null | grep -v "Looking for")
+  failed_tests=$("$(dirname "$0")/scripts/getFailedTests.sh" 2>/dev/null | grep -v "Looking for")
 
   # Filter by class pattern if provided (e.g., ./runtests.sh --rerunfailed DataTypeTests)
   # Note: $1 contains the class pattern since we're processing this before p=$1 assignment
@@ -721,15 +721,15 @@ if [ -n "$includeTags" ]; then
       ;;
     esac
   done
-  sort -u $tmpTagged -o $tmpTagged
-  if [ -s $tmpTagged ]; then
+  sort -u "$tmpTagged" -o "$tmpTagged"
+  if [ -s "$tmpTagged" ]; then
     # Intersect with current files list (only keep files we already identified as tests)
-    grep -F -f $tmpTagged $filesList >files_$PID.tmp || true
-    mv files_$PID.tmp $filesList
+    grep -F -f "$tmpTagged" "$filesList" >"$TEST_TMP_DIR/files_temp_filter_$PID.tmp" || true
+    mv "$TEST_TMP_DIR/files_temp_filter_$PID.tmp" "$filesList"
     # Rebuild class list from filtered files
     sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
   fi
-  rm -f $tmpTagged
+  rm -f "$tmpTagged"
 fi
 
 if [ "q$testname" = "q" ]; then
@@ -770,15 +770,15 @@ if [ "q$testname" = "q" ]; then
         ;;
       esac
     done
-    sort -u $tmpExcluded -o $tmpExcluded
-    if [ -s $tmpExcluded ]; then
+    sort -u "$tmpExcluded" -o "$tmpExcluded"
+    if [ -s "$tmpExcluded" ]; then
       # Remove excluded files from the files list
-      grep -v -F -f $tmpExcluded $filesList >files_$PID.tmp || cp $filesList files_$PID.tmp
-      mv files_$PID.tmp $filesList
+      grep -v -F -f "$tmpExcluded" "$filesList" >"$TEST_TMP_DIR/files_temp_filter_exclude_$PID.tmp" || cp "$filesList" "$TEST_TMP_DIR/files_temp_filter_exclude_$PID.tmp"
+      mv "$TEST_TMP_DIR/files_temp_filter_exclude_$PID.tmp" "$filesList"
       # Rebuild class list from filtered files
       sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
     fi
-    rm -f $tmpExcluded
+    rm -f "$tmpExcluded"
   fi
   if [ "$skip" -ne 0 ]; then
     echo -e "${BL}Info:${CL} Skipping tests already run"
@@ -1247,10 +1247,7 @@ function cleanup_parallel_execution() {
 
   # Remove slot directories after copying logs
   echo -e "${BL}Cleaning up slot directories...${CL}"
-  rm -rf test.log/slot_*
-
-  # Cleanup temporary files
-  rm -f test_chunk_*.txt
+  rm -f "$TEST_TMP_DIR"/test_chunk_*.txt
 
   echo -e "${RD}Parallel execution aborted by user${CL}"
   exit 130
@@ -1278,7 +1275,7 @@ function run_parallel_tests() {
       ((chunk_size++))
     fi
 
-    chunk_file="test_chunk_$slot.txt"
+    chunk_file="$TEST_TMP_DIR/test_chunk_$slot.txt"
     sed -n "${line_start},$((line_start + chunk_size - 1))p" $classList >$chunk_file
     ((line_start += chunk_size))
 
@@ -1373,7 +1370,7 @@ function run_parallel_tests() {
   done
 
   # Cleanup temporary files
-  rm -f test_chunk_*.txt
+  rm -f "$TEST_TMP_DIR"/test_chunk_*.txt
   echo -e "${GN}Parallel execution completed${CL}"
 }
 
@@ -1550,10 +1547,10 @@ fail=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Tests failed" | cut -d: -f2 | tr -
         done
 
         # Create temporary class list with just the failed tests
-        echo -e "$failed_classes" | sort -u >"${classList}.retry"
+        echo -e "$failed_classes" | sort -u >"$TEST_TMP_DIR/$(basename "$classList").retry"
 
         # Rerun failed tests
-        for retry_t in $(<"${classList}.retry"); do
+        for retry_t in $(<"$TEST_TMP_DIR/$(basename "$classList").retry"); do
           if grep "$retry_t" $disabledList >/dev/null; then
             continue
           fi
@@ -1565,7 +1562,7 @@ fail=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Tests failed" | cut -d: -f2 | tr -
           fi
         done
 
-        rm -f "${classList}.retry"
+        rm -f "$TEST_TMP_DIR/$(basename "$classList").retry"
       fi
 
       ((num = num - 1))
