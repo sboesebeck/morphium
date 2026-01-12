@@ -45,6 +45,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final AtomicBoolean watchStartedSignaled = new AtomicBoolean(false);
     private volatile WatchCommand activeWatch;
     private volatile de.caluga.morphium.driver.wire.MongoConnection activeConnection;
+    // Resume token tracking to prevent duplicate events on watch restart
+    private volatile Map<String, Object> lastResumeToken = null;
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false, null);
@@ -219,6 +221,14 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                             return;
                         }
 
+                        // Capture resume token for use when restarting the watch
+                        // The _id field in change stream events IS the resume token
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> resumeToken = (Map<String, Object>) data.get("_id");
+                        if (resumeToken != null) {
+                            lastResumeToken = resumeToken;
+                        }
+
                         @SuppressWarnings("unchecked")
                         Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                         data.remove("fullDocument");
@@ -275,6 +285,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                 watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxWaitTime())
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
+
+                // Use resume token to continue from where we left off (prevents duplicate events)
+                if (lastResumeToken != null) {
+                    watch.setResumeAfter(lastResumeToken);
+                    log.debug("Resuming change stream from token: {}", lastResumeToken);
+                }
+
                 activeWatch = watch;
 
                 if (!dbOnly) {
