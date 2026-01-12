@@ -89,6 +89,12 @@ public interface MorphiumDriver extends Closeable {
 
     boolean isReplicaset();
 
+    /**
+     * Check if connected to a MorphiumServer (in-memory MongoDB implementation).
+     * This allows clients to use MorphiumServer-specific optimizations.
+     */
+    boolean isMorphiumServer();
+
     public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType);
 
     List<String> listDatabases() throws MorphiumDriverException;

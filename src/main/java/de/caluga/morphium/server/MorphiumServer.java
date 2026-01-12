@@ -24,6 +24,7 @@ import de.caluga.morphium.server.netty.MongoCommandHandler;
 import de.caluga.morphium.server.netty.MongoWireProtocolDecoder;
 import de.caluga.morphium.server.netty.MongoWireProtocolEncoder;
 import de.caluga.morphium.server.netty.WatchCursorManager;
+import de.caluga.morphium.server.messaging.MessagingOptimizer;
 
 import javax.net.ssl.SSLContext;
 import java.io.File;
@@ -58,6 +59,7 @@ public class MorphiumServer {
     // Server state
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
+    private final MessagingOptimizer messagingOptimizer;
     private final AtomicInteger msgId = new AtomicInteger(1000);
     private volatile boolean running = false;
 
@@ -96,6 +98,9 @@ public class MorphiumServer {
         this.allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         this.driver = new InMemoryDriver();
         this.cursorManager = new WatchCursorManager();
+        this.messagingOptimizer = new MessagingOptimizer(driver);
+        // Wire up messaging optimizer with cursor manager for fast-path notifications
+        messagingOptimizer.setWatchCursorManager(cursorManager);
         driver.connect();
         // Enable server mode to prevent internal Morphium instances from shutting down the driver
         driver.setServerMode(true);
@@ -181,7 +186,7 @@ public class MorphiumServer {
                         // Command handler - capture current primary state for this connection
                         // Note: primary/primaryHost are volatile and may change during election
                         pipeline.addLast("commandHandler", new MongoCommandHandler(
-                                driver, cursorManager, msgId,
+                                driver, cursorManager, messagingOptimizer, msgId,
                                 host, port, rsName, hosts,
                                 primary, primaryHost, compressorId,
                                 replicationCoordinator, electionManager

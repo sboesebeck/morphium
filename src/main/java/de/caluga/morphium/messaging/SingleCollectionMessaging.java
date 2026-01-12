@@ -550,6 +550,46 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         return running;
     }
 
+    /**
+     * Register this messaging collection with MorphiumServer for optimizations.
+     * Only effective when connected to a MorphiumServer instance.
+     */
+    private void registerWithMorphiumServer() {
+        try {
+            if (morphium.getDriver().isMorphiumServer()) {
+                log.info("Registering messaging collection with MorphiumServer: {}", getCollectionName());
+                Map<String, Object> cmdData = Doc.of(
+                    "lockCollection", getLockCollectionName(),
+                    "senderId", id
+                );
+                List<Map<String, Object>> result = morphium.runCommand(
+                    "registerMessagingCollection", getCollectionName(), cmdData);
+                if (result != null && !result.isEmpty() && Boolean.TRUE.equals(result.get(0).get("registered"))) {
+                    log.info("Successfully registered messaging collection with MorphiumServer: optimizations={}",
+                             result.get(0).get("optimizations"));
+                }
+            }
+        } catch (Exception e) {
+            // Registration is optional - don't fail messaging if it doesn't work
+            log.debug("Could not register messaging collection with MorphiumServer: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Unregister this messaging subscriber from MorphiumServer.
+     */
+    private void unregisterFromMorphiumServer() {
+        try {
+            if (morphium.getDriver().isMorphiumServer()) {
+                log.debug("Unregistering messaging subscriber from MorphiumServer: {}", id);
+                Map<String, Object> cmdData = Doc.of("senderId", id);
+                morphium.runCommand("unregisterMessagingSubscriber", getCollectionName(), cmdData);
+            }
+        } catch (Exception e) {
+            log.debug("Could not unregister from MorphiumServer: {}", e.getMessage());
+        }
+    }
+
     private void initChangeStreams() {
         // pipeline for reducing incoming traffic
         List<Map<String, Object>> pipeline = new ArrayList<>();
@@ -581,6 +621,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         if (statusInfoListenerEnabled) {
             listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
         }
+
+        // Register with MorphiumServer for optimizations if connected
+        registerWithMorphiumServer();
 
         if (useChangeStream) {
             log.info("Changestream init");
@@ -1495,6 +1538,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @Override
     public void terminate() {
         log.info("Terminate messaging");
+        // Unregister from MorphiumServer before terminating
+        unregisterFromMorphiumServer();
         if (networkRegistry != null) {
             networkRegistry.terminate();
         }

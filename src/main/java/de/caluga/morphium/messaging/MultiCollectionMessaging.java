@@ -981,6 +981,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         pipeline.add(UtilsMap.of("$match", match));
         log.debug("Adding changestream for collection {}", getCollectionName(n));
         morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
+        // Register topic with MorphiumServer for optimizations
+        registerTopicWithMorphiumServer(n);
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), true,
             morphium.getConfig().connectionSettings().getMaxWaitTime(),
             pipeline);
@@ -1150,6 +1152,50 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         return this;
     }
 
+    /**
+     * Register a topic's messaging collection with MorphiumServer for optimizations.
+     * Only effective when connected to a MorphiumServer instance.
+     */
+    private void registerTopicWithMorphiumServer(String topicName) {
+        try {
+            if (morphium.getDriver().isMorphiumServer()) {
+                String collection = getCollectionName(topicName);
+                String lockCollection = getLockCollectionName(topicName);
+                log.info("Registering messaging topic with MorphiumServer: {}", collection);
+                Map<String, Object> cmdData = Doc.of(
+                    "lockCollection", lockCollection,
+                    "senderId", getSenderId()
+                );
+                List<Map<String, Object>> result = morphium.runCommand(
+                    "registerMessagingCollection", collection, cmdData);
+                if (result != null && !result.isEmpty() && Boolean.TRUE.equals(result.get(0).get("registered"))) {
+                    log.debug("Registered topic {} with MorphiumServer", topicName);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not register topic {} with MorphiumServer: {}", topicName, e.getMessage());
+        }
+    }
+
+    /**
+     * Unregister all messaging subscriptions from MorphiumServer.
+     */
+    private void unregisterFromMorphiumServer() {
+        try {
+            if (morphium.getDriver().isMorphiumServer()) {
+                // Unregister all topics
+                for (String topicName : monitorsByTopic.keySet()) {
+                    String collection = getCollectionName(topicName);
+                    Map<String, Object> cmdData = Doc.of("senderId", getSenderId());
+                    morphium.runCommand("unregisterMessagingSubscriber", collection, cmdData);
+                }
+                log.debug("Unregistered messaging subscriber {} from MorphiumServer", getSenderId());
+            }
+        } catch (Exception e) {
+            log.debug("Could not unregister from MorphiumServer: {}", e.getMessage());
+        }
+    }
+
     @Override
     public boolean isRunning() {
         return running.get();
@@ -1163,6 +1209,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     @Override
     public void terminate() {
         running.set(false);
+        // Unregister from MorphiumServer before terminating
+        unregisterFromMorphiumServer();
         if (networkRegistry != null) {
             networkRegistry.terminate();
         }

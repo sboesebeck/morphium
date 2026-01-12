@@ -16,6 +16,7 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.server.ReplicationCoordinator;
 import de.caluga.morphium.server.election.*;
+import de.caluga.morphium.server.messaging.MessagingOptimizer;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wireprotocol.*;
 
@@ -49,6 +50,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
+    private final MessagingOptimizer messagingOptimizer;
     private final AtomicInteger msgId;
     private final String host;
     private final int port;
@@ -61,20 +63,23 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private final ElectionManager electionManager;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
                                int compressorId, ReplicationCoordinator replicationCoordinator) {
-        this(driver, cursorManager, msgId, host, port, rsName, hosts, primary, primaryHost,
+        this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
              compressorId, replicationCoordinator, null);
     }
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
                                int compressorId, ReplicationCoordinator replicationCoordinator,
                                ElectionManager electionManager) {
         this.driver = driver;
         this.cursorManager = cursorManager;
+        this.messagingOptimizer = messagingOptimizer;
         this.msgId = msgId;
         this.host = host;
         this.port = port;
@@ -188,6 +193,19 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             case "ping":
                 answer = Doc.of("ok", 1.0);
+                break;
+
+            case "registerMessagingCollection":
+                answer = processRegisterMessagingCollection(doc);
+                break;
+
+            case "unregisterMessagingSubscriber":
+                answer = processUnregisterMessagingSubscriber(doc);
+                break;
+
+            case "getMessagingStats":
+                answer = messagingOptimizer != null ? messagingOptimizer.getStats() : Doc.of("ok", 0.0, "errmsg", "Messaging optimizer not available");
+                answer.put("ok", 1.0);
                 break;
 
             case "listDatabases":
@@ -415,6 +433,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // Notify tailable cursors about inserted documents
             if (cmd.equalsIgnoreCase("insert")) {
                 notifyTailableCursorsOnInsert(doc);
+                // Fast-path: notify messaging cursors directly if this is a messaging collection
+                notifyMessagingCursorsOnInsert(doc);
             }
 
             // Handle tailable cursors
@@ -531,11 +551,65 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return 0; // Use default timeout
     }
 
+    /**
+     * Register a collection as a messaging collection for optimizations.
+     */
+    private Map<String, Object> processRegisterMessagingCollection(Map<String, Object> doc) {
+        if (messagingOptimizer == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Messaging optimizer not available");
+        }
+
+        String db = (String) doc.get("$db");
+        String collection = (String) doc.get("registerMessagingCollection");
+        String lockCollection = (String) doc.get("lockCollection");
+        String senderId = (String) doc.get("senderId");
+
+        if (db == null || collection == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Missing required fields: $db and collection name");
+        }
+
+        log.info("Registering messaging collection: {}.{} (lock: {}, subscriber: {})",
+                 db, collection, lockCollection, senderId);
+
+        return messagingOptimizer.registerMessagingCollection(db, collection, lockCollection, senderId);
+    }
+
+    /**
+     * Unregister a subscriber from a messaging collection.
+     */
+    private Map<String, Object> processUnregisterMessagingSubscriber(Map<String, Object> doc) {
+        if (messagingOptimizer == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Messaging optimizer not available");
+        }
+
+        String db = (String) doc.get("$db");
+        String collection = (String) doc.get("unregisterMessagingSubscriber");
+        String senderId = (String) doc.get("senderId");
+
+        if (db == null || collection == null || senderId == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Missing required fields: $db, collection name, and senderId");
+        }
+
+        log.debug("Unregistering subscriber {} from messaging collection: {}.{}", senderId, db, collection);
+
+        return messagingOptimizer.unregisterMessagingSubscriber(db, collection, senderId);
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> processChangeStream(Map<String, Object> doc) {
         try {
             WatchCommand wcmd = new WatchCommand(driver).fromMap(doc);
             long cursorId = cursorManager.createWatchCursor(driver, wcmd);
+
+            // Register as messaging cursor if this is a registered messaging collection
+            if (messagingOptimizer != null &&
+                messagingOptimizer.isMessagingCollection(wcmd.getDb(), wcmd.getColl())) {
+                // Extract subscriber ID from pipeline filter if present (e.g., sender != "myId")
+                // For now, register without subscriber ID - server-side filtering can be added later
+                String subscriberId = extractSubscriberIdFromPipeline(doc);
+                messagingOptimizer.registerMessagingCursor(cursorId, wcmd.getDb(), wcmd.getColl(), subscriberId);
+                log.debug("Registered messaging cursor {} for {}.{}", cursorId, wcmd.getDb(), wcmd.getColl());
+            }
 
             var initialCursor = Doc.of("firstBatch", List.of(),
                     "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", cursorId);
@@ -544,6 +618,35 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             log.error("Error setting up change stream: {}", e.getMessage(), e);
             return Doc.of("ok", 0.0, "errmsg", e.getMessage());
         }
+    }
+
+    /**
+     * Extract subscriber ID from change stream pipeline for server-side sender filtering.
+     * Looks for patterns like: {"$match": {"fullDocument.sender": {"$ne": "subscriberId"}}}
+     */
+    @SuppressWarnings("unchecked")
+    private String extractSubscriberIdFromPipeline(Map<String, Object> doc) {
+        try {
+            List<Map<String, Object>> pipeline = (List<Map<String, Object>>) doc.get("pipeline");
+            if (pipeline == null) return null;
+
+            for (Map<String, Object> stage : pipeline) {
+                if (stage.containsKey("$match")) {
+                    Map<String, Object> match = (Map<String, Object>) stage.get("$match");
+                    // Look for sender filter: fullDocument.sender != subscriberId
+                    Object senderFilter = match.get("fullDocument.sender");
+                    if (senderFilter instanceof Map) {
+                        Object ne = ((Map<String, Object>) senderFilter).get("$ne");
+                        if (ne instanceof String) {
+                            return (String) ne;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.trace("Could not extract subscriber ID from pipeline: {}", e.getMessage());
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -590,6 +693,54 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
         } catch (Exception e) {
             log.debug("Error notifying tailable cursors: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Fast-path notification for messaging collections.
+     * This directly notifies waiting messaging cursors about new messages,
+     * bypassing the normal change stream mechanism for lower latency.
+     */
+    @SuppressWarnings("unchecked")
+    private void notifyMessagingCursorsOnInsert(Map<String, Object> doc) {
+        if (messagingOptimizer == null) {
+            return;
+        }
+
+        try {
+            String db = (String) doc.get("$db");
+            String coll = (String) doc.get("insert");
+            Object docsObj = doc.get("documents");
+
+            if (db == null || coll == null || docsObj == null) {
+                return;
+            }
+
+            // Only process if this is a registered messaging collection
+            if (!messagingOptimizer.isMessagingCollection(db, coll)) {
+                return;
+            }
+
+            List<Map<String, Object>> documents;
+            if (docsObj instanceof List) {
+                documents = (List<Map<String, Object>>) docsObj;
+            } else {
+                return;
+            }
+
+            int notified = 0;
+            for (Map<String, Object> document : documents) {
+                if (messagingOptimizer.notifyMessageInsert(db, coll, document)) {
+                    notified++;
+                }
+            }
+
+            if (notified > 0) {
+                log.debug("Fast-path: notified messaging cursors for {} documents in {}.{}",
+                         notified, db, coll);
+            }
+        } catch (Exception e) {
+            log.debug("Error notifying messaging cursors: {}", e.getMessage());
         }
     }
 

@@ -99,6 +99,11 @@ public class DriverMock implements MorphiumDriver {
     }
 
     @Override
+    public boolean isMorphiumServer() {
+        return false;
+    }
+
+    @Override
     public boolean getDefaultJ() {
         return false;
     }
