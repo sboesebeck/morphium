@@ -637,8 +637,8 @@ fi
 # If include tags specified, filter classes/files to only those tagged
 if [ -n "$includeTags" ]; then
   tagPattern=$(echo "$includeTags" | sed 's/,/|/g')
-  tmpTagged=tmp_tag_files_$PID.txt
-  : >$tmpTagged
+  tmpTagged="$TEST_TMP_DIR/tmp_tag_files_$PID.txt"
+  : >"$tmpTagged"
   # 1) Collect files explicitly annotated with any requested tag
   rg -l "@Tag\\(\\\"($tagPattern)\\\"\\)|@Tags\\(.*($tagPattern).*\\)" src/test/java >>$tmpTagged || true
   # 2) Directory-based helpers to map common tags to suites (backup for missing annotations)
@@ -737,8 +737,8 @@ if [ "q$testname" = "q" ]; then
   # Handle exclude tags
   if [ -n "$excludeTags" ]; then
     excludePattern=$(echo "$excludeTags" | sed 's/,/|/g')
-    tmpExcluded=tmp_exclude_files_$PID.txt
-    : >$tmpExcluded
+    tmpExcluded="$TEST_TMP_DIR/tmp_exclude_files_$PID.txt"
+    : >"$tmpExcluded"
     # 1) Collect files explicitly annotated with any excluded tag
     rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" src/test/java >>$tmpExcluded || true
     # 2) Directory-based patterns for excluded tags
