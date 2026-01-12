@@ -93,8 +93,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                         m3.addListenerForTopic("test", msgMessageListener);
                         m4.addListenerForTopic("test", msgMessageListener);
 
-                        // Wait for messaging to be fully initialized and listeners ready
-                        Thread.sleep(3000);
+                        // Wait longer for messaging to be fully initialized and listeners ready
+                        // MorphiumServer needs more time for change stream initialization
+                        Thread.sleep(5000);
 
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
