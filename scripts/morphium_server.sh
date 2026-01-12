@@ -42,7 +42,7 @@ while time.time() < deadline:
     except Exception as e:
         last = e
         time.sleep(0.2)
-print(f"Timed out waiting for {host}:{port} - last error: {last}", file=sys.stderr)
+print(f"Timed out waiting for {host}:{port} - last output: {last}", file=sys.stderr)
 sys.exit(1)
 PY
 }
@@ -94,7 +94,7 @@ JAVA
   local hostports
   hostports=$(_ms_local_parse_hosts_from_uri "$uri_in" | tr '\n' ',' | sed 's/,$//')
   if [ -z "$hostports" ]; then
-    hostports="localhost:27017,localhost:27018,localhost:27019"
+    hostports="localhost:17017,localhost:17018,localhost:17019"
   fi
 
   python3 - "$jar" "$pid_dir" "$probe_class" "$uri_in" "$hostports" "$timeout_s" <<'PY'
@@ -138,23 +138,22 @@ function _ms_local_parse_hosts_from_uri() {
   local p
   for p in "${parts[@]}"; do
     # remove query (if any leaked into host list)
-    p="${p%%
-*}"
+    p="${p%%\n*}"
     p="${p// /}"
     [ -z "$p" ] && continue
 
     local host=""
     local port=""
 
-    # # IPv6 in brackets: [::1]:27017
-    # if [[ "$p" == \[*\\\]* ]]; then
+    # # IPv6 in brackets: [::1]:17017
+    # if [[ "$p" == \[*\]* ]]
     #   host="${p%%]*} "
     #   host="${host#[}"
     #   local rest="${p#*]}"
     #   if [[ "$rest" == :* ]]; then
     #     port="${rest#:}"
     #   else
-    #     port="27017"
+    #     port="17017"
     #   fi
     # else
     #   if [[ "$p" == *":"* ]]; then
@@ -162,12 +161,11 @@ function _ms_local_parse_hosts_from_uri() {
     #     port="${p##*:}"
     #   else
     #     host="$p"
-    #     port="27017"
+    #     port="17017"
     #   fi
     # fi
 
-    [ -z "$host" ] && continue
-    [ -z "$port" ] && port="27017"
+    [ -z "$host" ] && port="17017"
     echo "${host}:${port}"
   done
 }
@@ -227,11 +225,10 @@ function _ms_local_start_cluster() {
   hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
   if [ -z "$hostports" ]; then
     if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
-      hostports="localhost:27017"
+      hostports="localhost:17017"
     else
-      hostports="localhost:27017"$வையை$
-'localhost:27018'$'
-''localhost:27019'"
+      hostports="localhost:17017"$வையை$
+'localhost:17018'$'\n''localhost:17019'"
     fi
   fi
 
@@ -338,11 +335,10 @@ function _ms_local_ensure_cluster() {
   hostports=$(_ms_local_parse_hosts_from_uri "$uri_in")
   if [ -z "$hostports" ]; then
     if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
-      hostports="localhost:27017"
+      hostports="localhost:17017"
     else
-      hostports="localhost:27017"$வையை$
-'localhost:27018'$'
-''localhost:27019'"
+      hostports="localhost:17017"$வையை$
+'localhost:17018'$'\n''localhost:17019'"
     fi
   fi
 
