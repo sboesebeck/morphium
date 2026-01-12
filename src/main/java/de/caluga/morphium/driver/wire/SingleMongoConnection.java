@@ -554,16 +554,13 @@ public class SingleMongoConnection implements MongoConnection {
             maxWait = driver.getReadTimeout();
         }
 
+        // Track the last resume token to use when restarting the watch
+        // This prevents duplicate events when the watch restarts due to timeout or cursor exhaustion
+        final Map<String, Object>[] lastResumeToken = new Map[]{null};
+
         OpMsg startMsg = new OpMsg();
         int batchSize = command.getBatchSize() == null ? driver.getDefaultBatchSize() : command.getBatchSize();
         startMsg.setMessageId(msgId.incrementAndGet());
-        //        ArrayList<Map<String, Object>> localPipeline = new ArrayList<>();
-        //        localPipeline.add(Doc.of("$changeStream", new HashMap<>()));
-        //        if (command.getPipeline() != null && !command.getPipeline().isEmpty())
-        //            localPipeline.addAll(command.getPipeline());
-        //        Doc cmd = Doc.of("aggregate", command.getColl()).add("pipeline", localPipeline)
-        //                .add("cursor", Doc.of("batchSize", batchSize))  //getDefaultBatchSize()
-        //                .add("$db", command.getDb());
         startMsg.setFirstDoc(command.asMap());
         long start = System.currentTimeMillis();
         sendQuery(startMsg);
@@ -597,8 +594,14 @@ public class SingleMongoConnection implements MongoConnection {
                     log.debug("Callback indicates stop - exiting watch loop");
                     break;
                 }
-                // Callback wants to continue - restart the watch
+                // Callback wants to continue - restart the watch with resume token if available
                 log.debug("Restarting watch after null reply");
+                if (lastResumeToken[0] != null) {
+                    command.setResumeAfter(lastResumeToken[0]);
+                    startMsg.setFirstDoc(command.asMap());
+                    msg = startMsg;
+                    log.debug("Resuming from token after null reply");
+                }
                 msg.setMessageId(msgId.incrementAndGet());
                 sendQuery(msg);
                 continue;
@@ -624,6 +627,12 @@ public class SingleMongoConnection implements MongoConnection {
             boolean shouldExit = false;
             if (result != null && !result.isEmpty()) {
                 for (Map<String, Object> o : result) {
+                    // Capture resume token from each event (_id is the resume token in change streams)
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> eventResumeToken = (Map<String, Object>) o.get("_id");
+                    if (eventResumeToken != null) {
+                        lastResumeToken[0] = eventResumeToken;
+                    }
                     command.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
                     // Check isContinued() after EACH event, matching InMemoryDriver behavior
@@ -673,6 +682,12 @@ public class SingleMongoConnection implements MongoConnection {
                 //log.debug("sent getmore....");
             } else {
                 log.debug("Cursor exhausted, restarting");
+                // Use resume token if available to prevent duplicate events
+                if (lastResumeToken[0] != null) {
+                    command.setResumeAfter(lastResumeToken[0]);
+                    startMsg.setFirstDoc(command.asMap());
+                    log.debug("Resuming from token after cursor exhausted");
+                }
                 msg = startMsg;
                 msg.setMessageId(msgId.incrementAndGet());
                 sendQuery(msg);
