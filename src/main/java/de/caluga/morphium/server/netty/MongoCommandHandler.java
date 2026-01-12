@@ -433,8 +433,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // Notify tailable cursors about inserted documents
             if (cmd.equalsIgnoreCase("insert")) {
                 notifyTailableCursorsOnInsert(doc);
-                // Fast-path: notify messaging cursors directly if this is a messaging collection
-                notifyMessagingCursorsOnInsert(doc);
+                // Note: messaging cursors are notified via the normal change stream callback chain
+                // The fast-path infrastructure is in place (notifyMessagingCursorsOnInsert) but disabled
+                // to avoid duplicate delivery. Enable when proper coordination is implemented.
             }
 
             // Handle tailable cursors
