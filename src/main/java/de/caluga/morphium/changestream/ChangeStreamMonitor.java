@@ -265,6 +265,11 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                 if (!con.isConnected()) {
                     log.error("Could not connect!");
+                    // Release connection back to pool before returning to avoid connection leak
+                    try {
+                        dedicatedConnection.releaseConnection(con);
+                    } catch (Exception ignore) {
+                    }
                     return;
                 }
 
