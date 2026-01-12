@@ -410,6 +410,11 @@ public abstract class DriverBase implements MorphiumDriver {
         return false;
     }
 
+    @Override
+    public boolean isMorphiumServer() {
+        return false;
+    }
+
     public int getNextId() {
         synchronized (DriverBase.class) {
             return rqid.incrementAndGet();

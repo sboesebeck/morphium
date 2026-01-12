@@ -29,6 +29,10 @@ public class WatchCursorManager {
     private final ScheduledExecutorService scheduler;
     private volatile boolean running = true;
 
+    // Fast-path: Track cursors watching messaging collections
+    // Key: "db.collection" -> Set of cursorIds
+    private final ConcurrentMap<String, Set<Long>> messagingCursors = new ConcurrentHashMap<>();
+
     public WatchCursorManager() {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "WatchCursorManager-Scheduler");
@@ -80,6 +84,107 @@ public class WatchCursorManager {
         }
 
         return cursorId;
+    }
+
+    /**
+     * Register a cursor as watching a messaging collection for fast-path delivery.
+     *
+     * @param cursorId The cursor ID
+     * @param db Database name
+     * @param collection Collection name
+     * @param subscriberId The subscriber's sender ID (for server-side filtering)
+     */
+    public void registerMessagingCursor(long cursorId, String db, String collection, String subscriberId) {
+        String key = db + "." + collection;
+        messagingCursors.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet()).add(cursorId);
+
+        // Store subscriberId in the cursor state for sender filtering
+        WatchCursorState state = watchCursors.get(cursorId);
+        if (state != null && subscriberId != null) {
+            state.subscriberId = subscriberId;
+        }
+
+        log.debug("Registered messaging cursor {} for {} (subscriber: {})", cursorId, key, subscriberId);
+    }
+
+    /**
+     * Unregister a messaging cursor.
+     */
+    public void unregisterMessagingCursor(long cursorId, String db, String collection) {
+        String key = db + "." + collection;
+        Set<Long> cursors = messagingCursors.get(key);
+        if (cursors != null) {
+            cursors.remove(cursorId);
+            if (cursors.isEmpty()) {
+                messagingCursors.remove(key);
+            }
+        }
+    }
+
+    /**
+     * Fast-path: Directly notify messaging cursors about a new event.
+     * This bypasses the normal change stream subscription mechanism for lower latency.
+     *
+     * @param db Database name
+     * @param collection Collection name
+     * @param event The change stream event
+     * @param senderToExclude Sender ID to exclude (don't notify sender about their own messages)
+     * @return Number of cursors notified
+     */
+    public int notifyMessagingEvent(String db, String collection, Map<String, Object> event, String senderToExclude) {
+        String key = db + "." + collection;
+        Set<Long> cursors = messagingCursors.get(key);
+        if (cursors == null || cursors.isEmpty()) {
+            return 0;
+        }
+
+        int notified = 0;
+        for (Long cursorId : cursors) {
+            WatchCursorState state = watchCursors.get(cursorId);
+            if (state == null) {
+                continue;
+            }
+
+            // Server-side sender filtering: don't notify the sender about their own message
+            if (senderToExclude != null && state.subscriberId != null
+                    && senderToExclude.equals(state.subscriberId)) {
+                log.trace("Fast-path: skipping cursor {} (sender {} excluded)", cursorId, senderToExclude);
+                continue;
+            }
+
+            // Directly deliver the event
+            deliverEventToCursor(state, event);
+            notified++;
+        }
+
+        if (notified > 0) {
+            log.debug("Fast-path: notified {} messaging cursors for {}", notified, key);
+        }
+        return notified;
+    }
+
+    /**
+     * Check if a collection has any messaging cursors waiting.
+     */
+    public boolean hasMessagingCursors(String db, String collection) {
+        String key = db + "." + collection;
+        Set<Long> cursors = messagingCursors.get(key);
+        return cursors != null && !cursors.isEmpty();
+    }
+
+    /**
+     * Direct event delivery to a cursor (fast-path).
+     */
+    private void deliverEventToCursor(WatchCursorState state, Map<String, Object> event) {
+        state.events.offer(event);
+
+        // Complete any pending getMore request immediately
+        PendingGetMore pending;
+        while ((pending = state.pendingGetMores.poll()) != null) {
+            List<Map<String, Object>> batch = drainEvents(state.events);
+            log.trace("Fast-path: completing pending getMore for cursor {} with {} events", state.cursorId, batch.size());
+            pending.future.complete(batch);
+        }
     }
 
     /**
@@ -257,6 +362,8 @@ public class WatchCursorManager {
             while ((pending = watchState.pendingGetMores.poll()) != null) {
                 pending.future.complete(Collections.emptyList());
             }
+            // Clean up messaging cursor tracking
+            unregisterMessagingCursor(cursorId, watchState.db, watchState.collection);
             log.debug("Killed watch cursor {}", cursorId);
             return true;
         }
@@ -413,6 +520,8 @@ public class WatchCursorManager {
         final String collection;
         final Queue<Map<String, Object>> events = new ConcurrentLinkedQueue<>();
         final Queue<PendingGetMore> pendingGetMores = new ConcurrentLinkedQueue<>();
+        // For messaging fast-path: subscriber ID for sender filtering
+        volatile String subscriberId;
 
         WatchCursorState(long cursorId, String db, String collection) {
             this.cursorId = cursorId;

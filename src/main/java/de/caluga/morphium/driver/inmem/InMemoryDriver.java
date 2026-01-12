@@ -2125,6 +2125,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
+    public boolean isMorphiumServer() {
+        // InMemoryDriver is always a MorphiumServer-compatible backend
+        return true;
+    }
+
+    @Override
     public int getMaxBsonObjectSize() {
         return Integer.MAX_VALUE;
     }

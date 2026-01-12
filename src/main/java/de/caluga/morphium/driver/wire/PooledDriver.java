@@ -106,6 +106,7 @@ public class PooledDriver extends DriverBase {
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private volatile String primaryNode;
     private volatile boolean inMemoryBackend = false;
+    private volatile boolean morphiumServer = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
         Thread.ofVirtual().name("MCon-", 0).factory());
 
@@ -279,7 +280,10 @@ public class PooledDriver extends DriverBase {
         if (hello == null)
             return;
 
-        // Check if connected to InMemory backend (MorphiumServer with InMemory)
+        // Check if connected to MorphiumServer (InMemory backend)
+        if (Boolean.TRUE.equals(hello.getMorphiumServer())) {
+            morphiumServer = true;
+        }
         if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
             inMemoryBackend = true;
         }
@@ -1102,6 +1106,11 @@ public class PooledDriver extends DriverBase {
     @Override
     public boolean isInMemoryBackend() {
         return inMemoryBackend;
+    }
+
+    @Override
+    public boolean isMorphiumServer() {
+        return morphiumServer;
     }
 
     @Override
