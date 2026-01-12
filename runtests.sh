@@ -95,9 +95,9 @@ function quitting() {
     echo -e "${RD}Shutting down...${CL} current test $t"
     echo "Removing unfinished test $t"
     rm -f test.log/$t.log
-    get_test_stats >failed.txt 2>/dev/null
-    echo "List of failed tests in failed.txt"
-    cat failed.txt
+    get_test_stats >"$TEST_TMP_DIR/failed.txt" 2>/dev/null
+    echo "List of failed tests in $TEST_TMP_DIR/failed.txt"
+    cat "$TEST_TMP_DIR/failed.txt"
   else
     echo -e "${YL} Shutting down...$CL"
   fi
@@ -1603,10 +1603,10 @@ fail=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Tests failed" | cut -d: -f2 | tr -
 
   if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
     echo -e "${GN}no errors recorded$CL"
-    rm -f failed.txt
+    rm -f "$TEST_TMP_DIR/failed.txt"
     quitting
   else
-    echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
+    echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in $TEST_TMP_DIR/failed.txt "
     quitting
     exit 1
   fi
