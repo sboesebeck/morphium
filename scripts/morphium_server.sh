@@ -227,8 +227,7 @@ function _ms_local_start_cluster() {
     if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
       hostports="localhost:17017"
     else
-      hostports="localhost:17017"$வையை$
-'localhost:17018'$'\n''localhost:17019'"
+      hostports="localhost:17017'$'\n'localhost:17018'$'\n''localhost:17019'"
     fi
   fi
 
@@ -337,8 +336,7 @@ function _ms_local_ensure_cluster() {
     if [ "${morphiumserverSingleNode:-0}" -eq 1 ]; then
       hostports="localhost:17017"
     else
-      hostports="localhost:17017"$வையை$
-'localhost:17018'$'\n''localhost:17019'"
+      hostports="localhost:17017$'\n''localhost:17018'$'\n''localhost:17019'"
     fi
   fi
 
@@ -376,3 +374,4 @@ function _ms_local_ensure_cluster() {
   echo -e "Tip: check ports and MorphiumServer logs under ${GN}${morphiumserverLocalPidDir:-.morphiumserver-local}/logs/${CL}"
   exit 1
 }
+
