@@ -145,27 +145,28 @@ function _ms_local_parse_hosts_from_uri() {
     local host=""
     local port=""
 
-    # # IPv6 in brackets: [::1]:17017
-    # if [[ "$p" == \[*\]* ]]
-    #   host="${p%%]*} "
-    #   host="${host#[}"
-    #   local rest="${p#*]}"
-    #   if [[ "$rest" == :* ]]; then
-    #     port="${rest#:}"
-    #   else
-    #     port="17017"
-    #   fi
-    # else
-    #   if [[ "$p" == *":"* ]]; then
-    #     host="${p%:*} "
-    #     port="${p##*:}"
-    #   else
-    #     host="$p"
-    #     port="17017"
-    #   fi
-    # fi
+    # IPv6 in brackets: [::1]:17017
+    if [[ "$p" == \[*\]* ]]; then
+      host="${p%%]*}"
+      host="${host#[}"
+      local rest="${p#*]}"
+      if [[ "$rest" == :* ]]; then
+        port="${rest#:}"
+      else
+        port="17017"
+      fi
+    else
+      if [[ "$p" == *":"* ]]; then
+        host="${p%:*}"
+        port="${p##*:}"
+      else
+        host="$p"
+        port="17017"
+      fi
+    fi
 
-    [ -z "$host" ] && port="17017"
+    [ -z "$host" ] && host="localhost"
+    [ -z "$port" ] && port="17017"
     echo "${host}:${port}"
   done
 }
@@ -374,4 +375,3 @@ function _ms_local_ensure_cluster() {
   echo -e "Tip: check ports and MorphiumServer logs under ${GN}${morphiumserverLocalPidDir:-.morphiumserver-local}/logs/${CL}"
   exit 1
 }
-
