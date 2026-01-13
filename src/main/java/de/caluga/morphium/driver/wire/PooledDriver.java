@@ -683,9 +683,12 @@ public class PooledDriver extends DriverBase {
 
             // Add to pool if still needed
             synchronized (host) {
-                if (host.getConnectionPool().size() < host.getWaitCounter()
-                                                    && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
-                                                    getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                // Add to pool if:
+                // 1. There are waiters and we're under max, OR
+                // 2. Pool size is below minimum (use pool.size(), not total, to avoid off-by-one with pending slot)
+                if ((host.getConnectionPool().size() < host.getWaitCounter()
+                                                    && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
+                                                    || host.getConnectionPool().size() < getMinConnectionsPerHost()) {
                     var cont = new ConnectionContainer(con);
                     host.getConnectionPool().add(cont);
                     markStatsDirty();
