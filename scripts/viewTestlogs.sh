@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+cd $(dirname $0)/..
 files=""
 for j in $(for i in test.log/slot_*/slot.log; do
   n=${i%%/slot.log}

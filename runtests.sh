@@ -8,10 +8,16 @@ CN='\033[0;36m'
 CL='\033[0m'
 
 PID=$$
-TEST_TMP_DIR="target/runtests-tmp-$PID" # Unique temp directory for this run
+TEST_TMP_DIR="/tmp/morphium-runtests-$PID" # Unique temp directory for this run (outside target/ so mvn clean doesn't delete it)
 
 # Ensure the temp directory exists
 mkdir -p "$TEST_TMP_DIR"
+
+# Cleanup temp directory on exit
+cleanup_temp() {
+  rm -rf "$TEST_TMP_DIR"
+}
+trap cleanup_temp EXIT
 
 filesList="$TEST_TMP_DIR/files_$PID.lst"
 classList="$TEST_TMP_DIR/classes_$PID.txt"
@@ -40,7 +46,7 @@ function createFileList() {
 
 }
 function cleanup_test_databases() {
-  # Drop all morphium_test* databases to ensure clean state
+  # Drop all test databases matching the pattern from URI to ensure clean state
   # Only runs if not using inmem driver (no MongoDB to connect to)
   local cleanup_uri="${1:-$uri}"
   if [ -z "$cleanup_uri" ] && [ -n "$MONGODB_URI" ]; then
@@ -54,10 +60,18 @@ function cleanup_test_databases() {
     return 0
   fi
 
-  echo -e "${BL}Info:${CL} Cleaning up morphium_test* databases..."
+  # Extract database name from URI (format: mongodb://host:port/database or mongodb://host1,host2/database)
+  local db_from_uri=$(echo "$cleanup_uri" | sed -n 's|.*mongodb://[^/]*/\([^?]*\).*|\1|p')
+  if [ -z "$db_from_uri" ]; then
+    db_from_uri="morphium_test"  # fallback
+  fi
+  # Remove any trailing options after ?
+  db_from_uri="${db_from_uri%%\?*}"
+
+  echo -e "${BL}Info:${CL} Cleaning up ${db_from_uri}* databases..."
   local count=0
   while read db rst; do
-    if [[ "$db" == morphium_test* ]]; then
+    if [[ "$db" == ${db_from_uri}* ]]; then
       echo -e "  Dropping db ${YL}$db${CL}"
       mongosh "$cleanup_uri" --quiet --eval "use $db; db.dropDatabase()" >/dev/null 2>&1
       ((count++))
@@ -846,11 +860,17 @@ if [ -z "$uri" ] && [ -n "$MONGODB_URI" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium
 if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=true"; fi
 if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
 
-# Increase connection pool for parallel tests against MorphiumServer
+# Increase connection pool for parallel tests
 # MorphiumServer uses NIO so can handle many connections efficiently
 # AsyncOperationTest alone uses 1134+ connections, messaging tests need many more for parallel ops
-if [ "$startMorphiumserverLocal" -eq 1 ] && [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
-  pool_size=$((2000 + parallel * 500))  # Base 2000 + 500 per parallel slot (matches server side)
+if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
+  if [ "$startMorphiumserverLocal" -eq 1 ]; then
+    pool_size=$((2000 + parallel * 500))  # Base 2000 + 500 per parallel slot (matches server side)
+  else
+    # For real MongoDB with replica set, need more connections since all writes go to primary
+    # ExclusiveMessageTests creates 5+ Morphium instances with messaging, each with change streams
+    pool_size=$((1500 + parallel * 500))  # Base 1500 + 500 per parallel slot
+  fi
   MVN_PROPS="$MVN_PROPS -Dmorphium.maxConnections=$pool_size"
   echo -e "${BL}Info:${CL} Increased client pool to ${pool_size} connections for ${parallel} parallel slots"
 fi
@@ -1406,9 +1426,10 @@ else
         mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
         echo $! >$testPid
       fi
-testsRun=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Total tests run" | cut -d: -f2 | tr -d ' ' | head -1)
-unsuc=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Total unsuccessful" | cut -d: -f2 | tr -d ' ' | head -1)
-fail=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Tests failed" | cut -d: -f2 | tr -d ' ' | head -1)
+      while true; do
+        testsRun=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Total tests run" | cut -d: -f2 | tr -d ' ' | head -1)
+        unsuc=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Total unsuccessful" | cut -d: -f2 | tr -d ' ' | head -1)
+        fail=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Tests failed" | cut -d: -f2 | tr -d ' ' | head -1)
         err=$(cat "$TEST_TMP_DIR/failed.txt" | grep "Tests with errors" | cut -d: -f2 | tr -d ' ' | head -1)
 
         # Ensure numeric values and defaults
