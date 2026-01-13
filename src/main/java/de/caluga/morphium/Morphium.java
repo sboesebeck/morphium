@@ -327,8 +327,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                                 // Special handling for InMemoryDriver: optionally share instances within same database
                                 // This allows multiple Morphium instances in a test to share the same in-memory database
                                 // Different tests (different database names) get different driver instances
-                                // Sharing is disabled by default, enable with driverSettings().setInMemorySharedDatabases(true)
-                                if (driverAnnotation.name().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isInMemorySharedDatabases()) {
+                                // Enable sharing with driverSettings().setInMemorySharedDatabases(true) OR setSharedConnectionPool(true)
+                                // Both settings have the same effect for InMemoryDriver - they share driver instances by database name
+                                if (driverAnnotation.name().equals(InMemoryDriver.driverName) &&
+                                    (getConfig().driverSettings().isInMemorySharedDatabases() || getConfig().driverSettings().isSharedConnectionPool())) {
                                     String dbName = getConfig().connectionSettings().getDatabase();
                                     morphiumDriver = inMemoryDriversByDatabase.computeIfAbsent(dbName, k -> {
                                         try {
@@ -2592,8 +2594,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (morphiumDriver != null) {
             try {
-                // Check if this is a shared InMemoryDriver
-                if (morphiumDriver.getName().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isInMemorySharedDatabases()) {
+                // Check if this is a shared InMemoryDriver (enabled via inMemorySharedDatabases OR sharedConnectionPool)
+                if (morphiumDriver.getName().equals(InMemoryDriver.driverName) &&
+                    (getConfig().driverSettings().isInMemorySharedDatabases() || getConfig().driverSettings().isSharedConnectionPool())) {
                     String dbName = getConfig().connectionSettings().getDatabase();
                     java.util.concurrent.atomic.AtomicInteger refCount = inMemoryDriverRefCounts.get(dbName);
                     if (refCount != null) {

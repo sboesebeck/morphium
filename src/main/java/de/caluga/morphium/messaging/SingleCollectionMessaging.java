@@ -1182,6 +1182,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         if (msg.isExclusive() && msg.getProcessedBy().size() > 0) {
+            // Already processed by someone else - they have the lock, not us
             return;
         }
 
@@ -1189,6 +1190,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // Duplicate execution is prevented by queue/idsInProgress deduplication and the processed_by checks.
         // Avoid extra database roundtrips here (especially for InMemoryDriver), as they severely impact throughput.
         if (msg.getProcessedBy().contains(id)) {
+            // We already processed this message
             return;
         }
 
