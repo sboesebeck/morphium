@@ -345,12 +345,20 @@ public class PooledDriver extends DriverBase {
             // advertised by the replica set configuration. Removing seeds can make the driver lose
             // the only reachable addresses and lead to "No primary node found".
 
+            // Build a set of resolved hostnames from hello.getHosts() for comparison
+            // This handles the case where the server reports names like "macbook:27017" but
+            // we connected as "localhost:27017" - both should be considered the same host
+            java.util.Set<String> resolvedHelloHosts = new java.util.HashSet<>();
+            for (String h : hello.getHosts()) {
+                resolvedHelloHosts.add(resolveAlias(h));
+            }
+
             // only closing connections when info comes from primary
             List<ConnectionContainer> toClose = new ArrayList<>();
             for (var it = hosts.entrySet().iterator(); it.hasNext();) {
                 var entry = it.next();
                 var host = entry.getKey();
-                if (!hello.getHosts().contains(host)) {
+                if (!resolvedHelloHosts.contains(host)) {
                     log.warn("Host {} is not part of the replicaset anymore!", host);
                     it.remove();
                     Host h = entry.getValue();
