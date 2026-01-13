@@ -1019,6 +1019,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 try {
                     // Message already added to processingMessages above
                     // Ensure removal happens in ALL code paths via outer finally block
+                    Msg current = doc;
                     if (doc.isExclusive()) {
                         // Check if already processed before attempting to lock
                         if (doc.getProcessedBy() != null && !doc.getProcessedBy().isEmpty()) {
@@ -1027,8 +1028,23 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                         if (!lockMessage(doc, getSenderId())) {
                             return;
                         }
+                        // Messages can be queued/seen before the exclusive lock exists. If another instance already
+                        // processed and unlocked, a stale queued message could otherwise be processed again.
+                        // Re-fetch to ensure processed_by state is current.
+                        try {
+                            current = morphium.findById(Msg.class, doc.getMsgId(), getStorageCollectionNameForMessage(doc));
+                        } catch (Exception ignored) {
+                            current = null;
+                        }
+                        if (current == null) {
+                            unlock(doc);
+                            return;
+                        }
+                        if (current.getProcessedBy() != null && !current.getProcessedBy().isEmpty()) {
+                            unlock(current);
+                            return;
+                        }
                     }
-                    Msg current = doc; // morphium.reread(doc, getCollectionName(doc));
                     if (current == null) {
                         log.info("Reread failed");
                         return;
