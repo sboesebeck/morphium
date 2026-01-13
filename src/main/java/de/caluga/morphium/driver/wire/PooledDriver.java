@@ -648,48 +648,70 @@ public class PooledDriver extends DriverBase {
 
     private void createNewConnection(String hst) throws Exception {
         if (!running) return;
-        // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst,
-        // waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
-        // log.debug("Creating connection to {}", hst);
         Host host = hosts.get(hst);
         if (host == null) {
             return;
         }
 
-        var con = new SingleMongoConnection();
-
-        if (getAuthDb() != null) {
-            con.setCredentials(getAuthDb(), getUser(), getPassword());
+        // Reserve a slot by incrementing pending counter BEFORE creating connection
+        // This prevents race condition where multiple threads all pass the limit check
+        // and then all create connections exceeding the limit
+        // Note: getTotalConnectionsToHost now includes pendingConnectionCreations
+        synchronized (host) {
+            int total = getTotalConnectionsToHost(hst);
+            if (total >= getMaxConnectionsPerHost()) {
+                return; // Already at or above max connections (including pending creations)
+            }
+            // Reserve our slot - this will be seen by other threads via getTotalConnectionsToHost
+            host.incrementPendingConnectionCreations();
         }
 
-        long start = System.currentTimeMillis();
-        HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
-        stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
-        markStatsDirty();
+        SingleMongoConnection con = null;
+        try {
+            con = new SingleMongoConnection();
 
-        if (host.getConnectionPool().size() < host.getWaitCounter()
-                                            && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
-                                            getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
-            var cont = new ConnectionContainer(con);
-            host.getConnectionPool().add(cont);
-            markStatsDirty();
-        } else {
+            if (getAuthDb() != null) {
+                con.setCredentials(getAuthDb(), getUser(), getPassword());
+            }
 
-            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+            long start = System.currentTimeMillis();
+            HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
+            stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
             markStatsDirty();
-            con.close();
+
+            long dur = System.currentTimeMillis() - start;
+
+            // Add to pool if still needed
+            synchronized (host) {
+                if (host.getConnectionPool().size() < host.getWaitCounter()
+                                                    && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
+                                                    getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                    var cont = new ConnectionContainer(con);
+                    host.getConnectionPool().add(cont);
+                    markStatsDirty();
+                    con = null; // Don't close, it's now in the pool
+                } else {
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    markStatsDirty();
+                }
+            }
+
+            PingStats newStats = host.getPingStats().updateWith(dur);
+            host.setPingStats(newStats);
+            host.resetFailures();
+            updateFastestHost(hst, newStats);
+            handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
+        } finally {
+            // Release our reserved slot
+            host.decrementPendingConnectionCreations();
+            // Close connection if it wasn't added to pool
+            if (con != null) {
+                try {
+                    con.close();
+                } catch (Exception ignored) {
+                }
+            }
         }
-
-        long dur = System.currentTimeMillis() - start;
-
-        PingStats newStats = host.getPingStats().updateWith(dur);
-        host.setPingStats(newStats);
-        host.resetFailures();
-
-        // Use record patterns to update fastest host
-        updateFastestHost(hst, newStats);
-
-        handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
     }
 
     @Override
@@ -711,7 +733,9 @@ public class PooledDriver extends DriverBase {
         if (host == null) {
             return 0;
         }
-        return host.getBorrowedConnections() + host.getConnectionPool().size();
+        // Include pendingConnectionCreations which tracks connections currently being created
+        // This prevents race conditions where multiple threads think they're under the limit
+        return host.getBorrowedConnections() + host.getConnectionPool().size() + host.getPendingConnectionCreations();
     }
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
@@ -1040,7 +1064,9 @@ public class PooledDriver extends DriverBase {
                     h.decrementBorrowedConnections();
                     markStatsDirty();
                 } else {
-                    // Host was removed from pool - close the connection to avoid leak
+                    // Host was removed from pool - try to find by alias or just log
+                    // The borrowed counter was on the original Host object which is now gone
+                    // so we just close the connection - the counter is gone with the Host
                     log.debug("Host {} no longer available, closing connection", con.getConnectedTo());
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                     markStatsDirty();
@@ -1050,7 +1076,7 @@ public class PooledDriver extends DriverBase {
                     }
                 }
             } else {
-                // Connection has no target host - close it
+                // Connection has no target host - close it and try to decrement any matching host
                 log.debug("Connection has no target host, closing");
                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                 markStatsDirty();
@@ -1060,7 +1086,9 @@ public class PooledDriver extends DriverBase {
                 }
             }
         } else {
+            // Connection is broken (sourcePort == 0) - clean up stale entries and decrement borrowed counters
             List<Integer> sourcePortsToDelete = new ArrayList<>();
+            Map<String, Integer> hostsToDecrement = new HashMap<>();
 
             for (int port : new ArrayList<Integer>(borrowedConnections.keySet())) {
                 ConnectionContainer connectionContainer = borrowedConnections.get(port);
@@ -1068,12 +1096,30 @@ public class PooledDriver extends DriverBase {
                 if (connectionContainer == null || connectionContainer.getCon() == null
                         || connectionContainer.getCon().getSourcePort() == 0) {
                     sourcePortsToDelete.add(port);
+                    // Track which host this connection belonged to so we can decrement its counter
+                    if (connectionContainer != null && connectionContainer.getCon() != null) {
+                        String hostKey = connectionContainer.getCon().getConnectedTo();
+                        if (hostKey != null) {
+                            hostsToDecrement.merge(hostKey, 1, Integer::sum);
+                        }
+                    }
                 }
             }
 
             for (int port : sourcePortsToDelete) {
                 borrowedConnections.remove(port);
             }
+
+            // Decrement borrowed counters for affected hosts
+            for (Map.Entry<String, Integer> entry : hostsToDecrement.entrySet()) {
+                Host h = hosts.get(entry.getKey());
+                if (h != null) {
+                    for (int i = 0; i < entry.getValue(); i++) {
+                        h.decrementBorrowedConnections();
+                    }
+                }
+            }
+
             if (!sourcePortsToDelete.isEmpty()) {
                 markStatsDirty();
             }
