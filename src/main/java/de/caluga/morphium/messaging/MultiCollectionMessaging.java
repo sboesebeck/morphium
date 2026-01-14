@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -71,6 +72,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     // How long to keep message IDs in recentlyCompletedMessages (ms)
     private static final long RECENTLY_COMPLETED_RETENTION_MS = 10000;
 
+    // Permanent tracking set for broadcast messages - prevents duplicate delivery to same instance.
+    // Unlike processingMessages which is removed after processing, this is only removed on retry.
+    private final Set<MorphiumId> locallyProcessedBroadcastIds = ConcurrentHashMap.newKeySet();
+
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
@@ -93,6 +98,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     private ScheduledThreadPoolExecutor decouplePool;
     private MessagingRegistry networkRegistry;
+
+    // Ready signaling for tests - latch is counted down when change streams are fully initialized
+    private final CountDownLatch readyLatch = new CountDownLatch(1);
+    private volatile boolean ready = false;
 
     private class CallbackRequest {
         Msg theMessage;
@@ -217,7 +226,16 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
                 }
                 if (monitorsByTopic.containsKey(msg.getTopic())) {
+                    // For broadcast messages, use permanent tracking to prevent duplicate delivery
+                    if (!msg.isExclusive()) {
+                        if (!locallyProcessedBroadcastIds.add(msg.getMsgId())) {
+                            return running.get();  // Already processed this broadcast
+                        }
+                    }
+
                     // Use atomic add operation - if already present, skip processing
+                    // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
+                    // is still being processed by another thread that added it to processingMessages
                     if (!processingMessages.add(msg.getMsgId())) {
                         return running.get();
                     }
@@ -302,6 +320,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         } else {
             pollAndProcess();
         }
+        // Signal that messaging is now ready (direct messages change stream is initialized)
+        ready = true;
+        readyLatch.countDown();
+        log.info("MultiCollectionMessaging {} is now ready", senderId);
     }
 
     @Override
@@ -596,8 +618,17 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             return;  // Skip - recently processed
         }
 
+        // For broadcast messages, use permanent tracking to prevent duplicate delivery
+        if (!m.isExclusive()) {
+            if (!locallyProcessedBroadcastIds.add(m.getMsgId())) {
+                return;  // Already processed this broadcast
+            }
+        }
+
         // Use atomic add operation - if already present, skip processing
         // CRITICAL: Check BEFORE looping through listeners, not inside loop
+        // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
+        // is still being processed by another thread that added it to processingMessages
         if (!processingMessages.add(m.getMsgId())) {
             return;
         }
@@ -656,6 +687,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     }
                 } catch (MessageRejectedException mre) {
                     log.warn("Message rejected");
+                    // Allow retry for rejected broadcasts
+                    if (!current.isExclusive()) {
+                        locallyProcessedBroadcastIds.remove(current.getMsgId());
+                    }
                     updateProcessedBy(current);
                     unlock(current);
                 } catch (Throwable err) {
@@ -751,11 +786,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             if (m.isTimingOut() && System.currentTimeMillis() - m.getTimestamp() > m.getTtl()) {
                 log.debug("deleting outdated message");
                 morphium.delete(m);
-                return;
+                continue;
             }
             if (pausedTopics.contains(m.getTopic())) {
                 // paused
-                return;
+                continue;
             }
             // Check answers
             if (m.isAnswer()) {
@@ -769,7 +804,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                         && !m.getRecipients().contains(getSenderId())) {
                     // message not for me
                     log.warn("Got direct message not for me? Recipients: {}", m.getRecipients());
-                    return;
+                    continue;
                 }
 
                 // Check if already being processed (from change stream or another poll)
@@ -783,9 +818,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     continue;  // Skip - recently processed
                 }
 
+                // For broadcast messages, check permanent tracking
+                if (!m.isExclusive() && locallyProcessedBroadcastIds.contains(m.getMsgId())) {
+                    continue;  // Already processed this broadcast
+                }
+
                 if (m.isExclusive()) {
                     if (!lockMessage(m, getSenderId())) {
-                        return;
+                        continue;
                     }
                     // Messages can be queued/seen before the exclusive lock exists. If another instance already
                     // processed and unlocked, a stale queued message could otherwise be processed again.
@@ -798,12 +838,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
                     if (fresh == null) {
                         unlock(m);
-                        return;
+                        continue;
                     }
 
                     if (fresh.getProcessedBy() != null && !fresh.getProcessedBy().isEmpty()) {
                         unlock(fresh);
-                        return;
+                        continue;
                     }
 
                     m = fresh;
@@ -881,7 +921,17 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         if (effectiveSettings.isMessagingMultithreadded()) {
             try {
                 threadPool.execute(r);
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                // If thread pool execution fails (e.g., executor shutdown),
+                // run synchronously to ensure cleanup (processingMessages removal) happens
+                log.warn("Thread pool execution failed, running synchronously: {}", t.getMessage());
+                try {
+                    synchronized (this) {
+                        r.run();
+                    }
+                } catch (Throwable inner) {
+                    log.error("Error running task synchronously after thread pool failure", inner);
+                }
             }
         } else {
             synchronized (this) {
@@ -976,7 +1026,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         // in.put("$eq", "insert"); //, "delete", "update"));
         in.put("$in", Arrays.asList("insert"));
         match.put("operationType", in);
-        match.put("full_document.sender", Map.of("$ne", getSenderId()));
+        match.put("fullDocument.sender", Map.of("$ne", getSenderId()));
         var pipeline = new ArrayList<Map<String, Object>>();
         pipeline.add(UtilsMap.of("$match", match));
         log.debug("Adding changestream for collection {}", getCollectionName(n));
@@ -987,7 +1037,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             morphium.getConfig().connectionSettings().getMaxWaitTime(),
             pipeline);
         cm.addListener((evt) -> {
-            // log.info("Incoming CSE");
+            log.debug("Incoming change stream event for topic {}", n);
 
             // Deserialize and check BEFORE creating Runnable to prevent race condition
             Map<String, Object> map = evt.getFullDocument();
@@ -1008,8 +1058,17 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 return running.get();
             }
 
+            // For broadcast messages, use permanent tracking to prevent duplicate delivery
+            if (!doc.isExclusive()) {
+                if (!locallyProcessedBroadcastIds.add(doc.getMsgId())) {
+                    return running.get();  // Already processed this broadcast
+                }
+            }
+
             // Use atomic add operation - if already present, skip processing
             // CRITICAL: This must happen BEFORE queueing the Runnable to prevent duplicates
+            // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
+            // is still being processed by another thread that added it to processingMessages
             if (!processingMessages.add(doc.getMsgId())) {
                 log.info("could not add to processingMessages - already processing");
                 return running.get();
@@ -1079,6 +1138,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                             sendMessage(ret);
                         }
                     } catch (MessageRejectedException mre) {
+                        // Allow retry for rejected broadcasts
+                        if (!current.isExclusive()) {
+                            locallyProcessedBroadcastIds.remove(current.getMsgId());
+                        }
                         unlock(current);
                         log.warn("Message rejected", mre);
                     } catch (Exception e) {
@@ -1218,6 +1281,16 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
+    public boolean isReady() {
+        return ready;
+    }
+
+    @Override
+    public boolean waitForReady(long timeout, TimeUnit unit) throws InterruptedException {
+        return readyLatch.await(timeout, unit);
+    }
+
+    @Override
     public void close() {
         terminate();
     }
@@ -1249,11 +1322,17 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             waitingForAnswers.clear();
         if (waitingForCallbacks != null)
             waitingForCallbacks.clear();
+        locallyProcessedBroadcastIds.clear();
         if (allMessagings != null)
             allMessagings.remove(this);
     }
 
     private void persistMessage(Msg m, boolean async) {
+        // Don't send messages if messaging has been terminated
+        if (!running.get()) {
+            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+            return;
+        }
         if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
             long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, effectiveSettings.getMessagingRegistryUpdateInterval()));
             if (effectiveSettings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {

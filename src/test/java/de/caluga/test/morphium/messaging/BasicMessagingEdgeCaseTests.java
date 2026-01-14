@@ -11,6 +11,7 @@ import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -52,6 +53,10 @@ public class BasicMessagingEdgeCaseTests extends MultiDriverTestBase {
 
                     sender.start();
                     receiver.start();
+                    // Wait for messaging to be fully ready
+                    assertTrue(sender.waitForReady(15, TimeUnit.SECONDS), "sender not ready");
+                    assertTrue(receiver.waitForReady(15, TimeUnit.SECONDS), "receiver not ready");
+                    // Small delay for topic listeners to be fully registered
                     Thread.sleep(1000);
 
                     // Test messages that should not timeout
@@ -97,7 +102,7 @@ public class BasicMessagingEdgeCaseTests extends MultiDriverTestBase {
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     sender.start();
-                    Thread.sleep(500);
+                    assertTrue(sender.waitForReady(15, TimeUnit.SECONDS), "sender not ready");
 
                     // Send message without any listeners
                     Msg msg = new Msg("orphan", "No listener for this", "value");

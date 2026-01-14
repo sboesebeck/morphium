@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -298,9 +299,14 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 MorphiumMessaging m2 = morph.createMessaging();
                 m1.start();
                 m2.start();
+                // Wait for messaging to be fully ready
+                assertTrue(m1.waitForReady(15, TimeUnit.SECONDS), "m1 not ready");
+                assertTrue(m2.waitForReady(15, TimeUnit.SECONDS), "m2 not ready");
                 m2.addListenerForTopic("q_no_listener", (msg, m) -> m.createAnswerMsg());
-                m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
+                // Small delay for topic listener to be fully registered
                 Thread.sleep(1000);
+                m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
+                Thread.sleep(500);
                 Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("q_no_listener", "question", "a value"), 5000);
                 assertNotNull(answer);;
 

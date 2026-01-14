@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.messaging.*;
@@ -84,7 +85,11 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
         m3.start();
 
         try {
-            Thread.sleep(2000);
+            // Wait for all messaging instances to be fully ready (change streams initialized)
+            assertTrue(sender.waitForReady(10, TimeUnit.SECONDS), "sender not ready");
+            assertTrue(m1.waitForReady(10, TimeUnit.SECONDS), "m1 not ready");
+            assertTrue(m2.waitForReady(10, TimeUnit.SECONDS), "m2 not ready");
+            assertTrue(m3.waitForReady(10, TimeUnit.SECONDS), "m3 not ready");
             Msg m = new Msg();
             m.setExclusive(true);
             m.setDeleteAfterProcessing(true);
@@ -168,8 +173,9 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 sender2.setSenderId("sender2");
                 mx.dropCollection(Msg.class, sender2.getCollectionName(), null);
                 sender2.start();
-                // Wait for messaging instances to fully initialize
-                Thread.sleep(1500);
+                // Wait for messaging instances to fully initialize (change streams ready)
+                assertTrue(sender.waitForReady(10, TimeUnit.SECONDS), "sender not ready");
+                assertTrue(sender2.waitForReady(10, TimeUnit.SECONDS), "sender2 not ready");
                 gotMessage1 = false;
                 gotMessage2 = false;
                 gotMessage3 = false;
@@ -210,7 +216,11 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 m2.start();
                 m3.start();
                 m4.start();
-                Thread.sleep(2200);
+                // Wait for all messaging instances to be fully ready (change streams initialized)
+                assertTrue(m1.waitForReady(10, TimeUnit.SECONDS), "m1 not ready");
+                assertTrue(m2.waitForReady(10, TimeUnit.SECONDS), "m2 not ready");
+                assertTrue(m3.waitForReady(10, TimeUnit.SECONDS), "m3 not ready");
+                assertTrue(m4.waitForReady(10, TimeUnit.SECONDS), "m4 not ready");
                 // Sending exclusive Message
                 Msg m = new Msg();
                 m.setExclusive(true);
@@ -384,8 +394,14 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 final Map<String, String> recById = new ConcurrentHashMap<>();
                 final Map<String, AtomicInteger> recieveCount = new ConcurrentHashMap<>();
                 final Map<String, List<MorphiumId>> recIdsByReceiver = new ConcurrentHashMap<>();
-                log.info("All receivers initialized... starting");
-                Thread.sleep(2000);
+                log.info("All receivers initialized... waiting for ready");
+                // Wait for all messaging instances to be fully ready (change streams initialized)
+                assertTrue(sender.waitForReady(10, TimeUnit.SECONDS), "sender not ready");
+                assertTrue(receiver.waitForReady(10, TimeUnit.SECONDS), "receiver not ready");
+                assertTrue(receiver2.waitForReady(10, TimeUnit.SECONDS), "receiver2 not ready");
+                assertTrue(receiver3.waitForReady(10, TimeUnit.SECONDS), "receiver3 not ready");
+                assertTrue(receiver4.waitForReady(10, TimeUnit.SECONDS), "receiver4 not ready");
+                log.info("All receivers ready");
 
                 try {
                     MessageListener messageListener = (msg, m) -> {

@@ -30,9 +30,20 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
     private Boolean showExpandedEvents;
     private Map<String, Object> resumeAfter;
     private Map<String, Object> startAfter;
+    @Transient
+    private Runnable registrationCallback;
 
     public WatchCommand(MongoConnection d) {
         super(d);
+    }
+
+    public Runnable getRegistrationCallback() {
+        return registrationCallback;
+    }
+
+    public WatchCommand setRegistrationCallback(Runnable registrationCallback) {
+        this.registrationCallback = registrationCallback;
+        return this;
     }
 
     public Boolean getShowExpandedEvents() {

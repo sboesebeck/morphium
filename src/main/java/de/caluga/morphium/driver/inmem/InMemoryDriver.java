@@ -605,6 +605,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             registrationLatch.countDown();
         }
 
+        // Call the registration callback if set (used by ChangeStreamMonitor to signal watch started)
+        if (settings.getRegistrationCallback() != null) {
+            log.info("Calling registration callback for {}.{}", db, collection);
+            try {
+                settings.getRegistrationCallback().run();
+            } catch (Exception e) {
+                log.warn("Registration callback failed: {}", e.getMessage());
+            }
+        }
+
         try {
             Long resumeAfterToken = extractResumeToken(settings.getResumeAfter());
             Long startAfterToken = resumeAfterToken == null ? extractResumeToken(settings.getStartAfter()) : null;
@@ -852,6 +862,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, Object> cmdMap = cmd.asMap();
         var commandName = cmdMap.keySet().stream().findFirst().get();
         log.debug("InMemoryDriver.runCommand(GenericCommand): commandName={}, filter={}", commandName, cmdMap.get("filter"));
+
+        // Handle MorphiumServer-specific messaging commands
+        if (commandName.equals("registerMessagingCollection")) {
+            String collection = (String) cmdMap.get("registerMessagingCollection");
+            String db = (String) cmdMap.get("$db");
+            log.debug("Handling registerMessagingCollection for {}.{}", db, collection);
+            // For InMemoryDriver, just acknowledge registration - no special handling needed
+            int requestId = commandNumber.incrementAndGet();
+            Map<String, Object> result = Doc.of(
+                "ok", 1.0,
+                "registered", true,
+                "collection", db + "." + collection,
+                "optimizations", List.of()
+            );
+            addResult(requestId, prepareResult(result));
+            return requestId;
+        }
+
+        if (commandName.equals("unregisterMessagingSubscriber")) {
+            String collection = (String) cmdMap.get("unregisterMessagingSubscriber");
+            String db = (String) cmdMap.get("$db");
+            log.debug("Handling unregisterMessagingSubscriber for {}.{}", db, collection);
+            // For InMemoryDriver, just acknowledge unregistration - no special handling needed
+            int requestId = commandNumber.incrementAndGet();
+            Map<String, Object> result = Doc.of(
+                "ok", 1.0,
+                "unregistered", true,
+                "collection", db + "." + collection
+            );
+            addResult(requestId, prepareResult(result));
+            return requestId;
+        }
+
         Class <? extends MongoCommand > commandClass = commandsCache.get(commandName);
 
         if (commandName.equals("aggreagate") && cmdMap.containsKey("pipeline")
@@ -4678,10 +4721,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         if (!hasSubscribers(db, collection)) {
+            log.debug("notifyWatchers: no subscribers for {}.{}", db, collection);
             return;
         }
 
-        // log.debug("Dispatching event for {}.{}", db, collection);
+        log.info("notifyWatchers: Dispatching event for {}.{}, op={}", db, collection, op);
         dispatchEvent(eventInfo);
     }
 

@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.config.MessagingSettings;
@@ -78,6 +79,24 @@ public interface MorphiumMessaging extends Closeable {
     MorphiumMessaging setPause(int pause);
 
     boolean isRunning();
+
+    /**
+     * Returns true if messaging is fully initialized and ready to process messages.
+     * This includes having change stream subscriptions active (if using change streams).
+     */
+    boolean isReady();
+
+    /**
+     * Waits for messaging to be fully initialized and ready to process messages.
+     * This is useful in tests to ensure change stream subscriptions are active
+     * before sending messages.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit the time unit of the timeout argument
+     * @return true if messaging became ready before timeout, false if timed out
+     * @throws InterruptedException if the current thread is interrupted while waiting
+     */
+    boolean waitForReady(long timeout, TimeUnit unit) throws InterruptedException;
 
     void terminate();
     void close();
