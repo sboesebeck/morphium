@@ -298,7 +298,7 @@ public class MultiDriverTestBase {
                         allowed.add(PooledDriver.driverName); break;
                     case "single": case "singleconnect": case "singlemongoconnectdriver":
                         allowed.add(SingleMongoConnectDriver.driverName); break;
-                    case "inmem": case "inmemory": case "inmemorydriver":
+                    case "inmem": case "inmemory": case "inmemorydriver": case "morphiumserver":
                         allowed.add(InMemoryDriver.driverName); break;
                     case "all":
                         allowed.add(PooledDriver.driverName);

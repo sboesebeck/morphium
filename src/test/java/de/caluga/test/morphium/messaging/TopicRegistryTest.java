@@ -169,10 +169,10 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 cfg.messagingSettings().setMessagingRegistryEnabled(true);
                 cfg.messagingSettings().setMessagingRegistryCheckRecipients(de.caluga.morphium.config.MessagingSettings.RecipientCheck.THROW);
-                // Shorter timeout for faster detection, but still long enough for normal operation
-                cfg.messagingSettings().setMessagingRegistryParticipantTimeout(3000);
-                // More frequent registry updates for faster detection
-                cfg.messagingSettings().setMessagingRegistryUpdateInterval(1);
+                // Shorter timeout for faster detection, participant timeout check happens each registry update
+                cfg.messagingSettings().setMessagingRegistryParticipantTimeout(5000);
+                // Registry update interval
+                cfg.messagingSettings().setMessagingRegistryUpdateInterval(2);
 
                 try (Morphium m1 = new Morphium(cfg)) {
                     MorphiumMessaging sender = m1.createMessaging();
@@ -201,9 +201,9 @@ public class TopicRegistryTest extends MultiDriverTestBase {
 
                     log.info("Receiver is now terminated. Waiting for participant timeout...");
                     // Wait for multiple registry update cycles to ensure the participant timeout is detected
-                    // Participant timeout is 3s, registry update interval is 1s, so wait for several cycles
-                    Thread.sleep(20000);
-                    waitUntilSendRejected(300_000, () -> {
+                    // Participant timeout is 5s, registry update interval is 2s
+                    Thread.sleep(15000);
+                    waitUntilSendRejected(60_000, () -> {
                         Msg directMsg = new Msg("direct", "msg", "value");
                         directMsg.addRecipient(receiverId);
                         log.info("Sending message to inactive recipient...");
