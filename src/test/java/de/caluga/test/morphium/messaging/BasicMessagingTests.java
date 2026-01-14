@@ -15,6 +15,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -68,6 +69,10 @@ public class BasicMessagingTests extends MultiDriverTestBase {
 
                     sender.start();
                     receiver.start();
+                    // Wait for messaging to be fully ready
+                    assertTrue(sender.waitForReady(15, TimeUnit.SECONDS), "sender not ready");
+                    assertTrue(receiver.waitForReady(15, TimeUnit.SECONDS), "receiver not ready");
+                    // Small delay for topic listeners to be fully registered
                     Thread.sleep(1000);
 
                     // Test basic send/receive
@@ -123,7 +128,9 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     consumer.setMultithreadded(true);
                     producer.start();
                     consumer.start();
-                    Thread.sleep(500);
+                    // Wait for messaging to be fully ready
+                    assertTrue(producer.waitForReady(15, TimeUnit.SECONDS), "producer not ready");
+                    assertTrue(consumer.waitForReady(15, TimeUnit.SECONDS), "consumer not ready");
 
                     AtomicInteger processed = new AtomicInteger(0);
                     consumer.addListenerForTopic("test", (msg, message) -> {
@@ -136,7 +143,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                         }
                         return null;
                     });
-
+                    // Small delay for topic listeners to be fully registered
                     Thread.sleep(1000);
                     int numberOfMessages = 20;
 
@@ -208,6 +215,12 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     receiver1.start();
                     sender2.start();
                     receiver2.start();
+                    // Wait for messaging to be fully ready
+                    assertTrue(sender1.waitForReady(15, TimeUnit.SECONDS), "sender1 not ready");
+                    assertTrue(receiver1.waitForReady(15, TimeUnit.SECONDS), "receiver1 not ready");
+                    assertTrue(sender2.waitForReady(15, TimeUnit.SECONDS), "sender2 not ready");
+                    assertTrue(receiver2.waitForReady(15, TimeUnit.SECONDS), "receiver2 not ready");
+                    // Small delay for topic listeners to be fully registered
                     Thread.sleep(1000);
 
                     // Send messages to different queues

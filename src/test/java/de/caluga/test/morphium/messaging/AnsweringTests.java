@@ -70,6 +70,10 @@ public class AnsweringTests extends MultiDriverTestBase {
                 messaging1.start();
                 messaging2.start();
                 messagingElse.start();
+                // Wait for all messaging instances to be fully ready
+                assertTrue(messaging1.waitForReady(15, TimeUnit.SECONDS), "messaging1 not ready");
+                assertTrue(messaging2.waitForReady(15, TimeUnit.SECONDS), "messaging2 not ready");
+                assertTrue(messagingElse.waitForReady(15, TimeUnit.SECONDS), "messagingElse not ready");
                 messagingElse.addListenerForTopic("something else", (msg, m) -> {
                     log.info("incoming message??");
                     gotMessage1 = true;
@@ -88,7 +92,8 @@ public class AnsweringTests extends MultiDriverTestBase {
                     answer = m.createAnswerMsg();
                     return answer;
                 });
-                Thread.sleep(1000);
+                // Small delay for topic listeners to be fully registered
+                Thread.sleep(500);
                 Msg msg = new Msg("not asdf", "will it stick", "uahh", 10000);
                 msg.setPriority(1);
                 messaging1.sendMessage(msg);

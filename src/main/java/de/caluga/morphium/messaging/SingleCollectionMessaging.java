@@ -92,6 +92,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private MessagingSettings settings = null;
     private MessagingRegistry networkRegistry;
 
+    // Ready signaling for tests - latch is counted down when change streams are fully initialized
+    private final CountDownLatch readyLatch = new CountDownLatch(1);
+    private volatile boolean ready = false;
+
 
     public SingleCollectionMessaging() {
         allMessagings.add(this);
@@ -422,7 +426,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     // Prevent duplicate listener invocation within the same JVM instance (especially important for InMem + change streams).
     private final Set<MorphiumId> locallyProcessedMessageIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private boolean handleChangeStreamEvent(ChangeStreamEvent evt) {
-        // log.info("incoming CSE...");
+        log.debug("CSE: {} incoming change stream event", this.id);
         if (!running) {
             return false;
         }
@@ -435,12 +439,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
             // Debug: Count ALL change stream events for InMemoryDriver
-            // if (morphium.getDriver().getName().contains("InMem")) {
-            //     int totalEvents = changeStreamEventsReceived.incrementAndGet();
-            // if (totalEvents == 1 || totalEvents % 50 == 0 || totalEvents == 200) {
-            //     log.info("{}: Change stream event #{} received", this.id, totalEvents);
-            // }
-            // }
+            if (morphium.getDriver().getName().contains("InMem")) {
+                int totalEvents = changeStreamEventsReceived.incrementAndGet();
+                log.info("CSE: {}: Change stream event #{} received, id={}", this.id, totalEvents, id);
+            }
 
             MorphiumId normalizedDocKeyId = null;
             if (id instanceof MorphiumId) {
@@ -534,7 +536,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
 
-                        // log.debug("CHANGESTREAM: Queued message {} for processing", messageId);
+                        log.info("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
                     } else {
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
@@ -628,6 +630,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         if (useChangeStream) {
             log.info("Changestream init");
             initChangeStreams();
+            // Signal that messaging is now ready (change streams are initialized)
+            ready = true;
+            readyLatch.countDown();
+            log.info("Messaging {} is now ready", id);
+        } else {
+            // No change streams, ready immediately
+            ready = true;
+            readyLatch.countDown();
+            log.info("Messaging {} is now ready (no change streams)", id);
         }
 
         // always run this find in addition to changestream
@@ -687,9 +698,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 synchronized (processing) {
                     if (!idsInProgress.contains(prEl.getId())) {
                         idsInProgress.add(prEl.getId());
-                        // log.debug("PROCESSING: Added {} to idsInProgress (from queue)", prEl.getId());
-                        // } else {
-                        //     log.debug("PROCESSING: {} already in idsInProgress (from changestream)", prEl.getId());
+                        log.info("PROCESSING: {} Added {} to idsInProgress (from queue)", id, prEl.getId());
+                    } else {
+                        log.info("PROCESSING: {} Polled {} (already in idsInProgress from changestream)", id, prEl.getId());
                     }
                 }
 
@@ -808,6 +819,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             // Always remove from idsInProgress when done processing
                             // The database processed_by field handles duplicate prevention
                             idsInProgress.remove(finalPrEl.getId());
+                            log.info("PROCESSING: {} Removed {} from idsInProgress", id, finalPrEl.getId());
                         }
                     }
                 };
@@ -1094,12 +1106,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
 
             if (fresh == null) {
-                unlockIfExclusive(obj);
+                // Message was deleted - release lock for cleanup
+                unlockForRetry(obj);
                 return;
             }
 
             if (fresh.getProcessedBy() != null && !fresh.getProcessedBy().isEmpty()) {
-                unlockIfExclusive(fresh);
+                // Already processed by someone else - release our lock
+                unlockForRetry(fresh);
                 return;
             }
 
@@ -1177,7 +1191,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // Delete outdated msg!
             log.debug(getSenderId() + ": Found outdated message - deleting it!");
             morphium.delete(msg, getCollectionName());
-            unlockIfExclusive(msg);
+            unlockForRetry(msg);
             return;
         }
 
@@ -1202,7 +1216,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // }
 
             // removeProcessingFor(msg);
-            unlockIfExclusive(msg);
+            unlockForRetry(msg);
+            // Allow retry if listener is added later
+            if (locallyMarked) {
+                locallyProcessedMessageIds.remove(msg.getMsgId());
+            }
             // log.info("not processing");
             return;
         }
@@ -1220,20 +1238,27 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         for (MessageListener l : lst) {
             try {
                 if (pauseMessages.containsKey(msg.getTopic())) {
-                    // paused - do not process
+                    // paused - do not process, release lock for retry later
                     // log.warn("Received paused message?!?!? "+msg1.getMsgId());
                     // processing.remove(msg.getMsgId());
                     // removeProcessingFor(msg);
                     wasProcessed = false;
-                    unlockIfExclusive(msg);
+                    unlockForRetry(msg);
+                    // Allow retry when topic is unpaused
+                    if (locallyMarked) {
+                        locallyProcessedMessageIds.remove(msg.getMsgId());
+                    }
                     break;
                 }
 
                 if (l.markAsProcessedBeforeExec() && !alreadyUpdatedProcessedBy) {
                     boolean updated = updateProcessedBy(msg);
                     if (!updated) {
-                        // processed_by update failed - don't call listener, keep lock
-                        log.error("Failed to update processed_by before exec for message {} - keeping lock", msg.getMsgId());
+                        // processed_by update failed - don't call listener, allow retry
+                        log.error("Failed to update processed_by before exec for message {} - allowing retry", msg.getMsgId());
+                        if (locallyMarked) {
+                            locallyProcessedMessageIds.remove(msg.getMsgId());
+                        }
                         return;
                     }
                     alreadyUpdatedProcessedBy = true;
@@ -1306,11 +1331,25 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         unlockIfExclusive(msg);
     }
 
-    private void unlockIfExclusive(Msg msg) {
+    /**
+     * Release lock for exclusive message to allow retry by another instance.
+     * Use this when message was NOT successfully processed (outdated, no listeners, paused, etc.)
+     */
+    private void unlockForRetry(Msg msg) {
         if (msg.isExclusive()) {
-            // remove _own_ lock
             deleteLock(msg.getMsgId());
         }
+    }
+
+    /**
+     * Called after successful exclusive message processing.
+     * Do NOT delete the lock - let TTL index clean it up.
+     * This prevents a race condition where another instance could grab the lock
+     * before the processed_by update is visible on all replica set members.
+     * The lock has TTL = 2x message TTL, so it will be cleaned up automatically.
+     */
+    private void unlockIfExclusive(Msg msg) {
+        // Intentionally empty - lock cleanup via TTL prevents race condition
     }
 
     private void deleteLock(MorphiumId msgId) {
@@ -1454,11 +1493,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     private void queueOrRun(Runnable r) {
         if (multithreadded) {
-
             try {
                 threadPool.execute(r);
-            } catch (Throwable ignored) {
-                ignored.printStackTrace();
+            } catch (Throwable t) {
+                // If thread pool execution fails (e.g., executor shutdown),
+                // run synchronously to ensure cleanup (idsInProgress removal) happens
+                log.warn("Thread pool execution failed, running synchronously: {}", t.getMessage());
+                try {
+                    r.run();
+                } catch (Throwable inner) {
+                    log.error("Error running task synchronously after thread pool failure", inner);
+                }
             }
         } else {
             r.run();
@@ -1549,6 +1594,28 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         return running;
     }
 
+    /**
+     * Returns true if messaging is fully initialized and ready to process messages.
+     * This includes having change stream subscriptions active (if using change streams).
+     */
+    public boolean isReady() {
+        return ready;
+    }
+
+    /**
+     * Waits for messaging to be fully initialized and ready to process messages.
+     * This is useful in tests to ensure change stream subscriptions are active
+     * before sending messages.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit the time unit of the timeout argument
+     * @return true if messaging became ready before timeout, false if timed out
+     * @throws InterruptedException if the current thread is interrupted while waiting
+     */
+    public boolean waitForReady(long timeout, TimeUnit unit) throws InterruptedException {
+        return readyLatch.await(timeout, unit);
+    }
+
     @Override
     public void close() {
         terminate();
@@ -1616,6 +1683,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void storeMsg(Msg m, boolean async) {
+        // Don't send messages if messaging has been terminated
+        if (!running) {
+            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+            return;
+        }
         if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
             long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
             if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {

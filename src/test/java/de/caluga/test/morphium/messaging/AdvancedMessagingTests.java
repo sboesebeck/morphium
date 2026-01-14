@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -78,9 +79,11 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     MorphiumMessaging m4 = morphium4.createMessaging();
                     m4.start();
 
-                    // Wait for all messaging instances to be running
-                    waitForConditionToBecomeTrue(10000, "Messaging instances not all running",
-                                                 () -> m1.isRunning() && m2.isRunning() && m3.isRunning() && m4.isRunning());
+                    // Wait for all messaging instances to be fully ready (change streams initialized)
+                    assertTrue(m1.waitForReady(15, TimeUnit.SECONDS), "m1 not ready");
+                    assertTrue(m2.waitForReady(15, TimeUnit.SECONDS), "m2 not ready");
+                    assertTrue(m3.waitForReady(15, TimeUnit.SECONDS), "m3 not ready");
+                    assertTrue(m4.waitForReady(15, TimeUnit.SECONDS), "m4 not ready");
 
                     MessageListener<Msg> msgMessageListener = (msg, m) -> {
                         Msg answer = m.createAnswerMsg();
@@ -93,9 +96,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                         m3.addListenerForTopic("test", msgMessageListener);
                         m4.addListenerForTopic("test", msgMessageListener);
 
-                        // Wait longer for messaging to be fully initialized and listeners ready
-                        // MorphiumServer needs more time for change stream initialization
-                        Thread.sleep(5000);
+                        // Small delay for topic listeners to be fully registered
+                        // Real MongoDB changestreams need more time for subscription propagation
+                        Thread.sleep(2000);
 
                         for (int i = 0; i < 5; i++) {
                             Msg query = new Msg("test", "test query", "query");
@@ -146,9 +149,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     consumer.setUseChangeStream(true);
                     consumer.start();
 
-                    // Wait for both messaging instances to be running
-                    waitForConditionToBecomeTrue(10000, "Messaging instances not running",
-                                                 () -> producer.isRunning() && consumer.isRunning());
+                    // Wait for both messaging instances to be fully ready (change streams initialized)
+                    assertTrue(producer.waitForReady(15, TimeUnit.SECONDS), "producer not ready");
+                    assertTrue(consumer.waitForReady(15, TimeUnit.SECONDS), "consumer not ready");
 
                     try {
                         consumer.addListenerForTopic("testDiff", new MessageListener() {
@@ -191,9 +194,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     MorphiumMessaging consumer = morphium.createMessaging();
                     consumer.start();
 
-                    // Wait for both messaging instances to be running
-                    waitForConditionToBecomeTrue(10000, "Messaging instances not running",
-                                                 () -> producer.isRunning() && consumer.isRunning());
+                    // Wait for both messaging instances to be fully ready (change streams initialized)
+                    assertTrue(producer.waitForReady(15, TimeUnit.SECONDS), "producer not ready");
+                    assertTrue(consumer.waitForReady(15, TimeUnit.SECONDS), "consumer not ready");
 
                     counts.clear();
                     consumer.addListenerForTopic("testAnswering", (msg, m) -> {

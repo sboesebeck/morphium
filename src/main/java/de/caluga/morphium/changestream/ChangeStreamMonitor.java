@@ -266,21 +266,34 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 };
 
                 if (dedicatedConnection == null || !dedicatedConnection.isConnected()) {
-                    log.debug("Driver not available, stopping changestream monitor");
-                    break;
+                    log.debug("Driver not available, will retry");
+                    // Wait before retrying to avoid tight loop
+                    try {
+                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                    } catch (InterruptedException e) {
+                        if (!running) break;
+                    }
+                    continue;  // Retry getting connection
                 }
 
                 var con = dedicatedConnection.getPrimaryConnection(null);
                 activeConnection = con;
 
                 if (!con.isConnected()) {
-                    log.error("Could not connect!");
-                    // Release connection back to pool before returning to avoid connection leak
+                    log.error("Could not connect - will retry");
+                    // Release connection back to pool before retrying
                     try {
                         dedicatedConnection.releaseConnection(con);
                     } catch (Exception ignore) {
                     }
-                    return;
+                    activeConnection = null;
+                    // Wait before retrying to avoid tight loop
+                    try {
+                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                    } catch (InterruptedException e) {
+                        if (!running) break;
+                    }
+                    continue;  // Retry connection
                 }
 
                 watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxWaitTime())
@@ -299,7 +312,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 }
 
                 if (watch.getConnection().isConnected()) {
-                    signalWatchStarted();
+                    // Set a registration callback to be called when subscription is registered
+                    // This ensures signalWatchStarted() is called AFTER the subscription is active
+                    watch.setRegistrationCallback(this::signalWatchStarted);
                     watch.watch();
                 }
             } catch (Exception e) {
