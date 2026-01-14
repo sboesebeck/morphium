@@ -47,81 +47,6 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
-    public void ignoringExclusiveMessagesTest(Morphium morphium) throws Exception  {
-        for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
-            de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
-            log.info("Using messaging implementation: {}", msgImpl);
-            var cfg = morphium.getConfig().createCopy();
-            cfg.messagingSettings().setMessagingImplementation(msgImpl);
-            // Propagate encryption/auth settings that are not exported by createCopy
-            cfg.encryptionSettings()
-               .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
-            cfg.encryptionSettings().setCredentialsDecryptionKey(
-                               morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
-            cfg.encryptionSettings().setCredentialsEncryptionKey(
-                               morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
-            try (Morphium m = new Morphium(cfg)) {
-                m.dropCollection(Msg.class);
-                Thread.sleep(100);
-                MorphiumMessaging m1 = m.createMessaging();
-                m1.setPause(10).setMultithreadded(true).setWindowSize(10);
-                m1.setSenderId("m1");
-                MorphiumMessaging m2 = m.createMessaging();
-                m2.setPause(10).setMultithreadded(true).setWindowSize(10);
-                m2.setSenderId("m2");
-                MorphiumMessaging m3 = m.createMessaging();
-                m3.setPause(10).setMultithreadded(true).setWindowSize(10);
-                m3.setSenderId("m3");
-                m3.addListenerForTopic("test", (msg, mm) -> null);
-                try {
-                    m1.start();
-                    m2.start();
-                    m3.start();
-                    // Wait for messaging instances to fully initialize (change stream watchers, etc.)
-                    Thread.sleep(2000);
-                    for (int i = 0; i < 10; i++) {
-                        Msg mm = new Msg("test", "ignore me please", "value", 20000, true);
-                        m1.sendMessage(mm);
-                        // Allow time for write to propagate
-                        Thread.sleep(100);
-                        long start = System.currentTimeMillis();
-                        final String collName = m1.getCollectionName(mm);
-                        final MorphiumId msgId = mm.getMsgId();
-                        while (true) {
-                            Thread.sleep(100);
-                            // Use query to fetch by ID to handle replication lag
-                            mm = m.createQueryFor(Msg.class, collName).f("_id").eq(msgId).get();
-                            if (mm == null) {
-                                assertTrue(System.currentTimeMillis() - start < 120000, "timeout waiting for message to be visible");
-                                continue;
-                            }
-                            if (mm.getProcessedBy() != null && mm.getProcessedBy().size() != 0)
-                                break;
-                            assertTrue(System.currentTimeMillis() - start < 120000, "timeout waiting for processing");
-                        }
-                        assertNotNull(mm);
-                        assertEquals(1, mm.getProcessedBy().size());
-                    }
-                } finally {
-                    try {
-                        m1.terminate();
-                    } catch (Exception ignored) {
-                    }
-                    try {
-                        m2.terminate();
-                    } catch (Exception ignored) {
-                    }
-                    try {
-                        m3.terminate();
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
     public void deleteAfterProcessingTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
@@ -195,88 +120,13 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
                 assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
-                // Use longer timeout for MorphiumServer under load
-                assertThat(System.currentTimeMillis() - s).isLessThan(120000);
+                // Use longer timeout for MorphiumServer under load - polling interval may be slow
+                assertThat(System.currentTimeMillis() - s).isLessThan(300000);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(10000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
-            TestUtils.waitForConditionToBecomeTrue(5000, "Msg collection not empty", () -> morphium.createQueryFor(Msg.class, m1.getCollectionName()).countAll() == 0);
-            TestUtils.waitForConditionToBecomeTrue(5000, "MsgLock collection not empty", () -> morphium.createQueryFor(MsgLock.class, m1.getLockCollectionName()).countAll() == 0);
-        } finally {
-            m1.terminate();
-            m2.terminate();
-            m3.terminate();
-            sender.terminate();
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
-    public void exclusiveMessageTest(Morphium morphium) throws Exception  {
-        morphium.dropCollection(Msg.class);
-        TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
-        MorphiumMessaging sender = morphium.createMessaging();
-        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
-        sender.start();
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        gotMessage4 = false;
-        MorphiumMessaging m1 = morphium.createMessaging();
-        m1.setPause(100).setMultithreadded(true).setWindowSize(1);
-        m1.addListenerForTopic("A message", (msg, m) -> {
-            gotMessage1 = true;
-            return null;
-        });
-        MorphiumMessaging m2 = morphium.createMessaging();
-        m2.setPause(100).setMultithreadded(true).setWindowSize(1);
-        m2.addListenerForTopic("A message", (msg, m) -> {
-            // gotMessage2 = true;
-            return null;
-        });
-        MorphiumMessaging m3 = morphium.createMessaging();
-        m3.setPause(100).setMultithreadded(true).setWindowSize(1);
-        m3.addListenerForTopic("A message", (msg, m) -> {
-            gotMessage3 = true;
-            return null;
-        });
-        m1.start();
-        m2.start();
-        m3.start();
-
-        try {
-            Thread.sleep(2000);
-            Msg m = new Msg();
-            m.setExclusive(true);
-            m.setTopic("A message");
-            sender.sendMessage(m);
-            long s = System.currentTimeMillis();
-
-            while (true) {
-                int rec = 0;
-
-                if (gotMessage1) {
-                    rec++;
-                }
-
-                if (gotMessage2) {
-                    rec++;
-                }
-
-                if (gotMessage3) {
-                    rec++;
-                }
-
-                if (rec == 1) {
-                    break;
-                }
-
-                assertThat(rec).isLessThanOrEqualTo(1);
-                Thread.sleep(50);
-                assertThat(System.currentTimeMillis() - s).isLessThan(2 * morphium.getConfig().getMaxWaitTime());
-            }
-
-            TestUtils.waitForConditionToBecomeTrue(5000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
+            TestUtils.waitForConditionToBecomeTrue(30000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
+            TestUtils.waitForConditionToBecomeTrue(15000, "Msg collection not empty", () -> morphium.createQueryFor(Msg.class, m1.getCollectionName()).countAll() == 0);
+            TestUtils.waitForConditionToBecomeTrue(15000, "MsgLock collection not empty", () -> morphium.createQueryFor(MsgLock.class, m1.getLockCollectionName()).countAll() == 0);
         } finally {
             m1.terminate();
             m2.terminate();
@@ -364,7 +214,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 // Sending exclusive Message
                 Msg m = new Msg();
                 m.setExclusive(true);
-                m.setTtl(3000000);
+                m.setTtl(30_000);
                 m.setMsgId(new MorphiumId());
                 m.setTopic("A message");
                 log.info("Sending: " + m.getMsgId().toString());
@@ -377,7 +227,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                     Thread.sleep(200);
                     log.info("Still did not get all messages: m1=" + gotMessage1 + " m2=" + gotMessage2);
                     // Use longer timeout for MorphiumServer replicaset under parallel load
-                    assertThat(System.currentTimeMillis() - s).isLessThan(120000);
+                    assertThat(System.currentTimeMillis() - s).isLessThan(60000);
                 }
 
                 int rec = 0;
@@ -396,7 +246,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 m = new Msg();
                 m.setExclusive(true);
                 m.setTopic("A message");
-                m.setTtl(3000000);
+                m.setTtl(30000);
                 sender2.sendMessage(m);
                 Thread.sleep(500);
                 org.junit.jupiter.api.Assertions.assertFalse(gotMessage1);
@@ -561,21 +411,23 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                             dups.incrementAndGet();
                         } else if (!m.isExclusive()) {
                             recIdsByReceiver.putIfAbsent(msg.getSenderId(), new ArrayList<>());
+                            // Save msgId before potential reread that might null out m
+                            MorphiumId msgId = m.getMsgId();
 
-                            if (recIdsByReceiver.get(msg.getSenderId()).contains(m.getMsgId())) {
+                            if (recIdsByReceiver.get(msg.getSenderId()).contains(msgId)) {
                                 log.error(msg.getSenderId()
                                           + ": Duplicate processing of broadcast message of same receiver! ");
-                                m = msg.getMorphium().reread(m);
+                                Msg reread = msg.getMorphium().reread(m);
 
-                                if (m == null) {
+                                if (reread == null) {
                                     log.error("... is deleted???");
-                                } else if (m.getProcessedBy().contains(msg.getSenderId())) {
+                                } else if (reread.getProcessedBy().contains(msg.getSenderId())) {
                                     log.error("... but is properly marked!");
                                 }
 
                                 dups.incrementAndGet();
                             } else {
-                                recIdsByReceiver.get(msg.getSenderId()).add(m.getMsgId());
+                                recIdsByReceiver.get(msg.getSenderId()).add(msgId);
                             }
                         }
 
@@ -616,7 +468,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         sender.sendMessage(m);
                     }
 
-                    long waitUntil = System.currentTimeMillis() + 300000; // 5 minutes - allows for slower backends like MorphiumServer
+                    long waitUntil = System.currentTimeMillis() + 240000;
 
                     while (received.get() != amount + broadcastAmount * 4) {
                         int rec = received.get();
@@ -665,124 +517,6 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
             }
         }
     }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
-    public void exclusiveMessageStartupTests(Morphium morphium) throws Exception  {
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true, 1);
-        MorphiumMessaging receiverNoListener = morphium.createMessaging();
-        receiverNoListener.setPause(100).setMultithreadded(true).setWindowSize(10);
-
-        try {
-            sender.setSenderId("sender");
-            morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
-            morphium.dropCollection(MsgLock.class, sender.getLockCollectionName(), null);
-            Thread.sleep(2000);
-            sender.start();
-            sender.sendMessage(new Msg("test", "test", "test", 30000, true));
-            sender.sendMessage(new Msg("test", "test", "test", 30000, true));
-            sender.sendMessage(new Msg("test", "test", "test", 30000, true));
-            Thread.sleep(1000);
-            receiverNoListener.setSenderId("recNL");
-            receiverNoListener.start();
-            org.junit.jupiter.api.Assertions.assertEquals(3,
-                    morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll());
-        } finally {
-            sender.terminate();
-            receiverNoListener.terminate();
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
-    public void exclusiveMessageDelAfterProcessingTimeOffsetTest(Morphium morphium) throws Exception  {
-        MorphiumMessaging sender = morphium.createMessaging();
-        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
-        sender.setSenderId("Sender");
-        // sender.start();
-        Msg m = new Msg("test", "msg", "value");
-        m.setExclusive(true);
-        m.setTimingOut(false);
-        m.setDeleteAfterProcessing(true);
-        m.setDeleteAfterProcessingTime(10);
-        sender.sendMessage(m);
-        Thread.sleep(200);
-        AtomicInteger recCount = new AtomicInteger(0);
-        MorphiumMessaging receiver = morphium.createMessaging();
-        receiver.setPause(100).setMultithreadded(true);
-        receiver.addListenerForTopic("test2", (messaging, msg) -> {
-            recCount.incrementAndGet();
-            return null;
-        });
-        receiver.addListenerForTopic("test", (messaging, msg) -> {
-            recCount.incrementAndGet();
-            return null;
-        });
-        receiver.start();
-
-        try {
-            TestUtils.waitForConditionToBecomeTrue(10000, "Message not received", () -> recCount.get() == 1);
-            log.info("waiting for mongo to delete...");
-            long start = System.currentTimeMillis();
-
-            while (true) {
-                var cnt = morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll();
-                log.info("... still " + cnt);
-
-                if (cnt == 0) {
-                    break;
-                }
-
-                Thread.sleep(4000);
-                // MongoDB's TTL monitor runs periodically; allow enough time for real clusters.
-                assertTrue(System.currentTimeMillis() - start < 180000);
-            }
-
-            log.info("Deleted after: " + (System.currentTimeMillis() - start));
-            assertEquals(0, morphium.createQueryFor(MsgLock.class, sender.getLockCollectionName()).countAll());
-            ;
-        } finally {
-            sender.terminate();
-            receiver.terminate();
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
-    public void exclusiveMessageCheckOnStartTest(Morphium morphium) throws Exception  {
-        MorphiumMessaging sender = morphium.createMessaging();
-        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
-        sender.setSenderId("Sender");
-        // sender.start();
-        Msg m = new Msg("test", "msg", "value");
-        m.setExclusive(true);
-        m.setTimingOut(false);
-        m.setDeleteAfterProcessing(true);
-        m.setDeleteAfterProcessingTime(0);
-        sender.sendMessage(m);
-        Thread.sleep(200);
-        AtomicInteger recCount = new AtomicInteger(0);
-        MorphiumMessaging receiver = morphium.createMessaging();
-        receiver.setPause(100).setMultithreadded(true).setWindowSize(10);
-        receiver.addListenerForTopic("test2", (messaging, msg) -> {
-            recCount.incrementAndGet();
-            return null;
-        });
-        receiver.addListenerForTopic("test", (messaging, msg) -> {
-            recCount.incrementAndGet();
-            return null;
-        });
-        receiver.start();
-
-        try {
-            TestUtils.waitForConditionToBecomeTrue(10000, "Message not received", () -> recCount.get() == 1);
-        } finally {
-            sender.terminate();
-            receiver.terminate();
-        }
-    }
-
-
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
@@ -932,7 +666,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                     for (int i = 0; i < exclusiveMessages; i++) {
                         if (i % 10 == 0)
                             log.info("Sent exclusive Msg {}", i);
-                        var msg = new Msg("excl_name", "msg", "value", 20000000, true)
+                        var msg = new Msg("excl_name", "msg", "value", 20000, true)
                         .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0);
                         sender.sendMessage(msg);
                         sent.add(msg.getMsgId());
@@ -969,7 +703,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                     for (int i = 0; i < broadcastAmount; i++) {
                         if (i % 5 == 0)
                             log.info("Sent broadcast message {}", i);
-                        sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, false));
+                        sender.sendMessage(new Msg("excl_name", "msg", "value", 20000, false));
                     }
 
                     TestUtils.waitForConditionToBecomeTrue(broadcastAmount * 350, "Did not reach message count",

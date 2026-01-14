@@ -186,11 +186,11 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
 
                                 if (receivedIds.get(rec1.getSenderId()).contains(incoming.getMsgId())) {
                                     log.error("Duplicate processing by {} using Messaging {}/{}! Message: {}, processed_by: {}",
-                                             rec1.getSenderId(), morphium.getDriver().getName(), msgImpl, incoming.getMsgId(), incoming.getProcessedBy());
+                                              rec1.getSenderId(), morphium.getDriver().getName(), msgImpl, incoming.getMsgId(), incoming.getProcessedBy());
                                     errorCount.incrementAndGet();
                                 } else if (incoming.isExclusive() && incoming.getProcessedBy() != null && incoming.getProcessedBy().size() != 0) {
                                     log.error("Duplicate processing Exclusive Message by {} using Messaging {}! Message: {}",
-                                             rec1.getSenderId(), morphium.getDriver().getName(), msgImpl, incoming.getMsgId());
+                                              rec1.getSenderId(), morphium.getDriver().getName(), msgImpl, incoming.getMsgId());
                                     errorCount.incrementAndGet();
                                 }
 
@@ -218,7 +218,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     }
                     long start = System.currentTimeMillis();
                     long maxTotalTimeout = 600000; // Max 600 seconds total (for MorphiumServer replicaset under parallel load)
-                    long idleTimeout = 300000; // 300 seconds after last message received (for parallel load)
+                    long idleTimeout = 60000; // 60 seconds after last message received (for parallel load with connection retries)
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;
 
@@ -253,7 +253,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             break;
                         } else {
                             log.info("Did not receive enough: {} of {} using messaging {} and driver {}",
-                                    totalNum, expectedTotal, msgImpl, morphium.getDriver().getName());
+                                     totalNum, expectedTotal, msgImpl, morphium.getDriver().getName());
                         }
 
                         assertEquals(0, errorCount.get(), "There were errors during processing using " + morphium.getDriver().getName() + "/" + msgImpl);
