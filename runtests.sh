@@ -26,6 +26,26 @@ runLock="$TEST_TMP_DIR/run_$PID.lck"
 testPid="$TEST_TMP_DIR/test_$PID.pid"
 failPid="$TEST_TMP_DIR/fail_$PID.pid"
 
+# Helper function to safely count patterns in files
+# Usage: safe_grep_count "pattern" "file_pattern" "files_list"
+# Returns 0 if no files match, otherwise counts matching lines
+function safe_grep_count() {
+  local pattern="$1"
+  local file_pattern="$2"
+  local files_list="$3"
+  local matching_files
+  local count
+  matching_files=$(grep "$file_pattern" "$files_list" 2>/dev/null | tr '\n' ' ')
+  if [ -z "$matching_files" ]; then
+    echo 0
+    return
+  fi
+  # Use eval to expand the file list properly, ensure single numeric output
+  count=$(eval "grep -E '$pattern' $matching_files 2>/dev/null" | cut -f2 -d: | grep -vc '^ *//' 2>/dev/null || echo 0)
+  # Ensure we return a single number
+  echo "${count:-0}" | head -1 | tr -d '\n'
+}
+
 function createFileList() {
   rg -l "@Test" | grep ".java" >$filesList
   rg -l "@ParameterizedTest" | grep ".java" >>$filesList
@@ -35,6 +55,8 @@ function createFileList() {
   sort -u "$filesList" | grep "$p" >"$tmp_file_list" && mv -f "$tmp_file_list" "$filesList"
   rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
   local tmp_filtered_list="$TEST_TMP_DIR/filtered_list_temp_$PID.tmp"
+  # Initialize empty file in case no matches
+  : > "$tmp_filtered_list"
   cat "$filesList" | while read l; do
     if grep "$l" "$disabledList" >/dev/null; then
       echo "$l disabled"
@@ -839,11 +861,10 @@ else
   disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
   disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
   disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
-  testMethods=$(grep -E "@Test" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-  testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-  testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-  testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-  # testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+  testMethods=$(safe_grep_count "@Test|@ParameterizedTest" "$p" "$filesList")
+  testMethods3=$(safe_grep_count '@MethodSource\("getMorphiumInstances"\)' "$p" "$filesList")
+  testMethods2=$(safe_grep_count '@MethodSource\("getMorphiumInstancesNo.*"\)' "$p" "$filesList")
+  testMethods1=$(safe_grep_count '@MethodSource\("getMorphiumInstances.*Only"\)' "$p" "$filesList")
   ((testMethods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
 fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
@@ -1513,10 +1534,10 @@ else
         ((d = $(date +%s) - start))
         # echo "Checking $fn"
         fn=$(echo "$t" | tr "." "/")
-        lmeth=$(grep -E "@Test" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-        lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-        lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-        lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+        lmeth=$(safe_grep_count "@Test|@ParameterizedTest" "$fn" "$filesList")
+        lmeth3=$(safe_grep_count '@MethodSource\("getMorphiumInstances"\)' "$fn" "$filesList")
+        lmeth2=$(safe_grep_count '@MethodSource\("getMorphiumInstancesNo.*"\)' "$fn" "$filesList")
+        lmeth1=$(safe_grep_count '@MethodSource\("getMorphiumInstances.*Only"\)' "$fn" "$filesList")
         ((lmeth = lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
 
         clear
