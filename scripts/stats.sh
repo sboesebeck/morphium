@@ -115,11 +115,9 @@ function get_test_stats() {
           # Add to failed tests if there were actual test failures
           if [ "$has_test_failure" == "true" ]; then
             if [ $noreason -eq 1 ]; then
-              failed_tests="$failed_tests$test_class"$''$
-'
+              failed_tests="$failed_tests$test_class"$'\n'
             else
-              failed_tests="$failed_tests$test_class - Tests failed: $fail_count, Errors: $err_count"$''$
-'
+              failed_tests="$failed_tests$test_class - Tests failed: $fail_count, Errors: $err_count"$'\n'
             fi
           fi
         else
@@ -129,11 +127,9 @@ function get_test_stats() {
             has_build_failure=true
             ((total_build_failures += 1))
             if [ $noreason -eq 1 ]; then
-              failed_tests="$failed_tests$test_class"$''$
-'
+              failed_tests="$failed_tests$test_class"$'\n'
             else
-              failed_tests="$failed_tests$test_class - BUILD FAILURE (no tests executed)"$''$
-'
+              failed_tests="$failed_tests$test_class - BUILD FAILURE (no tests executed)"$'\n'
             fi
           fi
         fi
@@ -144,11 +140,9 @@ function get_test_stats() {
           has_build_failure=true
           ((total_build_failures += 1))
           if [ $noreason -eq 1 ]; then
-            failed_tests="$failed_tests$test_class"$''$
-'
+            failed_tests="$failed_tests$test_class"$'\n'
           else
-            failed_tests="$failed_tests$test_class - BUILD FAILURE"$''$
-'
+            failed_tests="$failed_tests$test_class - BUILD FAILURE"$'\n'
           fi
         fi
       fi
