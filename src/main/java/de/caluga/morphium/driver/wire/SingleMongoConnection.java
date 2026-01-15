@@ -567,6 +567,7 @@ public class SingleMongoConnection implements MongoConnection {
         OpMsg msg = startMsg;
         command.setMetaData("server", getConnectedTo());
         long docsProcessed = 0;
+        boolean registrationCallbackCalled = false;
 
         while (true) {
             OpMsg reply = null;
@@ -618,6 +619,18 @@ public class SingleMongoConnection implements MongoConnection {
             // log.debug("CursorID:" + cursor.get("id").toString());
             long cursorId = Long.parseLong(cursor.get("id").toString());
             command.setMetaData("cursor", cursorId);
+
+            // Call registration callback once the watch cursor is established
+            // This signals to ChangeStreamMonitor that the watch is ready to receive events
+            if (!registrationCallbackCalled && command.getRegistrationCallback() != null) {
+                registrationCallbackCalled = true;
+                try {
+                    command.getRegistrationCallback().run();
+                } catch (Exception e) {
+                    log.warn("Registration callback failed: {}", e.getMessage());
+                }
+            }
+
             List<Map<String, Object >> result = (List<Map<String, Object >> ) cursor.get("firstBatch");
 
             if (result == null) {
@@ -679,7 +692,6 @@ public class SingleMongoConnection implements MongoConnection {
                 doc.put("$db", db);
                 msg.setFirstDoc(doc);
                 sendQuery(msg);
-                //log.debug("sent getmore....");
             } else {
                 log.debug("Cursor exhausted, restarting");
                 // Use resume token if available to prevent duplicate events

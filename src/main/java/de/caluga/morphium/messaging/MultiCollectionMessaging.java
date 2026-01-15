@@ -180,6 +180,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // Change streams can miss events due to network issues or MongoDB internal issues
             // This ensures broadcast messages are eventually delivered even if change stream events are lost
             if (isUseChangeStream() && running.get()) {
+                // log.debug("Running fallback poll for {} topics", monitorsByTopic.size());
                 for (var topicName : monitorsByTopic.keySet()) {
                     try {
                         pollAndProcess(topicName);
@@ -214,6 +215,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
             morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
         directMessagesMonitor.addListener((evt) -> {
+            // Skip processing if not running - but always return true to keep listener registered
+            if (!running.get()) {
+                return true;
+            }
             // All messages coming in here are for me!
             Map<String, Object> doc = evt.getFullDocument();
             Msg msg = morphium.getMapper().deserialize(Msg.class, doc);
@@ -222,14 +227,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 handleAnswer(msg);
             } else {
                 if (pausedTopics.contains(msg.getTopic())) {
-                    return running.get();
+                    return true;
 
                 }
                 if (monitorsByTopic.containsKey(msg.getTopic())) {
                     // For broadcast messages, use permanent tracking to prevent duplicate delivery
                     if (!msg.isExclusive()) {
                         if (!locallyProcessedBroadcastIds.add(msg.getMsgId())) {
-                            return running.get();  // Already processed this broadcast
+                            return true;  // Already processed this broadcast
                         }
                     }
 
@@ -237,7 +242,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
                     // is still being processed by another thread that added it to processingMessages
                     if (!processingMessages.add(msg.getMsgId())) {
-                        return running.get();
+                        return true;
                     }
 
                     // Count how many listeners we're queueing for this message
@@ -305,7 +310,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     morphium.remove(msg, dmCollectionName);
                 }
             }
-            return running.get();
+            return true;  // Always keep listener registered - cleanup happens in terminate()
         });
         directMessagesMonitor.start();
         if (!isUseChangeStream()) {
@@ -754,7 +759,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private void pollAndProcess(String msgName) {
         if (!running.get())
             return;
-        // log.info("PollAndProcess - ignoring {} msids", processingMessages.size());
+        // log.debug("PollAndProcess for topic {} - processingMessages: {}", msgName, processingMessages.size());
         // Use more efficient query patterns
         List<MorphiumId> processingIds = new ArrayList<>(processingMessages);
 
@@ -1037,42 +1042,58 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         // in.put("$eq", "insert"); //, "delete", "update"));
         in.put("$in", Arrays.asList("insert"));
         match.put("operationType", in);
-        match.put("fullDocument.sender", Map.of("$ne", getSenderId()));
+        // Don't filter on fullDocument.sender in the pipeline - it can cause issues with
+        // MongoDB change stream event delivery. The sender check is done in the callback.
         var pipeline = new ArrayList<Map<String, Object>>();
         pipeline.add(UtilsMap.of("$match", match));
         log.debug("Adding changestream for collection {}", getCollectionName(n));
         morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
         // Register topic with MorphiumServer for optimizations
         registerTopicWithMorphiumServer(n);
-        ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), true,
-            morphium.getConfig().connectionSettings().getMaxWaitTime(),
+        // Use same parameters as SingleCollectionMessaging for consistency:
+        // - fullDocument=false (we fetch fresh data anyway for exclusive messages)
+        // - maxWait=pause (shorter timeout for more responsive event delivery)
+        ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), false,
+            effectiveSettings.getMessagingPollPause(),
             pipeline);
         cm.addListener((evt) -> {
             log.debug("Incoming change stream event for topic {}", n);
 
+            // CRITICAL: Always return true to keep the listener registered
+            // Returning running.get() would cause the listener to be removed if called before start()
+            // Skip processing if not running, but keep listening
+            if (!running.get()) {
+                return true;
+            }
+
             // Deserialize and check BEFORE creating Runnable to prevent race condition
             Map<String, Object> map = evt.getFullDocument();
+
+            if (map == null) {
+                log.warn("Change stream event has null fullDocument - skipping");
+                return true;
+            }
 
             if (pausedTopics.contains(map.get(Msg.Fields.topic.name()))) {
                 // log.info("Topic {} paused", map.get("name"));
                 // paused
-                return running.get();
+                return true;
             }
 
             Msg doc = morphium.getMapper().deserialize(Msg.class, map);
             if (doc.getSender().equals(getSenderId()))
-                return running.get();
+                return true;
 
             // Check if recently completed - prevents race condition where fallback poll
             // or change stream delivers a message that was just processed
             if (recentlyCompletedMessages.containsKey(doc.getMsgId())) {
-                return running.get();
+                return true;
             }
 
             // For broadcast messages, use permanent tracking to prevent duplicate delivery
             if (!doc.isExclusive()) {
                 if (!locallyProcessedBroadcastIds.add(doc.getMsgId())) {
-                    return running.get();  // Already processed this broadcast
+                    return true;  // Already processed this broadcast
                 }
             }
 
@@ -1082,7 +1103,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // is still being processed by another thread that added it to processingMessages
             if (!processingMessages.add(doc.getMsgId())) {
                 log.info("could not add to processingMessages - already processing");
-                return running.get();
+                return true;
             }
 
             Runnable r = () -> {
@@ -1181,12 +1202,16 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 }
             };
             queueOrRun(r);
-            return running.get();
+            return true;  // Always keep listener registered - cleanup happens in terminate()
         });
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(n), false,
             effectiveSettings.getMessagingPollPause(), List.of(Doc.of("$match", Doc.of("operationType",
                 Doc.of("$eq", "delete")))));
         lockMonitor.addListener((evt) -> {
+            // Only process if running - but always return true to keep listener registered
+            if (!running.get()) {
+                return true;
+            }
             var id = evt.getId();
             if (morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName(n)).f(Msg.Fields.msgId).eq(id)
                     .countAll() != 0) {
@@ -1194,7 +1219,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 pollTrigger.get(n).incrementAndGet();
             }
 
-            return running.get();
+            return true;  // Always keep listener registered - cleanup happens in terminate()
         });
         monitorsByTopic.putIfAbsent(n, new ArrayList<>());
         monitorsByTopic.get(n).add(Map.of(MType.monitor, cm, MType.listener, l, MType.lockMonitor, lockMonitor));

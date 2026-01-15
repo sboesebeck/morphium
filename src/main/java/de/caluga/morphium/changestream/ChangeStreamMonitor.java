@@ -297,7 +297,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     continue;  // Retry connection
                 }
 
-                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxWaitTime())
+                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(maxWait)
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
 
                 // Use resume token to continue from where we left off (prevents duplicate events)
