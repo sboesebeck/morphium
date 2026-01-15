@@ -96,6 +96,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private final AtomicInteger fallbackPollCounter = new AtomicInteger(0);
     // track when a topic was paused, to report elapsed pause time on unpause
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
+    // Fallback poll runs every FALLBACK_POLL_INTERVAL_MS instead of every pause cycle
+    private static final long FALLBACK_POLL_INTERVAL_MS = 5000; // 5 seconds
+    private volatile long lastFallbackPollTime = 0;
 
     private ScheduledThreadPoolExecutor decouplePool;
     private MessagingRegistry networkRegistry;
@@ -206,9 +209,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             }
 
             // Cleanup recently completed messages that have expired
-            long now = System.currentTimeMillis();
+            long cleanupTime = System.currentTimeMillis();
             recentlyCompletedMessages.entrySet().removeIf(entry ->
-                now - entry.getValue() > RECENTLY_COMPLETED_RETENTION_MS);
+                                     cleanupTime - entry.getValue() > RECENTLY_COMPLETED_RETENTION_MS);
 
         }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS);
 
@@ -494,11 +497,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public String getCollectionName(String n) {
-        return (getCollectionName() + "_" + n).replaceAll("[\\s\\-/]", "");
+        return (getCollectionName() + "_" + n).replaceAll("[\\s\\-/]", "").replaceAll("\\.", "_");
     }
 
     private MsgLock getLock(Msg m) {
-        return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName() + "_" + m.getTopic());
+        return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName(m.getTopic()));
     }
 
     @Override
@@ -519,7 +522,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     public String getLockCollectionName(String name) {
         if (lockCollectionNames.get(name) == null) {
             String v = getLockCollectionName() + "_" + name;
-            v = v.replaceAll("[\\s\\-/]", "");
+            v = v.replaceAll("[\\s\\-/]", "").replaceAll("\\.", "_");
             lockCollectionNames.put (name, v);
         }
         return lockCollectionNames.get(name);
@@ -572,6 +575,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             cmd.execute();
             return true;
         } catch (Exception e) {
+            log.info("LOCK: Failed to lock message {} in {}: {}", m.getMsgId(), getLockCollectionName(m), e.getMessage());
             return false;
         } finally {
             if (cmd != null) {
@@ -619,21 +623,39 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     private void processMessage(Msg m) {
+        processMessage(m, false);
+    }
+
+    /**
+     * Process a message with all registered listeners for its topic.
+     * @param m the message to process
+     * @param alreadyTracked if true, the message is already in processingMessages (caller did atomic add)
+     */
+    private void processMessage(Msg m, boolean alreadyTracked) {
         if (!monitorsByTopic.containsKey(m.getTopic())) {
             // log.error("I {} Got a message I do not have a listener configured for: {}!",
             // getSenderId(), m.getName());
+            if (alreadyTracked) {
+                processingMessages.remove(m.getMsgId());
+            }
             return; // cannot process message, as there is no listener? HOW?
         }
 
         // Check if recently completed - prevents race condition where poll query was built
         // before processedBy was updated, but message was just processed
         if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
+            if (alreadyTracked) {
+                processingMessages.remove(m.getMsgId());
+            }
             return;  // Skip - recently processed
         }
 
         // For broadcast messages, use permanent tracking to prevent duplicate delivery
         if (!m.isExclusive()) {
             if (!locallyProcessedBroadcastIds.add(m.getMsgId())) {
+                if (alreadyTracked) {
+                    processingMessages.remove(m.getMsgId());
+                }
                 return;  // Already processed this broadcast
             }
         }
@@ -642,7 +664,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         // CRITICAL: Check BEFORE looping through listeners, not inside loop
         // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
         // is still being processed by another thread that added it to processingMessages
-        if (!processingMessages.add(m.getMsgId())) {
+        // Skip this check if caller already added to processingMessages (alreadyTracked=true)
+        if (!alreadyTracked && !processingMessages.add(m.getMsgId())) {
             return;
         }
 
@@ -892,11 +915,6 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     continue;
                 }
 
-                // Check if already being processed (from change stream or another poll)
-                if (processingMessages.contains(m.getMsgId())) {
-                    continue;  // Skip - already being processed
-                }
-
                 // Check if recently completed - prevents race condition where poll query was built
                 // before processedBy was updated, but message was just processed
                 if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
@@ -908,8 +926,15 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     continue;  // Already processed this broadcast
                 }
 
+                // Use atomic add to claim the message for processing BEFORE locking
+                // This prevents race condition with change stream listener
+                if (!processingMessages.add(m.getMsgId())) {
+                    continue;  // Skip - already being processed by CSM or another poll
+                }
+
                 if (m.isExclusive()) {
                     if (!lockMessage(m, getSenderId())) {
+                        processingMessages.remove(m.getMsgId());  // Release claim if lock fails
                         continue;
                     }
                     // Messages can be queued/seen before the exclusive lock exists. If another instance already
@@ -919,8 +944,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     Msg fresh = null;
                     try {
                         var freshQuery = morphium.createQueryFor(Msg.class)
-                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
-                                        .f("_id").eq(m.getMsgId());
+                                         .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                         .f("_id").eq(m.getMsgId());
                         freshQuery.setCollectionName(getStorageCollectionNameForMessage(m));
                         fresh = freshQuery.get();
                     } catch (Exception ignored) {
@@ -928,17 +953,19 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
                     if (fresh == null) {
                         unlock(m);
+                        processingMessages.remove(m.getMsgId());
                         continue;
                     }
 
                     if (fresh.getProcessedBy() != null && !fresh.getProcessedBy().isEmpty()) {
                         unlock(fresh);
+                        processingMessages.remove(m.getMsgId());
                         continue;
                     }
 
                     m = fresh;
                 }
-                processMessage(m);
+                processMessage(m, true);  // true = already tracked in processingMessages
             }
             seen++;
         }
@@ -1131,12 +1158,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             effectiveSettings.getMessagingPollPause(),
             pipeline);
         cm.addListener((evt) -> {
-            log.debug("Incoming change stream event for topic {}", n);
+            log.info("CSM: Incoming change stream event for topic {}", n);
 
             // CRITICAL: Always return true to keep the listener registered
             // Returning running.get() would cause the listener to be removed if called before start()
             // Skip processing if not running, but keep listening
             if (!running.get()) {
+                log.info("CSM: not running, skipping event");
                 return true;
             }
 
@@ -1144,29 +1172,33 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             Map<String, Object> map = evt.getFullDocument();
 
             if (map == null) {
-                log.warn("Change stream event has null fullDocument - skipping");
+                log.warn("CSM: Change stream event has null fullDocument - skipping");
                 return true;
             }
 
             if (pausedTopics.contains(map.get(Msg.Fields.topic.name()))) {
-                // log.info("Topic {} paused", map.get("name"));
+                log.info("CSM: Topic {} paused", map.get("name"));
                 // paused
                 return true;
             }
 
             Msg doc = morphium.getMapper().deserialize(Msg.class, map);
-            if (doc.getSender().equals(getSenderId()))
+            if (doc.getSender().equals(getSenderId())) {
+                log.info("CSM: Message from self, skipping. sender={} getSenderId={}", doc.getSender(), getSenderId());
                 return true;
+            }
 
             // Check if recently completed - prevents race condition where fallback poll
             // or change stream delivers a message that was just processed
             if (recentlyCompletedMessages.containsKey(doc.getMsgId())) {
+                log.info("CSM: Message {} recently completed, skipping", doc.getMsgId());
                 return true;
             }
 
             // For broadcast messages, use permanent tracking to prevent duplicate delivery
             if (!doc.isExclusive()) {
                 if (!locallyProcessedBroadcastIds.add(doc.getMsgId())) {
+                    log.info("CSM: Broadcast {} already processed, skipping", doc.getMsgId());
                     return true;  // Already processed this broadcast
                 }
             }
@@ -1176,31 +1208,37 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
             // is still being processed by another thread that added it to processingMessages
             if (!processingMessages.add(doc.getMsgId())) {
-                log.info("could not add to processingMessages - already processing");
+                log.info("CSM: could not add {} to processingMessages - already processing", doc.getMsgId());
                 return true;
             }
+            log.info("CSM: Queueing message {} for processing", doc.getMsgId());
 
             Runnable r = () -> {
                 try {
+                    log.info("CSM-PROC: Starting processing of message {}", doc.getMsgId());
                     // Message already added to processingMessages above
                     // Ensure removal happens in ALL code paths via outer finally block
                     Msg current = doc;
                     if (doc.isExclusive()) {
                         // Check if already processed before attempting to lock
                         if (doc.getProcessedBy() != null && !doc.getProcessedBy().isEmpty()) {
+                            log.info("CSM-PROC: Message {} already has processedBy, skipping", doc.getMsgId());
                             return;
                         }
+                        log.info("CSM-PROC: Attempting to lock message {}", doc.getMsgId());
                         if (!lockMessage(doc, getSenderId())) {
+                            log.info("CSM-PROC: Failed to lock message {}, skipping", doc.getMsgId());
                             return;
                         }
+                        log.info("CSM-PROC: Locked message {}", doc.getMsgId());
                         // Messages can be queued/seen before the exclusive lock exists. If another instance already
                         // processed and unlocked, a stale queued message could otherwise be processed again.
                         // Re-fetch to ensure processed_by state is current.
                         // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
                         try {
                             var q = morphium.createQueryFor(Msg.class)
-                                            .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
-                                            .f("_id").eq(doc.getMsgId());
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(doc.getMsgId());
                             q.setCollectionName(getStorageCollectionNameForMessage(doc));
                             current = q.get();
                         } catch (Exception ignored) {
@@ -1363,11 +1401,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 String lockCollection = getLockCollectionName(topicName);
                 log.info("Registering messaging topic with MorphiumServer: {}", collection);
                 Map<String, Object> cmdData = Doc.of(
-                    "lockCollection", lockCollection,
-                    "senderId", getSenderId()
-                );
+                        "lockCollection", lockCollection,
+                        "senderId", getSenderId()
+                                              );
                 List<Map<String, Object>> result = morphium.runCommand(
-                    "registerMessagingCollection", collection, cmdData);
+                        "registerMessagingCollection", collection, cmdData);
                 if (result != null && !result.isEmpty() && Boolean.TRUE.equals(result.get(0).get("registered"))) {
                     log.debug("Registered topic {} with MorphiumServer", topicName);
                 }
@@ -1498,9 +1536,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 scheduleTimeoutDeletionIfNeeded(m, getCollectionName(m));
             } catch (RuntimeException e) {
                 if (networkRegistry != null
-                    && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
-                    && m.getRecipients() != null
-                    && !m.getRecipients().isEmpty()) {
+                        && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
+                        && m.getRecipients() != null
+                        && !m.getRecipients().isEmpty()) {
                     MessageRejectedException mre = new MessageRejectedException("Recipient '" + m.getRecipients().get(0) + "' is not active");
                     mre.initCause(e);
                     throw mre;
@@ -1519,7 +1557,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     scheduleTimeoutDeletionIfNeeded(m, getDMCollectionName(rec));
                 } catch (RuntimeException e) {
                     if (networkRegistry != null
-                        && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW) {
+                            && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW) {
                         MessageRejectedException mre = new MessageRejectedException("Recipient '" + rec + "' is not active");
                         mre.initCause(e);
                         throw mre;

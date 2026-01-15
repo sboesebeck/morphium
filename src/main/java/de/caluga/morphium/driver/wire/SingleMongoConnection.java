@@ -569,19 +569,20 @@ public class SingleMongoConnection implements MongoConnection {
         long docsProcessed = 0;
         boolean registrationCallbackCalled = false;
 
+        long watchIterations = 0;
         while (true) {
+            watchIterations++;
             OpMsg reply = null;
 
             try {
                 reply = readNextMessage(maxWait);//getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
             } catch (MorphiumDriverException e) {
                 if (e.getMessage().contains("server did not answer in time: ") || e.getMessage().contains("Read timed out")) {
-                    log.debug("timeout in watch - restarting");
+                    log.debug("WATCH: timeout, resending query");
                     msg.setMessageId(msgId.incrementAndGet());
                     sendQuery(msg);
                     continue;
                 }
-
                 throw (e);
             }
 
@@ -639,6 +640,7 @@ public class SingleMongoConnection implements MongoConnection {
             // Track whether we should exit after processing events
             boolean shouldExit = false;
             if (result != null && !result.isEmpty()) {
+                log.info("WATCH: received batch of {} events for coll={} (iter={})", result.size(), command.getColl(), watchIterations);
                 for (Map<String, Object> o : result) {
                     // Capture resume token from each event (_id is the resume token in change streams)
                     @SuppressWarnings("unchecked")
@@ -646,11 +648,17 @@ public class SingleMongoConnection implements MongoConnection {
                     if (eventResumeToken != null) {
                         lastResumeToken[0] = eventResumeToken;
                     }
+                    long cbStart = System.currentTimeMillis();
                     command.getCb().incomingData(o, System.currentTimeMillis() - start);
+                    long cbDur = System.currentTimeMillis() - cbStart;
+                    if (cbDur > 100) {
+                        log.warn("WATCH: callback took {}ms for coll={}", cbDur, command.getColl());
+                    }
                     docsProcessed++;
                     // Check isContinued() after EACH event, matching InMemoryDriver behavior
                     // This ensures we stop immediately when callback returns false
                     if (!command.getCb().isContinued()) {
+                        log.info("WATCH: isContinued returned false, will exit - coll={}", command.getColl());
                         shouldExit = true;
                         break;
                     }
@@ -658,6 +666,7 @@ public class SingleMongoConnection implements MongoConnection {
             }
 
             if (shouldExit || !command.getCb().isContinued()) {
+                log.debug("WATCH: exiting loop - shouldExit={}, isContinued={}", shouldExit, command.getCb().isContinued());
                 String coll = command.getColl();
 
                 if (coll == null) {
@@ -693,7 +702,7 @@ public class SingleMongoConnection implements MongoConnection {
                 msg.setFirstDoc(doc);
                 sendQuery(msg);
             } else {
-                log.debug("Cursor exhausted, restarting");
+                log.debug("WATCH: cursor exhausted, restarting");
                 // Use resume token if available to prevent duplicate events
                 if (lastResumeToken[0] != null) {
                     command.setResumeAfter(lastResumeToken[0]);
