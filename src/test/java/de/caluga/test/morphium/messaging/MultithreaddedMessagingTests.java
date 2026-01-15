@@ -1,6 +1,7 @@
 package de.caluga.test.morphium.messaging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.Morphium;
@@ -72,7 +74,9 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
 
                     sender.start();
                     receiver.start();
-                    TestUtils.wait(2);
+                    assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+                    assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+                    Thread.sleep(1000); // Allow topic listener to register
 
                     // Test basic send/receive
                     Msg testMsg = new Msg("test", "Basic message", "value1");
@@ -206,6 +210,7 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
                     Thread.sleep(1000);
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setMultithreadded(false).setWindowSize(10).start();
+                    assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
                     list.clear();
                     MorphiumMessaging receiver = morph.createMessaging();
                     receiver.setMultithreadded(false).setWindowSize(10);
@@ -220,9 +225,10 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
                         return null;
                     });
                     receiver.start();
+                    assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
 
                     try {
-                        Thread.sleep(500);
+                        Thread.sleep(1000); // Allow topic listener to register
                         sender.sendMessage(new Msg("test", "test", "test"));
                         sender.sendMessage(new Msg("test", "test", "test"));
 
@@ -253,6 +259,7 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
             Thread.sleep(1000);
             MorphiumMessaging sender = morphium.createMessaging();
             sender.setMultithreadded(true).setWindowSize(10).start();
+            assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
             list.clear();
             MorphiumMessaging receiver = morphium.createMessaging();
             receiver.setMultithreadded(true).setWindowSize(10);
@@ -268,9 +275,10 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
                 return null;
             });
             receiver.start();
+            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
 
             try {
-                Thread.sleep(500);
+                Thread.sleep(1000); // Allow topic listener to register
                 sender.sendMessage(new Msg("test", "test", "test"));
                 sender.sendMessage(new Msg("test", "test", "test"));
 

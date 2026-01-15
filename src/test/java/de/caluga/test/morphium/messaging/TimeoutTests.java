@@ -3,7 +3,9 @@ package de.caluga.test.morphium.messaging;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,14 +49,17 @@ public class TimeoutTests extends MultiDriverTestBase {
                     MorphiumMessaging m1 = m.createMessaging();
                     m1.setSenderId("sender");
                     m1.start();
+                    assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
                     MorphiumMessaging m2 = m.createMessaging();
                     m2.setSenderId("receiver");
                     m2.start();
+                    assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
                     AtomicInteger msgCount = new AtomicInteger(0);
                     m2.addListenerForTopic("test", (msg, mm) -> {
                         msgCount.incrementAndGet();
                         return null;
                     });
+                    Thread.sleep(1000);
 
                     for (int i = 0; i < 50; i++) {
                         var msg = new Msg("test", "value" + i, "" + i).setTimingOut(false);
@@ -104,6 +109,7 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m1.setSenderId("sender");
                     m1.setUseChangeStream(true);
                     m1.start();
+                    assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
                     m1.sendMessage(new Msg("test", "value0", "").setExclusive(true).setTimingOut(false)
                                    .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(15000));
                     TestUtils.wait(1);
@@ -114,6 +120,8 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m2.setSenderId("recevier");
                     m2.addListenerForTopic("test", (n, mm) -> { log.info("Got message"); gotmsg.set(true); return null;});
                     m2.start();
+                    assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+                    Thread.sleep(1000);
 
                     // morphium.ensureIndicesFor(Msg.class, m1.getCollectionName("test"));
                     log.info("Indexes: {}", m.getIndexesFromMongo(m1.getCollectionName("test")));

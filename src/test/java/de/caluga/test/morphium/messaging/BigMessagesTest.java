@@ -11,8 +11,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Disabled
@@ -44,7 +45,9 @@ public class BigMessagesTest extends MultiDriverTestBase {
 
                     try {
                         sender.setUseChangeStream(true).start();
+                        assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
                         receiver.setUseChangeStream(true).start();
+                        assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
                         receiver.addListenerForTopic("bigMsg", (msg, m) -> {
                             long dur = System.currentTimeMillis() - m.getTimestamp();
                             long dur2 = System.currentTimeMillis() - (Long) m.getMapValue().get("ts");
@@ -52,6 +55,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
                             count.incrementAndGet();
                             return null;
                         });
+                        Thread.sleep(1000);
                         int amount = 10;
 
                         for (int i = 0; i < amount; i++) {

@@ -245,7 +245,9 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 m1.start();
                 m2.start();
                 mSrv.start();
-                Thread.sleep(1000);
+                assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+                assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+                assertTrue(mSrv.waitForReady(30, TimeUnit.SECONDS), "mSrv not ready");
                 mSrv.addListenerForTopic("query", (msg, m) -> {
                     log.info("Incoming message - sending result");
                     Msg answer = m.createAnswerMsg();
@@ -253,7 +255,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                     answer.setValue("Result");
                     return answer;
                 });
-                Thread.sleep(1000);
+                Thread.sleep(1000); // Allow topic listener to register
 
                 for (int i = 0; i < 10; i++) {
                     Msg m = new Msg("query", "a message", "a query", 30000);

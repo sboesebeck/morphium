@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
@@ -65,10 +66,13 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     gotMessage4 = false;
                     error = false;
                     m4.start();
+                    assertTrue(m4.waitForReady(30, TimeUnit.SECONDS), "m4 not ready");
                     m1.start();
+                    assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
                     m3.start();
+                    assertTrue(m3.waitForReady(30, TimeUnit.SECONDS), "m3 not ready");
                     m2.start();
-                    Thread.sleep(1250);
+                    assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
 
                     try {
                         log.info("m1 ID: " + m1.getSenderId());
@@ -114,6 +118,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             log.info("M4 got message " + incoming.toString());
                             return null;
                         });
+                        Thread.sleep(1000);
                         Msg msgObj = new Msg("test", "A message", "a value");
                         msgObj.setExclusive(false);
                         m1.sendMessage(msgObj);
@@ -172,6 +177,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     sender.start();
+                    assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
                     Map<String, List<MorphiumId >> receivedIds = new ConcurrentHashMap<String, List<MorphiumId >> ();
                     List<MorphiumMessaging> receivers = new ArrayList<MorphiumMessaging>();
 
@@ -180,6 +186,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         rec1.setSenderId("rec" + i);
                         receivers.add(rec1);
                         rec1.start();
+                        assertTrue(rec1.waitForReady(30, TimeUnit.SECONDS), "rec" + i + " not ready");
                         rec1.addListenerForTopic("bcast", (msg, incoming) -> {
                             synchronized(receivedIds) {
                                 receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
@@ -200,10 +207,8 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         });
                     }
 
-                    // Wait for all receivers to be fully initialized before sending
-                    // MultiCollectionMessaging needs more time to initialize change stream watchers
-                    // MorphiumServer replicaset may need additional time for change stream propagation
-                    Thread.sleep(5000);
+                    // Wait for topic listeners to be fully registered
+                    Thread.sleep(1000);
                     log.info("All receivers initialized, starting to send messages...");
 
                     int amount = 100;

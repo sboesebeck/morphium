@@ -453,19 +453,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 normalizedDocKeyId = new MorphiumId(id.toString());
             }
 
-            // InMemoryDriver change streams may deliver duplicate insert events; filter them here.
-            // Polling remains as a safety net, and this avoids double listener invocation.
-            if (normalizedDocKeyId != null) {
-                if (docIdsFromChangestreamSet.contains(normalizedDocKeyId)) {
-                    return running;
-                }
-
-                docIdsFromChangestreamSet.add(normalizedDocKeyId);
-                // Keep only recent 1000 IDs to prevent memory growth - clear when exceeded
-                if (docIdsFromChangestreamSet.size() > 1000) {
-                    docIdsFromChangestreamSet.clear();
-                }
-            }
             if (id instanceof MorphiumId || id instanceof org.bson.types.ObjectId || id instanceof String) {
 
                 // Use fullDocument from change stream event instead of re-reading
@@ -498,8 +485,26 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // Only skip if explicitly marked as processed by someone
                     if (processedBy != null && !processedBy.isEmpty()) {
                         // Exclusive message already processed, skip
-                        log.error("Got already processed exclusive message");
+                        // NOTE: Do NOT add to docIdsFromChangestreamSet so polling can later process it
+                        // if processedBy is cleared
+                        log.debug("Got already processed exclusive message - skipping but not marking as seen");
                         return running;
+                    }
+                }
+
+                // InMemoryDriver change streams may deliver duplicate insert events; filter them here.
+                // Polling remains as a safety net, and this avoids double listener invocation.
+                // IMPORTANT: Only add to seen set AFTER processedBy check, so messages that are
+                // initially skipped can be picked up by polling later if processedBy is cleared
+                if (normalizedDocKeyId != null) {
+                    if (docIdsFromChangestreamSet.contains(normalizedDocKeyId)) {
+                        return running;
+                    }
+
+                    docIdsFromChangestreamSet.add(normalizedDocKeyId);
+                    // Keep only recent 1000 IDs to prevent memory growth - clear when exceeded
+                    if (docIdsFromChangestreamSet.size() > 1000) {
+                        docIdsFromChangestreamSet.clear();
                     }
                 }
 
@@ -613,8 +618,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         });
         changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, pause, pipeline);
         changeStreamMonitor.addListener(evt -> handleChangeStreamEvent(evt));
-        changeStreamMonitor.start();
-        lockMonitor.start();
+
+        // Start both monitors in parallel to speed up initialization
+        Thread t1 = Thread.ofVirtual().start(() -> changeStreamMonitor.start());
+        Thread t2 = Thread.ofVirtual().start(() -> lockMonitor.start());
+        try {
+            t1.join();
+            t2.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void run() {
@@ -713,24 +726,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             return;
                         }
 
-                        msg = morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
-                        // message was deleted or dirty read
-                        // dirty read only possible, because msg read ReadPreferenceLevel is NEAREST
+                        // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
+                        // With NEAREST, replica lag could cause us to see old processedBy values
+                        // which would cause message processing to be incorrectly skipped
+                        var q = morphium.createQueryFor(Msg.class)
+                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
+                        q.setCollectionName(getCollectionName());
+                        msg = q.get();
 
                         if (msg == null) {
-                            if (!running || morphium.getDriver() == null) {
-                                return;
-                            }
-                            var q = morphium.createQueryFor(Msg.class)
-                                            .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
-                            q.setCollectionName(getCollectionName());
-                            msg = q.get();// morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
-
-                            if (msg == null) {
-                                return;
-                            }
-
-                            // log.debug("Msg!=null =>dirty read");
+                            return;
                         }
 
                         // do not process if no listener registered for this message
@@ -1343,13 +1348,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     /**
      * Called after successful exclusive message processing.
-     * Do NOT delete the lock - let TTL index clean it up.
-     * This prevents a race condition where another instance could grab the lock
-     * before the processed_by update is visible on all replica set members.
-     * The lock has TTL = 2x message TTL, so it will be cleaned up automatically.
+     * Delete the lock after processing is complete.
+     * This is safe because processed_by has already been updated before this is called,
+     * so even if another instance reads the message before the lock is deleted,
+     * they'll see our ID in processed_by and skip re-processing.
      */
     private void unlockIfExclusive(Msg msg) {
-        // Intentionally empty - lock cleanup via TTL prevents race condition
+        if (msg.isExclusive()) {
+            deleteLock(msg.getMsgId());
+        }
     }
 
     private void deleteLock(MorphiumId msgId) {

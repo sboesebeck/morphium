@@ -2666,7 +2666,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     cmd.releaseConnection();
                     cmd = null;
 
-                    if (res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
+                    if (res != null && res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
                         if (((String) res.get("errmsg")).contains("already exists")) {
                             logger.warn("could not create index - already exists");
                         } else {

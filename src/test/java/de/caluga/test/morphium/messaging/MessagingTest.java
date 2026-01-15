@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -49,6 +50,7 @@ public class MessagingTest extends MultiDriverTestBase {
             //
             MorphiumMessaging receiver = morphium.createMessaging(cfg.messagingSettings());
             receiver.start();
+            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
             AtomicBoolean received = new AtomicBoolean(false);
             receiver.addListenerForTopic("test", (m, msg)-> {
                 OutputHelper.figletOutput(log, "Indcoming...");
@@ -56,7 +58,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 return msg.createAnswerMsg();
             });
 
-            Thread.sleep(1000);
+            Thread.sleep(1000); // Allow topic listener to register
             //simulating write of V5
             //
             var v5msg = Map.of("name", (Object)"test", "value", "test", "processed_by", new ArrayList<String>(), "sender", "v5", "sender_host", "self", "timestamp", System.currentTimeMillis(), "ttl", 30000, "delete_at", new Date(System.currentTimeMillis() + 30000), "priority", 100);
