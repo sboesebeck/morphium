@@ -606,7 +606,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         in.put("$in", Arrays.asList("insert"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
-        ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, pause,
+        // Use longer maxWait for change streams to avoid constant network polling
+        // Change streams are designed to block server-side; short timeouts waste CPU/network
+        int changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
+        ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, changeStreamMaxWait,
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
         lockMonitor.addListener(evt -> {
             // some lock removed
@@ -616,7 +619,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
             return running;
         });
-        changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, pause, pipeline);
+        changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, changeStreamMaxWait, pipeline);
         changeStreamMonitor.addListener(evt -> handleChangeStreamEvent(evt));
 
         // Start both monitors in parallel to speed up initialization

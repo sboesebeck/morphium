@@ -221,25 +221,34 @@ public class AnsweringTests extends MultiDriverTestBase {
                 Thread.sleep(2000);
                 log.info("All recievers instanciated...");
 
+                AtomicInteger nullValues = new AtomicInteger();
                 for (int i = 0; i < 100; i++) {
-                    new Thread(() -> {
+                    Thread.startVirtualThread(() -> {
                         long start = System.currentTimeMillis();
                         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 2000, true), 2000, false);
-                        assertNotNull(answer);
                         long d = System.currentTimeMillis() - start;
+                        if (answer == null) {
+                            nullValues.incrementAndGet();
+                            log.error("Rec NULL after " + d + "ms");
+                            return;
+                        }
                         log.info("Rec after " + d + "ms");
-                    }).start();
+                    }); // startVirtualThread already starts the thread
                     Thread.sleep(20);
                 }
 
                 log.info("Done...");
+                assertEquals(0, nullValues.get(), "Some answers were null");
                 Thread.sleep(1000);
                 sender.terminate();
 
                 for (MorphiumMessaging m : msgs) {
+                    log.info("Closing messaging {}", m.getSenderId());
                     m.terminate();
                 }
                 morph.close();
+                log.info("all closed");
+
             }
         }
     }

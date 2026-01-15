@@ -78,6 +78,7 @@ public class MorphiumConfig {
             clusterSettings,
             authSettings,
             writerSettings,
+            cacheSettings,
             threadPoolSettings,
             objectMappingSettings,
             cacheSettings,

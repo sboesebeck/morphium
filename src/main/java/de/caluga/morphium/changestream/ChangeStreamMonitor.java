@@ -316,7 +316,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     // Set a registration callback to be called when subscription is registered
                     // This ensures signalWatchStarted() is called AFTER the subscription is active
                     watch.setRegistrationCallback(this::signalWatchStarted);
+                    log.info("CSM: Starting watch on collection '{}' with maxWait={}ms", collectionName, maxWait);
                     watch.watch();
+                    log.info("CSM: watch() returned normally for collection '{}'", collectionName);
                 }
             } catch (Exception e) {
                 // Check if we should stop before handling errors
