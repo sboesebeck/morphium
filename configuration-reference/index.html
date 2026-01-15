@@ -2242,17 +2242,12 @@
 </tr>
 <tr>
 <td><code>setConnectionTimeout(int)</code></td>
-<td>1000</td>
+<td>0</td>
 <td>Connection timeout in milliseconds</td>
 </tr>
 <tr>
-<td><code>setSocketTimeout(int)</code></td>
-<td>0</td>
-<td>Socket timeout in milliseconds (0 = no timeout)</td>
-</tr>
-<tr>
 <td><code>setMaxConnectionIdleTime(int)</code></td>
-<td>100000</td>
+<td>30000</td>
 <td>Max time connection can be idle (ms)</td>
 </tr>
 <tr>
@@ -2261,19 +2256,49 @@
 <td>Max connection lifetime (ms)</td>
 </tr>
 <tr>
-<td><code>setMinConnectionsPerHost(int)</code></td>
+<td><code>setMinConnections(int)</code></td>
 <td>1</td>
-<td>Minimum connections per host</td>
+<td>Minimum connections</td>
 </tr>
 <tr>
-<td><code>setMaxConnectionsPerHost(int)</code></td>
-<td>100</td>
-<td>Maximum connections per host</td>
+<td><code>setMaxConnections(int)</code></td>
+<td>250</td>
+<td>Maximum connections</td>
 </tr>
 <tr>
 <td><code>setMaxWaitTime(int)</code></td>
-<td>30000</td>
+<td>2000</td>
 <td>Max wait time for connection from pool (ms)</td>
+</tr>
+<tr>
+<td><code>setHeartbeatFrequency(int)</code></td>
+<td>1000</td>
+<td>Heartbeat frequency in milliseconds</td>
+</tr>
+<tr>
+<td><code>setRetriesOnNetworkError(int)</code></td>
+<td>1</td>
+<td>Number of retries on network error</td>
+</tr>
+<tr>
+<td><code>setSleepBetweenNetworkErrorRetries(int)</code></td>
+<td>1000</td>
+<td>Sleep between network error retries (ms)</td>
+</tr>
+<tr>
+<td><code>setUseSSL(boolean)</code></td>
+<td>false</td>
+<td>Enable SSL/TLS connections</td>
+</tr>
+<tr>
+<td><code>setSslContext(SSLContext)</code></td>
+<td>null</td>
+<td>Custom SSL context</td>
+</tr>
+<tr>
+<td><code>setSslInvalidHostNameAllowed(boolean)</code></td>
+<td>false</td>
+<td>Allow invalid host names (self-signed certs)</td>
 </tr>
 </tbody>
 </table>
@@ -2296,19 +2321,24 @@
 <td>Add host:port to seed list</td>
 </tr>
 <tr>
-<td><code>setReplicaSetName(String)</code></td>
+<td><code>setRequiredReplicaSetName(String)</code></td>
 <td>null</td>
 <td>Replica set name (auto-detected if null)</td>
 </tr>
 <tr>
 <td><code>setHeartbeatFrequency(int)</code></td>
-<td>2000</td>
+<td>0</td>
 <td>Heartbeat frequency in milliseconds</td>
 </tr>
 <tr>
-<td><code>setServerSelectionTimeout(int)</code></td>
-<td>2000</td>
-<td>Server selection timeout (ms)</td>
+<td><code>setReplicaset(boolean)</code></td>
+<td>true</td>
+<td>Enable replica set monitoring</td>
+</tr>
+<tr>
+<td><code>setReplicaSetMonitoringTimeout(int)</code></td>
+<td>5000</td>
+<td>Monitoring timeout (ms)</td>
 </tr>
 </tbody>
 </table>
@@ -2320,7 +2350,7 @@
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo2&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo3&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setReplicaSetName</span><span class="p">(</span><span class="s">&quot;myReplicaSet&quot;</span><span class="p">);</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setRequiredReplicaSetName</span><span class="p">(</span><span class="s">&quot;myReplicaSet&quot;</span><span class="p">);</span>
 </span></code></pre></div>
 <h2 id="driver-settings">Driver Settings<a class="headerlink" href="#driver-settings" title="Permanent link">&para;</a></h2>
 <p>Configure the MongoDB driver implementation.</p>
@@ -2342,7 +2372,7 @@
 </tr>
 <tr>
 <td><code>setIdleSleepTime(int)</code></td>
-<td>5</td>
+<td>20</td>
 <td>Sleep time between idle checks (ms)</td>
 </tr>
 <tr>
@@ -2354,6 +2384,46 @@
 <td><code>setInMemorySharedDatabases(boolean)</code></td>
 <td>false</td>
 <td>Share InMemoryDriver instance across Morphium instances with same database</td>
+</tr>
+<tr>
+<td><code>setServerSelectionTimeout(int)</code></td>
+<td>30000</td>
+<td>Server selection timeout (ms)</td>
+</tr>
+<tr>
+<td><code>setHeartbeatFrequency(int)</code></td>
+<td>1000</td>
+<td>Heartbeat frequency (ms)</td>
+</tr>
+<tr>
+<td><code>setRetryReads(boolean)</code></td>
+<td>false</td>
+<td>Retry read operations</td>
+</tr>
+<tr>
+<td><code>setRetryWrites(boolean)</code></td>
+<td>false</td>
+<td>Retry write operations</td>
+</tr>
+<tr>
+<td><code>setLocalThreshold(int)</code></td>
+<td>15</td>
+<td>Local threshold for server selection (ms)</td>
+</tr>
+<tr>
+<td><code>setMaxConnectionIdleTime(int)</code></td>
+<td>30000</td>
+<td>Max connection idle time (ms)</td>
+</tr>
+<tr>
+<td><code>setMaxConnectionLifeTime(int)</code></td>
+<td>600000</td>
+<td>Max connection lifetime (ms)</td>
+</tr>
+<tr>
+<td><code>setCursorBatchSize(int)</code></td>
+<td>1000</td>
+<td>Default batch size for cursors</td>
 </tr>
 </tbody>
 </table>
@@ -2466,9 +2536,39 @@
 <td>Use MongoDB Change Streams for messaging</td>
 </tr>
 <tr>
-<td><code>setPollPauseTime(int)</code></td>
-<td>500</td>
+<td><code>setMessagingPollPause(int)</code></td>
+<td>250</td>
 <td>Pause between message polls (ms)</td>
+</tr>
+<tr>
+<td><code>setProcessMultiple(boolean)</code></td>
+<td>true</td>
+<td>Process multiple messages if available</td>
+</tr>
+<tr>
+<td><code>setAutoAnswer(boolean)</code></td>
+<td>false</td>
+<td>Automatically answer messages</td>
+</tr>
+<tr>
+<td><code>setMessagingImplementation(String)</code></td>
+<td>"StandardMessaging"</td>
+<td>Implementation class alias</td>
+</tr>
+<tr>
+<td><code>setThreadPoolMessagingCoreSize(int)</code></td>
+<td>0</td>
+<td>Thread pool core size</td>
+</tr>
+<tr>
+<td><code>setThreadPoolMessagingMaxSize(int)</code></td>
+<td>100</td>
+<td>Thread pool max size</td>
+</tr>
+<tr>
+<td><code>setThreadPoolMessagingKeepAliveTime(long)</code></td>
+<td>2000</td>
+<td>Thread keep-alive time (ms)</td>
 </tr>
 </tbody>
 </table>
@@ -2486,18 +2586,18 @@
 </thead>
 <tbody>
 <tr>
-<td><code>setCorePoolSize(int)</code></td>
-<td>0</td>
+<td><code>setThreadPoolAsyncOpCoreSize(int)</code></td>
+<td>1</td>
 <td>Core thread pool size</td>
 </tr>
 <tr>
-<td><code>setMaxPoolSize(int)</code></td>
-<td>Integer.MAX_VALUE</td>
+<td><code>setThreadPoolAsyncOpMaxSize(int)</code></td>
+<td>1000</td>
 <td>Maximum thread pool size</td>
 </tr>
 <tr>
-<td><code>setKeepAliveTime(int)</code></td>
-<td>60000</td>
+<td><code>setThreadPoolAsyncOpKeepAliveTime(long)</code></td>
+<td>1000</td>
 <td>Thread keep-alive time (ms)</td>
 </tr>
 </tbody>
@@ -2516,14 +2616,49 @@
 </thead>
 <tbody>
 <tr>
-<td><code>setBufferedWriterBufferSize(int)</code></td>
+<td><code>setWriteBufferTime(int)</code></td>
 <td>1000</td>
-<td>Buffer size for buffered writes</td>
+<td>Buffer flush timeout (ms)</td>
 </tr>
 <tr>
-<td><code>setBufferedWriterTimeout(int)</code></td>
-<td>5000</td>
-<td>Buffer flush timeout (ms)</td>
+<td><code>setWriteBufferTimeGranularity(int)</code></td>
+<td>100</td>
+<td>Time granularity for buffer checks (ms)</td>
+</tr>
+<tr>
+<td><code>setMaximumRetriesWriter(int)</code></td>
+<td>10</td>
+<td>Max retries for direct writer</td>
+</tr>
+<tr>
+<td><code>setMaximumRetriesBufferedWriter(int)</code></td>
+<td>10</td>
+<td>Max retries for buffered writer</td>
+</tr>
+<tr>
+<td><code>setMaximumRetriesAsyncWriter(int)</code></td>
+<td>10</td>
+<td>Max retries for async writer</td>
+</tr>
+<tr>
+<td><code>setRetryWaitTimeWriter(int)</code></td>
+<td>200</td>
+<td>Wait between writer retries (ms)</td>
+</tr>
+<tr>
+<td><code>setRetryWaitTimeBufferedWriter(int)</code></td>
+<td>200</td>
+<td>Wait between buffered writer retries (ms)</td>
+</tr>
+<tr>
+<td><code>setRetryWaitTimeAsyncWriter(int)</code></td>
+<td>200</td>
+<td>Wait between async writer retries (ms)</td>
+</tr>
+<tr>
+<td><code>setThreadConnectionMultiplier(int)</code></td>
+<td>5</td>
+<td>Multiplier for connections per thread</td>
 </tr>
 </tbody>
 </table>
@@ -2541,14 +2676,29 @@
 </thead>
 <tbody>
 <tr>
-<td><code>setTreatCollectionAsUncapped(boolean)</code></td>
-<td>false</td>
-<td>Treat all collections as uncapped</td>
+<td><code>setCheckForNew(boolean)</code></td>
+<td>true</td>
+<td>Check if entity is new before store</td>
 </tr>
 <tr>
-<td><code>setObjectMapper(String)</code></td>
-<td>"ObjectMapperImpl"</td>
-<td>Object mapper implementation</td>
+<td><code>setAutoValues(boolean)</code></td>
+<td>true</td>
+<td>Enable automatic value generation (@LastChange, etc.)</td>
+</tr>
+<tr>
+<td><code>setObjectSerializationEnabled(boolean)</code></td>
+<td>true</td>
+<td>Enable object serialization</td>
+</tr>
+<tr>
+<td><code>setCamelCaseConversionEnabled(boolean)</code></td>
+<td>true</td>
+<td>Convert camelCase to snake_case in MongoDB</td>
+</tr>
+<tr>
+<td><code>setWarnOnNoEntitySerialization(boolean)</code></td>
+<td>false</td>
+<td>Warn if no entity serialization is available</td>
 </tr>
 </tbody>
 </table>

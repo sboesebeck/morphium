@@ -1474,6 +1474,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#building-and-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building and Testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Building and Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#building-the-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building the Project
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#developer-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Developer Scripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2180,6 +2230,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#building-and-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building and Testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Building and Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#building-the-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building the Project
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#developer-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Developer Scripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2469,6 +2569,47 @@ See How‑To: <a href="../howtos/caching-examples/">Caching Examples</a> and <a 
 <li><a href="../messaging/">Messaging</a>: topic listeners, exclusive vs broadcast, change streams vs polling</li>
 <li>How‑Tos for focused recipes: start at <a href="../howtos/basic-setup/">Basic Setup</a></li>
 </ul>
+<h2 id="building-and-testing">Building and Testing<a class="headerlink" href="#building-and-testing" title="Permanent link">&para;</a></h2>
+<h3 id="building-the-project">Building the Project<a class="headerlink" href="#building-the-project" title="Permanent link">&para;</a></h3>
+<p>To build the project, run the following command from the root of the project:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>mvn<span class="w"> </span>clean<span class="w"> </span>install
+</span></code></pre></div>
+<p>This will compile the code, run the tests, and install the artifact to your local Maven repository.</p>
+<h3 id="running-tests">Running Tests<a class="headerlink" href="#running-tests" title="Permanent link">&para;</a></h3>
+<p>The <code>./runtests.sh</code> script is the primary entry point for running tests. It provides a rich set of features for running tests in different configurations.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Default: in-memory driver (fast, no MongoDB required)</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>./runtests.sh
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Run tagged suites</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>./runtests.sh<span class="w"> </span>--tags<span class="w"> </span>core,messaging
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Parallel runs</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>./runtests.sh<span class="w"> </span>--parallel<span class="w"> </span><span class="m">8</span><span class="w"> </span>--tags<span class="w"> </span>core
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># Retry only failed methods</span>
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>./runtests.sh<span class="w"> </span>--rerunfailed
+</span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>./runtests.sh<span class="w"> </span>--rerunfailed<span class="w"> </span>--retry<span class="w"> </span><span class="m">3</span>
+</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>
+</span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="c1"># Single test class</span>
+</span><span id="__span-17-15"><a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>./runtests.sh<span class="w"> </span>CacheTests
+</span><span id="__span-17-16"><a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>
+</span><span id="__span-17-17"><a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a><span class="c1"># Statistics</span>
+</span><span id="__span-17-18"><a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a>./runtests.sh<span class="w"> </span>--stats
+</span></code></pre></div>
+<p>Run <code>./runtests.sh --help</code> to see all available options.</p>
+<h3 id="developer-scripts">Developer Scripts<a class="headerlink" href="#developer-scripts" title="Permanent link">&para;</a></h3>
+<p>The <code>./scripts</code> directory contains several other helpful scripts for developers.</p>
+<ul>
+<li><code>./scripts/chooseTest.sh</code>: Interactively select a test class and method to run using <code>fzf</code>.</li>
+<li><code>./scripts/cleanup.sh</code>: Removes temporary files created during test runs.</li>
+<li><code>./scripts/getFailedTests.sh</code>: Lists the names of all failed tests from the logs.</li>
+<li><code>./scripts/getStats.sh</code>: (Obsolete) Use <code>runtests.sh --stats</code> instead.</li>
+<li><code>./scripts/getTestClassesRun.sh</code>: Lists all test classes that were run.</li>
+<li><code>./scripts/rerunSingleFailed.sh</code>: Interactively select and rerun a single failed test from the logs using <code>fzf</code>.</li>
+<li><code>./scripts/showlog.sh</code>: Interactively view test logs using <code>fzf</code> and <code>bat</code>.</li>
+<li><code>./scripts/viewTestlogs.sh</code>: View the logs of currently running tests in parallel using <code>multitail</code>.</li>
+</ul>
+<p>These scripts are designed to be run from the root of the project.</p>
 
 
 

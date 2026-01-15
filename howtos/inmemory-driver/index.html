@@ -885,10 +885,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#change-streams-v60" class="md-nav__link">
+  <a href="#change-streams-v61" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Change Streams (v6.0)
+        Change Streams (v6.1)
       
     </span>
   </a>
@@ -896,10 +896,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#messaging-system-v60" class="md-nav__link">
+  <a href="#messaging-system-v61" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Messaging System (v6.0)
+        Messaging System (v6.1)
       
     </span>
   </a>
@@ -934,15 +934,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#v60-improvements" class="md-nav__link">
+  <a href="#v61-improvements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        V6.0 Improvements
+        V6.1 Improvements
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="V6.0 Improvements">
+    <nav class="md-nav" aria-label="V6.1 Improvements">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2003,10 +2003,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#change-streams-v60" class="md-nav__link">
+  <a href="#change-streams-v61" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Change Streams (v6.0)
+        Change Streams (v6.1)
       
     </span>
   </a>
@@ -2014,10 +2014,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#messaging-system-v60" class="md-nav__link">
+  <a href="#messaging-system-v61" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Messaging System (v6.0)
+        Messaging System (v6.1)
       
     </span>
   </a>
@@ -2052,15 +2052,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#v60-improvements" class="md-nav__link">
+  <a href="#v61-improvements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        V6.0 Improvements
+        V6.1 Improvements
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="V6.0 Improvements">
+    <nav class="md-nav" aria-label="V6.1 Improvements">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2355,7 +2355,7 @@
 - Standalone network server
 - MongoDB wire protocol compatible
 - Any MongoDB client can connect
-- Run with: <code>java -cp morphium.jar de.caluga.morphium.server.MorphiumServer --port 27017</code></p>
+- Run with: <code>java -jar target/morphium-6.1.1-server-cli.jar --port 27017</code></p>
 <h3 id="core-operations">Core Operations<a class="headerlink" href="#core-operations" title="Permanent link">&para;</a></h3>
 <ul>
 <li>✅ <strong>CRUD Operations</strong>: insert, find, update, delete, upsert</li>
@@ -2370,9 +2370,9 @@
 <li>✅ <strong>Basic Stages</strong>: $match, $group, $sort, $limit, $skip, $project</li>
 <li>✅ <strong>Group Operators</strong>: $sum, $avg, $min, $max, $first, $last, $push, $addToSet</li>
 <li>✅ <strong>MapReduce</strong>: Full JavaScript-based MapReduce with GraalJS engine</li>
-<li>⚠️ <strong>Advanced Stages</strong>: $lookup, $unwind, $facet (limited support)</li>
+<li>✅ <strong>Advanced Stages</strong>: $lookup, $unwind, $facet, $graphLookup, $bucket, $mergeObjects (v6.0)</li>
 </ul>
-<h3 id="change-streams-v60">Change Streams (v6.0)<a class="headerlink" href="#change-streams-v60" title="Permanent link">&para;</a></h3>
+<h3 id="change-streams-v61">Change Streams (v6.1)<a class="headerlink" href="#change-streams-v61" title="Permanent link">&para;</a></h3>
 <ul>
 <li>✅ <strong>Event Types</strong>: insert, update, delete, drop operations</li>
 <li>✅ <strong>Document Snapshots</strong>: Immutable snapshots prevent dirty reads</li>
@@ -2380,7 +2380,7 @@
 <li>✅ <strong>Full Document Support</strong>: Access complete document in change events</li>
 <li>✅ <strong>Database-scoped Sharing</strong>: Optional driver sharing for multiple Morphium instances (opt-in)</li>
 </ul>
-<h3 id="messaging-system-v60">Messaging System (v6.0)<a class="headerlink" href="#messaging-system-v60" title="Permanent link">&para;</a></h3>
+<h3 id="messaging-system-v61">Messaging System (v6.1)<a class="headerlink" href="#messaging-system-v61" title="Permanent link">&para;</a></h3>
 <ul>
 <li>✅ <strong>StandardMessaging</strong>: Single-collection messaging with change streams</li>
 <li>✅ <strong>MultiCollectionMessaging</strong>: Multi-collection messaging</li>
@@ -2399,11 +2399,11 @@
 <ul>
 <li>✅ <strong>Basic Transactions</strong>: start, commit, abort (single-instance)</li>
 <li>❌ <strong>Multi-document ACID</strong>: Limited to single instance</li>
-<li>❌ <strong>Distributed Transactions</strong>: No replica set support</li>
+<li>⚠️ <strong>Replica Sets</strong>: Experimental support in <code>MorphiumServer</code> (v6.1); no replica set simulation within a single <code>InMemoryDriver</code> instance.</li>
 </ul>
-<h2 id="v60-improvements">V6.0 Improvements<a class="headerlink" href="#v60-improvements" title="Permanent link">&para;</a></h2>
+<h2 id="v61-improvements">V6.1 Improvements<a class="headerlink" href="#v61-improvements" title="Permanent link">&para;</a></h2>
 <h3 id="change-stream-enhancements">Change Stream Enhancements<a class="headerlink" href="#change-stream-enhancements" title="Permanent link">&para;</a></h3>
-<p>The v6.0 release significantly improved change stream reliability:</p>
+<p>The v6.1 release significantly improved change stream reliability and feature parity:</p>
 <p><strong>Deep Copy Snapshots</strong>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// Documents are deep-copied before change stream events are dispatched</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1">// This prevents dirty reads where documents are modified before callbacks execute</span>
@@ -2413,7 +2413,7 @@
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">});</span>
 </span></code></pre></div></p>
 <p><strong>Database-scoped Driver Sharing (Opt-in)</strong></p>
-<p>By default, each Morphium instance gets its own separate InMemoryDriver. To enable sharing between instances with the same database name, use <code>setInMemorySharedDatabases(true)</code>:</p>
+<p>By default, each Morphium instance gets its own separate InMemoryDriver. To enable sharing between instances with the same database name (crucial for messaging and cross-instance consistency), use <code>setInMemorySharedDatabases(true)</code>:
 <div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// Enable driver sharing for multiple Morphium instances</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">cfg1</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;testdb&quot;</span><span class="p">);</span>
@@ -2430,7 +2430,7 @@
 </span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1">// m1 and m2 share the same InMemoryDriver instance</span>
 </span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="c1">// Change streams work correctly across both instances</span>
 </span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1">// Driver is only closed when the last Morphium instance closes</span>
-</span></code></pre></div>
+</span></code></pre></div></p>
 <p><strong>Reference Counting (when sharing enabled)</strong>
 - Automatic reference counting prevents premature driver shutdown
 - Each Morphium instance increments the ref count on creation
@@ -2439,7 +2439,7 @@
 <h3 id="messaging-improvements">Messaging Improvements<a class="headerlink" href="#messaging-improvements" title="Permanent link">&para;</a></h3>
 <p><strong>No More Re-reads</strong>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// v5: messaging layer re-read documents from change stream events</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// v6: uses evt.getFullDocument() directly - more efficient, no dirty reads</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// v6.1: uses evt.getFullDocument() directly - more efficient, no dirty reads</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">msg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">msg</span><span class="p">.</span><span class="na">addListenerForTopic</span><span class="p">(</span><span class="s">&quot;events&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">message</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="c1">// message is from the immutable snapshot, not a re-read</span>
@@ -2561,12 +2561,13 @@
 </span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>
 </span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">        </span><span class="c1">// Both share the same driver (sharing enabled)</span>
 </span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">        </span><span class="c1">// Write with m1, read with m2</span>
-</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">        </span><span class="n">m1</span><span class="p">.</span><span class="na">store</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">MyEntity</span><span class="p">(</span><span class="s">&quot;test&quot;</span><span class="p">));</span>
-</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">        </span><span class="n">MyEntity</span><span class="w"> </span><span class="n">found</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m2</span><span class="p">.</span><span class="na">findById</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">);</span>
-</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>
-</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="w">        </span><span class="c1">// Works correctly!</span>
-</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="p">}</span>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">        </span><span class="n">MyEntity</span><span class="w"> </span><span class="n">entity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MyEntity</span><span class="p">(</span><span class="s">&quot;test&quot;</span><span class="p">);</span>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">        </span><span class="n">m1</span><span class="p">.</span><span class="na">store</span><span class="p">(</span><span class="n">entity</span><span class="p">);</span>
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="w">        </span><span class="n">MyEntity</span><span class="w"> </span><span class="n">found</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m2</span><span class="p">.</span><span class="na">findById</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">,</span><span class="w"> </span><span class="n">entity</span><span class="p">.</span><span class="na">getId</span><span class="p">());</span>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="w">        </span><span class="c1">// Works correctly!</span>
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="messaging-tests">Messaging Tests<a class="headerlink" href="#messaging-tests" title="Permanent link">&para;</a></h3>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nd">@Test</span>
@@ -2625,13 +2626,13 @@
 </ol>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="issue-change-streams-not-working">Issue: Change streams not working<a class="headerlink" href="#issue-change-streams-not-working" title="Permanent link">&para;</a></h3>
-<p><strong>Solution</strong>: Ensure you're using v6.0+ with the deep copy snapshot fix</p>
+<p><strong>Solution</strong>: Ensure you're using v6.1+ with the deep copy snapshot fix</p>
 <h3 id="issue-messages-not-received-by-all-listeners">Issue: Messages not received by all listeners<a class="headerlink" href="#issue-messages-not-received-by-all-listeners" title="Permanent link">&para;</a></h3>
 <p><strong>Solution</strong>: Use database-scoped sharing by ensuring all Morphium instances use the same database name</p>
 <h3 id="issue-nullpointerexception-in-insert">Issue: NullPointerException in insert()<a class="headerlink" href="#issue-nullpointerexception-in-insert" title="Permanent link">&para;</a></h3>
-<p><strong>Solution</strong>: Upgrade to v6.0+ which includes index data structure initialization fix</p>
+<p><strong>Solution</strong>: Upgrade to v6.1+ which includes index data structure initialization fix</p>
 <h3 id="issue-driver-shutdown-too-early">Issue: Driver shutdown too early<a class="headerlink" href="#issue-driver-shutdown-too-early" title="Permanent link">&para;</a></h3>
-<p><strong>Solution</strong>: v6.0+ includes reference counting to prevent premature shutdown</p>
+<p><strong>Solution</strong>: v6.1+ includes reference counting to prevent premature shutdown</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>docs/howtos/messaging-implementations.md</code> - Messaging patterns</li>
