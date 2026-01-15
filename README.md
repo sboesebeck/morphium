@@ -244,6 +244,8 @@ mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
 ./getFailedTests.sh  # list failed methods
 ```
 
+Run `./runtests.sh --help` to see every option.
+
 ### Multi-Backend Testing
 
 Tests are parameterized to run against multiple drivers. Use `--driver` to select:
