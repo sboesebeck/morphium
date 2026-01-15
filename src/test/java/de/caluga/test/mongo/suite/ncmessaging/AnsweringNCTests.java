@@ -19,6 +19,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,6 +72,9 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                         m1.setUseChangeStream(false).start();
                         m2.setUseChangeStream(false).start();
                         onlyAnswers.setUseChangeStream(false).start();
+                        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+                        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+                        assertTrue(onlyAnswers.waitForReady(30, TimeUnit.SECONDS), "onlyAnswers not ready");
                         Thread.sleep(100);
 
                         log.info("m1 ID: " + m1.getSenderId());
@@ -125,6 +129,9 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                             //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                             return null;
                         });
+
+                        // Allow listeners to be registered before sending messages
+                        Thread.sleep(1000);
 
                         Msg question = new Msg("test", "This is the message text", "A question param");
                         question.setMsgId(new MorphiumId());
@@ -182,14 +189,18 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         m2.setSenderId("m2");
         SingleCollectionMessaging m3 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
-        m1.setUseChangeStream(false).start();
-        m2.setUseChangeStream(false).start();
-        m3.setUseChangeStream(false).start();
-
         m3.addListenerForTopic("test", (msg, m) -> {
             log.info("Incoming message");
             return m.createAnswerMsg();
         });
+
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        m3.setUseChangeStream(false).start();
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+        assertTrue(m3.waitForReady(30, TimeUnit.SECONDS), "m3 not ready");
+        Thread.sleep(1000); // Allow listener registration
 
         Msg m = new Msg("test", "important", "value");
         m.setExclusive(true);
@@ -211,16 +222,19 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         SingleCollectionMessaging mSrv = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         mSrv.setSenderId("Srv");
 
-        m1.setUseChangeStream(false).start();
-        m2.setUseChangeStream(false).start();
-        mSrv.setUseChangeStream(false).start();
-
         mSrv.addListenerForTopic("query", (msg, m) -> {
             log.info("Incoming message - sending result");
             Msg answer = m.createAnswerMsg();
             answer.setValue("Result");
             return answer;
         });
+
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        mSrv.setUseChangeStream(false).start();
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+        assertTrue(mSrv.waitForReady(30, TimeUnit.SECONDS), "mSrv not ready");
         Thread.sleep(1000);
 
 
@@ -253,11 +267,6 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         SingleCollectionMessaging mTst = new SingleCollectionMessaging(morphium, 10, false, true, 10);
 
-        m1.setUseChangeStream(false).start();
-        m2.setUseChangeStream(false).start();
-        mTst.setUseChangeStream(false).start();
-
-
         mTst.addListenerForTopic("somethign else", (msg, m) -> {
             log.info("incoming message??");
             return null;
@@ -273,6 +282,14 @@ public class AnsweringNCTests extends MultiDriverTestBase {
             answer = m.createAnswerMsg();
             return answer;
         });
+
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        mTst.setUseChangeStream(false).start();
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+        assertTrue(mTst.waitForReady(30, TimeUnit.SECONDS), "mTst not ready");
+        Thread.sleep(1000); // Allow listener registration
 
         Msg m3 = new Msg("not asdf", "will it stuck", "uahh", 10000);
         m3.setPriority(1);
@@ -302,14 +319,17 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         m2.setSenderId("m2");
-        m1.setUseChangeStream(false).start();
-        m2.setUseChangeStream(false).start();
-        Thread.sleep(1000); // Allow messaging to fully start
 
         m2.addListenerForTopic("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             return answer;
         });
+
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+        Thread.sleep(1000); // Allow messaging to fully start
 
         for (int i = 0; i < 100; i++) {
             log.info("Sending msg " + i);
@@ -355,8 +375,6 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     public void answerTestDifferentType(Morphium morphium) throws Exception  {
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true);
         SingleCollectionMessaging recipient = new SingleCollectionMessaging(morphium, 100, true);
-        sender.setUseChangeStream(false).start();
-        recipient.setUseChangeStream(false).start();
         gotMessage1 = false;
         recipient.addListenerForTopic("query", new MessageListener() {
             @Override
@@ -379,6 +397,12 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                 return null;
             }
         });
+
+        sender.setUseChangeStream(false).start();
+        recipient.setUseChangeStream(false).start();
+        assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+        assertTrue(recipient.waitForReady(30, TimeUnit.SECONDS), "recipient not ready");
+        Thread.sleep(1000); // Allow listener registration
 
         sender.sendMessage(new Msg("query", "a query", "avalue"));
         Thread.sleep(1000);
@@ -408,6 +432,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                 });
 
                 m1.setUseChangeStream(false).start();
+                assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
 
                 Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
             } finally {
@@ -424,8 +449,6 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     public void sendAndWaitforAnswerTest(Morphium morphium) throws Exception  {
 //        morphium.dropCollection(Msg.class);
         SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
-        sender.setUseChangeStream(false).start();
-        Thread.sleep(500); // Allow sender to start
 
         gotMessage1 = false;
         gotMessage2 = false;
@@ -438,8 +461,11 @@ public class AnsweringNCTests extends MultiDriverTestBase {
             return new Msg(m.getTopic(), "got message", "value", 5000);
         });
 
+        sender.setUseChangeStream(false).start();
         m1.setUseChangeStream(false).start();
-        Thread.sleep(2500);
+        assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+        Thread.sleep(1000); // Allow listener registration
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
         assertNotNull(answer);

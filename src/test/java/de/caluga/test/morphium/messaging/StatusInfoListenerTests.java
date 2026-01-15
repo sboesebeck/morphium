@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,14 +28,17 @@ public class StatusInfoListenerTests extends MultiDriverTestBase {
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
         m1.start();
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
         MorphiumMessaging m2 = morphium.createMessaging();
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
         addListeners(m1, m2);
         MorphiumMessaging sender = morphium.createMessaging();
         sender.start();
-        Thread.sleep(5250);
+        assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+        Thread.sleep(1000); // Allow topic listeners to register
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
         assertEquals(2, lst.size());
         m1.disableStatusInfoListener();
@@ -59,14 +63,17 @@ public class StatusInfoListenerTests extends MultiDriverTestBase {
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
         m1.start();
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
         MorphiumMessaging m2 = morphium.createMessaging();
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
         addListeners(m1, m2);
-        Thread.sleep(1500);
         MorphiumMessaging sender = morphium.createMessaging();
         sender.start();
+        assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+        Thread.sleep(1000); // Allow topic listeners to register
         log.info("Getting standard stauts (should be Messaging only)");
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", "value"), 2, 5000);
         assertNotNull(lst);
@@ -149,6 +156,7 @@ public class StatusInfoListenerTests extends MultiDriverTestBase {
         m.setMultithreadded(false);
         m.setUseChangeStream(false);
         m.start();
+        assertTrue(m.waitForReady(30, TimeUnit.SECONDS), "m not ready");
         assertTrue(m.isStatusInfoListenerEnabled());
         m.addListenerForTopic("test", (msg, m1) -> {
             log.info("Incoming message! " + m1.getMsgId());
@@ -161,7 +169,8 @@ public class StatusInfoListenerTests extends MultiDriverTestBase {
         });
         MorphiumMessaging sender = morphium.createMessaging();
         sender.start();
-        Thread.sleep(3000);
+        assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+        Thread.sleep(1000); // Allow topic listeners to register
         ArrayList<Msg> lst = new ArrayList<>();
 
         for (int i = 0; i < 100; i++) {

@@ -9,7 +9,10 @@ import de.caluga.morphium.messaging.Msg;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TopicRegistryTest extends MultiDriverTestBase {
 
@@ -62,8 +65,8 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 try (Morphium m = new Morphium(cfg)) {
                     MorphiumMessaging messaging = m.createMessaging();
                     messaging.start();
-
-                    Thread.sleep(1500); // wait for registry to run once
+                    assertTrue(messaging.waitForReady(30, TimeUnit.SECONDS), "messaging not ready");
+                    Thread.sleep(1000);
 
                     assertThrows(MessageRejectedException.class, () -> {
                         log.info("Sending message to topic with no listeners...");
@@ -97,6 +100,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 try (Morphium m1 = new Morphium(cfg); Morphium m2 = new Morphium(cfg)) {
                     MorphiumMessaging sender = m1.createMessaging();
                     sender.start();
+                    assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
 
                     MorphiumMessaging receiver = m2.createMessaging();
                     java.util.concurrent.atomic.AtomicBoolean received = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -106,6 +110,8 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                         return null;
                     });
                     receiver.start();
+                    assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+                    Thread.sleep(1000);
 
                     log.info("Waiting for network discovery (registry update)...");
                     waitUntilSendAccepted(45_000, () -> sender.sendMessage(new Msg("listener-topic", "warmup", "value")));
@@ -138,8 +144,8 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 try (Morphium m = new Morphium(cfg)) {
                     MorphiumMessaging messaging = m.createMessaging();
                     messaging.start();
-
-                    Thread.sleep(1500); // wait for registry to run once
+                    assertTrue(messaging.waitForReady(30, TimeUnit.SECONDS), "messaging not ready");
+                    Thread.sleep(1000);
 
                     // Should just log a warning, not throw
                     log.info("Sending message that should trigger a warning...");
@@ -177,12 +183,14 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 try (Morphium m1 = new Morphium(cfg)) {
                     MorphiumMessaging sender = m1.createMessaging();
                     sender.start();
+                    assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
 
                     String receiverId;
                     try (Morphium m2 = new Morphium(cfg)) {
                         MorphiumMessaging receiver = m2.createMessaging();
                         receiverId = receiver.getSenderId();
                         receiver.start();
+                        assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
                         try {
                             log.info("Waiting for initial discovery...");
                             log.info("Receiver ID: " + receiverId);

@@ -70,7 +70,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
         m2.setPause(100).setMultithreadded(true).setWindowSize(1);
         m2.setQueueName("t1");
         m2.addListenerForTopic("A message", (msg, m) -> {
-            // gotMessage2 = true;
+            gotMessage2 = true;
             return null;
         });
         MorphiumMessaging m3 = morphium.createMessaging();
@@ -86,10 +86,13 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
         try {
             // Wait for all messaging instances to be fully ready (change streams initialized)
-            assertTrue(sender.waitForReady(10, TimeUnit.SECONDS), "sender not ready");
-            assertTrue(m1.waitForReady(10, TimeUnit.SECONDS), "m1 not ready");
-            assertTrue(m2.waitForReady(10, TimeUnit.SECONDS), "m2 not ready");
-            assertTrue(m3.waitForReady(10, TimeUnit.SECONDS), "m3 not ready");
+            // Use 30s timeout for real MongoDB with authentication under parallel load
+            assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+            assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+            assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+            assertTrue(m3.waitForReady(30, TimeUnit.SECONDS), "m3 not ready");
+            // Allow listeners to be fully registered
+            Thread.sleep(1000);
             Msg m = new Msg();
             m.setExclusive(true);
             m.setDeleteAfterProcessing(true);
@@ -125,8 +128,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
                 assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
-                // Use longer timeout for MorphiumServer under load - polling interval may be slow
-                assertThat(System.currentTimeMillis() - s).isLessThan(300000);
+                // 60s timeout should be sufficient for message delivery
+                assertThat(System.currentTimeMillis() - s).isLessThan(60000);
             }
 
             TestUtils.waitForConditionToBecomeTrue(30000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
@@ -174,8 +177,9 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 mx.dropCollection(Msg.class, sender2.getCollectionName(), null);
                 sender2.start();
                 // Wait for messaging instances to fully initialize (change streams ready)
-                assertTrue(sender.waitForReady(10, TimeUnit.SECONDS), "sender not ready");
-                assertTrue(sender2.waitForReady(10, TimeUnit.SECONDS), "sender2 not ready");
+                // Use 30s timeout for real MongoDB with authentication under parallel load
+                assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+                assertTrue(sender2.waitForReady(30, TimeUnit.SECONDS), "sender2 not ready");
                 gotMessage1 = false;
                 gotMessage2 = false;
                 gotMessage3 = false;
@@ -217,10 +221,10 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 m3.start();
                 m4.start();
                 // Wait for all messaging instances to be fully ready (change streams initialized)
-                assertTrue(m1.waitForReady(10, TimeUnit.SECONDS), "m1 not ready");
-                assertTrue(m2.waitForReady(10, TimeUnit.SECONDS), "m2 not ready");
-                assertTrue(m3.waitForReady(10, TimeUnit.SECONDS), "m3 not ready");
-                assertTrue(m4.waitForReady(10, TimeUnit.SECONDS), "m4 not ready");
+                assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+                assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+                assertTrue(m3.waitForReady(30, TimeUnit.SECONDS), "m3 not ready");
+                assertTrue(m4.waitForReady(30, TimeUnit.SECONDS), "m4 not ready");
                 // Sending exclusive Message
                 Msg m = new Msg();
                 m.setExclusive(true);
@@ -396,11 +400,11 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 final Map<String, List<MorphiumId>> recIdsByReceiver = new ConcurrentHashMap<>();
                 log.info("All receivers initialized... waiting for ready");
                 // Wait for all messaging instances to be fully ready (change streams initialized)
-                assertTrue(sender.waitForReady(10, TimeUnit.SECONDS), "sender not ready");
-                assertTrue(receiver.waitForReady(10, TimeUnit.SECONDS), "receiver not ready");
-                assertTrue(receiver2.waitForReady(10, TimeUnit.SECONDS), "receiver2 not ready");
-                assertTrue(receiver3.waitForReady(10, TimeUnit.SECONDS), "receiver3 not ready");
-                assertTrue(receiver4.waitForReady(10, TimeUnit.SECONDS), "receiver4 not ready");
+                assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+                assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+                assertTrue(receiver2.waitForReady(30, TimeUnit.SECONDS), "receiver2 not ready");
+                assertTrue(receiver3.waitForReady(30, TimeUnit.SECONDS), "receiver3 not ready");
+                assertTrue(receiver4.waitForReady(30, TimeUnit.SECONDS), "receiver4 not ready");
                 log.info("All receivers ready");
 
                 try {

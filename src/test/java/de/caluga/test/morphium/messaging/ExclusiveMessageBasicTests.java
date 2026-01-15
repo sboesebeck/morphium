@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.messaging.*;
@@ -58,9 +59,12 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
                 m3.addListenerForTopic("test", (msg, mm) -> null);
                 try {
                     m1.start();
+                    assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
                     m2.start();
+                    assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
                     m3.start();
-                    Thread.sleep(2000);
+                    assertTrue(m3.waitForReady(30, TimeUnit.SECONDS), "m3 not ready");
+                    Thread.sleep(1000);
                     for (int i = 0; i < 10; i++) {
                         Msg mm = new Msg("test", "ignore me please", "value", 20000, true);
                         m1.sendMessage(mm);
@@ -108,6 +112,7 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
         MorphiumMessaging sender = morphium.createMessaging();
         sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.start();
+        assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -129,11 +134,14 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
             return null;
         });
         m1.start();
+        assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
         m2.start();
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
         m3.start();
+        assertTrue(m3.waitForReady(30, TimeUnit.SECONDS), "m3 not ready");
 
         try {
-            Thread.sleep(2000);
+            Thread.sleep(1000);
             Msg m = new Msg();
             m.setExclusive(true);
             m.setTopic("A message");
@@ -186,12 +194,14 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
             morphium.dropCollection(MsgLock.class, sender.getLockCollectionName(), null);
             Thread.sleep(2000);
             sender.start();
+            assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
             sender.sendMessage(new Msg("test", "test", "test", 30000, true));
             sender.sendMessage(new Msg("test", "test", "test", 30000, true));
             sender.sendMessage(new Msg("test", "test", "test", 30000, true));
             Thread.sleep(1000);
             receiverNoListener.setSenderId("recNL");
             receiverNoListener.start();
+            assertTrue(receiverNoListener.waitForReady(30, TimeUnit.SECONDS), "receiverNoListener not ready");
             org.junit.jupiter.api.Assertions.assertEquals(3,
                     morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll());
         } finally {
@@ -225,6 +235,8 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
             return null;
         });
         receiver.start();
+        assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+        Thread.sleep(1000);
 
         try {
             TestUtils.waitForConditionToBecomeTrue(10000, "Message not received", () -> recCount.get() == 1);
@@ -276,6 +288,8 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
             return null;
         });
         receiver.start();
+        assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+        Thread.sleep(1000);
 
         try {
             TestUtils.waitForConditionToBecomeTrue(10000, "Message not received", () -> recCount.get() == 1);

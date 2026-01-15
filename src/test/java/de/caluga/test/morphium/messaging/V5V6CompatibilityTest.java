@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,7 +74,9 @@ public class V5V6CompatibilityTest extends MultiDriverTestBase {
             });
 
             messaging1.start();
+            assertTrue(messaging1.waitForReady(30, TimeUnit.SECONDS), "messaging1 not ready");
             messaging2.start();
+            assertTrue(messaging2.waitForReady(30, TimeUnit.SECONDS), "messaging2 not ready");
             Thread.sleep(1000);
 
             // Instance 1 sends to Instance 2
@@ -132,6 +135,7 @@ public class V5V6CompatibilityTest extends MultiDriverTestBase {
             });
 
             receiver.start();
+            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
             Thread.sleep(1000);
 
             // Simulate a V5 message by storing it with "name" field instead of "topic"
@@ -205,7 +209,9 @@ public class V5V6CompatibilityTest extends MultiDriverTestBase {
             });
 
             sender.start();
+            assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
             receiver.start();
+            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
             Thread.sleep(1000);
 
             // Create a message without setting optional fields
@@ -287,7 +293,9 @@ public class V5V6CompatibilityTest extends MultiDriverTestBase {
             });
 
             v5Sender.start();
+            assertTrue(v5Sender.waitForReady(30, TimeUnit.SECONDS), "v5Sender not ready");
             v6Responder.start();
+            assertTrue(v6Responder.waitForReady(30, TimeUnit.SECONDS), "v6Responder not ready");
             Thread.sleep(1000);
 
             // V5 sends a request message with V5 format (using "name" field)
@@ -383,7 +391,9 @@ public class V5V6CompatibilityTest extends MultiDriverTestBase {
             });
 
             v6Sender.start();
+            assertTrue(v6Sender.waitForReady(30, TimeUnit.SECONDS), "v6Sender not ready");
             v5Responder.start();
+            assertTrue(v5Responder.waitForReady(30, TimeUnit.SECONDS), "v5Responder not ready");
             Thread.sleep(1000);
 
             // V6 sends a normal request
@@ -435,7 +445,7 @@ public class V5V6CompatibilityTest extends MultiDriverTestBase {
             MorphiumMessaging sender = morphium.createMessaging();
             sender.setSenderId("sender");
             sender.start();
-            Thread.sleep(1000);
+            assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
 
             // Create and send a message
             Msg testMsg = new Msg("test", "Format test", "format_value");

@@ -125,8 +125,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         running = true;
 
         // Avoid race: if the watch cursor isn't established yet, early writes may be missed.
+        // Reduced timeout from 5s to 2s - watch establishment should be quick
         try {
-            watchStartedLatch.await(5, TimeUnit.SECONDS);
+            watchStartedLatch.await(2, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

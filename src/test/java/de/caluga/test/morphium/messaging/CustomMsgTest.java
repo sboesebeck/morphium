@@ -10,7 +10,9 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Tag;
@@ -51,8 +53,10 @@ public class CustomMsgTest extends MultiDriverTestBase {
                 });
                 m2.setUseChangeStream(true);
                 m1.start();
+                assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
                 m2.start();
-                Thread.sleep(250);
+                assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+                Thread.sleep(1000);
                 CustomMsg cm = new CustomMsg();
                 cm.setCustomBuiltValue("test a avalue");
                 cm.setTopic("test");

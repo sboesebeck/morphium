@@ -685,6 +685,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                         ret.setInAnswerTo(current.getMsgId());
                         sendMessage(ret);
                     }
+                    // Delete lock after successful exclusive message processing
+                    // This is safe because processed_by has already been updated,
+                    // so even if another instance reads the message, they'll see our ID
+                    if (current.isExclusive()) {
+                        unlock(current);
+                    }
                 } catch (MessageRejectedException mre) {
                     log.warn("Message rejected");
                     // Allow retry for rejected broadcasts
@@ -830,9 +836,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     // Messages can be queued/seen before the exclusive lock exists. If another instance already
                     // processed and unlocked, a stale queued message could otherwise be processed again.
                     // Re-fetch to ensure processed_by state is current.
+                    // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
                     Msg fresh = null;
                     try {
-                        fresh = morphium.findById(Msg.class, m.getMsgId(), getStorageCollectionNameForMessage(m));
+                        var freshQuery = morphium.createQueryFor(Msg.class)
+                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                        .f("_id").eq(m.getMsgId());
+                        freshQuery.setCollectionName(getStorageCollectionNameForMessage(m));
+                        fresh = freshQuery.get();
                     } catch (Exception ignored) {
                     }
 
@@ -1090,8 +1101,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                         // Messages can be queued/seen before the exclusive lock exists. If another instance already
                         // processed and unlocked, a stale queued message could otherwise be processed again.
                         // Re-fetch to ensure processed_by state is current.
+                        // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
                         try {
-                            current = morphium.findById(Msg.class, doc.getMsgId(), getStorageCollectionNameForMessage(doc));
+                            var q = morphium.createQueryFor(Msg.class)
+                                            .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                            .f("_id").eq(doc.getMsgId());
+                            q.setCollectionName(getStorageCollectionNameForMessage(doc));
+                            current = q.get();
                         } catch (Exception ignored) {
                             current = null;
                         }
@@ -1136,6 +1152,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                             ret.setInAnswerTo(current.getMsgId());
                             ret.setRecipients(List.of(current.getSender()));
                             sendMessage(ret);
+                        }
+                        // Delete lock after successful exclusive message processing
+                        // This is safe because processed_by has already been updated,
+                        // so even if another instance reads the message, they'll see our ID
+                        if (current.isExclusive()) {
+                            unlock(current);
                         }
                     } catch (MessageRejectedException mre) {
                         // Allow retry for rejected broadcasts

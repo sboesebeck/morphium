@@ -11,7 +11,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Disabled("Speed tests don't provide meaningful assertions for test coverage")
 @Tag("messaging")
@@ -37,6 +40,7 @@ public class SpeedTests extends MultiDriverTestBase {
                 try (Morphium m = new Morphium(cfg)) {
                     MorphiumMessaging msg = m.createMessaging();
                     msg.start();
+                    assertTrue(msg.waitForReady(30, TimeUnit.SECONDS), "msg not ready");
 
                     try {
                         final long dur = 1000;
@@ -90,8 +94,10 @@ public class SpeedTests extends MultiDriverTestBase {
                 try (Morphium m = new Morphium(cfg)) {
                     MorphiumMessaging sender = m.createMessaging();
                     sender.start();
+                    assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
                     MorphiumMessaging receiver = m.createMessaging();
                     receiver.start();
+                    assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
 
                     try {
                         final AtomicInteger recCount = new AtomicInteger();
@@ -102,6 +108,7 @@ public class SpeedTests extends MultiDriverTestBase {
                                 return null;
                             }
                         });
+                        Thread.sleep(1000);
                         final long dur = 1000;
                         final long start = System.currentTimeMillis();
 
@@ -153,10 +160,13 @@ public class SpeedTests extends MultiDriverTestBase {
                 try (Morphium m = new Morphium(cfg)) {
                     MorphiumMessaging sender = m.createMessaging();
                     sender.start();
+                    assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
                     MorphiumMessaging receiver = m.createMessaging();
                     receiver.start();
+                    assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
                     MorphiumMessaging receiver2 = m.createMessaging();
                     receiver2.start();
+                    assertTrue(receiver2.waitForReady(30, TimeUnit.SECONDS), "receiver2 not ready");
 
                     try {
                         final AtomicInteger recCount = new AtomicInteger();
@@ -168,6 +178,7 @@ public class SpeedTests extends MultiDriverTestBase {
                             recCount.incrementAndGet();
                             return null;
                         });
+                        Thread.sleep(1000);
                         final long dur = 1000;
                         final long start = System.currentTimeMillis();
 
