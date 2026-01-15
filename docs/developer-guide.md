@@ -279,3 +279,57 @@ morphium.addListener(new MorphiumStorageAdapter<Object>() {
 ## See Also
 - [Messaging](./messaging.md): topic listeners, exclusive vs broadcast, change streams vs polling
 - How‑Tos for focused recipes: start at [Basic Setup](./howtos/basic-setup.md)
+
+## Building and Testing
+
+### Building the Project
+
+To build the project, run the following command from the root of the project:
+
+```bash
+mvn clean install
+```
+
+This will compile the code, run the tests, and install the artifact to your local Maven repository.
+
+### Running Tests
+
+The `./runtests.sh` script is the primary entry point for running tests. It provides a rich set of features for running tests in different configurations.
+
+```bash
+# Default: in-memory driver (fast, no MongoDB required)
+./runtests.sh
+
+# Run tagged suites
+./runtests.sh --tags core,messaging
+
+# Parallel runs
+./runtests.sh --parallel 8 --tags core
+
+# Retry only failed methods
+./runtests.sh --rerunfailed
+./runtests.sh --rerunfailed --retry 3
+
+# Single test class
+./runtests.sh CacheTests
+
+# Statistics
+./runtests.sh --stats
+```
+
+Run `./runtests.sh --help` to see all available options.
+
+### Developer Scripts
+
+The `./scripts` directory contains several other helpful scripts for developers.
+
+*   `./scripts/chooseTest.sh`: Interactively select a test class and method to run using `fzf`.
+*   `./scripts/cleanup.sh`: Removes temporary files created during test runs.
+*   `./scripts/getFailedTests.sh`: Lists the names of all failed tests from the logs.
+*   `./scripts/getStats.sh`: (Obsolete) Use `runtests.sh --stats` instead.
+*   `./scripts/getTestClassesRun.sh`: Lists all test classes that were run.
+*   `./scripts/rerunSingleFailed.sh`: Interactively select and rerun a single failed test from the logs using `fzf`.
+*   `./scripts/showlog.sh`: Interactively view test logs using `fzf` and `bat`.
+*   `./scripts/viewTestlogs.sh`: View the logs of currently running tests in parallel using `multitail`.
+
+These scripts are designed to be run from the root of the project.
