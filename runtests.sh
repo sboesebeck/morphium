@@ -214,6 +214,8 @@ morphiumserverLocalPidDir=".morphiumserver-local"
 # Connection management for MorphiumServer (auto-calculated from --parallel if not set)
 morphiumserverMaxConnections=""
 morphiumserverSocketTimeout=""
+testname="" # Stores the class pattern from --test
+methodname="." # Stores the method pattern from --test (defaults to all methods)
 
 # Save original arguments for stats processing
 original_args=("$@")
@@ -224,37 +226,35 @@ while [ "q$1" != "q" ]; do
     nodel=1
     shift
   elif [ "q$1" == "q--help" ] || [ "q$1" == "-h" ]; then
-    echo -e "Usage ${BL}$0$CL [--OPTION...] [TESTNAME] [METHOD]"
-    echo -e "${BL}--skip$CL | ${BL}--continue$CL        - if presen, allready run tests will be skipped"
+    echo -e "Usage ${BL}$0$CL [--OPTION...]"
+    echo -e "${BL}--skip | --continue$CL        - if present, already run tests will be skipped"
     echo -e "${BL}--restart$CL     - forget about existing test logs, restart"
     echo -e "${BL}--logs$CL ${GN}NUM$CL    - number of log lines to show"
     echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
     echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
     echo -e "${BL}--tags$CL ${GN}LIST$CL   - include JUnit5 tags (comma-separated)"
-    echo -e "                   Available: core,messaging,driver,inmemory,aggregation,cache,admin,performance,encryption,jms,geo,util,external"
+    echo -e "                   Available: ${GN}core, messaging, driver, inmemory, aggregation, cache, admin, performance, encryption, jms, geo, util, external${CL}"
     echo -e "${BL}--exclude-tags$CL ${GN}LIST$CL - exclude JUnit5 tags (comma-separated)"
-    echo -e "${BL}--driver$CL ${GN}NAME$CL - morphium driver: pooled|single|inmem"
+    echo -e "${BL}--driver$CL ${GN}NAME$CL - morphium driver: ${GN}pooled | single | inmem | all${CL}"
     echo -e "${BL}--uri$CL ${GN}URI$CL     - mongodb connection string (or use MONGODB_URI env)"
     echo -e "${BL}--verbose$CL     - enable verbose test logs"
-    echo -e "${BL}--user$CL ${GN}USESRNAME$CL     - authenticate as user"
-    echo -e "${BL}--pass$CL ${GN}password$CL     - authenticate with password"
-    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
-    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
-    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
+    echo -e "${BL}--user$CL ${GN}USERNAME$CL - authenticate as user"
+    echo -e "${BL}--pass$CL ${GN}password$CL - authenticate with password"
+    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL - authentication DB"
+    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal profile)"
+    echo -e "                     ${YL}NOTE:${CL} This option is for tests that require a real MongoDB instance."
     echo -e "${BL}--morphium-server$CL    - start single MorphiumServer on localhost:27017"
     echo -e "${BL}--morphium-server-replicaset$CL - start 3-node MorphiumServer replica set (27017-27019)"
     echo -e "                     ${YL}NOTE:${CL} Replica set mode has limited data sync - prefer single node for testing"
-    echo -e "${BL}--morphiumserver-local$CL - alias for --morphium-server-replicaset (deprecated)"
-    echo -e "${BL}--localhost-rs$CL       - alias for --morphium-server-replicaset (deprecated)"
+    echo -e "${BL}--morphiumserver-local | --localhost-rs$CL - (deprecated) alias for --morphium-server-replicaset"
     echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
     echo -e "${BL}--max-connections$CL ${GN}N$CL - MorphiumServer max connections (default: auto from --parallel)"
     echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - MorphiumServer socket timeout in seconds (default: 30)"
     echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
     echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
-    echo -e "${BL}--test$CL         - Specify a pattern to run only matching tests (see maveon -Dtest=)"
-    echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
-    echo "Test name is the classname to run, and method is method name in that class"
+    echo -e "${BL}--test$CL ${GN}PATTERN$CL - Specify a pattern to run only matching test classes or methods (e.g., 'CacheTests', 'CacheTests#testCacheEntry')"
+    echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked what to do"
     echo
     echo -e "${YL}Tag Examples:${CL}"
     echo -e "  ${BL}./runtests.sh --tags core${CL}                    # Run only core functionality tests"
@@ -267,6 +267,7 @@ while [ "q$1" != "q" ]; do
     echo -e "${YL}Driver/External Examples:${CL}"
     echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
     echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
+    echo -e "  ${BL}./runtests.sh --driver all${CL}                   # Run tests with all available drivers"
     echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
     echo -e "  ${BL}./runtests.sh --morphium-server${CL}             # Single-node MorphiumServer (recommended)"
     echo -e "  ${BL}./runtests.sh --morphium-server-replicaset${CL}  # 3-node MorphiumServer replica set"
@@ -283,7 +284,7 @@ while [ "q$1" != "q" ]; do
     echo
     echo -e "${YL}Stats Examples:${CL}"
     echo -e "  ${BL}./runtests.sh --stats${CL}                       # Show test statistics and failed tests"
-    echo -e "  ${BL}./runtests.sh --stats --noreason${CL}             # Show only failed test names"
+    echo -e "  ${BL}./runtests.sh --stats --noreason${CL}             # Show only failed test names (no failure reason)"
     echo -e "  ${BL}./runtests.sh --stats --nosum${CL}                # Show only failed tests (no summary)"
     echo
     exit 0
@@ -416,8 +417,19 @@ while [ "q$1" != "q" ]; do
     shift
   elif [ "q$1" == "q--test" ]; then
     shift
-    testname=$1
-    skip=1
+    test_pattern="$1"
+    if [ -z "$test_pattern" ]; then
+      echo -e "${RD}Error:${CL} --test requires a class or class#method pattern"
+      exit 1
+    fi
+    if [[ "$test_pattern" == *"#"* ]]; then
+      testname="${test_pattern%#*}"
+      methodname="${test_pattern#*#}"
+    else
+      testname="$test_pattern"
+      methodname="." # Default to all methods if only class is specified
+    fi
+    skip=1 # Implies skipping confirmation if --test is used
     shift
   else
     echo "Unknown option $1"
@@ -630,20 +642,17 @@ trap quitting SIGINT
 trap quitting SIGHUP
 trap _ms_local_cleanup EXIT
 
-p=$testname
-if [ "q$p" == "q" ]; then
-  # echo "No pattern given, running all tests"
-  p="."
-# else
-# 	echo "Checking for tests whose classes match $p"
+# After argument parsing, ensure p and m are set correctly based on testname and methodname
+if [ -n "$testname" ]; then
+  p="$testname"
+else
+  p="." # Default to all classes if --test was not used
 fi
 
-m=$2
-if [ "q$2" == "q" ]; then
-  # echo "No pattern for methods given"
-  m="."
-# else
-# 	echo "Checking for test-methods matching $m"
+if [ -n "$methodname" ]; then
+  m="$methodname"
+else
+  m="." # Default to all methods if --test was not used or no method was specified
 fi
 m=$(echo "$m" | tr -d '"')
 
@@ -1003,6 +1012,51 @@ function _count_test_methods_in_file() {
   ms_inMemOnly * mult_inMemOnly))
 }
 
+# Track progress for long running classes by monitoring the Surefire XML.
+function monitor_class_progress() {
+  local slot_id="$1"
+  local test_class="$2"
+  local class_methods="$3"
+  local slot_total="$4"
+  local already_completed="$5"
+  local failed_tests="$6"
+  local mvn_pid="$7"
+
+  # Nothing to monitor if class method count is unknown
+  if [ -z "$class_methods" ] || [ "$class_methods" -le 0 ]; then
+    # Wait until mvn process finishes so caller can safely waitpid
+    while kill -0 "$mvn_pid" 2>/dev/null; do
+      sleep 1
+    done
+    return 0
+  fi
+
+  local progress_file="test.log/slot_${slot_id}/progress"
+  local report_file="target/surefire-reports/TEST-${test_class}.xml"
+  local last_reported=-1
+
+  while kill -0 "$mvn_pid" 2>/dev/null; do
+    if [ -f "$report_file" ]; then
+      local completed_in_class
+      completed_in_class=$(grep -c "<testcase" "$report_file" 2>/dev/null || echo 0)
+      if [ -z "$completed_in_class" ]; then
+        completed_in_class=0
+      fi
+
+      if [ "$completed_in_class" -gt "$class_methods" ]; then
+        completed_in_class="$class_methods"
+      fi
+
+      local overall=$((already_completed + completed_in_class))
+      if [ "$overall" -ne "$last_reported" ]; then
+        echo "RUNNING:$test_class:$overall:$slot_total:$failed_tests" >"$progress_file"
+        last_reported="$overall"
+      fi
+    fi
+    sleep 1
+  done
+}
+
 function run_test_slot() {
   local slot_id=$1
   local test_chunk_file=$2
@@ -1054,16 +1108,33 @@ function run_test_slot() {
     # Update progress before starting test
     echo "RUNNING:$test_class:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
 
+    # Remove previous Surefire XML to avoid reading stale progress
+    local xml_report="target/surefire-reports/TEST-$test_class.xml"
+    rm -f "$xml_report"
+
+    local mvn_pid monitor_pid
     if [ "$test_method" == "." ]; then
       echo "Slot $slot_id: Running $test_class ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      # Run surefire directly to avoid re-running lifecycle phases (resources/compile/testCompile) per test,
-      # which can clobber shared `target/classes`/`target/test-classes` when running in parallel slots.
-      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1
-      exit_code=$?
+      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
+      mvn_pid=$!
     else
       echo "Slot $slot_id: Running $test_class#$test_method ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1
-      exit_code=$?
+      mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
+      mvn_pid=$!
+    fi
+
+    monitor_pid=0
+    if [ "$class_test_methods" -gt 0 ]; then
+      monitor_class_progress "$slot_id" "$test_class" "$class_test_methods" "$slot_testMethods" "$current_test_methods" "$failed_tests" "$mvn_pid" &
+      monitor_pid=$!
+    fi
+
+    wait $mvn_pid
+    exit_code=$?
+
+    if [ "$monitor_pid" -ne 0 ]; then
+      # Ensure monitor terminates before proceeding (it exits when mvn pid is gone)
+      wait $monitor_pid 2>/dev/null
     fi
 
     # Add the class's methods to our running total after completion
