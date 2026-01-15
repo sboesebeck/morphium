@@ -129,6 +129,8 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                             //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                             return null;
                         });
+                        // Small delay for topic listeners to be fully registered
+                        Thread.sleep(1000);
 
                         // Allow listeners to be registered before sending messages
                         Thread.sleep(1000);
@@ -193,6 +195,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
             log.info("Incoming message");
             return m.createAnswerMsg();
         });
+        Thread.sleep(1000); // Allow topic listener to register
 
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -324,6 +327,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
             Msg answer = m.createAnswerMsg();
             return answer;
         });
+        Thread.sleep(1000); // Allow topic listener to register
 
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -397,6 +401,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                 return null;
             }
         });
+        Thread.sleep(1000); // Allow topic listeners to register
 
         sender.setUseChangeStream(false).start();
         recipient.setUseChangeStream(false).start();
@@ -405,7 +410,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         Thread.sleep(1000); // Allow listener registration
 
         sender.sendMessage(new Msg("query", "a query", "avalue"));
-        Thread.sleep(1000);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Messages not received", () -> gotMessage1 && gotMessage2);
         assert (gotMessage1);
         assert (gotMessage2);
 
