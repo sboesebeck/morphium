@@ -1040,7 +1040,12 @@ public class PooledDriver extends DriverBase {
         }
 
         if (!running) {
-            return; // shutting down
+            // Shutting down - just remove from borrowed connections map.
+            // Don't call con.close() here because it would call back to closeConnection()
+            // and cause infinite recursion. The PooledDriver.close() method will close
+            // all borrowed connections anyway.
+            borrowedConnections.remove(con.getSourcePort());
+            return;
         }
         stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
         markStatsDirty();
@@ -1201,6 +1206,21 @@ public class PooledDriver extends DriverBase {
             }
         }
 
+        // Close all borrowed connections first - these are in active use
+        // Important: close them properly instead of just clearing the map,
+        // otherwise they become orphaned/leaked
+        for (var entry : new ArrayList<>(borrowedConnections.values())) {
+            try {
+                if (entry.getCon() != null) {
+                    entry.getCon().close();
+                }
+            } catch (Exception ex) {
+                // ignore errors during close
+            }
+        }
+        borrowedConnections.clear();
+
+        // Now close pooled (idle) connections
         for (Host h : hosts.values()) {
             for (var c : new ArrayList<>(h.getConnectionPool())) {
                 try {
@@ -1212,7 +1232,6 @@ public class PooledDriver extends DriverBase {
             h.getConnectionPool().clear();
         }
         hosts.clear();
-        borrowedConnections.clear();
     }
 
     protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
