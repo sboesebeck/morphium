@@ -3,6 +3,23 @@
 # This script contains the get_test_stats function for parsing test logs
 # and generating statistics.
 # It is sourced by the main runtests.sh script.
+#CHARS=("${RD}>${CL}...." ".${RD}>${CL}..." "..${RD}>${CL}.." "...${RD}>${CL}." "....${RD}>$CL" "....${RD}<$CL" "...${RD}<${CL}." "..${RD}<${CL}.." ".${RD}<${CL}..." "${RD}<${CL}....")
+
+#CHARS=("${RD}░ ▒ ▓ █)
+
+CHARS=("${RD}█${CL}......." "${RD}▓█${CL}......" "${RD}▒▓█${CL}....." "${RD}░▒▓█${CL}...." ".${RD}░▒▓█${CL}..." "..${RD}░▒▓█${CL}.." "...${RD}░▒▓█${CL}." "....${RD}░▒▓█${CL}" ".....${RD}░▒▓${CL}" "......${RD}░▒${CL}" ".......${RD}░${CL}" "........"
+  ".......${RD}█${CL}" "......${RD}█▓${CL}" ".....${RD}█▓▒${CL}" "....${RD}█▓▒░${CL}" "...${RD}█▓▒░${CL}." "..${RD}█▓▒░${CL}.." ".${RD}█▓▒░${CL}..." "${RD}█▓▒░${CL}...." "${RD}▓▒░${CL}....." "${RD}▒░${CL}......" "${RD}░${CL}......." "........")
+
+function spinner() {
+  local c
+  while true; do
+    for c in "${CHARS[@]}"; do
+      echo -ne "$c\\r"
+      sleep 0.06
+    done
+  done
+
+}
 
 function get_test_stats() {
   local noreason=0
@@ -14,18 +31,22 @@ function get_test_stats() {
     --noreason)
       noreason=1
       shift
-      ;; 
+      ;;
     --nosum)
       nosum=1
       shift
-      ;; 
+      ;;
     *)
       echo "Error - only --noreason or --nosum allowed! $1 unknown"
       return 1
-      ;; 
+      ;;
     esac
   done
 
+  if [ $noreason -eq 0 ] && [ $nosum -eq 0 ]; then
+    spinner 2>/dev/null &
+    spinner_pid=$!
+  fi
   local total_run=0
   local total_fail=0
   local total_err=0
@@ -73,7 +94,6 @@ function get_test_stats() {
     # Process logs by timestamp (newest first) to ensure most recent result is used
     # This fixes the issue where old failed tests still appear as failed after successful reruns
     local processed_classes=""
-
     # Function to process a single log file
     process_logfile() {
       local test_class="$1"
@@ -161,7 +181,11 @@ function get_test_stats() {
 
     rm -f "$temp_results"
   fi
+  if [ $noreason -eq 0 ] && [ $nosum -eq 0 ]; then
 
+    kill $spinner_pid >/dev/null 2>&1
+    wait $spinner_pdi 2>/dev/null
+  fi
   # Output summary
   if [ "$nosum" -eq 0 ]; then
     echo "Total tests run    : $total_run"
