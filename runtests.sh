@@ -10,6 +10,7 @@ CL='\033[0m'
 PID=$$
 TEST_TMP_DIR="/tmp/morphium-runtests-$PID" # Unique temp directory for this run (outside target/ so mvn clean doesn't delete it)
 
+cd $(dirname $0)
 # Ensure the temp directory exists
 mkdir -p "$TEST_TMP_DIR"
 
@@ -56,7 +57,7 @@ function createFileList() {
   rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
   local tmp_filtered_list="$TEST_TMP_DIR/filtered_list_temp_$PID.tmp"
   # Initialize empty file in case no matches
-  : > "$tmp_filtered_list"
+  : >"$tmp_filtered_list"
   cat "$filesList" | while read l; do
     if grep "$l" "$disabledList" >/dev/null; then
       echo "$l disabled"
@@ -85,7 +86,7 @@ function cleanup_test_databases() {
   # Extract database name from URI (format: mongodb://host:port/database or mongodb://host1,host2/database)
   local db_from_uri=$(echo "$cleanup_uri" | sed -n 's|.*mongodb://[^/]*/\([^?]*\).*|\1|p')
   if [ -z "$db_from_uri" ]; then
-    db_from_uri="morphium_test"  # fallback
+    db_from_uri="morphium_test" # fallback
   fi
   # Remove any trailing options after ?
   db_from_uri="${db_from_uri%%\?*}"
@@ -236,7 +237,7 @@ morphiumserverLocalPidDir=".morphiumserver-local"
 # Connection management for MorphiumServer (auto-calculated from --parallel if not set)
 morphiumserverMaxConnections=""
 morphiumserverSocketTimeout=""
-testname="" # Stores the class pattern from --test
+testname=""    # Stores the class pattern from --test
 methodname="." # Stores the method pattern from --test (defaults to all methods)
 
 # Save original arguments for stats processing
@@ -274,8 +275,13 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - MorphiumServer socket timeout in seconds (default: 30)"
     echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
-    echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
     echo -e "${BL}--test$CL ${GN}PATTERN$CL - Specify a pattern to run only matching test classes or methods (e.g., 'CacheTests', 'CacheTests#testCacheEntry')"
+    echo
+    echo -e "${BL}--watchlogs$CL     - show logs of all running tests side by side, restart if one finishes to update"
+    echo -e "${BL}--showlog$CL          - let's you choose a log to show"
+    echo -e "${BL}--taillog$CL          - tails a specific log"
+    echo -e "${BL}--showfailed$CL       - let's you choose a log from failed test classes to view"
+    echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked what to do"
     echo
     echo -e "${YL}Tag Examples:${CL}"
@@ -310,6 +316,21 @@ while [ "q$1" != "q" ]; do
     echo -e "  ${BL}./runtests.sh --stats --nosum${CL}                # Show only failed tests (no summary)"
     echo
     exit 0
+  elif [ "q$1" == "q--showfailed" ]; then
+    ./scripts/showlog.sh --failed
+    exit 0
+  elif [ "q$1" == "q--taillog" ]; then
+    ./scripts/showlog.sh --tail
+    exit 0
+
+  elif [ "q$1" == "q--showlog" ]; then
+    ./scripts/showlog.sh
+    exit 0
+
+  elif [ "q$1" == "q--watchlogs" ]; then
+    ./scripts/viewTestlogs.sh
+    exit 0
+
   elif [ "q$1" == "q--skip" ]; then
     skip=1
     shift
@@ -374,6 +395,7 @@ while [ "q$1" != "q" ]; do
   elif [ "q$1" == "q--uri" ]; then
     shift
     uri=$1
+    useExternal=1 # URI implies external MongoDB
     shift
   elif [ "q$1" == "q--verbose" ]; then
     verbose=1
@@ -523,6 +545,14 @@ if [ -z "$driver" ]; then
   else
     driver="inmem"
     echo -e "${YL}Info:${CL} No driver specified, defaulting to --driver inmem (use --external for external MongoDB drivers)"
+  fi
+fi
+
+# Pooled/single driver implies external mode (needs MongoDB connection)
+if [ "$driver" == "pooled" ] || [ "$driver" == "single" ]; then
+  if [ "$useExternal" -eq 0 ]; then
+    useExternal=1
+    echo -e "${BL}Info:${CL} Driver '$driver' requires external MongoDB - enabling external mode"
   fi
 fi
 
@@ -897,11 +927,11 @@ if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
 # AsyncOperationTest alone uses 1134+ connections, messaging tests need many more for parallel ops
 if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
   if [ "$startMorphiumserverLocal" -eq 1 ]; then
-    pool_size=$((2000 + parallel * 500))  # Base 2000 + 500 per parallel slot (matches server side)
+    pool_size=$((2000 + parallel * 500)) # Base 2000 + 500 per parallel slot (matches server side)
   else
     # For real MongoDB with replica set, need more connections since all writes go to primary
     # ExclusiveMessageTests creates 5+ Morphium instances with messaging, each with change streams
-    pool_size=$((1500 + parallel * 500))  # Base 1500 + 500 per parallel slot
+    pool_size=$((1500 + parallel * 500)) # Base 1500 + 500 per parallel slot
   fi
   MVN_PROPS="$MVN_PROPS -Dmorphium.maxConnections=$pool_size"
   echo -e "${BL}Info:${CL} Increased client pool to ${pool_size} connections for ${parallel} parallel slots"
