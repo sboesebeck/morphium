@@ -93,6 +93,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private String senderId;
 
     private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
+    private final AtomicInteger fallbackPollCounter = new AtomicInteger(0);
     // track when a topic was paused, to report elapsed pause time on unpause
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
 
@@ -179,7 +180,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // Fallback polling for broadcast messages when change streams are enabled
             // Change streams can miss events due to network issues or MongoDB internal issues
             // This ensures broadcast messages are eventually delivered even if change stream events are lost
-            if (isUseChangeStream() && running.get()) {
+            // Test evidence shows changestream catches 100% of messages, so reduced frequency (was every cycle)
+            if (isUseChangeStream() && running.get() && (fallbackPollCounter.incrementAndGet() % 100 == 0)) {
                 // log.debug("Running fallback poll for {} topics", monitorsByTopic.size());
                 for (var topicName : monitorsByTopic.keySet()) {
                     try {

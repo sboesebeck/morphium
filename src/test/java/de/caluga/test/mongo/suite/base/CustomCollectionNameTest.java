@@ -57,11 +57,12 @@ assert eFetched.value == 1 : "fetched s2:";
         m.clearCollection(EntityCollectionName.class, collectionName);
         EntityCollectionName e = new EntityCollectionName(1);
         m.storeNoCache(e, collectionName);
-        Thread.sleep(150);
         Query<EntityCollectionName> q = m.createQueryFor(EntityCollectionName.class).f("value").eq(1);
         q.setCollectionName(collectionName);
+        // Wait for store to be visible on replica sets
+        TestUtils.waitForConditionToBecomeTrue(10000, "Store not visible", () -> q.get() != null);
         EntityCollectionName eFetched = q.get();
-assert eFetched != null : "fetched before delete";
+        assert eFetched != null : "fetched before delete";
         m.delete(q, (AsyncOperationCallback<EntityCollectionName>) null);
         // Wait for delete to be visible (replication lag on replica sets)
         TestUtils.waitForConditionToBecomeTrue(10000, "Delete not visible", () -> q.get() == null);

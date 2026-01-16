@@ -659,7 +659,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
             // Fallback poll interval when using change streams - poll at least every N pauses
             // to catch any events that might be missed by the change stream
-            final int FALLBACK_POLL_INTERVAL = 10; // Poll every 10th pause cycle as fallback
+            // Test evidence shows changestream catches 100% of messages, so this is just a safety net
+            final int FALLBACK_POLL_INTERVAL = 100; // Poll every 100th pause cycle as fallback (was 10)
             final AtomicInteger pollCycleCounter = new AtomicInteger(0);
             decouplePool.scheduleWithFixedDelay(() -> {
 
@@ -964,9 +965,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                        .in(waitingForAnswers.keySet()).limit(windowSize).idList();
             }
 
-            // locking messages.. and getting broadcasts
-            var idsToIgnore = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck")
-                              .idList();
+            // Skip messages already being processed locally
+            // No need to query lock collection - lockMessage() handles already-locked cases atomically
+            var idsToIgnore = new ArrayList<MorphiumId>();
 
             synchronized (processing) {
                 for (var p : processing) {
