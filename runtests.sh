@@ -266,8 +266,8 @@ while [ "q$1" != "q" ]; do
 		echo -e "${BL}--authdb$CL ${GN}DATABASE$CL - authentication DB"
 		echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal profile)"
 		echo -e "                     ${YL}NOTE:${CL} This option is for tests that require a real MongoDB instance."
-		echo -e "${BL}--morphium-server$CL    - start single MorphiumServer on localhost:27017"
-		echo -e "${BL}--morphium-server-replicaset$CL - start 3-node MorphiumServer replica set (27017-27019)"
+		echo -e "${BL}--morphium-server$CL    - start single MorphiumServer on localhost:17017"
+		echo -e "${BL}--morphium-server-replicaset$CL - start 3-node MorphiumServer replica set (17017-17019)"
 		echo -e "                     ${YL}NOTE:${CL} Replica set mode has limited data sync - prefer single node for testing"
 		echo -e "${BL}--morphiumserver-local | --localhost-rs$CL - (deprecated) alias for --morphium-server-replicaset"
 		echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
@@ -404,25 +404,25 @@ while [ "q$1" != "q" ]; do
 		useExternal=1
 		shift
 	elif [ "q$1" == "q--morphium-server" ]; then
-		# Single-node MorphiumServer on localhost:27017 (recommended for testing)
+		# Single-node MorphiumServer on localhost:17017 (recommended for testing)
 		startMorphiumserverLocal=1
 		morphiumserverSingleNode=1
 		useExternal=1
 		if [ -z "$uri" ]; then
-			uri="mongodb://localhost:27017/morphium_tests"
+			uri="mongodb://localhost:17017/morphium_tests"
 		fi
 		if [ -z "$driver" ]; then
 			driver="pooled"
 		fi
 		shift
 	elif [ "q$1" == "q--morphium-server-replicaset" ] || [ "q$1" == "q--start-morphiumserver-local" ]; then
-		# 3-node MorphiumServer replica set on 27017-27019
+		# 3-node MorphiumServer replica set on 17017-27019
 		# Note: Each node has isolated InMemoryDriver - limited data sync between nodes
 		startMorphiumserverLocal=1
 		morphiumserverSingleNode=0
 		useExternal=1
 		if [ -z "$uri" ]; then
-			uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+			uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
 		fi
 		if [ -z "$driver" ]; then
 			driver="pooled"
@@ -435,7 +435,7 @@ while [ "q$1" != "q" ]; do
 		morphiumserverSingleNode=0
 		useExternal=1
 		if [ -z "$uri" ]; then
-			uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+			uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
 		fi
 		if [ -z "$driver" ]; then
 			driver="pooled"
@@ -572,7 +572,7 @@ if [ "$startMorphiumserverLocal" -eq 1 ]; then
 fi
 
 if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$uri" ]; then
-	uri="mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests"
+	uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
 fi
 
 if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$driver" ]; then
@@ -643,10 +643,11 @@ if [ "$rerunfailed" -eq 1 ]; then
 			echo "$class_part#." >>$classList
 		else
 			# Normal test method failure: ClassName.methodName
-			# Split ClassName.methodName into ClassName#methodName
+			# Split ClassName.methodName into ClassName#methodName*
+			# Note: We add * suffix to match parameterized test variants (e.g., testFoo[1], testFoo[2])
 			class_part=$(echo "$failed_test" | sed 's/\.[^.]*$//')
 			method_part=$(echo "$failed_test" | sed 's/^.*\.//')
-			echo "$class_part#$method_part" >>$classList
+			echo "$class_part#$method_part*" >>$classList
 		fi
 	done < <(echo "$failed_tests")
 
@@ -1158,12 +1159,20 @@ function run_test_slot() {
 	local failed_tests=0
 
 	while IFS= read -r t; do
-		if grep "$t" $disabledList >/dev/null; then
+		# Parse ClassName#methodName format if present (for --rerunfailed) - do this FIRST
+		test_class="$t"
+		test_method="$m"
+		if [[ "$t" == *"#"* ]]; then
+			test_class="${t%#*}"
+			test_method="${t#*#}"
+		fi
+
+		if grep "$test_class" $disabledList >/dev/null; then
 			continue
 		fi
 
-		# Calculate test methods for this class
-		local fn=$(echo "$t" | tr "." "/")
+		# Calculate test methods for this class (use test_class, not t, to avoid #method suffix)
+		local fn=$(echo "$test_class" | tr "." "/")
 		local test_file=$(grep "$fn" $filesList | head -1 2>/dev/null)
 		local class_test_methods=0
 		if [ -n "$test_file" ] && [ -f "$test_file" ]; then
@@ -1171,14 +1180,6 @@ function run_test_slot() {
 		fi
 
 		((current_test_classes++))
-
-		# Parse ClassName#methodName format if present (for --rerunfailed)
-		test_class="$t"
-		test_method="$m"
-		if [[ "$t" == *"#"* ]]; then
-			test_class="${t%#*}"
-			test_method="${t#*#}"
-		fi
 
 		# Update progress before starting test
 		echo "RUNNING:$test_class:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
@@ -1587,7 +1588,8 @@ else
 				[[ ! "$err" =~ ^[0-9]+$ ]] && err=0
 				((d = $(date +%s) - start))
 				# echo "Checking $fn"
-				fn=$(echo "$t" | tr "." "/")
+				# Strip #method* suffix before converting to file path (for --rerunfailed)
+				fn=$(echo "$test_class" | tr "." "/")
 				lmeth=$(safe_grep_count "@Test|@ParameterizedTest" "$fn" "$filesList")
 				lmeth3=$(safe_grep_count '@MethodSource\("getMorphiumInstances"\)' "$fn" "$filesList")
 				lmeth2=$(safe_grep_count '@MethodSource\("getMorphiumInstancesNo.*"\)' "$fn" "$filesList")
@@ -1608,9 +1610,14 @@ else
 
 				fi
 				echo "---------------------------------------------------------------------------------------------------------"
-				echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
+				# Display test class (and method if running specific method via --rerunfailed)
+				if [ "$test_method" != "." ] && [ "$test_method" != "$m" ]; then
+					echo -e "Running ${YL}$test_class${CL}#${CN}$test_method${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
+				else
+					echo -e "Running tests in ${YL}$test_class${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
+				fi
 				echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
-				echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
+				echo -e "Number of test methods in ${YL}$test_class${CL}: ${GN}$lmeth$CL"
 				if [ "$totalRetries" -ne 0 ]; then
 					echo -e "--------------------------${MG}Retries${CL}-----------------------------------------------------------------------"
 					echo -e "Had to retry ${YL}$totalRetries${CL} times:"
@@ -1639,7 +1646,7 @@ else
 						tail -n+5 "$TEST_TMP_DIR/failed.txt"
 					fi
 					echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-					tail -n $logLength test.log/"$t".log
+					tail -n $logLength test.log/"$test_class".log
 					echo "---------------------------------------------------------------------------------------------------------"
 				else
 					if [ "$unsuc" -gt 0 ]; then
@@ -1661,7 +1668,7 @@ else
 						tail -n+5 "$TEST_TMP_DIR/failed.txt"
 					fi
 					echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-					tail -n $logLength test.log/"$t".log
+					tail -n $logLength test.log/"$test_class".log
 					echo "---------------------------------------------------------------------------------------------------------"
 				fi
 				# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
