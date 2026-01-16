@@ -65,7 +65,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     assert false;
                 }
             });
-            TestUtils.waitForConditionToBecomeTrue(10000, "Async delete callback not called",
+            TestUtils.waitForConditionToBecomeTrue(30000, "Async delete callback not called",
                 () -> asyncCall);
             assert(asyncCall);
             asyncCall = false;

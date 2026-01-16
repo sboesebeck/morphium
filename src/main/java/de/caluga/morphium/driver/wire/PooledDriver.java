@@ -957,13 +957,14 @@ public class PooledDriver extends DriverBase {
                                 Thread.sleep(getSleepBetweenErrorRetries());
                             } catch (InterruptedException e1) {
                                 Thread.currentThread().interrupt(); // Properly handle interruption
-                                break; // Exit retry loop when interrupted
+                                throw new MorphiumDriverException("Interrupted while getting read connection");
                             }
                         }
                     }
+                    // Note: while(true) loop always returns or throws, so this case never falls through
 
                 default:
-                    throw new IllegalArgumentException("Unhandeled Readpreferencetype " + rp.getType());
+                    throw new IllegalArgumentException("Unhandled ReadPreferenceType " + rp.getType());
             }
         } catch (MorphiumDriverException e) {
             log.error("Error getting connection", e);

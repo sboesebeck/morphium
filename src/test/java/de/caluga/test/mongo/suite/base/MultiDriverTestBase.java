@@ -209,10 +209,17 @@ public class MultiDriverTestBase {
             inMemCfg.driverSettings().setDriverName(InMemoryDriver.driverName);
             inMemCfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
             inMemCfg.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
+            // Clear host seed for InMemoryDriver - it doesn't need external hosts
+            inMemCfg.clusterSettings().setHostSeed(new java.util.ArrayList<>());
             inMemCfg.collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP)
                     .setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
             Morphium inMem = new Morphium(inMemCfg);
-            ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500);
+            if (inMem.getDriver() instanceof InMemoryDriver) {
+                ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500);
+            } else {
+                log.error("Expected InMemoryDriver but got {} - driver name was set to {}",
+                         inMem.getDriver().getClass().getName(), inMemCfg.driverSettings().getDriverName());
+            }
             createdInstances.add(inMem);
             morphiums.add(Arguments.of(inMem));
             log.info("Running test with DB " + inMemCfg.connectionSettings().getDatabase() + " for " + inMemCfg.driverSettings().getDriverName());
