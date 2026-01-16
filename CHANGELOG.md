@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Replica set support**: MorphiumServer now supports replica set configuration with automatic primary election and failover
 - **Server CLI**: New standalone `morphium-server-cli.jar` for running MorphiumServer from command line with `--help` option
 - **Replication**: Data replication between MorphiumServer instances in a replica set
+- **Custom election protocol**: Implemented Raft-inspired election system for MorphiumServer replica sets with:
+  - Configurable election priorities per node
+  - Heartbeat-based leader detection
+  - Automatic leader election on primary failure
+  - Vote request/response protocol for consensus
+- **Netty-based wire protocol handler**: New `MongoCommandHandler` using Netty for improved performance and connection handling
+- **Messaging optimization**: MorphiumServer-specific optimizations for messaging workloads
 
 #### Messaging
 - **Topic Registry / Network Registry**: New `NetworkRegistry` implementation for discovering messaging topics across the network
@@ -79,6 +86,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MorphiumServer write concern handling with partial replica sets**: Fixed write concern handling when configuring a replica set programmatically before all secondaries are started. Previously, writes with `w > 1` would block for the full `wtimeout` (10 seconds) waiting for non-existent secondaries, causing client-side timeouts. The `ReplicationCoordinator` now fails fast (100ms grace period) when no secondaries have registered, returning a proper `writeConcernError` response instead of timing out. This enables tests to store documents on a primary before starting secondary nodes
 - **Replication staleness detection**: Added staleness detection mechanism to ReplicationManager that detects when a secondary's change stream watch connection has gone stale (no response for 30+ seconds). When detected, the connection is forcibly closed and a new one is established. This prevents secondaries from falling behind when connections silently break
 - **SingleMongoConnection socket timeout limit**: Modified `readNextMessage()` to limit consecutive socket timeout retries to 100 (approximately 10 seconds with 100ms timeout). After reaching this limit, it returns null to allow the calling code to check `isContinued()` and handle connection issues. Previously, the method would retry indefinitely, causing watch loops to never detect broken connections
+- **Connection pool issues**: Fixed multiple connection pool problems including proper connection release, leak prevention, and handling of stale connections
+- **Messaging stability**: Fixed various messaging issues including connection handling, message processing, and proper cleanup on shutdown
+- **Server status on startup**: Fixed MorphiumServer status reporting during initial startup phase
+- **NPE fixes**: Fixed null pointer exceptions in various components during edge cases
+- **Election priorities**: Fixed election priority handling to ensure highest-priority node becomes primary
+- **Read preference on secondary**: Fixed read preference checks when operating on secondary nodes
 
 ### Added (Tests)
 - **Failover tests for MorphiumServer replica sets**: Added comprehensive failover tests (`FailoverTest.java`) that verify:
@@ -117,9 +130,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **External test tagging**: Added `@Tag("external")` to driver tests that require a real MongoDB connection (PooledDriverTest, PooledDriverConnectionsTests, SharedConnectionPoolTest). Fixed pom.xml to use correct `<excludedGroups>` parameter instead of invalid `<excludeTags>` for Maven Surefire plugin JUnit 5 tag filtering
 
+- **Test script improvements**: Major refactoring of `runtests.sh` for:
+  - Modular script architecture with separate utility scripts in `scripts/` directory
+  - Better temporary file management and cleanup
+  - Improved parallel test execution and slot management
+  - Enhanced failure reporting and log management
+  - Support for different test backends via `--driver`, `--uri`, and `--morphium-server` options
+  - Memory settings optimization for test execution
+
 ### Changed
 - **Modernized concurrent collections**: Replaced legacy `Vector` with `CopyOnWriteArrayList` and `Hashtable` with `ConcurrentHashMap` for better performance
 - **Optimized string operations**: Consolidated multiple `replaceAll()` calls into single regex patterns, replaced `replaceAll()` with `replace()` for literal string replacements
+- **ChangeStream implementation**: Improved change stream handling and event delivery reliability
+
+### Dependencies
+- **logback-core**: Bumped from 1.5.13 to 1.5.19
 
 ### Performance
 
