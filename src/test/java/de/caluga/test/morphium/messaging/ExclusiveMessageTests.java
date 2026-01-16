@@ -333,65 +333,63 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                                morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(
                                morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
-            // Configure to use shared connection pool to avoid exhaustion during parallel tests
-            cfg.driverSettings().setSharedConnectionPool(true);
+            // Increase connection pool to handle multiple Morphium instances
+            cfg.setMaxConnections(50);
+            cfg.setMinConnections(5);
             try (Morphium mx = new Morphium(cfg)) {
                 MorphiumMessaging sender = mx.createMessaging();
                 sender.setPause(100).setMultithreadded(true).setWindowSize(1);
                 sender.setSenderId("sender");
                 mx.dropCollection(Msg.class, sender.getCollectionName(), null);
                 mx.dropCollection(MsgLock.class, sender.getLockCollectionName(), null);
-                Thread.sleep(2000);
+                Thread.sleep(500);
                 sender.start();
-                // additional Morphium instances - use shared connection pool
+                
+                // Create separate Morphium instances to simulate distributed receivers
                 MorphiumConfig c2 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c2.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c2.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c2.driverSettings().setSharedConnectionPool(true);
+                c2.setMaxConnections(50);
+                c2.setMinConnections(5);
                 Morphium morphium2 = new Morphium(c2);
-                morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
-                morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
-                morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
                 MorphiumMessaging receiver = morphium2.createMessaging();
-                receiver.setPause(100).setMultithreadded(true).setWindowSize(15);  // Increased pause from 10 to 100
+                receiver.setPause(100).setMultithreadded(true).setWindowSize(15);
                 receiver.setSenderId("r1");
                 receiver.start();
+                
                 MorphiumConfig c3 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c3.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c3.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c3.driverSettings().setSharedConnectionPool(true);
+                c3.setMaxConnections(50);
+                c3.setMinConnections(5);
                 Morphium morphium3 = new Morphium(c3);
-                morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
-                morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
-                morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
                 MorphiumMessaging receiver2 = morphium3.createMessaging();
-                receiver2.setPause(100).setMultithreadded(false).setWindowSize(1);  // Increased pause from 10 to 100
+                receiver2.setPause(100).setMultithreadded(false).setWindowSize(1);
                 receiver2.setSenderId("r2");
                 receiver2.start();
+                
                 MorphiumConfig c4 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c4.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c4.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c4.driverSettings().setSharedConnectionPool(true);
+                c4.setMaxConnections(50);
+                c4.setMinConnections(5);
                 Morphium morphium4 = new Morphium(c4);
-                morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
-                morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
-                morphium4.getConfig().setThreadPoolAsyncOpMaxSize(10);
                 MorphiumMessaging receiver3 = morphium4.createMessaging();
-                receiver3.setPause(100).setMultithreadded(false).setWindowSize(15);  // Increased pause from 10 to 100
+                receiver3.setPause(100).setMultithreadded(false).setWindowSize(15);
                 receiver3.setSenderId("r3");
                 receiver3.start();
+                
                 MorphiumConfig c5 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
                 c5.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
                 c5.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c5.driverSettings().setSharedConnectionPool(true);
+                c5.setMaxConnections(50);
+                c5.setMinConnections(5);
                 Morphium morphium5 = new Morphium(c5);
-                morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
-                morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
-                morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
                 MorphiumMessaging receiver4 = morphium5.createMessaging();
-                receiver4.setPause(100).setMultithreadded(true).setWindowSize(1);  // Increased pause from 10 to 100
+                receiver4.setPause(100).setMultithreadded(true).setWindowSize(1);
                 receiver4.setSenderId("r4");
                 receiver4.start();
+                
                 final AtomicInteger received = new AtomicInteger();
                 final AtomicInteger dups = new AtomicInteger();
                 final Map<String, Long> ids = new ConcurrentHashMap<>();
