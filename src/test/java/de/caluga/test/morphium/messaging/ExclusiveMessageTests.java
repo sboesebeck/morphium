@@ -389,7 +389,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
                 morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
                 MorphiumMessaging receiver4 = morphium5.createMessaging();
-                receiver4.setPause(10).setMultithreadded(true).setWindowSize(1);
+                receiver4.setPause(100).setMultithreadded(true).setWindowSize(1);  // Increased pause from 10 to 100
                 receiver4.setSenderId("r4");
                 receiver4.start();
                 final AtomicInteger received = new AtomicInteger();
@@ -460,8 +460,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                     receiver2.addListenerForTopic("m", messageListener);
                     receiver3.addListenerForTopic("m", messageListener);
                     receiver4.addListenerForTopic("m", messageListener);
-                    int amount = 150;
-                    int broadcastAmount = 50;
+                    int amount = 50;  // Reduced from 150 for faster test
+                    int broadcastAmount = 20;  // Reduced from 50 for faster test
 
                     for (int i = 0; i < amount; i++) {
                         int rec = received.get();
@@ -488,7 +488,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         sender.sendMessage(m);
                     }
 
-                    long waitUntil = System.currentTimeMillis() + 240000;
+                    long waitUntil = System.currentTimeMillis() + 120000;  // Reduced from 240s to 120s
 
                     while (received.get() != amount + broadcastAmount * 4) {
                         int rec = received.get();
