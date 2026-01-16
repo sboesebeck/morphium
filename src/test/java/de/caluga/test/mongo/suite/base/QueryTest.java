@@ -675,6 +675,9 @@ public class QueryTest extends MultiDriverTestBase {
         });
 
         TestUtils.waitForConditionToBecomeTrue(10000, "Async inc callback not called", () -> ai.get() == 1);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Inc operation not visible", () -> 
+            morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.dval).eq(0.2).countAll() == 5);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                    .f(UncachedObject.Fields.dval).eq(0.2).countAll();
         assertNotEquals(0, cnt);
@@ -746,6 +749,9 @@ public class QueryTest extends MultiDriverTestBase {
         });
 
         TestUtils.waitForConditionToBecomeTrue(10000, "Async dec callback not called", () -> ai.get() == 1);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Dec operation not visible", () -> 
+            morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.dval).eq(-0.2).countAll() == 5);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                    .f(UncachedObject.Fields.dval).eq(-0.2).countAll();
         assertNotEquals(0, cnt);

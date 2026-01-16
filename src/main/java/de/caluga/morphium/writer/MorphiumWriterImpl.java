@@ -170,7 +170,22 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     public void close() {
         if (executor != null) {
-            executor.shutdownNow();
+            // Use graceful shutdown to allow pending writes to complete
+            // instead of shutdownNow() which interrupts in-flight I/O operations
+            executor.shutdown();
+            try {
+                // Wait for pending writes to complete
+                if (!executor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                    logger.warn("Writer executor did not terminate in 10 seconds, forcing shutdown");
+                    executor.shutdownNow();
+                    if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                        logger.warn("Writer executor did not terminate after forced shutdown");
+                    }
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -2701,9 +2716,20 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public void onShutdown(Morphium m) {
         if (executor != null) {
             try {
+                // Use graceful shutdown to allow pending writes to complete
+                executor.shutdown();
+                if (!executor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                    logger.warn("Writer executor did not terminate in 10 seconds during Morphium shutdown, forcing shutdown");
+                    executor.shutdownNow();
+                    if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                        logger.warn("Writer executor did not terminate after forced shutdown");
+                    }
+                }
+            } catch (InterruptedException e) {
                 executor.shutdownNow();
+                Thread.currentThread().interrupt();
             } catch (Exception e) {
-                // swallow
+                // swallow other exceptions
             }
         }
     }
