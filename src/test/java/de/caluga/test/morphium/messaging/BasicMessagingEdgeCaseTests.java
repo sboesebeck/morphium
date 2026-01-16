@@ -44,6 +44,12 @@ public class BasicMessagingEdgeCaseTests extends MultiDriverTestBase {
                     MorphiumMessaging receiver = morph.createMessaging();
                     receiver.setSenderId("receiver");
 
+                    // Clean slate for each messaging implementation
+                    String collName = sender.getCollectionName("test");
+                    log.info("Using collection: {} for messaging implementation: {}", collName, msgImpl);
+                    morph.dropCollection(Msg.class, collName, null);
+                    Thread.sleep(500);
+                    
                     morph.ensureIndicesFor(Msg.class, sender.getLockCollectionName("test"));
                     AtomicInteger msgCount = new AtomicInteger(0);
                     receiver.addListenerForTopic("test", (msg, mm) -> {
@@ -70,7 +76,14 @@ public class BasicMessagingEdgeCaseTests extends MultiDriverTestBase {
 
                     // Verify messages are processed and not timed out
                     TestUtils.waitWithMessage(35000, 5000, (dur)->log.info("Waiting...{}s", dur / 1000));
-                    long count = morph.createQueryFor(Msg.class, sender.getCollectionName("test")).countAll();
+                    String countCollection = sender.getCollectionName("test");
+                    long count = morph.createQueryFor(Msg.class, countCollection).countAll();
+                    log.info("Count in collection '{}': {} (expected 5)", countCollection, count);
+                    if (count != 5) {
+                        // Debug: check what's actually in the collection
+                        var msgs = morph.createQueryFor(Msg.class, countCollection).asList();
+                        log.error("Found {} messages in collection: {}", msgs.size(), msgs.stream().map(m -> m.getMsgId() + "/" + m.getDeleteAt()).toList());
+                    }
                     assertEquals(5, count, "Messages should be processed and not removed");
                     log.info("Test {} using {}/{} finished", tstName, msgImpl, morphium.getDriver().getName());
                     sender.terminate();

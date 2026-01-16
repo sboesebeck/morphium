@@ -260,6 +260,10 @@ public class CacheTests extends MultiDriverTestBase {
                 morphium.store(co);
             }
 
+            // CachedObject uses @WriteBuffer - flush to ensure all writes are committed
+            TestUtils.waitForConditionToBecomeTrue(3000, "Write buffer not flushed",
+                                                   () -> morphium.writeBufferCount() == 0);
+
             TestUtils.waitForConditionToBecomeTrue(5000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == 20);
 

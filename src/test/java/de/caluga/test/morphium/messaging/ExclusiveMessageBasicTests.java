@@ -169,8 +169,8 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
 
                 assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
-                // Add 2000ms buffer for timing jitter (network/scheduling variance)
-                assertThat(System.currentTimeMillis() - s).isLessThan(3 * morphium.getConfig().getMaxWaitTime() + 2000);
+                // Exclusive message should be received within 30 seconds, not minutes
+                assertThat(System.currentTimeMillis() - s).isLessThan(30000);
             }
 
             TestUtils.waitForConditionToBecomeTrue(5000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);

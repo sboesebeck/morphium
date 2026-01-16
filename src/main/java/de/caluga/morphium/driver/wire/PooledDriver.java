@@ -105,6 +105,7 @@ public class PooledDriver extends DriverBase {
     private volatile String fastestHost = null;
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private volatile String primaryNode;
+    private final Object primaryNodeLock = new Object();  // Lock for primaryNode updates only
     private volatile boolean inMemoryBackend = false;
     private volatile boolean morphiumServer = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
@@ -307,33 +308,37 @@ public class PooledDriver extends DriverBase {
             }
         }
 
-        if (hello.getWritablePrimary() != null && hello.getWritablePrimary() && hello.getMe() == null) {
-            if (hello.getWritablePrimary() && primaryNode == null) {
-                primaryNode = hostConnected;
-            } else if (!hostConnected.equals(primaryNode)) {
-                log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
-                stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
-                primaryNode = hostConnected;
-            } else if (!hello.getWritablePrimary() && hostConnected.equals(primaryNode)) {
-                log.error("Primary node is not me {}", hello.getMe());
-                primaryNode = null;
-            }
-        } else if (hello.getWritablePrimary() != null && hello.getMe() != null) {
-            if (hello.getWritablePrimary() && primaryNode == null) {
-                // Prefer the actually reachable address we used for this connection.
-                primaryNode = hostConnected;
-            } else if (hello.getWritablePrimary() && !hostConnected.equals(primaryNode)) {
-                log.warn("Primary failover? {} -> {}", primaryNode, hostConnected);
-                stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
-                primaryNode = hostConnected;
-            } else if (!hello.getWritablePrimary() && hostConnected.equals(primaryNode)) {
-                log.error("Primary node is not me {}", hello.getMe());
-                primaryNode = null;
-            } else if (primaryNode == null && hello.getPrimary() != null) {
-                // Only use the advertised primary if it maps to a known/reachable host key.
-                String advertised = resolveAlias(hello.getPrimary());
-                if (hosts.containsKey(advertised)) {
-                    primaryNode = advertised;
+        // Synchronize only the primaryNode update logic to prevent race conditions
+        // during concurrent heartbeat processing from multiple hosts
+        synchronized (primaryNodeLock) {
+            if (hello.getWritablePrimary() != null && hello.getWritablePrimary() && hello.getMe() == null) {
+                if (hello.getWritablePrimary() && primaryNode == null) {
+                    primaryNode = hostConnected;
+                } else if (!hostConnected.equals(primaryNode)) {
+                    log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
+                    stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
+                    primaryNode = hostConnected;
+                } else if (!hello.getWritablePrimary() && hostConnected.equals(primaryNode)) {
+                    log.error("Primary node is not me {}", hello.getMe());
+                    primaryNode = null;
+                }
+            } else if (hello.getWritablePrimary() != null && hello.getMe() != null) {
+                if (hello.getWritablePrimary() && primaryNode == null) {
+                    // Prefer the actually reachable address we used for this connection.
+                    primaryNode = hostConnected;
+                } else if (hello.getWritablePrimary() && !hostConnected.equals(primaryNode)) {
+                    log.warn("Primary failover? {} -> {}", primaryNode, hostConnected);
+                    stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
+                    primaryNode = hostConnected;
+                } else if (!hello.getWritablePrimary() && hostConnected.equals(primaryNode)) {
+                    log.error("Primary node is not me {}", hello.getMe());
+                    primaryNode = null;
+                } else if (primaryNode == null && hello.getPrimary() != null) {
+                    // Only use the advertised primary if it maps to a known/reachable host key.
+                    String advertised = resolveAlias(hello.getPrimary());
+                    if (hosts.containsKey(advertised)) {
+                        primaryNode = advertised;
+                    }
                 }
             }
         }
@@ -884,7 +889,7 @@ public class PooledDriver extends DriverBase {
                     }
 
                 case PRIMARY_PREFERRED:
-                    if (hosts.get(primaryNode) != null && !hosts.get(primaryNode).getConnectionPool().isEmpty()) {
+                    if (primaryNode != null && hosts.get(primaryNode) != null && !hosts.get(primaryNode).getConnectionPool().isEmpty()) {
                         try {
                             return borrowConnection(primaryNode);
                         } catch (MorphiumDriverException e) {
