@@ -46,15 +46,15 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
                                morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
             try (Morphium m = new Morphium(cfg)) {
                 m.dropCollection(Msg.class);
-                Thread.sleep(100);
+                Thread.sleep(500); // Increased wait to allow connection pool to stabilize
                 MorphiumMessaging m1 = m.createMessaging();
-                m1.setPause(10).setMultithreadded(true).setWindowSize(10);
+                m1.setPause(100).setMultithreadded(true).setWindowSize(10);
                 m1.setSenderId("m1");
                 MorphiumMessaging m2 = m.createMessaging();
-                m2.setPause(10).setMultithreadded(true).setWindowSize(10);
+                m2.setPause(100).setMultithreadded(true).setWindowSize(10);
                 m2.setSenderId("m2");
                 MorphiumMessaging m3 = m.createMessaging();
-                m3.setPause(10).setMultithreadded(true).setWindowSize(10);
+                m3.setPause(100).setMultithreadded(true).setWindowSize(10);
                 m3.setSenderId("m3");
                 m3.addListenerForTopic("test", (msg, mm) -> null);
                 try {
