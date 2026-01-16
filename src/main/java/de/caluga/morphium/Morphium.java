@@ -2581,7 +2581,25 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
 
         if (asyncOperationsThreadPool != null) {
-            asyncOperationsThreadPool.shutdownNow();
+            // Use graceful shutdown instead of shutdownNow() to avoid interrupting 
+            // in-flight I/O operations which causes "operation was interrupted" errors.
+            // Give operations a chance to complete before forcing shutdown.
+            asyncOperationsThreadPool.shutdown();
+            try {
+                // Wait for active tasks to complete - use reasonable timeout
+                if (!asyncOperationsThreadPool.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    log.warn("Async operations did not complete in 5 seconds, forcing shutdown");
+                    asyncOperationsThreadPool.shutdownNow();
+                    // Wait a bit more after forced shutdown
+                    if (!asyncOperationsThreadPool.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                        log.warn("Some async operations may not have completed cleanly");
+                    }
+                }
+            } catch (InterruptedException e) {
+                // Re-interrupt and force shutdown
+                asyncOperationsThreadPool.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }
 
         asyncOperationsThreadPool = null;

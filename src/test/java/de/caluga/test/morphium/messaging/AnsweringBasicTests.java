@@ -141,7 +141,11 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                     lastMsgId = question.getMsgId();
                     onlyAnswers.sendMessage(question);
                     log.info("Send Message with id: " + question.getMsgId());
-                    Thread.sleep(1000);
+                    
+                    // Wait for exclusive message to be received by either m1 or m2
+                    TestUtils.waitForConditionToBecomeTrue(15000, "Exclusive message not received by m1 or m2", () -> gotMessage1 || gotMessage2);
+                    // Wait for the answer to be received by onlyAnswers
+                    TestUtils.waitForConditionToBecomeTrue(15000, "Answer not received by onlyAnswers", () -> gotMessage3);
 
                     if (gotMessage1) {
                         log.info("Received by m1");
