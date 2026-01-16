@@ -242,10 +242,10 @@ public class PooledDriverTest {
         drv.setMaxConnectionsPerHost(105);
         drv.setMinConnectionsPerHost(2);
         drv.setConnectionTimeout(5000);
-        drv.setMaxConnectionLifetime(1000);
-        drv.setMaxConnectionIdleTime(500);
+        drv.setMaxConnectionLifetime(60000);  // 60 seconds - allow connections to live long enough for pool maintenance
+        drv.setMaxConnectionIdleTime(30000);  // 30 seconds - don't kill idle connections too quickly
         drv.setDefaultReadPreference(ReadPreference.nearest());
-        drv.setHeartbeatFrequency(1000);
+        drv.setHeartbeatFrequency(2000);  // 2 seconds - reasonable heartbeat for replicaset
         return drv;
     }
 
