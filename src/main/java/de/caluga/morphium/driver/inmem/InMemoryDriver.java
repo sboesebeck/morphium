@@ -637,11 +637,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
                 monitor.await(waitTime);
 
-                // Check if the callback wants to continue after each wait
-                // This ensures proper cleanup when cursors are killed
+                // Check if the callback wants to continue after each wait.
+                // However, we must give pending async events a chance to be delivered first,
+                // because event dispatch is asynchronous via eventDispatcher.execute().
+                // Without this delay, we could deactivate the subscription BEFORE pending
+                // events are delivered, causing events to be lost.
                 if (!settings.getCb().isContinued()) {
-                    subscription.deactivate();
-                    break;
+                    // Give async event dispatcher time to deliver any pending events
+                    // The deliver() method will call deactivate() after delivering if isContinued() is false
+                    Thread.sleep(100);
+                    // If still active after the delay, the deliver() method hasn't deactivated us yet
+                    // which means there might be more events coming, or we should exit
+                    if (subscription.isActive() && !settings.getCb().isContinued()) {
+                        subscription.deactivate();
+                        break;
+                    }
                 }
             }
         } catch (InterruptedException ie) {
