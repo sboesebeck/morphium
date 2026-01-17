@@ -541,7 +541,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
 
-                        log.info("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
+                        log.debug("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
                     } else {
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
@@ -566,11 +566,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             if (morphium.getDriver().isMorphiumServer()) {
                 log.info("Registering messaging collection with MorphiumServer: {}", getCollectionName());
                 Map<String, Object> cmdData = Doc.of(
-                    "lockCollection", getLockCollectionName(),
-                    "senderId", id
-                );
+                        "lockCollection", getLockCollectionName(),
+                        "senderId", id
+                                              );
                 List<Map<String, Object>> result = morphium.runCommand(
-                    "registerMessagingCollection", getCollectionName(), cmdData);
+                        "registerMessagingCollection", getCollectionName(), cmdData);
                 if (result != null && !result.isEmpty() && Boolean.TRUE.equals(result.get(0).get("registered"))) {
                     log.info("Successfully registered messaging collection with MorphiumServer: optimizations={}",
                              result.get(0).get("optimizations"));
@@ -671,7 +671,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // 3. fallback: every FALLBACK_POLL_INTERVAL cycles when change streams are enabled
                     //    to catch any events that might be missed by the change stream
                     boolean shouldFallbackPoll = useChangeStream &&
-                        (pollCycleCounter.incrementAndGet() % FALLBACK_POLL_INTERVAL == 0);
+                    (pollCycleCounter.incrementAndGet() % FALLBACK_POLL_INTERVAL == 0);
 
                     if (requestPoll.get() > 0 || !useChangeStream || shouldFallbackPoll) {
                         lastRun.set(System.currentTimeMillis());
@@ -712,9 +712,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 synchronized (processing) {
                     if (!idsInProgress.contains(prEl.getId())) {
                         idsInProgress.add(prEl.getId());
-                        log.info("PROCESSING: {} Added {} to idsInProgress (from queue)", id, prEl.getId());
+                        log.debug("PROCESSING: {} Added {} to idsInProgress (from queue)", id, prEl.getId());
                     } else {
-                        log.info("PROCESSING: {} Polled {} (already in idsInProgress from changestream)", id, prEl.getId());
+                        log.debug("PROCESSING: {} Polled {} (already in idsInProgress from changestream)", id, prEl.getId());
                     }
                 }
 
@@ -731,7 +731,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // With NEAREST, replica lag could cause us to see old processedBy values
                         // which would cause message processing to be incorrectly skipped
                         var q = morphium.createQueryFor(Msg.class)
-                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
+                                .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
                         q.setCollectionName(getCollectionName());
                         msg = q.get();
 
@@ -825,7 +825,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             // Always remove from idsInProgress when done processing
                             // The database processed_by field handles duplicate prevention
                             idsInProgress.remove(finalPrEl.getId());
-                            log.info("PROCESSING: {} Removed {} from idsInProgress", id, finalPrEl.getId());
+                            log.debug("PROCESSING: {} Removed {} from idsInProgress", id, finalPrEl.getId());
                         }
                     }
                 };
@@ -1105,9 +1105,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             Msg fresh = null;
             try {
                 fresh = morphium.createQueryFor(Msg.class, getCollectionName())
-                    .setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY)
-                    .f("_id").eq(obj.getMsgId())
-                    .get();
+                        .setReadPreferenceLevel(de.caluga.morphium.annotations.ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(obj.getMsgId())
+                        .get();
             } catch (Exception ignored) {
             }
 
@@ -1469,16 +1469,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                 try {
                     if (morphium.reread(msg, getCollectionName()) != null) {
-                    if (!msg.getProcessedBy().contains(id)) {
-                        log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
-                        log.warn(id + ": " + Utils.toJsonString(ret));
-                        log.warn(id + ": msg: " + msg.toString());
-                        return false; // Update failed
-                    }
+                        if (!msg.getProcessedBy().contains(id)) {
+                            log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
+                            log.warn(id + ": " + Utils.toJsonString(ret));
+                            log.warn(id + ": msg: " + msg.toString());
+                            return false; // Update failed
+                        }
 
-                    // } else {
-                    // log.debug("message deleted by someone else!!!");
-                }
+                        // } else {
+                        // log.debug("message deleted by someone else!!!");
+                    }
                 } catch (RuntimeException rte) {
                     // Can happen during shutdown when Morphium/driver is already closed
                     return false;
@@ -1753,9 +1753,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             scheduleTimeoutDeletionIfNeeded(m, getCollectionName());
         } catch (RuntimeException e) {
             if (networkRegistry != null
-                && settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
-                && m.getRecipients() != null
-                && !m.getRecipients().isEmpty()) {
+                    && settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
+                    && m.getRecipients() != null
+                    && !m.getRecipients().isEmpty()) {
                 MessageRejectedException mre = new MessageRejectedException("Recipient '" + m.getRecipients().get(0) + "' is not active");
                 mre.initCause(e);
                 throw mre;
