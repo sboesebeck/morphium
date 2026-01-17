@@ -1675,9 +1675,16 @@ else
 
 				# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
 				# egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
-				jobs >/dev/null
-				j=$(jobs | grep -E '\[[0-9]+\]' | wc -l)
-				if [ "$j" -lt 2 ]; then
+
+				# Check if the test process is still running
+				if [ -e "$testPid" ]; then
+					pid=$(<$testPid)
+					if ! kill -0 $pid 2>/dev/null; then
+						# Process finished, wait for it to clean up
+						wait $pid 2>/dev/null
+						break
+					fi
+				else
 					break
 				fi
 				if [ $dur -gt 600 ]; then
