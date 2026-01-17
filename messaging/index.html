@@ -1924,7 +1924,7 @@
 <li>Queue name: <code>setMessageQueueName(String)</code>: collection suffix used for the queue.</li>
 <li>Window size: <code>setMessagingWindowSize(int)</code>: number of messages processed per batch. Messaging marks up to this many messages and processes them as one window.</li>
 <li>Multithreading: <code>setMessagingMultithreadded(boolean)</code>: process multiple messages in parallel using (virtual) threads; <code>false</code> enforces single‑threaded, sequential handling.</li>
-<li>Change streams: <code>setUseChangeStream(boolean)</code>: use MongoDB Change Streams to get push‑style notifications for new messages; when <code>false</code>, messaging uses polling. Requires a replica set for Change Streams.</li>
+<li>Change streams: <code>setUseChangeStream(boolean)</code>: use MongoDB Change Streams to get push‑style notifications for new messages; when <code>false</code>, messaging uses polling for both topic messages and direct messages (answers). Requires a replica set for Change Streams.</li>
 <li>Poll pause: <code>setMessagingPollPause(int)</code>: pause (in ms) between polling requests when not using Change Streams. Also used as a heartbeat to check for messages outside the current processing window (e.g., if new messages arrive and the queue holds more than <code>windowSize</code>, a poll is triggered once after this pause).</li>
 </ul>
 <p>Example
@@ -1946,6 +1946,7 @@
 <p>Notes</p>
 <ul>
 <li>When Change Streams are disabled, polling respects <code>messagingPollPause</code> to reduce load but still peeks for messages beyond the current window so bursts are noticed promptly.</li>
+<li>With <code>useChangeStream=false</code>, both topic messages and direct messages (answers) use polling. This ensures consistent behavior regardless of whether you're sending broadcast messages or request/response patterns.</li>
 </ul>
 <h2 id="benefits-tradeoffs">Benefits &amp; Trade‑offs<a class="headerlink" href="#benefits-tradeoffs" title="Permanent link">&para;</a></h2>
 <p>Benefits</p>
