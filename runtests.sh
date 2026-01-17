@@ -1699,7 +1699,7 @@ else
 					if [ -e "$testPid" ]; then
 						pid=$(<$testPid)
 						if ! kill -0 $pid 2>/dev/null; then
-							break 2 # Break out of both loops
+							break 3 # Break out of: for loop + inner while + outer while
 						fi
 					fi
 				done
