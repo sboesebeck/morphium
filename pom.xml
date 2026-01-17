@@ -154,6 +154,9 @@
             <manifest>
               <mainClass>de.caluga.morphium.server.MorphiumServerCLI</mainClass>
             </manifest>
+            <manifestEntries>
+              <Multi-Release>true</Multi-Release>
+            </manifestEntries>
           </archive>
         </configuration>
         <executions>

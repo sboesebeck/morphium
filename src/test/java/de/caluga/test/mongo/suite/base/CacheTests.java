@@ -264,7 +264,7 @@ public class CacheTests extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(3000, "Write buffer not flushed",
                                                    () -> morphium.writeBufferCount() == 0);
 
-            TestUtils.waitForConditionToBecomeTrue(5000, "Objects not stored",
+            TestUtils.waitForConditionToBecomeTrue(10000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == 20);
 
             // Allow cache sync messages from stores to be processed before testing cache

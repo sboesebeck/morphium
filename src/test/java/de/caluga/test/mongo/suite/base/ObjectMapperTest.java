@@ -80,7 +80,9 @@ public class ObjectMapperTest extends MultiDriverTestBase {
         BIObject bio = new BIObject();
         bio.biValue = tst;
         morphium.store(bio);
-        Thread.sleep(100);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(5000, "BIObject not found", 
+            () -> morphium.createQueryFor(BIObject.class).countAll() > 0);
 
         BIObject bio2 = morphium.createQueryFor(BIObject.class).get();
         assertNotNull(bio2);
