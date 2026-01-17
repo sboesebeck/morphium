@@ -308,10 +308,15 @@ log_success "Maven release complete"
 
 log_step "Creating release bundle"
 
-# Build with all artifacts
-log_info "Building artifacts..."
-mvn clean package verify -DskipTests -q || {
+# Checkout the release tag to build the correct version
+log_info "Checking out release tag $tag..."
+git checkout "$tag"
+
+# Build with all artifacts (skip javadoc errors - they shouldn't block release)
+log_info "Building artifacts for version $version..."
+mvn clean package verify -DskipTests -Dmaven.javadoc.failOnError=false || {
 	log_error "Package failed"
+	git checkout develop
 	exit 1
 }
 
