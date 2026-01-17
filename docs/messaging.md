@@ -52,7 +52,7 @@ Configuration (via `MessagingSettings`)
 - Queue name: `setMessageQueueName(String)`: collection suffix used for the queue.
 - Window size: `setMessagingWindowSize(int)`: number of messages processed per batch. Messaging marks up to this many messages and processes them as one window.
 - Multithreading: `setMessagingMultithreadded(boolean)`: process multiple messages in parallel using (virtual) threads; `false` enforces single‑threaded, sequential handling.
-- Change streams: `setUseChangeStream(boolean)`: use MongoDB Change Streams to get push‑style notifications for new messages; when `false`, messaging uses polling. Requires a replica set for Change Streams.
+- Change streams: `setUseChangeStream(boolean)`: use MongoDB Change Streams to get push‑style notifications for new messages; when `false`, messaging uses polling for both topic messages and direct messages (answers). Requires a replica set for Change Streams.
 - Poll pause: `setMessagingPollPause(int)`: pause (in ms) between polling requests when not using Change Streams. Also used as a heartbeat to check for messages outside the current processing window (e.g., if new messages arrive and the queue holds more than `windowSize`, a poll is triggered once after this pause).
 
 Example
@@ -76,6 +76,7 @@ Examples and behavior
 Notes
 
 - When Change Streams are disabled, polling respects `messagingPollPause` to reduce load but still peeks for messages beyond the current window so bursts are noticed promptly.
+- With `useChangeStream=false`, both topic messages and direct messages (answers) use polling. This ensures consistent behavior regardless of whether you're sending broadcast messages or request/response patterns.
 
 
 ## Benefits & Trade‑offs
