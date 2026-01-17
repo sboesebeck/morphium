@@ -443,9 +443,12 @@ cd ..
 
 log_step "Finalizing git operations"
 
-# Merge to master
+# We're currently on the tag (detached HEAD), need to go back to branches
+# First pull latest to avoid conflicts
 log_info "Merging $tag to master..."
+git fetch origin master
 git checkout master
+git pull origin master --no-edit || true
 git merge "$tag" --no-edit
 git push origin master
 
