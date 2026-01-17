@@ -12,10 +12,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.messaging.*;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -35,6 +38,37 @@ public class MessagingTest extends MultiDriverTestBase {
     private final AtomicInteger queueCount = new AtomicInteger(1000);
 
 
+    // @Test
+    // public void runMessageRoundtripForEver()throws Exception{
+    //     MorphiumConfig cfg = new MorphiumConfig();
+    //     cfg.connectionSettings().setMaxConnections(10);
+    //     cfg.connectionSettings().setMaxWaitTime(10000);
+    //     cfg.connectionSettings().setHeartbeatFrequency(250);
+    //     cfg.connectionSettings().setConnectionTimeout(1000);
+    //     cfg.connectionSettings().setRetriesOnNetworkError(3);
+    //     cfg.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
+    //     cfg.driverSettings().setDriverName(PooledDriver.driverName);
+    //     cfg.clusterSettings().addHostToSeed("localhost:17017");
+    //     cfg.clusterSettings().addHostToSeed("localhost:17018");
+    //     cfg.clusterSettings().addHostToSeed("localhost:17019");
+    //     cfg.clusterSettings().setReplicaset(true);
+
+    //     Morphium m = new Morphium(cfg);
+
+    //     MorphiumMessaging sender = m.createMessaging();
+    //     sender.start();
+    //     MorphiumMessaging receiver = m.createMessaging();
+    //     receiver.start();
+    //     receiver.addListenerForTopic("test", (msgs, msg)->{
+    //         log.info("Got message");
+    //         return null;
+    //     });
+    //     while (true) {
+    //         Thread.sleep(1000);
+    //         Msg msg = new Msg("test", "test", "test");
+    //         sender.sendMessage(msg);
+    //     }
+    // }
 
     @ParameterizedTest
     @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
@@ -69,7 +103,7 @@ public class MessagingTest extends MultiDriverTestBase {
             //checking  answer - wait for answer to be visible on replica sets
             final String collName = receiver.getCollectionName();
             TestUtils.waitForConditionToBecomeTrue(10000, "Answer not visible",
-                () -> morphium.createQueryFor(Msg.class, collName).f(Msg.Fields.inAnswerTo).ne(null).countAll() >= 1);
+                                                   () -> morphium.createQueryFor(Msg.class, collName).f(Msg.Fields.inAnswerTo).ne(null).countAll() >= 1);
             var q = morphium.createQueryFor(Msg.class, receiver.getCollectionName());
             q.f(Msg.Fields.inAnswerTo).ne(null);
             var answers = q.asMapList();
