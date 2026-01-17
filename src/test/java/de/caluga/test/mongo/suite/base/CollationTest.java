@@ -107,6 +107,9 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("c", 1));
             TestUtils.waitForConditionToBecomeTrue(3000, "Objects not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).countAll() == 6);
+            // Wait specifically for both "A" and "a" to be queryable with collation
+            TestUtils.waitForConditionToBecomeTrue(3000, "Collation query not returning expected count",
+                () -> morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a").countAll() == 2);
             long count = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a").countAll();
             assertEquals(2, count);
         }
@@ -192,6 +195,14 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("c", 1));
             TestUtils.waitForConditionToBecomeTrue(3000, "Objects not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).countAll() == 6);
+            // Wait specifically for aggregation with collation to return expected count
+            TestUtils.waitForConditionToBecomeTrue(3000, "Collation aggregation not returning expected count",
+                () -> {
+                    Aggregator<UncachedObject, Map> aggCheck = morphium.createAggregator(UncachedObject.class, Map.class);
+                    aggCheck.collation(new Collation().locale("de").strength(Collation.Strength.PRIMARY));
+                    aggCheck.match(Expr.eq(Expr.field("str_value"), Expr.string("a")));
+                    return aggCheck.aggregate().size() == 2;
+                });
             Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
             agg.collation(new Collation().locale("de").strength(Collation.Strength.PRIMARY));
             agg.match(Expr.eq(Expr.field("str_value"), Expr.string("a")));

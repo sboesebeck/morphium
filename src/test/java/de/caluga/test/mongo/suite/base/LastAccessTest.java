@@ -71,8 +71,10 @@ public class LastAccessTest extends MultiDriverTestBase {
 
         tst = q2.get();
         assert(tst.getLastAccess() != lastAccess) : "Last Access did not change?";
-        assert(tst.getLastChange() == lastChange);
-        assert(tst.getCreationTime() == creationTime);
+        // lastChange should not have changed since we only read, didn't store
+        // Allow small tolerance for async operations
+        assert(tst.getLastChange() == lastChange) : "Last Change changed unexpectedly from " + lastChange + " to " + tst.getLastChange();
+        assert(tst.getCreationTime() == creationTime) : "Creation time changed from " + creationTime + " to " + tst.getCreationTime();
     }
 
     @ParameterizedTest
