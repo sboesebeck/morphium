@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Programmatic API: `setDumpDirectory()`, `setDumpIntervalMs()`, `dumpNow()`, `restoreFromDump()`
 
 ### Fixed
+- **MultiCollectionMessaging DM polling when change streams disabled**: When `setUseChangeStream(false)` is called on `MultiCollectionMessaging`, direct messages (DMs) are now also polled instead of using change streams. Previously, DMs were always using change streams regardless of the setting, causing inconsistent behavior. Added new `pollAndProcessAllDms()` method and updated the poll trigger handler to support "dm_all" triggers
+- **Graceful thread pool shutdown in Morphium**: Changed `asyncOperationsThreadPool.shutdownNow()` to graceful shutdown to prevent abrupt task termination
+- **PooledDriver NPE and race conditions**: Fixed null pointer exception for `primaryNode`, race condition with `primaryNodeLock`, and connection cleanup improvements
+- **MorphiumWriterImpl graceful shutdown**: Added graceful shutdown in `close()` and `onShutdown()` methods
+- **InMemoryDriver change stream race condition**: Fixed race condition in change stream handling (line 633-646)
 - **Flaky IteratorTest.concurrentAccessTest**: Fixed race condition where multiple threads sharing a single iterator would call `hasNext()` and `next()` non-atomically, causing incorrect element counts (e.g., 29130 instead of 25000). The test now properly synchronizes the hasNext+next critical section
 - **Parallel test database isolation**: Fixed race condition in MultiDriverTestBase where database cleanup would drop ALL databases matching the prefix pattern, including databases from other parallel tests that were still running. Now each test only drops its own database, preventing "expected X but was 0" failures in parallel execution
 - **MorphiumServer listDatabases**: Added explicit handler for `listDatabases` command in MorphiumServer. Previously this command returned null when forwarded through GenericCommand, causing NullPointerException in tests that call `morphium.listDatabases()`
@@ -92,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NPE fixes**: Fixed null pointer exceptions in various components during edge cases
 - **Election priorities**: Fixed election priority handling to ensure highest-priority node becomes primary
 - **Read preference on secondary**: Fixed read preference checks when operating on secondary nodes
+- **Flaky CollationTest timing**: Added wait conditions for collation queries to handle replica set replication delay. Previously, tests would fail intermittently because collation queries were executed before data was fully replicated
+- **Flaky ExclusiveMessageBasicTests timing**: Increased timing tolerance from 30s to 35s to account for timing variance in message processing
+- **Flaky LastAccessTest assertions**: Added better error messages for debugging timing-related assertion failures
+- **CacheTests write buffer timeout**: Increased write buffer flush timeout from 3s to 10s to handle MorphiumServer latency
 
 ### Added (Tests)
 - **Failover tests for MorphiumServer replica sets**: Added comprehensive failover tests (`FailoverTest.java`) that verify:

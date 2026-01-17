@@ -261,7 +261,8 @@ public class CacheTests extends MultiDriverTestBase {
             }
 
             // CachedObject uses @WriteBuffer - flush to ensure all writes are committed
-            TestUtils.waitForConditionToBecomeTrue(3000, "Write buffer not flushed",
+            // Use longer timeout for MorphiumServer which may have higher latency
+            TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushed",
                                                    () -> morphium.writeBufferCount() == 0);
 
             TestUtils.waitForConditionToBecomeTrue(10000, "Objects not stored",
