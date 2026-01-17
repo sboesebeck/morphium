@@ -1692,7 +1692,17 @@ else
 					echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
 					kill $(<$testPid)
 				fi
-				sleep $refresh
+				# Use shorter sleep intervals so we can respond faster to process completion
+				for ((i = 0; i < refresh; i++)); do
+					sleep 1
+					# Check again if process finished during sleep
+					if [ -e "$testPid" ]; then
+						pid=$(<$testPid)
+						if ! kill -0 $pid 2>/dev/null; then
+							break 2 # Break out of both loops
+						fi
+					fi
+				done
 			done
 			break
 		done
