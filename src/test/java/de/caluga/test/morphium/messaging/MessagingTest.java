@@ -38,37 +38,37 @@ public class MessagingTest extends MultiDriverTestBase {
     private final AtomicInteger queueCount = new AtomicInteger(1000);
 
 
-    // @Test
-    // public void runMessageRoundtripForEver()throws Exception{
-    //     MorphiumConfig cfg = new MorphiumConfig();
-    //     cfg.connectionSettings().setMaxConnections(10);
-    //     cfg.connectionSettings().setMaxWaitTime(10000);
-    //     cfg.connectionSettings().setHeartbeatFrequency(250);
-    //     cfg.connectionSettings().setConnectionTimeout(1000);
-    //     cfg.connectionSettings().setRetriesOnNetworkError(3);
-    //     cfg.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
-    //     cfg.driverSettings().setDriverName(PooledDriver.driverName);
-    //     cfg.clusterSettings().addHostToSeed("localhost:17017");
-    //     cfg.clusterSettings().addHostToSeed("localhost:17018");
-    //     cfg.clusterSettings().addHostToSeed("localhost:17019");
-    //     cfg.clusterSettings().setReplicaset(true);
+    @Test
+    public void runMessageRoundtripForEver()throws Exception{
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.connectionSettings().setMaxConnections(10);
+        cfg.connectionSettings().setMaxWaitTime(10000);
+        cfg.connectionSettings().setHeartbeatFrequency(250);
+        cfg.connectionSettings().setConnectionTimeout(1000);
+        cfg.connectionSettings().setRetriesOnNetworkError(3);
+        cfg.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
+        cfg.driverSettings().setDriverName(PooledDriver.driverName);
+        cfg.clusterSettings().addHostToSeed("localhost:17017");
+        cfg.clusterSettings().addHostToSeed("localhost:17018");
+        cfg.clusterSettings().addHostToSeed("localhost:17019");
+        cfg.clusterSettings().setReplicaset(true);
 
-    //     Morphium m = new Morphium(cfg);
+        Morphium m = new Morphium(cfg);
 
-    //     MorphiumMessaging sender = m.createMessaging();
-    //     sender.start();
-    //     MorphiumMessaging receiver = m.createMessaging();
-    //     receiver.start();
-    //     receiver.addListenerForTopic("test", (msgs, msg)->{
-    //         log.info("Got message");
-    //         return null;
-    //     });
-    //     while (true) {
-    //         Thread.sleep(1000);
-    //         Msg msg = new Msg("test", "test", "test");
-    //         sender.sendMessage(msg);
-    //     }
-    // }
+        MorphiumMessaging sender = m.createMessaging();
+        sender.start();
+        MorphiumMessaging receiver = m.createMessaging();
+        receiver.start();
+        receiver.addListenerForTopic("test", (msgs, msg)->{
+            log.info("Got message");
+            return null;
+        });
+        while (true) {
+            Thread.sleep(1000);
+            Msg msg = new Msg("test", "test", "test");
+            sender.sendMessage(msg);
+        }
+    }
 
     @ParameterizedTest
     @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
