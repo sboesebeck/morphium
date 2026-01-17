@@ -168,7 +168,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // stream status
             for (var name : pollTrigger.keySet()) {
                 if (pollTrigger.get(name).get() != 0) {
-                    if (name.startsWith("dm_")) {
+                    if (name.equals("dm_all")) {
+                        // Handle all DMs (used when change streams are disabled)
+                        pollAndProcessAllDms();
+                    } else if (name.startsWith("dm_")) {
                         pollAndProcessDms(name.substring(3));
                     } else if (!isUseChangeStream()) {
                         // Only poll when change streams are disabled
@@ -212,120 +215,123 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         String dmCollectionName = getDMCollectionName();
         morphium.ensureIndicesFor(Msg.class, dmCollectionName);
 
-        List<Map<String, Object>> pipeline = List
-                                             .of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
-        directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
-            morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
-        directMessagesMonitor.addListener((evt) -> {
-            // Skip processing if not running - but always return true to keep listener registered
-            if (!running.get()) {
-                return true;
-            }
-            // All messages coming in here are for me!
-            Map<String, Object> doc = evt.getFullDocument();
-            Msg msg = morphium.getMapper().deserialize(Msg.class, doc);
-            if (msg.isAnswer()) {
-                // Answer handling
-                handleAnswer(msg);
-            } else {
-                if (pausedTopics.contains(msg.getTopic())) {
+        if (isUseChangeStream()) {
+            // Use change stream for DM collection
+            List<Map<String, Object>> pipeline = List
+                                                 .of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
+            directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
+                morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
+            directMessagesMonitor.addListener((evt) -> {
+                // Skip processing if not running - but always return true to keep listener registered
+                if (!running.get()) {
                     return true;
-
                 }
-                if (monitorsByTopic.containsKey(msg.getTopic())) {
-                    // For broadcast messages, use permanent tracking to prevent duplicate delivery
-                    if (!msg.isExclusive()) {
-                        if (!locallyProcessedBroadcastIds.add(msg.getMsgId())) {
-                            return true;  // Already processed this broadcast
-                        }
-                    }
-
-                    // Use atomic add operation - if already present, skip processing
-                    // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
-                    // is still being processed by another thread that added it to processingMessages
-                    if (!processingMessages.add(msg.getMsgId())) {
-                        return true;
-                    }
-
-                    // Count how many listeners we're queueing for this message
-                    var listeners = monitorsByTopic.get(msg.getTopic());
-                    int listenerCount = (int) listeners.stream().filter(map -> map.get(MType.listener) != null).count();
-
-                    // Use atomic counter to track when all listeners have finished
-                    var remainingListeners = new java.util.concurrent.atomic.AtomicInteger(listenerCount);
-
-                    for (var map : listeners) {
-                        MessageListener l = (MessageListener) map.get(MType.listener);
-                        if (l == null)
-                            continue;
-
-                        queueOrRun(() -> {
-                            try {
-                                if (l.markAsProcessedBeforeExec()) {
-                                    updateProcessedBy(msg);
-                                }
-                                try {
-                                    var ret = l.onMessage(MultiCollectionMessaging.this, msg);
-                                    if (!running.get())
-                                        return;
-                                    if (ret == null && effectiveSettings.isAutoAnswer()) {
-                                        ret = new Msg(msg.getTopic(), "received", "");
-                                    }
-                                    if (ret != null) {
-                                        ret.setRecipient(msg.getSender());
-                                        ret.setInAnswerTo(msg.getMsgId());
-                                        queueMessage(ret);
-                                    }
-                                } catch (Exception e) {
-                                    log.error("Error processinig message");
-                                }
-
-                                var deleted = false;
-                                if (msg.isDeleteAfterProcessing()) {
-                                    if (msg.getDeleteAfterProcessingTime() == 0) {
-                                        morphium.remove(msg, dmCollectionName);
-                                        deleted = true;
-                                    } else {
-                                        msg.setDeleteAt(
-                                                        new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
-                                        msg.addProcessedId(getSenderId());
-                                        morphium.updateUsingFields(msg, dmCollectionName, new AsyncCallbackAdapter(),
-                                                                   Msg.Fields.deleteAt, Msg.Fields.processedBy);
-                                    }
-                                }
-                                if (!deleted && !l.markAsProcessedBeforeExec()) {
-                                    updateProcessedBy(msg);
-                                }
-                            } finally {
-                                // CRITICAL: Only remove from processingMessages when ALL listeners have finished
-                                // This prevents race condition where message is re-processed while listeners are still running
-                                if (remainingListeners.decrementAndGet() == 0) {
-                                    // Move to recentlyCompletedMessages before removing from processingMessages
-                                    recentlyCompletedMessages.put(msg.getMsgId(), System.currentTimeMillis());
-                                    processingMessages.remove(msg.getMsgId());
-                                }
-                            }
-                        });
-                    }
+                // All messages coming in here are for me!
+                Map<String, Object> doc = evt.getFullDocument();
+                Msg msg = morphium.getMapper().deserialize(Msg.class, doc);
+                if (msg.isAnswer()) {
+                    // Answer handling
+                    handleAnswer(msg);
                 } else {
-                    log.warn("incoming direct message for topic {} - no listener registered", msg.getTopic());
-                    morphium.remove(msg, dmCollectionName);
+                    if (pausedTopics.contains(msg.getTopic())) {
+                        return true;
+
+                    }
+                    if (monitorsByTopic.containsKey(msg.getTopic())) {
+                        // For broadcast messages, use permanent tracking to prevent duplicate delivery
+                        if (!msg.isExclusive()) {
+                            if (!locallyProcessedBroadcastIds.add(msg.getMsgId())) {
+                                return true;  // Already processed this broadcast
+                            }
+                        }
+
+                        // Use atomic add operation - if already present, skip processing
+                        // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
+                        // is still being processed by another thread that added it to processingMessages
+                        if (!processingMessages.add(msg.getMsgId())) {
+                            return true;
+                        }
+
+                        // Count how many listeners we're queueing for this message
+                        var listeners = monitorsByTopic.get(msg.getTopic());
+                        int listenerCount = (int) listeners.stream().filter(map -> map.get(MType.listener) != null).count();
+
+                        // Use atomic counter to track when all listeners have finished
+                        var remainingListeners = new java.util.concurrent.atomic.AtomicInteger(listenerCount);
+
+                        for (var map : listeners) {
+                            MessageListener l = (MessageListener) map.get(MType.listener);
+                            if (l == null)
+                                continue;
+
+                            queueOrRun(() -> {
+                                try {
+                                    if (l.markAsProcessedBeforeExec()) {
+                                        updateProcessedBy(msg);
+                                    }
+                                    try {
+                                        var ret = l.onMessage(MultiCollectionMessaging.this, msg);
+                                        if (!running.get())
+                                            return;
+                                        if (ret == null && effectiveSettings.isAutoAnswer()) {
+                                            ret = new Msg(msg.getTopic(), "received", "");
+                                        }
+                                        if (ret != null) {
+                                            ret.setRecipient(msg.getSender());
+                                            ret.setInAnswerTo(msg.getMsgId());
+                                            queueMessage(ret);
+                                        }
+                                    } catch (Exception e) {
+                                        log.error("Error processinig message");
+                                    }
+
+                                    var deleted = false;
+                                    if (msg.isDeleteAfterProcessing()) {
+                                        if (msg.getDeleteAfterProcessingTime() == 0) {
+                                            morphium.remove(msg, dmCollectionName);
+                                            deleted = true;
+                                        } else {
+                                            msg.setDeleteAt(
+                                                            new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
+                                            msg.addProcessedId(getSenderId());
+                                            morphium.updateUsingFields(msg, dmCollectionName, new AsyncCallbackAdapter(),
+                                                                       Msg.Fields.deleteAt, Msg.Fields.processedBy);
+                                        }
+                                    }
+                                    if (!deleted && !l.markAsProcessedBeforeExec()) {
+                                        updateProcessedBy(msg);
+                                    }
+                                } finally {
+                                    // CRITICAL: Only remove from processingMessages when ALL listeners have finished
+                                    // This prevents race condition where message is re-processed while listeners are still running
+                                    if (remainingListeners.decrementAndGet() == 0) {
+                                        // Move to recentlyCompletedMessages before removing from processingMessages
+                                        recentlyCompletedMessages.put(msg.getMsgId(), System.currentTimeMillis());
+                                        processingMessages.remove(msg.getMsgId());
+                                    }
+                                }
+                            });
+                        }
+                    } else {
+                        log.warn("incoming direct message for topic {} - no listener registered", msg.getTopic());
+                        morphium.remove(msg, dmCollectionName);
+                    }
                 }
-            }
-            return true;  // Always keep listener registered - cleanup happens in terminate()
-        });
-        directMessagesMonitor.start();
-        if (!isUseChangeStream()) {
+                return true;  // Always keep listener registered - cleanup happens in terminate()
+            });
+            directMessagesMonitor.start();
+            pollAndProcess();
+        } else {
+            // Use polling for both topic messages and DMs
             log.info("Start polling as changestreams are disabled");
             decouplePool.scheduleWithFixedDelay(() -> {
                 try {
                     pollAndProcess();
+                    pollAndProcessAllDms();
                 } catch (Throwable e) {
                     log.info("Error in polling thread", e);
                 }
             }, 1000, getPause(), TimeUnit.MILLISECONDS);
-        } else {
-            pollAndProcess();
         }
         // Signal that messaging is now ready (direct messages change stream is initialized)
         ready = true;
@@ -755,6 +761,72 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         if (more) {
             pollTrigger.putIfAbsent("dm_" + name, new AtomicInteger(0));
             pollTrigger.get("dm_" + name).incrementAndGet();
+        }
+    }
+
+    /**
+     * Poll and process all direct messages (used when change streams are disabled).
+     * Unlike pollAndProcessDms which filters by topic, this processes all DMs for this recipient.
+     */
+    private void pollAndProcessAllDms() {
+        if (!running.get())
+            return;
+        
+        String dmCollectionName = getDMCollectionName();
+        // Query for unprocessed messages in DM collection
+        // Exclude messages already being processed or recently completed
+        var q = morphium.createQueryFor(Msg.class, dmCollectionName)
+                .f("processed_by.0").notExists() // not processed
+                .f(Msg.Fields.msgId).nin(new ArrayList<>(processingMessages));
+        
+        int window = getWindowSize();
+        q.limit(window + 1);
+        q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
+        
+        int seen = 0;
+        boolean more = false;
+        
+        for (Msg m : q.asIterable(window + 1)) {
+            if (seen >= window) {
+                more = true;
+                break;
+            }
+            
+            // Skip paused topics
+            if (pausedTopics.contains(m.getTopic())) {
+                continue;
+            }
+            
+            // Skip if recently completed (prevents duplicate processing due to query timing)
+            if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
+                continue;
+            }
+            
+            // Skip if already being processed (check without adding)
+            if (processingMessages.contains(m.getMsgId())) {
+                continue;
+            }
+            
+            log.debug("DM polling found message {} (answer={})", m.getMsgId(), m.isAnswer());
+            
+            // Let handleAnswer/processMessage manage their own processingMessages tracking
+            queueOrRun(() -> {
+                if (m.isAnswer()) {
+                    handleAnswer(m);
+                } else if (monitorsByTopic.containsKey(m.getTopic())) {
+                    processMessage(m);
+                } else {
+                    log.warn("incoming direct message for topic {} - no listener registered", m.getTopic());
+                    morphium.remove(m, dmCollectionName);
+                }
+            });
+            seen++;
+        }
+        
+        // Trigger more polling if there are additional messages
+        if (more) {
+            pollTrigger.putIfAbsent("dm_all", new AtomicInteger(0));
+            pollTrigger.get("dm_all").incrementAndGet();
         }
     }
 

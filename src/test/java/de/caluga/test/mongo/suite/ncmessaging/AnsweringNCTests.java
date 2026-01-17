@@ -159,13 +159,22 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                         question = new Msg("test", "This is the message text", "A question param", 30000, true);
                         question.setMsgId(new MorphiumId());
                         lastMsgId = question.getMsgId();
+                        gotMessage1 = false;
+                        gotMessage2 = false;
+                        gotMessage3 = false;
                         onlyAnswers.sendMessage(question);
-                        log.info("Send Message with id: " + question.getMsgId());
+                        log.info("Send exclusive Message with id: " + question.getMsgId());
                         final MorphiumId questionId = question.getMsgId();
-                        // Use longer timeout for MorphiumServer under parallel load
-                        TestUtils.waitForConditionToBecomeTrue(30000, "Answer not received", () ->
-                                                               morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(questionId).countAll() == 1
+                        // Wait for either m1 or m2 to process (exclusive means only one)
+                        TestUtils.waitForConditionToBecomeTrue(15000, "Exclusive message not processed by any listener", () -> gotMessage1 || gotMessage2);
+                        log.info("Exclusive message processed by m1={} m2={}", gotMessage1, gotMessage2);
+                        // Now wait for the answer to arrive in the DM collection
+                        String dmCollection = onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId());
+                        log.info("Checking for answer in DM collection: {}", dmCollection);
+                        TestUtils.waitForConditionToBecomeTrue(15000, "Answer not received in DM collection", () ->
+                                                               morph.createQueryFor(Msg.class, dmCollection).f(Msg.Fields.inAnswerTo).eq(questionId).countAll() == 1
                                                               );
+                        log.info("Answer received for exclusive message");
 
                     } finally {
                         m1.terminate();

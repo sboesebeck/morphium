@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -56,8 +57,11 @@ public class PlainConatinerTest extends MultiDriverTestBase {
             pc.setPlainMap(UtilsMap.of("test", (Object) "value", "test2", Arrays.asList("str1", "stre2")));
             //pc.setPlainMap(UtilsMap.of("$in",(Object)"value").add("$test2",UtilsMap.of("$str1","stre2")));
             morphium.store(pc);
-            Thread.sleep(200);
+            TestUtils.waitForWrites(morphium, log);
+            TestUtils.waitForConditionToBecomeTrue(5000, "PlainContainer not found",
+                () -> morphium.findById(PlainContainer.class, pc.getId()) != null);
             PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
+            assertNotNull(pc2, "PlainContainer should be found after waiting");
             assertEquals(pc.getId(), pc2.getId());
             assertEquals(2, pc2.getPlainMap().size());
             assertTrue(pc2.getPlainMap().get("test2") instanceof List);
