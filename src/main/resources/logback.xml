@@ -1,24 +1,22 @@
+<?xml version="1.0"?>
 <configuration>
-
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <!-- encoders are assigned the type org.springframework.web.servlet.DispatcherServlet.render(DispatcherServlet.java:1266)
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <!-- encoders are assigned the type org.springframework.web.servlet.DispatcherServlet.render(DispatcherServlet.java:1266)
              ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
-        <withJansi>false</withJansi>
-        <encoder>
-            <pattern>%highlight(%d{yyyy-MM-dd HH:mm:ss.SSS}) %5p - [%8.8t] %32.32C.%-22.22M\(%32F:%1.4L\) - %msg\n
+    <withJansi>false</withJansi>
+    <encoder>
+      <pattern>%highlight(%d{yyyy-MM-dd HH:mm:ss.SSS}) %5p - [%8.8t] %32.32C.%-22.22M\(%32F:%1.4L\) - %msg\n
             </pattern>
-        </encoder>
-    </appender>
-
-    <logger name="org.mongodb.driver" level="WARN"/>
-    <logger name="org.mongodb.driver.connection" level="WARN"/>
-    <logger name="de.caluga" level="WARN"/>
-    <logger name="de.caluga.morphium.driver" level="INFO"/>
-    <logger name="de.caluga.morphium.server" level="INFO"/>
-    <logger name="de.caluga.morphium.driver.inmem.InMemoryDriver" level="INFO"/>
-    <logger name="de.caluga.morphium.messaging.SingleCollectionMessaging" level="INFO"/>
-
-    <root level="INFO">
-        <appender-ref ref="STDOUT"/>
-    </root>
+    </encoder>
+  </appender>
+  <logger name="org.mongodb.driver" level="WARN"/>
+  <logger name="org.mongodb.driver.connection" level="WARN"/>
+  <logger name="de.caluga" level="WARN"/>
+  <logger name="de.caluga.morphium.driver" level="INFO"/>
+  <logger name="de.caluga.morphium.server" level="INFO"/>
+  <logger name="de.caluga.morphium.driver.inmem.InMemoryDriver" level="INFO"/>
+  <logger name="de.caluga.morphium.messaging.SingleCollectionMessaging" level="INFO"/>
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
 </configuration>
