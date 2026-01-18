@@ -80,6 +80,7 @@ public class MorphiumConfig {
             writerSettings,
             threadPoolSettings,
             objectMappingSettings,
+            cacheSettings,
             driverSettings,
             connectionSettings,
             collectionCheckSettings,
