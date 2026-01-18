@@ -95,6 +95,7 @@ public class MorphiumConfig {
                                    objectMappingSettings,
                                    driverSettings,
                                    connectionSettings,
+                                   cacheSettings,
                                    collectionCheckSettings,
                                    messagingSettings
                    );
