@@ -13,7 +13,7 @@ public class CacheSettings extends Settings {
     private boolean readCacheEnabled = true;
     private boolean asyncWritesEnabled = true;
     private boolean bufferedWritesEnabled = true;
-    private int housekeepingTimeout;
+    private int housekeepingTimeout = 5000;
     public int getHousekeepingTimeout() {
         return housekeepingTimeout;
     }
