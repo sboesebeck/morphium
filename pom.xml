@@ -45,9 +45,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
     <!-- JUnit tag control (defaults) -->
-    <test.includeTags />
+    <test.includeTags/>
     <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
@@ -204,7 +204,7 @@
     <profile>
       <id>external</id>
       <properties>
-        <test.excludeTags />
+        <test.excludeTags/>
       </properties>
       <build>
         <plugins>
@@ -298,7 +298,7 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>2.0.0</version>
+      <version>2.0.17</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
