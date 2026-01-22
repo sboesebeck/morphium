@@ -45,9 +45,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
     <!-- JUnit tag control (defaults) -->
-    <test.includeTags />
+    <test.includeTags/>
     <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
@@ -204,7 +204,7 @@
     <profile>
       <id>external</id>
       <properties>
-        <test.excludeTags />
+        <test.excludeTags/>
       </properties>
       <build>
         <plugins>
@@ -413,7 +413,7 @@
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
-      <version>4.1.100.Final</version>
+      <version>4.2.9.Final</version>
       <optional>true</optional>
     </dependency>
     <dependency>
