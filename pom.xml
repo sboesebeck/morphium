@@ -43,11 +43,11 @@
     <java.version>21</java.version>
     <jacoco.percentage.instruction>0.40</jacoco.percentage.instruction>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <mongodbDriver.version>4.7.1</mongodbDriver.version>
+    <mongodbDriver.version>4.11.5</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
     <!-- JUnit tag control (defaults) -->
-    <test.includeTags />
+    <test.includeTags/>
     <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
@@ -204,7 +204,7 @@
     <profile>
       <id>external</id>
       <properties>
-        <test.excludeTags />
+        <test.excludeTags/>
       </properties>
       <build>
         <plugins>
