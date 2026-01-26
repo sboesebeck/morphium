@@ -1260,14 +1260,15 @@ public class PooledDriver extends DriverBase {
 
         MorphiumTransactionContext ctx = getTransactionContext();
         MongoConnection con = getPrimaryConnection(null);
-        var cmd = new CommitTransactionCommand(con).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false)
-        .setLsid(ctx.getLsid());
-        cmd.execute();
-        // getPrimaryConnection(null).sendCommand(Doc.of("commitTransaction", 1,
-        // "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id",
-        // ctx.getLsid()), "$db", "admin"));
-        clearTransactionContext();
-        releaseConnection(con);
+
+        try {
+            var cmd = new CommitTransactionCommand(con).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false)
+            .setLsid(ctx.getLsid());
+            cmd.execute();
+        } finally {
+            clearTransactionContext();
+            releaseConnection(con);
+        }
     }
 
     @Override
@@ -1388,10 +1389,14 @@ public class PooledDriver extends DriverBase {
         // noinspection unchecked
         return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
             var con = getReadConnection(ReadPreference.primary());
-            ListCollectionsCommand cmd = new ListCollectionsCommand(con);
-            cmd.setDb(db);
-            cmd.setFilter(Doc.of("name", collection));
-            return cmd.execute();
+            try {
+                ListCollectionsCommand cmd = new ListCollectionsCommand(con);
+                cmd.setDb(db);
+                cmd.setFilter(Doc.of("name", collection));
+                return cmd.execute();
+            } finally {
+                releaseConnection(con);
+            }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 

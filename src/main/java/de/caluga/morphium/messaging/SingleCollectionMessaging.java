@@ -424,7 +424,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     // Use LinkedHashSet for O(1) contains and add operations (debug duplicate detection only)
     private final Set<Object> docIdsFromChangestreamSet = Collections.synchronizedSet(new LinkedHashSet<>());
     // Prevent duplicate listener invocation within the same JVM instance (especially important for InMem + change streams).
-    private final Set<MorphiumId> locallyProcessedMessageIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    // Maps message ID to timestamp when it was processed for TTL-based cleanup.
+    private final Map<MorphiumId, Long> locallyProcessedMessageIds = new ConcurrentHashMap<>();
+    // How long to keep message IDs tracked (30 minutes - should exceed any realistic message TTL)
+    private static final long MESSAGE_TRACKING_RETENTION_MS = 30 * 60 * 1000;
     private boolean handleChangeStreamEvent(ChangeStreamEvent evt) {
         log.debug("CSE: {} incoming change stream event", this.id);
         if (!running) {
@@ -668,6 +671,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
+                    // Cleanup old message tracking entries to prevent unbounded memory growth
+                    long cleanupTime = System.currentTimeMillis();
+                    locallyProcessedMessageIds.entrySet().removeIf(entry ->
+                                         cleanupTime - entry.getValue() > MESSAGE_TRACKING_RETENTION_MS);
+
                     // Poll when:
                     // 1. requestPoll > 0 (lock deleted, new messages likely available)
                     // 2. change streams disabled (always poll)
@@ -1189,7 +1197,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // If a listener rejects a message, remove the local mark to allow retry.
         boolean locallyMarked = false;
         if (!msg.isExclusive()) {
-            locallyMarked = locallyProcessedMessageIds.add(msg.getMsgId());
+            locallyMarked = locallyProcessedMessageIds.putIfAbsent(msg.getMsgId(), System.currentTimeMillis()) == null;
             if (!locallyMarked) {
                 return;
             }
