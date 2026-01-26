@@ -34,6 +34,9 @@ public class SingleMongoConnection implements MongoConnection {
     private Socket s;
     private OutputStream out;
     private InputStream in;
+    // Cache the source port so it's available even after socket is closed
+    // This is needed for proper cleanup in PooledDriver.releaseConnection()
+    private volatile int cachedSourcePort = 0;
 
     private AtomicInteger msgId = new AtomicInteger(1000);
 
@@ -95,6 +98,8 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         // startReaderThread();
+        // Cache the source port for later use (needed for cleanup even after socket close)
+        cachedSourcePort = s.getLocalPort();
         var hello = getHelloResult(true);
         connectedTo = host;
         connectedToPort = port;
@@ -535,11 +540,12 @@ public class SingleMongoConnection implements MongoConnection {
 
     @Override
     public int getSourcePort() {
-        if (s == null) {
-            return 0;
+        if (s != null) {
+            // Update cache while socket is available
+            cachedSourcePort = s.getLocalPort();
         }
-
-        return s.getLocalPort();
+        // Return cached value (works even after socket is closed)
+        return cachedSourcePort;
     }
 
     @Override
