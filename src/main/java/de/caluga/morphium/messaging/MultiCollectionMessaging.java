@@ -72,9 +72,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     // How long to keep message IDs in recentlyCompletedMessages (ms)
     private static final long RECENTLY_COMPLETED_RETENTION_MS = 10000;
 
-    // Permanent tracking set for broadcast messages - prevents duplicate delivery to same instance.
-    // Unlike processingMessages which is removed after processing, this is only removed on retry.
-    private final Set<MorphiumId> locallyProcessedBroadcastIds = ConcurrentHashMap.newKeySet();
+    // Tracking map for broadcast messages - prevents duplicate delivery to same instance.
+    // Unlike processingMessages which is removed after processing, this is only removed on retry or cleanup.
+    // Maps message ID to timestamp when it was processed for TTL-based cleanup.
+    private final Map<MorphiumId, Long> locallyProcessedBroadcastIds = new ConcurrentHashMap<>();
+    // How long to keep broadcast IDs tracked (30 minutes default - should exceed any realistic message TTL)
+    private static final long BROADCAST_TRACKING_RETENTION_MS = 30 * 60 * 1000;
 
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
@@ -213,6 +216,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             recentlyCompletedMessages.entrySet().removeIf(entry ->
                                      cleanupTime - entry.getValue() > RECENTLY_COMPLETED_RETENTION_MS);
 
+            // Cleanup old broadcast tracking entries to prevent unbounded memory growth
+            locallyProcessedBroadcastIds.entrySet().removeIf(entry ->
+                                     cleanupTime - entry.getValue() > BROADCAST_TRACKING_RETENTION_MS);
+
         }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS);
 
         String dmCollectionName = getDMCollectionName();
@@ -243,7 +250,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     if (monitorsByTopic.containsKey(msg.getTopic())) {
                         // For broadcast messages, use permanent tracking to prevent duplicate delivery
                         if (!msg.isExclusive()) {
-                            if (!locallyProcessedBroadcastIds.add(msg.getMsgId())) {
+                            if (locallyProcessedBroadcastIds.putIfAbsent(msg.getMsgId(), System.currentTimeMillis()) != null) {
                                 return true;  // Already processed this broadcast
                             }
                         }
@@ -652,7 +659,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         // For broadcast messages, use permanent tracking to prevent duplicate delivery
         if (!m.isExclusive()) {
-            if (!locallyProcessedBroadcastIds.add(m.getMsgId())) {
+            if (locallyProcessedBroadcastIds.putIfAbsent(m.getMsgId(), System.currentTimeMillis()) != null) {
                 if (alreadyTracked) {
                     processingMessages.remove(m.getMsgId());
                 }
@@ -922,7 +929,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 }
 
                 // For broadcast messages, check permanent tracking
-                if (!m.isExclusive() && locallyProcessedBroadcastIds.contains(m.getMsgId())) {
+                if (!m.isExclusive() && locallyProcessedBroadcastIds.containsKey(m.getMsgId())) {
                     continue;  // Already processed this broadcast
                 }
 
@@ -1197,7 +1204,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
             // For broadcast messages, use permanent tracking to prevent duplicate delivery
             if (!doc.isExclusive()) {
-                if (!locallyProcessedBroadcastIds.add(doc.getMsgId())) {
+                if (locallyProcessedBroadcastIds.putIfAbsent(doc.getMsgId(), System.currentTimeMillis()) != null) {
                     log.info("CSM: Broadcast {} already processed, skipping", doc.getMsgId());
                     return true;  // Already processed this broadcast
                 }
