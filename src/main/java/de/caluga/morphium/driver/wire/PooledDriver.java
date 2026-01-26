@@ -1074,7 +1074,19 @@ public class PooledDriver extends DriverBase {
             if (con.getConnectedTo() != null) {
                 Host h = hosts.get(con.getConnectedTo());
                 if (h != null) {
-                    h.getConnectionPool().add(c);
+                    // Use offer() with timeout instead of add() to prevent lock convoy under high contention
+                    try {
+                        if (!h.getConnectionPool().offer(c, 100, TimeUnit.MILLISECONDS)) {
+                            log.warn("Could not return connection to pool within timeout - closing connection");
+                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                            try { c.getCon().close(); } catch (Exception ignored) {}
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.warn("Interrupted while returning connection to pool - closing connection");
+                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                        try { c.getCon().close(); } catch (Exception ignored) {}
+                    }
                     h.decrementBorrowedConnections();
                     markStatsDirty();
                 } else {
