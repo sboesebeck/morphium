@@ -333,6 +333,15 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("Reply is null - cannot watch - retrying");
                 } else if (e.getMessage().contains("cursor is null")) {
                     log.warn("Cursor is null - cannot watch - retrying");
+                } else if (e.getMessage().contains("ChangeStreamHistoryLost") || e.getMessage().contains("resume point may no longer be in the oplog")) {
+                    // Oplog has rolled past our resume point - discard token and start fresh
+                    log.warn("Oplog rolled past resume point for changestream '{}' - discarding resume token and restarting fresh", collectionName);
+                    lastResumeToken = null;
+                    try {
+                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                    } catch (InterruptedException ex) {
+                        if (!running) break;
+                    }
                 } else if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");
                 } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time") || e.getMessage().contains("Read timed out")) {
