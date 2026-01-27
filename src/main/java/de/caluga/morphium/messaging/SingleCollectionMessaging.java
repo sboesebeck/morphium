@@ -1162,8 +1162,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         if (delAt != null) {
             lck.setDeleteAt(delAt);
-        } else {
+        } else if (m.isTimingOut() && m.getTtl() > 0) {
+            // Message has TTL → lock expires after TTL * 2
             lck.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl() * 2));
+        } else {
+            // Message has no timeout → lock should also not expire quickly
+            // Use 7 days as fallback to prevent stuck locks if job crashes
+            lck.setDeleteAt(new Date(System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000L));
         }
 
         InsertMongoCommand cmd = null;
