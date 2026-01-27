@@ -337,9 +337,17 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("Changstream connection broke - restarting");
                 } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time") || e.getMessage().contains("Read timed out")) {
                     log.debug("changestream iteration");
-                } else if (e.getMessage().contains("closed") || morphium.getConfig() == null) {
-                    log.warn("connection closed!", e);
+                } else if (morphium.getConfig() == null) {
+                    log.warn("Morphium config is null, stopping changestream monitor for '{}'", collectionName);
                     break;
+                } else if (e.getMessage().contains("closed")) {
+                    // Connection closed is often transient (network issues, failover) - retry instead of giving up
+                    log.warn("Connection closed for changestream '{}' - will retry", collectionName);
+                    try {
+                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                    } catch (InterruptedException ex) {
+                        if (!running) break;
+                    }
                 } else if (e.getMessage().contains("No such host")) {
                     // Server was shut down, stop trying to reconnect
                     log.warn("Server no longer available (No such host), stopping changestream monitor for collection '{}'", collectionName);
