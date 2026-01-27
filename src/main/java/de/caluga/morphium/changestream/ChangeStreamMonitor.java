@@ -342,7 +342,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     break;
                 } else if (e.getMessage().contains("No such host")) {
                     // Server was shut down, stop trying to reconnect
-                    log.debug("Server no longer available, stopping changestream monitor");
+                    log.warn("Server no longer available (No such host), stopping changestream monitor for collection '{}'", collectionName);
                     break;
                 } else {
                     if (running) {
@@ -365,7 +365,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             }
         }
 
-        log.debug("ChangeStreamMonitor finished gracefully!");
+        if (!running) {
+            log.info("ChangeStreamMonitor for '{}' terminated (running=false)", collectionName);
+        } else if (morphium.getConfig() == null) {
+            log.warn("ChangeStreamMonitor for '{}' terminated because morphium config is null!", collectionName);
+        } else {
+            log.warn("ChangeStreamMonitor for '{}' exited unexpectedly!", collectionName);
+        }
     }
 
     private void signalWatchStarted() {
