@@ -28,24 +28,24 @@ public class CommandAsMapTest {
     @Test
     public void asMapAllCommandsTest() throws Exception {
         try (ScanResult scanResult =
-                     new ClassGraph()
-                             //                     .verbose()             // Enable verbose logging
-                             //.enableAnnotationInfo()
-                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-                             .scan()) {
+                    new ClassGraph()
+            //                     .verbose()             // Enable verbose logging
+            //.enableAnnotationInfo()
+            .enableAllInfo()       // Scan classes, methods, fields, annotations
+            .scan()) {
             ClassInfoList entities =
-                    scanResult.getSubclasses(MongoCommand.class.getName());
+            scanResult.getSubclasses(MongoCommand.class.getName());
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             log.debug("Found " + entities.size() + " MongoCommands in classpath");
             for (String cn : entities.getNames()) {
-                if (cn.equals("de.caluga.morphium.driver.inmem.InMemAggregator$1" )){
+                if (cn.equals("de.caluga.morphium.driver.inmem.InMemAggregator$1" )) {
                     //inner class, need to skip
                     continue;
                 }
                 log.debug("Class -> " + cn);
                 try {
-                    Class<? extends MongoCommand> cls = (Class<? extends MongoCommand>) Class.forName(cn);
-                    
+                    Class <? extends MongoCommand > cls = (Class <? extends MongoCommand > ) Class.forName(cn);
+
                     if (Modifier.isAbstract(cls.getModifiers())) continue;
                     MongoCommand cmd = cls.getConstructor(MongoConnection.class).newInstance(new ConnectionMock());
                     cmd.setColl("testcoll").setDb("testDB").setMetaData("test", true);
@@ -65,9 +65,9 @@ public class CommandAsMapTest {
 
     @Test
     public void genericCommandTest() throws Exception {
-        GenericCommand cmd=new GenericCommand(null).setCmdData(Doc.of("helllo",1,"helloOk",true, "loadBalanced",true));
-        var m=cmd.asMap();
-        HelloCommand hc=new HelloCommand(null);
+        GenericCommand cmd = new GenericCommand(null).setCmdData(Doc.of("helllo", 1, "helloOk", true, "loadBalanced", false));
+        var m = cmd.asMap();
+        HelloCommand hc = new HelloCommand(null);
         hc.fromMap(m);
         assertTrue(hc.getHelloOk());
         assertTrue(hc.getLoadBalanced());
