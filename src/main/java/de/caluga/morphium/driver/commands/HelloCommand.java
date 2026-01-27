@@ -104,8 +104,8 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
         }
         if (includeClient) {
             ret.put("client", Doc.of("application", Doc.of("name", "Morphium"),
-                    "driver", Doc.of("name", "Morphium V5/"+driverName, "version", "1.0"),
-                    "os", Doc.of("type", System.getProperty("os.name"))));
+                                     "driver", Doc.of("name", "Morphium V6/" + driverName, "version", "6.1"),
+                                     "os", Doc.of("type", System.getProperty("os.name"))));
         }
         return ret;
     }
