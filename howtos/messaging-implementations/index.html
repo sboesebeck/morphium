@@ -1195,6 +1195,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#messages-not-being-processed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messages Not Being Processed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#duplicate-message-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Duplicate Message Processing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging Checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logging-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1678,6 +1739,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#messages-not-being-processed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messages Not Being Processed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#duplicate-message-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Duplicate Message Processing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging Checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logging-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1776,6 +1898,62 @@
 - Clean‑up: once fully migrated, you may drop the old Standard queue collections (<code>&lt;queue&gt;</code>, <code>&lt;queue&gt;_lck</code>) after verifying they’re unused.</p>
 <h2 id="cache-synchronization">Cache Synchronization<a class="headerlink" href="#cache-synchronization" title="Permanent link">&para;</a></h2>
 <p>Both implementations work with <code>MessagingCacheSynchronizer</code>. No code changes needed—only the implementation selection via config.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="messages-not-being-processed">Messages Not Being Processed<a class="headerlink" href="#messages-not-being-processed" title="Permanent link">&para;</a></h3>
+<p>If messages are piling up in MongoDB but not being processed:</p>
+<ol>
+<li>
+<p><strong>Check if ChangeStreamMonitor is running:</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;changeStream&quot;</span>
+</span></code></pre></div>
+   If no changeStream thread exists, the monitor may have died.</p>
+</li>
+<li>
+<p><strong>Check logs for ChangeStream errors:</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;changestream\|connection closed&quot;</span><span class="w"> </span>/path/to/logs/*.log
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Common causes:</strong></p>
+</li>
+<li>"connection closed" - Network issues or MongoDB failover. Fixed in 6.1.4+ to auto-retry.</li>
+<li>Logging level too high - Set <code>logging.level.de.caluga.morphium=WARN</code> to see ChangeStream logs.</li>
+</ol>
+<h3 id="duplicate-message-processing">Duplicate Message Processing<a class="headerlink" href="#duplicate-message-processing" title="Permanent link">&para;</a></h3>
+<p>If messages are being processed multiple times:</p>
+<ol>
+<li>
+<p><strong>Check lock TTL:</strong>
+   Messages with <code>timingOut=false</code> had a bug where lock TTL was 0, causing locks to expire immediately. Fixed in 6.1.4+.</p>
+</li>
+<li>
+<p><strong>Verify exclusive flag:</strong>
+   Ensure <code>msg.setExclusive(true)</code> for messages that should only be processed once.</p>
+</li>
+</ol>
+<h3 id="debugging-checklist">Debugging Checklist<a class="headerlink" href="#debugging-checklist" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 1. Thread dump - check for blocked threads</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-A<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="s2">&quot;sendAndAwaitFirstAnswer&quot;</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># 2. Check if ChangeStream is alive</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;changeStream&quot;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 3. Check MongoDB message queue</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.countDocuments({})&quot;</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># 4. Check for unprocessed answers</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.countDocuments({in_answer_to: {\$ne: null}})&quot;</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># 5. Check recipients of pending messages</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.distinct(&#39;recipients&#39;)&quot;</span>
+</span></code></pre></div>
+<h3 id="logging-configuration">Logging Configuration<a class="headerlink" href="#logging-configuration" title="Permanent link">&para;</a></h3>
+<p>To see ChangeStream-related logs, ensure your logging level is at least WARN:</p>
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># application.properties (Spring Boot)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="na">logging.level.de.caluga.morphium</span><span class="o">=</span><span class="s">WARN</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="na">logging.level.de.caluga.morphium.changestream</span><span class="o">=</span><span class="s">INFO</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="na">logging.level.de.caluga.morphium.messaging</span><span class="o">=</span><span class="s">INFO</span>
+</span></code></pre></div>
 
 
 
