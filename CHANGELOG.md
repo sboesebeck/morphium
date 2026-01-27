@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### ChangeStreamMonitor Stability
 - **ChangeStreamMonitor dies on "connection closed"**: Previously, a "connection closed" exception would cause the ChangeStreamMonitor to stop permanently with no auto-recovery. This is often a transient error (network issues, MongoDB failover). Now the monitor will retry the connection instead of giving up.
 - **Improved exit logging**: ChangeStreamMonitor now logs at WARN level when it stops, explaining the reason (config null, connection closed, no such host, etc.). Previously most exit conditions were logged at DEBUG level, making it hard to diagnose why messaging stopped working.
+- **Resume token support for ChangeStreamMonitor**: ChangeStreamMonitor now tracks the resume token from each event and uses it when restarting the watch after connection issues. This prevents duplicate events and ensures no events are missed during reconnection. Also handles `ChangeStreamHistoryLost` errors gracefully by discarding the stale token and starting fresh.
 
 ## [6.1.0] 
 
