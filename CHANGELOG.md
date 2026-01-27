@@ -5,6 +5,17 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+#### Messaging Lock TTL Bug
+- **Lock expires immediately when message has no timeout**: When a message had `timingOut=false`, the TTL was 0, causing the lock to be created with `deleteAt = now`. MongoDB's TTL monitor would delete the lock almost immediately, allowing duplicate message processing. Now uses 7 days as fallback TTL for messages without timeout.
+
+#### ChangeStreamMonitor Stability
+- **ChangeStreamMonitor dies on "connection closed"**: Previously, a "connection closed" exception would cause the ChangeStreamMonitor to stop permanently with no auto-recovery. This is often a transient error (network issues, MongoDB failover). Now the monitor will retry the connection instead of giving up.
+- **Improved exit logging**: ChangeStreamMonitor now logs at WARN level when it stops, explaining the reason (config null, connection closed, no such host, etc.). Previously most exit conditions were logged at DEBUG level, making it hard to diagnose why messaging stopped working.
+
 ## [6.1.0] 
 
 ### Added

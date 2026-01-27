@@ -83,3 +83,64 @@ Notes
 
 Both implementations work with `MessagingCacheSynchronizer`. No code changes needed—only the implementation selection via config.
 
+## Troubleshooting
+
+### Messages Not Being Processed
+
+If messages are piling up in MongoDB but not being processed:
+
+1. **Check if ChangeStreamMonitor is running:**
+   ```bash
+   jstack <pid> | grep "changeStream"
+   ```
+   If no changeStream thread exists, the monitor may have died.
+
+2. **Check logs for ChangeStream errors:**
+   ```bash
+   grep -i "changestream\|connection closed" /path/to/logs/*.log
+   ```
+   
+3. **Common causes:**
+   - "connection closed" - Network issues or MongoDB failover. Fixed in 6.1.4+ to auto-retry.
+   - Logging level too high - Set `logging.level.de.caluga.morphium=WARN` to see ChangeStream logs.
+
+### Duplicate Message Processing
+
+If messages are being processed multiple times:
+
+1. **Check lock TTL:**
+   Messages with `timingOut=false` had a bug where lock TTL was 0, causing locks to expire immediately. Fixed in 6.1.4+.
+
+2. **Verify exclusive flag:**
+   Ensure `msg.setExclusive(true)` for messages that should only be processed once.
+
+### Debugging Checklist
+
+```bash
+# 1. Thread dump - check for blocked threads
+jstack <pid> | grep -A 20 "sendAndAwaitFirstAnswer"
+
+# 2. Check if ChangeStream is alive
+jstack <pid> | grep "changeStream"
+
+# 3. Check MongoDB message queue
+mongosh --eval "db.msg.countDocuments({})"
+
+# 4. Check for unprocessed answers
+mongosh --eval "db.msg.countDocuments({in_answer_to: {\$ne: null}})"
+
+# 5. Check recipients of pending messages
+mongosh --eval "db.msg.distinct('recipients')"
+```
+
+### Logging Configuration
+
+To see ChangeStream-related logs, ensure your logging level is at least WARN:
+
+```properties
+# application.properties (Spring Boot)
+logging.level.de.caluga.morphium=WARN
+logging.level.de.caluga.morphium.changestream=INFO
+logging.level.de.caluga.morphium.messaging=INFO
+```
+
