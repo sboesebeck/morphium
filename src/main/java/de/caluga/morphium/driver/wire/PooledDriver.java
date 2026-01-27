@@ -443,7 +443,20 @@ public class PooledDriver extends DriverBase {
                                             stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                             markStatsDirty();
                                         } else {
-                                            connectionPoolForHost.add(connection);
+                                            // Use offer() with timeout to prevent lock convoy
+                                            try {
+                                                if (!connectionPoolForHost.offer(connection, 100, TimeUnit.MILLISECONDS)) {
+                                                    log.warn("Could not return connection to pool within timeout - closing");
+                                                    try { connection.getCon().close(); } catch (Exception ignored) {}
+                                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                                    markStatsDirty();
+                                                }
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                                try { connection.getCon().close(); } catch (Exception ignored) {}
+                                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                                markStatsDirty();
+                                            }
                                         }
                                     } finally {
                                         host.decrementInternalInUseConnections();
@@ -493,7 +506,20 @@ public class PooledDriver extends DriverBase {
 
                                         if (hosts.containsKey(hst)
                                                 && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
-                                            host.getConnectionPool().add(container);
+                                            // Use offer() with timeout to prevent lock convoy
+                                            try {
+                                                if (!host.getConnectionPool().offer(container, 100, TimeUnit.MILLISECONDS)) {
+                                                    log.warn("Could not return connection to pool within timeout - closing");
+                                                    try { container.getCon().close(); } catch (Exception ignored) {}
+                                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                                    markStatsDirty();
+                                                }
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                                try { container.getCon().close(); } catch (Exception ignored) {}
+                                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                                markStatsDirty();
+                                            }
                                         } else {
                                             container.getCon().close();
                                             stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
@@ -695,9 +721,23 @@ public class PooledDriver extends DriverBase {
                                                     && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
                                                     || host.getConnectionPool().size() < getMinConnectionsPerHost()) {
                     var cont = new ConnectionContainer(con);
-                    host.getConnectionPool().add(cont);
-                    markStatsDirty();
-                    con = null; // Don't close, it's now in the pool
+                    // Use offer() with timeout to prevent lock convoy
+                    try {
+                        if (host.getConnectionPool().offer(cont, 100, TimeUnit.MILLISECONDS)) {
+                            markStatsDirty();
+                            con = null; // Don't close, it's now in the pool
+                        } else {
+                            log.warn("Could not add connection to pool within timeout - closing");
+                            try { con.close(); } catch (Exception ignored) {}
+                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                            markStatsDirty();
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        try { con.close(); } catch (Exception ignored) {}
+                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                        markStatsDirty();
+                    }
                 } else {
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                     markStatsDirty();
