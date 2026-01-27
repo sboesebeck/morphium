@@ -414,6 +414,47 @@ public class PooledDriver extends DriverBase {
                 // send HelloCommand to host
                 // process helloCommand (primary etc)
 
+                // Cleanup dead borrowed connections - connections that are no longer connected
+                // but still tracked as borrowed (can happen on network errors, timeouts, etc.)
+                try {
+                    List<Integer> deadBorrowedPorts = new ArrayList<>();
+                    Map<String, Integer> hostsToDecrement = new HashMap<>();
+
+                    for (var bcEntry : new ArrayList<>(borrowedConnections.entrySet())) {
+                        ConnectionContainer cc = bcEntry.getValue();
+                        if (cc == null || cc.getCon() == null || !cc.getCon().isConnected()) {
+                            deadBorrowedPorts.add(bcEntry.getKey());
+                            if (cc != null && cc.getCon() != null && cc.getCon().getConnectedTo() != null) {
+                                hostsToDecrement.merge(cc.getCon().getConnectedTo(), 1, Integer::sum);
+                            }
+                        }
+                    }
+
+                    for (int port : deadBorrowedPorts) {
+                        ConnectionContainer removed = borrowedConnections.remove(port);
+                        if (removed != null && removed.getCon() != null) {
+                            try { removed.getCon().close(); } catch (Exception ignore) {}
+                        }
+                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    }
+
+                    for (var hEntry : hostsToDecrement.entrySet()) {
+                        Host h = hosts.get(hEntry.getKey());
+                        if (h != null) {
+                            for (int i = 0; i < hEntry.getValue(); i++) {
+                                h.decrementBorrowedConnections();
+                            }
+                        }
+                    }
+
+                    if (!deadBorrowedPorts.isEmpty()) {
+                        log.warn("Cleaned up {} dead borrowed connections", deadBorrowedPorts.size());
+                        markStatsDirty();
+                    }
+                } catch (Exception e) {
+                    log.debug("Error during borrowed connection cleanup", e);
+                }
+
                 for (var entry : hosts.entrySet()) {
                     var hst = entry.getKey();
                     var host = entry.getValue();
