@@ -16,6 +16,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -231,7 +233,10 @@ public class PooledDriver extends DriverBase {
     }
 
     private volatile ScheduledFuture<?> heartbeat;
-    private final Object waitCounterSignal = new Object();
+    // Use ReentrantLock + Condition instead of synchronized + wait/notify
+    // to avoid pinning carrier threads when using virtual threads
+    private final ReentrantLock waitCounterLock = new ReentrantLock();
+    private final Condition waitCounterCondition = waitCounterLock.newCondition();
     private List<String> lastHostsFromHello = null;
     /**
      * Some replica sets advertise members using hostnames that differ from the seed list
@@ -560,12 +565,15 @@ public class PooledDriver extends DriverBase {
                 }
             }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
             // thread to create new connections instantly if a thread is waiting
-            // this thread pauses until waitCounter.notifyAll() is called
+            // this thread pauses until waitCounterCondition.signalAll() is called
             Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
                 while (running) {
                     try {
-                        synchronized (waitCounterSignal) {
-                            waitCounterSignal.wait();
+                        waitCounterLock.lock();
+                        try {
+                            waitCounterCondition.await();
+                        } finally {
+                            waitCounterLock.unlock();
                         }
 
                         for (String hst : getHostSeed()) {
@@ -812,9 +820,11 @@ public class PooledDriver extends DriverBase {
                 }
 
                 // although we probably won't get a connection, notify anyways
-                //
-                synchronized (waitCounterSignal) {
-                    waitCounterSignal.notifyAll();
+                waitCounterLock.lock();
+                try {
+                    waitCounterCondition.signalAll();
+                } finally {
+                    waitCounterLock.unlock();
                 }
             }
 
