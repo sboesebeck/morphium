@@ -148,7 +148,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             hostname = "unknown host";
         }
 
-        decouplePool = new ScheduledThreadPoolExecutor(1, Thread.ofVirtual().name("decouple_thr-", 0).factory());
+        decouplePool = new ScheduledThreadPoolExecutor(1, Thread.ofPlatform().name("decouple_thr-", 0).factory());
         allMessagings.add(this);
 
     }
@@ -218,7 +218,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
             // Cleanup old broadcast tracking entries to prevent unbounded memory growth
             locallyProcessedBroadcastIds.entrySet().removeIf(entry ->
-                                     cleanupTime - entry.getValue() > BROADCAST_TRACKING_RETENTION_MS);
+                                        cleanupTime - entry.getValue() > BROADCAST_TRACKING_RETENTION_MS);
 
         }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS);
 
@@ -801,44 +801,44 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private void pollAndProcessAllDms() {
         if (!running.get())
             return;
-        
+
         String dmCollectionName = getDMCollectionName();
         // Query for unprocessed messages in DM collection
         // Exclude messages already being processed or recently completed
         var q = morphium.createQueryFor(Msg.class, dmCollectionName)
                 .f("processed_by.0").notExists() // not processed
                 .f(Msg.Fields.msgId).nin(new ArrayList<>(processingMessages));
-        
+
         int window = getWindowSize();
         q.limit(window + 1);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
-        
+
         int seen = 0;
         boolean more = false;
-        
+
         for (Msg m : q.asIterable(window + 1)) {
             if (seen >= window) {
                 more = true;
                 break;
             }
-            
+
             // Skip paused topics
             if (pausedTopics.contains(m.getTopic())) {
                 continue;
             }
-            
+
             // Skip if recently completed (prevents duplicate processing due to query timing)
             if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
                 continue;
             }
-            
+
             // Skip if already being processed (check without adding)
             if (processingMessages.contains(m.getMsgId())) {
                 continue;
             }
-            
+
             log.debug("DM polling found message {} (answer={})", m.getMsgId(), m.isAnswer());
-            
+
             // Let handleAnswer/processMessage manage their own processingMessages tracking
             queueOrRun(() -> {
                 if (m.isAnswer()) {
@@ -852,7 +852,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             });
             seen++;
         }
-        
+
         // Trigger more polling if there are additional messages
         if (more) {
             pollTrigger.putIfAbsent("dm_all", new AtomicInteger(0));
@@ -1912,7 +1912,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                         effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
                         TimeUnit.MILLISECONDS,
                         new LinkedBlockingQueue<>(),
-                        Thread.ofVirtual().name("msg-thr-", 0).factory());
+                        Thread.ofPlatform().name("msg-thr-", 0).factory());
         threadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
 
             @Override

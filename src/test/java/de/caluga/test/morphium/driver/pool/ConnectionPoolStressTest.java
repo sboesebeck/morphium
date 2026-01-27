@@ -45,6 +45,7 @@ public class ConnectionPoolStressTest {
     void setUp() throws Exception {
         MorphiumConfig config = TestConfig.load();
 
+        config.connectionSettings().setMaxConnections(2);
         morphium = new Morphium(config);
 
         // Wait for connection pool to initialize
@@ -64,7 +65,7 @@ public class ConnectionPoolStressTest {
      */
     @Test
     void testHighContentionBorrowRelease() throws Exception {
-        int numThreads = 50;
+        int numThreads = 150;
         int operationsPerThread = 100;
         int timeoutSeconds = 30;
 
@@ -146,7 +147,7 @@ public class ConnectionPoolStressTest {
     @Test
     void testRapidOperationsWithVaryingLoad() throws Exception {
         int rounds = 5;
-        int threadsPerRound = 20;
+        int threadsPerRound = 250;
         int opsPerThread = 50;
 
         AtomicInteger totalSuccess = new AtomicInteger(0);
@@ -204,7 +205,7 @@ public class ConnectionPoolStressTest {
      */
     @Test
     void testMessagingStyleOperations() throws Exception {
-        int numThreads = 30;
+        int numThreads = 230;
         int operationsPerThread = 100;
         int timeoutSeconds = 60;
 

@@ -31,11 +31,11 @@ public class MessagingOptimizer {
 
     // Standard indexes for messaging - field name -> direction (1 or -1)
     public static final List<Map<String, Object>> MESSAGING_INDEXES = List.of(
-        Doc.of("key", Doc.of("timestamp", 1), "name", "msg_timestamp_1"),
-        Doc.of("key", Doc.of("sender", 1), "name", "msg_sender_1"),
-        Doc.of("key", Doc.of("locked_by", 1, "locked", 1), "name", "msg_locked_by_1_locked_1"),
-        Doc.of("key", Doc.of("processed_by", 1), "name", "msg_processed_by_1")
-    );
+                        Doc.of("key", Doc.of("timestamp", 1), "name", "msg_timestamp_1"),
+                        Doc.of("key", Doc.of("sender", 1), "name", "msg_sender_1"),
+                        Doc.of("key", Doc.of("locked_by", 1, "locked", 1), "name", "msg_locked_by_1_locked_1"),
+                        Doc.of("key", Doc.of("processed_by", 1), "name", "msg_processed_by_1")
+        );
 
     private final InMemoryDriver driver;
     private WatchCursorManager cursorManager;
@@ -63,24 +63,24 @@ public class MessagingOptimizer {
      * @return Registration result
      */
     public Map<String, Object> registerMessagingCollection(String db, String collection,
-                                                            String lockCollection, String senderId) {
+            String lockCollection, String senderId) {
         String key = db + "." + collection;
 
         MessagingCollectionInfo info = messagingCollections.computeIfAbsent(key,
-            k -> {
-                log.info("Registering new messaging collection: {}", key);
-                MessagingCollectionInfo newInfo = new MessagingCollectionInfo(db, collection, lockCollection);
+        k -> {
+            log.info("Registering new messaging collection: {}", key);
+            MessagingCollectionInfo newInfo = new MessagingCollectionInfo(db, collection, lockCollection);
 
-                // Map lock collection to parent
-                if (lockCollection != null && !lockCollection.isEmpty()) {
-                    lockCollectionMapping.put(db + "." + lockCollection, key);
-                }
+            // Map lock collection to parent
+            if (lockCollection != null && !lockCollection.isEmpty()) {
+                lockCollectionMapping.put(db + "." + lockCollection, key);
+            }
 
-                // Create optimized indexes asynchronously
-                createMessagingIndexesAsync(db, collection);
+            // Create optimized indexes asynchronously
+            createMessagingIndexesAsync(db, collection);
 
-                return newInfo;
-            });
+            return newInfo;
+        });
 
         // Add subscriber
         if (senderId != null && !senderId.isEmpty()) {
@@ -89,13 +89,13 @@ public class MessagingOptimizer {
         }
 
         return Doc.of(
-            "ok", 1.0,
-            "registered", true,
-            "collection", key,
-            "lockCollection", info.getLockNamespaceKey(),
-            "subscriberCount", info.getSubscriberIds().size(),
-            "optimizations", List.of("fastChangeStream", "serverSideFiltering", "asyncIndexUpdates")
-        );
+                               "ok", 1.0,
+                               "registered", true,
+                               "collection", key,
+                               "lockCollection", info.getLockNamespaceKey(),
+                               "subscriberCount", info.getSubscriberIds().size(),
+                               "optimizations", List.of("fastChangeStream", "serverSideFiltering", "asyncIndexUpdates")
+               );
     }
 
     /**
@@ -116,11 +116,11 @@ public class MessagingOptimizer {
         // in case the collection is still used for messaging
 
         return Doc.of(
-            "ok", 1.0,
-            "unregistered", true,
-            "collection", key,
-            "remainingSubscribers", info.getSubscriberIds().size()
-        );
+                               "ok", 1.0,
+                               "unregistered", true,
+                               "collection", key,
+                               "remainingSubscribers", info.getSubscriberIds().size()
+               );
     }
 
     /**
@@ -158,7 +158,7 @@ public class MessagingOptimizer {
      * from being sent to a specific subscriber.
      */
     public boolean shouldFilterForSubscriber(String db, String collection,
-                                              String messageSender, String subscriberId) {
+            String messageSender, String subscriberId) {
         // Don't send messages to their own sender
         return messageSender != null && messageSender.equals(subscriberId);
     }
@@ -192,11 +192,11 @@ public class MessagingOptimizer {
 
         // Build a minimal change stream event for the insert
         Map<String, Object> event = Doc.of(
-            "operationType", "insert",
-            "fullDocument", document,
-            "ns", Doc.of("db", db, "coll", collection),
-            "documentKey", Doc.of("_id", document.get("_id"))
-        );
+                "operationType", "insert",
+                "fullDocument", document,
+                "ns", Doc.of("db", db, "coll", collection),
+                "documentKey", Doc.of("_id", document.get("_id"))
+                                    );
 
         // Use fast-path notification
         int notified = cursorManager.notifyMessagingEvent(db, collection, event, sender);
@@ -223,7 +223,7 @@ public class MessagingOptimizer {
      */
     private void createMessagingIndexesAsync(String db, String collection) {
         // Run index creation in background to not block the registration
-        Thread.ofVirtual().name("msg-index-" + collection).start(() -> {
+        Thread.ofPlatform().name("msg-index-" + collection).start(() -> {
             try {
                 log.debug("Creating messaging indexes for {}.{}", db, collection);
                 for (Map<String, Object> indexDef : MESSAGING_INDEXES) {
@@ -249,16 +249,16 @@ public class MessagingOptimizer {
      */
     public Map<String, Object> getStats() {
         return Doc.of(
-            "registeredCollections", messagingCollections.size(),
-            "lockCollections", lockCollectionMapping.size(),
-            "collections", messagingCollections.entrySet().stream()
-                .map(e -> Doc.of(
-                    "namespace", e.getKey(),
-                    "subscribers", e.getValue().getSubscriberIds().size(),
-                    "registeredAt", e.getValue().getRegisteredAt()
-                ))
-                .toList()
-        );
+                               "registeredCollections", messagingCollections.size(),
+                               "lockCollections", lockCollectionMapping.size(),
+                               "collections", messagingCollections.entrySet().stream()
+                               .map(e -> Doc.of(
+                                       "namespace", e.getKey(),
+                                       "subscribers", e.getValue().getSubscriberIds().size(),
+                                       "registeredAt", e.getValue().getRegisteredAt()
+                                    ))
+                               .toList()
+               );
     }
 
     /**

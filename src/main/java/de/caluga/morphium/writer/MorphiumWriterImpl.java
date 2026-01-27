@@ -133,7 +133,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             60L,
                             TimeUnit.SECONDS,
                             new LinkedBlockingQueue<>(),
-                            Thread.ofVirtual().name("writer-", 0).factory()
+                            Thread.ofPlatform().name("writer-", 0).factory()
             );
             // new ThreadPoolExecutor(core, max, 60L, TimeUnit.SECONDS, queue);
             // executor.setRejectedExecutionHandler((r, executor)-> {
@@ -636,11 +636,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     catch (Exception e) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
                         if (callback == null) {
                             if (e instanceof RuntimeException) {
-                                throw(RuntimeException) e;
+                                throw (RuntimeException) e;
                             }
                             throw new RuntimeException(e);
                         }
@@ -1640,19 +1640,19 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
                     con = morphium.getDriver().getPrimaryConnection(wc);
                     settings = new UpdateMongoCommand(con)
-                        .setDb(getDbName())
-                        .setColl(coll)
-                        .setWriteConcern(wc != null ? wc.asMap() : null);
+                    .setDb(getDbName())
+                    .setColl(coll)
+                    .setWriteConcern(wc != null ? wc.asMap() : null);
                     settings.addUpdate(
-                        Doc.of(qobj),
-                        Doc.of(update),
-                        null,
-                        upsert,
-                        multiple,
-                        query.getCollation(),
-                        null,
-                        null,
-                        (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
+                                    Doc.of(qobj),
+                                    Doc.of(update),
+                                    null,
+                                    upsert,
+                                    multiple,
+                                    query.getCollation(),
+                                    null,
+                                    null,
+                                    (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
                     );
                     ret = settings.execute();
                     settings.releaseConnection();
@@ -1781,9 +1781,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     settings = null;
                     con = morphium.getDriver().getPrimaryConnection(wc);
                     settings = new UpdateMongoCommand(con)
-                        .setDb(getDbName())
-                        .setColl(coll)
-                        .setWriteConcern(wc != null ? wc.asMap() : null);
+                    .setDb(getDbName())
+                    .setColl(coll)
+                    .setWriteConcern(wc != null ? wc.asMap() : null);
 
                     if (query.getLimit() > 0 && multiple) {
                         for (int i = 0; i < query.getLimit(); i++) {
@@ -1798,15 +1798,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
                     } else {
                         settings.addUpdate(
-                            Doc.of(qobj),
-                            Doc.of(update),
-                            null,
-                            upsert,
-                            multiple,
-                            query.getCollation(),
-                            null,
-                            null,
-                            (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
+                                        Doc.of(qobj),
+                                        Doc.of(update),
+                                        null,
+                                        upsert,
+                                        multiple,
+                                        query.getCollation(),
+                                        null,
+                                        null,
+                                        (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
                         );
                         // settings.releaseConnection();
                     }
@@ -2601,7 +2601,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         while (morphium.exists(getDbName(), co)) {
                             if (System.currentTimeMillis() - waitStart > 10_000) {
                                 LoggerFactory.getLogger(MorphiumWriterImpl.class)
-                                    .warn("Collection {}.{} still exists 10s after drop - continuing anyway", getDbName(), co);
+                                             .warn("Collection {}.{} still exists 10s after drop - continuing anyway", getDbName(), co);
                                 break;
                             }
                             try {

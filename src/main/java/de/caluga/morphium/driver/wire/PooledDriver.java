@@ -109,7 +109,7 @@ public class PooledDriver extends DriverBase {
     private volatile boolean inMemoryBackend = false;
     private volatile boolean morphiumServer = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
-        Thread.ofVirtual().name("MCon-", 0).factory());
+        Thread.ofPlatform().name("MCon-", 0).factory());
 
     private final AtomicInteger lastSecondaryNode = new AtomicInteger(0);
     private final Map<String, Thread> hostThreads = new ConcurrentHashMap<>();
@@ -401,221 +401,222 @@ public class PooledDriver extends DriverBase {
         }
     }
 
-        protected synchronized void startHeartbeat() {
-            if (heartbeat == null) {
-                heartbeat = executor.scheduleWithFixedDelay(() -> {
-                    // check every host in pool if available
-                    // create NEW Connection to host -> if error, remove host from connectionPool
-                    // send HelloCommand to host
-                    // process helloCommand (primary etc)
-    
-                    for (var entry : hosts.entrySet()) {
-                        var hst = entry.getKey();
-                        var host = entry.getValue();
-                        BlockingQueue<ConnectionContainer> connectionPoolForHost = host.getConnectionPool();
-    
-                        if (connectionPoolForHost != null) {
-                            try {
-                                // checking for lifetime of connections
-                                var len = connectionPoolForHost.size();
-    
-                                for (int i = 0; i < len; i++) {
-                                    var connection = connectionPoolForHost.poll(1, TimeUnit.MILLISECONDS);
-    
-                                    if (connection == null)
-                                        break;
-                                    host.incrementInternalInUseConnections();
-    
-                                    try {
-                                        long now = System.currentTimeMillis();
+    protected synchronized void startHeartbeat() {
+        if (heartbeat == null) {
+            heartbeat = executor.scheduleWithFixedDelay(() -> {
+                // check every host in pool if available
+                // create NEW Connection to host -> if error, remove host from connectionPool
+                // send HelloCommand to host
+                // process helloCommand (primary etc)
 
-                                        if ((connection.getLastUsed() < now - getMaxConnectionIdleTime())
-                                                || connection.getCreated() < now - getMaxConnectionLifetime()) {
-                                            log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove",
-                                                    connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(),
-                                                    getMaxConnectionLifetime());
+                for (var entry : hosts.entrySet()) {
+                    var hst = entry.getKey();
+                    var host = entry.getValue();
+                    BlockingQueue<ConnectionContainer> connectionPoolForHost = host.getConnectionPool();
 
-                                            try {
-                                                connection.getCon().close();
-                                            } catch (Exception e) {
-                                                // swallow
-                                            }
-                                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                            markStatsDirty();
-                                        } else {
-                                            // Use offer() with timeout to prevent lock convoy
-                                            try {
-                                                if (!connectionPoolForHost.offer(connection, 100, TimeUnit.MILLISECONDS)) {
-                                                    log.warn("Could not return connection to pool within timeout - closing");
-                                                    try { connection.getCon().close(); } catch (Exception ignored) {}
-                                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                                    markStatsDirty();
-                                                }
-                                            } catch (InterruptedException e) {
-                                                Thread.currentThread().interrupt();
+                    if (connectionPoolForHost != null) {
+                        try {
+                            // checking for lifetime of connections
+                            var len = connectionPoolForHost.size();
+
+                            for (int i = 0; i < len; i++) {
+                                var connection = connectionPoolForHost.poll(1, TimeUnit.MILLISECONDS);
+
+                                if (connection == null)
+                                    break;
+                                host.incrementInternalInUseConnections();
+
+                                try {
+                                    long now = System.currentTimeMillis();
+
+                                    if ((connection.getLastUsed() < now - getMaxConnectionIdleTime())
+                                            || connection.getCreated() < now - getMaxConnectionLifetime()) {
+                                        log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove",
+                                                  connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(),
+                                                  getMaxConnectionLifetime());
+
+                                        try {
+                                            connection.getCon().close();
+                                        } catch (Exception e) {
+                                            // swallow
+                                        }
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                        markStatsDirty();
+                                    } else {
+                                        // Use offer() with timeout to prevent lock convoy
+                                        try {
+                                            if (!connectionPoolForHost.offer(connection, 100, TimeUnit.MILLISECONDS)) {
+                                                log.warn("Could not return connection to pool within timeout - closing");
                                                 try { connection.getCon().close(); } catch (Exception ignored) {}
                                                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                                 markStatsDirty();
                                             }
+                                        } catch (InterruptedException e) {
+                                            Thread.currentThread().interrupt();
+                                            try { connection.getCon().close(); } catch (Exception ignored) {}
+                                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                            markStatsDirty();
                                         }
-                                    } finally {
-                                        host.decrementInternalInUseConnections();
                                     }
+                                } finally {
+                                    host.decrementInternalInUseConnections();
                                 }
-                            } catch (Throwable e) {
                             }
+                        } catch (Throwable e) {
                         }
-    
-                        if (hostThreads.containsKey(hst))
-                            continue;
-    
-                        Thread t = Thread.ofVirtual().name("HeartbeatCheck-" + hst).start(() -> {
-    
-                            try {
-                                ConnectionContainer container = null;
-    
-                                if (host.getConnectionPool() == null) {
-                                    log.warn("No connectionPool for host {} creating new ConnectionContainer", hst);
-                                    container = new ConnectionContainer(new SingleMongoConnection());
-                                } else {
-                                    container = host.getConnectionPool().poll(1, TimeUnit.MILLISECONDS);
-                                }
-    
-                                if (container != null) {
-                                    host.incrementInternalInUseConnections();
-                                    try {
-                                        long start = System.currentTimeMillis();
-                                        HelloResult result;
+                    }
 
-                                        if (container.getCon().isConnected()) {
-                                            result = container.getCon().getHelloResult(false);
-                                        } else {
-                                            result = container.getCon().connect(this, getHost(hst), getPortFromHost(hst));
-                                        }
+                    if (hostThreads.containsKey(hst))
+                        continue;
 
-                                        long dur = System.currentTimeMillis() - start;
+                    Thread t = Thread.ofPlatform().name("HeartbeatCheck-" + hst).start(() -> {
 
-                                        PingStats newStats = host.getPingStats().updateWith(dur);
-                                        host.setPingStats(newStats);
-                                        host.resetFailures();
+                        try {
+                            ConnectionContainer container = null;
 
-                                        // Use record patterns to update fastest host
-                                        updateFastestHost(hst, newStats);
-                                        // container.touch();
-                                        handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
+                            if (host.getConnectionPool() == null) {
+                                log.warn("No connectionPool for host {} creating new ConnectionContainer", hst);
+                                container = new ConnectionContainer(new SingleMongoConnection());
+                            } else {
+                                container = host.getConnectionPool().poll(1, TimeUnit.MILLISECONDS);
+                            }
 
-                                        if (hosts.containsKey(hst)
-                                                && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
-                                            // Use offer() with timeout to prevent lock convoy
-                                            try {
-                                                if (!host.getConnectionPool().offer(container, 100, TimeUnit.MILLISECONDS)) {
-                                                    log.warn("Could not return connection to pool within timeout - closing");
-                                                    try { container.getCon().close(); } catch (Exception ignored) {}
-                                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                                    markStatsDirty();
-                                                }
-                                            } catch (InterruptedException e) {
-                                                Thread.currentThread().interrupt();
+                            if (container != null) {
+                                host.incrementInternalInUseConnections();
+                                try {
+                                    long start = System.currentTimeMillis();
+                                    HelloResult result;
+
+                                    if (container.getCon().isConnected()) {
+                                        result = container.getCon().getHelloResult(false);
+                                    } else {
+                                        result = container.getCon().connect(this, getHost(hst), getPortFromHost(hst));
+                                    }
+
+                                    long dur = System.currentTimeMillis() - start;
+
+                                    PingStats newStats = host.getPingStats().updateWith(dur);
+                                    host.setPingStats(newStats);
+                                    host.resetFailures();
+
+                                    // Use record patterns to update fastest host
+                                    updateFastestHost(hst, newStats);
+                                    // container.touch();
+                                    handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
+
+                                    if (hosts.containsKey(hst)
+                                            && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
+                                        // Use offer() with timeout to prevent lock convoy
+                                        try {
+                                            if (!host.getConnectionPool().offer(container, 100, TimeUnit.MILLISECONDS)) {
+                                                log.warn("Could not return connection to pool within timeout - closing");
                                                 try { container.getCon().close(); } catch (Exception ignored) {}
                                                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                                 markStatsDirty();
                                             }
-                                        } else {
-                                            container.getCon().close();
+                                        } catch (InterruptedException e) {
+                                            Thread.currentThread().interrupt();
+                                            try { container.getCon().close(); } catch (Exception ignored) {}
                                             stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                             markStatsDirty();
                                         }
-                                    } finally {
-                                        host.decrementInternalInUseConnections();
+                                    } else {
+                                        container.getCon().close();
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                        markStatsDirty();
                                     }
+                                } finally {
+                                    host.decrementInternalInUseConnections();
                                 }
-    
-                                BlockingQueue<ConnectionContainer> queue = host.getConnectionPool();
-    
-                                int wait = host.getWaitCounter();
-                                int loopCounter = 0;
-    
-                                while (getHostSeed().contains(hst) && queue != null
-                                        && loopCounter < getMaxConnectionsPerHost() &&
-                                        ((queue.size() < wait
-                                          && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
-                                         || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
-                                    // log.info("Creating new connection to {}", hst);
-                                    // System.out.println("Creating new connection to " + hst);
-                                    loopCounter++;
-                                    // log.debug("Creating connection to {} - totalConnections to host is {}", hst,
-                                    // getTotalConnectionsToHost(hst));
-                                    createNewConnection(hst);
-                                }
-    
-                                // log.info("Finished connection creation");
-                            } catch (Throwable e) {
-                                log.error("Could not create connection to host {}", hst, e);
-                                onConnectionError(hst);
-                            } finally {
-                                hostThreads.remove(hst);
                             }
-                        });
-                        hostThreads.put(hst, t);
-                    }
-                }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
-                // thread to create new connections instantly if a thread is waiting
-                // this thread pauses until waitCounter.notifyAll() is called
-                            Thread.ofVirtual().name("ConnectionWaiter").start(() -> {
-                                while (running) {
-                                    try {
-                                        synchronized (waitCounterSignal) {
-                                            waitCounterSignal.wait();
-                                        }
 
-                                        for (String hst : getHostSeed()) {
+                            BlockingQueue<ConnectionContainer> queue = host.getConnectionPool();
+
+                            int wait = host.getWaitCounter();
+                            int loopCounter = 0;
+
+                            while (getHostSeed().contains(hst) && queue != null
+                                    && loopCounter < getMaxConnectionsPerHost() &&
+                                    ((queue.size() < wait
+                                      && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
+                                     || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                                // log.info("Creating new connection to {}", hst);
+                                // System.out.println("Creating new connection to " + hst);
+                                loopCounter++;
+                                // log.debug("Creating connection to {} - totalConnections to host is {}", hst,
+                                // getTotalConnectionsToHost(hst));
+                                createNewConnection(hst);
+                            }
+
+                            // log.info("Finished connection creation");
+                        } catch (Throwable e) {
+                            log.error("Could not create connection to host {}", hst, e);
+                            onConnectionError(hst);
+                        } finally {
+                            hostThreads.remove(hst);
+                        }
+                    });
+                    hostThreads.put(hst, t);
+                }
+            }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
+            // thread to create new connections instantly if a thread is waiting
+            // this thread pauses until waitCounter.notifyAll() is called
+            Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
+                while (running) {
+                    try {
+                        synchronized (waitCounterSignal) {
+                            waitCounterSignal.wait();
+                        }
+
+                        for (String hst : getHostSeed()) {
+                            try {
+                                if (hosts.get(hst) == null) continue;
+
+                                // Calculate how many new connections we need
+                                int waitCount = getWaitCounterForHost(hst);
+                                int poolSize = hosts.get(hst).getConnectionPool().size();
+                                int totalConnections = getTotalConnectionsToHost(hst);
+                                int maxConnections = getMaxConnectionsPerHost();
+
+                                // Number of connections to create (limited by max and available capacity)
+                                int needed = Math.min(waitCount - poolSize, maxConnections - totalConnections);
+
+                                if (needed > 0 && getHostSeed().contains(hst)) {
+                                    // Create connections in parallel for burst scenarios
+                                    int parallelCreators = Math.min(needed, 10); // Cap at 10 parallel creators
+                                    final String host = hst;
+
+                                    for (int i = 0; i < parallelCreators; i++) {
+                                        Thread.ofPlatform().name("ConnectionCreator-" + i).start(() -> {
                                             try {
-                                                if (hosts.get(hst) == null) continue;
-
-                                                // Calculate how many new connections we need
-                                                int waitCount = getWaitCounterForHost(hst);
-                                                int poolSize = hosts.get(hst).getConnectionPool().size();
-                                                int totalConnections = getTotalConnectionsToHost(hst);
-                                                int maxConnections = getMaxConnectionsPerHost();
-
-                                                // Number of connections to create (limited by max and available capacity)
-                                                int needed = Math.min(waitCount - poolSize, maxConnections - totalConnections);
-
-                                                if (needed > 0 && getHostSeed().contains(hst)) {
-                                                    // Create connections in parallel for burst scenarios
-                                                    int parallelCreators = Math.min(needed, 10); // Cap at 10 parallel creators
-                                                    final String host = hst;
-
-                                                    for (int i = 0; i < parallelCreators; i++) {
-                                                        Thread.ofVirtual().name("ConnectionCreator-" + i).start(() -> {
-                                                            try {
-                                                                // Each creator can create multiple connections
-                                                                while (running && getHostSeed().contains(host)
-                                                                        && hosts.get(host).getConnectionPool().size() < getWaitCounterForHost(host)
-                                                                        && getTotalConnectionsToHost(host) < getMaxConnectionsPerHost()) {
-                                                                    createNewConnection(host);
-                                                                }
-                                                            } catch (Exception e) {
-                                                                log.debug("Connection creator finished: {}", e.getMessage());
-                                                            }
-                                                        });
-                                                    }
+                                                // Each creator can create multiple connections
+                                                while (running && getHostSeed().contains(host)
+                                                        && hosts.get(host).getConnectionPool().size() < getWaitCounterForHost(host)
+                                                        && getTotalConnectionsToHost(host) < getMaxConnectionsPerHost()) {
+                                                    createNewConnection(host);
                                                 }
                                             } catch (Exception e) {
-                                                log.error("Could not create connection to {}", hst, e);
-                                                // removing connections, probably all broken now
-                                                onConnectionError(hst);
+                                                log.debug("Connection creator finished: {}", e.getMessage());
                                             }
-                                        }
-                                    } catch (Throwable e) {
-                                        log.error("error", e);
-                                        stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                                        });
                                     }
                                 }
-                            });            } else {
-                // log.debug("Heartbeat already scheduled...");
-            }
+                            } catch (Exception e) {
+                                log.error("Could not create connection to {}", hst, e);
+                                // removing connections, probably all broken now
+                                onConnectionError(hst);
+                            }
+                        }
+                    } catch (Throwable e) {
+                        log.error("error", e);
+                        stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                    }
+                }
+            });
+        } else {
+            // log.debug("Heartbeat already scheduled...");
         }
+    }
     private int getWaitCounterForHost(String hst) {
         Host host = hosts.get(hst);
         if (host == null) {
@@ -623,16 +624,16 @@ public class PooledDriver extends DriverBase {
         }
         return host.getWaitCounter();
     }
-    
+
     // Helper method using record patterns for ping stats
     private void updateFastestHost(String host, PingStats stats) {
         switch (stats) {
-            case PingStats(var last, var avg, var min, var max, var count, var updated) 
-                when avg < fastestTime -> {
+            case PingStats(var last, var avg, var min, var max, var count, var updated)
+                    when avg < fastestTime -> {
                     fastestTime = avg;
                     fastestHost = host;
                 }
-            default -> { /* no update needed */ }
+                default -> { /* no update needed */ }
         }
     }
 
@@ -718,8 +719,8 @@ public class PooledDriver extends DriverBase {
                 // 1. There are waiters and we're under max, OR
                 // 2. Pool size is below minimum (use pool.size(), not total, to avoid off-by-one with pending slot)
                 if ((host.getConnectionPool().size() < host.getWaitCounter()
-                                                    && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
-                                                    || host.getConnectionPool().size() < getMinConnectionsPerHost()) {
+                        && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
+                        || host.getConnectionPool().size() < getMinConnectionsPerHost()) {
                     var cont = new ConnectionContainer(con);
                     // Use offer() with timeout to prevent lock convoy
                     try {
@@ -974,11 +975,11 @@ public class PooledDriver extends DriverBase {
                                 switch (stats) {
                                     case null -> host = hostSeed.get(lastSecondaryNode.get());
                                     case PingStats(var lastPing, var avgPing, var minPing, var maxPing, var count, var updated)
-                                        when avgPing <= fastestTime + getLocalThreshold() ->
+                                            when avgPing <= fastestTime + getLocalThreshold() ->
                                             host = hostSeed.get(lastSecondaryNode.get());
-                                    default -> {
-                                        continue; // Skip hosts that don't meet threshold
-                                    }
+                                        default -> {
+                                            continue; // Skip hosts that don't meet threshold
+                                        }
                                 }
                             } else {
                                 host = hostSeed.get(lastSecondaryNode.get());
@@ -1006,7 +1007,7 @@ public class PooledDriver extends DriverBase {
                             }
                         }
                     }
-                    // Note: while(true) loop always returns or throws, so this case never falls through
+                // Note: while(true) loop always returns or throws, so this case never falls through
 
                 default:
                     throw new IllegalArgumentException("Unhandled ReadPreferenceType " + rp.getType());
@@ -1542,101 +1543,101 @@ public class PooledDriver extends DriverBase {
                 try {
                     if (requests.isEmpty()) {
                         return Doc.of(
-                            "num_deleted", 0,
-                            "num_matched", 0,
-                            "num_inserted", 0,
-                            "num_modified", 0,
-                            "num_upserts", 0
-                        );
+                                               "num_deleted", 0,
+                                               "num_matched", 0,
+                                               "num_inserted", 0,
+                                               "num_modified", 0,
+                                               "num_upserts", 0
+                               );
                     }
 
                     for (BulkRequest r : requests) {
                         switch (r) {
                             case InsertBulkRequest insert -> {
-                                if (insert.getToInsert() == null || insert.getToInsert().isEmpty()) {
-                                    break;
-                                }
+                                    if (insert.getToInsert() == null || insert.getToInsert().isEmpty()) {
+                                        break;
+                                    }
 
-                                MongoConnection con = null;
-                                InsertMongoCommand settings = null;
-                                try {
-                                    con = getPrimaryConnection(wc);
-                                    settings = new InsertMongoCommand(con);
-                                    settings.setDb(db).setColl(collection).setComment("Bulk insert")
-                                            .setDocuments(insert.getToInsert())
-                                            .setWriteConcern(wc != null ? wc.asMap() : null);
-                                    Map<String, Object> result = settings.execute();
-                                    settings.releaseConnection();
-                                    settings = null;
-                                    con = null;
-                                    insertCount += insert.getToInsert().size();
-                                } finally {
-                                    if (settings != null) {
+                                    MongoConnection con = null;
+                                    InsertMongoCommand settings = null;
+                                    try {
+                                        con = getPrimaryConnection(wc);
+                                        settings = new InsertMongoCommand(con);
+                                        settings.setDb(db).setColl(collection).setComment("Bulk insert")
+                                                .setDocuments(insert.getToInsert())
+                                                .setWriteConcern(wc != null ? wc.asMap() : null);
+                                        Map<String, Object> result = settings.execute();
                                         settings.releaseConnection();
-                                    } else if (con != null) {
-                                        releaseConnection(con);
-                                    }
-                                }
-                            }
-                            case UpdateBulkRequest update -> {
-                                MongoConnection con = null;
-                                UpdateMongoCommand upCmd = null;
-                                try {
-                                    con = getPrimaryConnection(wc);
-                                    upCmd = new UpdateMongoCommand(con);
-                                    upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
-                                            update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())))
-                                        .setWriteConcern(wc != null ? wc.asMap() : null);
-                                    Map<String, Object> result = upCmd.execute();
-                                    upCmd.releaseConnection();
-                                    upCmd = null;
-                                    con = null;
-                                    if (result.containsKey("n")) {
-                                        matchedCount += ((Number) result.get("n")).intValue();
-                                    }
-                                    if (result.containsKey("nModified")) {
-                                        modifiedCount += ((Number) result.get("nModified")).intValue();
-                                    }
-                                    if (result.containsKey("upserted")) {
-                                        @SuppressWarnings("unchecked")
-                                        List<Map<String, Object>> upserted = (List<Map<String, Object>>) result.get("upserted");
-                                        for (Map<String, Object> u : upserted) {
-                                            upsertedIds.add(u.get("_id"));
+                                        settings = null;
+                                        con = null;
+                                        insertCount += insert.getToInsert().size();
+                                    } finally {
+                                        if (settings != null) {
+                                            settings.releaseConnection();
+                                        } else if (con != null) {
+                                            releaseConnection(con);
                                         }
                                     }
-                                } finally {
-                                    if (upCmd != null) {
+                                }
+                            case UpdateBulkRequest update -> {
+                                    MongoConnection con = null;
+                                    UpdateMongoCommand upCmd = null;
+                                    try {
+                                        con = getPrimaryConnection(wc);
+                                        upCmd = new UpdateMongoCommand(con);
+                                        upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
+                                                update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())))
+                                             .setWriteConcern(wc != null ? wc.asMap() : null);
+                                        Map<String, Object> result = upCmd.execute();
                                         upCmd.releaseConnection();
-                                    } else if (con != null) {
-                                        releaseConnection(con);
+                                        upCmd = null;
+                                        con = null;
+                                        if (result.containsKey("n")) {
+                                            matchedCount += ((Number) result.get("n")).intValue();
+                                        }
+                                        if (result.containsKey("nModified")) {
+                                            modifiedCount += ((Number) result.get("nModified")).intValue();
+                                        }
+                                        if (result.containsKey("upserted")) {
+                                            @SuppressWarnings("unchecked")
+                                            List<Map<String, Object>> upserted = (List<Map<String, Object>>) result.get("upserted");
+                                            for (Map<String, Object> u : upserted) {
+                                                upsertedIds.add(u.get("_id"));
+                                            }
+                                        }
+                                    } finally {
+                                        if (upCmd != null) {
+                                            upCmd.releaseConnection();
+                                        } else if (con != null) {
+                                            releaseConnection(con);
+                                        }
                                     }
                                 }
-                            }
                             case DeleteBulkRequest delete -> {
-                                MongoConnection con = null;
-                                DeleteMongoCommand del = null;
-                                try {
-                                    con = getPrimaryConnection(wc);
-                                    del = new DeleteMongoCommand(con);
-                                    del.setColl(collection).setDb(db).setDeletes(
-                                                       Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)))
-                                        .setWriteConcern(wc != null ? wc.asMap() : null);
-                                    Map<String, Object> result = del.execute();
-                                    del.releaseConnection();
-                                    del = null;
-                                    con = null;
-                                    if (result.containsKey("n")) {
-                                        delCount += ((Number) result.get("n")).intValue();
-                                    }
-                                } finally {
-                                    if (del != null) {
+                                    MongoConnection con = null;
+                                    DeleteMongoCommand del = null;
+                                    try {
+                                        con = getPrimaryConnection(wc);
+                                        del = new DeleteMongoCommand(con);
+                                        del.setColl(collection).setDb(db).setDeletes(
+                                                           Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)))
+                                           .setWriteConcern(wc != null ? wc.asMap() : null);
+                                        Map<String, Object> result = del.execute();
                                         del.releaseConnection();
-                                    } else if (con != null) {
-                                        releaseConnection(con);
+                                        del = null;
+                                        con = null;
+                                        if (result.containsKey("n")) {
+                                            delCount += ((Number) result.get("n")).intValue();
+                                        }
+                                    } finally {
+                                        if (del != null) {
+                                            del.releaseConnection();
+                                        } else if (con != null) {
+                                            releaseConnection(con);
+                                        }
                                     }
                                 }
-                            }
-                            default -> throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                                default -> throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
                     }
                 } catch (MorphiumDriverException e) {
@@ -1646,12 +1647,12 @@ public class PooledDriver extends DriverBase {
 
                 // Build result document
                 Doc res = Doc.of(
-                    "num_deleted", delCount,
-                    "num_matched", matchedCount,
-                    "num_inserted", insertCount,
-                    "num_modified", modifiedCount,
-                    "num_upserts", upsertedIds.size()
-                );
+                                          "num_deleted", delCount,
+                                          "num_matched", matchedCount,
+                                          "num_inserted", insertCount,
+                                          "num_modified", modifiedCount,
+                                          "num_upserts", upsertedIds.size()
+                          );
 
                 if (!upsertedIds.isEmpty()) {
                     res.put("upsertedIds", upsertedIds);
