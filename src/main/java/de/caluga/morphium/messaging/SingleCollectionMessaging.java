@@ -245,7 +245,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         this.settings = settings;
         statusInfoListenerEnabled = settings.isMessagingStatusInfoListenerEnabled();
         decouplePool = new ScheduledThreadPoolExecutor(windowSize,
-            Thread.ofVirtual().name("decouple_thr-", 0).factory());
+            Thread.ofPlatform().name("decouple_thr-", 0).factory());
 
         if (settings.getMessagingStatusInfoListenerName() != null) {
             statusInfoListenerName = settings.getMessagingStatusInfoListenerName();
@@ -394,7 +394,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         settings.getThreadPoolMessagingKeepAliveTime(),
                         TimeUnit.MILLISECONDS,
                         new LinkedBlockingQueue<>(),
-                        Thread.ofVirtual().name("msg-thr-", 0).factory());
+                        Thread.ofPlatform().name("msg-thr-", 0).factory());
         threadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
 
             @Override
@@ -626,8 +626,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         changeStreamMonitor.addListener(evt -> handleChangeStreamEvent(evt));
 
         // Start both monitors in parallel to speed up initialization
-        Thread t1 = Thread.ofVirtual().start(() -> changeStreamMonitor.start());
-        Thread t2 = Thread.ofVirtual().start(() -> lockMonitor.start());
+        Thread t1 = Thread.ofPlatform().start(() -> changeStreamMonitor.start());
+        Thread t2 = Thread.ofPlatform().start(() -> lockMonitor.start());
         try {
             t1.join();
             t2.join();
@@ -674,7 +674,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // Cleanup old message tracking entries to prevent unbounded memory growth
                     long cleanupTime = System.currentTimeMillis();
                     locallyProcessedMessageIds.entrySet().removeIf(entry ->
-                                         cleanupTime - entry.getValue() > MESSAGE_TRACKING_RETENTION_MS);
+                                              cleanupTime - entry.getValue() > MESSAGE_TRACKING_RETENTION_MS);
 
                     // Poll when:
                     // 1. requestPoll > 0 (lock deleted, new messages likely available)
@@ -1376,66 +1376,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 .f("lock_id").eq(id).remove();
     }
 
-    // private void removeProcessingFor(Msg msg) {}
-    /**
-     * Atomically try to claim a message for processing by adding this instance's ID to processed_by.
-     * Returns true ONLY if this instance successfully claimed it (i.e., we modified the document).
-     * Returns false if already claimed by THIS instance (prevents duplicate processing within same instance).
-     *
-     * Note: For broadcast messages, multiple instances can claim the same message - this only prevents
-     * the SAME instance from processing it twice.
-     */
-    private boolean tryClaimMessageForThisInstance(Msg msg) {
-        if (msg == null) {
-            return false;
-        }
-
-        if (msg.getProcessedBy().contains(id)) {
-            return false; // Already claimed by THIS instance
-        }
-
-        Object queryId = msg.getMsgId();
-        if (queryId instanceof MorphiumId) {
-            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
-        }
-        Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
-        idq.f("_id").eq(queryId);
-        // No need for additional query conditions - $addToSet is atomic and won't add duplicates
-        // nModified will tell us if we actually added our ID (claimed it) or if it was already there
-
-        Map<String, Object> qobj = idq.toQueryObject();
-        Map<String, Object> set = Doc.of("processed_by", id);
-        Map<String, Object> update = Doc.of("$addToSet", set);
-        UpdateMongoCommand cmd = null;
-
-        try {
-            cmd = new UpdateMongoCommand(
-                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
-            cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
-            cmd.addUpdate(qobj, update, null, false, false, null, null, null);
-            Map<String, Object> ret = cmd.execute();
-            cmd.releaseConnection();
-            cmd = null;
-
-            // Check if we actually modified the document
-            Object nModified = ret.get("nModified");
-            if (nModified != null && ((Number) nModified).intValue() > 0) {
-                // We successfully claimed it for THIS instance
-                msg.getProcessedBy().add(id);
-                return true;
-            } else {
-                // Our ID is already in processed_by (caught by the query condition)
-                return false;
-            }
-        } catch (MorphiumDriverException e) {
-            log.error("Error claiming message - will skip to avoid duplicates", e);
-            return false;
-        } finally {
-            if (cmd != null) {
-                cmd.releaseConnection();
-            }
-        }
-    }
 
     private boolean updateProcessedBy(Msg msg) {
         if (msg == null) {
