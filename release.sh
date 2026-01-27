@@ -355,19 +355,41 @@ for file in "${required_files[@]}"; do
 done
 log_success "All required files present"
 
-# Generate checksums
+# Generate checksums (macOS compatible)
 log_info "Generating checksums..."
+
+# Cross-platform checksum helpers
+calc_md5() {
+	if command -v md5sum &>/dev/null; then
+		md5sum "$1" | awk '{print $1}'
+	elif command -v md5 &>/dev/null; then
+		md5 -q "$1"
+	else
+		openssl dgst -md5 "$1" | awk '{print $2}'
+	fi
+}
+
+calc_sha1() {
+	if command -v sha1sum &>/dev/null; then
+		sha1sum "$1" | awk '{print $1}'
+	elif command -v shasum &>/dev/null; then
+		shasum "$1" | awk '{print $1}'
+	else
+		openssl dgst -sha1 "$1" | awk '{print $2}'
+	fi
+}
+
 for file in morphium-${version}.pom morphium-${version}.jar morphium-${version}-sources.jar morphium-${version}-javadoc.jar; do
 	if [ -f "$file" ]; then
-		md5sum "$file" | awk '{print $1}' >"${file}.md5"
-		sha1sum "$file" | awk '{print $1}' >"${file}.sha1"
+		calc_md5 "$file" >"${file}.md5"
+		calc_sha1 "$file" >"${file}.sha1"
 	fi
 done
 
 # Also handle server-cli if present
 if [ -f "morphium-${version}-server-cli.jar" ]; then
-	md5sum "morphium-${version}-server-cli.jar" | awk '{print $1}' >"morphium-${version}-server-cli.jar.md5"
-	sha1sum "morphium-${version}-server-cli.jar" | awk '{print $1}' >"morphium-${version}-server-cli.jar.sha1"
+	calc_md5 "morphium-${version}-server-cli.jar" >"morphium-${version}-server-cli.jar.md5"
+	calc_sha1 "morphium-${version}-server-cli.jar" >"morphium-${version}-server-cli.jar.sha1"
 fi
 
 # Create Maven repository structure
