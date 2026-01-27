@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### ChangeStreamHistoryLost
+- forget resume token as it is invalid
+- restart changestream
+- might cause loss of a message or two, but is stable
+
+
 #### Messaging Lock TTL Bug
 - **Lock expires immediately when message has no timeout**: When a message had `timingOut=false`, the TTL was 0, causing the lock to be created with `deleteAt = now`. MongoDB's TTL monitor would delete the lock almost immediately, allowing duplicate message processing. Now uses 7 days as fallback TTL for messages without timeout.
 
