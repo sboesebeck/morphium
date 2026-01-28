@@ -376,6 +376,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             } finally {
                 if (watch != null) {
                     watch.releaseConnection();
+                } else if (activeConnection != null && dedicatedConnection != null) {
+                    // Release connection if watch was never created (exception before watch instantiation)
+                    try {
+                        dedicatedConnection.releaseConnection(activeConnection);
+                    } catch (Exception ignore) {
+                        // Best effort - connection may already be closed
+                    }
                 }
                 activeWatch = null;
                 activeConnection = null;
