@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Connection Pool Exhaustion due to Hostname Case Mismatch
+- **Pool exhaustion when MongoDB reports hostnames with different casing**: When MongoDB's `hello` response reported hostnames with different casing than the seed list (e.g., `SERV-MSG1.example.com` vs `serv-msg1.example.com`), connections were being closed instead of returned to the pool. The borrowed connections counter was not decremented, causing the pool to fill up to `maxConnections` with all connections appearing "borrowed" but none available.
+- **Root cause**: The `hosts` map was keyed by the hostname as reported by MongoDB, but `releaseConnection()` looked up by the hostname stored in the connection object (from the seed list). Case mismatch caused lookup failures.
+- **Fix**: All hostname operations now normalize to lowercase:
+  - `normalizeHostKey()` converts to lowercase and ensures port suffix
+  - `SingleMongoConnection.getConnectedTo()/getConnectedToHost()` return lowercase
+  - `addToHostSeed()/setHostSeed()` normalize on write
+  - `getWaitCounterForHost()`, `getTotalConnectionsToHost()`, `onConnectionError()` normalize inputs
+  - `ConnectionWaiter` thread normalizes before all host lookups
+
 #### ChangeStreamHistoryLost
 - forget resume token as it is invalid
 - restart changestream

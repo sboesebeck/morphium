@@ -68,6 +68,8 @@ cfg.clusterSettings().addHostToSeed("mongo3", 27017);
 cfg.clusterSettings().setRequiredReplicaSetName("myReplicaSet");
 ```
 
+> ⚠️ **IPv6 Limitation**: The current hostname normalization assumes IPv4 addresses or DNS hostnames. IPv6 addresses (e.g., `[2001:db8::1]:27017`) are **not fully supported** and may cause connection pool issues. Use DNS hostnames instead of raw IPv6 addresses when configuring MongoDB connections.
+
 ## Driver Settings
 
 Configure the MongoDB driver implementation.
