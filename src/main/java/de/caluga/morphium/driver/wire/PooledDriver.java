@@ -300,6 +300,33 @@ public class PooledDriver extends DriverBase {
         return normalized + ":27017";  // Add default port
     }
 
+    /**
+     * Override to ensure all host seeds are normalized (lowercase + port).
+     */
+    @Override
+    public void addToHostSeed(String host) {
+        super.addToHostSeed(normalizeHostKey(host));
+    }
+
+    @Override
+    public void setHostSeed(String... hosts) {
+        String[] normalized = new String[hosts.length];
+        for (int i = 0; i < hosts.length; i++) {
+            normalized[i] = normalizeHostKey(hosts[i]);
+        }
+        super.setHostSeed(normalized);
+    }
+
+    @Override
+    public void setHostSeed(java.util.List<String> hosts) {
+        super.setHostSeed(hosts.stream().map(this::normalizeHostKey).toList());
+    }
+
+    @Override
+    public void setHostSeed(java.util.Set<String> hostSeed) {
+        super.setHostSeed(hostSeed.stream().map(this::normalizeHostKey).collect(java.util.stream.Collectors.toSet()));
+    }
+
     @Override
     public void connect() throws MorphiumDriverException {
         connect(null);
