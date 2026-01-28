@@ -699,4 +699,124 @@ public class PooledDriverTest {
 
         Thread.sleep(1000);
     }
+
+    /**
+     * Test that borrowed connections track which host they were borrowed from,
+     * ensuring correct counter decrement on release (prevents counter drift).
+     * 
+     * This fixes the bug where topology changes during borrow/release could cause
+     * the borrowed counter to be decremented on the wrong host, leading to
+     * positive drift on one host and negative drift on another.
+     */
+    @Test
+    @Tag("external")
+    @Tag("driver")
+    public void testBorrowedFromHostTracking() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test - InMemoryDriver doesn't have connection pooling");
+            return;
+        }
+        
+        PooledDriver drv = getDriver();
+        try {
+            drv.connect();
+            Thread.sleep(500); // Wait for connections to be established
+            
+            // Get initial pool details
+            Map<String, Object> detailsBefore = drv.getConnectionPoolDetails();
+            log.info("Pool details before borrow: {}", detailsBefore);
+            
+            // Borrow a connection
+            var con = drv.getPrimaryConnection(null);
+            assertNotNull(con, "Should get a connection");
+            
+            // Check that the connection container has borrowedFromHost set
+            var borrowedConnections = drv.getBorrowedConnections();
+            assertEquals(1, borrowedConnections.size(), "Should have exactly 1 borrowed connection");
+            
+            var container = borrowedConnections.values().iterator().next();
+            assertNotNull(container.getBorrowedFromHost(), "borrowedFromHost should be set");
+            log.info("Connection borrowed from host: {}", container.getBorrowedFromHost());
+            
+            // Check pool details while borrowed
+            Map<String, Object> detailsDuring = drv.getConnectionPoolDetails();
+            log.info("Pool details during borrow: {}", detailsDuring);
+            
+            // Release the connection
+            drv.releaseConnection(con);
+            
+            // Check that borrowed connections map is empty
+            assertEquals(0, drv.getBorrowedConnections().size(), "Should have 0 borrowed connections after release");
+            
+            // Check pool details after release - COUNTER_DRIFT should be 0 for all hosts
+            Map<String, Object> detailsAfter = drv.getConnectionPoolDetails();
+            log.info("Pool details after release: {}", detailsAfter);
+            
+            for (var entry : detailsAfter.entrySet()) {
+                if (entry.getKey().endsWith(".COUNTER_DRIFT")) {
+                    assertEquals(0, ((Number) entry.getValue()).intValue(), 
+                        "Counter drift should be 0 for " + entry.getKey());
+                }
+            }
+            
+            log.info("Test passed - no counter drift after borrow/release cycle");
+            
+        } finally {
+            drv.close();
+        }
+    }
+
+    /**
+     * Test that multiple borrow/release cycles don't cause counter drift.
+     */
+    @Test
+    @Tag("external")
+    @Tag("driver")
+    public void testNoDriftAfterMultipleBorrowReleaseCycles() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test - InMemoryDriver doesn't have connection pooling");
+            return;
+        }
+        
+        PooledDriver drv = getDriver();
+        try {
+            drv.connect();
+            Thread.sleep(500);
+            
+            // Perform multiple borrow/release cycles
+            for (int i = 0; i < 100; i++) {
+                var con = drv.getPrimaryConnection(null);
+                assertNotNull(con);
+                
+                // Verify borrowedFromHost is set
+                var borrowed = drv.getBorrowedConnections();
+                assertTrue(borrowed.size() >= 1);
+                for (var container : borrowed.values()) {
+                    assertNotNull(container.getBorrowedFromHost(), 
+                        "borrowedFromHost must be set on iteration " + i);
+                }
+                
+                drv.releaseConnection(con);
+            }
+            
+            // After all cycles, there should be no counter drift
+            Thread.sleep(100); // Let cleanup happen
+            
+            Map<String, Object> details = drv.getConnectionPoolDetails();
+            log.info("Pool details after 100 cycles: {}", details);
+            
+            for (var entry : details.entrySet()) {
+                if (entry.getKey().endsWith(".COUNTER_DRIFT")) {
+                    int drift = ((Number) entry.getValue()).intValue();
+                    assertEquals(0, drift, 
+                        "Counter drift should be 0 after multiple cycles for " + entry.getKey() + " but was " + drift);
+                }
+            }
+            
+            log.info("Test passed - no counter drift after 100 borrow/release cycles");
+            
+        } finally {
+            drv.close();
+        }
+    }
 }
