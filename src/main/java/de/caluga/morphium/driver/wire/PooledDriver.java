@@ -1593,6 +1593,52 @@ public class PooledDriver extends DriverBase {
         return ret;
     }
 
+    /**
+     * Get detailed connection pool statistics for monitoring and debugging.
+     * Helps detect counter drift (when borrowed_counter != borrowed_map_size).
+     * 
+     * @return Map with detailed stats per host:
+     *   - {host}.pool_size: connections available in pool
+     *   - {host}.borrowed_counter: Host's borrowed counter value
+     *   - {host}.borrowed_map_size: actual entries in borrowedConnections map for this host
+     *   - {host}.pending_creations: connections currently being created
+     *   - {host}.wait_counter: threads waiting for a connection
+     *   - borrowed_map_total: total size of borrowedConnections map
+     */
+    public Map<String, Object> getConnectionPoolDetails() {
+        Map<String, Object> ret = new HashMap<>();
+        
+        // Count borrowed connections per host from the actual map
+        Map<String, Integer> borrowedMapByHost = new HashMap<>();
+        for (var e : borrowedConnections.values()) {
+            String host = e.getCon().getConnectedTo();
+            borrowedMapByHost.merge(host, 1, Integer::sum);
+        }
+        
+        // Add per-host details
+        for (var e : hosts.entrySet()) {
+            String host = e.getKey();
+            Host h = e.getValue();
+            ret.put(host + ".pool_size", h.getConnectionPool().size());
+            ret.put(host + ".borrowed_counter", h.getBorrowedConnections());
+            ret.put(host + ".borrowed_map_size", borrowedMapByHost.getOrDefault(host, 0));
+            ret.put(host + ".pending_creations", h.getPendingConnectionCreations());
+            ret.put(host + ".wait_counter", h.getWaitCounter());
+            
+            // Flag counter drift for easy alerting
+            int counter = h.getBorrowedConnections();
+            int mapSize = borrowedMapByHost.getOrDefault(host, 0);
+            if (counter != mapSize) {
+                ret.put(host + ".COUNTER_DRIFT", counter - mapSize);
+            }
+        }
+        
+        // Total borrowed map size
+        ret.put("borrowed_map_total", borrowedConnections.size());
+        
+        return ret;
+    }
+
     @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         if (!running) return false;

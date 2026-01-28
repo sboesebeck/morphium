@@ -155,6 +155,14 @@ public interface MorphiumDriver extends Closeable {
 
     Map<String, Integer> getNumConnectionsByHost();
 
+    /**
+     * Get detailed connection pool statistics for monitoring.
+     * Default implementation returns empty map for drivers that don't support this.
+     */
+    default Map<String, Object> getConnectionPoolDetails() {
+        return new java.util.HashMap<>();
+    }
+
     ////////////////////////////////////////////////////
     // .___________..______          ___      .__   __.      _______.     ___       ______ .___________. __    ______   .__   __.      _______.
     //|           ||   _  \        /   \     |  \ |  |     /       |    /   \     /      ||           ||  |  /  __  \  |  \ |  |     /       |
