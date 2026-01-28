@@ -674,28 +674,29 @@ public class PooledDriver extends DriverBase {
                         }
 
                         for (String hst : getHostSeed()) {
+                            String normalizedHst = normalizeHostKey(hst);
                             try {
-                                if (hosts.get(hst) == null) continue;
+                                if (hosts.get(normalizedHst) == null) continue;
 
                                 // Calculate how many new connections we need
-                                int waitCount = getWaitCounterForHost(hst);
-                                int poolSize = hosts.get(hst).getConnectionPool().size();
-                                int totalConnections = getTotalConnectionsToHost(hst);
+                                int waitCount = getWaitCounterForHost(normalizedHst);
+                                int poolSize = hosts.get(normalizedHst).getConnectionPool().size();
+                                int totalConnections = getTotalConnectionsToHost(normalizedHst);
                                 int maxConnections = getMaxConnectionsPerHost();
 
                                 // Number of connections to create (limited by max and available capacity)
                                 int needed = Math.min(waitCount - poolSize, maxConnections - totalConnections);
 
-                                if (needed > 0 && getHostSeed().contains(hst)) {
+                                if (needed > 0 && hosts.containsKey(normalizedHst)) {
                                     // Create connections in parallel for burst scenarios
                                     int parallelCreators = Math.min(needed, 10); // Cap at 10 parallel creators
-                                    final String host = hst;
+                                    final String host = normalizedHst;
 
                                     for (int i = 0; i < parallelCreators; i++) {
                                         Thread.ofPlatform().name("ConnectionCreator-" + i).start(() -> {
                                             try {
                                                 // Each creator can create multiple connections
-                                                while (running && getHostSeed().contains(host)
+                                                while (running && hosts.containsKey(host)
                                                         && hosts.get(host).getConnectionPool().size() < getWaitCounterForHost(host)
                                                         && getTotalConnectionsToHost(host) < getMaxConnectionsPerHost()) {
                                                     createNewConnection(host);
@@ -707,9 +708,9 @@ public class PooledDriver extends DriverBase {
                                     }
                                 }
                             } catch (Exception e) {
-                                log.error("Could not create connection to {}", hst, e);
+                                log.error("Could not create connection to {}", normalizedHst, e);
                                 // removing connections, probably all broken now
-                                onConnectionError(hst);
+                                onConnectionError(normalizedHst);
                             }
                         }
                     } catch (Throwable e) {
@@ -723,7 +724,7 @@ public class PooledDriver extends DriverBase {
         }
     }
     private int getWaitCounterForHost(String hst) {
-        Host host = hosts.get(hst);
+        Host host = hosts.get(normalizeHostKey(hst));
         if (host == null) {
             return 0;
         }
@@ -746,13 +747,14 @@ public class PooledDriver extends DriverBase {
         if (!running) return;
         // empty pool for host, as connection to it failed
         stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-        Host h = hosts.get(host);
+        String normalizedHost = normalizeHostKey(host);
+        Host h = hosts.get(normalizedHost);
         if (h == null) {
             return;
         }
         h.incrementFailures();
         if (h.getFailures() > Host.MAX_FAILURES) {
-            hosts.remove(host);
+            hosts.remove(normalizedHost);
             BlockingQueue<ConnectionContainer> connectionsList = h.getConnectionPool();
 
 
@@ -760,11 +762,11 @@ public class PooledDriver extends DriverBase {
             // the replica set may advertise members under different hostnames (e.g. short names)
             // than the client's resolvable seed list (e.g. FQDNs). Removing here can break primary discovery.
 
-            if (host.equals(primaryNode)) {
+            if (normalizedHost.equals(primaryNode)) {
                 primaryNode = null;
             }
 
-            if (host.equals(fastestHost)) {
+            if (normalizedHost.equals(fastestHost)) {
                 fastestHost = null;
                 fastestTime = 10000;
             }
@@ -885,7 +887,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private int getTotalConnectionsToHost(String h) {
-        Host host = hosts.get(h);
+        Host host = hosts.get(normalizeHostKey(h));
         if (host == null) {
             return 0;
         }
