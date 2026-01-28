@@ -286,13 +286,18 @@ public class PooledDriver extends DriverBase {
      * - "server.example.com" -> "server.example.com:27017"
      * - "server.example.com:27017" -> "server.example.com:27017"
      * - "server.example.com:27018" -> "server.example.com:27018"
+     * - "SERVER.example.com:27017" -> "server.example.com:27017" (case-insensitive)
      */
     private String normalizeHostKey(String hostPort) {
         if (hostPort == null) return null;
-        if (hostPort.contains(":")) {
-            return hostPort;  // Already has port
+        // Normalize to lowercase for case-insensitive hostname matching
+        // This prevents pool exhaustion when MongoDB reports hostnames with different
+        // casing than what was used in the seed list (e.g., SERV-MSG1 vs serv-msg1)
+        String normalized = hostPort.toLowerCase();
+        if (normalized.contains(":")) {
+            return normalized;  // Already has port
         }
-        return hostPort + ":27017";  // Add default port
+        return normalized + ":27017";  // Add default port
     }
 
     @Override
