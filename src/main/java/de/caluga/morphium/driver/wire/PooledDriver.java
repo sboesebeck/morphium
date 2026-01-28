@@ -207,8 +207,8 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public synchronized void removeFromHostSeed(String host) {
-        super.removeFromHostSeed(host);
-        Host removed = hosts.remove(host);
+        super.removeFromHostSeed(normalizeHostKey(host));
+        Host removed = hosts.remove(normalizeHostKey(host));
 
         if (removed != null) {
             // Close pooled connections for the removed host to avoid untracked open sockets and drifting stats.
@@ -435,6 +435,7 @@ public class PooledDriver extends DriverBase {
 
                     for (Integer i : toDelete) {
                         borrowedConnections.remove(i);
+                        h.decrementBorrowedConnections(); // Fix: decrement counter when removing borrowed connection
                     }
 
                     if (fastestHost != null && fastestHost.equals(host)) {
