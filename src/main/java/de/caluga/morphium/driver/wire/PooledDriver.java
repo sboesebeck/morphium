@@ -153,7 +153,8 @@ public class PooledDriver extends DriverBase {
     public void connect(String replSet) throws MorphiumDriverException {
         // creating min connections for each host
         for (String host : getHostSeed()) {
-            hosts.put(host, new Host(getHost(host), getPortFromHost(host)));
+            String normalizedHost = normalizeHostKey(host);
+            hosts.put(normalizedHost, new Host(getHost(host), getPortFromHost(host)));
         }
 
         setReplicaSet(getHostSeed().size() > 1);
@@ -276,6 +277,24 @@ public class PooledDriver extends DriverBase {
         return Integer.parseInt(h[1]);
     }
 
+    /**
+     * Normalize host string to always include port.
+     * This ensures consistent keys in the hosts map, matching what
+     * SingleMongoConnection.getConnectedTo() returns.
+     * 
+     * Examples:
+     * - "server.example.com" -> "server.example.com:27017"
+     * - "server.example.com:27017" -> "server.example.com:27017"
+     * - "server.example.com:27018" -> "server.example.com:27018"
+     */
+    private String normalizeHostKey(String hostPort) {
+        if (hostPort == null) return null;
+        if (hostPort.contains(":")) {
+            return hostPort;  // Already has port
+        }
+        return hostPort + ":27017";  // Add default port
+    }
+
     @Override
     public void connect() throws MorphiumDriverException {
         connect(null);
@@ -304,7 +323,7 @@ public class PooledDriver extends DriverBase {
             lastHostsFromHello = hello.getHosts();
 
             for (String hst : hello.getHosts()) {
-                String resolved = resolveAlias(hst);
+                String resolved = normalizeHostKey(resolveAlias(hst));
                 if (!hosts.containsKey(resolved)) {
                     hosts.put(resolved, new Host(getHost(resolved), getPortFromHost(resolved)));
                 }
@@ -734,6 +753,8 @@ public class PooledDriver extends DriverBase {
 
     private void createNewConnection(String hst) throws Exception {
         if (!running) return;
+        // Normalize host key to always include port
+        hst = normalizeHostKey(hst);
         Host host = hosts.get(hst);
         if (host == null) {
             return;
@@ -846,6 +867,9 @@ public class PooledDriver extends DriverBase {
         // log.debug("borrowConnection {}", host);
         if (host == null)
             throw new MorphiumDriverException("Cannot connect to host null!");
+
+        // Normalize host key to always include port
+        host = normalizeHostKey(host);
 
         // if pool is empty -> wait increaseWaitCounter
         //
