@@ -1,4 +1,5 @@
 *.class
+logs/
 fail.pid
 test.log
 test.log/*
