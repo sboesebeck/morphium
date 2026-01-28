@@ -428,14 +428,16 @@ public class PooledDriver extends DriverBase {
                     ArrayList<Integer> toDelete = new ArrayList<>();
 
                     for (var e : new ArrayList<>(borrowedConnections.entrySet())) {
-                        if (e.getValue().getCon().getConnectedToHost().equals(host)) {
+                        // Use borrowedFromHost to find connections that were borrowed from this host
+                        String borrowedFrom = e.getValue().getBorrowedFromHost();
+                        if (host.equals(borrowedFrom)) {
                             toDelete.add(e.getKey());
                         }
                     }
 
                     for (Integer i : toDelete) {
                         borrowedConnections.remove(i);
-                        h.decrementBorrowedConnections(); // Fix: decrement counter when removing borrowed connection
+                        h.decrementBorrowedConnections(); // Decrement counter for connections borrowed from this host
                     }
 
                     if (fastestHost != null && fastestHost.equals(host)) {
@@ -476,8 +478,9 @@ public class PooledDriver extends DriverBase {
                         ConnectionContainer cc = bcEntry.getValue();
                         if (cc == null || cc.getCon() == null || !cc.getCon().isConnected()) {
                             deadBorrowedPorts.add(bcEntry.getKey());
-                            if (cc != null && cc.getCon() != null && cc.getCon().getConnectedTo() != null) {
-                                hostsToDecrement.merge(cc.getCon().getConnectedTo(), 1, Integer::sum);
+                            // Use borrowedFromHost for correct counter decrement (not getConnectedTo which may have changed)
+                            if (cc != null && cc.getBorrowedFromHost() != null) {
+                                hostsToDecrement.merge(cc.getBorrowedFromHost(), 1, Integer::sum);
                             }
                         }
                     }
@@ -963,6 +966,7 @@ public class PooledDriver extends DriverBase {
             } while (bc == null);
 
             bc.touch();
+            bc.setBorrowedFromHost(host);  // Track the host we borrowed from for correct counter decrement
             borrowedConnections.put(bc.getCon().getSourcePort(), bc);
             h.incrementBorrowedConnections();
             stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
@@ -1227,6 +1231,18 @@ public class PooledDriver extends DriverBase {
                 return;
             }
 
+            // Decrement counter on the ORIGINAL host where connection was borrowed from
+            // This prevents counter drift when topology changes during borrow/release
+            String borrowedFrom = c.getBorrowedFromHost();
+            if (borrowedFrom != null) {
+                Host originalHost = hosts.get(borrowedFrom);
+                if (originalHost != null) {
+                    originalHost.decrementBorrowedConnections();
+                }
+                // else: original host was removed, counter is gone with it - that's fine
+            }
+
+            // Return connection to the pool it currently belongs to (may differ from borrowedFrom after failover)
             if (con.getConnectedTo() != null) {
                 Host h = hosts.get(con.getConnectedTo());
                 // If not found with host:port, try with just hostname (handles case where
@@ -1248,12 +1264,9 @@ public class PooledDriver extends DriverBase {
                         stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                         try { c.getCon().close(); } catch (Exception ignored) {}
                     }
-                    h.decrementBorrowedConnections();
                     markStatsDirty();
                 } else {
-                    // Host was removed from pool - try to find by alias or just log
-                    // The borrowed counter was on the original Host object which is now gone
-                    // so we just close the connection - the counter is gone with the Host
+                    // Host was removed from pool - close connection
                     log.debug("Host {} no longer available, closing connection", con.getConnectedTo());
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                     markStatsDirty();
@@ -1263,7 +1276,7 @@ public class PooledDriver extends DriverBase {
                     }
                 }
             } else {
-                // Connection has no target host - close it and try to decrement any matching host
+                // Connection has no target host - close it
                 log.debug("Connection has no target host, closing");
                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                 markStatsDirty();
@@ -1283,9 +1296,9 @@ public class PooledDriver extends DriverBase {
                 if (connectionContainer == null || connectionContainer.getCon() == null
                         || connectionContainer.getCon().getSourcePort() == 0) {
                     sourcePortsToDelete.add(port);
-                    // Track which host this connection belonged to so we can decrement its counter
-                    if (connectionContainer != null && connectionContainer.getCon() != null) {
-                        String hostKey = connectionContainer.getCon().getConnectedTo();
+                    // Track which host this connection was BORROWED FROM so we can decrement its counter correctly
+                    if (connectionContainer != null) {
+                        String hostKey = connectionContainer.getBorrowedFromHost();
                         if (hostKey != null) {
                             hostsToDecrement.merge(hostKey, 1, Integer::sum);
                         }
@@ -1625,12 +1638,10 @@ public class PooledDriver extends DriverBase {
             ret.put(host + ".pending_creations", h.getPendingConnectionCreations());
             ret.put(host + ".wait_counter", h.getWaitCounter());
             
-            // Flag counter drift for easy alerting
+            // Always report counter drift for monitoring (even when 0)
             int counter = h.getBorrowedConnections();
             int mapSize = borrowedMapByHost.getOrDefault(host, 0);
-            if (counter != mapSize) {
-                ret.put(host + ".COUNTER_DRIFT", counter - mapSize);
-            }
+            ret.put(host + ".COUNTER_DRIFT", counter - mapSize);
         }
         
         // Total borrowed map size
@@ -1659,11 +1670,21 @@ public class PooledDriver extends DriverBase {
         private SingleMongoConnection con;
         private long created;
         private long lastUsed;
+        private String borrowedFromHost;  // Track which host this was borrowed from for correct counter decrement
 
         public ConnectionContainer(SingleMongoConnection con) {
             this.con = con;
             created = System.currentTimeMillis();
             lastUsed = System.currentTimeMillis();
+        }
+
+        public String getBorrowedFromHost() {
+            return borrowedFromHost;
+        }
+
+        public ConnectionContainer setBorrowedFromHost(String borrowedFromHost) {
+            this.borrowedFromHost = borrowedFromHost;
+            return this;
         }
 
         public void touch() {
