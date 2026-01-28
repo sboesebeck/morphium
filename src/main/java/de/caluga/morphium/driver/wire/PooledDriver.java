@@ -440,6 +440,11 @@ public class PooledDriver extends DriverBase {
 
                     for (var hEntry : hostsToDecrement.entrySet()) {
                         Host h = hosts.get(hEntry.getKey());
+                        // If not found with host:port, try with just hostname
+                        if (h == null) {
+                            String hostOnly = hEntry.getKey().split(":")[0];
+                            h = hosts.get(hostOnly);
+                        }
                         if (h != null) {
                             for (int i = 0; i < hEntry.getValue(); i++) {
                                 h.decrementBorrowedConnections();
@@ -1165,6 +1170,11 @@ public class PooledDriver extends DriverBase {
 
             if (con.getConnectedTo() != null) {
                 Host h = hosts.get(con.getConnectedTo());
+                // If not found with host:port, try with just hostname (handles case where
+                // hosts map was populated without port numbers)
+                if (h == null) {
+                    h = hosts.get(con.getConnectedToHost());
+                }
                 if (h != null) {
                     // Use offer() with timeout instead of add() to prevent lock convoy under high contention
                     try {
@@ -1231,6 +1241,11 @@ public class PooledDriver extends DriverBase {
             // Decrement borrowed counters for affected hosts
             for (Map.Entry<String, Integer> entry : hostsToDecrement.entrySet()) {
                 Host h = hosts.get(entry.getKey());
+                // If not found with host:port, try with just hostname
+                if (h == null) {
+                    String hostOnly = entry.getKey().split(":")[0];
+                    h = hosts.get(hostOnly);
+                }
                 if (h != null) {
                     for (int i = 0; i < entry.getValue(); i++) {
                         h.decrementBorrowedConnections();
