@@ -241,11 +241,13 @@ public class SingleMongoConnection implements MongoConnection {
 
     @Override
     public String getConnectedTo() {
-        return connectedTo + ":" + connectedToPort;
+        // Normalize to lowercase for consistent hostname matching in connection pools
+        return connectedTo.toLowerCase() + ":" + connectedToPort;
     }
 
     public String getConnectedToHost() {
-        return connectedTo;
+        // Normalize to lowercase for consistent hostname matching in connection pools
+        return connectedTo.toLowerCase();
     }
 
     @Override
