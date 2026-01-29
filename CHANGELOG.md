@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+#### Connection Pool counter drift
+• PooledDriver: fixes counter drift / incorrect borrowed counter decrement under topology changes (prevents apparent pool exhaustion).
+• ChangeStreamMonitor: fixes connection release fallback when watch exists but has no connection (prevents lingering borrowed counter of +1).
+
 
 #### Connection Pool Exhaustion due to Hostname Case Mismatch
 - **Pool exhaustion when MongoDB reports hostnames with different casing**: When MongoDB's `hello` response reported hostnames with different casing than the seed list (e.g., `SERV-MSG1.example.com` vs `serv-msg1.example.com`), connections were being closed instead of returned to the pool. The borrowed connections counter was not decremented, causing the pool to fill up to `maxConnections` with all connections appearing "borrowed" but none available.
