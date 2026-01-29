@@ -183,10 +183,14 @@ public class Product {
 }
 ```
 
-Das war's. Morphium:
-- Cached automatisch
-- Invalidiert über Messaging cluster-weit
-- Kein Redis/Memcached Setup nötig
+Morphium cached automatisch lokal. Für **Cluster-weite Synchronisation** brauchst du einen `CacheSynchronizer`:
+
+```java
+// Cache-Synchronisation im Cluster aktivieren
+CacheSynchronizer cacheSynchronizer = new CacheSynchronizer(messaging, morphium);
+```
+
+Der CacheSynchronizer nutzt das Messaging-System, um Cache-Invalidierungen an alle Instanzen zu propagieren. Kein Redis/Memcached Setup nötig — nur Morphiums eigenes Messaging.
 
 ---
 
