@@ -83,11 +83,13 @@ nav:
   - Core Features:
     - Messaging System: messaging.md
     - Messaging Implementations: howtos/messaging-implementations.md
+    - SSL/TLS Connections: ssl-tls.md
     - Developer Guide: developer-guide.md
   - Reference:
     - API Reference: api-reference.md
     - Configuration: configuration-reference.md
   - Operations:
+    - v5 vs v6 Performance: v5-vs-v6-performance.md
     - Performance & Scalability: performance-scalability-guide.md
     - Production Deployment: production-deployment-guide.md
     - Monitoring & Metrics: monitoring-metrics-guide.md

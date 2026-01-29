@@ -171,9 +171,22 @@ for (document : documents) {                   // n documents
 
 ---
 
-## Benchmark Estimates
+## Benchmark Results
 
-Based on code analysis and changelog entries:
+### v6.x Absolute Performance (MongoDB 8.2, 3-node Replica Set)
+
+Measured on local development machine with `PerformanceBenchmarkTest`:
+
+| Benchmark | Configuration | Result |
+|-----------|--------------|--------|
+| **Connection Pool** | 20 threads × 100 ops | **31,642 ops/sec** (0.03ms avg latency) |
+| **Bulk Writes** | 10,000 docs in 10 batches | **38,219 docs/sec** |
+| **$in Query** | 500 values vs 10,000 docs | **3.14ms** per query |
+| **Messaging** | 500 messages broadcast | **21 msgs/sec** (47.88ms latency) |
+
+### Estimated Improvements vs v5.1.x
+
+Based on code analysis and algorithmic improvements:
 
 | Scenario | v5.1.x Baseline | v6.x Estimated |
 |----------|-----------------|----------------|
@@ -185,7 +198,7 @@ Based on code analysis and changelog entries:
 | InMemory with `$in` queries | 1.0x | 5-10x |
 | Memory allocation (reads) | 1.0x | 0.5-0.7x |
 
-*Note: These are estimates based on algorithmic improvements. Actual results depend on workload characteristics.*
+*Note: Direct v5 vs v6 comparison requires running both versions. The estimates above are based on algorithmic improvements.*
 
 ---
 
