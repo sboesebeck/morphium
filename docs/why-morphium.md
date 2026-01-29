@@ -154,6 +154,23 @@ Service B startet um 10:02
 
 Bei klassischen Message Brokern (RabbitMQ, etc.) ist dieses "Replay" deutlich aufwändiger zu realisieren — du brauchst Dead Letter Queues, manuelle Replay-Mechanismen, oder zusätzliche Persistence-Layer. Mit Morphium ist es einfach da.
 
+**Bonus: Messages sind queryable!**
+
+Da Messages normale MongoDB-Dokumente sind, kannst du sie **durchsuchen, filtern und analysieren**:
+
+```java
+// Wie viele Orders wurden heute verarbeitet?
+long todayOrders = morphium.createQueryFor(Msg.class)
+    .f("name").eq("order.created")
+    .f("timestamp").gte(todayMidnight)
+    .countAll();
+
+// Durchschnittliche Verarbeitungszeit?
+// → Aggregation Pipeline über processed_at - timestamp
+```
+
+Statistiken, Dashboards, Debugging — alles mit Standard-MongoDB-Queries. Bei RabbitMQ/Kafka brauchst du dafür separate Monitoring-Tools oder musst Messages erst in eine DB exportieren.
+
 ---
 
 ### 2. Multi-Level Caching (Cluster-aware)
