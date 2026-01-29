@@ -12,9 +12,13 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/releases/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/v5-vs-v6-performance/">
       
       
+        <link rel="prev" href="../configuration-reference/">
+      
+      
+        <link rel="next" href="../performance-scalability-guide/">
       
       
         
@@ -25,7 +29,7 @@
     
     
       
-        <title>Release Documentation - Morphium Documentation</title>
+        <title>v5 vs v6 Performance - Morphium Documentation</title>
       
     
     
@@ -76,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#release-documentation" class="md-skip">
+        <a href="#performance-comparison-v51x-vs-v6x" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Release Documentation
+              v5 vs v6 Performance
             
           </span>
         </div>
@@ -344,11 +348,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../v5-vs-v6-performance/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -1348,28 +1354,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
   
@@ -1387,7 +1396,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1402,10 +1411,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../v5-vs-v6-performance/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v5 vs v6 Performance
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1421,6 +1457,206 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#real-benchmark-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Benchmark Results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Real Benchmark Results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#v519-vs-v6x-mongodb-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v5.1.9 vs v6.x (MongoDB Cluster)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messaging-performance-by-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging Performance by Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-query-indexed-vs-non-indexed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        $in Query: Indexed vs Non-Indexed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Improvements
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture Improvements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pooleddriver-per-host-locking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PooledDriver: Per-Host Locking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messaging-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#morphiumserver-for-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MorphiumServer for Testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MorphiumServer for Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inmemory-vs-mongodb-when-to-use-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InMemory vs MongoDB: When to Use What
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InMemory vs MongoDB: When to Use What">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inmemory-driver-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InMemory Driver Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tuning-messaging-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning Messaging Performance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1629,10 +1865,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#documentation-structure" class="md-nav__link">
+  <a href="#executive-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Structure
+        Executive Summary
       
     </span>
   </a>
@@ -1640,44 +1876,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-this-structure" class="md-nav__link">
+  <a href="#real-benchmark-results" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why This Structure?
+        Real Benchmark Results
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#for-future-releases" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        For Future Releases
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#available-releases" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Available Releases
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Available Releases">
+    <nav class="md-nav" aria-label="Real Benchmark Results">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#601-tbd" class="md-nav__link">
+  <a href="#v519-vs-v6x-mongodb-cluster" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6.0.1 - TBD
+        v5.1.9 vs v6.x (MongoDB Cluster)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messaging-performance-by-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging Performance by Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-query-indexed-vs-non-indexed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        $in Query: Indexed vs Non-Indexed
       
     </span>
   </a>
@@ -1686,6 +1922,123 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Improvements
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture Improvements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pooleddriver-per-host-locking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PooledDriver: Per-Host Locking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messaging-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#morphiumserver-for-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MorphiumServer for Testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MorphiumServer for Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inmemory-vs-mongodb-when-to-use-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InMemory vs MongoDB: When to Use What
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InMemory vs MongoDB: When to Use What">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inmemory-driver-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InMemory Driver Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tuning-messaging-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning Messaging Performance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration Checklist
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1709,38 +2062,295 @@
   
 
 
-<h1 id="release-documentation">Release Documentation<a class="headerlink" href="#release-documentation" title="Permanent link">&para;</a></h1>
-<p>This directory contains detailed release notes for each Morphium version.</p>
-<h2 id="documentation-structure">Documentation Structure<a class="headerlink" href="#documentation-structure" title="Permanent link">&para;</a></h2>
-<p><strong>Root Level:</strong>
-- <code>CHANGELOG.md</code> - Single changelog file with all releases (standard format, <a href="https://keepachangelog.com/">Keep a Changelog</a>)</p>
-<p><strong>This Directory (<code>docs/releases/</code>):</strong>
-- <code>CHANGELOG-X.Y.Z.md</code> - Comprehensive technical changelog with implementation details
-- <code>RELEASE-NOTES-X.Y.Z.md</code> - Quick summary and migration guide for users</p>
-<h2 id="why-this-structure">Why This Structure?<a class="headerlink" href="#why-this-structure" title="Permanent link">&para;</a></h2>
+<h1 id="performance-comparison-v51x-vs-v6x">Performance Comparison: v5.1.x vs v6.x<a class="headerlink" href="#performance-comparison-v51x-vs-v6x" title="Permanent link">&para;</a></h1>
+<p><em>Benchmarked on MongoDB 8.2, 3-node replica set, January 2026</em></p>
+<hr />
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>v5.1.x → v6.x</th>
+<th>Improvement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Connection Pool</strong></td>
+<td>Global lock → Per-host locking</td>
+<td><strong>+38%</strong> throughput</td>
+</tr>
+<tr>
+<td><strong>Messaging</strong></td>
+<td>Improved threading &amp; lock handling</td>
+<td>Better under load</td>
+</tr>
+<tr>
+<td><strong>$in Queries</strong></td>
+<td>Same (MongoDB indexed)</td>
+<td>~8% faster</td>
+</tr>
+<tr>
+<td><strong>SSL/TLS</strong></td>
+<td>Not available → Full support</td>
+<td>✅ New feature</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="real-benchmark-results">Real Benchmark Results<a class="headerlink" href="#real-benchmark-results" title="Permanent link">&para;</a></h2>
+<h3 id="v519-vs-v6x-mongodb-cluster">v5.1.9 vs v6.x (MongoDB Cluster)<a class="headerlink" href="#v519-vs-v6x-mongodb-cluster" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>v5.1.9</th>
+<th>v6.x</th>
+<th>Improvement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Connection Pool</strong> (20 threads × 100 ops)</td>
+<td>22,869 ops/sec</td>
+<td>31,642 ops/sec</td>
+<td><strong>+38%</strong></td>
+</tr>
+<tr>
+<td><strong>Messaging</strong> (500 msgs, default settings)</td>
+<td>10 msgs/sec*</td>
+<td>21 msgs/sec</td>
+<td>+110%</td>
+</tr>
+<tr>
+<td><strong>$in Query</strong> (500 values, indexed)</td>
+<td>3.40 ms</td>
+<td>3.14 ms</td>
+<td>+8%</td>
+</tr>
+<tr>
+<td><strong>Bulk Writes</strong> (10K docs)</td>
+<td>43,544 docs/sec</td>
+<td>38,219 docs/sec</td>
+<td>-12%**</td>
+</tr>
+</tbody>
+</table>
+<p><em>*v5 messaging hit timeout (345/500 received) — may indicate stability issues under load.</em>
+<em>**Bulk write difference under investigation.</em></p>
+<h3 id="messaging-performance-by-backend">Messaging Performance by Backend<a class="headerlink" href="#messaging-performance-by-backend" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Throughput</th>
+<th>Latency</th>
+<th>vs MongoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MongoDB</strong> (3-node replica set)</td>
+<td>89 msgs/sec</td>
+<td>11.28 ms</td>
+<td>1x</td>
+</tr>
+<tr>
+<td><strong>MorphiumServer</strong></td>
+<td>223 msgs/sec</td>
+<td>4.47 ms</td>
+<td><strong>2.5x faster</strong></td>
+</tr>
+<tr>
+<td><strong>InMemory Driver</strong> (direct)</td>
+<td>281 msgs/sec</td>
+<td>3.56 ms</td>
+<td><strong>3.2x faster</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Key insight:</strong> MorphiumServer is 2.5x faster than real MongoDB for messaging tests!</p>
+</blockquote>
+<h3 id="in-query-indexed-vs-non-indexed">$in Query: Indexed vs Non-Indexed<a class="headerlink" href="#in-query-indexed-vs-non-indexed" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>MongoDB</th>
+<th>InMemory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Indexed (counter, 500 values)</td>
+<td>5.52 ms</td>
+<td>81.30 ms</td>
+</tr>
+<tr>
+<td>Non-indexed (category, 50 values)</td>
+<td>10.39 ms</td>
+<td>16.60 ms</td>
+</tr>
+</tbody>
+</table>
+<p>MongoDB indexes make a huge difference. InMemory shows O(n×m) behavior without indexes.</p>
+<hr />
+<h2 id="architecture-improvements">Architecture Improvements<a class="headerlink" href="#architecture-improvements" title="Permanent link">&para;</a></h2>
+<h3 id="pooleddriver-per-host-locking">PooledDriver: Per-Host Locking<a class="headerlink" href="#pooleddriver-per-host-locking" title="Permanent link">&para;</a></h3>
+<p><strong>v5.1.x:</strong>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// Global synchronized blocks - all hosts blocked</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kd">private</span><span class="w"> </span><span class="kd">synchronized</span><span class="w"> </span><span class="n">MongoConnection</span><span class="w"> </span><span class="nf">borrowConnection</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">host</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">connectionPool</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<p><strong>v6.x:</strong>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// Per-host isolation with modern concurrency</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Host</span><span class="o">&gt;</span><span class="w"> </span><span class="n">hosts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ConcurrentHashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kd">class</span> <span class="nc">Host</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">BlockingQueue</span><span class="o">&lt;</span><span class="n">ConnectionContainer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pool</span><span class="p">;</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">AtomicInteger</span><span class="w"> </span><span class="n">borrowedConnections</span><span class="p">;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<p><strong>Result:</strong> Operations on different hosts don't block each other.</p>
+<h3 id="messaging-improvements">Messaging Improvements<a class="headerlink" href="#messaging-improvements" title="Permanent link">&para;</a></h3>
+<p>Both v5 and v6 use ChangeStream, but v6 has:</p>
 <ul>
-<li><strong>Single CHANGELOG.md</strong>: Industry standard, easy to browse all versions</li>
-<li><strong>Detailed docs</strong>: Technical teams need deep dive documentation</li>
-<li><strong>Quick notes</strong>: Users need fast migration info without technical details</li>
-<li><strong>No clutter</strong>: Root directory stays clean with just one changelog file</li>
+<li><strong>Better thread pool management</strong> — Configurable core/max sizes</li>
+<li><strong>Improved resume token handling</strong> — More reliable after disconnects  </li>
+<li><strong>Lock optimizations</strong> — Less contention in message processing</li>
+<li><strong>Java 21 threading</strong> — Ready for virtual threads</li>
 </ul>
-<h2 id="for-future-releases">For Future Releases<a class="headerlink" href="#for-future-releases" title="Permanent link">&para;</a></h2>
-<p>When creating a new release:</p>
-<ol>
-<li>Add entry to root <code>CHANGELOG.md</code> (concise)</li>
-<li>Create <code>docs/releases/CHANGELOG-X.Y.Z.md</code> (detailed)</li>
-<li>Create <code>docs/releases/RELEASE-NOTES-X.Y.Z.md</code> (user-facing)</li>
-<li>Update this README with the new release</li>
-</ol>
-<h2 id="available-releases">Available Releases<a class="headerlink" href="#available-releases" title="Permanent link">&para;</a></h2>
-<h3 id="601-tbd"><a href="CHANGELOG-6.0.1/">6.0.1</a> - TBD<a class="headerlink" href="#601-tbd" title="Permanent link">&para;</a></h3>
-<p>Bugfix release with enhanced null handling and connection stability
-- <a href="CHANGELOG-6.0.1/">Detailed Changelog</a>
-- <a href="RELEASE-NOTES-6.0.1/">Quick Release Notes</a></p>
-<p><strong>Highlights:</strong>
-- Bidirectional @UseIfNull behavior (protection from null contamination)
-- Socket timeout retry logic
-- Annotation rename: @UseIfnull → @UseIfNull</p>
+<p><strong>Result:</strong> Better throughput with optimized settings.</p>
+<hr />
+<h2 id="morphiumserver-for-testing">MorphiumServer for Testing<a class="headerlink" href="#morphiumserver-for-testing" title="Permanent link">&para;</a></h2>
+<p>MorphiumServer provides a MongoDB-compatible server backed by InMemoryDriver:</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Benefit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>No MongoDB required</strong></td>
+<td>CI/CD without Docker</td>
+</tr>
+<tr>
+<td><strong>2.5x faster messaging</strong></td>
+<td>Faster test suites</td>
+</tr>
+<tr>
+<td><strong>Full wire protocol</strong></td>
+<td>Drop-in replacement</td>
+</tr>
+<tr>
+<td><strong>Clustering support</strong></td>
+<td>Test replica set scenarios</td>
+</tr>
+</tbody>
+</table>
+<h3 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Start server</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>mvn<span class="w"> </span>exec:java<span class="w"> </span>-Dexec.mainClass<span class="o">=</span><span class="s2">&quot;de.caluga.morphium.server.MorphiumServerCLI&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>-Dexec.args<span class="o">=</span><span class="s2">&quot;-p 17017&quot;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Connect Morphium</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>MorphiumConfig<span class="w"> </span><span class="nv">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>new<span class="w"> </span>MorphiumConfig<span class="o">()</span><span class="p">;</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>cfg.addHostToSeed<span class="o">(</span><span class="s2">&quot;localhost:17017&quot;</span><span class="o">)</span><span class="p">;</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>cfg.setDatabase<span class="o">(</span><span class="s2">&quot;test&quot;</span><span class="o">)</span><span class="p">;</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>Morphium<span class="w"> </span><span class="nv">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>new<span class="w"> </span>Morphium<span class="o">(</span>cfg<span class="o">)</span><span class="p">;</span>
+</span></code></pre></div>
+<hr />
+<h2 id="inmemory-vs-mongodb-when-to-use-what">InMemory vs MongoDB: When to Use What<a class="headerlink" href="#inmemory-vs-mongodb-when-to-use-what" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Use Case</th>
+<th>Recommendation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unit tests</td>
+<td>InMemory Driver (fastest)</td>
+</tr>
+<tr>
+<td>Integration tests</td>
+<td>MorphiumServer (realistic + fast)</td>
+</tr>
+<tr>
+<td>Load testing</td>
+<td>Real MongoDB (production-like)</td>
+</tr>
+<tr>
+<td>CI/CD pipelines</td>
+<td>MorphiumServer (no dependencies)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="inmemory-driver-limitations">InMemory Driver Limitations<a class="headerlink" href="#inmemory-driver-limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li>No real indexes (full collection scan)</li>
+<li>$in queries are O(n×m) not O(n+m)</li>
+<li>No persistence across restarts</li>
+</ul>
+<hr />
+<h2 id="tuning-messaging-performance">Tuning Messaging Performance<a class="headerlink" href="#tuning-messaging-performance" title="Permanent link">&para;</a></h2>
+<p>Default settings are conservative. For high-throughput:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// Optimized settings</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">SingleCollectionMessaging</span><span class="w"> </span><span class="n">messaging</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">SingleCollectionMessaging</span><span class="p">(</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="n">morphium</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="mi">10</span><span class="p">,</span><span class="w">      </span><span class="c1">// pause: 10ms (default: 100ms)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="kc">true</span><span class="p">,</span><span class="w">    </span><span class="c1">// multithreaded</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="mi">100</span><span class="w">      </span><span class="c1">// windowSize (default: 10)</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">);</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Optimized</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pause</td>
+<td>100ms</td>
+<td>10ms</td>
+<td>Lower latency</td>
+</tr>
+<tr>
+<td>multithreaded</td>
+<td>false</td>
+<td>true</td>
+<td>Parallel processing</td>
+</tr>
+<tr>
+<td>windowSize</td>
+<td>10</td>
+<td>100</td>
+<td>Batch efficiency</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="migration-checklist">Migration Checklist<a class="headerlink" href="#migration-checklist" title="Permanent link">&para;</a></h2>
+<p>Upgrading from v5.1.x to v6.x:</p>
+<ul>
+<li>[ ] Java 21 required</li>
+<li>[ ] Update <code>Messaging</code> → <code>SingleCollectionMessaging</code></li>
+<li>[ ] Review messaging settings for optimal performance</li>
+<li>[ ] Enable SSL/TLS for production (new in v6!)</li>
+<li>[ ] Consider MorphiumServer for tests</li>
+</ul>
+<p>See <a href="../howtos/migration-v5-to-v6/">Migration Guide v5→v6</a> for details.</p>
+<hr />
+<p><em>Benchmarks run on Mac Studio M2 Ultra, MongoDB 8.2.4, Morphium 6.1.8-SNAPSHOT</em></p>
 
 
 
