@@ -45,9 +45,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
     <!-- JUnit tag control (defaults) -->
-    <test.includeTags />
+    <test.includeTags/>
     <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
@@ -204,7 +204,7 @@
     <profile>
       <id>external</id>
       <properties>
-        <test.excludeTags />
+        <test.excludeTags/>
       </properties>
       <build>
         <plugins>
@@ -303,12 +303,12 @@
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-core</artifactId>
-      <version>1.5.24</version>
+      <version>1.5.25</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.5.24</version>
+      <version>1.5.25</version>
     </dependency>
     <dependency>
       <groupId>com.colofabrix.scala</groupId>
