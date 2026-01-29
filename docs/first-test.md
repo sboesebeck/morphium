@@ -301,7 +301,7 @@ Morphium itself has a powerful test runner:
 ./runtests.sh --parallel 4
 
 # Single class
-./runtests.sh --test-class de.caluga.test.morphium.BasicFunctionalityTests
+./runtests.sh --test de.caluga.test.morphium.BasicFunctionalityTests
 
 # Help
 ./runtests.sh --help
