@@ -6,34 +6,44 @@
 
 ## Das Problem mit dem Official MongoDB Driver
 
-Der offizielle MongoDB Java Driver ist **low-level by design**. Du arbeitest mit `Document`-Objekten, konvertierst manuell, und baust dir selbst zusammen, was du brauchst:
+Der offizielle MongoDB Java Driver hat **zwei Gesichter**:
+
+1. **Low-Level API:** Arbeiten mit `Document`-Objekten, manuelles Mapping
+2. **POJO Codec:** Eingebautes Object Mapping mit eigener Codec-Registry
+
+Das klingt erstmal gut, aber in der Praxis gibt es Probleme:
+
+### Der POJO Codec des Official Drivers
 
 ```java
-// Official Driver: Eine einfache User-Abfrage
-MongoCollection<Document> collection = database.getCollection("users");
-Document doc = collection.find(eq("username", "alice")).first();
+// Official Driver mit POJO Codec
+CodecRegistry pojoCodecRegistry = fromRegistries(
+    MongoClientSettings.getDefaultCodecRegistry(),
+    fromProviders(PojoCodecProvider.builder().automatic(true).build())
+);
 
-// Manuelles Mapping... für jedes Feld... jedes Mal...
-User user = new User();
-user.setId(doc.getObjectId("_id"));
-user.setUsername(doc.getString("username"));
-user.setEmail(doc.getString("email"));
-user.setCreatedAt(doc.getDate("created_at"));
-// ... und so weiter für 20 Felder
+MongoCollection<User> collection = database
+    .getCollection("users", User.class)
+    .withCodecRegistry(pojoCodecRegistry);
 
-// Speichern? Wieder manuell:
-Document toSave = new Document()
-    .append("username", user.getUsername())
-    .append("email", user.getEmail())
-    .append("created_at", user.getCreatedAt());
-collection.insertOne(toSave);
+User user = collection.find(eq("username", "alice")).first();
 ```
 
-**Das funktioniert**, aber:
-- Viel Boilerplate-Code
-- Fehleranfällig (Typos in Feldnamen)
-- Keine Caching-Unterstützung
-- Messaging? Brauchst du RabbitMQ/Kafka extra
+**Probleme dabei:**
+- **Komplexe Konfiguration** — Codec Registry Setup ist nicht trivial
+- **Eingeschränkte Kontrolle** — Wenig Einfluss auf das Mapping-Verhalten
+- **Konflikte mit anderen Mappern** — Der Driver "will" selbst mappen, was bei Integration mit anderen Frameworks zu **doppeltem Mapping** führen kann
+- **Keine Caching-Integration** — Caching musst du komplett selbst bauen
+- **Kein Messaging** — Brauchst RabbitMQ/Kafka extra
+
+### Warum Morphium einen eigenen Driver hat
+
+Genau wegen dieser Mapping-Konflikte hat Morphium seit Version 5.0 einen **eigenen Wire-Protocol-Driver**. Der offizielle Driver mit seinem eingebauten Mapping hat sich in einigen Fällen mit Morphiums Mapping "gebissen" — das führte zu:
+- Doppeltem Mapping (Performance-Verlust)
+- Unerwarteten Typ-Konvertierungen
+- Schwer zu debuggenden Fehlern
+
+Mit dem eigenen Driver hat Morphium **volle Kontrolle** über das Mapping und vermeidet diese Konflikte komplett.
 
 ---
 
