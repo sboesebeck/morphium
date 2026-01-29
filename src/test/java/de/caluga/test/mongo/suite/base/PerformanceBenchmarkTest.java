@@ -124,40 +124,72 @@ public class PerformanceBenchmarkTest {
     }
 
     @Test
-    void benchmarkInMemoryInQuery() {
+    void benchmarkInMemoryInQuery() throws Exception {
         System.out.println("=== $in QUERY BENCHMARK ===");
-        System.out.println("Tests O(n+m) hash-based matching (v6) vs O(n*m) linear scan (v5)");
+        System.out.println("Comparing indexed (counter) vs non-indexed (category) field");
         
-        // Create large $in list
-        List<Integer> inValues = new ArrayList<>();
+        // Create index on counter only
+        morphium.ensureIndicesFor(BenchEntity.class);
+        Thread.sleep(200);
+        
+        int iterations = 50;
+        
+        // === Test 1: Indexed field (counter) ===
+        List<Integer> inValuesIndexed = new ArrayList<>();
         for (int i = 0; i < 500; i++) {
-            inValues.add(i * 2); // Even numbers 0-998
+            inValuesIndexed.add(i * 2); // Even numbers 0-998
         }
         
         // Warmup
         for (int i = 0; i < 10; i++) {
             morphium.createQueryFor(BenchEntity.class)
-                    .f("counter").in(inValues)
+                    .f("counter").in(inValuesIndexed)
                     .asList();
         }
         
-        // Benchmark
         long start = System.nanoTime();
-        int iterations = 50;
         int totalResults = 0;
         for (int i = 0; i < iterations; i++) {
             List<BenchEntity> results = morphium.createQueryFor(BenchEntity.class)
-                    .f("counter").in(inValues)
+                    .f("counter").in(inValuesIndexed)
                     .asList();
             totalResults += results.size();
         }
-        long elapsed = System.nanoTime() - start;
+        long elapsedIndexed = System.nanoTime() - start;
         
-        System.out.printf("$in query (500 values against 10000 docs):%n");
-        System.out.printf("  Iterations:    %d%n", iterations);
+        System.out.printf("$in on INDEXED field (counter, 500 values):%n");
         System.out.printf("  Avg results:   %d%n", totalResults / iterations);
-        System.out.printf("  Total time:    %.2f ms%n", elapsed / 1_000_000.0);
-        System.out.printf("  Avg per query: %.2f ms%n", elapsed / 1_000_000.0 / iterations);
+        System.out.printf("  Avg per query: %.2f ms%n", elapsedIndexed / 1_000_000.0 / iterations);
+        
+        // === Test 2: Non-indexed field (category) ===
+        List<String> inValuesNonIndexed = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            inValuesNonIndexed.add("cat_" + (i * 2)); // 50 categories
+        }
+        
+        // Warmup
+        for (int i = 0; i < 10; i++) {
+            morphium.createQueryFor(BenchEntity.class)
+                    .f("category").in(inValuesNonIndexed)
+                    .asList();
+        }
+        
+        start = System.nanoTime();
+        totalResults = 0;
+        for (int i = 0; i < iterations; i++) {
+            List<BenchEntity> results = morphium.createQueryFor(BenchEntity.class)
+                    .f("category").in(inValuesNonIndexed)
+                    .asList();
+            totalResults += results.size();
+        }
+        long elapsedNonIndexed = System.nanoTime() - start;
+        
+        System.out.printf("$in on NON-INDEXED field (category, 50 values):%n");
+        System.out.printf("  Avg results:   %d%n", totalResults / iterations);
+        System.out.printf("  Avg per query: %.2f ms%n", elapsedNonIndexed / 1_000_000.0 / iterations);
+        
+        System.out.printf("%nSpeedup with index: %.1fx%n", 
+            (elapsedNonIndexed / 1_000_000.0 / iterations) / (elapsedIndexed / 1_000_000.0 / iterations));
         System.out.println();
     }
 
@@ -201,8 +233,9 @@ public class PerformanceBenchmarkTest {
         System.out.println("=== MESSAGING BENCHMARK ===");
         System.out.println("Tests SingleCollectionMessaging throughput");
         
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
-        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium, 100, false);
+        // pause=10ms, multithreaded=true, windowSize=100
+        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 10, true, 100);
+        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium, 10, true, 100);
         
         sender.start();
         receiver.start();
