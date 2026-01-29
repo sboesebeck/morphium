@@ -35,14 +35,19 @@ User user = collection.find(eq("username", "alice")).first();
 - **Konflikte mit anderen Mappern** — Der Driver "will" selbst mappen, was bei Integration mit anderen Frameworks zu **doppeltem Mapping** führen kann
 - **Keine Caching-Integration** — Caching musst du komplett selbst bauen
 
-### Warum Morphium einen eigenen Driver hat
+### Warum Morphium einen eigenen Driver hat (seit v5.0)
 
-Genau wegen dieser Mapping-Konflikte hat Morphium seit Version 5.0 einen **eigenen Wire-Protocol-Driver**. Der offizielle Driver mit seinem eingebauten Mapping hat sich in einigen Fällen mit Morphiums Mapping "gebissen" — das führte zu:
-- Doppeltem Mapping (Performance-Verlust)
-- Unerwarteten Typ-Konvertierungen
-- Schwer zu debuggenden Fehlern
+Der offizielle Driver mit seinem eingebauten Mapping hat sich mit Morphiums Mapping "gebissen":
+- Doppeltes Mapping (Performance-Verlust)
+- Unerwartete Typ-Konvertierungen
+- Schwer zu debuggende Fehler
 
-Mit dem eigenen Driver hat Morphium **volle Kontrolle** über das Mapping und vermeidet diese Konflikte komplett.
+**Die Lösung:** Ein eigener Wire-Protocol-Driver, **exakt zugeschnitten auf Morphiums Bedürfnisse**.
+
+**Vorteile des eigenen Drivers:**
+- **Leichtgewichtiger** — Nur was Morphium braucht, kein Overhead
+- **Volle Kontrolle** — Mapping, Retry, Failover nach unseren Regeln
+- **InMemory Driver möglich** — Der schlanke Driver machte eine vollständige In-Memory-Implementierung erst praktikabel
 
 ---
 
@@ -81,6 +86,8 @@ public class User {
 *Über das reine ODM hinaus bietet Morphium Features, die du sonst separat aufbauen müsstest:*
 
 ### 1. Built-in Messaging (MongoDB-basiert)
+
+**Fun Fact:** Das Messaging-System entstand ursprünglich, um **Caches im Cluster zu synchronisieren**. Es hat sich dann zu einem vollwertigen, eigenständigen Feature entwickelt.
 
 Brauchst du Messaging zwischen Services? Normalerweise heißt das: RabbitMQ, Kafka, oder ähnliches aufsetzen. Mit Morphium nutzt du einfach MongoDB, das du eh schon hast.
 
@@ -133,7 +140,19 @@ messaging.addMessageListener((m, msg) -> {
 - Distributed Locks
 - TTL & Timeouts
 - Broadcast & Direct Messages
-- Persistence (es ist MongoDB!)
+
+**Der Killer-Vorteil: Persistenz & Replay**
+
+Da Messages in MongoDB leben, gehen sie nicht verloren. Ein Service, der beim Senden der Nachricht nicht lief (Restart, Deployment, Crash), kann die Messages **nachträglich verarbeiten** sobald er wieder da ist.
+
+```
+Service A sendet "order.created" um 10:00
+Service B ist gerade im Restart (10:00 - 10:02)
+Service B startet um 10:02
+→ Service B verarbeitet die Message von 10:00 ✅
+```
+
+Bei klassischen Message Brokern (RabbitMQ, etc.) ist dieses "Replay" deutlich aufwändiger zu realisieren — du brauchst Dead Letter Queues, manuelle Replay-Mechanismen, oder zusätzliche Persistence-Layer. Mit Morphium ist es einfach da.
 
 ---
 
