@@ -1,18 +1,18 @@
 # Quick Start Tutorial
 
-*Von Null zur ersten Query in 10 Minuten*
+*From zero to your first query in 10 minutes*
 
 ---
 
-## Voraussetzungen
+## Prerequisites
 
 - Java 21+
 - Maven
-- Optional: MongoDB (wir starten ohne!)
+- Optional: MongoDB (we'll start without it!)
 
 ---
 
-## Schritt 1: Dependency hinzufügen
+## Step 1: Add Dependency
 
 ```xml
 <dependency>
@@ -24,9 +24,9 @@
 
 ---
 
-## Schritt 2: Erstes Entity
+## Step 2: First Entity
 
-Erstelle eine simple `User`-Klasse:
+Create a simple `User` class:
 
 ```java
 package com.example;
@@ -47,10 +47,10 @@ public class User {
     
     private int loginCount;
     
-    // Für typsichere Queries (optional, aber empfohlen)
+    // For type-safe queries (optional but recommended)
     public enum Fields { id, username, email, loginCount }
     
-    // Default Constructor (wichtig für Morphium!)
+    // Default constructor (important for Morphium!)
     public User() {}
     
     public User(String username, String email) {
@@ -59,7 +59,7 @@ public class User {
         this.loginCount = 0;
     }
     
-    // Getter & Setter
+    // Getters & Setters
     public MorphiumId getId() { return id; }
     public void setId(MorphiumId id) { this.id = id; }
     
@@ -79,17 +79,17 @@ public class User {
 }
 ```
 
-**Was passiert hier?**
-- `@Entity` — Markiert die Klasse als MongoDB-Dokument
-- `@Id` — Das Feld wird zur `_id` in MongoDB
-- `@Index` — Erstellt automatisch einen Index
-- `MorphiumId` — Morphiums ObjectId-Wrapper
+**What's happening here?**
+- `@Entity` — Marks the class as a MongoDB document
+- `@Id` — This field becomes `_id` in MongoDB
+- `@Index` — Automatically creates an index
+- `MorphiumId` — Morphium's ObjectId wrapper
 
 ---
 
-## Schritt 3: Morphium initialisieren (ohne MongoDB!)
+## Step 3: Initialize Morphium (without MongoDB!)
 
-Für den Anfang nutzen wir den **InMemory Driver** — kein MongoDB nötig:
+For starters, we'll use the **InMemory Driver** — no MongoDB required:
 
 ```java
 package com.example;
@@ -101,63 +101,63 @@ import de.caluga.morphium.driver.inmem.InMemoryDriver;
 public class MorphiumDemo {
     
     public static void main(String[] args) {
-        // Konfiguration für InMemory (kein MongoDB nötig!)
+        // Configuration for InMemory (no MongoDB needed!)
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setDatabase("demo");
         cfg.setDriverName(InMemoryDriver.class.getName());
         
-        // Morphium starten
+        // Start Morphium
         Morphium morphium = new Morphium(cfg);
-        System.out.println("Morphium gestartet (InMemory Mode)");
+        System.out.println("Morphium started (InMemory mode)");
         
-        // ... hier kommt dein Code
+        // ... your code here
         
-        // Aufräumen
+        // Cleanup
         morphium.close();
     }
 }
 ```
 
-**Tipp:** Der InMemory Driver ist perfekt zum Lernen und für Tests. Später wechselst du einfach auf echtes MongoDB.
+**Tip:** The InMemory Driver is perfect for learning and testing. You can switch to real MongoDB later with just a config change.
 
 ---
 
-## Schritt 4: CRUD Operationen
+## Step 4: CRUD Operations
 
 ### Create
 ```java
 User alice = new User("alice", "alice@example.com");
 morphium.store(alice);
-System.out.println("Gespeichert: " + alice);
-// ID wird automatisch generiert!
+System.out.println("Stored: " + alice);
+// ID is automatically generated!
 ```
 
 ### Read
 ```java
-// Einzelnes Objekt
+// Single object
 User found = morphium.createQueryFor(User.class)
     .f(User.Fields.username).eq("alice")
     .get();
-System.out.println("Gefunden: " + found);
+System.out.println("Found: " + found);
 
-// Alle User
+// All users
 List<User> allUsers = morphium.createQueryFor(User.class).asList();
 
-// Mit Bedingungen
+// With conditions
 List<User> activeUsers = morphium.createQueryFor(User.class)
     .f(User.Fields.loginCount).gte(5)
-    .sort("-loginCount")  // Absteigend
+    .sort("-loginCount")  // Descending
     .limit(10)
     .asList();
 ```
 
 ### Update
 ```java
-// Variante 1: Objekt ändern und speichern
+// Option 1: Modify object and store
 found.setEmail("alice.new@example.com");
 morphium.store(found);
 
-// Variante 2: Direktes Update (effizienter für einzelne Felder)
+// Option 2: Direct update (more efficient for single fields)
 morphium.inc(found, User.Fields.loginCount.name(), 1);
 ```
 
@@ -165,7 +165,7 @@ morphium.inc(found, User.Fields.loginCount.name(), 1);
 ```java
 morphium.delete(found);
 
-// Oder mehrere auf einmal
+// Or delete multiple at once
 morphium.createQueryFor(User.class)
     .f(User.Fields.loginCount).eq(0)
     .delete();
@@ -173,7 +173,7 @@ morphium.createQueryFor(User.class)
 
 ---
 
-## Schritt 5: Komplettes Beispiel
+## Step 5: Complete Example
 
 ```java
 package com.example;
@@ -192,35 +192,35 @@ public class MorphiumDemo {
         cfg.setDriverName(InMemoryDriver.class.getName());
         Morphium morphium = new Morphium(cfg);
         
-        // Create: Mehrere User anlegen
+        // Create: Add multiple users
         morphium.store(new User("alice", "alice@example.com"));
         morphium.store(new User("bob", "bob@example.com"));
         morphium.store(new User("charlie", "charlie@example.com"));
-        System.out.println("3 User angelegt");
+        System.out.println("Created 3 users");
         
-        // Read: User finden
+        // Read: Find user
         User alice = morphium.createQueryFor(User.class)
             .f(User.Fields.username).eq("alice")
             .get();
-        System.out.println("Gefunden: " + alice);
+        System.out.println("Found: " + alice);
         
-        // Update: Login-Count erhöhen
+        // Update: Increment login count
         morphium.inc(alice, "loginCount", 1);
-        System.out.println("Login-Count erhöht");
+        System.out.println("Incremented login count");
         
-        // Read: Alle User mit loginCount > 0
+        // Read: All users with loginCount > 0
         List<User> activeUsers = morphium.createQueryFor(User.class)
             .f(User.Fields.loginCount).gt(0)
             .asList();
-        System.out.println("Aktive User: " + activeUsers.size());
+        System.out.println("Active users: " + activeUsers.size());
         
         // Count
         long totalUsers = morphium.createQueryFor(User.class).countAll();
-        System.out.println("Gesamt: " + totalUsers + " User");
+        System.out.println("Total: " + totalUsers + " users");
         
         // Delete
         morphium.delete(alice);
-        System.out.println("Alice gelöscht");
+        System.out.println("Deleted alice");
         
         // Cleanup
         morphium.close();
@@ -231,9 +231,9 @@ public class MorphiumDemo {
 
 ---
 
-## Schritt 6: Wechsel zu echtem MongoDB
+## Step 6: Switch to Real MongoDB
 
-Wenn du bereit bist, echtes MongoDB zu nutzen:
+When you're ready to use real MongoDB:
 
 ```java
 MorphiumConfig cfg = new MorphiumConfig();
@@ -245,61 +245,61 @@ cfg.addHostToSeed("localhost:27017");
 Morphium morphium = new Morphium(cfg);
 ```
 
-**Das war's.** Dein Code bleibt identisch — nur die Config ändert sich.
+**That's it.** Your code stays identical — only the config changes.
 
 ---
 
-## Typische Fehler vermeiden
+## Common Mistakes to Avoid
 
-### 1. Kein Default Constructor
+### 1. Missing Default Constructor
 ```java
-// ❌ Falsch
+// ❌ Wrong
 public class User {
     public User(String name) { ... }
 }
 
-// ✅ Richtig
+// ✅ Correct
 public class User {
-    public User() {}  // Default Constructor!
+    public User() {}  // Default constructor!
     public User(String name) { ... }
 }
 ```
 
-### 2. Feldnamen als Strings
+### 2. Field Names as Strings
 ```java
-// ❌ Fehleranfällig
+// ❌ Error-prone
 .f("usernmae").eq("alice")  // Typo!
 
-// ✅ Typsicher
+// ✅ Type-safe
 .f(User.Fields.username).eq("alice")
 ```
 
-### 3. Morphium nicht schließen
+### 3. Not Closing Morphium
 ```java
-// ❌ Resource Leak
+// ❌ Resource leak
 Morphium m = new Morphium(cfg);
-// ... vergessen zu schließen
+// ... forgot to close
 
-// ✅ Richtig
+// ✅ Correct
 try (Morphium m = new Morphium(cfg)) {
-    // ... arbeiten
-}  // automatisch geschlossen
+    // ... work
+}  // automatically closed
 ```
 
 ---
 
-## Nächste Schritte
+## Next Steps
 
-Du kannst jetzt:
-- ✅ Entities definieren
-- ✅ CRUD Operationen ausführen
-- ✅ Queries mit Bedingungen schreiben
+You can now:
+- ✅ Define entities
+- ✅ Perform CRUD operations
+- ✅ Write queries with conditions
 
-**Weiter geht's mit:**
-- [Deinen ersten Test schreiben](./first-test.md)
-- [Annotations im Detail](./developer-guide.md#annotations)
-- [Messaging nutzen](./messaging.md)
+**Continue with:**
+- [Write Your First Test](./first-test.md)
+- [Annotations in Detail](./developer-guide.md#annotations)
+- [Using Messaging](./messaging.md)
 
 ---
 
-*Fragen? Probleme? → [Troubleshooting Guide](./troubleshooting-guide.md)*
+*Questions? Problems? → [Troubleshooting Guide](./troubleshooting-guide.md)*

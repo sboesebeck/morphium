@@ -62,10 +62,10 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Einsteiger:
-    - Warum Morphium?: why-morphium.md
+  - Getting Started:
+    - Why Morphium?: why-morphium.md
     - Quick Start Tutorial: quickstart-tutorial.md
-    - Dein erster Test: first-test.md
+    - Your First Test: first-test.md
   - Getting Started:
     - Overview: overview.md
     - Architecture: architecture-overview.md

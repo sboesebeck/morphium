@@ -1,23 +1,23 @@
-# Deinen ersten Test schreiben
+# Writing Your First Test
 
-*Unit Tests mit Morphium — schnell, isoliert, ohne Docker*
-
----
-
-## Warum der InMemory Driver für Tests?
-
-| Ansatz | Startup | Isolation | CI/CD |
-|--------|---------|-----------|-------|
-| Testcontainers | ~5-10s | ✅ Gut | Braucht Docker |
-| Shared Test-DB | Sofort | ❌ Probleme | Race Conditions |
-| Mocks | Sofort | ✅ Gut | Aufwändig zu schreiben |
-| **InMemory Driver** | **~50ms** | **✅ Perfekt** | **Kein Docker nötig** |
-
-Der InMemory Driver emuliert MongoDB komplett im RAM — inklusive Aggregation Pipelines, Change Streams und Transactions.
+*Unit tests with Morphium — fast, isolated, no Docker required*
 
 ---
 
-## Basis-Setup (JUnit 5)
+## Why the InMemory Driver for Tests?
+
+| Approach | Startup | Isolation | CI/CD |
+|----------|---------|-----------|-------|
+| Testcontainers | ~5-10s | ✅ Good | Requires Docker |
+| Shared test DB | Instant | ❌ Problems | Race conditions |
+| Mocks | Instant | ✅ Good | Tedious to write |
+| **InMemory Driver** | **~50ms** | **✅ Perfect** | **No Docker needed** |
+
+The InMemory Driver emulates MongoDB completely in RAM — including aggregation pipelines, change streams, and transactions.
+
+---
+
+## Basic Setup (JUnit 5)
 
 ### Dependencies
 
@@ -35,7 +35,7 @@ Der InMemory Driver emuliert MongoDB komplett im RAM — inklusive Aggregation P
 </dependency>
 ```
 
-### Einfacher Test
+### Simple Test
 
 ```java
 package com.example;
@@ -54,7 +54,7 @@ class UserTest {
     @BeforeEach
     void setUp() {
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setDatabase("test_" + System.currentTimeMillis()); // Unique DB pro Test
+        cfg.setDatabase("test_" + System.currentTimeMillis()); // Unique DB per test
         cfg.setDriverName(InMemoryDriver.class.getName());
         morphium = new Morphium(cfg);
     }
@@ -75,7 +75,7 @@ class UserTest {
         morphium.store(user);
         
         // Then
-        assertNotNull(user.getId(), "ID sollte generiert werden");
+        assertNotNull(user.getId(), "ID should be generated");
         
         User found = morphium.createQueryFor(User.class)
             .f(User.Fields.username).eq("testuser")
@@ -135,9 +135,9 @@ class UserTest {
 
 ---
 
-## Test-Basisklasse (wiederverwendbar)
+## Test Base Class (reusable)
 
-Für größere Projekte: Eine Basisklasse, die Setup/Teardown kapselt.
+For larger projects: A base class that encapsulates setup/teardown.
 
 ```java
 package com.example.test;
@@ -168,7 +168,7 @@ public abstract class MorphiumTestBase {
     }
     
     /**
-     * Hilfsmethode: Warten bis Async-Operationen fertig sind
+     * Helper method: Wait until async operations are complete
      */
     protected void waitForAsyncWrites() {
         while (morphium.getWriteBufferCount() > 0) {
@@ -178,13 +178,13 @@ public abstract class MorphiumTestBase {
 }
 ```
 
-**Verwendung:**
+**Usage:**
 ```java
 class OrderServiceTest extends MorphiumTestBase {
     
     @Test
     void shouldCreateOrder() {
-        // morphium ist bereits initialisiert
+        // morphium is already initialized
         Order order = new Order();
         morphium.store(order);
         // ...
@@ -194,7 +194,7 @@ class OrderServiceTest extends MorphiumTestBase {
 
 ---
 
-## Tests für Messaging
+## Testing Messaging
 
 ```java
 import de.caluga.morphium.messaging.Messaging;
@@ -219,7 +219,7 @@ class MessagingTest extends MorphiumTestBase {
         // When
         sender.sendMessage(new Msg("test-topic", "Hello World", "payload"));
         
-        // Then: Warten auf Message-Verarbeitung
+        // Then: Wait for message processing
         Thread.sleep(500);
         assertEquals("payload", received.get());
         
@@ -232,12 +232,12 @@ class MessagingTest extends MorphiumTestBase {
 
 ---
 
-## Tests gegen echtes MongoDB (optional)
+## Testing Against Real MongoDB (optional)
 
-Manchmal willst du gegen echtes MongoDB testen (Integration Tests):
+Sometimes you want to test against real MongoDB (integration tests):
 
 ```java
-@Tag("integration")  // Separat ausführbar
+@Tag("integration")  // Run separately
 class MongoDBIntegrationTest {
     
     private Morphium morphium;
@@ -249,7 +249,7 @@ class MongoDBIntegrationTest {
         cfg.addHostToSeed("localhost:27017");
         morphium = new Morphium(cfg);
         
-        // Alte Daten löschen
+        // Clear old data
         morphium.clearCollection(User.class);
     }
     
@@ -263,47 +263,47 @@ class MongoDBIntegrationTest {
     
     @Test
     void shouldWorkWithRealMongoDB() {
-        // Test gegen echtes MongoDB
+        // Test against real MongoDB
     }
 }
 ```
 
-**Ausführung:**
+**Running tests:**
 ```bash
-# Nur Unit Tests (InMemory)
+# Unit tests only (InMemory)
 mvn test
 
-# Nur Integration Tests
+# Integration tests only
 mvn test -Dgroups=integration
 
-# Alles
+# Everything
 mvn test -Dgroups="integration,!slow"
 ```
 
 ---
 
-## Morphiums Test-Runner: `runtests.sh`
+## Morphium's Test Runner: `runtests.sh`
 
-Morphium selbst hat einen mächtigen Test-Runner:
+Morphium itself has a powerful test runner:
 
 ```bash
-# Alle Tests mit InMemory Driver (Standard)
+# All tests with InMemory Driver (default)
 ./runtests.sh
 
-# Mit echtem MongoDB
+# With real MongoDB
 ./runtests.sh --driver pooled --uri "mongodb://localhost:27017/test"
 
-# Nur bestimmte Tags
+# Only specific tags
 ./runtests.sh --tags core
 ./runtests.sh --tags messaging
 
 # Parallel
 ./runtests.sh --parallel 4
 
-# Einzelne Klasse
+# Single class
 ./runtests.sh --test-class de.caluga.test.morphium.BasicFunctionalityTests
 
-# Hilfe
+# Help
 ./runtests.sh --help
 ```
 
@@ -311,73 +311,73 @@ Morphium selbst hat einen mächtigen Test-Runner:
 
 ## Best Practices
 
-### 1. Jeder Test bekommt eigene DB
+### 1. Each Test Gets Its Own DB
 ```java
 cfg.setDatabase("test_" + System.currentTimeMillis());
 ```
-Verhindert Test-Interferenzen.
+Prevents test interference.
 
-### 2. Nutze Fields-Enum
+### 2. Use the Fields Enum
 ```java
-// ✅ Refactoring-sicher
+// ✅ Refactoring-safe
 .f(User.Fields.username).eq("test")
 
-// ❌ Bricht bei Rename
+// ❌ Breaks on rename
 .f("username").eq("test")
 ```
 
-### 3. Async-Writes abwarten
+### 3. Wait for Async Writes
 ```java
 morphium.store(obj);
-// Bei async writes:
+// For async writes:
 while (morphium.getWriteBufferCount() > 0) {
     Thread.onSpinWait();
 }
 ```
 
-### 4. Cleanup nicht vergessen
+### 4. Don't Forget Cleanup
 ```java
 @AfterEach
 void cleanup() {
-    morphium.close();  // Wichtig!
+    morphium.close();  // Important!
 }
 ```
 
-### 5. InMemory für Unit Tests, echtes MongoDB für Integration
+### 5. InMemory for Unit Tests, Real MongoDB for Integration
 ```java
 @Tag("unit")
 class FastUnitTest extends MorphiumTestBase { }
 
 @Tag("integration") 
-class SlowIntegrationTest { /* echtes MongoDB */ }
+class SlowIntegrationTest { /* real MongoDB */ }
 ```
 
 ---
 
-## Fehlerbehebung
+## Troubleshooting
 
-### Test hängt
-Wahrscheinlich Messaging-Listener nicht terminiert:
+### Test Hangs
+Probably a messaging listener not terminated:
 ```java
 messaging.terminate();
 ```
 
 ### "Collection not found"
-InMemory Driver erstellt Collections lazy. Erst nach erstem `store()` existiert sie.
+InMemory Driver creates collections lazily. They only exist after the first `store()`.
 
 ### Flaky Tests
-- Prüfe auf Race Conditions bei Messaging
-- Nutze `Thread.sleep()` oder besser: CountDownLatch
-- Unique DB-Namen pro Test verwenden
+- Check for race conditions in messaging
+- Use `Thread.sleep()` or better: CountDownLatch
+- Use unique DB names per test
 
 ---
 
-## Nächste Schritte
+## Next Steps
 
-- [Developer Testing Guide](./developer-testing-guide.md) — Tiefer in Morphiums eigene Test-Infrastruktur
-- [Test Runner Reference](./test-runner.md) — Alle `runtests.sh` Optionen
-- [Messaging Guide](./messaging.md) — Messaging testen
+- [Developer Testing Guide](./developer-testing-guide.md) — Deep dive into Morphium's own test infrastructure
+- [Test Runner Reference](./test-runner.md) — All `runtests.sh` options
+- [Messaging Guide](./messaging.md) — Testing messaging
 
 ---
 
-*Fragen? → [Troubleshooting Guide](./troubleshooting-guide.md)*
+*Questions? → [Troubleshooting Guide](./troubleshooting-guide.md)*

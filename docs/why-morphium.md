@@ -1,22 +1,22 @@
-# Warum Morphium?
+# Why Morphium?
 
-*Ein ehrlicher Vergleich für erfahrene Java-Entwickler*
+*An honest comparison for experienced Java developers*
 
 ---
 
-## Das Problem mit dem Official MongoDB Driver
+## The Problem with the Official MongoDB Driver
 
-Der offizielle MongoDB Java Driver hat **zwei Gesichter**:
+The official MongoDB Java Driver has **two faces**:
 
-1. **Low-Level API:** Arbeiten mit `Document`-Objekten, manuelles Mapping
-2. **POJO Codec:** Eingebautes Object Mapping mit eigener Codec-Registry
+1. **Low-Level API:** Working with `Document` objects, manual mapping
+2. **POJO Codec:** Built-in object mapping with its own Codec Registry
 
-Das klingt erstmal gut, aber in der Praxis gibt es Probleme:
+Sounds good in theory, but there are practical issues:
 
-### Der POJO Codec des Official Drivers
+### The Official Driver's POJO Codec
 
 ```java
-// Official Driver mit POJO Codec
+// Official Driver with POJO Codec
 CodecRegistry pojoCodecRegistry = fromRegistries(
     MongoClientSettings.getDefaultCodecRegistry(),
     fromProviders(PojoCodecProvider.builder().automatic(true).build())
@@ -29,43 +29,43 @@ MongoCollection<User> collection = database
 User user = collection.find(eq("username", "alice")).first();
 ```
 
-**Probleme dabei:**
-- **Komplexe Konfiguration** — Codec Registry Setup ist nicht trivial
-- **Eingeschränkte Kontrolle** — Wenig Einfluss auf das Mapping-Verhalten
-- **Konflikte mit anderen Mappern** — Der Driver "will" selbst mappen, was bei Integration mit anderen Frameworks zu **doppeltem Mapping** führen kann
-- **Keine Caching-Integration** — Caching musst du komplett selbst bauen
+**Problems:**
+- **Complex configuration** — Codec Registry setup is non-trivial
+- **Limited control** — Little influence over mapping behavior
+- **Conflicts with other mappers** — The driver "wants" to map itself, which can lead to **double mapping** when integrating with other frameworks
+- **No caching integration** — You have to build caching yourself
 
-### Warum Morphium einen eigenen Driver hat (seit v5.0)
+### Why Morphium Has Its Own Driver (since v5.0)
 
-Der offizielle Driver mit seinem eingebauten Mapping hat sich mit Morphiums Mapping "gebissen":
-- Doppeltes Mapping (Performance-Verlust)
-- Unerwartete Typ-Konvertierungen
-- Schwer zu debuggende Fehler
+The official driver's built-in mapping conflicted with Morphium's mapping:
+- Double mapping (performance loss)
+- Unexpected type conversions
+- Hard-to-debug errors
 
-**Die Lösung:** Ein eigener Wire-Protocol-Driver, **exakt zugeschnitten auf Morphiums Bedürfnisse**.
+**The solution:** A custom wire-protocol driver, **tailored exactly to Morphium's needs**.
 
-**Vorteile des eigenen Drivers:**
-- **Leichtgewichtiger** — Nur was Morphium braucht, kein Overhead
-- **Volle Kontrolle** — Mapping, Retry, Failover nach unseren Regeln
-- **InMemory Driver möglich** — Der schlanke Driver machte eine vollständige In-Memory-Implementierung erst praktikabel
+**Benefits of the custom driver:**
+- **Lightweight** — Only what Morphium needs, no overhead
+- **Full control** — Mapping, retry, failover by our rules
+- **InMemory Driver possible** — The lean driver made a complete in-memory implementation practical
 
 ---
 
-## Morphium: Derselbe Code
+## Morphium: The Same Code, Simplified
 
 ```java
-// Morphium: Dieselbe User-Abfrage
+// Morphium: The same user query
 User user = morphium.createQueryFor(User.class)
     .f(User.Fields.username).eq("alice")
     .get();
 
-// Speichern?
+// Save?
 morphium.store(user);
 
-// Fertig.
+// Done.
 ```
 
-Das Entity:
+The entity:
 ```java
 @Entity
 public class User {
@@ -74,24 +74,24 @@ public class User {
     private String email;
     private Date createdAt;
     
-    // Generierte Fields-Enum für typsichere Queries
+    // Generated Fields enum for type-safe queries
     public enum Fields { id, username, email, createdAt }
 }
 ```
 
 ---
 
-## Morphiums Zusatz-Features
+## Morphium's Additional Features
 
-*Über das reine ODM hinaus bietet Morphium Features, die du sonst separat aufbauen müsstest:*
+*Beyond pure ODM, Morphium offers features you'd otherwise have to build separately:*
 
-### 1. Built-in Messaging (MongoDB-basiert)
+### 1. Built-in Messaging (MongoDB-based)
 
-**Fun Fact:** Das Messaging-System entstand ursprünglich, um **Caches im Cluster zu synchronisieren**. Es hat sich dann zu einem vollwertigen, eigenständigen Feature entwickelt.
+**Fun Fact:** The messaging system was originally created to **synchronize caches across a cluster**. It then evolved into a full-fledged, standalone feature.
 
-Brauchst du Messaging zwischen Services? Normalerweise heißt das: RabbitMQ, Kafka, oder ähnliches aufsetzen. Mit Morphium nutzt du einfach MongoDB, das du eh schon hast.
+Need messaging between services? Normally that means setting up RabbitMQ, Kafka, or similar. With Morphium, you just use MongoDB, which you already have.
 
-**Traditioneller Ansatz — Extra-Infrastruktur:**
+**Traditional approach — extra infrastructure:**
 ```
 ┌─────────┐     ┌──────────┐     ┌─────────┐
 │  App A  │────▶│ RabbitMQ │◀────│  App B  │
@@ -103,10 +103,10 @@ Brauchst du Messaging zwischen Services? Normalerweise heißt das: RabbitMQ, Kaf
             │ MongoDB  │
             └──────────┘
 
-= 2 Systeme zu betreiben, 2 Failure Points
+= 2 systems to operate, 2 failure points
 ```
 
-**Mit Morphium:**
+**With Morphium:**
 ```
 ┌─────────┐                    ┌─────────┐
 │  App A  │◀──── Messaging ───▶│  App B  │
@@ -115,61 +115,61 @@ Brauchst du Messaging zwischen Services? Normalerweise heißt das: RabbitMQ, Kaf
      └────────────┬─────────────────┘
                   ▼
             ┌──────────┐
-            │ MongoDB  │  ← Messages leben hier
+            │ MongoDB  │  ← Messages live here
             └──────────┘
 
-= 1 System, MongoDB hast du eh schon
+= 1 system, you already have MongoDB anyway
 ```
 
-**Messaging-Code:**
+**Messaging code:**
 ```java
 // Producer
 Messaging messaging = new Messaging(morphium, 100, true);
 messaging.sendMessage(new Msg("order.created", "Order #12345"));
 
-// Consumer (andere Instanz)
+// Consumer (different instance)
 messaging.addMessageListener((m, msg) -> {
-    System.out.println("Neue Order: " + msg.getValue());
+    System.out.println("New order: " + msg.getValue());
     return null;
 });
 ```
 
-**Features die du "geschenkt" bekommst:**
+**Features you get "for free":**
 - Message Priorities
 - Request/Response Pattern
 - Distributed Locks
 - TTL & Timeouts
 - Broadcast & Direct Messages
 
-**Der Killer-Vorteil: Persistenz & Replay**
+**The Killer Feature: Persistence & Replay**
 
-Da Messages in MongoDB leben, gehen sie nicht verloren. Ein Service, der beim Senden der Nachricht nicht lief (Restart, Deployment, Crash), kann die Messages **nachträglich verarbeiten** sobald er wieder da ist.
+Since messages live in MongoDB, they don't get lost. A service that wasn't running when the message was sent (restart, deployment, crash) can **process messages retroactively** once it's back.
 
 ```
-Service A sendet "order.created" um 10:00
-Service B ist gerade im Restart (10:00 - 10:02)
-Service B startet um 10:02
-→ Service B verarbeitet die Message von 10:00 ✅
+Service A sends "order.created" at 10:00
+Service B is restarting (10:00 - 10:02)
+Service B starts at 10:02
+→ Service B processes the message from 10:00 ✅
 ```
 
-Bei klassischen Message Brokern (RabbitMQ, etc.) ist dieses "Replay" deutlich aufwändiger zu realisieren — du brauchst Dead Letter Queues, manuelle Replay-Mechanismen, oder zusätzliche Persistence-Layer. Mit Morphium ist es einfach da.
+With classic message brokers (RabbitMQ, etc.), this "replay" is much more complex to implement — you need Dead Letter Queues, manual replay mechanisms, or additional persistence layers. With Morphium, it's just there.
 
-**Bonus: Messages sind queryable!**
+**Bonus: Messages are queryable!**
 
-Da Messages normale MongoDB-Dokumente sind, kannst du sie **durchsuchen, filtern und analysieren**:
+Since messages are regular MongoDB documents, you can **search, filter, and analyze** them:
 
 ```java
-// Wie viele Orders wurden heute verarbeitet?
+// How many orders were processed today?
 long todayOrders = morphium.createQueryFor(Msg.class)
     .f(Msg.Fields.topic).eq("order.created")
     .f(Msg.Fields.timestamp).gte(todayMidnight)
     .countAll();
 
-// Durchschnittliche Verarbeitungszeit?
-// → Aggregation Pipeline über processed_at - timestamp
+// Average processing time?
+// → Aggregation pipeline over processed_at - timestamp
 ```
 
-Statistiken, Dashboards, Debugging — alles mit Standard-MongoDB-Queries. Bei RabbitMQ/Kafka brauchst du dafür separate Monitoring-Tools oder musst Messages erst in eine DB exportieren.
+Statistics, dashboards, debugging — all with standard MongoDB queries. With RabbitMQ/Kafka, you need separate monitoring tools or have to export messages to a database first.
 
 ---
 
@@ -183,25 +183,25 @@ public class Product {
 }
 ```
 
-Morphium cached automatisch lokal. Für **Cluster-weite Synchronisation** brauchst du einen `CacheSynchronizer`:
+Morphium caches automatically locally. For **cluster-wide synchronization**, you need a `CacheSynchronizer`:
 
 ```java
-// Cache-Synchronisation im Cluster aktivieren
+// Enable cache synchronization in cluster
 CacheSynchronizer cacheSynchronizer = new CacheSynchronizer(messaging, morphium);
 ```
 
-Der CacheSynchronizer nutzt das Messaging-System, um Cache-Invalidierungen an alle Instanzen zu propagieren. Kein Redis/Memcached Setup nötig — nur Morphiums eigenes Messaging.
+The CacheSynchronizer uses the messaging system to propagate cache invalidations to all instances. No Redis/Memcached setup needed — just Morphium's own messaging.
 
 ---
 
-### 3. InMemory Driver für Tests
+### 3. InMemory Driver for Tests
 
-**Ohne Morphium:**
-- Testcontainers hochfahren (dauert)
-- Oder: Mocks schreiben (aufwändig)
-- Oder: Embedded MongoDB (deprecated, fragil)
+**Without Morphium:**
+- Spin up Testcontainers (slow)
+- Or: Write mocks (tedious)
+- Or: Embedded MongoDB (deprecated, fragile)
 
-**Mit Morphium:**
+**With Morphium:**
 ```java
 @BeforeEach
 void setup() {
@@ -212,31 +212,31 @@ void setup() {
 }
 ```
 
-- **Startet in Millisekunden**
-- **~93% MongoDB Feature Coverage**
-- **Aggregation Pipelines funktionieren**
-- **Change Streams funktionieren**
-- **Kein Docker, kein externer Prozess**
+- **Starts in milliseconds**
+- **~93% MongoDB feature coverage**
+- **Aggregation pipelines work**
+- **Change streams work**
+- **No Docker, no external process**
 
 ---
 
-### 4. Fluent Query API mit Typsicherheit
+### 4. Fluent Query API with Type Safety
 
-**Fehleranfällig:**
+**Error-prone:**
 ```java
-// Typo? Kompiliert trotzdem!
+// Typo? Still compiles!
 collection.find(eq("usernmae", "alice"));
 ```
 
-**Typsicher mit Morphium:**
+**Type-safe with Morphium:**
 ```java
-// Compile Error bei Typo!
+// Compile error on typo!
 morphium.createQueryFor(User.class)
     .f(User.Fields.username).eq("alice")
     .get();
 ```
 
-**Komplexe Queries bleiben lesbar:**
+**Complex queries stay readable:**
 ```java
 List<Order> orders = morphium.createQueryFor(Order.class)
     .f(Order.Fields.status).in(List.of("pending", "processing"))
@@ -249,45 +249,45 @@ List<Order> orders = morphium.createQueryFor(Order.class)
 
 ---
 
-## Wann ist der Official Driver besser?
+## When Is the Official Driver Better?
 
-Sei ehrlich: Morphium ist nicht immer die beste Wahl.
+Let's be honest: Morphium isn't always the best choice.
 
-| Szenario | Empfehlung |
-|----------|------------|
-| MongoDB Atlas | **Official Driver** (Morphium unterstützt Atlas nicht) |
-| Maximaler Durchsatz (>50K ops/sec) | **Official Driver** (weniger Overhead) |
-| Team kennt nur Spring Data | **Spring Data MongoDB** (geringere Lernkurve) |
-| Kein Messaging nötig, simples CRUD | **Official Driver** reicht |
-| Schon RabbitMQ/Kafka im Stack | Messaging-Vorteil entfällt |
-
----
-
-## Wann ist Morphium die bessere Wahl?
-
-| Szenario | Warum Morphium |
+| Scenario | Recommendation |
 |----------|----------------|
-| Messaging + Persistence in einem | Keine Extra-Infra nötig |
-| Viele Tests, schnelle CI/CD | InMemory Driver spart Minuten |
-| Cluster-weites Caching | Built-in, kein Redis |
-| Komplexe Domain-Objekte | ODM spart Boilerplate |
-| Distributed Locks | Eingebaut |
-| Team-Produktivität > Raw Performance | Weniger Code = weniger Bugs |
+| MongoDB Atlas | **Official Driver** (Morphium doesn't support Atlas) |
+| Maximum throughput (>50K ops/sec) | **Official Driver** (less overhead) |
+| Team only knows Spring Data | **Spring Data MongoDB** (lower learning curve) |
+| No messaging needed, simple CRUD | **Official Driver** is sufficient |
+| Already have RabbitMQ/Kafka in stack | Messaging advantage disappears |
 
 ---
 
-## Fazit
+## When Is Morphium the Better Choice?
 
-Morphium ist **kein Ersatz** für den Official Driver — es ist eine **Abstraktionsschicht darüber** (bzw. mit eigenem Wire-Protocol-Driver).
-
-Wenn du:
-- **MongoDB schon nutzt oder planst**
-- **Messaging brauchst** (und kein Kafka-Scale)
-- **schnelle Tests** willst
-- **Boilerplate hasst**
-
-...dann spart dir Morphium Wochen an Entwicklungszeit.
+| Scenario | Why Morphium |
+|----------|--------------|
+| Messaging + Persistence in one | No extra infrastructure needed |
+| Many tests, fast CI/CD | InMemory Driver saves minutes |
+| Cluster-wide caching | Built-in, no Redis |
+| Complex domain objects | ODM saves boilerplate |
+| Distributed locks | Built-in |
+| Team productivity > Raw performance | Less code = fewer bugs |
 
 ---
 
-*Nächster Schritt: [Quick Start Tutorial](./quickstart-tutorial.md)*
+## Conclusion
+
+Morphium is **not a replacement** for the Official Driver — it's an **abstraction layer above it** (or rather, with its own wire-protocol driver).
+
+If you:
+- **Already use MongoDB or plan to**
+- **Need messaging** (and not Kafka-scale)
+- **Want fast tests**
+- **Hate boilerplate**
+
+...then Morphium will save you weeks of development time.
+
+---
+
+*Next step: [Quick Start Tutorial](./quickstart-tutorial.md)*
