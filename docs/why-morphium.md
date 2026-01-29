@@ -34,7 +34,6 @@ User user = collection.find(eq("username", "alice")).first();
 - **Eingeschränkte Kontrolle** — Wenig Einfluss auf das Mapping-Verhalten
 - **Konflikte mit anderen Mappern** — Der Driver "will" selbst mappen, was bei Integration mit anderen Frameworks zu **doppeltem Mapping** führen kann
 - **Keine Caching-Integration** — Caching musst du komplett selbst bauen
-- **Kein Messaging** — Brauchst RabbitMQ/Kafka extra
 
 ### Warum Morphium einen eigenen Driver hat
 
@@ -77,11 +76,15 @@ public class User {
 
 ---
 
-## Die echten Vorteile
+## Morphiums Zusatz-Features
 
-### 1. Messaging ohne Extra-Infrastruktur
+*Über das reine ODM hinaus bietet Morphium Features, die du sonst separat aufbauen müsstest:*
 
-**Mit Official Driver + RabbitMQ:**
+### 1. Built-in Messaging (MongoDB-basiert)
+
+Brauchst du Messaging zwischen Services? Normalerweise heißt das: RabbitMQ, Kafka, oder ähnliches aufsetzen. Mit Morphium nutzt du einfach MongoDB, das du eh schon hast.
+
+**Traditioneller Ansatz — Extra-Infrastruktur:**
 ```
 ┌─────────┐     ┌──────────┐     ┌─────────┐
 │  App A  │────▶│ RabbitMQ │◀────│  App B  │
