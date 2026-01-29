@@ -161,8 +161,8 @@ Da Messages normale MongoDB-Dokumente sind, kannst du sie **durchsuchen, filtern
 ```java
 // Wie viele Orders wurden heute verarbeitet?
 long todayOrders = morphium.createQueryFor(Msg.class)
-    .f("name").eq("order.created")
-    .f("timestamp").gte(todayMidnight)
+    .f(Msg.Fields.topic).eq("order.created")
+    .f(Msg.Fields.timestamp).gte(todayMidnight)
     .countAll();
 
 // Durchschnittliche Verarbeitungszeit?
