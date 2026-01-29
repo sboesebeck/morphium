@@ -9,7 +9,7 @@
 | Aspect | v5.1.x → v6.x | Improvement |
 |--------|---------------|-------------|
 | **Connection Pool** | Global lock → Per-host locking | **+38%** throughput |
-| **Messaging** | Polling → ChangeStream | **+110%** throughput |
+| **Messaging** | Improved threading & lock handling | Better under load |
 | **$in Queries** | Same (MongoDB indexed) | ~8% faster |
 | **SSL/TLS** | Not available → Full support | ✅ New feature |
 
@@ -22,11 +22,12 @@
 | Benchmark | v5.1.9 | v6.x | Improvement |
 |-----------|--------|------|-------------|
 | **Connection Pool** (20 threads × 100 ops) | 22,869 ops/sec | 31,642 ops/sec | **+38%** |
-| **Messaging** (500 msgs, optimized settings) | 10 msgs/sec | 89 msgs/sec | **+790%** |
+| **Messaging** (500 msgs, default settings) | 10 msgs/sec* | 21 msgs/sec | +110% |
 | **$in Query** (500 values, indexed) | 3.40 ms | 3.14 ms | +8% |
-| **Bulk Writes** (10K docs) | 43,544 docs/sec | 38,219 docs/sec | -12%* |
+| **Bulk Writes** (10K docs) | 43,544 docs/sec | 38,219 docs/sec | -12%** |
 
-*\*Bulk write regression under investigation — likely due to additional safety checks in v6.*
+*\*v5 messaging hit timeout (345/500 received) — may indicate stability issues under load.*
+*\*\*Bulk write difference under investigation.*
 
 ### Messaging Performance by Backend
 
@@ -74,19 +75,16 @@ class Host {
 
 **Result:** Operations on different hosts don't block each other.
 
-### Messaging: ChangeStream vs Polling
+### Messaging Improvements
 
-**v5.1.x:**
-- Polling-based message detection
-- Fixed intervals, higher latency
-- Messages could be missed on high load
+Both v5 and v6 use ChangeStream, but v6 has:
 
-**v6.x:**
-- MongoDB ChangeStream for instant notification
-- Resume tokens prevent missed messages
-- Configurable thread pools and window sizes
+- **Better thread pool management** — Configurable core/max sizes
+- **Improved resume token handling** — More reliable after disconnects  
+- **Lock optimizations** — Less contention in message processing
+- **Java 21 threading** — Ready for virtual threads
 
-**Result:** 2-8x better throughput depending on configuration.
+**Result:** Better throughput with optimized settings.
 
 ---
 
