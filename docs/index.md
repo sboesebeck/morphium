@@ -4,13 +4,13 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 
 ---
 
-## 🚀 Neu hier? Start hier!
+## 🚀 New Here? Start Here!
 
-**Lernpfad für Einsteiger:**
+**Learning path for beginners:**
 
-1. **[Warum Morphium?](./why-morphium.md)** — Ehrlicher Vergleich mit dem Official Driver
-2. **[Quick Start Tutorial](./quickstart-tutorial.md)** — Von Null zur ersten Query in 10 Minuten
-3. **[Dein erster Test](./first-test.md)** — Unit Tests mit dem InMemory Driver
+1. **[Why Morphium?](./why-morphium.md)** — Honest comparison with the Official Driver
+2. **[Quick Start Tutorial](./quickstart-tutorial.md)** — From zero to your first query in 10 minutes
+3. **[Your First Test](./first-test.md)** — Unit tests with the InMemory Driver
 
 ---
 
