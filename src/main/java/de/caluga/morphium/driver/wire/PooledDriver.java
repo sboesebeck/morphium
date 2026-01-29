@@ -1622,9 +1622,13 @@ public class PooledDriver extends DriverBase {
         Map<String, Object> ret = new HashMap<>();
         
         // Count borrowed connections per host from the actual map
+        // Use borrowedFromHost (not getConnectedTo) to match how the counter is managed
         Map<String, Integer> borrowedMapByHost = new HashMap<>();
         for (var e : borrowedConnections.values()) {
-            String host = e.getCon().getConnectedTo();
+            String host = e.getBorrowedFromHost();
+            if (host == null) {
+                host = e.getCon().getConnectedTo(); // fallback for legacy
+            }
             borrowedMapByHost.merge(host, 1, Integer::sum);
         }
         
