@@ -1280,14 +1280,35 @@ public class PooledDriver extends DriverBase {
             }
 
             // Decrement counter on the ORIGINAL host where connection was borrowed from
-            // This prevents counter drift when topology changes during borrow/release
+            // This prevents counter drift when topology changes during borrow/release.
+            // Defensive fallback: if borrowedFromHost is missing (should not happen), try to decrement based on
+            // current connectedTo / connectedToHost to avoid counter drift/leaks.
             String borrowedFrom = c.getBorrowedFromHost();
+            boolean decremented = false;
             if (borrowedFrom != null) {
                 Host originalHost = hosts.get(borrowedFrom);
                 if (originalHost != null) {
                     originalHost.decrementBorrowedConnections();
+                    decremented = true;
                 }
                 // else: original host was removed, counter is gone with it - that's fine
+            }
+
+            if (!decremented) {
+                // Fallback based on where the connection thinks it is connected to.
+                // This is less accurate during topology changes, but better than leaking the counter.
+                String connectedTo = con.getConnectedTo();
+                Host h = connectedTo == null ? null : hosts.get(connectedTo);
+                if (h == null) {
+                    String connectedToHost = con.getConnectedToHost();
+                    h = connectedToHost == null ? null : hosts.get(connectedToHost);
+                }
+                if (h != null) {
+                    h.decrementBorrowedConnections();
+                    decremented = true;
+                } else {
+                    log.warn("Could not decrement borrowed counter for released connection: borrowedFromHost={}, connectedTo={}, connectedToHost={} - counter may drift", borrowedFrom, con.getConnectedTo(), con.getConnectedToHost());
+                }
             }
 
             // Return connection to the pool it currently belongs to (may differ from borrowedFrom after failover)
