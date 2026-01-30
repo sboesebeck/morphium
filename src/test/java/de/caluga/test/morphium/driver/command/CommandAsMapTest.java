@@ -65,7 +65,7 @@ public class CommandAsMapTest {
 
     @Test
     public void genericCommandTest() throws Exception {
-        GenericCommand cmd = new GenericCommand(null).setCmdData(Doc.of("helllo", 1, "helloOk", true, "loadBalanced", false));
+        GenericCommand cmd = new GenericCommand(null).setCmdData(Doc.of("helllo", 1, "helloOk", true, "loadBalanced", true));
         var m = cmd.asMap();
         HelloCommand hc = new HelloCommand(null);
         hc.fromMap(m);

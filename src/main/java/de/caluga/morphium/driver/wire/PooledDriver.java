@@ -1231,15 +1231,27 @@ public class PooledDriver extends DriverBase {
                 return;
             }
 
-            // Decrement counter on the ORIGINAL host where connection was borrowed from
-            // This prevents counter drift when topology changes during borrow/release
+            // Decrement borrowed counter.
+            // Preferred: decrement on the ORIGINAL host where the connection was borrowed from
+            // (prevents counter drift when topology changes during borrow/release).
+            // Backwards compatibility: older ConnectionContainer instances may not have borrowedFromHost set,
+            // so fall back to the connection's current connectedTo host.
             String borrowedFrom = c.getBorrowedFromHost();
-            if (borrowedFrom != null) {
-                Host originalHost = hosts.get(borrowedFrom);
+            String hostKeyForDecrement = borrowedFrom;
+            if (hostKeyForDecrement == null) {
+                hostKeyForDecrement = con.getConnectedTo();
+            }
+
+            if (hostKeyForDecrement != null) {
+                Host originalHost = hosts.get(hostKeyForDecrement);
+                if (originalHost == null) {
+                    // Fallback: some code paths/store may use host-only keys
+                    originalHost = hosts.get(hostKeyForDecrement.split(":")[0]);
+                }
                 if (originalHost != null) {
                     originalHost.decrementBorrowedConnections();
                 }
-                // else: original host was removed, counter is gone with it - that's fine
+                // else: host was removed or unknown - nothing to decrement
             }
 
             // Return connection to the pool it currently belongs to (may differ from borrowedFrom after failover)
