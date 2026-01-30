@@ -436,8 +436,9 @@ public class PooledDriver extends DriverBase {
                     }
 
                     for (Integer i : toDelete) {
-                        borrowedConnections.remove(i);
-                        h.decrementBorrowedConnections(); // Decrement counter for connections borrowed from this host
+                        if (borrowedConnections.remove(i) != null) {
+                            h.decrementBorrowedConnections();
+                        }
                     }
 
                     if (fastestHost != null && fastestHost.equals(host)) {
@@ -485,25 +486,27 @@ public class PooledDriver extends DriverBase {
                         }
                     }
 
+                    // Remove dead entries and decrement counters atomically per-entry.
+                    // Only decrement when remove() actually returned the entry — another thread
+                    // (releaseConnection) may have already handled it.
                     for (int port : deadBorrowedPorts) {
                         ConnectionContainer removed = borrowedConnections.remove(port);
-                        if (removed != null && removed.getCon() != null) {
-                            try { removed.getCon().close(); } catch (Exception ignore) {}
-                        }
-                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                    }
-
-                    for (var hEntry : hostsToDecrement.entrySet()) {
-                        Host h = hosts.get(hEntry.getKey());
-                        // If not found with host:port, try with just hostname
-                        if (h == null) {
-                            String hostOnly = hEntry.getKey().split(":")[0];
-                            h = hosts.get(hostOnly);
-                        }
-                        if (h != null) {
-                            for (int i = 0; i < hEntry.getValue(); i++) {
-                                h.decrementBorrowedConnections();
+                        if (removed != null) {
+                            String hostKey = removed.getBorrowedFromHost();
+                            if (hostKey != null) {
+                                Host h = hosts.get(hostKey);
+                                if (h == null) {
+                                    String hostOnly = hostKey.split(":")[0];
+                                    h = hosts.get(hostOnly);
+                                }
+                                if (h != null) {
+                                    h.decrementBorrowedConnections();
+                                }
                             }
+                            if (removed.getCon() != null) {
+                                try { removed.getCon().close(); } catch (Exception ignore) {}
+                            }
+                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                         }
                     }
 
@@ -786,8 +789,9 @@ public class PooledDriver extends DriverBase {
                 }
             }
             for (Integer port : borrowedToDelete) {
-                borrowedConnections.remove(port);
-                h.decrementBorrowedConnections();
+                if (borrowedConnections.remove(port) != null) {
+                    h.decrementBorrowedConnections();
+                }
             }
             if (!borrowedToDelete.isEmpty()) {
                 log.warn("Cleaned up {} borrowed connections for removed host {}", borrowedToDelete.size(), normalizedHost);
@@ -1338,21 +1342,21 @@ public class PooledDriver extends DriverBase {
                 }
             }
 
+            // Remove stale entries and decrement only when remove() succeeds,
+            // to prevent double-decrement if releaseConnection() handled it concurrently.
             for (int port : sourcePortsToDelete) {
-                borrowedConnections.remove(port);
-            }
-
-            // Decrement borrowed counters for affected hosts
-            for (Map.Entry<String, Integer> entry : hostsToDecrement.entrySet()) {
-                Host h = hosts.get(entry.getKey());
-                // If not found with host:port, try with just hostname
-                if (h == null) {
-                    String hostOnly = entry.getKey().split(":")[0];
-                    h = hosts.get(hostOnly);
-                }
-                if (h != null) {
-                    for (int i = 0; i < entry.getValue(); i++) {
-                        h.decrementBorrowedConnections();
+                ConnectionContainer removed = borrowedConnections.remove(port);
+                if (removed != null) {
+                    String hostKey = removed.getBorrowedFromHost();
+                    if (hostKey != null) {
+                        Host h = hosts.get(hostKey);
+                        if (h == null) {
+                            String hostOnly = hostKey.split(":")[0];
+                            h = hosts.get(hostOnly);
+                        }
+                        if (h != null) {
+                            h.decrementBorrowedConnections();
+                        }
                     }
                 }
             }
