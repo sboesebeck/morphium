@@ -775,6 +775,25 @@ public class PooledDriver extends DriverBase {
                 fastestTime = 10000;
             }
 
+            // Clean up borrowed connections for the removed host (same as handleHelloResult).
+            // Without this, borrowed entries linger and their counters are never decremented,
+            // causing permanent drift if the host is later re-added with a fresh Host object.
+            ArrayList<Integer> borrowedToDelete = new ArrayList<>();
+            for (var e : new ArrayList<>(borrowedConnections.entrySet())) {
+                String borrowedFrom = e.getValue().getBorrowedFromHost();
+                if (normalizedHost.equals(borrowedFrom)) {
+                    borrowedToDelete.add(e.getKey());
+                }
+            }
+            for (Integer port : borrowedToDelete) {
+                borrowedConnections.remove(port);
+                h.decrementBorrowedConnections();
+            }
+            if (!borrowedToDelete.isEmpty()) {
+                log.warn("Cleaned up {} borrowed connections for removed host {}", borrowedToDelete.size(), normalizedHost);
+                markStatsDirty();
+            }
+
             if (connectionsList != null) {
                 for (var c : connectionsList) {
                     try {
@@ -967,7 +986,20 @@ public class PooledDriver extends DriverBase {
 
             bc.touch();
             bc.setBorrowedFromHost(host);  // Track the host we borrowed from for correct counter decrement
-            borrowedConnections.put(bc.getCon().getSourcePort(), bc);
+            ConnectionContainer previous = borrowedConnections.put(bc.getCon().getSourcePort(), bc);
+            if (previous != null) {
+                // A stale entry with the same sourcePort was overwritten (port reuse after reconnect).
+                // Decrement the counter for the previous entry's host to prevent permanent drift.
+                String prevHost = previous.getBorrowedFromHost();
+                if (prevHost != null) {
+                    Host prevH = hosts.get(prevHost);
+                    if (prevH != null) {
+                        prevH.decrementBorrowedConnections();
+                        log.warn("Overwritten borrowed entry detected (sourcePort={}). Previous borrowedFrom={}. Counter corrected.",
+                                 bc.getCon().getSourcePort(), prevHost);
+                    }
+                }
+            }
             h.incrementBorrowedConnections();
             stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
             markStatsDirty();
@@ -1599,8 +1631,14 @@ public class PooledDriver extends DriverBase {
             ret.put(e.getKey(), e.getValue().getConnectionPool().size());
         }
 
+        // Use borrowedFromHost (not connectedTo) to match how the counter is managed.
+        // After topology changes, connectedTo can differ from borrowedFromHost.
         for (var e : borrowedConnections.values()) {
-            ret.put(e.getCon().getConnectedTo(), ret.get(e.getCon().getConnectedTo()).intValue() + 1);
+            String host = e.getBorrowedFromHost();
+            if (host == null) {
+                host = e.getCon().getConnectedTo(); // fallback for legacy
+            }
+            ret.merge(host, 1, Integer::sum);
         }
 
         return ret;
