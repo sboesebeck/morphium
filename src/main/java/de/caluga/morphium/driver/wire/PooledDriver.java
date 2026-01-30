@@ -592,6 +592,7 @@ public class PooledDriver extends DriverBase {
 
                             if (container != null) {
                                 host.incrementInternalInUseConnections();
+                                boolean containerDisposed = false;
                                 try {
                                     long start = System.currentTimeMillis();
                                     HelloResult result;
@@ -634,8 +635,17 @@ public class PooledDriver extends DriverBase {
                                         stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                         markStatsDirty();
                                     }
+                                    containerDisposed = true;
                                 } finally {
                                     host.decrementInternalInUseConnections();
+                                    // If getHelloResult()/connect() threw an exception, the container
+                                    // was polled from the pool but never returned or closed — close it
+                                    // to prevent connection leak (it's not in borrowedConnections either).
+                                    if (!containerDisposed && container.getCon() != null) {
+                                        try { container.getCon().close(); } catch (Exception ignored) {}
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                        markStatsDirty();
+                                    }
                                 }
                             }
 
@@ -1083,6 +1093,7 @@ public class PooledDriver extends DriverBase {
                             log.warn("Could not get connection to fastest host, trying primary", e);
                         }
                     }
+                    // fall through — NEAREST failed or no fastestHost, try primary next
 
                 case PRIMARY_PREFERRED:
                     if (primaryNode != null && hosts.get(primaryNode) != null && !hosts.get(primaryNode).getConnectionPool().isEmpty()) {
@@ -1093,6 +1104,7 @@ public class PooledDriver extends DriverBase {
                             log.warn("Could not get connection to {} trying secondary", primaryNode);
                         }
                     }
+                    // fall through — primary not available or failed, try secondary
 
                 case SECONDARY_PREFERRED:
                 case SECONDARY:
