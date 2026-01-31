@@ -71,6 +71,7 @@ public class MorphiumServerProbe_0 {
     String hostsCsv = args[1];
     String[] hosts = hostsCsv.split(",");
     PooledDriver d = new PooledDriver();
+    d.setServerSelectionTimeout(15000);
     d.setHostSeed(hosts);
     d.connect(null);
     // Primary must be selectable for any write-heavy tests.
@@ -176,6 +177,14 @@ function _ms_local_find_server_cli_jar() {
   jar=$(ls -1 target/*server-cli*.jar 2>/dev/null | head -n 1)
   if [ -z "$jar" ]; then
     jar=$(ls -1 target/*-server-cli.jar 2>/dev/null | head -n 1)
+  fi
+  # Fallback to the stable copy (survives mvn clean)
+  if [ -z "$jar" ]; then
+    local pid_dir="${morphiumserverLocalPidDir:-.morphiumserver-local}"
+    local stable="${pid_dir}/morphiumserver.jar"
+    if [ -f "$stable" ]; then
+      jar="$stable"
+    fi
   fi
   echo "$jar"
 }
