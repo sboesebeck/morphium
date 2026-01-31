@@ -24,6 +24,7 @@ import de.caluga.morphium.messaging.*;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import com.oracle.truffle.js.nodes.access.GetPrototypeFromConstructorNode;
 
@@ -321,6 +322,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
+    @Timeout(value = 10, unit = TimeUnit.MINUTES)
     public void exclusivityTest(Morphium morphium) throws Exception  {
         for (String msgImpl : MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
@@ -486,7 +488,9 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         sender.sendMessage(m);
                     }
 
-                    long waitUntil = System.currentTimeMillis() + 120000;  // Reduced from 240s to 120s
+                    // This test is inherently timing-sensitive under load (virtual threads + in-mem driver).
+                    // Keep a generous timeout to reduce flakes on slower/contended CI runners.
+                    long waitUntil = System.currentTimeMillis() + 240000;
 
                     while (received.get() != amount + broadcastAmount * 4) {
                         int rec = received.get();

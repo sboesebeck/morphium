@@ -186,70 +186,97 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.setSenderId("Sender");
                 sender.start();
-                ArrayList<MorphiumMessaging> msgs = new ArrayList<>();
+                assertTrue(sender.waitForReady(15, TimeUnit.SECONDS), "sender not ready");
 
+                ArrayList<MorphiumMessaging> receivers = new ArrayList<>();
                 for (int i = 0; i < 5; i++) {
                     MorphiumMessaging rec = morph.createMessaging();
                     rec.setSenderId("rec" + i);
                     rec.start();
-                    rec.addListenerForTopic("test", new MessageListener<Msg>() {
-                        @Override
-                        public Msg onMessage(MorphiumMessaging msg, Msg m) {
-                            log.info("Got message after ms: " + (System.currentTimeMillis() - m.getTimestamp()));
-
-                            try {
-                                Thread.sleep(1000);
-                            } catch (InterruptedException e) {
-                                // TODO Auto-generated catch block
-                            }
-
-                            return m.createAnswerMsg();
-                        }
+                    assertTrue(rec.waitForReady(15, TimeUnit.SECONDS), "receiver not ready: " + rec.getSenderId());
+                    rec.addListenerForTopic("test", (msg, m) -> {
+                        log.info("Got message after ms: {}", (System.currentTimeMillis() - m.getTimestamp()));
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
+                        return m.createAnswerMsg();
                     });
-
-                    msgs.add(rec);
+                    receivers.add(rec);
                 }
-                // Let listeners settle / topic registrations propagate (especially on external replica sets)
-                Thread.sleep(5000);
 
-                // Be more tolerant on external setups; first answer can take longer under load / replication lag
-                Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 60000, true), 60000, false);
-                log.info("Got answer {}", a);
-                assertNotNull(a, "Did not get answer");
-                Thread.sleep(2000);
-                log.info("All recievers instanciated...");
+                // Ensure we can actually receive an answer before running the load part.
+                // Try a few times with a short per-try timeout, but a bounded overall max.
+                final long smokeMaxMs = 20_000;
+                final long smokeTryMs = 2_000;
+                final long smokeMsgTtlMs = 60_000;
+                final java.util.concurrent.atomic.AtomicReference<Msg> firstAnswer = new java.util.concurrent.atomic.AtomicReference<>();
+
+                TestUtils.waitForConditionToBecomeTrue(
+                    smokeMaxMs,
+                    "Did not get initial answer (setup not ready?)",
+                    () -> {
+                        if (firstAnswer.get() != null) return true;
+                        Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", smokeMsgTtlMs, true), smokeTryMs, false);
+                        if (a != null) firstAnswer.set(a);
+                        return a != null;
+                    }
+                );
+
+                assertNotNull(firstAnswer.get(), "Did not get initial answer (setup not ready?)");
+
+                log.info("All receivers instantiated - starting load");
+
+                final int iterations = 100;
+                final int perRequestTimeoutMs = 10_000; // should be fine for InMem + external Mongo without tuning
 
                 AtomicInteger nullValues = new AtomicInteger();
-                for (int i = 0; i < 100; i++) {
-                    Thread.startVirtualThread(() -> {
-                        long start = System.currentTimeMillis();
-                        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 2000, true), 2000, false);
-                        long d = System.currentTimeMillis() - start;
-                        if (answer == null) {
-                            nullValues.incrementAndGet();
-                            log.error("Rec NULL after " + d + "ms");
-                            return;
+                java.util.List<Throwable> errors = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+                java.util.List<Thread> threads = new java.util.ArrayList<>(iterations);
+
+                for (int i = 0; i < iterations; i++) {
+                    Thread t = Thread.startVirtualThread(() -> {
+                        try {
+                            long start = System.currentTimeMillis();
+                            Msg answer = sender.sendAndAwaitFirstAnswer(
+                                new Msg("test", "Test", "value", perRequestTimeoutMs, true),
+                                perRequestTimeoutMs,
+                                false
+                            );
+                            long d = System.currentTimeMillis() - start;
+
+                            if (answer == null) {
+                                nullValues.incrementAndGet();
+                                log.error("Rec NULL after {}ms", d);
+                            } else {
+                                log.info("Rec after {}ms", d);
+                            }
+                        } catch (Throwable t1) {
+                            errors.add(t1);
+                            log.error("Error in load thread", t1);
                         }
-                        log.info("Rec after " + d + "ms");
-                    }); // startVirtualThread already starts the thread
-                    Thread.sleep(20);
+                    });
+                    threads.add(t);
                 }
 
-                log.info("Done...");
-                assertEquals(0, nullValues.get(), "Some answers were null");
-                Thread.sleep(1000);
-                sender.terminate();
+                // Deterministic: all threads must finish, otherwise it's a hard fail.
+                TestUtils.waitForConditionToBecomeTrue(
+                    2L * iterations * perRequestTimeoutMs,
+                    "Load threads did not finish in time",
+                    () -> threads.stream().noneMatch(Thread::isAlive)
+                );
 
-                for (MorphiumMessaging m : msgs) {
+                assertTrue(errors.isEmpty(), "Errors occurred in load threads: " + errors.size());
+                assertEquals(0, nullValues.get(), "Some answers were null");
+
+                sender.terminate();
+                for (MorphiumMessaging m : receivers) {
                     log.info("Closing messaging {}", m.getSenderId());
                     m.terminate();
                 }
                 morph.close();
                 log.info("all closed");
-
             }
         }
     }

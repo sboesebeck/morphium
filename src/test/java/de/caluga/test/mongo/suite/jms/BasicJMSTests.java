@@ -13,6 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
@@ -96,25 +98,38 @@ public class BasicJMSTests extends MultiDriverTestBase {
             try {
                 message.setText("Test");
             } catch (JMSException e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
+
             pr1.send(dest, message);
             log.info("Sent out message");
             exchange.put("sent", true);
         });
+
         Thread receiverThread = new Thread(() -> {
             log.info("Receiving...");
-            Message msg = con.receive();
-            log.info("Got incoming message");
-            exchange.put("received", true);
+            // We expect a message to arrive shortly, but on slower/loaded setups it can take a bit.
+            // Use a bounded timeout to avoid hanging forever.
+            Message msg = con.receive(10_000);
+            log.info("Got incoming message: {}", msg);
+            if (msg != null) {
+                exchange.put("received", true);
+            }
         });
+
         receiverThread.start();
         senderThread.start();
-        Thread.sleep(5000);
+
+        // Deterministic: wait up to 15s for both flags, then fail.
+        TestUtils.waitForConditionToBecomeTrue(15_000, "sender did not send", () -> exchange.get("sent") != null);
+        TestUtils.waitForConditionToBecomeTrue(15_000, "receiver did not receive", () -> exchange.get("received") != null);
+
+        // Join threads to make sure nothing is still running when we close contexts.
+        senderThread.join(5_000);
+        receiverThread.join(5_000);
+
         assertNotNull(exchange.get("sent"));
-        ;
         assertNotNull(exchange.get("received"));
-        ;
 
         ctx1.close();
         ctx2.close();
