@@ -105,7 +105,7 @@ last = None
 while time.time() < deadline:
     try:
         p = subprocess.run(["java", "-cp", f"{jar}:{pid_dir}", cls, uri, hosts],
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10)
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
         if p.returncode == 0:
             sys.exit(0)
         last = p.stdout.strip()
