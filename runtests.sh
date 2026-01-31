@@ -48,13 +48,13 @@ function safe_grep_count() {
 }
 
 function createFileList() {
-	rg -l "@Test" | grep ".java" >$filesList
-	rg -l "@ParameterizedTest" | grep ".java" >>$filesList
+	rg -l "@Test" . | grep ".java" >$filesList
+	rg -l "@ParameterizedTest" . | grep ".java" >>$filesList
 
 	sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
 	local tmp_file_list="$TEST_TMP_DIR/files_list_temp_$PID.tmp"
 	sort -u "$filesList" | grep "$p" >"$tmp_file_list" && mv -f "$tmp_file_list" "$filesList"
-	rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
+	rg -A2 "^ *@Disabled" . | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
 	local tmp_filtered_list="$TEST_TMP_DIR/filtered_list_temp_$PID.tmp"
 	# Initialize empty file in case no matches
 	: >"$tmp_filtered_list"
@@ -912,10 +912,10 @@ if [ "$rerunfailed" -eq 1 ]; then
 	# For --rerunfailed, testMethods = number of entries in classList (each is a specific method)
 	testMethods=$cnt
 else
-	disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | grep : | cut -f1 -d: | grep "$p" | wc -l)
-	disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
-	disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
-	disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+	disabled=$(rg -C1 "^ *@Disabled" . | grep -C1 "@Test" | grep : | cut -f1 -d: | grep "$p" | wc -l)
+	disabled3=$(rg -C1 "^ *@Disabled" . | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+	disabled2=$(rg -C1 "^ *@Disabled" . | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+	disabled1=$(rg -C1 "^ *@Disabled" . | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
 	testMethods=$(safe_grep_count "@Test|@ParameterizedTest" "$p" "$filesList")
 	testMethods3=$(safe_grep_count '@MethodSource\("getMorphiumInstances"\)' "$p" "$filesList")
 	testMethods2=$(safe_grep_count '@MethodSource\("getMorphiumInstancesNo.*"\)' "$p" "$filesList")
