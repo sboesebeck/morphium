@@ -192,6 +192,22 @@ public class PooledDriver extends DriverBase {
                     throw new MorphiumDriverException("Interrupted while waiting for primary discovery", ie);
                 }
             }
+
+            // Ensure at least one pooled connection to the discovered primary exists.
+            // When connecting to a fresh replica set (e.g. MorphiumServer RS), the initial
+            // createNewConnection() calls happen before election completes — all nodes report
+            // as secondary, so the primary's pool may be empty or the connection was created
+            // when the node was still secondary. Without this, borrowConnection(primaryNode)
+            // would block indefinitely waiting for a connection that never arrives.
+            String normalizedPrimary = normalizeHostKey(primaryNode);
+            Host primaryHost = hosts.get(normalizedPrimary);
+            if (primaryHost != null && primaryHost.getConnectionPool().isEmpty()) {
+                try {
+                    createNewConnection(normalizedPrimary);
+                } catch (Exception e) {
+                    log.warn("Could not create initial connection to discovered primary {}", normalizedPrimary, e);
+                }
+            }
         } else if (primaryNode == null && !getHostSeed().isEmpty()) {
             // Non-replicaset: treat first seed as primary.
             primaryNode = getHostSeed().get(0);
