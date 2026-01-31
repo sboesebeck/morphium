@@ -51,7 +51,7 @@ function createFileList() {
 	rg -l "@Test" . | grep ".java" >$filesList
 	rg -l "@ParameterizedTest" . | grep ".java" >>$filesList
 
-	sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
+	sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
 	local tmp_file_list="$TEST_TMP_DIR/files_list_temp_$PID.tmp"
 	sort -u "$filesList" | grep "$p" >"$tmp_file_list" && mv -f "$tmp_file_list" "$filesList"
 	rg -A2 "^ *@Disabled" . | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
@@ -827,7 +827,7 @@ if [ -n "$includeTags" ]; then
 		grep -F -f "$tmpTagged" "$filesList" >"$TEST_TMP_DIR/files_temp_filter_$PID.tmp" || true
 		mv "$TEST_TMP_DIR/files_temp_filter_$PID.tmp" "$filesList"
 		# Rebuild class list from filtered files
-		sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
+		sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
 	fi
 	rm -f "$tmpTagged"
 fi
@@ -877,7 +877,7 @@ if [ "q$testname" = "q" ]; then
 			mv "$TEST_TMP_DIR/files_temp_filter_exclude_$PID.tmp" "$filesList"
 			# Rebuild class list from filtered files (but NOT for --rerunfailed which already has classList set)
 			if [ "$rerunfailed" -ne 1 ]; then
-				sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
+				sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
 			fi
 		fi
 		rm -f "$tmpExcluded"
