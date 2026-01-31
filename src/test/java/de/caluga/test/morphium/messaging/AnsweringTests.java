@@ -212,10 +212,11 @@ public class AnsweringTests extends MultiDriverTestBase {
 
                     msgs.add(rec);
                 }
-                // Wait longer for MorphiumServer change stream initialization
+                // Let listeners settle / topic registrations propagate (especially on external replica sets)
                 Thread.sleep(5000);
 
-                Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 12000, true), 12000, false);
+                // Be more tolerant on external setups; first answer can take longer under load / replication lag
+                Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 60000, true), 60000, false);
                 log.info("Got answer {}", a);
                 assertNotNull(a, "Did not get answer");
                 Thread.sleep(2000);

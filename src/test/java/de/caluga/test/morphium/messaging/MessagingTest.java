@@ -39,34 +39,48 @@ public class MessagingTest extends MultiDriverTestBase {
 
 
     @Test
-    public void runMessageRoundtripForEver()throws Exception{
-        MorphiumConfig cfg = new MorphiumConfig();
-        cfg.connectionSettings().setMaxConnections(10);
-        cfg.connectionSettings().setMaxWaitTime(10000);
-        cfg.connectionSettings().setHeartbeatFrequency(250);
-        cfg.connectionSettings().setConnectionTimeout(1000);
-        cfg.connectionSettings().setRetriesOnNetworkError(3);
-        cfg.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
-        cfg.driverSettings().setDriverName(PooledDriver.driverName);
-        cfg.clusterSettings().addHostToSeed("localhost:17017");
-        cfg.clusterSettings().addHostToSeed("localhost:17018");
-        cfg.clusterSettings().addHostToSeed("localhost:17019");
-        cfg.clusterSettings().setReplicaset(true);
+    @org.junit.jupiter.api.Timeout(value = 60, unit = java.util.concurrent.TimeUnit.SECONDS)
+    public void runMessageRoundtripForEver() throws Exception {
+        // This used to be an infinite soak test against a hard-coded local replica set.
+        // For CI we keep it bounded and use the central TestConfig (external RS if configured).
+        var baseCfg = de.caluga.test.support.TestConfig.load().createCopy();
+        baseCfg.driverSettings().setDriverName(PooledDriver.driverName);
+        baseCfg.connectionSettings().setMaxConnections(10);
+        baseCfg.connectionSettings().setMaxWaitTime(10000);
+        baseCfg.connectionSettings().setConnectionTimeout(2000);
+        baseCfg.connectionSettings().setRetriesOnNetworkError(3);
+        baseCfg.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
 
-        Morphium m = new Morphium(cfg);
+        // Use an isolated DB name for this test run
+        baseCfg.connectionSettings().setDatabase("morphium_msg_roundtrip_" + System.currentTimeMillis());
 
-        MorphiumMessaging sender = m.createMessaging();
-        sender.start();
-        MorphiumMessaging receiver = m.createMessaging();
-        receiver.start();
-        receiver.addListenerForTopic("test", (msgs, msg)->{
-            log.info("Got message");
-            return null;
-        });
-        while (true) {
-            Thread.sleep(1000);
-            Msg msg = new Msg("test", "test", "test");
-            sender.sendMessage(msg);
+        try (Morphium m = new Morphium(baseCfg)) {
+            MorphiumMessaging sender = m.createMessaging();
+            sender.setSenderId("sender");
+            sender.start();
+            assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
+
+            MorphiumMessaging receiver = m.createMessaging();
+            receiver.setSenderId("receiver");
+            receiver.start();
+            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+
+            AtomicInteger received = new AtomicInteger(0);
+            receiver.addListenerForTopic("test", (msgs, msg) -> {
+                received.incrementAndGet();
+                return null;
+            });
+
+            // Send a small bounded number of messages and assert we receive them.
+            int toSend = 5;
+            for (int i = 0; i < toSend; i++) {
+                sender.sendMessage(new Msg("test", "test", "test" + i));
+            }
+
+            TestUtils.waitForConditionToBecomeTrue(30_000, "Did not receive all messages",
+                    () -> received.get() >= toSend);
+
+            assertEquals(toSend, received.get());
         }
     }
 

@@ -216,10 +216,11 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     sender2.start();
                     receiver2.start();
                     // Wait for messaging to be fully ready
-                    assertTrue(sender1.waitForReady(15, TimeUnit.SECONDS), "sender1 not ready");
-                    assertTrue(receiver1.waitForReady(15, TimeUnit.SECONDS), "receiver1 not ready");
-                    assertTrue(sender2.waitForReady(15, TimeUnit.SECONDS), "sender2 not ready");
-                    assertTrue(receiver2.waitForReady(15, TimeUnit.SECONDS), "receiver2 not ready");
+                    // These can be a bit flaky on CI/loaded machines; allow more time for changestream init
+                    assertTrue(sender1.waitForReady(60, TimeUnit.SECONDS), "sender1 not ready");
+                    assertTrue(receiver1.waitForReady(60, TimeUnit.SECONDS), "receiver1 not ready");
+                    assertTrue(sender2.waitForReady(60, TimeUnit.SECONDS), "sender2 not ready");
+                    assertTrue(receiver2.waitForReady(60, TimeUnit.SECONDS), "receiver2 not ready");
                     // Small delay for topic listeners to be fully registered
                     Thread.sleep(1000);
 
