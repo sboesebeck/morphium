@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 
 # =============================================================================
 # Morphium Release Script
@@ -117,9 +117,21 @@ confirm() {
 }
 
 cleanup() {
+	local exit_code=$?
 	if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
 		rm -rf "$TEMP_DIR"
 	fi
+	# Always return to the original branch on exit
+	if [ -n "$ORIGINAL_BRANCH" ]; then
+		current=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
+		if [ "$current" != "$ORIGINAL_BRANCH" ]; then
+			echo -e "${YELLOW}⚠  Returning to $ORIGINAL_BRANCH branch${NC}"
+			git checkout "$ORIGINAL_BRANCH" 2>/dev/null || true
+		fi
+	fi
+	# Clean up release leftovers
+	rm -f release.properties pom.xml.releaseBackup 2>/dev/null || true
+	exit $exit_code
 }
 
 trap cleanup EXIT
@@ -150,6 +162,7 @@ if [ "$branch" != "develop" ]; then
 	fi
 fi
 log_success "Branch: $branch"
+ORIGINAL_BRANCH="$branch"
 
 # Check for uncommitted changes
 if ! git diff-index --quiet HEAD --; then
@@ -258,7 +271,7 @@ if ! confirm "Proceed with release?" "n"; then
 fi
 
 # -----------------------------------------------------------------------------
-# Step 5: Maven release:prepare and release:perform
+# Step 5: Maven release:prepare (tag + version bump)
 # -----------------------------------------------------------------------------
 
 log_step "Preparing release with Maven"
@@ -275,12 +288,9 @@ mvn clean compile -q || {
 	exit 1
 }
 
-# Run release:prepare
+# Run release:prepare — creates tag, bumps to next SNAPSHOT, pushes both commits
 log_info "Running mvn release:prepare..."
-if ! mvn release:clean release:prepare 2>&1 | tee -a "$RELEASE_LOG"; then
-	log_error "release:prepare failed. Check $RELEASE_LOG for details"
-	exit 1
-fi
+mvn release:clean release:prepare 2>&1 | tee -a "$RELEASE_LOG"
 
 # Extract version and tag from release.properties
 if [ ! -f release.properties ]; then
@@ -292,15 +302,6 @@ version=$(grep "project.rel.de.caluga\\\\:morphium" release.properties | cut -f2
 tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
 log_success "Release prepared: $version (tag: $tag)"
-
-# Run release:perform
-log_info "Running mvn release:perform..."
-if ! mvn release:perform 2>&1 | tee -a "$RELEASE_LOG"; then
-	log_error "release:perform failed. Check $RELEASE_LOG for details"
-	exit 1
-fi
-
-log_success "Maven release complete"
 
 # -----------------------------------------------------------------------------
 # Step 6: Create and sign bundle
@@ -316,7 +317,6 @@ git checkout "$tag"
 log_info "Building artifacts for version $version..."
 mvn clean package verify -DskipTests -Dmaven.javadoc.failOnError=false || {
 	log_error "Package failed"
-	git checkout develop
 	exit 1
 }
 
@@ -445,7 +445,14 @@ body=$(echo "$response" | sed '$d')
 if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
 	log_success "Upload successful!"
 
-	deployment_id=$(echo "$body" | jq -r '.deploymentId // empty' 2>/dev/null)
+	# Sonatype Central Portal returns deployment ID as plain text or JSON
+	deployment_id=""
+	if echo "$body" | jq -e '.deploymentId' &>/dev/null; then
+		deployment_id=$(echo "$body" | jq -r '.deploymentId')
+	elif [ -n "$body" ]; then
+		# Plain text response — the body IS the deployment ID
+		deployment_id="$body"
+	fi
 
 	if [ -n "$deployment_id" ]; then
 		log_info "Deployment ID: $deployment_id"
@@ -466,27 +473,34 @@ cd ..
 log_step "Finalizing git operations"
 
 # We're currently on the tag (detached HEAD), need to go back to branches
-# First pull latest to avoid conflicts
+log_info "Pushing tags..."
+git push --tags
+log_success "Tags pushed"
+
 log_info "Merging $tag to master..."
-git fetch origin master
+git fetch origin
 git checkout master
 git pull origin master --no-edit || true
-git merge "$tag" --no-edit
-git push origin master
+git merge "$tag" --no-edit || {
+	log_warn "Merge to master failed (maybe already up to date)"
+}
+git push origin master || {
+	log_warn "Push to master failed"
+}
 
 log_success "Merged to master"
 
-# Push tags
-log_info "Pushing tags..."
-git push --tags
-
-log_success "Tags pushed"
-
-# Return to develop
+# Return to develop and push
 git checkout develop
-git push origin develop
+git push origin develop || true
+
+# Clear ORIGINAL_BRANCH so cleanup trap doesn't try to switch again
+ORIGINAL_BRANCH=""
 
 log_success "Back on develop branch"
+
+# Clean up release leftovers (also in trap, but be thorough)
+rm -f release.properties pom.xml.releaseBackup 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 # Step 9: Deploy documentation (optional)
