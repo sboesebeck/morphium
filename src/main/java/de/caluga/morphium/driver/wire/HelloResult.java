@@ -392,7 +392,7 @@ public class HelloResult {
             ", minWireVersion=" + minWireVersion +
             ", maxWireVersion=" + maxWireVersion +
             ", readOnly=" + readOnly +
-            ", compression='" + compression + '\'' +
+            ", compression=" + compression +
             ", saslSupportedMechs=" + saslSupportedMechs +
             ", msg='" + msg + '\'' +
             ", hosts=" + hosts +

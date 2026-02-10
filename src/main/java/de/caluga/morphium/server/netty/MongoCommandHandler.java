@@ -112,6 +112,33 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void processMessage(ChannelHandlerContext ctx, WireProtocolMessage msg) throws Exception {
+        if (msg instanceof OpCompressed) {
+            // Unwrap compressed message - the payload is already decompressed by parsePayload()
+            OpCompressed compressed = (OpCompressed) msg;
+            byte[] decompressed = compressed.getCompressedMessage();
+
+            // Create inner message based on original opcode
+            WireProtocolMessage.OpCode opCode = WireProtocolMessage.OpCode.findByCode(compressed.getOriginalOpCode());
+            if (opCode == null) {
+                log.error("Unknown original opcode in compressed message: {}", compressed.getOriginalOpCode());
+                sendError(ctx, compressed.getMessageId(), "Unknown opcode in compressed message");
+                return;
+            }
+
+            try {
+                WireProtocolMessage inner = opCode.handler.getDeclaredConstructor().newInstance();
+                inner.setMessageId(compressed.getMessageId());
+                inner.setResponseTo(compressed.getResponseTo());
+                inner.parsePayload(decompressed, 0);
+                log.debug("Unwrapped OpCompressed (compressor={}) -> {}", compressed.getCompressorId(), inner.getClass().getSimpleName());
+                processMessage(ctx, inner);
+            } catch (Exception e) {
+                log.error("Failed to unwrap compressed message: {}", e.getMessage(), e);
+                sendError(ctx, compressed.getMessageId(), "Failed to decompress message: " + e.getMessage());
+            }
+            return;
+        }
+
         if (msg instanceof OpQuery) {
             processOpQuery(ctx, (OpQuery) msg);
         } else if (msg instanceof OpMsg) {
@@ -833,6 +860,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         res.setMe(myAddress);
         res.setLogicalSessionTimeoutMinutes(30);
         res.setMsg("MorphiumServer V0.1ALPHA (Netty)");
+
+        // Advertise supported compression algorithms
+        List<String> compressionAlgorithms = new ArrayList<>();
+        if (compressorId == OpCompressed.COMPRESSOR_SNAPPY) {
+            compressionAlgorithms.add("snappy");
+        } else if (compressorId == OpCompressed.COMPRESSOR_ZLIB) {
+            compressionAlgorithms.add("zlib");
+        }
+        if (!compressionAlgorithms.isEmpty()) {
+            res.setCompression(compressionAlgorithms);
+        }
+
         return res;
     }
 
