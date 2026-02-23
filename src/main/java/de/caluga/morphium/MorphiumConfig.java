@@ -19,7 +19,7 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.json.simple.parser.JSONParser;
 
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
@@ -318,11 +318,11 @@ public class MorphiumConfig {
     @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
     public static MorphiumConfig createFromJson(String json)
     throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException, InvocationTargetException {
-        ObjectMapper jacksonOM = new ObjectMapper();
-        HashMap<String, Object> obj;
+        JSONParser jsonParser = new JSONParser();
+        Map<String, Object> obj;
 
         try {
-            obj = (HashMap<String, Object>) jacksonOM.readValue(json.getBytes(), Map.class);
+            obj = (Map<String, Object>) jsonParser.parse(json);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
