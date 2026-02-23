@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Utils;
@@ -115,7 +114,6 @@ public class ObjectMapperTest {
         MorphiumObjectMapper om = new ObjectMapperImpl();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         om.setAnnotationHelper(an);
-        ObjectMapper jacksonOM = new ObjectMapper();
         UncachedObject uc = new UncachedObject("strValue", 144);
         uc.setBinaryData("Test".getBytes(StandardCharsets.UTF_8));
         long start = System.currentTimeMillis();
@@ -128,15 +126,6 @@ public class ObjectMapperTest {
 
         long dur = System.currentTimeMillis() - start;
         log.info("Morphium Serialization took " + dur + " ms");
-        start = System.currentTimeMillis();
-
-        for (int i = 0; i < amount; i++) {
-            var m = jacksonOM.convertValue(uc, Map.class);
-            assertNotNull(m);
-        }
-
-        dur = System.currentTimeMillis() - start;
-        log.info("Jackson serialization took " + dur + " ms");
         Map<String, Object> m = om.serialize(uc);
         start = System.currentTimeMillis();
 
@@ -146,23 +135,7 @@ public class ObjectMapperTest {
         }
 
         dur = System.currentTimeMillis() - start;
-        log.info("De-Serialization took " + dur + " ms");
-        Map<String, Object> convNames = new HashMap<>();
-
-        for (Map.Entry<String, Object> e : m.entrySet()) {
-            Field f = an.getField(UncachedObject.class, e.getKey());
-            convNames.put(f.getName(), e.getValue());
-        }
-
-        start = System.currentTimeMillis();
-
-        for (int i = 0; i < amount; i++) {
-            UncachedObject uo = jacksonOM.convertValue(convNames, UncachedObject.class);
-            assertNotNull(uo);
-        }
-
-        dur = System.currentTimeMillis() - start;
-        log.info("Jackson De-Serialization took " + dur + " ms");
+        log.info("Morphium De-Serialization took " + dur + " ms");
     }
 
     @Test

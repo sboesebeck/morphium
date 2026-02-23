@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.json.simple.parser.JSONParser;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Collation;
@@ -1245,11 +1245,10 @@ public class Query<T> implements Cloneable {
     @SuppressWarnings("unchecked")
 
     public Query<T> matchesJsonSchema(String schemaDef) throws RuntimeException {
-        //JSONParser jsonParser = new JSONParser();
         try {
-            var jacksonOM = new ObjectMapper();
+            var jsonParser = new JSONParser();
             @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) jacksonOM.readValue(schemaDef.getBytes(), Map.class);
+            Map<String, Object> map = (Map<String, Object>) jsonParser.parse(schemaDef);
             return matchesJsonSchema(map);
         } catch (Exception e) {
             throw new RuntimeException(e);

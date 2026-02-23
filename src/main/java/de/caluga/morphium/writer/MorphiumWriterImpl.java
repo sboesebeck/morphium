@@ -22,7 +22,7 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.json.simple.parser.JSONParser;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.IndexDescription;
@@ -712,11 +712,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             // (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
 
             if (!e.schemaDef().equals("")) {
-                //JSONParser jsonParser = new JSONParser();
-                var jacksonOM = new ObjectMapper();
+                var jsonParser = new JSONParser();
 
                 try {
-                    Map<String, Object> def = (Map<String, Object>) jacksonOM.readValue(e.schemaDef().getBytes(), Map.class);
+                    Map<String, Object> def = (Map<String, Object>) jsonParser.parse(e.schemaDef());
                     cmd.setValidator(def);
                     cmd.setValidationLevel(e.validationLevel().name());
                     cmd.setValidationAction(e.validationAction().name());

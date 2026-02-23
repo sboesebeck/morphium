@@ -1,6 +1,6 @@
 package de.caluga.morphium;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.json.simple.parser.JSONParser;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.encryption.Encrypted;
@@ -53,8 +53,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map < Class<?>, NameProvider > nameProviders;
-    //private final JSONParser jsonParser = new JSONParser();
-    private final ObjectMapper jacksonOM = new ObjectMapper();
+    private final JSONParser jsonParser = new JSONParser();
 
     private final ArrayList < Class<?>> mongoTypes;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
@@ -797,13 +796,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     public <T> T deserialize(Class <? extends T > cls, String jsonString) throws RuntimeException {
         try {
             if (jsonString.startsWith("{")) {
-                HashMap<String, Object> obj = (HashMap<String, Object>) jacksonOM.readValue(jsonString.getBytes(), Map.class); //jsonParser.parse(jsonString, containerFactory);
+                Map<String, Object> obj = (Map<String, Object>) jsonParser.parse(jsonString);
                 return deserialize(cls, obj);
             } else {
-                return (T)(jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
+                return (T) jsonParser.parse(jsonString);
             }
-        } catch (
-                            Exception e) {
+        } catch (Exception e) {
             throw new RuntimeException("Parsing failed", e);
         }
     }
