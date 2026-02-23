@@ -331,7 +331,14 @@ public class MorphiumConfig {
 
         for (var e : obj.entrySet()) {
             if (e.getValue() != null) {
-                p.put(e.getKey(), e.getValue().toString());
+                if (e.getValue() instanceof List) {
+                    List<?> list = (List<?>) e.getValue();
+                    p.put(e.getKey(), list.stream()
+                        .map(Object::toString)
+                        .collect(java.util.stream.Collectors.joining(", ", "[", "]")));
+                } else {
+                    p.put(e.getKey(), e.getValue().toString());
+                }
             }
 
             log.info("Adding {} = {}", e.getKey(), e.getValue());
