@@ -7,7 +7,10 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+
 
 public class HelloCommand extends MongoCommand<HelloCommand> {
     private String saslSupportedMechs;
@@ -107,6 +110,11 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
                                      "driver", Doc.of("name", "Morphium V6/" + driverName, "version", "6.1"),
                                      "os", Doc.of("type", System.getProperty("os.name"))));
         }
+        // Advertise supported compressors to the server (MongoDB wire protocol compression negotiation)
+        List<String> compressors = new ArrayList<>();
+        compressors.add("snappy");
+        compressors.add("zlib");
+        ret.put("compression", compressors);
         return ret;
     }
 

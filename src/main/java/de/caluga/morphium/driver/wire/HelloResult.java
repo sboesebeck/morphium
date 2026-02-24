@@ -24,7 +24,7 @@ public class HelloResult {
     private Integer minWireVersion;
     private Integer maxWireVersion;
     private Boolean readOnly = false;
-    private String compression;
+    private List<String> compression;
     private List<String> saslSupportedMechs;
     //Contains the value isdbgrid when hello returns from a mongos instance.
     private String msg;
@@ -212,11 +212,11 @@ public class HelloResult {
         return this;
     }
 
-    public String getCompression() {
+    public List<String> getCompression() {
         return compression;
     }
 
-    public HelloResult setCompression(String compression) {
+    public HelloResult setCompression(List<String> compression) {
         this.compression = compression;
         return this;
     }
