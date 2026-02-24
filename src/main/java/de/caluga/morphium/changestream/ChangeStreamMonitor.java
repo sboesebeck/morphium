@@ -114,7 +114,20 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         return fullDocument;
     }
 
+    /**
+     * Start the change stream monitor and block until the watch is established (up to 2s).
+     * For parallel startup of multiple monitors, use {@link #startAsync()} + {@link #awaitReady(long, TimeUnit)}.
+     */
     public void start() {
+        startAsync();
+        awaitReady(2, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Start the change stream monitor thread without waiting for watch establishment.
+     * Call {@link #awaitReady(long, TimeUnit)} afterwards if you need to ensure the watch is active.
+     */
+    public void startAsync() {
         if (changeStreamThread != null) {
             throw new RuntimeException("Already running!");
         }
@@ -123,13 +136,18 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                              .name("changeStream")
                              .start(this);
         running = true;
+    }
 
-        // Avoid race: if the watch cursor isn't established yet, early writes may be missed.
-        // Reduced timeout from 5s to 2s - watch establishment should be quick
+    /**
+     * Wait for the change stream watch to be established.
+     * @return true if ready, false if timeout elapsed
+     */
+    public boolean awaitReady(long timeout, TimeUnit unit) {
         try {
-            watchStartedLatch.await(2, TimeUnit.SECONDS);
+            return watchStartedLatch.await(timeout, unit);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 

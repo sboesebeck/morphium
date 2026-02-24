@@ -16,6 +16,7 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.server.ReplicationCoordinator;
 import de.caluga.morphium.server.election.*;
+import de.caluga.morphium.server.messaging.MessagingCollectionInfo;
 import de.caluga.morphium.server.messaging.MessagingOptimizer;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wireprotocol.*;
@@ -438,6 +439,13 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 // to avoid duplicate delivery. Enable when proper coordination is implemented.
             }
 
+            // Notify messaging cursors when a lock is deleted (exclusive message released).
+            // This allows other subscribers to re-poll for the now-available message
+            // without needing a separate lock-monitor change stream connection.
+            if (cmd.equalsIgnoreCase("delete")) {
+                notifyMessagingCursorsOnLockDelete(doc);
+            }
+
             // Handle tailable cursors
             if (cmd.equalsIgnoreCase("find") && Boolean.TRUE.equals(doc.get("tailable"))) {
                 setupTailableCursor(doc, answer);
@@ -742,6 +750,53 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
         } catch (Exception e) {
             log.debug("Error notifying messaging cursors: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * When a lock document is deleted from a lock collection, notify the messaging cursors
+     * of the parent messaging collection. This sends a synthetic "lock_released" event
+     * so clients can re-poll for exclusive messages without a separate lock-monitor connection.
+     */
+    @SuppressWarnings("unchecked")
+    private void notifyMessagingCursorsOnLockDelete(Map<String, Object> doc) {
+        if (messagingOptimizer == null) {
+            return;
+        }
+
+        try {
+            String db = (String) doc.get("$db");
+            String lockColl = (String) doc.get("delete");
+
+            if (db == null || lockColl == null) {
+                return;
+            }
+
+            // Only process if this is a registered lock collection
+            if (!messagingOptimizer.isLockCollection(db, lockColl)) {
+                return;
+            }
+
+            // Look up the parent messaging collection
+            MessagingCollectionInfo info = messagingOptimizer.getMessagingInfoByLockCollection(db, lockColl);
+            if (info == null) {
+                return;
+            }
+
+            // Build a synthetic "lock_released" event for the parent messaging collection
+            Map<String, Object> event = Doc.of(
+                "operationType", "lock_released",
+                "ns", Doc.of("db", db, "coll", info.getCollection()),
+                "lockCollection", lockColl
+            );
+
+            int notified = cursorManager.notifyMessagingEvent(db, info.getCollection(), event, null);
+            if (notified > 0) {
+                log.debug("Lock-release: notified {} cursors for lock delete in {}.{} -> {}.{}",
+                         notified, db, lockColl, db, info.getCollection());
+            }
+        } catch (Exception e) {
+            log.debug("Error notifying messaging cursors on lock delete: {}", e.getMessage());
         }
     }
 

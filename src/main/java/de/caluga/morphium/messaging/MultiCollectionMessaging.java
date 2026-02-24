@@ -83,7 +83,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
     private enum MType {
-        listener, monitor, lockMonitor,
+        listener, monitor,
     }
 
     private Map<String, List<Map<MType, Object>>> monitorsByTopic = new ConcurrentHashMap<>();
@@ -109,6 +109,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     // Ready signaling for tests - latch is counted down when change streams are fully initialized
     private final CountDownLatch readyLatch = new CountDownLatch(1);
     private volatile boolean ready = false;
+
+    // Shared database-level lock monitor - one per MCM instance instead of one per topic.
+    // Watches ALL lock collections for delete events and triggers poll for the affected topic.
+    private volatile ChangeStreamMonitor sharedLockMonitor;
+    // Reverse mapping: lock collection name → topic name, for routing lock-delete events
+    private final Map<String, String> lockCollectionToTopic = new ConcurrentHashMap<>();
 
     private class CallbackRequest {
         Msg theMessage;
@@ -170,27 +176,25 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     public void start() {
         running.set(true);
         decouplePool.scheduleWithFixedDelay(() -> {
-            // Process poll triggers - always handle DMs, regular messages based on change
-            // stream status
+            // Process poll triggers - handle DMs and regular topics.
+            // Regular topics are triggered by the shared lock monitor (lock deleted → re-poll for exclusive msgs)
+            // or by pollAndProcess itself when more messages are available.
             for (var name : pollTrigger.keySet()) {
                 if (pollTrigger.get(name).get() != 0) {
                     if (name.equals("dm_all")) {
-                        // Handle all DMs (used when change streams are disabled)
                         pollAndProcessAllDms();
                     } else if (name.startsWith("dm_")) {
                         pollAndProcessDms(name.substring(3));
-                    } else if (!isUseChangeStream()) {
-                        // Only poll when change streams are disabled
+                    } else {
                         pollAndProcess(name);
                     }
                     pollTrigger.get(name).set(0);
                 }
             }
-            // Fallback polling for broadcast messages when change streams are enabled
-            // Change streams can miss events due to network issues or MongoDB internal issues
-            // This ensures broadcast messages are eventually delivered even if change stream events are lost
-            // Test evidence shows changestream catches 100% of messages, so reduced frequency (was every cycle)
-            if (isUseChangeStream() && running.get() && (fallbackPollCounter.incrementAndGet() % 100 == 0)) {
+            // Safety-net fallback polling when change streams are enabled.
+            // Primary message delivery is via change streams; lock releases trigger targeted re-polls
+            // via the shared lock monitor. This fallback only catches edge cases (network glitches, etc.).
+            if (isUseChangeStream() && running.get() && (fallbackPollCounter.incrementAndGet() % 500 == 0)) {
                 // log.debug("Running fallback poll for {} topics", monitorsByTopic.size());
                 for (var topicName : monitorsByTopic.keySet()) {
                     try {
@@ -1149,37 +1153,119 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void addListenerForTopic(String n, MessageListener l) {
+        var monitors = createTopicMonitors(n, l);
+        var cm = monitors.get(MType.monitor);
+        ((ChangeStreamMonitor) cm).startAsync();
+        ((ChangeStreamMonitor) cm).awaitReady(2, TimeUnit.SECONDS);
+        pollAndProcess(n);
+    }
+
+    @Override
+    public void addListenersForTopics(Map<String, MessageListener> listeners) {
+        if (listeners.isEmpty()) return;
+        if (listeners.size() == 1) {
+            var entry = listeners.entrySet().iterator().next();
+            addListenerForTopic(entry.getKey(), entry.getValue());
+            return;
+        }
+
+        log.info("Batch-registering {} topic listeners in parallel", listeners.size());
+        long startTime = System.currentTimeMillis();
+
+        // Phase 1: Create all monitors WITHOUT DB calls (no ensureIndices, no registerTopic).
+        Map<String, Map<MType, Object>> allMonitors = new LinkedHashMap<>();
+        for (var entry : listeners.entrySet()) {
+            allMonitors.put(entry.getKey(), createTopicMonitorsLight(entry.getKey(), entry.getValue()));
+        }
+        log.info("Phase 1: Created {} monitor pairs in {}ms", allMonitors.size(), System.currentTimeMillis() - startTime);
+
+        // Phase 2: Start ALL message monitors async (no waiting per monitor).
+        // Lock monitors are omitted to halve connection count - fallback polling handles lock releases.
+        List<ChangeStreamMonitor> allCsm = new ArrayList<>();
+        for (var entry : allMonitors.values()) {
+            var cm = (ChangeStreamMonitor) entry.get(MType.monitor);
+            cm.startAsync();
+            allCsm.add(cm);
+        }
+        log.info("Phase 2: Started {} monitors in {}ms", allCsm.size(), System.currentTimeMillis() - startTime);
+
+        // Phase 3: Register topics with MorphiumServer and poll for existing messages.
+        // Done in a background thread to not block startup - monitors are already receiving
+        // new messages via change streams.
+        final var topicNames = new ArrayList<>(allMonitors.keySet());
+        Thread.ofPlatform().name("mcm-batch-init").start(() -> {
+            // Wait briefly for monitors to establish connections
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            log.info("Phase 3: Registering {} topics with MorphiumServer and polling", topicNames.size());
+            for (var topicName : topicNames) {
+                registerTopicWithMorphiumServer(topicName);
+            }
+            for (var topicName : topicNames) {
+                try {
+                    pollAndProcess(topicName);
+                } catch (Exception e) {
+                    log.debug("Initial poll for {} failed: {}", topicName, e.getMessage());
+                }
+            }
+            log.info("Phase 3: Background init completed in {}ms", System.currentTimeMillis() - startTime);
+        });
+
+        log.info("Batch registration of {} topics completed in {}ms (background init pending)", listeners.size(),
+            System.currentTimeMillis() - startTime);
+    }
+
+    /**
+     * Create monitors for a topic without starting them. Handles index creation,
+     * MorphiumServer registration, and monitor setup.
+     */
+    private Map<MType, Object> createTopicMonitors(String n, MessageListener l) {
+        var monitors = createTopicMonitorsLight(n, l);
+        try {
+            morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
+        } catch (Exception e) {
+            log.warn("Could not ensure indices for {}: {} - will retry later", getCollectionName(n), e.getMessage());
+        }
+        registerTopicWithMorphiumServer(n);
+        return monitors;
+    }
+
+    /**
+     * Create monitors for a topic without starting them and WITHOUT DB calls.
+     * Used by batch registration to avoid connection pool exhaustion.
+     */
+    private Map<MType, Object> createTopicMonitorsLight(String n, MessageListener l) {
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        // in.put("$eq", "insert"); //, "delete", "update"));
-        in.put("$in", Arrays.asList("insert"));
+        // Accept "insert" (new messages) and "lock_released" (MorphiumServer pushes this when
+        // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
+        in.put("$in", Arrays.asList("insert", "lock_released"));
         match.put("operationType", in);
-        // Don't filter on fullDocument.sender in the pipeline - it can cause issues with
-        // MongoDB change stream event delivery. The sender check is done in the callback.
         var pipeline = new ArrayList<Map<String, Object>>();
         pipeline.add(UtilsMap.of("$match", match));
-        log.debug("Adding changestream for collection {}", getCollectionName(n));
-        morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
-        // Register topic with MorphiumServer for optimizations
-        registerTopicWithMorphiumServer(n);
-        // Use same parameters as SingleCollectionMessaging for consistency:
-        // - fullDocument=false (we fetch fresh data anyway for exclusive messages)
-        // - maxWait=pause (shorter timeout for more responsive event delivery)
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), false,
             effectiveSettings.getMessagingPollPause(),
             pipeline);
         cm.addListener((evt) -> {
-            log.info("CSM: Incoming change stream event for topic {}", n);
-
             // CRITICAL: Always return true to keep the listener registered
-            // Returning running.get() would cause the listener to be removed if called before start()
-            // Skip processing if not running, but keep listening
             if (!running.get()) {
-                log.info("CSM: not running, skipping event");
                 return true;
             }
 
-            // Deserialize and check BEFORE creating Runnable to prevent race condition
+            // MorphiumServer sends "lock_released" when a lock is deleted on the lock collection.
+            // Trigger a re-poll so exclusive messages can be picked up by another subscriber.
+            if ("lock_released".equals(evt.getOperationType())) {
+                log.debug("CSM: Lock released event for topic {}, triggering re-poll", n);
+                pollTrigger.putIfAbsent(n, new AtomicInteger(0));
+                pollTrigger.get(n).incrementAndGet();
+                return true;
+            }
+
+            // Normal insert event - process the message
             Map<String, Object> map = evt.getFullDocument();
 
             if (map == null) {
@@ -1270,11 +1356,6 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     }
 
                     try {
-                        // if (current.getProcessedBy().contains(getSenderId())) {
-                        // // Don't unlock here - let lock timeout naturally
-                        // return;
-                        // }
-
                         if (l.markAsProcessedBeforeExec()) {
                             updateProcessedBy(current);
                         }
@@ -1327,27 +1408,52 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             queueOrRun(r);
             return true;  // Always keep listener registered - cleanup happens in terminate()
         });
-        ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(n), false,
-            effectiveSettings.getMessagingPollPause(), List.of(Doc.of("$match", Doc.of("operationType",
-                Doc.of("$eq", "delete")))));
-        lockMonitor.addListener((evt) -> {
-            // Only process if running - but always return true to keep listener registered
-            if (!running.get()) {
-                return true;
-            }
-            var id = evt.getId();
-            if (morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName(n)).f(Msg.Fields.msgId).eq(id)
-                    .countAll() != 0) {
-                pollTrigger.putIfAbsent(n, new AtomicInteger());
-                pollTrigger.get(n).incrementAndGet();
-            }
-
-            return true;  // Always keep listener registered - cleanup happens in terminate()
-        });
+        // For standard MongoDB: use shared DB-level lock monitor (1 connection for all lock collections).
+        // For MorphiumServer: no lock monitor needed - server pushes "lock_released" events
+        // directly to the message change stream (0 extra connections).
+        if (!morphium.getDriver().isMorphiumServer()) {
+            lockCollectionToTopic.put(getLockCollectionName(n), n);
+            ensureSharedLockMonitor();
+        }
         monitorsByTopic.putIfAbsent(n, new ArrayList<>());
-        monitorsByTopic.get(n).add(Map.of(MType.monitor, cm, MType.listener, l, MType.lockMonitor, lockMonitor));
-        cm.start();
-        pollAndProcess(n);
+        monitorsByTopic.get(n).add(Map.of(MType.monitor, cm, MType.listener, l));
+        return Map.of(MType.monitor, cm, MType.listener, l);
+    }
+
+    /**
+     * Starts a single database-level change stream monitor that watches ALL lock collections
+     * for DELETE events. When a lock is deleted (exclusive message released), it triggers
+     * a targeted re-poll for the affected topic via pollTrigger.
+     * Uses 1 connection instead of N (one per topic).
+     */
+    private synchronized void ensureSharedLockMonitor() {
+        if (sharedLockMonitor != null) return;
+
+        // DB-level change stream: collectionName=null → watches entire database
+        // Filter for delete operations only (lock releases)
+        var pipeline = List.<Map<String, Object>>of(
+            Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))
+        );
+        sharedLockMonitor = new ChangeStreamMonitor(morphium, pipeline);
+        sharedLockMonitor.addListener((evt) -> {
+            if (!running.get()) return true;
+
+            String evtCollection = evt.getCollectionName();
+            if (evtCollection == null) return true;
+
+            // Look up which topic this lock collection belongs to
+            String topicName = lockCollectionToTopic.get(evtCollection);
+            if (topicName == null) return true; // not a lock collection we care about
+
+            // Trigger a re-poll for this topic so exclusive messages can be picked up
+            log.debug("Lock released in {}, triggering re-poll for topic {}", evtCollection, topicName);
+            pollTrigger.putIfAbsent(topicName, new AtomicInteger(0));
+            pollTrigger.get(topicName).incrementAndGet();
+
+            return true;
+        });
+        sharedLockMonitor.startAsync();
+        log.info("Started shared DB-level lock monitor (1 connection for all lock collections)");
     }
 
     private void unlock(Msg msg) {
@@ -1370,12 +1476,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         }
 
         if (idx >= 0) {
-            ((ChangeStreamMonitor) monitorsByTopic.get(topic).get(idx).get(MType.monitor)).terminate();
-            ((ChangeStreamMonitor) monitorsByTopic.get(topic).get(idx).get(MType.lockMonitor)).terminate();
+            var entry = monitorsByTopic.get(topic).get(idx);
+            ((ChangeStreamMonitor) entry.get(MType.monitor)).terminate();
             monitorsByTopic.get(topic).remove(idx);
         }
         if (monitorsByTopic.get(topic).isEmpty()) {
             monitorsByTopic.remove(topic);
+            lockCollectionToTopic.remove(getLockCollectionName(topic));
         }
     }
 
@@ -1476,9 +1583,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         for (var e : monitorsByTopic.entrySet()) {
             for (var m : e.getValue()) {
                 ((ChangeStreamMonitor) m.get(MType.monitor)).terminate();
-                ((ChangeStreamMonitor) m.get(MType.lockMonitor)).terminate();
-                ;
             }
+        }
+        if (sharedLockMonitor != null) {
+            sharedLockMonitor.terminate();
+            sharedLockMonitor = null;
         }
         if (directMessagesMonitor != null)
             directMessagesMonitor.terminate();

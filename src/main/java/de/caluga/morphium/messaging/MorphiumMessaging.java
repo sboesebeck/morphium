@@ -68,6 +68,16 @@ public interface MorphiumMessaging extends Closeable {
 
     void addListenerForTopic(String n, MessageListener l);
 
+    /**
+     * Register multiple topic listeners in a single batch. All change stream monitors are started
+     * in parallel, which dramatically reduces startup time compared to sequential addListenerForTopic calls.
+     * For MCM with N topics, startup drops from N*2s to ~2s total.
+     * Default implementation falls back to sequential addListenerForTopic calls.
+     */
+    default void addListenersForTopics(Map<String, MessageListener> listeners) {
+        listeners.forEach(this::addListenerForTopic);
+    }
+
     void removeListenerForTopic(String n, MessageListener l);
 
     String getSenderId();
