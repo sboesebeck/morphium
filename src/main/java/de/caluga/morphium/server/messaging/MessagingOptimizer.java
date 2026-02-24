@@ -145,6 +145,16 @@ public class MessagingOptimizer {
     }
 
     /**
+     * Get messaging collection info by its lock collection name.
+     * Used to find the parent messaging collection when a lock is deleted.
+     */
+    public MessagingCollectionInfo getMessagingInfoByLockCollection(String db, String lockCollection) {
+        String parentKey = lockCollectionMapping.get(db + "." + lockCollection);
+        if (parentKey == null) return null;
+        return messagingCollections.get(parentKey);
+    }
+
+    /**
      * Get all subscriber IDs for a messaging collection.
      * Used for server-side sender filtering.
      */

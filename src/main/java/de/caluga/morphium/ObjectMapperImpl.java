@@ -59,6 +59,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private final Map < Class<?>, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
     private final Map < String, Class<?>> classByCollectionName = new ConcurrentHashMap<>();
+    private static volatile Map<String, Class<?>> cachedClassByCollectionName = null;
     private Morphium morphium;
 
     public ObjectMapperImpl() {
@@ -93,26 +94,29 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         customMappers.put(Polygon.class, new BsonGeoMapper());
         customMappers.put(LineString.class, new BsonGeoMapper());
 
-        //initializing type IDs
-        try (ScanResult scanResult = new ClassGraph()
-            //                     .verbose()             // Enable verbose logging
-            .enableAnnotationInfo()
-            //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-            .scan()) {
-            ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
-            //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-            log.debug("Found " + entities.size() + " entities in classpath");
+        //initializing type IDs - use cached scan result if available
+        if (cachedClassByCollectionName != null) {
+            classByCollectionName.putAll(cachedClassByCollectionName);
+            log.debug("Using cached classpath scan result with {} entities", classByCollectionName.size());
+        } else {
+            try (ScanResult scanResult = new ClassGraph()
+                .enableAnnotationInfo()
+                .scan()) {
+                ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
+                log.debug("Found " + entities.size() + " entities in classpath");
 
-            for (String cn : entities.getNames()) {
-                try {
-                    Class c = Class.forName(cn);
-                    classByCollectionName.put(getCollectionName(c), c);
-                } catch (ClassNotFoundException e) {
-                    log.error("Could not get class / collection " + cn);
+                for (String cn : entities.getNames()) {
+                    try {
+                        Class c = Class.forName(cn);
+                        classByCollectionName.put(getCollectionName(c), c);
+                    } catch (ClassNotFoundException e) {
+                        log.error("Could not get class / collection " + cn);
+                    }
                 }
+                cachedClassByCollectionName = new ConcurrentHashMap<>(classByCollectionName);
+            } catch (ClassGraphException e) {
+                //swallow
             }
-        } catch (ClassGraphException e) {
-            //swallow
         }
     }
 
