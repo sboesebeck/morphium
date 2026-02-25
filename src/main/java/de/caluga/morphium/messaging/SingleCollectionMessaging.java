@@ -435,9 +435,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         try {
-            // if (evt == null || evt.getOperationType() == null) {
-            // return running;
-            // }
+            // MorphiumServer pushes synthetic "lock_released" events when a lock is deleted.
+            // These have no documentKey/fullDocument - just trigger a re-poll.
+            if ("lock_released".equals(evt.getOperationType())) {
+                log.debug("CSE: {}: lock_released event received, triggering re-poll", this.id);
+                requestPoll.incrementAndGet();
+                return running;
+            }
 
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
@@ -605,8 +609,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        // in.put("$eq", "insert"); //, "delete", "update"));
-        in.put("$in", Arrays.asList("insert"));
+        // Accept "insert" (new messages) and "lock_released" (MorphiumServer pushes this when
+        // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
+        in.put("$in", Arrays.asList("insert", "lock_released"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
         // Use longer maxWait for change streams to avoid constant network polling
