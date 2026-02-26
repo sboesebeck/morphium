@@ -175,6 +175,54 @@ cfg.connectionSettings()
    .setSslInvalidHostNameAllowed(true);
 ```
 
+## MONGODB-X509 Authentication
+
+When your MongoDB deployment uses **certificate-based authentication** (i.e. the client's TLS certificate _is_ the credential), configure Morphium with both mTLS and the `MONGODB-X509` mechanism:
+
+```java
+// Step 1: mTLS SSLContext (client cert + CA truststore)
+SSLContext sslContext = SslHelper.createSslContext(
+    "/path/to/client-keystore.p12", "keystorePassword",
+    "/path/to/truststore.jks",      "truststorePassword"
+);
+
+// Step 2: Morphium config
+MorphiumConfig cfg = new MorphiumConfig();
+cfg.clusterSettings().addHostToSeed("mongo.internal", 27017);
+cfg.connectionSettings()
+   .setDatabase("mydb")
+   .setUseSSL(true)
+   .setSslContext(sslContext);
+
+// Step 3: declare auth mechanism — no username/password required
+cfg.authSettings().setAuthMechanism("MONGODB-X509");
+
+Morphium morphium = new Morphium(cfg);
+```
+
+The MongoDB user must be created in the `$external` database with a `user` field matching the certificate subject:
+
+```javascript
+db.getSiblingDB("$external").createUser({
+  user: "CN=myapp,OU=Services,O=MyCompany,C=DE",
+  roles: [{ role: "readWrite", db: "mydb" }]
+})
+```
+
+### Key differences to password-based auth
+
+| | Password auth | MONGODB-X509 |
+|---|---|---|
+| Credential | username + password | client TLS certificate |
+| Auth database | `admin` (or app DB) | `$external` |
+| `setMongoLogin` required | ✅ | ❌ |
+| SSL required | optional | mandatory |
+| Typical use case | general | Kubernetes / zero-secret deployments |
+
+### InMemoryDriver
+
+The `InMemoryDriver` accepts `MONGODB-X509` and skips certificate validation since it has no real TLS layer. Tests that use this mechanism run without actual certificates.
+
 ## v5 vs v6 Comparison
 
 | Feature | v5.x | v6.x |
@@ -184,3 +232,4 @@ cfg.connectionSettings()
 | mTLS (client certs) | ❌ | ✅ |
 | SslHelper utility | ❌ | ✅ |
 | MongoDB Atlas | ❌ | ✅ |
+| MONGODB-X509 auth | ❌ | ✅ (v6.1.x) |

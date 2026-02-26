@@ -431,6 +431,21 @@ public static MorphiumConfig fromProperties(Properties props)
 )
 ```
 
+**@Version**
+```java
+@Version(
+    fieldName = "."   // "." = derive MongoDB field name from Java field (camelCase convention)
+                      // or set an explicit name, e.g. fieldName = "version"
+)
+```
+
+Enables **optimistic locking**. Morphium automatically:
+- Sets the field to `1L` on the first `store()` (INSERT path)
+- Increments it by 1 on every subsequent `store()` (UPDATE path)
+- Throws `de.caluga.morphium.VersionMismatchException` when another writer has already updated the document (stale-entity detection)
+
+The exception carries `getExpectedVersion()` (the version the caller held) for diagnostic and retry logic. See `docs/howtos/optimistic-locking.md` for a complete guide.
+
 **@Reference**
 ```java
 @Reference(
