@@ -443,6 +443,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             throw new RuntimeException(e);
         }
 
+        // Propagate auth mechanism (e.g. MONGODB-X509) to the driver before connecting
+        if (getConfig().getAuthMechanism() != null) {
+            morphiumDriver.setAuthMechanism(getConfig().getAuthMechanism());
+        }
+
         if (getConfig().authSettings().getMongoLogin() != null && getConfig().authSettings().getMongoPassword() != null) {
             if (getConfig().encryptionSettings().getCredentialsEncrypted() != null && getConfig().encryptionSettings().getCredentialsEncrypted()) {
                 var key = getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME);

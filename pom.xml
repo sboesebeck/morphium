@@ -59,8 +59,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.0.0</version>
         <configuration>
-          <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED
-                    --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</argLine>
+          <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
           <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
           <groups>${test.includeTags}</groups>
           <excludedGroups>${test.excludeTags}</excludedGroups>
