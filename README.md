@@ -2,7 +2,7 @@
 
 **Feature-rich MongoDB ODM and messaging framework for Java 21+**
 
-Available languages: English | [Deutsch](README.de.md)
+Available languages: English and [Deutsch](README.de.md)
 
 - 🗄️ **High-performance object mapping** with annotation-driven configuration
 - 📨 **Integrated message queue** backed by MongoDB (no extra infrastructure)
