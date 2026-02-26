@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
     
     
       
@@ -1392,6 +1392,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mongodb-x509-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MONGODB-X509 Authentication
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MONGODB-X509 Authentication">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-differences-to-password-based-auth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key differences to password-based auth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inmemorydriver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InMemoryDriver
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#v5-vs-v6-comparison" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1998,6 +2037,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mongodb-x509-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MONGODB-X509 Authentication
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MONGODB-X509 Authentication">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-differences-to-password-based-auth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key differences to password-based auth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inmemorydriver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InMemoryDriver
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#v5-vs-v6-comparison" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2185,6 +2263,72 @@
 </span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">   </span><span class="p">.</span><span class="na">setSslContext</span><span class="p">(</span><span class="n">trustAll</span><span class="p">)</span>
 </span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">   </span><span class="p">.</span><span class="na">setSslInvalidHostNameAllowed</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
 </span></code></pre></div>
+<h2 id="mongodb-x509-authentication">MONGODB-X509 Authentication<a class="headerlink" href="#mongodb-x509-authentication" title="Permanent link">&para;</a></h2>
+<p>When your MongoDB deployment uses <strong>certificate-based authentication</strong> (i.e. the client's TLS certificate <em>is</em> the credential), configure Morphium with both mTLS and the <code>MONGODB-X509</code> mechanism:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Step 1: mTLS SSLContext (client cert + CA truststore)</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">SSLContext</span><span class="w"> </span><span class="n">sslContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SslHelper</span><span class="p">.</span><span class="na">createSslContext</span><span class="p">(</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="s">&quot;/path/to/client-keystore.p12&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;keystorePassword&quot;</span><span class="p">,</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="s">&quot;/path/to/truststore.jks&quot;</span><span class="p">,</span><span class="w">      </span><span class="s">&quot;truststorePassword&quot;</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">);</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1">// Step 2: Morphium config</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo.internal&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">()</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">   </span><span class="p">.</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;mydb&quot;</span><span class="p">)</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">   </span><span class="p">.</span><span class="na">setUseSSL</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">   </span><span class="p">.</span><span class="na">setSslContext</span><span class="p">(</span><span class="n">sslContext</span><span class="p">);</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="c1">// Step 3: declare auth mechanism — no username/password required</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setAuthMechanism</span><span class="p">(</span><span class="s">&quot;MONGODB-X509&quot;</span><span class="p">);</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="n">Morphium</span><span class="w"> </span><span class="n">morphium</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Morphium</span><span class="p">(</span><span class="n">cfg</span><span class="p">);</span>
+</span></code></pre></div>
+<p>The MongoDB user must be created in the <code>$external</code> database with a <code>user</code> field matching the certificate subject:</p>
+<div class="language-javascript highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nx">db</span><span class="p">.</span><span class="nx">getSiblingDB</span><span class="p">(</span><span class="s2">&quot;$external&quot;</span><span class="p">).</span><span class="nx">createUser</span><span class="p">({</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nx">user</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;CN=myapp,OU=Services,O=MyCompany,C=DE&quot;</span><span class="p">,</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nx">roles</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">role</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;readWrite&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">db</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;mydb&quot;</span><span class="w"> </span><span class="p">}]</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="p">})</span>
+</span></code></pre></div>
+<h3 id="key-differences-to-password-based-auth">Key differences to password-based auth<a class="headerlink" href="#key-differences-to-password-based-auth" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Password auth</th>
+<th>MONGODB-X509</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Credential</td>
+<td>username + password</td>
+<td>client TLS certificate</td>
+</tr>
+<tr>
+<td>Auth database</td>
+<td><code>admin</code> (or app DB)</td>
+<td><code>$external</code></td>
+</tr>
+<tr>
+<td><code>setMongoLogin</code> required</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>SSL required</td>
+<td>optional</td>
+<td>mandatory</td>
+</tr>
+<tr>
+<td>Typical use case</td>
+<td>general</td>
+<td>Kubernetes / zero-secret deployments</td>
+</tr>
+</tbody>
+</table>
+<h3 id="inmemorydriver">InMemoryDriver<a class="headerlink" href="#inmemorydriver" title="Permanent link">&para;</a></h3>
+<p>The <code>InMemoryDriver</code> accepts <code>MONGODB-X509</code> and skips certificate validation since it has no real TLS layer. Tests that use this mechanism run without actual certificates.</p>
 <h2 id="v5-vs-v6-comparison">v5 vs v6 Comparison<a class="headerlink" href="#v5-vs-v6-comparison" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2219,6 +2363,11 @@
 <td>MongoDB Atlas</td>
 <td>❌</td>
 <td>✅</td>
+</tr>
+<tr>
+<td>MONGODB-X509 auth</td>
+<td>❌</td>
+<td>✅ (v6.1.x)</td>
 </tr>
 </tbody>
 </table>

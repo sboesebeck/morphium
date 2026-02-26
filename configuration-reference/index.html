@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
     
     
       
@@ -1477,10 +1477,21 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#example_1" class="md-nav__link">
+  <a href="#example-password-authentication" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        Example — password authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-mongodb-x509-certificate-based-no-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example — MONGODB-X509 (certificate-based, no password)
       
     </span>
   </a>
@@ -2099,10 +2110,21 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#example_1" class="md-nav__link">
+  <a href="#example-password-authentication" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        Example — password authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-mongodb-x509-certificate-based-no-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example — MONGODB-X509 (certificate-based, no password)
       
     </span>
   </a>
@@ -2609,20 +2631,29 @@
 <td>null</td>
 <td>Admin password for replica set operations</td>
 </tr>
+<tr>
+<td><code>setAuthMechanism(String)</code></td>
+<td>null</td>
+<td>Auth mechanism: <code>"MONGODB-X509"</code> for certificate-based auth (requires SSL)</td>
+</tr>
 </tbody>
 </table>
-<h3 id="example_1">Example<a class="headerlink" href="#example_1" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">// Basic authentication</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoLogin</span><span class="p">(</span><span class="s">&quot;appuser&quot;</span><span class="p">);</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoPassword</span><span class="p">(</span><span class="s">&quot;secret123&quot;</span><span class="p">);</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1">// Admin user for replica set status (optional)</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoAdminUser</span><span class="p">(</span><span class="s">&quot;admin&quot;</span><span class="p">);</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoAdminPwd</span><span class="p">(</span><span class="s">&quot;adminsecret&quot;</span><span class="p">);</span>
+<h3 id="example-password-authentication">Example — password authentication<a class="headerlink" href="#example-password-authentication" title="Permanent link">&para;</a></h3>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoLogin</span><span class="p">(</span><span class="s">&quot;appuser&quot;</span><span class="p">);</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoPassword</span><span class="p">(</span><span class="s">&quot;secret123&quot;</span><span class="p">);</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1">// Admin user for replica set status (optional)</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoAdminUser</span><span class="p">(</span><span class="s">&quot;admin&quot;</span><span class="p">);</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoAdminPwd</span><span class="p">(</span><span class="s">&quot;adminsecret&quot;</span><span class="p">);</span>
+</span></code></pre></div>
+<h3 id="example-mongodb-x509-certificate-based-no-password">Example — MONGODB-X509 (certificate-based, no password)<a class="headerlink" href="#example-mongodb-x509-certificate-based-no-password" title="Permanent link">&para;</a></h3>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1">// SSL + mTLS must be configured (see docs/ssl-tls.md)</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setAuthMechanism</span><span class="p">(</span><span class="s">&quot;MONGODB-X509&quot;</span><span class="p">);</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1">// no setMongoLogin / setMongoPassword needed</span>
 </span></code></pre></div>
 <h2 id="cache-settings">Cache Settings<a class="headerlink" href="#cache-settings" title="Permanent link">&para;</a></h2>
 <p>Configure the global caching behavior.</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">()</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">()</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2647,7 +2678,7 @@
 </table>
 <h2 id="messaging-settings">Messaging Settings<a class="headerlink" href="#messaging-settings" title="Permanent link">&para;</a></h2>
 <p>Configure the messaging system.</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">()</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">()</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2717,7 +2748,7 @@
 </table>
 <h2 id="thread-pool-settings">Thread Pool Settings<a class="headerlink" href="#thread-pool-settings" title="Permanent link">&para;</a></h2>
 <p>Configure async operation thread pools.</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">threadPoolSettings</span><span class="p">()</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">threadPoolSettings</span><span class="p">()</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2747,7 +2778,7 @@
 </table>
 <h2 id="writer-settings">Writer Settings<a class="headerlink" href="#writer-settings" title="Permanent link">&para;</a></h2>
 <p>Configure write operation behavior.</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">writerSettings</span><span class="p">()</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">writerSettings</span><span class="p">()</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2807,7 +2838,7 @@
 </table>
 <h2 id="object-mapping-settings">Object Mapping Settings<a class="headerlink" href="#object-mapping-settings" title="Permanent link">&para;</a></h2>
 <p>Configure object mapping behavior.</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">objectMappingSettings</span><span class="p">()</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">objectMappingSettings</span><span class="p">()</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2847,7 +2878,7 @@
 </table>
 <h2 id="error-handling-settings">Error Handling Settings<a class="headerlink" href="#error-handling-settings" title="Permanent link">&para;</a></h2>
 <p>Configure retry and error handling behavior.</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">()</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">()</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2873,81 +2904,81 @@
 <h2 id="configuration-sources">Configuration Sources<a class="headerlink" href="#configuration-sources" title="Permanent link">&para;</a></h2>
 <p>Morphium supports multiple configuration sources:</p>
 <h3 id="1-programmatic-configuration">1. Programmatic Configuration<a class="headerlink" href="#1-programmatic-configuration" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp&quot;</span><span class="p">);</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1">// ... other settings</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp&quot;</span><span class="p">);</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="c1">// ... other settings</span>
 </span></code></pre></div>
 <h3 id="2-properties-file">2. Properties File<a class="headerlink" href="#2-properties-file" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">Properties</span><span class="w"> </span><span class="n">props</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Properties</span><span class="p">();</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">props</span><span class="p">.</span><span class="na">load</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">FileInputStream</span><span class="p">(</span><span class="s">&quot;morphium.properties&quot;</span><span class="p">));</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">(</span><span class="n">props</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">Properties</span><span class="w"> </span><span class="n">props</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Properties</span><span class="p">();</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">props</span><span class="p">.</span><span class="na">load</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">FileInputStream</span><span class="p">(</span><span class="s">&quot;morphium.properties&quot;</span><span class="p">));</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">(</span><span class="n">props</span><span class="p">);</span>
 </span></code></pre></div>
 <p>Example <code>morphium.properties</code>:
-<div class="language-properties highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="na">database</span><span class="o">=</span><span class="s">myapp</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="na">hosts</span><span class="o">=</span><span class="s">mongo1:27017,mongo2:27017,mongo3:27017</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="na">replica_set_name</span><span class="o">=</span><span class="s">myReplicaSet</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="na">driver_name</span><span class="o">=</span><span class="s">PooledDriver</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="na">max_connections_per_host</span><span class="o">=</span><span class="s">50</span>
-</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="na">mongo_login</span><span class="o">=</span><span class="s">appuser</span>
-</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="na">mongo_password</span><span class="o">=</span><span class="s">secret123</span>
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="na">database</span><span class="o">=</span><span class="s">myapp</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="na">hosts</span><span class="o">=</span><span class="s">mongo1:27017,mongo2:27017,mongo3:27017</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="na">replica_set_name</span><span class="o">=</span><span class="s">myReplicaSet</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="na">driver_name</span><span class="o">=</span><span class="s">PooledDriver</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="na">max_connections_per_host</span><span class="o">=</span><span class="s">50</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="na">mongo_login</span><span class="o">=</span><span class="s">appuser</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="na">mongo_password</span><span class="o">=</span><span class="s">secret123</span>
 </span></code></pre></div></p>
 <h3 id="3-json-configuration">3. JSON Configuration<a class="headerlink" href="#3-json-configuration" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">String</span><span class="w"> </span><span class="n">json</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Files</span><span class="p">.</span><span class="na">readString</span><span class="p">(</span><span class="n">Paths</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;morphium-config.json&quot;</span><span class="p">));</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">.</span><span class="na">createFromJson</span><span class="p">(</span><span class="n">json</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">String</span><span class="w"> </span><span class="n">json</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Files</span><span class="p">.</span><span class="na">readString</span><span class="p">(</span><span class="n">Paths</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;morphium-config.json&quot;</span><span class="p">));</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">.</span><span class="na">createFromJson</span><span class="p">(</span><span class="n">json</span><span class="p">);</span>
 </span></code></pre></div>
 <p>Example JSON:
-<div class="language-json highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">&quot;database&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;myapp&quot;</span><span class="p">,</span>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">&quot;hosts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;mongo1:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;mongo2:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;mongo3:27017&quot;</span><span class="p">],</span>
-</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="nt">&quot;replicaSetName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;myReplicaSet&quot;</span><span class="p">,</span>
-</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="nt">&quot;driverName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PooledDriver&quot;</span><span class="p">,</span>
-</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="nt">&quot;maxConnectionsPerHost&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
-</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="nt">&quot;mongoLogin&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;appuser&quot;</span><span class="p">,</span>
-</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">  </span><span class="nt">&quot;mongoPassword&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;secret123&quot;</span>
-</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">&quot;database&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;myapp&quot;</span><span class="p">,</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span><span class="nt">&quot;hosts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;mongo1:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;mongo2:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;mongo3:27017&quot;</span><span class="p">],</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span><span class="nt">&quot;replicaSetName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;myReplicaSet&quot;</span><span class="p">,</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span><span class="nt">&quot;driverName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PooledDriver&quot;</span><span class="p">,</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">  </span><span class="nt">&quot;maxConnectionsPerHost&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">  </span><span class="nt">&quot;mongoLogin&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;appuser&quot;</span><span class="p">,</span>
+</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">  </span><span class="nt">&quot;mongoPassword&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;secret123&quot;</span>
+</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="p">}</span>
 </span></code></pre></div></p>
 <h2 id="environment-specific-configurations">Environment-Specific Configurations<a class="headerlink" href="#environment-specific-configurations" title="Permanent link">&para;</a></h2>
 <h3 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp_dev&quot;</span><span class="p">);</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">driverSettings</span><span class="p">().</span><span class="na">setDriverName</span><span class="p">(</span><span class="s">&quot;PooledDriver&quot;</span><span class="p">);</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionsPerHost</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span><span class="w"> </span><span class="c1">// Lower for dev</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp_dev&quot;</span><span class="p">);</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">driverSettings</span><span class="p">().</span><span class="na">setDriverName</span><span class="p">(</span><span class="s">&quot;PooledDriver&quot;</span><span class="p">);</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionsPerHost</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span><span class="w"> </span><span class="c1">// Lower for dev</span>
 </span></code></pre></div>
 <h3 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp_test&quot;</span><span class="p">);</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">driverSettings</span><span class="p">().</span><span class="na">setDriverName</span><span class="p">(</span><span class="s">&quot;InMemDriver&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// In-memory for tests</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp_test&quot;</span><span class="p">);</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">driverSettings</span><span class="p">().</span><span class="na">setDriverName</span><span class="p">(</span><span class="s">&quot;InMemDriver&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// In-memory for tests</span>
 </span></code></pre></div>
 <h3 id="production">Production<a class="headerlink" href="#production" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp_prod&quot;</span><span class="p">);</span>
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
-</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo2&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
-</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo3&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
-</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionsPerHost</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span>
-</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxWaitTime</span><span class="p">(</span><span class="mi">10000</span><span class="p">);</span>
-</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoLogin</span><span class="p">(</span><span class="s">&quot;produser&quot;</span><span class="p">);</span>
-</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoPassword</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">getenv</span><span class="p">(</span><span class="s">&quot;MONGO_PASSWORD&quot;</span><span class="p">));</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp_prod&quot;</span><span class="p">);</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo2&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;mongo3&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionsPerHost</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxWaitTime</span><span class="p">(</span><span class="mi">10000</span><span class="p">);</span>
+</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoLogin</span><span class="p">(</span><span class="s">&quot;produser&quot;</span><span class="p">);</span>
+</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoPassword</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">getenv</span><span class="p">(</span><span class="s">&quot;MONGO_PASSWORD&quot;</span><span class="p">));</span>
 </span></code></pre></div>
 <h2 id="common-configuration-patterns">Common Configuration Patterns<a class="headerlink" href="#common-configuration-patterns" title="Permanent link">&para;</a></h2>
 <h3 id="high-throughput">High Throughput<a class="headerlink" href="#high-throughput" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionsPerHost</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxWaitTime</span><span class="p">(</span><span class="mi">5000</span><span class="p">);</span>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingWindowSize</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span>
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingMultithreadded</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionsPerHost</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxWaitTime</span><span class="p">(</span><span class="mi">5000</span><span class="p">);</span>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingWindowSize</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingMultithreadded</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
 </span></code></pre></div>
 <h3 id="low-latency">Low Latency<a class="headerlink" href="#low-latency" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMinConnectionsPerHost</span><span class="p">(</span><span class="mi">20</span><span class="p">);</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setConnectionTimeout</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span>
-</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxWaitTime</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
-</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setHeartbeatFrequency</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMinConnectionsPerHost</span><span class="p">(</span><span class="mi">20</span><span class="p">);</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setConnectionTimeout</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxWaitTime</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setHeartbeatFrequency</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
 </span></code></pre></div>
 <h3 id="high-availability">High Availability<a class="headerlink" href="#high-availability" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setRetriesOnNetworkError</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
-</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setSleepBetweenErrorRetries</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
-</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setServerSelectionTimeout</span><span class="p">(</span><span class="mi">5000</span><span class="p">);</span>
-</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionIdleTime</span><span class="p">(</span><span class="mi">300000</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setRetriesOnNetworkError</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setSleepBetweenErrorRetries</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setServerSelectionTimeout</span><span class="p">(</span><span class="mi">5000</span><span class="p">);</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setMaxConnectionIdleTime</span><span class="p">(</span><span class="mi">300000</span><span class="p">);</span>
 </span></code></pre></div>
 
 
