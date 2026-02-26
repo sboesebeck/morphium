@@ -278,8 +278,7 @@ public class MorphiumConfig {
 
                 try {
                     Class driverClass = Class.forName((String)s);
-                    Method m = driverClass.getMethod("getName", null);
-                    m.setAccessible(true);
+                    Method m = driverClass.getMethod("getName");
                     driverSettings.setDriverName((String)m.invoke(null));
                 } catch (Exception e) {
                     log.error("Cannot set driver class - using default driver instead!");
@@ -855,6 +854,24 @@ public class MorphiumConfig {
     @Deprecated
     public MorphiumConfig setMongoPassword(String mongoPassword) {
         authSettings.setMongoPassword(mongoPassword);
+        return this;
+    }
+
+    /**
+     * Authentication mechanism used when connecting to MongoDB.
+     * <ul>
+     *   <li>{@code null} / {@code "SCRAM-SHA-256"} – standard username/password (default)</li>
+     *   <li>{@code "MONGODB-X509"} – X.509 client-certificate authentication.
+     *       Requires {@link #setUseSSL(boolean) useSSL=true} and a keystore containing
+     *       the client certificate (configure via {@link #setSslContext(SSLContext)}).</li>
+     * </ul>
+     */
+    public String getAuthMechanism() {
+        return authSettings.getAuthMechanism();
+    }
+
+    public MorphiumConfig setAuthMechanism(String authMechanism) {
+        authSettings.setAuthMechanism(authMechanism);
         return this;
     }
 

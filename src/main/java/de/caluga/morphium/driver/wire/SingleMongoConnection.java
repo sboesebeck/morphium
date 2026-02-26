@@ -7,6 +7,7 @@ import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
+import de.caluga.morphium.driver.commands.auth.X509AuthCommand;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
@@ -55,6 +56,14 @@ public class SingleMongoConnection implements MongoConnection {
     private String authDb = null;
     private String user = null;
     private String password = null;
+
+    /**
+     * Subject DN extracted from the client certificate after TLS handshake.
+     * Populated automatically when {@link DriverBase#isUseSSL()} is {@code true}
+     * and the SSLContext contains a client certificate (keystore entry).
+     * Used as the {@code user} field in MONGODB-X509 authentication.
+     */
+    private String x509SubjectDn = null;
 
     public SingleMongoConnection() {
         stats = new HashMap<>();
@@ -108,6 +117,53 @@ public class SingleMongoConnection implements MongoConnection {
         return hello;
     }
 
+    /**
+     * Extracts the subject DN from the client certificate after the TLS handshake.
+     * The subject DN is used as the {@code user} field in MONGODB-X509 authentication.
+     * If no client certificate was presented (server-only TLS), {@link #x509SubjectDn}
+     * remains {@code null} and the server will derive the identity from the handshake.
+     */
+    private void extractX509SubjectDn(javax.net.ssl.SSLSocket sslSocket) {
+        try {
+            java.security.cert.Certificate[] localCerts =
+                    sslSocket.getSession().getLocalCertificates();
+            if (localCerts != null && localCerts.length > 0
+                    && localCerts[0] instanceof java.security.cert.X509Certificate) {
+                java.security.cert.X509Certificate cert =
+                        (java.security.cert.X509Certificate) localCerts[0];
+                // RFC 2253 format: "CN=foo,O=bar,C=DE" – required by MongoDB Atlas
+                x509SubjectDn = cert.getSubjectX500Principal()
+                        .getName(javax.security.auth.x500.X500Principal.RFC2253);
+                log.debug("X.509 client certificate subject DN: {}", x509SubjectDn);
+            } else {
+                log.debug("No client certificate in TLS session – X.509 auth will rely on server-side DN extraction");
+            }
+        } catch (Exception e) {
+            log.warn("Could not extract X.509 subject DN from TLS session: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Performs MONGODB-X509 authentication.
+     *
+     * <p>The client certificate subject DN ({@link #x509SubjectDn}) is passed as
+     * the {@code user} field.  If it is {@code null} (no client cert in TLS session),
+     * the server derives the identity automatically (MongoDB 3.4+).
+     *
+     * <p>If an explicit {@link #user} was set via {@link #setCredentials} that value
+     * takes precedence, allowing the caller to override the auto-extracted DN.
+     */
+    private void authenticateX509() throws MorphiumDriverException {
+        String subjectDn = (user != null && !user.isBlank()) ? user : x509SubjectDn;
+
+        log.debug("Authenticating with MONGODB-X509, user='{}'",
+                subjectDn != null ? subjectDn : "<derived from TLS session>");
+
+        X509AuthCommand cmd = new X509AuthCommand(this);
+        cmd.setUser(subjectDn);
+        cmd.execute();
+    }
+
     private Socket createSslSocket(MorphiumDriver drv, String host, int port) throws IOException {
         javax.net.ssl.SSLContext sslContext = null;
 
@@ -149,6 +205,10 @@ public class SingleMongoConnection implements MongoConnection {
         sslSocket.setSSLParameters(params);
         sslSocket.startHandshake();
 
+        // Extract the subject DN from the client certificate (if present).
+        // This is needed for MONGODB-X509 authentication – the subject DN is the MongoDB username.
+        extractX509SubjectDn(sslSocket);
+
         log.debug("SSL connection established to {}:{}", host, port);
         return sslSocket;
     }
@@ -189,7 +249,14 @@ public class SingleMongoConnection implements MongoConnection {
         Map<String, Object> firstDoc = result.getFirstDoc();
         var hello = HelloResult.fromMsg(firstDoc);
 
-        if (authDb != null) {
+        String mechanism = driver.getAuthMechanism();
+
+        if ("MONGODB-X509".equalsIgnoreCase(mechanism)) {
+            // X.509 authentication: client certificate was already presented in the TLS
+            // handshake. We now send the authenticate command with the subject DN.
+            authenticateX509();
+        } else if (authDb != null) {
+            // Standard SCRAM-SHA-1 / SCRAM-SHA-256 authentication
             SaslAuthCommand auth = new SaslAuthCommand(this);
 
             if (hello.getSaslSupportedMechs() == null || hello.getSaslSupportedMechs().isEmpty()) {
@@ -209,8 +276,6 @@ public class SingleMongoConnection implements MongoConnection {
             } catch (Exception e) {
                 throw new MorphiumDriverException("Error Authenticating", e);
             }
-
-            //            log.info("No error up to here - we should be authenticated!");
         }
 
         return hello;
