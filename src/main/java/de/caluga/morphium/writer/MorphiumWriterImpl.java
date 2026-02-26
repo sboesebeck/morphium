@@ -553,8 +553,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 serialized.remove("_id");
                                 serialized.remove(mongoVersionField);
 
-                                Map<String, Object> filter = Doc.of("_id", entityId,
-                                    mongoVersionField, currentVersion);
+                                // Use $and so that all conditions are checked independently.
+                                // InMemoryDriver's matchesQuery returns after the first field,
+                                // so a flat multi-field map would only check _id and ignore the
+                                // version condition.  Real MongoDB also handles $and correctly.
+                                Map<String, Object> filter = Doc.of("$and", java.util.List.of(
+                                    Doc.of("_id", entityId),
+                                    Doc.of(mongoVersionField, currentVersion)));
                                 Map<String, Object> update = Doc.of(
                                     "$set", serialized,
                                     "$inc", Doc.of(mongoVersionField, 1L));
