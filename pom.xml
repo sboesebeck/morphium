@@ -400,7 +400,7 @@
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
-      <version>3.23.1</version>
+      <version>3.27.7</version>
       <scope>test</scope>
     </dependency>
     <!-- Netty for async I/O in MorphiumServer (optional - not needed for Morphium client) -->
