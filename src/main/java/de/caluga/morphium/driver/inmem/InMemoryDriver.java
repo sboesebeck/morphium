@@ -6881,6 +6881,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
+    public String getAuthMechanism() {
+        return null; // no-op for in-memory driver
+    }
+
+    @Override
+    public void setAuthMechanism(String mechanism) {
+        // no-op for in-memory driver
+    }
+
+    @Override
     public int getIdleSleepTime() {
         return 0;
     }
