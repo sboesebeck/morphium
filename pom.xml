@@ -36,11 +36,11 @@
     </developer>
   </developers>
   <properties>
-    <maven.compiler.source>21</maven.compiler.source>
-    <maven.compiler.target>21</maven.compiler.target>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.source>25</maven.compiler.source>
+    <maven.compiler.target>25</maven.compiler.target>
+    <maven.compiler.release>25</maven.compiler.release>
     <maven.compiler.skip>false</maven.compiler.skip>
-    <java.version>21</java.version>
+    <java.version>25</java.version>
     <jacoco.percentage.instruction>0.40</jacoco.percentage.instruction>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
@@ -59,8 +59,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.0.0</version>
         <configuration>
-          <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED
-                    --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</argLine>
+          <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
           <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
           <groups>${test.includeTags}</groups>
           <excludedGroups>${test.excludeTags}</excludedGroups>

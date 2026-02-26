@@ -328,6 +328,14 @@ public class AnnotationAndReflectionHelper {
                 }
             }
 
+            if (f.isAnnotationPresent(Version.class)) {
+                Version v = f.getAnnotation(Version.class);
+
+                if (!v.fieldName().equals(".")) {
+                    return v.fieldName();
+                }
+            }
+
             if (f.isAnnotationPresent(Id.class)) {
                 return "_id";
             }

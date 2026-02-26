@@ -19,7 +19,6 @@ import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.reflect.ReflectionFactory;
 
 import java.io.*;
 import java.lang.reflect.*;
@@ -51,7 +50,6 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
-    private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map < Class<?>, NameProvider > nameProviders;
     //private final JSONParser jsonParser = new JSONParser();
     private final ObjectMapper jacksonOM = new ObjectMapper();
@@ -875,18 +873,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             if (ret == null) {
-                final Constructor<Object> constructor;
-
-                try {
-                    constructor = (Constructor<Object>) reflection.newConstructorForSerialization(cls, Object.class.getDeclaredConstructor());
-                    ret = constructor.newInstance();
-                } catch (Exception e) {
-                    log.error("Exception", e);
-                }
-            }
-
-            if (ret == null) {
-                throw new IllegalArgumentException("Could not instanciate " + cls.getName());
+                throw new IllegalArgumentException("Could not instantiate " + cls.getName()
+                    + ": entity classes must declare a public no-arg constructor");
             }
 
             List<String> flds = annotationHelper.getFields(cls);
