@@ -1002,6 +1002,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     r.run();
                     break;
                 } catch (Exception e) {
+                    if (e instanceof VersionMismatchException) {
+                        throw (VersionMismatchException) e;
+                    }
                     retries++;
 
                     if (morphium != null && morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
