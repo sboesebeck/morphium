@@ -13,13 +13,12 @@ Security considerations and best practices for Morphium applications in MongoDB 
 - **Morphium now supports SSL/TLS connections** (since v6.1.0)
 - See [SSL/TLS Configuration](#ssltls-configuration) below for setup instructions
 
-**Basic Authentication Only:**
-- Only **username/password authentication** supported
+**Authentication Mechanisms:**
+- **Username/password** (SCRAM-SHA-1 / SCRAM-SHA-256, depending on MongoDB version)
+- **MONGODB-X509** client-certificate authentication (added in v6.1.x — see below)
 - No support for:
   - LDAP authentication
-  - Kerberos authentication  
-  - x.509 certificate authentication
-  - SCRAM-SHA-256 (depends on MongoDB version)
+  - Kerberos authentication
 
 **Limited Authorization:**
 - Basic role-based access control (RBAC)
@@ -128,6 +127,57 @@ mongosh "mongodb://localhost:27018" --tls --tlsCAFile server-cert.pem
 # Skip certificate verification (testing only)
 mongosh "mongodb://localhost:27018" --tls --tlsAllowInvalidCertificates
 ```
+
+## MONGODB-X509 Certificate Authentication
+
+Morphium supports **MONGODB-X509** — the MongoDB authentication mechanism where the client identifies itself with its TLS client certificate instead of a password. This is common in Kubernetes / cloud-native environments where workload identity is expressed by a certificate.
+
+### Prerequisites
+
+1. MongoDB must be started with `--tlsMode requireTLS` (or `requireSSL` for older versions)
+2. The client certificate's subject (CN / SAN) must be registered as a MongoDB user
+3. Morphium must be configured with both SSL/TLS _and_ `MONGODB-X509` as the auth mechanism
+
+### Configuration
+
+```java
+import de.caluga.morphium.driver.wire.SslHelper;
+
+// 1. Build an mTLS SSLContext (client cert + CA truststore)
+SSLContext sslContext = SslHelper.createSslContext(
+    "/path/to/client-keystore.p12", "keystorePassword",   // client certificate
+    "/path/to/truststore.jks",      "truststorePassword"  // server CA
+);
+
+// 2. Configure Morphium
+MorphiumConfig cfg = new MorphiumConfig();
+cfg.clusterSettings().addHostToSeed("mongo.internal", 27017);
+cfg.connectionSettings()
+   .setDatabase("mydb")
+   .setUseSSL(true)
+   .setSslContext(sslContext);
+
+// 3. Select the X.509 auth mechanism (no username/password needed)
+cfg.authSettings().setAuthMechanism("MONGODB-X509");
+
+Morphium morphium = new Morphium(cfg);
+```
+
+### MongoDB User Setup
+
+The MongoDB user must match the certificate subject exactly:
+
+```javascript
+// In mongosh — subject must match the CN of the client certificate
+db.getSiblingDB("$external").createUser({
+  user: "CN=myapp,OU=Services,O=MyCompany,C=DE",
+  roles: [{ role: "readWrite", db: "mydb" }]
+})
+```
+
+### InMemoryDriver Support
+
+The `InMemoryDriver` accepts MONGODB-X509 authentication and skips certificate validation (it has no real TLS layer). This allows running unit tests with `authMechanism=MONGODB-X509` without setting up actual certificates.
 
 ## Network Security
 

@@ -112,16 +112,23 @@ cfg.authSettings()
 | `setMongoPassword(String)` | null | MongoDB password |
 | `setMongoAdminUser(String)` | null | Admin user for replica set operations |
 | `setMongoAdminPwd(String)` | null | Admin password for replica set operations |
+| `setAuthMechanism(String)` | null | Auth mechanism: `"MONGODB-X509"` for certificate-based auth (requires SSL) |
 
-### Example
+### Example — password authentication
 ```java
-// Basic authentication
 cfg.authSettings().setMongoLogin("appuser");
 cfg.authSettings().setMongoPassword("secret123");
 
 // Admin user for replica set status (optional)
 cfg.authSettings().setMongoAdminUser("admin");
 cfg.authSettings().setMongoAdminPwd("adminsecret");
+```
+
+### Example — MONGODB-X509 (certificate-based, no password)
+```java
+// SSL + mTLS must be configured (see docs/ssl-tls.md)
+cfg.authSettings().setAuthMechanism("MONGODB-X509");
+// no setMongoLogin / setMongoPassword needed
 ```
 
 ## Cache Settings

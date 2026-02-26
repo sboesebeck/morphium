@@ -38,6 +38,8 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 - **[Overview](docs/overview.md)** – core concepts, quick start, compatibility
 - **[Migration v5→v6](docs/howtos/migration-v5-to-v6.md)** – step-by-step upgrade guide
 - **[InMemory Driver Guide](docs/howtos/inmemory-driver.md)** – capabilities, caveats, testing tips
+- **[Optimistic Locking (`@Version`)](docs/howtos/optimistic-locking.md)** – prevent lost updates with `@Version`
+- **[SSL/TLS & MONGODB-X509](docs/ssl-tls.md)** – encrypted connections and certificate-based authentication
 
 ### More resources
 - Aggregation examples: `docs/howtos/aggregation-examples.md`
@@ -45,6 +47,43 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 - Performance guide: `docs/performance-scalability-guide.md`
 - Production deployment: `docs/production-deployment-guide.md`
 - Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
+
+## 🚀 What’s New in v6.1.x
+
+### MONGODB-X509 Client-Certificate Authentication
+- Connect to MongoDB instances that require mutual TLS / x.509 client certificates
+- Configure via `AuthSettings.setAuthMechanism("MONGODB-X509")` together with the existing `SslHelper` mTLS setup
+- Useful for zero-password deployments in Kubernetes / cloud environments where identity is expressed by a certificate
+
+### `@Version` – Optimistic Locking
+Prevents lost updates in concurrent environments without requiring pessimistic database locks:
+
+```java
+@Entity
+public class Order {
+    @Id private MorphiumId id;
+
+    @Version
+    private long version;   // automatically set to 1 on first store, incremented on each update
+
+    private String status;
+}
+```
+
+```java
+// First store: version → 1
+morphium.store(order);
+
+// Concurrent modification detected:
+// → throws VersionMismatchException if another thread/process already incremented the version
+try {
+    morphium.store(order);
+} catch (VersionMismatchException e) {
+    // reload and retry
+}
+```
+
+See `docs/howtos/optimistic-locking.md` for the full guide.
 
 ## 🚀 What’s New in v6.1
 
