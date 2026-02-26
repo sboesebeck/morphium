@@ -274,6 +274,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                                 isNew.put(o, isn);
 
+                                // INSERT: initialise @Version field to 1L before serialisation
+                                Class<?> type = morphium.getARHelper().getRealClass(o.getClass());
+                                List<String> vFields = morphium.getARHelper().getFields(type, Version.class);
+                                if (!vFields.isEmpty()) {
+                                    morphium.getARHelper().setValue(o, 1L, vFields.get(0));
+                                }
+
                                 try {
                                     setIdIfNull(o);
                                 } catch (IllegalAccessException e) {
