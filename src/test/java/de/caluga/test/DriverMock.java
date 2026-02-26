@@ -221,6 +221,16 @@ public class DriverMock implements MorphiumDriver {
     }
 
     @Override
+    public String getAuthMechanism() {
+        return null;
+    }
+
+    @Override
+    public void setAuthMechanism(String authMechanism) {
+        // no-op in mock
+    }
+
+    @Override
     public int getMaxConnections() {
         return 100;
     }
