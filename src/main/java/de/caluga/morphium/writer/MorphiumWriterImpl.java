@@ -196,6 +196,25 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         insert(lst, null, callback);
     }
 
+    /**
+     * Initialise the @Version field to 1L for new entities.
+     * Validates that the annotated field is of type long/Long.
+     */
+    private void initVersionFieldForInsert(Object entity) {
+        Class<?> type = morphium.getARHelper().getRealClass(entity.getClass());
+        List<String> vFields = morphium.getARHelper().getFields(type, Version.class);
+        if (vFields.isEmpty()) {
+            return;
+        }
+        String vField = vFields.get(0);
+        Field f = morphium.getARHelper().getField(type, vField);
+        if (f != null && f.getType() != long.class && f.getType() != Long.class) {
+            throw new IllegalArgumentException("@Version field '" + vField + "' on " + type.getName()
+                    + " must be of type long or Long, but is " + f.getType().getName());
+        }
+        morphium.getARHelper().setValue(entity, 1L, vField);
+    }
+
     private void setIdIfNull(Object record) throws IllegalAccessException {
         Field idf = morphium.getARHelper().getIdField(record);
 
@@ -275,11 +294,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 isNew.put(o, isn);
 
                                 // INSERT: initialise @Version field to 1L before serialisation
-                                Class<?> type = morphium.getARHelper().getRealClass(o.getClass());
-                                List<String> vFields = morphium.getARHelper().getFields(type, Version.class);
-                                if (!vFields.isEmpty()) {
-                                    morphium.getARHelper().setValue(o, 1L, vFields.get(0));
-                                }
+                                initVersionFieldForInsert(o);
 
                                 try {
                                     setIdIfNull(o);
@@ -512,10 +527,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             if (isn) {
                                 // INSERT: initialise @Version field to 1L before serialisation
-                                List<String> vFields = morphium.getARHelper().getFields(type, Version.class);
-                                if (!vFields.isEmpty()) {
-                                    morphium.getARHelper().setValue(o, 1L, vFields.get(0));
-                                }
+                                initVersionFieldForInsert(o);
                                 setIdIfNull(o);
                                 morphium.firePreStore(o, isn);
                                 newElementsToInsert.putIfAbsent(o.getClass(), new ArrayList<>());
@@ -537,7 +549,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         for (Map.Entry<Class, List<Object>> es : toVersionedUpdate.entrySet()) {
                             Class c = es.getKey();
                             List<String> vFields = morphium.getARHelper().getFields(c, Version.class);
+                            if (vFields.isEmpty()) {
+                                continue; // defensive: should not happen — class was added because vFields was non-empty
+                            }
                             String javaVersionField = vFields.get(0);
+                            Field versionField = morphium.getARHelper().getField(c, javaVersionField);
+                            if (versionField != null && versionField.getType() != long.class && versionField.getType() != Long.class) {
+                                throw new IllegalArgumentException("@Version field '" + javaVersionField + "' on " + c.getName()
+                                        + " must be of type long or Long, but is " + versionField.getType().getName());
+                            }
                             String mongoVersionField = morphium.getARHelper().getMongoFieldName(c, javaVersionField);
                             WriteConcern wc = morphium.getWriteConcernForClass(c);
                             String coll = cln != null ? cln : morphium.getMapper().getCollectionName(c);
@@ -1033,6 +1053,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         r.run();
                         break;
                     } catch (Exception e) {
+                        if (e instanceof VersionMismatchException) {
+                            callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null);
+                            break;
+                        }
                         retries++;
 
                         if (morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
