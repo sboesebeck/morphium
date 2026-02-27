@@ -1118,12 +1118,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         up = null;
                         con = null;
 
-                        if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
-                            throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
-                        }
+                        if (ret != null) {
+                            if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
+                                throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
+                            }
 
-                        if (!Integer.valueOf(1).equals(ret.get("nModified"))) {
-                            throw new MorphiumDriverException("Error - not updated");
+                            if (!Integer.valueOf(1).equals(ret.get("nModified"))) {
+                                throw new MorphiumDriverException("Error - not updated");
+                            }
                         }
                     } finally {
                         if (up != null) {
