@@ -5,6 +5,33 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.0]
+
+### Breaking Changes
+#### MorphiumDriverException is now unchecked (extends RuntimeException)
+`MorphiumDriverException` now extends `RuntimeException` instead of `Exception`, aligning with the MongoDB Java driver (`MongoException`), JPA, jOOQ, and Spring Data conventions.
+
+**What changed:**
+- 40+ redundant `catch (MorphiumDriverException e) { throw new RuntimeException(e); }` blocks removed across 13 source files
+- `MorphiumDriverException` now propagates naturally through the call stack with its original type preserved
+- Subclasses `MorphiumDriverNetworkException` and `FunctionNotSupportedException` inherit the change
+
+**Migration:**
+- Existing `catch (MorphiumDriverException e)` blocks continue to work — no changes needed
+- Multi-catch like `catch (RuntimeException | MorphiumDriverException e)` must be simplified to `catch (RuntimeException e)` (compiler will flag this)
+- **Important:** Code that inspects `getCause()` for wrapped exceptions must be updated:
+  ```java
+  // BEFORE (no longer works — getCause() won't return MorphiumDriverException)
+  catch (RuntimeException e) {
+      if (e.getCause() instanceof MorphiumDriverException mde) { ... }
+  }
+
+  // AFTER (catch directly)
+  catch (MorphiumDriverException e) {
+      handleDbError(e);
+  }
+  ```
+
 ## [6.1.8]
 
 ### Tests 

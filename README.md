@@ -46,6 +46,11 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 - Production deployment: `docs/production-deployment-guide.md`
 - Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
 
+## 🚀 What’s New in v6.2
+
+### MorphiumDriverException is now unchecked
+`MorphiumDriverException` extends `RuntimeException` instead of `Exception` — consistent with the MongoDB Java driver and all major Java persistence frameworks. This eliminates 40+ boilerplate `catch-wrap-rethrow` blocks and lets callers catch database errors directly by type. See [CHANGELOG](CHANGELOG.md) for migration details.
+
 ## 🚀 What’s New in v6.1
 
 ### MorphiumServer – The "Drop-in" Replacement
