@@ -250,6 +250,20 @@ public interface MorphiumDriver extends Closeable {
     boolean isSslInvalidHostNameAllowed();
     void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed);
 
+    /**
+     * Returns the authentication mechanism.
+     * {@code null} means auto-select SCRAM (default).
+     * {@code "MONGODB-X509"} means X.509 client-certificate authentication.
+     */
+    String getAuthMechanism();
+
+    /**
+     * Sets the authentication mechanism.
+     * Use {@code "MONGODB-X509"} for X.509 client-certificate authentication with MongoDB Atlas.
+     * Requires {@link #setUseSSL(boolean) useSSL=true} and a client certificate in the SSLContext.
+     */
+    void setAuthMechanism(String mechanism);
+
     boolean isDefaultJ();
 
     void setDefaultJ(boolean j);

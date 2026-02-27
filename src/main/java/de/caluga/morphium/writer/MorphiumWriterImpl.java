@@ -32,6 +32,7 @@ import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.VersionMismatchException;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Capped;
 import de.caluga.morphium.annotations.CreationTime;
@@ -39,6 +40,7 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.LastChange;
 import de.caluga.morphium.annotations.Reference;
+import de.caluga.morphium.annotations.Version;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
@@ -194,6 +196,25 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         insert(lst, null, callback);
     }
 
+    /**
+     * Initialise the @Version field to 1L for new entities.
+     * Validates that the annotated field is of type long/Long.
+     */
+    private void initVersionFieldForInsert(Object entity) {
+        Class<?> type = morphium.getARHelper().getRealClass(entity.getClass());
+        List<String> vFields = morphium.getARHelper().getFields(type, Version.class);
+        if (vFields.isEmpty()) {
+            return;
+        }
+        String vField = vFields.get(0);
+        Field f = morphium.getARHelper().getField(type, vField);
+        if (f != null && f.getType() != long.class && f.getType() != Long.class) {
+            throw new IllegalArgumentException("@Version field '" + vField + "' on " + type.getName()
+                    + " must be of type long or Long, but is " + f.getType().getName());
+        }
+        morphium.getARHelper().setValue(entity, 1L, vField);
+    }
+
     private void setIdIfNull(Object record) throws IllegalAccessException {
         Field idf = morphium.getARHelper().getIdField(record);
 
@@ -271,6 +292,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
 
                                 isNew.put(o, isn);
+
+                                // INSERT: initialise @Version field to 1L before serialisation
+                                initVersionFieldForInsert(o);
 
                                 try {
                                     setIdIfNull(o);
@@ -473,6 +497,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         // System.out.println(System.currentTimeMillis()+" - storing" );
                         Map<Class, List<Map<String, Object>>> toUpdate = new HashMap<>();
                         Map<Class, List<Map<String, Object>>> newElementsToInsert = new HashMap<>();
+                        // Versioned-update entities keep their original objects so that
+                        // we can read currentVersion, apply the filter, and increment in-memory.
+                        Map<Class, List<Object>> toVersionedUpdate = new HashMap<>();
 
                         // HashMap<Object, Boolean> isNew = new HashMap<>();
                         for (int i = 0; i < lst.size(); i++) {
@@ -499,14 +526,92 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
 
                             if (isn) {
+                                // INSERT: initialise @Version field to 1L before serialisation
+                                initVersionFieldForInsert(o);
                                 setIdIfNull(o);
                                 morphium.firePreStore(o, isn);
                                 newElementsToInsert.putIfAbsent(o.getClass(), new ArrayList<>());
                                 newElementsToInsert.get(o.getClass()).add(morphium.getMapper().serialize(o));
                             } else {
                                 morphium.firePreStore(o, isn);
-                                toUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
-                                toUpdate.get(o.getClass()).add(morphium.getMapper().serialize(o));
+                                List<String> vFields = morphium.getARHelper().getFields(type, Version.class);
+                                if (!vFields.isEmpty()) {
+                                    // UPDATE with optimistic locking – handled per-entity below
+                                    toVersionedUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
+                                    toVersionedUpdate.get(o.getClass()).add(o);
+                                } else {
+                                    toUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
+                                    toUpdate.get(o.getClass()).add(morphium.getMapper().serialize(o));
+                                }
+                            }
+                        }
+                        // Process versioned updates with optimistic locking
+                        for (Map.Entry<Class, List<Object>> es : toVersionedUpdate.entrySet()) {
+                            Class c = es.getKey();
+                            List<String> vFields = morphium.getARHelper().getFields(c, Version.class);
+                            if (vFields.isEmpty()) {
+                                continue; // defensive: should not happen — class was added because vFields was non-empty
+                            }
+                            String javaVersionField = vFields.get(0);
+                            Field versionField = morphium.getARHelper().getField(c, javaVersionField);
+                            if (versionField != null && versionField.getType() != long.class && versionField.getType() != Long.class) {
+                                throw new IllegalArgumentException("@Version field '" + javaVersionField + "' on " + c.getName()
+                                        + " must be of type long or Long, but is " + versionField.getType().getName());
+                            }
+                            String mongoVersionField = morphium.getARHelper().getMongoFieldName(c, javaVersionField);
+                            WriteConcern wc = morphium.getWriteConcernForClass(c);
+                            String coll = cln != null ? cln : morphium.getMapper().getCollectionName(c);
+                            checkIndexAndCaps(c, coll, callback);
+
+                            for (Object entity : es.getValue()) {
+                                Object entityId = morphium.getId(entity);
+                                Object rawVersion = morphium.getARHelper().getValue(entity, javaVersionField);
+                                long currentVersion = rawVersion instanceof Number ? ((Number) rawVersion).longValue() : 0L;
+
+                                // Serialise all fields; then strip _id and version from $set
+                                Map<String, Object> serialized = new LinkedHashMap<>(morphium.getMapper().serialize(entity));
+                                serialized.remove("_id");
+                                serialized.remove(mongoVersionField);
+
+                                // Use $and so that all conditions are checked independently.
+                                // InMemoryDriver's matchesQuery returns after the first field,
+                                // so a flat multi-field map would only check _id and ignore the
+                                // version condition.  Real MongoDB also handles $and correctly.
+                                Map<String, Object> filter = Doc.of("$and", java.util.List.of(
+                                    Doc.of("_id", entityId),
+                                    Doc.of(mongoVersionField, currentVersion)));
+                                Map<String, Object> update = Doc.of(
+                                    "$set", serialized,
+                                    "$inc", Doc.of(mongoVersionField, 1L));
+
+                                MongoConnection con = null;
+                                UpdateMongoCommand upd = null;
+                                try {
+                                    con = morphium.getDriver().getPrimaryConnection(wc);
+                                    upd = new UpdateMongoCommand(con)
+                                        .setDb(morphium.getConfig().getDatabase())
+                                        .setColl(coll);
+                                    upd.addUpdate(filter, update, null, false, false, null, null, null);
+                                    Map<String, Object> result = upd.execute();
+
+                                    int matched = result.get("n") instanceof Number n ? n.intValue() : 0;
+                                    if (matched == 0) {
+                                        throw new VersionMismatchException(entityId, currentVersion);
+                                    }
+                                    // Reflect the new version back into the entity
+                                    morphium.getARHelper().setValue(entity, currentVersion + 1L, javaVersionField);
+
+                                    var cache = morphium.getCache();
+                                    if (cache != null) {
+                                        cache.clearCacheIfNecessary(c);
+                                    }
+                                } finally {
+                                    if (upd != null) {
+                                        upd.releaseConnection();
+                                    } else if (con != null) {
+                                        morphium.getDriver().releaseConnection(con);
+                                    }
+                                }
                             }
                         }
                         for (Map.Entry<Class, List<Map<String, Object>>> es : toUpdate.entrySet()) {
@@ -755,7 +860,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             if (ex.getMessage().contains("already exists")) {
                 LoggerFactory.getLogger(MorphiumWriterImpl.class).error("Collection already exists...cannot create");
             } else {
-                throw new RuntimeException(ex);
+                throw ex;
             }
         } finally {
             if (cmd != null) {
@@ -855,11 +960,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @SuppressWarnings({"unused", "UnusedParameters"})
     private void executeWriteBatch(List<Object> es, Class c, WriteConcern wc, BulkRequestContext bulkCtx, long start) {
-        try {
-            bulkCtx.execute();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        bulkCtx.execute();
 
         long dur = System.currentTimeMillis() - start;
         // morphium.fireProfilingWriteEvent(c, es, dur, false,
@@ -916,6 +1017,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     r.run();
                     break;
                 } catch (Exception e) {
+                    if (e instanceof VersionMismatchException) {
+                        throw (VersionMismatchException) e;
+                    }
                     retries++;
 
                     if (morphium != null && morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
@@ -944,6 +1048,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         r.run();
                         break;
                     } catch (Exception e) {
+                        if (e instanceof VersionMismatchException) {
+                            callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null);
+                            break;
+                        }
                         retries++;
 
                         if (morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
@@ -1229,8 +1337,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             settings = new DeleteMongoCommand(con).setColl(collectionName).setDb(getDbName())
             .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", limit, "collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
             return settings.explain(verbosity);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -1348,8 +1454,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
 
             return settings.explain(verbosity);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -2407,8 +2511,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
 
             morphium.inc(StatisticKeys.WRITES);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -2531,8 +2633,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
 
                         morphium.inc(StatisticKeys.WRITES);
-                    } catch (MorphiumDriverException e) {
-                        throw new RuntimeException(e);
                     } finally {
                         if (settings != null) {
                             settings.releaseConnection();
@@ -2618,7 +2718,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (e.getMessage().endsWith("error: 26 - ns not found")) {
                             LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("NS not found: " + morphium.getMapper().getCollectionName(cls));
                         } else {
-                            throw new RuntimeException(e);
+                            throw e;
                         }
                     } finally {
                         if (settings != null) {
@@ -2691,9 +2791,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             throw new MorphiumDriverException((String) res.get("errmsg"));
                         }
                     }
-                } catch (MorphiumDriverException e) {
-                    // e.printStackTrace();
-                    throw new RuntimeException(e);
                 } finally {
                     if (cmd != null) {
                         cmd.releaseConnection();

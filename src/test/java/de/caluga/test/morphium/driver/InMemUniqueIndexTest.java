@@ -56,7 +56,7 @@ public class InMemUniqueIndexTest {
         try {
             upd.execute();
             fail("Expected duplicate key enforcement on update");
-        } catch (RuntimeException | MorphiumDriverException ex) {
+        } catch (MorphiumDriverException ex) {
             assertTrue(ex.getMessage() == null || ex.getMessage().contains("Duplicate") || ex.getCause() != null);
         }
     }

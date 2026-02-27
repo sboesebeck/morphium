@@ -7,7 +7,6 @@ import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
@@ -35,12 +34,7 @@ public class MorphiumBulkContext<T> {
 
     public Map<String, Object> runBulk() {
         firePre();
-        Map<String, Object> ret;
-        try {
-            ret = ctx.execute();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        Map<String, Object> ret = ctx.execute();
         firePost();
         return ret;
     }

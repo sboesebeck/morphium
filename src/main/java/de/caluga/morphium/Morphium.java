@@ -443,6 +443,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             throw new RuntimeException(e);
         }
 
+        // Propagate auth mechanism (e.g. MONGODB-X509) to the driver before connecting
+        if (getConfig().getAuthMechanism() != null) {
+            morphiumDriver.setAuthMechanism(getConfig().getAuthMechanism());
+        }
+
         if (getConfig().authSettings().getMongoLogin() != null && getConfig().authSettings().getMongoPassword() != null) {
             if (getConfig().encryptionSettings().getCredentialsEncrypted() != null && getConfig().encryptionSettings().getCredentialsEncrypted()) {
                 var key = getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME);
@@ -479,11 +484,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         morphiumDriver.setHostSeed(seed);
 
-        try {
-            morphiumDriver.connect(getConfig().clusterSettings().getRequiredReplicaSetName());
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        morphiumDriver.connect(getConfig().clusterSettings().getRequiredReplicaSetName());
 
         if (getConfig().writerSettings().getWriter() == null) {
             getConfig().writerSettings().setWriter(new MorphiumWriterImpl());
@@ -523,40 +524,30 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         break;
 
                     case CONVERT_EXISTING_ON_STARTUP:
-                        try {
-                            if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                                log.warn("Existing collection is not capped - ATTENTION!");
-                                // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"),
-                                // null);
-                            }
-                        } catch (MorphiumDriverException e) {
-                            throw new RuntimeException(e);
+                        if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                            log.warn("Existing collection is not capped - ATTENTION!");
+                            // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"),
+                            // null);
                         }
 
                         break;
 
                     case CREATE_ON_STARTUP:
-                        try {
-                            if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                                MongoConnection primaryConnection = null;
-                                CreateCommand cmd = null;
+                        if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                            MongoConnection primaryConnection = null;
+                            CreateCommand cmd = null;
 
-                                try {
-                                    primaryConnection = morphiumDriver.getPrimaryConnection(null);
-                                    cmd = new CreateCommand(primaryConnection);
-                                    cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
-                                    var ret = cmd.execute();
-                                    log.debug("Created capped collection");
-                                } catch (MorphiumDriverException e) {
-                                    throw new RuntimeException(e);
-                                } finally {
-                                    if (primaryConnection != null) {
-                                        cmd.releaseConnection();
-                                    }
+                            try {
+                                primaryConnection = morphiumDriver.getPrimaryConnection(null);
+                                cmd = new CreateCommand(primaryConnection);
+                                cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
+                                var ret = cmd.execute();
+                                log.debug("Created capped collection");
+                            } finally {
+                                if (primaryConnection != null) {
+                                    cmd.releaseConnection();
                                 }
                             }
-                        } catch (MorphiumDriverException e) {
-                            throw new RuntimeException(e);
                         }
 
                     case CREATE_ON_WRITE_NEW_COL:
@@ -675,7 +666,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         try {
             return getDriver().listDatabases();
         } catch (MorphiumDriverException e) {
-            throw new RuntimeException("Could not list databases", e);
+            throw new MorphiumDriverException("Could not list databases", e);
         }
     }
 
@@ -695,19 +686,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             return ret;
         }
 
-        try {
-            var result = getDriver().listCollections(getConfig().connectionSettings().getDatabase(), pattern);
-            var lst = new ArrayList<CollectionInfo>();
+        var result = getDriver().listCollections(getConfig().connectionSettings().getDatabase(), pattern);
+        var lst = new ArrayList<CollectionInfo>();
 
-            for (var r : result) {
-                lst.add(new CollectionInfo().setName(r));
-            }
-
-            getCache().addToCache(pattern, CollectionInfo.class, lst);
-            return result;
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
+        for (var r : result) {
+            lst.add(new CollectionInfo().setName(r));
         }
+
+        getCache().addToCache(pattern, CollectionInfo.class, lst);
+        return result;
     }
 
     public void reconnectToDb(String db) {
@@ -1650,17 +1637,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public int getEstimatedCount(Class<?> type) {
-        try {
-            var stats = getCollStats(getMapper().getCollectionName(type));
+        var stats = getCollStats(getMapper().getCollectionName(type));
 
-            if (stats == null || stats.isEmpty()) {
-                return 0;
-            }
-
-            return (Integer) stats.get("count");
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
+        if (stats == null || stats.isEmpty()) {
+            return 0;
         }
+
+        return (Integer) stats.get("count");
     }
 
     public long getCount(Class<?> type) {
@@ -1698,8 +1681,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
 
             return settings.execute();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -2191,7 +2172,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             if (e.getMessage() != null && e.getMessage().contains("Error: 26")) {
                 return new ArrayList<>();
             }
-            throw new RuntimeException(e);
+            throw e;
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
@@ -2835,19 +2816,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void commitTransaction() {
-        try {
-            getDriver().commitTransaction();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        getDriver().commitTransaction();
     }
 
     public void abortTransaction() {
-        try {
-            getDriver().abortTransaction();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        getDriver().abortTransaction();
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {
@@ -2901,8 +2874,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
             getDriver().watch(settings);
             // settings.releaseConnection();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) settings.releaseConnection();
         }
@@ -2969,8 +2940,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             });
 
             cmd.watch();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();

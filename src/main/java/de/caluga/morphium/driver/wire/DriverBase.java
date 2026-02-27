@@ -45,6 +45,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean useSSL = false;
     private javax.net.ssl.SSLContext sslContext = null;
     private boolean sslInvalidHostNameAllowed = false;
+    private String authMechanism = null;
     private int defaultW = 1;
     private int connectionTimeout = 1000;
     private int maxConnectionIdleTime = 100000;
@@ -578,6 +579,16 @@ public abstract class DriverBase implements MorphiumDriver {
 
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
         this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+    }
+
+    @Override
+    public String getAuthMechanism() {
+        return authMechanism;
+    }
+
+    @Override
+    public void setAuthMechanism(String authMechanism) {
+        this.authMechanism = authMechanism;
     }
 
     @Override
