@@ -529,9 +529,6 @@ public class Query<T> implements Cloneable {
             cmd.releaseConnection();
             cmd = null;
             con = null;
-        } catch (MorphiumDriverException e) {
-            // TODO: Implement Handling
-            throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
@@ -590,9 +587,6 @@ public class Query<T> implements Cloneable {
             }
 
             obj = settings.execute();
-        } catch (MorphiumDriverException e) {
-            // TODO: Implement Handling
-            throw new RuntimeException(e);
         } finally {
             morphium.getDriver().releaseConnection(settings.getConnection());
         }
@@ -708,8 +702,6 @@ public class Query<T> implements Cloneable {
             cmd = null;
             con = null;
             return result;
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
@@ -736,8 +728,6 @@ public class Query<T> implements Cloneable {
             cmd = null;
             con = null;
             return result;
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
@@ -1638,11 +1628,7 @@ public class Query<T> implements Cloneable {
         try {
             settings = getFindCmd();
             srch = settings.execute();
-        } catch (MorphiumDriverException e) {
-            // TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
-        finally {
+        } finally {
             if (settings != null) {
                 settings.releaseConnection();
             }
@@ -1740,11 +1726,7 @@ public class Query<T> implements Cloneable {
             settings.setProjection(Doc.of("_id", 1));
             query = settings.execute();
             srv = (String) settings.getMetaData().get("server");
-        } catch (MorphiumDriverException e) {
-            // TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
-        finally {
+        } finally {
             if (settings != null) {
                 settings.releaseConnection();
             }
@@ -2293,9 +2275,6 @@ public class Query<T> implements Cloneable {
             cmd.releaseConnection();
             cmd = null;
             con = null;
-        } catch (MorphiumDriverException e) {
-            // TODO: Implement Handling
-            throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
