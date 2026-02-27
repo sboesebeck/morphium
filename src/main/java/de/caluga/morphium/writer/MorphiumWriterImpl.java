@@ -525,6 +525,20 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 isn = morphium.setAutoValues(o);
                             }
 
+                            // For versioned entities with pre-set IDs but version == 0,
+                            // treat as new (INSERT) rather than existing (UPDATE).
+                            // Version 0 means the entity has never been persisted.
+                            if (!isn) {
+                                List<String> vf = morphium.getARHelper().getFields(type, Version.class);
+                                if (!vf.isEmpty()) {
+                                    Object rawV = morphium.getARHelper().getValue(o, vf.get(0));
+                                    long cv = rawV instanceof Number ? ((Number) rawV).longValue() : 0L;
+                                    if (cv == 0L) {
+                                        isn = true;
+                                    }
+                                }
+                            }
+
                             if (isn) {
                                 // INSERT: initialise @Version field to 1L before serialisation
                                 initVersionFieldForInsert(o);
@@ -1019,6 +1033,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (e instanceof VersionMismatchException) {
                         throw (VersionMismatchException) e;
+                    }
+                    // Duplicate key and other non-transient driver errors should not be retried
+                    if (e instanceof MorphiumDriverException) {
+                        throw (MorphiumDriverException) e;
+                    }
+                    if (e instanceof RuntimeException && e.getCause() instanceof MorphiumDriverException) {
+                        throw (MorphiumDriverException) e.getCause();
                     }
                     retries++;
 

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +45,28 @@ public class VersionAnnotationTest {
         public VersionedEntity() {}
 
         public VersionedEntity(String name) {
+            this.name = name;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Entity with @Version and a pre-set String ID (e.g. UUID)
+    // -----------------------------------------------------------------------
+    @Entity(collectionName = "versioned_string_id_entity")
+    public static class VersionedStringIdEntity {
+        @Id
+        public String id;
+
+        @Version
+        @Property(fieldName = "version")
+        public long version;
+
+        public String name;
+
+        public VersionedStringIdEntity() {}
+
+        public VersionedStringIdEntity(String id, String name) {
+            this.id = id;
             this.name = name;
         }
     }
@@ -191,6 +214,90 @@ public class VersionAnnotationTest {
         assertThat(v1.version).isEqualTo(2L);
 
         List<VersionedEntity> all = morphium.createQueryFor(VersionedEntity.class).asList();
+        assertThat(all).hasSize(2);
+    }
+
+    // -----------------------------------------------------------------------
+    // 6. Pre-set String ID with version == 0 → INSERT (not UPDATE)
+    // -----------------------------------------------------------------------
+    @Test
+    public void presetStringId_withVersionZero_treatedAsInsert() {
+        String presetId = UUID.randomUUID().toString();
+        VersionedStringIdEntity e = new VersionedStringIdEntity(presetId, "preset-id-entity");
+
+        morphium.store(e);
+
+        assertThat(e.id).as("id must remain the pre-set value").isEqualTo(presetId);
+        assertThat(e.version).as("version must be 1 after first store").isEqualTo(1L);
+
+        VersionedStringIdEntity loaded = morphium.createQueryFor(VersionedStringIdEntity.class)
+            .f("id").eq(presetId)
+            .get();
+        assertThat(loaded).isNotNull();
+        assertThat(loaded.version).as("version in DB must be 1").isEqualTo(1L);
+        assertThat(loaded.name).isEqualTo("preset-id-entity");
+    }
+
+    // -----------------------------------------------------------------------
+    // 7. Pre-set String ID → second store increments version
+    // -----------------------------------------------------------------------
+    @Test
+    public void presetStringId_secondStore_incrementsVersion() {
+        String presetId = UUID.randomUUID().toString();
+        VersionedStringIdEntity e = new VersionedStringIdEntity(presetId, "initial");
+
+        morphium.store(e);
+        assertThat(e.version).isEqualTo(1L);
+
+        e.name = "updated";
+        morphium.store(e);
+
+        assertThat(e.version).as("version must be 2 after second store").isEqualTo(2L);
+
+        VersionedStringIdEntity loaded = morphium.createQueryFor(VersionedStringIdEntity.class)
+            .f("id").eq(presetId)
+            .get();
+        assertThat(loaded.version).isEqualTo(2L);
+        assertThat(loaded.name).isEqualTo("updated");
+    }
+
+    // -----------------------------------------------------------------------
+    // 8. Pre-set String ID → stale entity still throws VersionMismatchException
+    // -----------------------------------------------------------------------
+    @Test
+    public void presetStringId_staleEntity_throwsVersionMismatch() {
+        String presetId = UUID.randomUUID().toString();
+        VersionedStringIdEntity e = new VersionedStringIdEntity(presetId, "original");
+
+        morphium.store(e);  // v = 1
+
+        // Simulate concurrent update
+        VersionedStringIdEntity other = morphium.createQueryFor(VersionedStringIdEntity.class)
+            .f("id").eq(presetId)
+            .get();
+        other.name = "updated-by-other";
+        morphium.store(other);  // v = 2
+
+        // e still has version = 1
+        e.name = "stale-update";
+        assertThatThrownBy(() -> morphium.store(e))
+            .isInstanceOf(VersionMismatchException.class);
+    }
+
+    // -----------------------------------------------------------------------
+    // 9. Multiple pre-set String ID entities in bulk store
+    // -----------------------------------------------------------------------
+    @Test
+    public void presetStringId_bulkStore_allInserted() {
+        VersionedStringIdEntity e1 = new VersionedStringIdEntity(UUID.randomUUID().toString(), "one");
+        VersionedStringIdEntity e2 = new VersionedStringIdEntity(UUID.randomUUID().toString(), "two");
+
+        morphium.store(Arrays.asList(e1, e2));
+
+        assertThat(e1.version).as("e1 version must be 1").isEqualTo(1L);
+        assertThat(e2.version).as("e2 version must be 1").isEqualTo(1L);
+
+        List<VersionedStringIdEntity> all = morphium.createQueryFor(VersionedStringIdEntity.class).asList();
         assertThat(all).hasSize(2);
     }
 }
