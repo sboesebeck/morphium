@@ -108,8 +108,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             cmd.releaseConnection();
             cmd = null;
             primaryConnection = null;
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
@@ -164,7 +162,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             }
         } catch (MorphiumDriverException ex) {
             logger.error("Got error during write!", ex);
-            throw new RuntimeException(ex);
+            throw ex;
         }
 
         try {
@@ -310,11 +308,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 }
             }
 
-            try {
-                ctx.execute();
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
+            ctx.execute();
         } else {
             opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
             opLog.get(type).add(wb);

@@ -293,11 +293,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public List<R> aggregate() {
-        try {
-            return deserializeList();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        return deserializeList();
     }
 
     @Override
@@ -1592,7 +1588,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
 
                     for (Map<String, Object> doc : data) {
-                        try {
                             Map<String, Object> q = new HashMap<>();
 
                             for (String onfld : on) {
@@ -1705,10 +1700,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                         throw new IllegalArgumentException("unknown whenMatched action " + matched);
                                 }
                             }
-                        } catch (MorphiumDriverException e) {
-                            throw new RuntimeException(e);
-                            // e.printStackTrace();
-                        }
                     }
                 } else {
                     //                    try {

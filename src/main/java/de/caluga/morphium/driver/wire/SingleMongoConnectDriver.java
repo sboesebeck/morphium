@@ -445,20 +445,12 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
-        try {
-            return getConnection();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        return getConnection();
     }
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) {
-        try {
-            return getConnection();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        return getConnection();
     }
 
     @Override

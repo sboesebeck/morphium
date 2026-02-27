@@ -20,11 +20,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
 
     @Override
     public Iterator<Map<String, Object>> iterator() {
-        try {
-            return executeIterable(getConnection().getDriver().getDefaultBatchSize());
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        return executeIterable(getConnection().getDriver().getDefaultBatchSize());
     }
 
     public List<Map<String, Object>> execute() throws MorphiumDriverException {

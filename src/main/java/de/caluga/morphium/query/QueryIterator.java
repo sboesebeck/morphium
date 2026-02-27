@@ -56,7 +56,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
             if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
                 getMongoCursor().getConnection().close();
 
-            throw new RuntimeException(e);
+            throw e;
         }
     }
 
@@ -67,7 +67,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
             if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
                 getMongoCursor().getConnection().close();
 
-            throw new RuntimeException(e);
+            throw e;
         }
     }
 
@@ -173,7 +173,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
                 cursor = cmd.executeIterable(windowSize);
             } catch (MorphiumDriverException e) {
                 cmd.releaseConnection();
-                throw new RuntimeException(e);
+                throw e;
             }
         }
 
