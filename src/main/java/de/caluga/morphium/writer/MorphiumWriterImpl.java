@@ -860,7 +860,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             if (ex.getMessage().contains("already exists")) {
                 LoggerFactory.getLogger(MorphiumWriterImpl.class).error("Collection already exists...cannot create");
             } else {
-                throw new RuntimeException(ex);
+                throw ex;
             }
         } finally {
             if (cmd != null) {
@@ -960,11 +960,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @SuppressWarnings({"unused", "UnusedParameters"})
     private void executeWriteBatch(List<Object> es, Class c, WriteConcern wc, BulkRequestContext bulkCtx, long start) {
-        try {
-            bulkCtx.execute();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        bulkCtx.execute();
 
         long dur = System.currentTimeMillis() - start;
         // morphium.fireProfilingWriteEvent(c, es, dur, false,
@@ -1337,8 +1333,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             settings = new DeleteMongoCommand(con).setColl(collectionName).setDb(getDbName())
             .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", limit, "collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
             return settings.explain(verbosity);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -1456,8 +1450,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
 
             return settings.explain(verbosity);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -2515,8 +2507,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
 
             morphium.inc(StatisticKeys.WRITES);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -2639,8 +2629,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
 
                         morphium.inc(StatisticKeys.WRITES);
-                    } catch (MorphiumDriverException e) {
-                        throw new RuntimeException(e);
                     } finally {
                         if (settings != null) {
                             settings.releaseConnection();
@@ -2726,7 +2714,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (e.getMessage().endsWith("error: 26 - ns not found")) {
                             LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("NS not found: " + morphium.getMapper().getCollectionName(cls));
                         } else {
-                            throw new RuntimeException(e);
+                            throw e;
                         }
                     } finally {
                         if (settings != null) {
@@ -2799,9 +2787,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             throw new MorphiumDriverException((String) res.get("errmsg"));
                         }
                     }
-                } catch (MorphiumDriverException e) {
-                    // e.printStackTrace();
-                    throw new RuntimeException(e);
                 } finally {
                     if (cmd != null) {
                         cmd.releaseConnection();

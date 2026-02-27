@@ -306,11 +306,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public List<R> aggregate() {
-        try {
-            return deserializeList();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        return deserializeList();
     }
 
     @Override
@@ -323,8 +319,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         try {
             cmd.setPipeline(pipeline);
             res = cmd.execute();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             cmd.releaseConnection();
         }
@@ -353,8 +347,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             try {
                 log.warn("Async operation but callback is null!");
                 cmd.executeAsync();
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
             } finally {
                 cmd.releaseConnection();
             }
@@ -401,8 +393,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         try {
             if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
             return cmd.execute();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         } finally {
             cmd.releaseConnection();
         }
@@ -415,8 +405,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
             try {
                 cmd.execute();
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
             } finally {
                 cmd.releaseConnection();
             }

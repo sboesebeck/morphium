@@ -31,7 +31,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
             getMongoCursor().ahead(jump);
         } catch (MorphiumDriverException e) {
             getMongoCursor().close();
-            throw new RuntimeException(e);
+            throw e;
         }
     }
 
@@ -41,7 +41,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
             getMongoCursor().back(jump);
         } catch (MorphiumDriverException e) {
             getMongoCursor().close();
-            throw new RuntimeException(e);
+            throw e;
         }
     }
 
@@ -126,14 +126,10 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
 
     private MorphiumCursor getMongoCursor() {
         if (cursor == null) {
-            try {
-                var morphium = aggregator.getMorphium();
-                var config = morphium != null ? morphium.getConfig() : null;
-                int batchSize = config != null ? config.getCursorBatchSize() : 1000; // default batch size
-                cursor = aggregator.getAggregateCmd().executeIterable(batchSize);
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
+            var morphium = aggregator.getMorphium();
+            var config = morphium != null ? morphium.getConfig() : null;
+            int batchSize = config != null ? config.getCursorBatchSize() : 1000; // default batch size
+            cursor = aggregator.getAggregateCmd().executeIterable(batchSize);
         }
 
         return cursor;
