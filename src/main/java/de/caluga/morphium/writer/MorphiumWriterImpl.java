@@ -1126,6 +1126,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             if (!Integer.valueOf(1).equals(ret.get("nModified"))) {
                                 throw new MorphiumDriverException("Error - not updated");
                             }
+                        } else {
+                            logger.warn("update call did not return any value");
                         }
                     } finally {
                         if (up != null) {
