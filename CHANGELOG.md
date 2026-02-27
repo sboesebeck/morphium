@@ -7,7 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [6.1.8]
 
-### Tests 
+### Changed
+
+#### MorphiumDriverException is now unchecked (`extends RuntimeException`)
+- `MorphiumDriverException` now extends `RuntimeException` instead of `Exception` — aligning with every major Java database framework (MongoDB Driver, JPA/Hibernate, Spring Data, jOOQ)
+- Removed 40+ redundant `catch-and-wrap` blocks throughout the codebase that were forced by the checked nature of the exception
+- Database errors now propagate with their original type instead of being silently wrapped in a plain `RuntimeException`
+
+### Migration Notes
+
+#### `MorphiumDriverException`: `getCause()` pattern silently broken
+
+**Action required if** your code catches a `RuntimeException` and inspects the cause:
+
+```java
+// BROKEN after this release — instanceof check now always returns false
+catch (RuntimeException e) {
+    if (e.getCause() instanceof MorphiumDriverException) {
+        handleDbError((MorphiumDriverException) e.getCause());
+    }
+}
+```
+
+`MorphiumDriverException` is no longer wrapped — it propagates directly. The fix is to catch it by type:
+
+```java
+// Correct after this release
+catch (MorphiumDriverException e) {
+    handleDbError(e);
+}
+```
+
+This is a **silent behavioral change** — no compile error, the `instanceof` check simply returns `false`.
+All other existing `catch` blocks (`catch (Exception e)`, `catch (RuntimeException e)` without cause inspection) continue to work without modification.
+
+### Tests
 - splitting long running tests for better maintainability 
 - tuning some timeouts in tests in order to be more resiliant to load related slowdowns
 
