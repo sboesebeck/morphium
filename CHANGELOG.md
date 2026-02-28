@@ -5,9 +5,11 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.1.8]
+## [Unreleased] - 6.2.0-SNAPSHOT
 
-### Changed
+> See [docs/releases/RELEASE-NOTES-6.2.0-SNAPSHOT.md](docs/releases/RELEASE-NOTES-6.2.0-SNAPSHOT.md) for a quick summary.
+
+### Breaking Changes
 
 #### MorphiumDriverException is now unchecked (`extends RuntimeException`)
 - `MorphiumDriverException` now extends `RuntimeException` instead of `Exception` — aligning with every major Java database framework (MongoDB Driver, JPA/Hibernate, Spring Data, jOOQ)
@@ -40,6 +42,35 @@ catch (MorphiumDriverException e) {
 
 This is a **silent behavioral change** — no compile error, the `instanceof` check simply returns `false`.
 All other existing `catch` blocks (`catch (Exception e)`, `catch (RuntimeException e)` without cause inspection) continue to work without modification.
+
+### Added
+
+#### @Version Annotation — Optimistic Locking
+- New `@Version` annotation for optimistic locking support
+- Version field is automatically initialized to `1L` on first insert
+- Updates use atomic `$and` filter: `{_id: ..., version: currentVersion}`
+- `VersionMismatchException` thrown on concurrent modification conflicts
+- Works with all drivers (PooledDriver, SingleMongoConnectDriver, InMemoryDriver)
+
+#### MONGODB-X509 Client Certificate Authentication
+- Native support for X.509 client certificate authentication
+- New `authMechanism` setting in `AuthSettings` (set to `"MONGODB-X509"`)
+- Integrates with `SslHelper` for mutual TLS (mTLS) configuration
+
+#### MongoDB Atlas SRV Connection Support
+- `mongodb+srv://` connection strings with automatic DNS SRV lookup
+- `MorphiumConfig.fromConnection()` parses SRV URIs and resolves cluster hosts
+
+### Dependencies
+- **logback-core**: 1.5.24 → 1.5.25
+- **assertj-core**: 3.23.1 → 3.27.7
+- **slf4j-api**: 2.0.0 → 2.0.17
+- **bson**: 4.7.1 → 4.11.5
+- **netty-all**: 4.1.100.Final → 4.2.9.Final
+
+---
+
+## [6.1.8]
 
 ### Tests
 - splitting long running tests for better maintainability 
