@@ -52,7 +52,7 @@ public class HouseKeepingHelper {
     @SuppressWarnings("CommentedOutCode")
     public void housekeep(javax.cache.Cache cache, List<CacheListener> cacheListeners) {
         try {
-            Class clz = Class.forName(cache.getName().substring(cache.getName().indexOf("|") + 1));
+            Class clz = AnnotationAndReflectionHelper.classForName(cache.getName().substring(cache.getName().indexOf("|") + 1));
             List<Object> toDelete = new ArrayList<>();
             int maxEntries = -1;
             Cache cacheSettings = getAnnotationHelper().getAnnotationFromHierarchy(clz, Cache.class);//clz.getAnnotation(Cache.class);

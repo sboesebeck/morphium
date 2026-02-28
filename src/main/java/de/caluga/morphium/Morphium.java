@@ -270,7 +270,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
                     for (String cn : entities.getNames()) {
                         try {
-                            Class c = Class.forName(cn);
+                            Class c = AnnotationAndReflectionHelper.classForName(cn);
                             var ann = (Messaging)c.getAnnotation(Messaging.class);
                             String name = ann.name();
 
@@ -324,7 +324,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     for (String cn : entities.getNames()) {
                         try {
                             @SuppressWarnings("rawtypes")
-                            Class c = Class.forName(cn);
+                            Class c = AnnotationAndReflectionHelper.classForName(cn);
 
                             if (Modifier.isAbstract(c.getModifiers())) {
                                 continue;
@@ -3324,7 +3324,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     }
 
                     log.debug("Cap-Checking " + cn);
-                    Class<?> entity = Class.forName(cn);
+                    Class<?> entity = AnnotationAndReflectionHelper.classForName(cn);
 
                     if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
                         continue;
@@ -3384,7 +3384,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     }
 
                     // logger.info("Checking "+cn);
-                    Class<?> entity = Class.forName(cn);
+                    Class<?> entity = AnnotationAndReflectionHelper.classForName(cn);
 
                     if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
                         continue;

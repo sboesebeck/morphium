@@ -387,7 +387,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
                 if (evt.getKey() == null) {
                     //clear / removeall
                     try {
-                        cl.wouldClearCache(Class.forName(evt.getSource().getCacheManager().getURI().toString()));
+                        cl.wouldClearCache(AnnotationAndReflectionHelper.classForName(evt.getSource().getCacheManager().getURI().toString()));
                     } catch (ClassNotFoundException e) {
                         //TODO: Implement Handling
                         throw new CacheEntryListenerException("Could not get type", e);

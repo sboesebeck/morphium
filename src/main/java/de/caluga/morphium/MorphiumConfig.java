@@ -277,7 +277,7 @@ public class MorphiumConfig {
                 }
 
                 try {
-                    Class<?> driverClass = Class.forName((String)s);
+                    Class<?> driverClass = AnnotationAndReflectionHelper.classForName((String)s);
                     Method m = driverClass.getMethod("getName");
                     driverSettings.setDriverName((String)m.invoke(null));
                 } catch (Exception e) {
