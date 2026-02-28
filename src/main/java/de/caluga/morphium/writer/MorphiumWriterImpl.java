@@ -1034,12 +1034,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (e instanceof VersionMismatchException) {
                         throw (VersionMismatchException) e;
                     }
-                    // Duplicate key and other non-transient driver errors should not be retried
+                    // Duplicate key and other non-transient driver errors should not be retried.
+                    // Since PR #114 MorphiumDriverException extends RuntimeException,
+                    // so this single check covers both direct throws and wrapped causes.
                     if (e instanceof MorphiumDriverException) {
                         throw (MorphiumDriverException) e;
-                    }
-                    if (e instanceof RuntimeException && e.getCause() instanceof MorphiumDriverException) {
-                        throw (MorphiumDriverException) e.getCause();
                     }
                     retries++;
 
