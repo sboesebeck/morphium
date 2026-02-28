@@ -34,8 +34,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
             return;
         }
         createUncachedObjects(morphium, 1000);
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(500);
 
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 1; i <= 1000; i++) {
@@ -54,8 +54,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
             return;
         }
         createUncachedObjects(morphium, 1000);
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(500);
         waitForAsyncOperationsToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
         log.info("Now disconnect some mongo nodes, please");
@@ -75,14 +75,14 @@ public class NetworkRetryTest extends MultiDriverTestBase {
             return;
         }
         createUncachedObjects(morphium, 1000);
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2000);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2000);
 
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             Map<String, Object> o = UtilsMap.of("counter", i + 1);
-            List<UncachedObject> lst = q.complexQuery(o);
+            List<UncachedObject> lst = q.rawQuery(o).asList();
             log.info("read " + i);
             assert (lst.get(0).getCounter() == i + 1);
             Thread.sleep(500);
@@ -96,8 +96,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
             return;
         }
         createUncachedObjects(morphium, 1000);
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(500);
 
         log.info("Now disconnect some mongo nodes, please");
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -117,8 +117,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         if (!doTest) {
             return;
         }
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2500);
 
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
@@ -137,8 +137,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         if (!doTest) {
             return;
         }
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2500);
 
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
@@ -162,15 +162,15 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         if (!doTest) {
             return;
         }
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2500);
 
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").eq(i + 1);
             log.info("updating... " + i);
-            morphium.set(q, "counter", i + 1000);
+            q.set("counter", i + 1000);
             Thread.sleep(500);
         }
     }
@@ -182,8 +182,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         if (!doTest) {
             return;
         }
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2500);
         morphium.dropCollection(ListContainer.class);
         for (int i = 1; i <= 1000; i++) {
             ListContainer lc = new ListContainer();
@@ -212,8 +212,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         if (!doTest) {
             return;
         }
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2500);
         morphium.dropCollection(ListContainer.class);
         for (int i = 1; i <= 1000; i++) {
             ListContainer lc = new ListContainer();
@@ -245,8 +245,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         if (!doTest) {
             return;
         }
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2500);
         createUncachedObjects(morphium, 1000);
 
         for (int i = 1; i < 1000; i++) {
@@ -264,8 +264,8 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         if (!doTest) {
             return;
         }
-        morphium.getConfig().setRetriesOnNetworkError(10);
-        morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        morphium.getConfig().connectionSettings().setRetriesOnNetworkError(10);
+        morphium.getConfig().connectionSettings().setSleepBetweenNetworkErrorRetries(2500);
         createUncachedObjects(morphium, 1000);
 
         for (int i = 500; i < 1000; i++) {

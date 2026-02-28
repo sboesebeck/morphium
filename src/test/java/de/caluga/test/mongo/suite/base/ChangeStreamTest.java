@@ -52,8 +52,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             Morphium m2 = morphium;
 
             if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                cfg.setCredentialsEncryptionKey("1234567890abcdef");
-                cfg.setCredentialsDecryptionKey("1234567890abcdef");
+                cfg.encryptionSettings().setCredentialsEncryptionKey("1234567890abcdef");
+                cfg.encryptionSettings().setCredentialsDecryptionKey("1234567890abcdef");
                 m2 = new Morphium(cfg);
             }
 
@@ -66,7 +66,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             runningFlag.set(false);
             assertTrue(count >= 2 && count <= 3);
             long cnt = count;
-            m2.set(m2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
+            m2.createQueryFor(UncachedObject.class).f("counter").eq(123).set("counter", 7777);
             final long expectedCount = cnt + 1;
             TestUtils.waitForConditionToBecomeTrue(10000, "Change not detected", () -> count >= expectedCount);
 
@@ -101,7 +101,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
 
                             morphium.store(new UncachedObject("value", (int)(1 + (Math.random() * 100.0))));
                             log.info(morphium.getDriver().getName() + ": Written");
-                            morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "strValue", "newVal");
+                            morphium.createQueryFor(UncachedObject.class).f("counter").lt(50).set("strValue", "newVal");
                             log.info(morphium.getDriver().getName() + ": updated");
                             written.incrementAndGet();
                         }
@@ -220,12 +220,12 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     Morphium m2 = morphium;
 
                     if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                        cfg.setCredentialsEncryptionKey("1234567890abcdef");
-                        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+                        cfg.encryptionSettings().setCredentialsEncryptionKey("1234567890abcdef");
+                        cfg.encryptionSettings().setCredentialsDecryptionKey("1234567890abcdef");
                         m2 = new Morphium(cfg);
                     }
 
-                    m2.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "str_value", "new value " + i, false, true);
+                    m2.createQueryFor(UncachedObject.class).f("counter").lte(50).set("str_value", "new value " + i, false, true);
 
                     if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
                         m2.close();
@@ -390,7 +390,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             for (int i = 0; i < 10; i++) {
                 morphium.store(new UncachedObject("changeStreamPipelineTestValue " + i, i), "uncached_object", null);
             }
-            morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
+            morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object").set("strValue", "updated");
             morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
             TestUtils.waitForConditionToBecomeTrue(10000, "Wrong number of inserts", () -> inserts.get() == 10);
             assert(updates.get() == 0);
@@ -425,11 +425,11 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             for (int i = 0; i < 10; i++) {
                 morphium.store(new UncachedObject("changeStreamPipelineTestOtherValue " + i, i), "uncached_object", null);
             }
-            morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
+            morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object").set("strValue", "updated");
             TestUtils.waitForConditionToBecomeTrue(10000, "Update not detected", () -> updates.get() >= 1);
             assertEquals(0, inserts.get());
             assertEquals(0, deletes.get());
-            morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "str_value", "updated", false, true);
+            morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object").set("str_value", "updated", false, true);
             TestUtils.waitForConditionToBecomeTrue(10000, "Updates wrong", () -> updates.get() >= 10);
             mon.terminate();
         }
@@ -455,7 +455,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             StringIdEntity i = new StringIdEntity();
             i.id = "test1";
             i.name = "test";
-            i.value = new Integer(23);
+            i.value = 23;
             morphium.store(i);
             TestUtils.waitForConditionToBecomeTrue(5000, "Insert not detected", () -> cnt.get() >= 1);
             i.name = "neuer Testt";

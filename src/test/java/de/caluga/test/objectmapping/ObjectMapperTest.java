@@ -30,6 +30,7 @@ import de.caluga.test.mongo.suite.base.BasicFunctionalityTest.ListOfIdsContainer
 import de.caluga.test.mongo.suite.base.ObjectMapperImplTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+@SuppressWarnings("unchecked")
 @Tag("util")
 public class ObjectMapperTest {
     private Logger log = LoggerFactory.getLogger(ObjectMapperTest.class);

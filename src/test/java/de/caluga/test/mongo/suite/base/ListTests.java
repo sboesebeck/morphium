@@ -30,7 +30,7 @@ import de.caluga.morphium.Morphium;
  * Time: 17:17
  * <p>
  */
-@SuppressWarnings("AssertWithSideEffects")
+@SuppressWarnings({"AssertWithSideEffects", "unchecked"})
 @Tag("core")
 public class ListTests extends MultiDriverTestBase {
 
@@ -160,9 +160,9 @@ public class ListTests extends MultiDriverTestBase {
         lst.addString(null);
         morphium.store(lst);
         Thread.sleep(100);
-        Query q = morphium.createQueryFor(ListContainer.class).f("id").eq(lst.getId());
+        Query<ListContainer> q = morphium.createQueryFor(ListContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-        ListContainer lst2 = (ListContainer) q.get();
+        ListContainer lst2 = q.get();
         assert(lst2.getStringList().get(count) == null);
         assert(lst2.getRefList().get(count) == null);
         assert(lst2.getEmbeddedObjectList().get(count) == null);
@@ -202,10 +202,10 @@ public class ListTests extends MultiDriverTestBase {
         embeddedObjectList.add(extendedEmbeddedObject);
         morphium.store(testObjectToStore);
         Thread.sleep(100);
-        Query q = morphium.createQueryFor(ListWildcardContainer.class).f("id").eq(testObjectToStore.getId());
+        Query<ListWildcardContainer> q = morphium.createQueryFor(ListWildcardContainer.class).f("id").eq(testObjectToStore.getId());
 
         try {
-            ListWildcardContainer testObejectToLoadFromDB = (ListWildcardContainer) q.get();
+            ListWildcardContainer testObejectToLoadFromDB = q.get();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             fail("error while restoring object from db | " + e.getMessage(), e);
@@ -287,9 +287,9 @@ public class ListTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void unGenericListTest(Morphium morphium) throws Exception  {
         MyNoGenericListContainer c = new MyNoGenericListContainer();
-        c.aList = new ArrayList();
+        c.aList = new ArrayList<>();
         c.aList.add("String");
-        c.aList.add(new Integer(12));
+        c.aList.add(12);
         c.aList.add(new UncachedObject("value", 42));
         c.name = "test";
         c.number = 44;

@@ -30,7 +30,7 @@ public class CheckForNewTest extends MultiDriverTestBase {
     public void testCheckForNew(Morphium morphium) {
         //although checkfornew is enabled, it will not update created
         //as the @CreationTime annotation disables it
-        morphium.getConfig().setCheckForNew(true);
+        morphium.getConfig().objectMappingSettings().setCheckForNew(true);
         morphium.delete(morphium.createQueryFor(TestID.class));
 
         TestID tst = new TestID();
@@ -61,14 +61,14 @@ public class CheckForNewTest extends MultiDriverTestBase {
         morphium.reread(tst);
         assert (cr.equals(tst.created));
 
-        morphium.getConfig().setCheckForNew(false);
+        morphium.getConfig().objectMappingSettings().setCheckForNew(false);
     }
 
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testCheckForNew2(Morphium morphium) throws Exception  {
-        morphium.getConfig().setCheckForNew(true);
+        morphium.getConfig().objectMappingSettings().setCheckForNew(true);
         morphium.dropCollection(TestID2.class);
 
         TestID2 tst = new TestID2();
@@ -87,7 +87,7 @@ public class CheckForNewTest extends MultiDriverTestBase {
         ;
 
 
-        morphium.getConfig().setCheckForNew(false);
+        morphium.getConfig().objectMappingSettings().setCheckForNew(false);
     }
 
     @Entity

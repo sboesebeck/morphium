@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -63,10 +62,12 @@ public class MorphiumServerTest {
         cfg.connectionSettings().setMaxConnections(200);
         cfg.cacheSettings().setBufferedWritesEnabled(false);
         Morphium morphium = new Morphium(cfg);
-        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
+        var msg1 = morphium.createMessaging();
+        msg1.setPause(100).setMultithreadded(true);
         msg1.setUseChangeStream(true);
         AtomicInteger received = new AtomicInteger();
-        SingleCollectionMessaging msg2 = new SingleCollectionMessaging(morphium, 100, true);
+        var msg2 = morphium.createMessaging();
+        msg2.setPause(100).setMultithreadded(true);
         msg2.setUseChangeStream(true);
         msg2.addListenerForTopic("test", (msg, m)-> {
             received.incrementAndGet();
@@ -140,12 +141,12 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(port, "localhost", 10, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port);
-        cfg.setDatabase("srvtst");
-        cfg.setMaxConnections(5);
-        cfg.setMinConnections(2);
-        cfg.setMaxConnectionIdleTime(1000);
-        cfg.setMaxConnectionLifeTime(2000);
+        cfg.clusterSettings().setHostSeed("localhost:" + port);
+        cfg.connectionSettings().setDatabase("srvtst");
+        cfg.connectionSettings().setMaxConnections(5);
+        cfg.connectionSettings().setMinConnections(2);
+        cfg.driverSettings().setMaxConnectionIdleTime(1000);
+        cfg.driverSettings().setMaxConnectionLifeTime(2000);
         Morphium morphium = new Morphium(cfg);
         // for (int i = 0; i < 15; i++) {
         //     log.info("PoolSize: {}", srv.getConnectionCount());
@@ -194,17 +195,17 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(port, "localhost", 100, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port);
-        cfg.setDatabase("srvtst");
-        cfg.setMaxConnections(10);
+        cfg.clusterSettings().setHostSeed("localhost:" + port);
+        cfg.connectionSettings().setDatabase("srvtst");
+        cfg.connectionSettings().setMaxConnections(10);
         Morphium morphium = new Morphium(cfg);
         final AtomicLong recTime = new AtomicLong(0l);
 
         try(morphium) {
             //Messaging test
-            var msg1 = new SingleCollectionMessaging(morphium);
+            var msg1 = morphium.createMessaging();
             msg1.start();
-            var msg2 = new SingleCollectionMessaging(morphium);
+            var msg2 = morphium.createMessaging();
             msg2.start();
             msg2.addListenerForTopic("tstmsg", new MessageListener() {
                 @Override
@@ -234,24 +235,26 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(port, "localhost", 100, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port);
-        cfg.setDatabase("srvtst");
-        cfg.setMaxConnections(10);
+        cfg.clusterSettings().setHostSeed("localhost:" + port);
+        cfg.connectionSettings().setDatabase("srvtst");
+        cfg.connectionSettings().setMaxConnections(10);
         Morphium morphium = new Morphium(cfg);
         MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setHostSeed("localhost:" + port);
-        cfg2.setDatabase("srvtst");
-        cfg2.setMaxConnections(10);
+        cfg2.clusterSettings().setHostSeed("localhost:" + port);
+        cfg2.connectionSettings().setDatabase("srvtst");
+        cfg2.connectionSettings().setMaxConnections(10);
         Morphium morphium2 = new Morphium(cfg2);
         final AtomicLong recTime = new AtomicLong(0l);
         Thread.sleep(2500);
 
         try(morphium) {
             //Messaging test
-            var msg1 = new SingleCollectionMessaging(morphium, 100, true);
+            var msg1 = morphium.createMessaging();
+            msg1.setPause(100).setMultithreadded(true);
             msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new SingleCollectionMessaging(morphium2, 10, true, true, 1000);
+            var msg2 = morphium2.createMessaging();
+            msg2.setPause(10).setMultithreadded(true).setWindowSize(1000);
             msg2.setUseChangeStream(true);
             msg2.start();
             msg2.addListenerForTopic("tstmsg", new MessageListener() {
@@ -282,11 +285,11 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(port, "localhost", 100, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port);
-        cfg.setDatabase("srvtst");
-        cfg.setMaxConnections(10);
-        cfg.setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
-        cfg.setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
+        cfg.clusterSettings().setHostSeed("localhost:" + port);
+        cfg.connectionSettings().setDatabase("srvtst");
+        cfg.connectionSettings().setMaxConnections(10);
+        cfg.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
+        cfg.collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
         Morphium morphium = new Morphium(cfg);
         final AtomicLong recTime = new AtomicLong(0l);
         new Thread() {
@@ -325,14 +328,14 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(port, "localhost", 100, 60);  // 60 second idle timeout
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port);
-        cfg.setDatabase("srvtst");
-        cfg.setMaxConnections(10);
+        cfg.clusterSettings().setHostSeed("localhost:" + port);
+        cfg.connectionSettings().setDatabase("srvtst");
+        cfg.connectionSettings().setMaxConnections(10);
         Morphium morphium = new Morphium(cfg);
         MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setHostSeed("localhost:" + port);
-        cfg2.setDatabase("srvtst");
-        cfg2.setMaxConnections(10);
+        cfg2.clusterSettings().setHostSeed("localhost:" + port);
+        cfg2.connectionSettings().setDatabase("srvtst");
+        cfg2.connectionSettings().setMaxConnections(10);
         Morphium morphium2 = new Morphium(cfg2);
         final AtomicLong recAmount = new AtomicLong(0l);
         final Map<MorphiumId, Long> sendTimes = new ConcurrentHashMap<>();
@@ -410,14 +413,14 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(port, "localhost", 100, 60);  // 60 second idle timeout
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port);
-        cfg.setDatabase("srvtst");
-        cfg.setMaxConnections(10);
+        cfg.clusterSettings().setHostSeed("localhost:" + port);
+        cfg.connectionSettings().setDatabase("srvtst");
+        cfg.connectionSettings().setMaxConnections(10);
         Morphium morphium = new Morphium(cfg);
         MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setHostSeed("localhost:" + port);
-        cfg2.setDatabase("srvtst");
-        cfg2.setMaxConnections(10);
+        cfg2.clusterSettings().setHostSeed("localhost:" + port);
+        cfg2.connectionSettings().setDatabase("srvtst");
+        cfg2.connectionSettings().setMaxConnections(10);
         Morphium morphium2 = new Morphium(cfg2);
         final AtomicLong recAmount = new AtomicLong(0l);
         Thread.sleep(2500);
@@ -603,9 +606,9 @@ public class MorphiumServerTest {
 
         // Connect to primary and store some data BEFORE secondary starts
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port1);
-        cfg.setDatabase("replicatest");
-        cfg.setMaxConnections(5);
+        cfg.clusterSettings().setHostSeed("localhost:" + port1);
+        cfg.connectionSettings().setDatabase("replicatest");
+        cfg.connectionSettings().setMaxConnections(5);
         Morphium morphiumPrimary = new Morphium(cfg);
 
         // Store 10 documents on primary
@@ -631,9 +634,9 @@ public class MorphiumServerTest {
 
         // Connect to secondary
         MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setHostSeed("localhost:" + port2);
-        cfg2.setDatabase("replicatest");
-        cfg2.setMaxConnections(5);
+        cfg2.clusterSettings().setHostSeed("localhost:" + port2);
+        cfg2.connectionSettings().setDatabase("replicatest");
+        cfg2.connectionSettings().setMaxConnections(5);
         Morphium morphiumSecondary = new Morphium(cfg2);
 
         // Verify data was replicated to secondary
@@ -677,16 +680,16 @@ public class MorphiumServerTest {
 
         // Connect to primary
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port1);
-        cfg.setDatabase("ongoingtest");
-        cfg.setMaxConnections(5);
+        cfg.clusterSettings().setHostSeed("localhost:" + port1);
+        cfg.connectionSettings().setDatabase("ongoingtest");
+        cfg.connectionSettings().setMaxConnections(5);
         Morphium morphiumPrimary = new Morphium(cfg);
 
         // Connect to secondary
         MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setHostSeed("localhost:" + port2);
-        cfg2.setDatabase("ongoingtest");
-        cfg2.setMaxConnections(5);
+        cfg2.clusterSettings().setHostSeed("localhost:" + port2);
+        cfg2.connectionSettings().setDatabase("ongoingtest");
+        cfg2.connectionSettings().setMaxConnections(5);
         Morphium morphiumSecondary = new Morphium(cfg2);
 
         // Store documents on primary AFTER secondary is running
@@ -730,9 +733,9 @@ public class MorphiumServerTest {
         startServer(secondary, port2);
 
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:" + port1);
-        cfg.setDatabase("latejoin");
-        cfg.setMaxConnections(5);
+        cfg.clusterSettings().setHostSeed("localhost:" + port1);
+        cfg.connectionSettings().setDatabase("latejoin");
+        cfg.connectionSettings().setMaxConnections(5);
         Morphium morphiumPrimary = new Morphium(cfg);
 
         for (int i = 0; i < 7; i++) {
@@ -749,9 +752,9 @@ public class MorphiumServerTest {
         Thread.sleep(3000);
 
         MorphiumConfig cfgLate = new MorphiumConfig();
-        cfgLate.setHostSeed("localhost:" + port3);
-        cfgLate.setDatabase("latejoin");
-        cfgLate.setMaxConnections(5);
+        cfgLate.clusterSettings().setHostSeed("localhost:" + port3);
+        cfgLate.connectionSettings().setDatabase("latejoin");
+        cfgLate.connectionSettings().setMaxConnections(5);
         Morphium morphiumLate = new Morphium(cfgLate);
 
         var lateCount = morphiumLate.createQueryFor(UncachedObject.class).countAll();

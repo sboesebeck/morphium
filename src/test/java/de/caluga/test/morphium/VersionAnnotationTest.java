@@ -73,7 +73,7 @@ public class VersionAnnotationTest {
     @BeforeEach
     public void setup() {
         MorphiumConfig cfg = new MorphiumConfig("version_test_db", 10, 10_000, 1_000);
-        cfg.setDriverName(InMemoryDriver.driverName);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
         morphium = new Morphium(cfg);
     }
 

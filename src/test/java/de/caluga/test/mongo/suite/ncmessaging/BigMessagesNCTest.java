@@ -2,7 +2,6 @@ package de.caluga.test.mongo.suite.ncmessaging;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.UtilsMap;
-import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
@@ -23,8 +22,8 @@ public class BigMessagesNCTest extends MultiDriverTestBase {
         final AtomicInteger count = new AtomicInteger();
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(1000);
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100,  true, 10);
-        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium);
+        var sender = morphium.createMessaging().setPause(100).setMultithreadded(true).setWindowSize(10);
+        var receiver = morphium.createMessaging();
 
         try {
             sender.setUseChangeStream(false).start();

@@ -24,7 +24,7 @@ public class QueryProjectionTest extends MultiDriverTestBase {
 
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
         }
 
         Thread.sleep(150);
@@ -49,7 +49,7 @@ public class QueryProjectionTest extends MultiDriverTestBase {
 
         while (lst.size() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
             lst = q.asList();
         }
 
@@ -69,7 +69,7 @@ public class QueryProjectionTest extends MultiDriverTestBase {
         while (lst.size() < 1) {
             lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).hideFieldInProjection(UncachedObject.Fields.strValue).asList();
             Thread.sleep(50);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
         }
 
         assertEquals(lst.size(), 1);
