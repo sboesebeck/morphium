@@ -1594,9 +1594,20 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         int w = safety.level().getValue();
         long timeout = safety.timeout();
 
-        if (isReplicaSet() && w > 2) {
-            var hostSeed = getDriver().getHostSeed(); //list of available hosts
-            // de.caluga.morphium.replicaset.ReplicaSetStatus s = RsMonitor.getCurrentStatus();
+        // Use the driver's actual replica set state (determined at connect time)
+        // rather than the config flag, which defaults to true and may not reflect reality.
+        boolean actuallyReplicaSet = getDriver() != null && getDriver().isReplicaSet();
+
+        if (!actuallyReplicaSet) {
+            // Standalone MongoDB: downgrade write concern that requires replica set
+            if (w > 1 || safety.level() == SafetyLevel.MAJORITY) {
+                log.warn("Entity {} has @WriteSafety(level={}) which requires a replica set, "
+                        + "but connected to standalone MongoDB. Downgrading to w:1 (BASIC).",
+                        cls.getSimpleName(), safety.level());
+                w = 1;
+            }
+        } else if (w > 2) {
+            var hostSeed = getDriver().getHostSeed();
 
             if (log.isDebugEnabled()) {
                 log.debug("Active nodes now: " + hostSeed.size());
@@ -1608,12 +1619,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 activeNodes = 50;
             }
 
-            long maxReplLag = 0;
-            // Wait for all active slaves (-1 for the timeout bug)
+            // Wait for all active slaves
             w = activeNodes;
         }
 
-        if (!isReplicaSet() && timeout < 0) {
+        if (!actuallyReplicaSet && timeout < 0) {
             timeout = 0;
         }
 
@@ -2985,6 +2995,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void startTransaction() {
+        if (getDriver() != null && !getDriver().isReplicaSet()) {
+            log.warn("Transactions require a replica set. Current MongoDB is standalone. "
+                    + "Transaction will likely fail.");
+        }
         getDriver().startTransaction(false);
     }
 
