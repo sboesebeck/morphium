@@ -72,7 +72,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     }
 
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, List<Map<String, Object >> pipeline) {
-        this(m, collectionName, fullDocument, m.getConfig().getMaxWaitTime(), pipeline);
+        this(m, collectionName, fullDocument, m.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
     }
 
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object >> pipeline) {
@@ -94,7 +94,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         if (maxWait != 0) {
             this.maxWait = maxWait;
         } else {
-            this.maxWait = m.getConfig().getMaxWaitTime();
+            this.maxWait = m.getConfig().connectionSettings().getMaxWaitTime();
         }
 
         mapper = new ObjectMapperImpl();
@@ -262,8 +262,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
                         evt.setFullDocument(obj);
                         evt.setFullDocumentBeforeChange(before);
-                        evt.setDbName(((Map<String, String>)data.get("ns")).get("db"));
-                        evt.setCollectionName(((Map<String, String>)data.get("ns")).get("coll"));
+                        @SuppressWarnings("unchecked")
+                        Map<String, String> ns = (Map<String, String>) data.get("ns");
+                        evt.setDbName(ns.get("db"));
+                        evt.setCollectionName(ns.get("coll"));
                         List<ChangeStreamListener> toRemove = new ArrayList<>();
 
                         for (ChangeStreamListener lst : listeners) {
@@ -288,7 +290,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.debug("Driver not available, will retry");
                     // Wait before retrying to avoid tight loop
                     try {
-                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                        Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
                     } catch (InterruptedException e) {
                         if (!running) break;
                     }
@@ -308,7 +310,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     activeConnection = null;
                     // Wait before retrying to avoid tight loop
                     try {
-                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                        Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
                     } catch (InterruptedException e) {
                         if (!running) break;
                     }
@@ -356,7 +358,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("Oplog rolled past resume point for changestream '{}' - discarding resume token and restarting fresh", collectionName);
                     lastResumeToken = null;
                     try {
-                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                        Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
                     } catch (InterruptedException ex) {
                         if (!running) break;
                     }
@@ -371,7 +373,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     // Connection closed is often transient (network issues, failover) - retry instead of giving up
                     log.warn("Connection closed for changestream '{}' - will retry", collectionName);
                     try {
-                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                        Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
                     } catch (InterruptedException ex) {
                         if (!running) break;
                     }
@@ -384,7 +386,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         log.warn("Error in changestream monitor - restarting", e);
 
                         try {
-                            Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                            Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
                         } catch (InterruptedException ex) {
                         }
                     } else {

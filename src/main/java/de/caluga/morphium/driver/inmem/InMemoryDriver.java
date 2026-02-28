@@ -681,6 +681,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
         // log.info("Reading answer for id " + queryId);
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
@@ -710,6 +711,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public MorphiumCursor getAnswerFor(int queryId, int batchsize) throws MorphiumDriverException {
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         Map<String, Object> data = commandResultsById.remove(queryId);
@@ -824,6 +826,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 0;
     }
 
+    @SuppressWarnings("unchecked")
     public int runCommand(ExplainCommand cmd) {
         int ret = commandNumber.incrementAndGet();
 
@@ -868,6 +871,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     public int runCommand(GenericCommand cmd) {
         Map<String, Object> cmdMap = cmd.asMap();
         var commandName = cmdMap.keySet().stream().findFirst().get();
@@ -992,6 +996,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     private int runCommand(UpdateMongoCommand cmd) throws MorphiumDriverException {
         log.debug("runCommand(UpdateMongoCommand) called - updates count: {}",
                   cmd.getUpdates() != null ? cmd.getUpdates().size() : "null");
@@ -1461,6 +1466,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     public int runCommand(FindCommand cmd) throws MorphiumDriverException {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
@@ -1576,6 +1582,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return skip;
     }
 
+    @SuppressWarnings("unchecked")
     private int runCommand(GetMoreMongoCommand cmd) throws MorphiumDriverException {
         // log.error(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ") - should not be used inMem!");
@@ -1693,6 +1700,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     private int runCommand(DropIndexesCommand cmd) {
         int ret = commandNumber.incrementAndGet();
         String db = cmd.getDb();
@@ -1821,6 +1829,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     private int runCommand(DeleteMongoCommand cmd) throws MorphiumDriverException {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
@@ -1873,6 +1882,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     private int runCommand(CreateIndexesCommand cmd) throws MorphiumDriverException {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
@@ -2247,6 +2257,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void setConnectionUrl(String connectionUrl) {
     }
 
+    @SuppressWarnings("unchecked")
     public void connect() {
         if (initialized.get() && running && exec != null && !exec.isShutdown()) {
             return;
@@ -2962,6 +2973,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * - Doesn't sort or project
      * Only for internal use when write lock is already held.
      */
+    @SuppressWarnings("unchecked")
     private boolean existsMatchingDocument(String db, String collection, Map<String, Object> query) throws MorphiumDriverException {
         if (query == null || query.isEmpty()) {
             return !getCollection(db, collection).isEmpty();
@@ -2976,7 +2988,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return false;
     }
 
-    @SuppressWarnings({ "RedundantThrows", "UnusedParameters" })
+    @SuppressWarnings({ "RedundantThrows", "UnusedParameters", "unchecked" })
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query,
                                            Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip,
                                            int limit, boolean internal) throws MorphiumDriverException {
@@ -3286,6 +3298,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return cur;
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean containsByPath(Map<String, Object> doc, String path) {
         if (doc == null || path == null)
             return false;
@@ -3302,6 +3315,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return cur.containsKey(parts[parts.length - 1]);
     }
 
+    @SuppressWarnings("unchecked")
     private static void setByPath(Map<String, Object> target, String path, Object value) {
         String[] parts = path.split("\\.");
         Map cur = target;
@@ -3329,6 +3343,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         cur.remove(parts[parts.length - 1]);
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> deepCopyDoc(Map<String, Object> src) {
         // Pre-size HashMap to avoid rehashing
         Map<String, Object> out = new HashMap<>((int) (src.size() / 0.75) + 1);
@@ -3345,6 +3360,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return out;
     }
 
+    @SuppressWarnings("unchecked")
     private static List deepCopyList(List src) {
         // Pre-size ArrayList to avoid resizing
         List<Object> out = new ArrayList<>(src.size());
@@ -3361,6 +3377,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return out;
     }
 
+    @SuppressWarnings("unchecked")
     private static Object deepCopyValue(Object v) {
         if (v instanceof Map) {
             return deepCopyDoc((Map<String, Object>) v);
@@ -3432,6 +3449,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         throw new RuntimeException("Failed to deep copy document");
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> deepCopyDocExcludingInternal(Map<String, Object> src,
             Set<String> excludedFields, Set<String> nestedExclusions, String currentPath) {
         Map<String, Object> out = new HashMap<>((int) (src.size() / 0.75) + 1);
@@ -3478,6 +3496,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return out;
     }
 
+    @SuppressWarnings("unchecked")
     private static Object applySlice(Object arrayVal, Object sliceSpec) {
         if (!(arrayVal instanceof List))
             return null;
@@ -3502,6 +3521,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     private static Object applyElemMatchProjection(String field, Object arrayVal, Map<String, Object> cond) {
         if (!(arrayVal instanceof List))
             return null;
@@ -3679,6 +3699,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return indexDataByDBCollection.get(db).get(collection).get(fields);
     }
 
+    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
                                             Map<String, Object> wc) throws MorphiumDriverException {
         // log.debug("insert() called: db={}, coll={}, thread={}", db, collection,
@@ -3977,6 +3998,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, List<Map<String, Object>>> getDB(String db) {
         if (currentTransaction.get() == null) {
             database.putIfAbsent(db, new ConcurrentHashMap<>());
@@ -4041,6 +4063,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return msg;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
         // Lock-free lookup from ConcurrentHashMap - results are always stored by ID
@@ -4092,7 +4115,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return result;
     }
 
-    @SuppressWarnings("ConstantConditions")
+    @SuppressWarnings({"ConstantConditions", "unchecked"})
     private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query,
             Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
             Map<String, Object> collation, Map<String, Object> wc, List<PendingNotification> pendingNotifications)
@@ -4739,6 +4762,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         dispatchEvent(eventInfo);
     }
 
+    @SuppressWarnings("unchecked")
     private ChangeStreamEventInfo buildChangeStreamEvent(String db, String collection, String op, Map doc,
             Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
         Map<String, Object> newDocument = cloneAndNormalizeDocument((Map<String, Object>) doc);
@@ -5147,6 +5171,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Deliver inline to keep latency low for messaging-heavy workloads
         private final java.util.concurrent.ExecutorService subscriptionExecutor = null;
 
+        @SuppressWarnings("unchecked")
         private ChangeStreamSubscription(String db, String collection, DriverTailableIterationCallback callback,
                                          List<Map<String, Object>> pipeline,
                                          WatchCommand.FullDocumentEnum fullDocumentMode,
@@ -5269,6 +5294,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
+        @SuppressWarnings("unchecked")
         private boolean applyFullDocumentBeforeChange(Map<String, Object> working) {
             Map<String, Object> before = (Map<String, Object>) working.get("fullDocumentBeforeChange");
 
@@ -5296,6 +5322,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
+        @SuppressWarnings("unchecked")
         private Map<String, Object> applyPipeline(Map<String, Object> working) {
             if (pipeline == null || pipeline.isEmpty()) {
                 return working;
@@ -5669,6 +5696,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return textFields;
     }
 
+    @SuppressWarnings("unchecked")
     private void enforceUniqueOrThrow(String db, String collection, Map<String, Object> doc)
     throws MorphiumDriverException {
         List<Map<String, Object>> indexes = getIndexes(db, collection);
@@ -5995,6 +6023,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     public void createIndex(String db, String collection, Map<String, Object> indexDef, Map<String, Object> options)
     throws MorphiumDriverException {
         Map<String, Object> index = new HashMap<>(indexDef);
@@ -6140,6 +6169,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * @param finalizeFunction Optional finalize function
      * @return List of result documents
      */
+    @SuppressWarnings("unchecked")
     private List<Map<String, Object>> mapReduceInternal(String db, String collection, String mapFunction,
             String reduceFunction,
             Object query, Object sort, Collation collation, String finalizeFunction) throws MorphiumDriverException {
@@ -6333,6 +6363,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void commitTransaction() {
         if (currentTransaction.get() == null) {
             throw new IllegalArgumentException("No transaction in progress");

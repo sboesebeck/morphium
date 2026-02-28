@@ -289,6 +289,7 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         return m;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public WatchCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);

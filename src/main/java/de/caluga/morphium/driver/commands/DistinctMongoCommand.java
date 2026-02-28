@@ -83,7 +83,9 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
             var res = connection.readSingleAnswer(msg);
             long dur = System.currentTimeMillis() - start;
             setMetaData("duration", dur);
-            return (List<Object>) res.get("values");
+            @SuppressWarnings("unchecked")
+            List<Object> values = (List<Object>) res.get("values");
+            return values;
         }, connection.getDriver().getRetriesOnNetworkError(), connection.getDriver().getSleepBetweenErrorRetries());
     }
 }

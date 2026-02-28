@@ -233,9 +233,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
      * @param q the query
      * @return the resulting cache key
      */
+    @SuppressWarnings("unchecked")
     @Override
     public String getCacheKey(Query q) {
-        // noinspection unchecked,unchecked
         return getCacheKey(q.getType(), q.toQueryObject(), q.getSort(), q.getFieldListForQuery(), q.getCollectionName(),
                 q.getSkip(), q.getLimit());
     }

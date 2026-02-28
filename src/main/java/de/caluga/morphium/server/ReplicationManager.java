@@ -378,18 +378,18 @@ public class ReplicationManager {
 
         try {
             MorphiumConfig config = new MorphiumConfig();
-            config.setDatabase("admin");  // Default db for admin operations
-            config.setHostSeed(primaryHost + ":" + primaryPort);
+            config.connectionSettings().setDatabase("admin");  // Default db for admin operations
+            config.clusterSettings().setHostSeed(primaryHost + ":" + primaryPort);
             // Increase connection pool for handling watch + progress reporting under load
-            config.setMaxConnections(10);
-            config.setMinConnections(2);
-            config.setConnectionTimeout(10000);  // 10s connection timeout
-            config.setReadTimeout(60000);  // 60s read timeout for long-running watch
-            config.setMaxWaitTime(5000);  // 5s max wait for connection from pool
-            config.setRetryReads(true);  // Retry on transient failures
-            config.setRetryWrites(true);
-            config.setRetriesOnNetworkError(3);
-            config.setSleepBetweenNetworkErrorRetries(500);
+            config.connectionSettings().setMaxConnections(10);
+            config.connectionSettings().setMinConnections(2);
+            config.connectionSettings().setConnectionTimeout(10000);  // 10s connection timeout
+            config.driverSettings().setReadTimeout(60000);  // 60s read timeout for long-running watch
+            config.connectionSettings().setMaxWaitTime(5000);  // 5s max wait for connection from pool
+            config.driverSettings().setRetryReads(true);  // Retry on transient failures
+            config.driverSettings().setRetryWrites(true);
+            config.connectionSettings().setRetriesOnNetworkError(3);
+            config.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
 
             primaryMorphium = new Morphium(config);
             primaryMorphium.getDriver();  // Force connection

@@ -56,11 +56,13 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         setCollection(cl);
 
         if (cursor.get("firstBatch") != null) {
-            //noinspection unchecked
-            setBatch((List) cursor.get("firstBatch"));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> firstBatch = (List<Map<String, Object>>) cursor.get("firstBatch");
+            setBatch(firstBatch);
         } else if (cursor.get("nextBatch") != null) {
-            //noinspection unchecked
-            setBatch((List) cursor.get("nextBatch"));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> nextBatch = (List<Map<String, Object>>) cursor.get("nextBatch");
+            setBatch(nextBatch);
             //log.error("First Cursor init returned NEXT BATCH?!?!?");
         } else {
             log.warn("No result returned");
