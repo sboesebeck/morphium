@@ -51,13 +51,20 @@ cfg.authSettings().setMongoAdminUser(System.getenv("MONGO_ADMIN_USER"));
 cfg.authSettings().setMongoAdminPwd(System.getenv("MONGO_ADMIN_PWD"));
 ```
 
-**Network Security:**
+**Network Security (SSL/TLS):**
+
+Morphium supports SSL/TLS encrypted connections since v6.0, including MongoDB Atlas and mutual TLS (mTLS) with MONGODB-X509 client certificate authentication.
+
 ```java
-// Note: Wire protocol driver has limitations
-// - No MongoDB Atlas support
-// - No SSL/TLS connections
-// Deploy in trusted network environments or use network-level encryption
+// Enable SSL/TLS (e.g. for MongoDB Atlas or any TLS-enabled deployment)
+cfg.connectionSettings().setUseSSL(true);
+
+// For custom CA certificates, use SslHelper:
+// SSLContext sslContext = SslHelper.createClientSslContext("/path/to/truststore.jks", "password");
+// cfg.connectionSettings().setSslContext(sslContext);
 ```
+
+See [SSL/TLS Connections](ssl-tls.md) for full configuration details including mTLS and MONGODB-X509.
 
 ### 3. Environment-Specific Configurations
 
