@@ -81,7 +81,7 @@ public class LastAccessTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void createOnUpsert(Morphium morphium) throws Exception  {
         morphium.dropCollection(TstObjLA.class);
-        morphium.set(morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12), "value", "a test", true, false, null);
+        morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12).set("value", "a test", true, false, null);
 
         // Wait for the upserted object to be available
         waitForConditionToBecomeTrue(5000, "Upserted object not found",
@@ -225,7 +225,7 @@ public class LastAccessTest extends MultiDriverTestBase {
         // Now using ID query
         lc = la.getLastChange();
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class).f("_id").eq(la.getId());
-        morphium.set(q, "int_value", 1);
+        q.set("int_value", 1);
 
         final long lc3 = lc;
         waitForConditionToBecomeTrue(15000, "lastChange not updated after set via query",

@@ -6,7 +6,6 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.TestUtils;
@@ -194,11 +193,11 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void answerExclusiveMessagesTest(Morphium morphium) throws Exception  {
-        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m1 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
         m1.setSenderId("m1");
-        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m2 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
         m2.setSenderId("m2");
-        SingleCollectionMessaging m3 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m3 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
         m3.setSenderId("m3");
         m3.addListenerForTopic("test", (msg, m) -> {
             log.info("Incoming message");
@@ -227,11 +226,11 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void answers3NodesTest(Morphium morphium) throws Exception  {
-        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m1 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
         m1.setSenderId("m1");
-        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m2 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
         m2.setSenderId("m2");
-        SingleCollectionMessaging mSrv = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging mSrv = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
         mSrv.setSenderId("Srv");
 
         mSrv.addListenerForTopic("query", (msg, m) -> {
@@ -275,9 +274,9 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
     public void getAnswersTest(Morphium morphium) throws Exception  {
-        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
-        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
-        SingleCollectionMessaging mTst = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m1 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
+        MorphiumMessaging m2 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
+        MorphiumMessaging mTst = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
 
         mTst.addListenerForTopic("somethign else", (msg, m) -> {
             log.info("incoming message??");
@@ -327,8 +326,8 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void waitForAnswerTest(Morphium morphium) throws Exception  {
 
-        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
-        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m1 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
+        MorphiumMessaging m2 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
         m1.setSenderId("m1");
         m2.setSenderId("m2");
 
@@ -363,8 +362,8 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     @Disabled
     public void answerWithoutListener(Morphium morphium) throws Exception  {
-        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
-        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        MorphiumMessaging m1 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
+        MorphiumMessaging m2 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
 
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -386,8 +385,8 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void answerTestDifferentType(Morphium morphium) throws Exception  {
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true);
-        SingleCollectionMessaging recipient = new SingleCollectionMessaging(morphium, 100, true);
+        MorphiumMessaging sender = morphium.createMessaging().setPause(100).setMultithreadded(true);
+        MorphiumMessaging recipient = morphium.createMessaging().setPause(100).setMultithreadded(true);
         gotMessage1 = false;
         recipient.addListenerForTopic("query", new MessageListener() {
             @Override
@@ -437,7 +436,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         // When sending a message to yourself (without using sendMessageToSelf),
         // you should NOT receive it, so this should timeout
         assertThrows(RuntimeException.class, ()-> {
-            SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 100, false);
+            MorphiumMessaging m1 = morphium.createMessaging().setPause(100).setMultithreadded(false);
             log.info("Upcoming Errormessage is expected!");
             try {
                 m1.addListenerForTopic("test", (msg, m) -> {
@@ -462,14 +461,14 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void sendAndWaitforAnswerTest(Morphium morphium) throws Exception  {
 //        morphium.dropCollection(Msg.class);
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
+        MorphiumMessaging sender = morphium.createMessaging().setPause(100).setMultithreadded(false);
 
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
 
-        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 100, false);
+        MorphiumMessaging m1 = morphium.createMessaging().setPause(100).setMultithreadded(false);
         m1.addListenerForTopic("test", (msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getTopic(), "got message", "value", 5000);

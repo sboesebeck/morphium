@@ -254,8 +254,8 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
         try(morphium) {
             final List<Msg> list = new ArrayList<>();
             morphium.dropCollection(Msg.class);
-            morphium.getConfig().setThreadPoolMessagingCoreSize(5);
-            log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
+            morphium.getConfig().messagingSettings().setThreadPoolMessagingCoreSize(5);
+            log.info("Max threadpool:" + morphium.getConfig().messagingSettings().getThreadPoolMessagingCoreSize());
             Thread.sleep(1000);
             MorphiumMessaging sender = morphium.createMessaging();
             sender.setMultithreadded(true).setWindowSize(10).start();

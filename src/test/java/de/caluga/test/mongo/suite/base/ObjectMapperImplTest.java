@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 @Tag("core")
 public class ObjectMapperImplTest {
 
@@ -256,7 +257,7 @@ public class ObjectMapperImplTest {
     @Test
     public void listValueTest() {
         MapListObject o = new MapListObject();
-        List lst = new ArrayList();
+        List<Object> lst = new ArrayList<>();
         lst.add("A Value");
         lst.add(27.0);
         lst.add(new UncachedObject());
@@ -827,7 +828,7 @@ public class ObjectMapperImplTest {
         OM.registerCustomMapperFor(MyClass.class, new MorphiumTypeMapper<MyClass>() {
             @Override
             public Object marshall(MyClass o) {
-                Map m = new HashMap();
+                Map<String, Object> m = new HashMap<>();
                 m.put("class", o.getClass().getName());
                 m.put("value", "AMMENDED+" + o.theValue);
                 return m;
@@ -835,7 +836,7 @@ public class ObjectMapperImplTest {
 
             @Override
             public MyClass unmarshall(Object d) {
-                Map m = (Map) d;
+                Map<String, Object> m = (Map<String, Object>) d;
                 MyClass mc = new MyClass();
                 mc.theValue = (String) m.get("value");
                 mc.theValue = mc.theValue.substring(9);

@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Test for $pop array update operator
  */
+@SuppressWarnings("unchecked")
 @Tag("core")
 public class ArrayPopTest {
     private static final String db = "test_db";

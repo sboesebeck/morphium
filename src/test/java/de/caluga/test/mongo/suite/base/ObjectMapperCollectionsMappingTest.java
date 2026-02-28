@@ -15,6 +15,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 @Tag("core")
 public class ObjectMapperCollectionsMappingTest extends MultiDriverTestBase {
 

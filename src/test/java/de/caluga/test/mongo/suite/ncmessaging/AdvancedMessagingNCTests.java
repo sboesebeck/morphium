@@ -7,7 +7,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -94,7 +93,7 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
             for (int i = 0; i < receivers; i++) {
                 log.info("Creating morphiums..." + i);
                 Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-                m.getConfig().getCache().setHouskeepingIntervalPause(100);
+                m.getConfig().cacheSettings().setHousekeepingTimeout(100);
                 morphiums.add(m);
                 MorphiumMessaging msg = m.createMessaging();
                 msg.setPause(50).setMultithreadded(true).setWindowSize((int)(1500 * Math.random())).setUseChangeStream(false);
@@ -312,9 +311,11 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void answerWithDifferentNameTest(Morphium morphium) throws Exception  {
         counts.clear();
-        SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100,  true, 1);
+        MorphiumMessaging producer = morphium.createMessaging();
+        producer.setPause(100).setMultithreadded(true).setWindowSize(1);
         producer.setUseChangeStream(false).start();
-        SingleCollectionMessaging consumer = new SingleCollectionMessaging(morphium, 100, true, 1);
+        MorphiumMessaging consumer = morphium.createMessaging();
+        consumer.setPause(100).setMultithreadded(true).setWindowSize(1);
         consumer.setUseChangeStream(false).start();
         Msg answer;
 
@@ -338,9 +339,11 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void ownAnsweringHandler(Morphium morphium) throws Exception  {
-        SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100,  true, 1);
+        MorphiumMessaging producer = morphium.createMessaging();
+        producer.setPause(100).setMultithreadded(true).setWindowSize(1);
         producer.setUseChangeStream(false).start();
-        SingleCollectionMessaging consumer = new SingleCollectionMessaging(morphium, 100,  true, 1);
+        MorphiumMessaging consumer = morphium.createMessaging();
+        consumer.setPause(100).setMultithreadded(true).setWindowSize(1);
         consumer.setUseChangeStream(false).start();
 
         try {

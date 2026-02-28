@@ -57,15 +57,15 @@ public class CustomMapperTest extends MultiDriverTestBase {
     public void testMongoTypes(Morphium morphium) throws Exception  {
         MongoTypesTestClass cls = new MongoTypesTestClass();
         cls.stringValue = "strValue";
-        cls.charValue = new Character('c');
-        cls.longValue = new Long(42);
-        cls.integerValue = new Integer(52);
-        cls.floatValue = new Float(3.3);
-        cls.doubleValue = new Double(34.2d);
+        cls.charValue = 'c';
+        cls.longValue = 42L;
+        cls.integerValue = 52;
+        cls.floatValue = 3.3f;
+        cls.doubleValue = 34.2d;
         cls.dateValue = new Date();
-        cls.booleanValue = new Boolean(true);
-        cls.byteValue = new Byte((byte) 0x33);
-        cls.shortValue = new Short((short) 12);
+        cls.booleanValue = true;
+        cls.byteValue = (byte) 0x33;
+        cls.shortValue = (short) 12;
         cls.atomicLongValue = new AtomicLong(42);
         cls.atomicBooleanValue = new AtomicBoolean(true);
         cls.atomicIntegerValue = new AtomicInteger(42);
@@ -228,7 +228,7 @@ public class CustomMapperTest extends MultiDriverTestBase {
         MorphiumTypeMapper<ObjectIdTest> mapper = new MorphiumTypeMapper<ObjectIdTest>() {
             @Override
             public Object marshall(ObjectIdTest o) {
-                Map serialized = new HashMap();
+                Map<String, Object> serialized = new HashMap<>();
                 serialized.put("value", o.value);
                 serialized.put("_id", o.id);
                 return serialized;
@@ -236,7 +236,7 @@ public class CustomMapperTest extends MultiDriverTestBase {
 
             @Override
             public ObjectIdTest unmarshall(Object d) {
-                Map obj = ((Map) d);
+                @SuppressWarnings("unchecked") Map<String, Object> obj = ((Map<String, Object>) d);
                 ObjectIdTest o = new ObjectIdTest();
                 o.id = new ObjectId(obj.get("_id").toString());
                 o.value = (String)(obj.get("value"));

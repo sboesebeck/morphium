@@ -16,6 +16,7 @@ import java.util.Set;
  * Time: 20:17
  * <p>
  */
+@SuppressWarnings("unchecked")
 @Tag("core")
 public class FilterExpressionTest {
 

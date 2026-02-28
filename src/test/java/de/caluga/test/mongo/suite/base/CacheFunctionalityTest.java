@@ -118,8 +118,8 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
             morphium.close();
             return;
         }
-        int gcTime = morphium.getConfig().getGlobalCacheValidTime();
-        int hcTime = morphium.getConfig().getHousekeepingTimeout();
+        int gcTime = morphium.getConfig().cacheSettings().getGlobalCacheValidTime();
+        int hcTime = morphium.getConfig().cacheSettings().getHousekeepingTimeout();
         Cache cache = morphium.getARHelper().getAnnotationFromHierarchy(SpecCachedOjbect.class, Cache.class);
         log.info("Housekeeping: " + hcTime);
         log.info("Cache valid:  " + gcTime);
@@ -132,12 +132,12 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
             sp.setStrValue("Value " + i);
             morphium.store(sp);
         }
-        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(),
             "SpecCachedOjbect not persisted",
             () -> morphium.createQueryFor(SpecCachedOjbect.class).countAll() >= amount);
         for (int i = 0; i < amount; i++) {
             final int counter = i;
-            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(),
                 "SpecCachedOjbect with counter " + i + " not found",
                 () -> morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(counter).get() != null);
             assertNotNull(morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get());

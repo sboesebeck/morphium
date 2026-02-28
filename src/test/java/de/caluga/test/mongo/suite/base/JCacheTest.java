@@ -45,7 +45,7 @@ public class JCacheTest extends MultiDriverTestBase {
             return;
         }
         MorphiumCache cache = morphium.getCache();
-        morphium.getConfig().setCache(new MorphiumCacheJCacheImpl());
+        morphium.getConfig().cacheSettings().setCache(new MorphiumCacheJCacheImpl());
         //keep original setting
         CacheManager def = cache.getCacheManager();
         morphium.getCache().setCacheManager(def);
@@ -89,7 +89,7 @@ public class JCacheTest extends MultiDriverTestBase {
             log.info("    duration: " + dur + "\n\n");
         }
         cache.setCacheManager(def);
-        morphium.getConfig().setCache(cache);
+        morphium.getConfig().cacheSettings().setCache(cache);
         e.setUri(e.getUri());
         e.setProperties(e.getProperties());
         e.setCachingProvider(new CachingProviderImpl());

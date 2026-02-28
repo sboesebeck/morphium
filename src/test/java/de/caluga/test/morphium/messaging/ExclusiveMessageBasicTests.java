@@ -188,7 +188,7 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void exclusiveMessageStartupTests(Morphium morphium) throws Exception {
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true, 1);
+        var sender = morphium.createMessaging().setPause(100).setMultithreadded(true).setWindowSize(1);
         MorphiumMessaging receiverNoListener = morphium.createMessaging();
         receiverNoListener.setPause(100).setMultithreadded(true).setWindowSize(10);
 
