@@ -11,6 +11,33 @@
 
     <name>Quarkus Morphium Showcase</name>
     <description>Comprehensive demo application showcasing all Morphium ORM features with Quarkus and Qute</description>
+    <url>https://github.com/Bardioc1977/quarkus-morphium-showcase</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <connection>scm:git:https://github.com/Bardioc1977/quarkus-morphium-showcase.git</connection>
+        <developerConnection>scm:git:git@github.com:Bardioc1977/quarkus-morphium-showcase.git</developerConnection>
+        <url>https://github.com/Bardioc1977/quarkus-morphium-showcase</url>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/Bardioc1977/quarkus-morphium-showcase/issues</url>
+    </issueManagement>
+
+    <developers>
+        <developer>
+            <id>Bardioc1977</id>
+            <url>https://github.com/Bardioc1977</url>
+        </developer>
+    </developers>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
@@ -23,6 +50,14 @@
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
         <lombok.version>1.18.42</lombok.version>
     </properties>
+
+    <!-- Resolve quarkus-morphium SNAPSHOT from GitHub Packages -->
+    <repositories>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/Bardioc1977/quarkus-morphium</url>
+        </repository>
+    </repositories>
 
     <dependencyManagement>
         <dependencies>
