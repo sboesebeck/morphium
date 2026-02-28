@@ -337,7 +337,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
     }
 
-    @SuppressWarnings("RedundantThrows")
+    @SuppressWarnings({"RedundantThrows", "unchecked"})
     private List<R> deserializeList() throws MorphiumDriverException {
         List<Map<String, Object>> r = doAggregation();
         List<R> result = new ArrayList<>();
@@ -626,6 +626,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
         Map<String, Object> m = new HashMap<>(UtilsMap.of("from", fromCollection));
 
@@ -667,14 +668,16 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, List<Map<String, Expr >> machedPipeline, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        return merge(morphium.getConfig().getDatabase(), intoCollection, let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), intoCollection, let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr >> machedPipeline, MergeActionWhenMatched matchAction,
                                   MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
     }
 
     @Override
@@ -683,21 +686,24 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Aggregator<T, R> merge(Class<?> intoCollection) {
-        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Aggregator<T, R> merge(String intoCollection) {
-        return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), intoCollection, null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Aggregator<T, R> merge(String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, matchAction, notMatchedAction, onFields);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), intoCollection, null, null, matchAction, notMatchedAction, onFields);
     }
 
-    @SuppressWarnings("ConstantConditions")
+    @SuppressWarnings({"ConstantConditions", "unchecked"})
     private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr >> pipeline, MergeActionWhenMatched matchAction,
                                    MergeActionWhenNotMatched notMatchedAction, String... onFields) {
         Class entity = morphium.getMapper().getClassForCollectionName(intoCollection);
@@ -893,6 +899,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> execStep(Map<String, Object> step, List<Map<String, Object >> data) {
         if (step.keySet().size() != 1) {
             throw new IllegalArgumentException("Pipeline start wrong");
@@ -1454,7 +1461,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                         // Get foreign collection data
                         InMemoryDriver inMemDriver = (InMemoryDriver) morphium.getDriver();
-                        Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().getDatabase());
+                        Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().connectionSettings().getDatabase());
                         List<Map<String, Object>> foreignCollection = database.get(collection);
 
                         if (foreignCollection != null) {
@@ -1506,7 +1513,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                     try {
                         // Get the foreign collection data directly from InMemoryDriver
-                        Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().getDatabase());
+                        Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().connectionSettings().getDatabase());
                         List<Map<String, Object>> foreignCollection = database.get(collection);
 
                         if (foreignCollection == null) {
@@ -1553,7 +1560,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 //} }
                 @SuppressWarnings("unchecked")
                 Map setting = ((Map<String, Object>) step.get(stage));
-                String db = morphium.getConfig().getDatabase();
+                String db = morphium.getConfig().connectionSettings().getDatabase();
                 String coll = "";
 
                 if (setting.get("into") instanceof Map) {
@@ -2025,7 +2032,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                     // Get the foreign collection data
                     InMemoryDriver inMemDriver = (InMemoryDriver) morphium.getDriver();
-                    Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().getDatabase());
+                    Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().connectionSettings().getDatabase());
                     List<Map<String, Object>> foreignCollection = database.get(fromCollection);
 
                     if (foreignCollection != null) {
@@ -2237,6 +2244,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * Helper method to extract group key from group specification
      */
+    @SuppressWarnings("unchecked")
     private Object extractGroupKey(Object groupIdSpec, Map<String, Object> doc) {
         if (groupIdSpec == null) {
             return null;
@@ -2271,6 +2279,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * Helper method to compute group values for aggregation operations like $sum, $avg, etc.
      */
+    @SuppressWarnings("unchecked")
     private Object computeGroupValue(Object valueSpec, List<Map<String, Object>> groupDocs) {
         if (valueSpec instanceof Expr) {
             // For Expr objects, convert to Map representation and handle as Map
@@ -2393,6 +2402,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * Helper method to extract value from document based on field reference or expression
      */
+    @SuppressWarnings("unchecked")
     private Object extractValue(Object spec, Map<String, Object> doc) {
         if (spec instanceof String) {
             String fieldName = spec.toString();
@@ -2494,6 +2504,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * Extract coordinates from various point representations
      */
+    @SuppressWarnings("unchecked")
     private double[] extractCoordinates(Object point) {
         if (point instanceof Map) {
             Map<String, Object> pointMap = (Map<String, Object>) point;
@@ -2524,6 +2535,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * Set a nested value in a map using dot notation (e.g., "dist.calculated")
      */
+    @SuppressWarnings("unchecked")
     private void setNestedValue(Map<String, Object> map, String path, Object value) {
         String[] parts = path.split("\\.");
         Map<String, Object> current = map;
@@ -2542,6 +2554,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     /**
      * Get a nested value from a map using dot notation (e.g., "dist.calculated")
      */
+    @SuppressWarnings("unchecked")
     private Double getNestedValue(Map<String, Object> map, String path) {
         String[] parts = path.split("\\.");
         Object current = map;
@@ -2557,6 +2570,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return (current instanceof Number) ? ((Number) current).doubleValue() : null;
     }
 
+    @SuppressWarnings("unchecked")
     private Object extractValueByPath(Map<String, Object> map, String path) {
         String[] parts = path.split("\\.");
         Object current = map;

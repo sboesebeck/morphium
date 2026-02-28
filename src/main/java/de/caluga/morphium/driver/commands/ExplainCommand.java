@@ -33,6 +33,7 @@ public class ExplainCommand extends MongoCommand<ExplainCommand> {
     }
 
 
+    @SuppressWarnings("unchecked")
     @Override
     public ExplainCommand fromMap(Map<String, Object> m) {
         // TODO Auto-generated method stub

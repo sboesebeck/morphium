@@ -22,6 +22,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
         return writeConcern;
     }
 
+    @SuppressWarnings("unchecked")
     public T setWriteConcern(Map<String, Object> writeConcern) {
         this.writeConcern = writeConcern;
         return (T) this;

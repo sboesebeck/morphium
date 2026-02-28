@@ -61,7 +61,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         // Handle field name translation for dot notation queries
         String translatedFieldName = fldStr;
         if (mapper != null && mapper.getMorphium() != null &&
-            mapper.getMorphium().getConfig().isCamelCaseConversionEnabled()) {
+            mapper.getMorphium().getConfig().objectMappingSettings().isCamelCaseConversionEnabled()) {
             if (fldStr.contains(".")) {
                 // Split dot notation and translate each part
                 String[] parts = fldStr.split("\\.");
@@ -365,9 +365,9 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Query<T> polygon(Polygon p) {
-        //noinspection unchecked
         createGeoWithinFilterExpression((List) p.getCoordinates(), "$polygon");
         return query;
     }

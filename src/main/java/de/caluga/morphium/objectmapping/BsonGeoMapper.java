@@ -6,7 +6,6 @@ import de.caluga.morphium.query.geospatial.*;
 import java.util.List;
 import java.util.Map;
 
-@SuppressWarnings("ALL")
 public class BsonGeoMapper implements MorphiumTypeMapper<Geo> {
 
     @Override
@@ -15,7 +14,7 @@ public class BsonGeoMapper implements MorphiumTypeMapper<Geo> {
         return UtilsMap.of("type", (Object) o.getType().getMongoName(), "coordinates", o.getCoordinates());
     }
 
-    @SuppressWarnings("ConstantConditions")
+    @SuppressWarnings({"ConstantConditions", "unchecked", "rawtypes"})
     @Override
     public Geo unmarshall(Object d) {
         if (!(d instanceof Map)) return null;
