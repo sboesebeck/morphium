@@ -74,6 +74,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public CountMongoCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);

@@ -69,11 +69,13 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
             throw new MorphiumDriverException("Write failed: no result returned by driver");
         }
         if (writeResult.containsKey("writeErrors")) {
-            int failedWrites = ((List) writeResult.get("writeErrors")).size();
+            int failedWrites = ((List<?>) writeResult.get("writeErrors")).size();
             int success = (int) writeResult.get("n");
             StringBuilder msg = new StringBuilder();
             msg.append("Failed to write: " + failedWrites + " - succeeded: " + success);
-            for (Map<String, Object> err : (List<Map<String, Object>>) writeResult.get("writeErrors")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> writeErrors = (List<Map<String, Object>>) writeResult.get("writeErrors");
+            for (Map<String, Object> err : writeErrors) {
                 msg.append("\n----> ");
                 msg.append(err.get("code"));
                 msg.append(":");

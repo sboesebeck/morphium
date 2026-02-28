@@ -320,7 +320,7 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
                     }
                     return answer;
                 }
-                Class cls = Class.forName(m.getValue());
+                Class<?> cls = Class.forName(m.getValue());
                 if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
                     Cache c = annotationHelper.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
                     if (c != null) {
@@ -346,7 +346,7 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
                 }
             } else {
                 //must be CACHE_SYNC_RECORD
-                Class cls = Class.forName(m.getValue());
+                Class<?> cls = Class.forName(m.getValue());
                 if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
                     Cache c = annotationHelper.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
                     if (c != null) {

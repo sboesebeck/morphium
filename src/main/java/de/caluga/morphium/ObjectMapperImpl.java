@@ -960,7 +960,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     //encrypted field
                     Encrypted enc = fld.getAnnotation(Encrypted.class);
                     Class <? extends ValueEncryptionProvider > encCls = enc.provider();
-                    ValueEncryptionProvider ep = encCls.newInstance();
+                    ValueEncryptionProvider ep = encCls.getDeclaredConstructor().newInstance();
                     String key = enc.keyName();
 
                     if (key.equals(".")) {

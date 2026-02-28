@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.LoggerFactory;
 
+@SuppressWarnings("unchecked")
 public abstract class MongoCommand<T extends MongoCommand> {
     @Transient
     private static AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(false);

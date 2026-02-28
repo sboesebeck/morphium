@@ -117,13 +117,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             //         }
             //     }
             // };
-            int core = m.getConfig().getMaxConnections() / 2;
+            int core = m.getConfig().connectionSettings().getMaxConnections() / 2;
 
             if (core <= 1) {
                 core = 1;
             }
 
-            int max = m.getConfig().getMaxConnections() * m.getConfig().getThreadConnectionMultiplier();
+            int max = m.getConfig().connectionSettings().getMaxConnections() * m.getConfig().writerSettings().getThreadConnectionMultiplier();
 
             if (max <= core) {
                 max = 2 * core;
@@ -415,15 +415,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             return;    //happens during shutdonw
         }
 
-        if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
+        if (morphium.getConfig().collectionCheckSettings().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             createCappedCollection(type, coll);
 
-            if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)) {
+            if (morphium.getConfig().collectionCheckSettings().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)) {
                 morphium.ensureIndicesFor(type, coll, callback);
             }
         }
 
-        if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
+        if (morphium.getConfig().collectionCheckSettings().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             morphium.ensureIndicesFor(type, coll, callback);
         }
     }
@@ -589,7 +589,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 try {
                                     con = morphium.getDriver().getPrimaryConnection(wc);
                                     upd = new UpdateMongoCommand(con)
-                                        .setDb(morphium.getConfig().getDatabase())
+                                        .setDb(morphium.getConfig().connectionSettings().getDatabase())
                                         .setColl(coll);
                                     upd.addUpdate(filter, update, null, false, false, null, null, null);
                                     Map<String, Object> result = upd.execute();
@@ -629,7 +629,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             try {
                                 con = morphium.getDriver().getPrimaryConnection(wc);
                                 while (!lst.isEmpty()) {
-                                    settings = new StoreMongoCommand(con).setDb(morphium.getConfig().getDatabase()).setColl(coll);
+                                    settings = new StoreMongoCommand(con).setDb(morphium.getConfig().connectionSettings().getDatabase()).setColl(coll);
 
                                     if (lst.size() > morphium.getConfig().getCursorBatchSize()) {
                                         settings.setDocuments(lst.subList(0, morphium.getConfig().getCursorBatchSize()));
@@ -678,7 +678,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             // if
                             // (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite()
                             // &&
-                            // !morphium.getDriver().getConnection().exists(morphium.getConfig().getDatabase(),
+                            // !morphium.getDriver().getConnection().exists(morphium.getConfig().connectionSettings().getDatabase(),
                             // coll)) {
                             // createCappedCollationColl(c,
                             // coll);
@@ -718,7 +718,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     morphium.getDriver().releaseConnection(con);
                                 }
                             }
-                            // morphium.getDriver().getConnection().insert(morphium.getConfig().getDatabase(),
+                            // morphium.getDriver().getConnection().insert(morphium.getConfig().connectionSettings().getDatabase(),
                             // coll, es.getValue(), wc);
                             var cache = morphium.getCache();
                             if (cache != null) {
@@ -899,7 +899,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     // : collectionName;
     //
     // try {
-    // if (!morphium.exists(morphium.getConfig().getDatabase(), coll)) {
+    // if (!morphium.exists(morphium.getConfig().connectionSettings().getDatabase(), coll)) {
     // if (logger.isDebugEnabled()) {
     // logger.debug(
     // "Collection does not exist - creating collection with"
@@ -955,7 +955,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     // }
     //
     private String getDbName() {
-        return morphium.getConfig().getDatabase();
+        return morphium.getConfig().connectionSettings().getDatabase();
     }
 
     @SuppressWarnings({"unused", "UnusedParameters"})
@@ -1022,7 +1022,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     retries++;
 
-                    if (morphium != null && morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
+                    if (morphium != null && morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
                         //log.error("Error executing... retrying");
                         // Utils.pause(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
                         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
@@ -1054,13 +1054,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
                         retries++;
 
-                        if (morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
+                        if (morphium.getConfig() != null && morphium.getDriver() != null && retries < morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
                             if (morphium.getConfig().connectionSettings() != null) {
                                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
                             } else {
                                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100)); // Default 100ms
                             }
-                            // Utils.pause(morphium.getConfig().getRetriesOnNetworkError());
+                            // Utils.pause(morphium.getConfig().connectionSettings().getRetriesOnNetworkError());
                         } else {
                             callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null);
                             break; // Exit loop after reporting error

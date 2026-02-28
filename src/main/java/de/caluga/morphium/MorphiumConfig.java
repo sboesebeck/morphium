@@ -277,7 +277,7 @@ public class MorphiumConfig {
                 }
 
                 try {
-                    Class driverClass = Class.forName((String)s);
+                    Class<?> driverClass = Class.forName((String)s);
                     Method m = driverClass.getMethod("getName");
                     driverSettings.setDriverName((String)m.invoke(null));
                 } catch (Exception e) {
@@ -321,7 +321,9 @@ public class MorphiumConfig {
         Map<String, Object> obj;
 
         try {
-            obj = (Map<String, Object>) jsonParser.parse(json);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = (Map<String, Object>) jsonParser.parse(json);
+            obj = parsed;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -1293,13 +1295,15 @@ public class MorphiumConfig {
         return p;
     }
 
-    protected <T extends Settings> T getSettingByType(Class cls) {
+    @SuppressWarnings("unchecked")
+    protected <T extends Settings> T getSettingByType(Class<?> cls) {
         for (var s : settings) {
             if (s.getClass().equals(cls)) return (T) s;
         }
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Settings> T createCopyOf(T setting) {
         return (T) setting.copy();
     }

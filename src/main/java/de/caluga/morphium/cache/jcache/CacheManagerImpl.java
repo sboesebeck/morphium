@@ -75,17 +75,18 @@ public class CacheManagerImpl implements CacheManager {
         return caches.values();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <K, V, C extends Configuration<K, V>> Cache<K, V> createCache(String cacheName, C configuration) throws IllegalArgumentException {
         CacheImpl cache = new CacheImpl();
         cache.setCacheManager(this);
         caches.put(cacheName, cache);
         cache.setName(cacheName);
-        //noinspection unchecked
         return (Cache<K, V>) cache;
 
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <K, V> Cache<K, V> getCache(String cacheName, Class<K> keyType, Class<V> valueType) {
 
@@ -93,13 +94,12 @@ public class CacheManagerImpl implements CacheManager {
             createCache(cacheName, null);
         }
 
-        //noinspection unchecked
-        return caches.get(cacheName);
+        return (Cache<K, V>) caches.get(cacheName);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <K, V> Cache<K, V> getCache(String cacheName) {
-        //noinspection unchecked,unchecked
         return getCache(cacheName, (Class<K>) Object.class, (Class<V>) Object.class);
     }
 

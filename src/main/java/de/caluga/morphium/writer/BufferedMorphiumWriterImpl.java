@@ -117,7 +117,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
     }
 
-    @SuppressWarnings("CommentedOutCode")
+    @SuppressWarnings({"CommentedOutCode", "unchecked"})
     private void flushQueueToMongo(List<WriteBufferEntry> q) {
         if (q == null) {
             return;
@@ -417,6 +417,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> void store(final T o, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
@@ -481,6 +482,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }, c, AsyncOperationType.WRITE);
     }
 
+    @SuppressWarnings("unchecked")
     private List handleList(Collection o) {
         List lst = new ArrayList();
 
@@ -501,6 +503,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         return lst;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> void store(final List<T> lst, final String collectionName, AsyncOperationCallback<T> c) {
         if (lst == null || lst.isEmpty()) {
@@ -687,6 +690,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> void inc(final T obj, final String collection, final String field, final Number amount, AsyncOperationCallback<T> c) {
         if (c == null) {
@@ -713,6 +717,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }, c, AsyncOperationType.INC);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> void pop(final T obj, final String collection, final String field, final boolean first, AsyncOperationCallback<T> c) {
         if (c == null) {
@@ -1004,6 +1009,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> void unset(final T obj, final String collection, final String field, AsyncOperationCallback<T> c) {
         if (c == null) {

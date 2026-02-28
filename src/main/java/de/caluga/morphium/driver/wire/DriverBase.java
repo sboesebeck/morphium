@@ -70,6 +70,7 @@ public abstract class DriverBase implements MorphiumDriver {
         //startHousekeeping();
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public void setConnectionUrl(String connectionUrl) throws MalformedURLException {
         URL u = new URL(connectionUrl);

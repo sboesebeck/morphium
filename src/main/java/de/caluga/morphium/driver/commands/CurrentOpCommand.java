@@ -93,6 +93,8 @@ public class CurrentOpCommand extends MongoCommand<CurrentOpCommand> {
     public List<Map<String, Object>> execute() throws MorphiumDriverException {
         var msgid = getConnection().sendCommand(this);
         var res = getConnection().readSingleAnswer(msgid);
-        return (List<Map<String, Object>>) res.get("inprog");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> inprog = (List<Map<String, Object>>) res.get("inprog");
+        return inprog;
     }
 }
