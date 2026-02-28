@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.inmem;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -2281,7 +2282,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             for (ClassInfo info : entities) {
                 try {
                     String n = info.getName();
-                    Class cls = Class.forName(n);
+                    Class cls = AnnotationAndReflectionHelper.classForName(n);
 
                     if (Modifier.isAbstract(cls.getModifiers())) {
                         continue;

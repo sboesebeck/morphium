@@ -1,5 +1,6 @@
 package de.caluga.morphium.cache.jcache;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import javax.cache.Cache;
 import javax.cache.CacheManager;
 import javax.cache.configuration.Configuration;
@@ -141,7 +142,7 @@ public class CacheManagerImpl implements CacheManager {
 
 
     private Class<?> getTypeClass() throws ClassNotFoundException {
-        return Class.forName(getURI().toString());
+        return AnnotationAndReflectionHelper.classForName(getURI().toString());
     }
 
 }
