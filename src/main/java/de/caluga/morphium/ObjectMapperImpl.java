@@ -110,7 +110,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                 for (String cn : entities.getNames()) {
                     try {
-                        Class c = Class.forName(cn, true, cl);
+                        Class c = AnnotationAndReflectionHelper.classForName(cn);
                         classByCollectionName.put(getCollectionName(c), c);
                     } catch (ClassNotFoundException e) {
                         log.error("Could not get class / collection " + cn);
