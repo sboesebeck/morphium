@@ -141,7 +141,7 @@ public class Query<T> implements Cloneable {
 
     public String getDB() {
         if (overrideDB == null) {
-            return morphium.getConfig().getDatabase();
+            return morphium.getConfig().connectionSettings().getDatabase();
         }
 
         return overrideDB;
@@ -1183,8 +1183,9 @@ public class Query<T> implements Cloneable {
             }
 
             if (o.get("$and") != null) {
-                // noinspection unchecked
-                ((List<Map<String, Object>>) o.get("$and")).add(UtilsMap.of("$or", lst));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> andList = (List<Map<String, Object>>) o.get("$and");
+                andList.add(UtilsMap.of("$or", lst));
             }
 
             else {
@@ -1197,8 +1198,9 @@ public class Query<T> implements Cloneable {
             }
 
             if (o.get("$and") != null) {
-                // noinspection unchecked
-                ((List<Map<String, Object>>) o.get("$and")).add(UtilsMap.of("$nor", lst));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> andList = (List<Map<String, Object>>) o.get("$and");
+                andList.add(UtilsMap.of("$nor", lst));
             }
 
             else {
@@ -1355,12 +1357,14 @@ public class Query<T> implements Cloneable {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public QueryIterator<Map<String, Object>> asMapIterable() {
         QueryIterator<Map<String, Object>> it = new QueryIterator<>();
-        it.setQuery((Query<Map<String, Object>>) this);
+        it.setQuery((Query<Map<String, Object>>) (Query<?>) this);
         return it;
     }
 
+    @SuppressWarnings("unchecked")
     public List<T> asList() {
         if (type == null) {
             return (List<T>)asMapList();
@@ -1689,8 +1693,7 @@ public class Query<T> implements Cloneable {
         getExecutor().submit(r);
     }
 
-    @SuppressWarnings("CommentedOutCode")
-
+    @SuppressWarnings({"CommentedOutCode", "unchecked"})
     public <R> List<R> idList() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);// type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !InMemoryDriver.driverName.equals(morphium.getDriver().getName());
@@ -1703,8 +1706,6 @@ public class Query<T> implements Cloneable {
 
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
-                // casts are not nice... any idea how to change that?
-                // noinspection unchecked
                 return (List<R>) morphium.getCache().getFromCache(type, ck);
             }
 
@@ -1714,11 +1715,6 @@ public class Query<T> implements Cloneable {
         }
 
         long start = System.currentTimeMillis();
-        // DBCollection collection =
-        // morphium.getDatabase().getCollection(getCollectionName());
-        // setReadPreferenceFor(collection);
-        // DBCursor query = collection.find(toQueryObject(), new HashMap<String,
-        // Object>("_id", 1)); //only get IDs
         List<Map<String, Object>> query;
         FindCommand settings = null;
         try {
@@ -1731,13 +1727,10 @@ public class Query<T> implements Cloneable {
                 settings.releaseConnection();
             }
         }
-        // noinspection unchecked
         List<R> ret = query.stream().map(o->(R) o.get("_id")).collect(Collectors.toList());
         long dur = System.currentTimeMillis() - start;
 
-        // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
-            // noinspection unchecked
             morphium.getCache().addToCache(ck, (Class <? extends R > ) type, ret);
         }
         return ret;
@@ -1926,14 +1919,14 @@ public class Query<T> implements Cloneable {
         return morphium.pushAll(this, field.name(), value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> pullAll(String field, List value) {
-        // noinspection unchecked
-        return morphium.pullAll(this, field, value, false, false);
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> pullAll(String field, List<?> value) {
+        return morphium.pullAll(this, field, (List<Object>) value, false, false);
     }
 
-    public Map<String, Object> pullAll(Enum field, List value) {
-        // noinspection unchecked
-        return morphium.pullAll(this, field.name(), value, false, false);
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> pullAll(Enum<?> field, List<?> value) {
+        return morphium.pullAll(this, field.name(), (List<Object>) value, false, false);
     }
 
     public Map<String, Object> pullAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
@@ -2209,8 +2202,9 @@ public class Query<T> implements Cloneable {
         f.setValue(srch);
 
         if (lang != null) {
-            // noinspection unchecked
-            ((Map<String, Object>) f.getValue()).put("$language", lang.toString());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> searchMap = (Map<String, Object>) f.getValue();
+            searchMap.put("$language", lang.toString());
         }
 
         addChild(f);
@@ -2375,6 +2369,7 @@ public class Query<T> implements Cloneable {
      *        the entity field is filled, lists will be null
      */
 
+    @SuppressWarnings("unchecked")
     public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
         var con = morphium.getDriver().getReadConnection(morphium.getReadPreferenceForClass(type));
         boolean running = true;
@@ -2504,7 +2499,7 @@ public class Query<T> implements Cloneable {
         FindCommand settings = null;
         try {
             con = getMorphium().getDriver().getReadConnection(getRP());
-            settings = new FindCommand(con).setDb(getMorphium().getConfig().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
+            settings = new FindCommand(con).setDb(getMorphium().getConfig().connectionSettings().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
             .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint);
             settings.setBatchSize(getBatchSize());
             int ms = getMaxTimeMS();
@@ -2531,7 +2526,7 @@ public class Query<T> implements Cloneable {
 
     public int getMaxTimeMS() {
         if (maxTimeMS == null) {
-            return morphium.getConfig().getMaxWaitTime();
+            return morphium.getConfig().connectionSettings().getMaxWaitTime();
         } else {
             return maxTimeMS;
         }

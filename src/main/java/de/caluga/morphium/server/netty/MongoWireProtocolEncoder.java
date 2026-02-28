@@ -53,6 +53,7 @@ public class MongoWireProtocolEncoder extends MessageToByteEncoder<WireProtocolM
         out.writeBytes(bytes);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         log.error("Encoder error: {}", cause.getMessage());

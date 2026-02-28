@@ -30,7 +30,7 @@ public abstract class MorphiumBase {
     //     unsetInEntity(toSet, field.name());
     // }
     public <T> void unsetInEntity(T toSet, Enum<?> field) {
-        unsetInEntity(toSet, field.name(), (AsyncOperationCallback) null);
+        unsetInEntity(toSet, field.name(), (AsyncOperationCallback<T>) null);
     }
 
     // /**
@@ -44,8 +44,7 @@ public abstract class MorphiumBase {
     // }
 
     public <T> void unsetInEntity(final T toSet, final String field) {
-        // noinspection unchecked
-        unsetInEntity(toSet, field, (AsyncOperationCallback) null);
+        unsetInEntity(toSet, field, (AsyncOperationCallback<T>) null);
     }
 
     /**
@@ -565,9 +564,9 @@ public abstract class MorphiumBase {
         getConfig().writerSettings().getWriter().remove(directDel, callback);
     }
 
+    @SuppressWarnings("unchecked")
     public <T> void remove(final T lo, final AsyncOperationCallback<T> callback) {
         if (lo instanceof Query) {
-            // noinspection unchecked
             remove((Query) lo, callback);
             return;
         }
@@ -663,12 +662,11 @@ public abstract class MorphiumBase {
         save(o);
     }
 
+    @SuppressWarnings("unchecked")
     public <T> void save(T o) {
         if (o instanceof List) {
-            // noinspection unchecked
             saveList((List) o);
         } else if (o instanceof Collection) {
-            // noinspection unchecked
             saveList(new ArrayList<>((Collection) o));
         } else {
             save(o, getMapper().getCollectionName(o.getClass()), null);
@@ -679,12 +677,11 @@ public abstract class MorphiumBase {
         save(o, callback);
     }
 
+    @SuppressWarnings("unchecked")
     public <T> void save(T o, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
-            // noinspection unchecked
             saveList((List) o, callback);
         } else if (o instanceof Collection) {
-            // noinspection unchecked
             saveList(new ArrayList<>((Collection) o), callback);
         } else {
             save(o, getMapper().getCollectionName(o.getClass()), callback);
@@ -698,12 +695,11 @@ public abstract class MorphiumBase {
         save(o, collection, callback);
     }
 
+    @SuppressWarnings("unchecked")
     public <T> void save(T o, String collection, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
-            // noinspection unchecked
             saveList((List) o, collection, callback);
         } else if (o instanceof Collection) {
-            // noinspection unchecked
             saveList(new ArrayList<>((Collection) o), collection, callback);
         }
 
@@ -1199,6 +1195,7 @@ public abstract class MorphiumBase {
         return addAllToSet(query, field, value, upsert, multiple, null);
     }
 
+    @SuppressWarnings("unchecked")
     public <T> Map<String, Object> addAllToSet(final Query<T> query, final String field, final List<?> value, final boolean upsert, final boolean multiple, final AsyncOperationCallback callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
@@ -1350,33 +1347,33 @@ public abstract class MorphiumBase {
     public <T> void insertList(List arrayList) {
         insertList(arrayList, null, null);
     }
+    @SuppressWarnings("unchecked")
     public <T> void insert(T o) {
         if (o instanceof List) {
             insertList((List) o, null);
         } else if (o instanceof Collection) {
-            // noinspection unchecked
             insertList(new ArrayList<>((Collection) o), null);
         } else {
             insert(o, null);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public <T> void insert(T o, AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             insertList((List) o, callback);
         } else if (o instanceof Collection) {
-            // noinspection unchecked
             insertList(new ArrayList<>((Collection) o), callback);
         } else {
             insert(o, getMapper().getCollectionName(o.getClass()), callback);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public <T> void insert(T o, String collection, AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             insertList((List) o, collection, callback);
         } else if (o instanceof Collection) {
-            // noinspection unchecked
             insertList(new ArrayList<>((Collection) o), collection, callback);
         } else {
             getWriterForClass(o.getClass()).insert(o, collection, callback);
@@ -1412,9 +1409,9 @@ public abstract class MorphiumBase {
 
     public <T> void storeNoCache(T o, String collection, AsyncOperationCallback<T> callback) {
         if (getARHelper().getId(o) == null) {
-            getConfig().getWriter().insert(o, collection, callback);
+            getConfig().writerSettings().getWriter().insert(o, collection, callback);
         } else {
-            getConfig().getWriter().store(o, collection, callback);
+            getConfig().writerSettings().getWriter().store(o, collection, callback);
         }
     }
 
@@ -1427,7 +1424,7 @@ public abstract class MorphiumBase {
     }
 
     public <T> void storeBuffered(final T lst, String collection, final AsyncOperationCallback<T> callback) {
-        getConfig().getBufferedWriter().store(lst, collection, callback);
+        getConfig().writerSettings().getBufferedWriter().store(lst, collection, callback);
     }
 
 

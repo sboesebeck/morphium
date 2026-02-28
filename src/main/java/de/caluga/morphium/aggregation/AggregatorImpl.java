@@ -372,8 +372,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             List<R> result = new ArrayList<>();
 
             if (getResultType().equals(Map.class)) {
-                //noinspection unchecked
-                result = (List<R>) r;
+                @SuppressWarnings("unchecked")
+                List<R> castResult = (List<R>) (List<?>) r;
+                result = castResult;
             } else {
                 for (Map<String, Object> dbObj : r) {
                     result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
@@ -751,10 +752,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             m.put("as", outputArray);
 
         if (pipeline != null && pipeline.size() > 0) {
-            List lst = new ArrayList();
+            List<Object> lst = new ArrayList<>();
 
             for (Expr e : pipeline) {
-                //noinspection unchecked
                 lst.add(e.toQueryObject());
             }
 
@@ -782,13 +782,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        return merge(morphium.getConfig().getDatabase(), intoCollection, let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), intoCollection, let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
     }
 
     @Override
     public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction,
         String... onFields) {
-        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
     }
 
     @Override
@@ -798,23 +798,23 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> merge(Class<?> intoCollection) {
-        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
     }
 
     @Override
     public Aggregator<T, R> merge(String intoCollection) {
-        return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), intoCollection, null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
     }
 
     @Override
     public Aggregator<T, R> merge(String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, matchAction, notMatchedAction, onFields);
+        return merge(morphium.getConfig().connectionSettings().getDatabase(), intoCollection, null, null, matchAction, notMatchedAction, onFields);
     }
 
     @SuppressWarnings("ConstantConditions")
     private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> pipeline, MergeActionWhenMatched matchAction,
         MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        Class entity = morphium.getMapper().getClassForCollectionName(intoCollection);
+        Class<?> entity = morphium.getMapper().getClassForCollectionName(intoCollection);
         List<String> flds = new ArrayList<>();
 
         if (entity != null) {
@@ -827,30 +827,27 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             flds.addAll(Arrays.asList(onFields));
         }
 
-        Map doc = UtilsMap.of("into", UtilsMap.of("db", intoDb, "coll", intoCollection));
+        Map<String, Object> doc = UtilsMap.of("into", UtilsMap.of("db", intoDb, "coll", intoCollection));
 
         if (let != null) {
-            //noinspection unchecked
-            doc.put("let", Utils.getNoExprMap((Map) let));
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> letMap = (Map<Object, Object>) (Map<?, ?>) let;
+            doc.put("let", Utils.getNoExprMap(letMap));
         }
 
         if (matchAction != null) {
-            //noinspection unchecked
             doc.put("whenMatched", matchAction.name());
         }
 
         if (notMatchedAction != null) {
-            //noinspection unchecked
             doc.put("whenNotMatched", notMatchedAction.name());
         }
 
         if (onFields != null && onFields.length != 0) {
-            //noinspection unchecked
             doc.put("on", flds);
         }
 
         if (pipeline != null) {
-            //noinspection unchecked
             doc.put("whenMatched", pipeline);
         }
 

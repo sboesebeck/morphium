@@ -161,6 +161,8 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
             int success = (int) writeResult.get("n");
             throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
         }
-        return ((Map<String, Object>) writeResult.get("value"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> value = (Map<String, Object>) writeResult.get("value");
+        return value;
     }
 }

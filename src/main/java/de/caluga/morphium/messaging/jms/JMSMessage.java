@@ -310,18 +310,16 @@ public class JMSMessage extends Msg implements Message {
         body = null;
     }
 
-    @SuppressWarnings("RedundantThrows")
+    @SuppressWarnings({"RedundantThrows", "unchecked"})
     @Override
     public <T> T getBody(Class<T> c) throws JMSException {
-        //noinspection unchecked
         return (T) body;
     }
 
-    @SuppressWarnings("RedundantThrows")
+    @SuppressWarnings({"RedundantThrows", "unchecked"})
     @Override
     public boolean isBodyAssignableTo(Class c) throws JMSException {
         if (body == null) return false;
-        //noinspection unchecked
         return c.isAssignableFrom(body.getClass());
     }
 }

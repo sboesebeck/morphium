@@ -76,6 +76,7 @@ public class QueryHelper {
      * @param query the query to validate
      * @throws IllegalArgumentException if an unknown operator is found
      */
+    @SuppressWarnings("unchecked")
     public static void validateQuery(Map<String, Object> query) {
         if (query == null || query.isEmpty()) {
             return;
@@ -118,6 +119,7 @@ public class QueryHelper {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
@@ -1613,6 +1615,7 @@ public class QueryHelper {
         return map;
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean geoIntersects(Object documentGeometry, Object queryGeometry) {
         Map<String, Object> docGeo = asGeometry(documentGeometry);
         Map<String, Object> queryGeo = asGeometry(queryGeometry instanceof Map && ((Map<?, ?>) queryGeometry).containsKey("$geometry")
@@ -2121,6 +2124,7 @@ public class QueryHelper {
         return false;
     }
 
+    @SuppressWarnings("unchecked")
     private static List<Object> asList(Object value) {
         if (value == null) {
             return Collections.emptyList();
@@ -2376,6 +2380,7 @@ public class QueryHelper {
         final List<Object> values = new ArrayList<>();
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
@@ -2401,6 +2406,7 @@ public class QueryHelper {
         return false;
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean compareGreaterThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
