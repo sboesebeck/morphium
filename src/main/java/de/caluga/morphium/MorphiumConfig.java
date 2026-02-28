@@ -508,8 +508,10 @@ public class MorphiumConfig {
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         if (autoIndexAndCappedCreationOnWrite) {
             collectionCheckSettings.setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL);
+            collectionCheckSettings.setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
         } else {
             collectionCheckSettings.setIndexCheck(IndexCheck.NO_CHECK);
+            collectionCheckSettings.setCappedCheck(CappedCheck.NO_CHECK);
         }
 
         return this;
