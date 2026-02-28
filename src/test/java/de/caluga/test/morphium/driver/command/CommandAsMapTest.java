@@ -21,6 +21,7 @@ import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
 
+@SuppressWarnings("unchecked")
 @Tag("driver")
 public class CommandAsMapTest {
     private Logger log = LoggerFactory.getLogger(CommandAsMapTest.class);

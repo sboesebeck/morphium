@@ -53,7 +53,7 @@ public class ComplexTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium, log);
             //now read it again...
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
-            ComplexObject co2 = q.getById(co.getId());
+            ComplexObject co2 = morphium.findById(ComplexObject.class, co.getId());
             log.info("Just loaded: " + co2.toString());
             log.info("Stored     : " + co);
             assert(co2.getId().equals(co.getId())) : "Ids not equal?";

@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SuppressWarnings("unchecked")
 @Tag("core")
 public class ObjectMapperSerializationTest extends MultiDriverTestBase {
 
@@ -24,7 +25,7 @@ public class ObjectMapperSerializationTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void mapSerializationTest(Morphium morphium) {
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
-        om.getMorphium().getConfig().setWarnOnNoEntitySerialization(true);
+        om.getMorphium().getConfig().objectMappingSettings().setWarnOnNoEntitySerialization(true);
         Map<String, Object> map = om.serialize(new Simple());
         log.info("Got map");
         assert (map.get("test").toString().startsWith("test"));
@@ -44,7 +45,8 @@ public class ObjectMapperSerializationTest extends MultiDriverTestBase {
         lst.add(new Simple());
         lst.add(new Simple());
 
-        List serializedList = om.serializeIterable(lst, null, null);
+        @SuppressWarnings("unchecked")
+        List<Object> serializedList = (List<Object>) (List<?>) om.serializeIterable(lst, null, null);
         assert (serializedList.size() == 3);
 
         java.util.List<Simple> deserializedList = om.deserializeList(serializedList);

@@ -404,7 +404,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             final MorphiumId lastId = last.getMorphiumId();
             final int lastCounter = last.getCounter();
 
-            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(), "Object not found by ID",
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(), "Object not found by ID",
                                                    () -> morphium.findById(UncachedObject.class, lastId) != null);
 
             UncachedObject uc = morphium.findById(UncachedObject.class, lastId);
@@ -696,7 +696,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 morphium.store(co);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(),
                                                    "Cached objects not persisted",
             () -> {
                 try {

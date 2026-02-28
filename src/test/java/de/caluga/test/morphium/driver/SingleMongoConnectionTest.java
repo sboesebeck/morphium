@@ -123,15 +123,15 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         mapper.setAnnotationHelper(new AnnotationAndReflectionHelper(true));
         MTestClass cls = new MTestClass();
         cls.stringValue = "strValue";
-        cls.charValue = new Character('c');
-        cls.longValue = new Long(42);
-        cls.integerValue = new Integer(52);
-        cls.floatValue = new Float(3.3);
-        cls.doubleValue = new Double(34.2d);
+        cls.charValue = 'c';
+        cls.longValue = 42L;
+        cls.integerValue = 52;
+        cls.floatValue = 3.3f;
+        cls.doubleValue = 34.2d;
         cls.dateValue = new Date();
-        cls.booleanValue = new Boolean(true);
-        cls.byteValue = new Byte((byte) 0x33);
-        cls.shortValue = new Short((short) 12);
+        cls.booleanValue = true;
+        cls.byteValue = (byte) 0x33;
+        cls.shortValue = (short) 12;
         cls.atomicLongValue = new AtomicLong(42);
         cls.atomicBooleanValue = new AtomicBoolean(true);
         cls.atomicIntegerValue = new AtomicInteger(42);
@@ -385,12 +385,14 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         MapReduceCommand settings = new MapReduceCommand(con).setColl(coll).setDb(db).setOutConfig(Doc.of("inline", 1)).setMap("function(){ if (this.counter%2==0) emit(this.counter,1); }")
         .setReduce("function(key,values){ return values; }").setFinalize("function(key, reducedValue){ return reducedValue;}").setSort(Doc.of("counter", 1)).setScope(Doc.of("myVar", 1));
         List<Map<String, Object>> res = settings.execute();
-        res.sort((o1, o2) -> ((Comparable) o1.get("_id")).compareTo(o2.get("_id")));
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        java.util.Comparator<Map<String, Object>> cmp = (o1, o2) -> ((Comparable) o1.get("_id")).compareTo(o2.get("_id"));
+        res.sort(cmp);
         log.info("Got results");
         assertEquals(50, res.size());
         assertTrue(res.get(0).containsKey("_id"));
         assertThat(res.get(0).containsKey("value"));
-        assertEquals(1.0, ((List) res.get(14).get("value")).get(0));
+        assertEquals(1.0, ((List<?>) res.get(14).get("value")).get(0));
         con.close();
     }
 

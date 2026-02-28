@@ -56,24 +56,24 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     m1.start();
 
                     MorphiumConfig cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-                    cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
-                    cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                    cfg2.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                     cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium2 = new Morphium(cfg2);
                     MorphiumMessaging m2 = morphium2.createMessaging();
                     m2.start();
 
                     cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-                    cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
-                    cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                    cfg2.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                     cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium3 = new Morphium(cfg2);
                     MorphiumMessaging m3 = morphium3.createMessaging();
                     m3.start();
 
                     cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-                    cfg2.setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
-                    cfg2.setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                    cfg2.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                    cfg2.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                     cfg2.driverSettings().setInMemorySharedDatabases(true);
                     Morphium morphium4 = new Morphium(cfg2);
                     MorphiumMessaging m4 = morphium4.createMessaging();

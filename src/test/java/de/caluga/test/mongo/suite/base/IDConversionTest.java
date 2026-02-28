@@ -17,6 +17,7 @@ import de.caluga.morphium.Morphium;
  * <p>
  * TODO: Add documentation here
  */
+@SuppressWarnings("unchecked")
 @Tag("core")
 public class IDConversionTest extends MultiDriverTestBase {
     @ParameterizedTest
