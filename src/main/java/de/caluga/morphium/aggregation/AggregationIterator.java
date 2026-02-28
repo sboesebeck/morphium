@@ -67,7 +67,9 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     @Override
     public R next() {
         if (Map.class.isAssignableFrom(aggregator.getResultType())) {
-            return (R) getMongoCursor().next();
+            @SuppressWarnings("unchecked")
+            R result = (R) getMongoCursor().next();
+            return result;
         }
 
         return aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), getMongoCursor().next());
@@ -79,7 +81,9 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
 
         for (Map<String, Object> o : getMongoCursor().getBatch()) {
             if (Map.class.isAssignableFrom(aggregator.getResultType())) {
-                ret.add((R) o);
+                @SuppressWarnings("unchecked")
+                R casted = (R) o;
+                ret.add(casted);
             } else {
                 ret.add(aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), o));
             }

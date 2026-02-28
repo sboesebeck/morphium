@@ -156,14 +156,16 @@ public class HouseKeepingHelper {
             for (Object k : toDelete) {
                 for (CacheListener cl : cacheListeners) {
                     try {
-                        //noinspection unchecked,unchecked
-                        cl.wouldRemoveEntryFromCache(k, (CacheEntry) cache.get(k), true);
+                        @SuppressWarnings("unchecked")
+                        CacheEntry<?> entry = (CacheEntry<?>) cache.get(k);
+                        cl.wouldRemoveEntryFromCache(k, entry, true);
                     } catch (Exception e) {
                         //ignore errors...
                     }
                 }
-                //noinspection unchecked
-                cache.remove(k);
+                @SuppressWarnings("unchecked")
+                javax.cache.Cache<Object, Object> typedCache = (javax.cache.Cache<Object, Object>) cache;
+                typedCache.remove(k);
             }
 
 

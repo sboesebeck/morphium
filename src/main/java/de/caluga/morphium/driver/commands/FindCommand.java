@@ -274,6 +274,7 @@ public class FindCommand extends ReadMongoCommand<FindCommand> {
         return explainCommand.getConnection().readSingleAnswer(msg);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public FindCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);

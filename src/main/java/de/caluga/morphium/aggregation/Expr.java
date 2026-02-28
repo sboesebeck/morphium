@@ -88,7 +88,7 @@ public abstract class Expr {
                                 continue;
                             } else if (m.getParameterCount() == 1 && m.getParameterTypes()[0].isArray() && !p.getClass().isArray()) {
                                 m.setAccessible(true);
-                                return (Expr) m.invoke(null, new Expr[] {(Expr) p});
+                                return (Expr) m.invoke(null, (Object) new Expr[] {(Expr) p});
                             }
 
                             if (m.getParameterCount() > 1 && p.getClass().isArray()) {

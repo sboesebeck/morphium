@@ -596,6 +596,7 @@ public class SingleMongoConnection implements MongoConnection {
         return reply.getFirstDoc();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
         OpMsg q = new OpMsg();
@@ -629,6 +630,7 @@ public class SingleMongoConnection implements MongoConnection {
 
         // Track the last resume token to use when restarting the watch
         // This prevents duplicate events when the watch restarts due to timeout or cursor exhaustion
+        @SuppressWarnings("unchecked")
         final Map<String, Object>[] lastResumeToken = new Map[]{null};
 
         OpMsg startMsg = new OpMsg();
@@ -684,6 +686,7 @@ public class SingleMongoConnection implements MongoConnection {
 
             checkForError(reply);
 
+            @SuppressWarnings("unchecked")
             Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
 
             if (cursor == null) {
@@ -705,10 +708,13 @@ public class SingleMongoConnection implements MongoConnection {
                 }
             }
 
+            @SuppressWarnings("unchecked")
             List<Map<String, Object >> result = (List<Map<String, Object >> ) cursor.get("firstBatch");
 
             if (result == null) {
-                result = (List<Map<String, Object >>) cursor.get("nextBatch");
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object >> nextBatchResult = (List<Map<String, Object >>) cursor.get("nextBatch");
+                result = nextBatchResult;
             }
             // Track whether we should exit after processing events
             boolean shouldExit = false;
@@ -809,7 +815,9 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         else if (reply.getFirstDoc().containsKey("results")) {
-            return new SingleBatchCursor((List<Map<String, Object >>) reply.getFirstDoc().get("results"));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> results = (List<Map<String, Object>>) reply.getFirstDoc().get("results");
+            return new SingleBatchCursor(results);
         }
 
         return new SingleElementCursor(reply.getFirstDoc());
@@ -847,16 +855,19 @@ public class SingleMongoConnection implements MongoConnection {
             return null;
         }
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> cursor = (Map<String, Object>) msg.getFirstDoc().get("cursor");
         Map<String, Object> ret = null;
 
         if (cursor.containsKey("firstBatch")) {
+            @SuppressWarnings("unchecked")
             List<Map<String, Object >> lst = (List<Map<String, Object >> ) cursor.get("firstBatch");
 
             if (lst != null && !lst.isEmpty()) {
                 ret = lst.get(0);
             }
         } else {
+            @SuppressWarnings("unchecked")
             List<Map<String, Object >> lst = (List<Map<String, Object >> ) cursor.get("nextBatch");
 
             if (lst != null && !lst.isEmpty()) {

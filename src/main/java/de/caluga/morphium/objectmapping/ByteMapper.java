@@ -10,7 +10,7 @@ public class ByteMapper implements MorphiumTypeMapper<Byte>{
     @Override
     public Byte unmarshall(Object d) {
         if (d==null) return null;
-        return new Byte((byte)d);
+        return (Byte) d;
     }
 
 
