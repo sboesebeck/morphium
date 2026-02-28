@@ -103,7 +103,8 @@ Morphium 6.1 transforms **MorphiumServer** into a true drop-in replacement for M
 
 ### Java 21 & Modern Language Features
 - **Virtual threads** for high-throughput messaging and change streams
-- **Pattern matching & records** across driver and mapping layers
+- **Pattern matching** across driver and mapping layers
+- **Records**: Not yet supported as `@Entity` or `@Embedded` types (see [#116](https://github.com/sboesebeck/morphium/issues/116))
 - **Sealed class support** for cleaner domain models
 
 ### Driver & Connectivity

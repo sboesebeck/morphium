@@ -63,7 +63,7 @@ Morphium 6.1 macht den **MorphiumServer** zu einem echten "Drop-in"-Ersatz für 
 ### JDK 21 & Moderne Java-Features
 - **Virtual Threads**: Messaging-System optimiert für Project Loom
 - **Pattern Matching**: Verbesserte Code-Klarheit und Typ-Sicherheit
-- **Records Support**: Volle Unterstützung für Java Records als Entities
+- **Records**: Noch nicht als `@Entity` oder `@Embedded` unterstützt (siehe [#116](https://github.com/sboesebeck/morphium/issues/116))
 - **Sealed Classes**: Bessere Typ-Hierarchien in Domain-Models
 
 ### Treiber & Konnektivität
