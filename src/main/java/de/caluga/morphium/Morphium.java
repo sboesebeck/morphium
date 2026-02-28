@@ -1822,7 +1822,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         int w = safety.level().getValue();
         long timeout = safety.timeout();
 
-        if (!isReplicaSet()) {
+        // Use the driver's actual replica set state (determined at connect time)
+        // rather than the config flag, which defaults to true and may not reflect reality.
+        boolean actuallyReplicaSet = getDriver() != null && getDriver().isReplicaSet();
+
+        if (!actuallyReplicaSet) {
             // Standalone MongoDB: downgrade write concern that requires replica set
             if (w > 1 || safety.level() == SafetyLevel.MAJORITY) {
                 log.warn("Entity {} has @WriteSafety(level={}) which requires a replica set, "
@@ -3122,7 +3126,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void startTransaction() {
-        if (!isReplicaSet()) {
+        if (getDriver() != null && !getDriver().isReplicaSet()) {
             log.warn("Transactions require a replica set. Current MongoDB is standalone. "
                     + "Transaction will likely fail.");
         }

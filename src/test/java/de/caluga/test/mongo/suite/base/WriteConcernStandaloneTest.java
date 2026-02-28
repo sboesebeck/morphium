@@ -42,11 +42,13 @@ public class WriteConcernStandaloneTest {
         cfg.connectionSettings().setDatabase("wc_test");
         cfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
         cfg.clusterSettings().setHostSeed(new ArrayList<>());
-        cfg.clusterSettings().setReplicaset(replicaSet);
         cfg.collectionCheckSettings()
            .setCappedCheck(CappedCheck.WARN_ON_STARTUP)
            .setIndexCheck(IndexCheck.WARN_ON_STARTUP);
-        return new Morphium(cfg);
+        Morphium m = new Morphium(cfg);
+        // Set replica set state on the driver (the actual source of truth used by getWriteConcernForClass)
+        m.getDriver().setReplicaSet(replicaSet);
+        return m;
     }
 
     @Test
