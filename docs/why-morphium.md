@@ -255,7 +255,7 @@ Let's be honest: Morphium isn't always the best choice.
 
 | Scenario | Recommendation |
 |----------|----------------|
-| MongoDB Atlas | **Official Driver** (Morphium doesn't support Atlas) |
+| MongoDB Atlas (sharded clusters) | **Official Driver** (Morphium supports Atlas replica sets via `mongodb+srv://`, but not sharded clusters) |
 | Maximum throughput (>50K ops/sec) | **Official Driver** (less overhead) |
 | Team only knows Spring Data | **Spring Data MongoDB** (lower learning curve) |
 | No messaging needed, simple CRUD | **Official Driver** is sufficient |
