@@ -2,50 +2,27 @@
 
 ## Quick Summary
 
-Stability and reliability release with a breaking change to `MorphiumDriverException`, critical connection pool fixes, and improved messaging resilience.
-
-## Breaking Change
-
-### MorphiumDriverException is now unchecked (`extends RuntimeException`)
-
-`MorphiumDriverException` now extends `RuntimeException` instead of `Exception`, aligning with every major Java database framework (MongoDB Driver, JPA/Hibernate, Spring Data, jOOQ).
-
-**Action required** if your code catches a `RuntimeException` and inspects the cause:
-
-```java
-// BROKEN after this release -- instanceof check now always returns false
-catch (RuntimeException e) {
-    if (e.getCause() instanceof MorphiumDriverException) { ... }
-}
-
-// Correct -- catch it directly
-catch (MorphiumDriverException e) {
-    handleDbError(e);
-}
-```
-
-This is a **silent behavioral change** -- no compile error, the `instanceof` check simply returns `false`.
+Stability release focused on connection pool reliability, test stabilization, and documentation improvements.
 
 ## Key Fixes
 
 ### Connection Pool
 
 - **Counter drift / pool exhaustion**: Fixed incorrect borrowed counter decrement under topology changes
-- **Hostname case mismatch**: Fixed pool exhaustion when MongoDB reports hostnames with different casing than the seed list (all hostname operations now normalize to lowercase)
-- **Heartbeat connection leak**: Connections are now properly closed in `finally` blocks
-- **Parallel connection creation**: Changed from sequential to parallel (up to 10 virtual threads) for burst scenarios
+- **Heartbeat connection leak**: Connections are now properly closed in `finally` blocks when `getHelloResult()` or `connect()` throws during heartbeat
+- **ReadPreference fall-through**: Documented intentional `NEAREST` -> `PRIMARY_PREFERRED` -> `SECONDARY` degradation path
 
-### Messaging
+### Test Infrastructure
 
-- **Lock TTL bug**: Locks no longer expire immediately when messages have `timingOut=false` (uses 7-day fallback TTL)
-- **ChangeStreamMonitor stability**: Auto-recovery on "connection closed" instead of permanent stop; resume token tracking prevents duplicate events
-- **ChangeStreamHistoryLost**: Graceful recovery by discarding stale resume tokens
+- Split long-running `QueryTest` and `ObjectMapperTest` into focused classes for better maintainability
+- Tuned timeouts for more resilient test execution under load
+- Improved test scripts (rg stdin fallback, log file handling)
 
-### MorphiumServer
+### Documentation
 
-- **Write concern with partial replica sets**: Fast-fail (100ms) when no secondaries are registered instead of blocking for full `wtimeout`
-- **Replication**: Extended to handle `drop`, `dropDatabase`, `replace`, and `rename` operations
-- **killCursors handler**: Prevents virtual thread accumulation from leaked watch cursors
+- Added SSL/TLS documentation and benchmark results
+- Added v5 vs v6 performance comparison
+- Fixed messaging comparison (v5 also had ChangeStream)
 
 ## Requirements
 

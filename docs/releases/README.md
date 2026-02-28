@@ -31,14 +31,30 @@ When creating a new release:
 
 Releases are listed newest-first. For the full changelog, see [CHANGELOG.md](../../CHANGELOG.md).
 
+### [6.2.0-SNAPSHOT](RELEASE-NOTES-6.2.0-SNAPSHOT.md) - Unreleased
+Current development version with significant new features.
+- [Release Notes](RELEASE-NOTES-6.2.0-SNAPSHOT.md)
+
+**Highlights:**
+- **Breaking:** `MorphiumDriverException` is now unchecked (`RuntimeException`)
+- `@Version` annotation for optimistic locking
+- MONGODB-X509 client certificate authentication
+- MongoDB Atlas `mongodb+srv://` connection support
+
+---
+
+### 6.1.9
+Latest stable release. Bugfixes and minor improvements.
+
+---
+
 ### [6.1.8](RELEASE-NOTES-6.1.8.md)
-Stability release with breaking `MorphiumDriverException` change and critical connection pool fixes.
+Stability release with connection pool fixes and test stabilization.
 - [Quick Release Notes](RELEASE-NOTES-6.1.8.md)
 
 **Highlights:**
-- `MorphiumDriverException` is now unchecked (`RuntimeException`)
-- Connection pool exhaustion fixes (hostname case, counter drift, heartbeat leak)
-- Messaging lock TTL fix, ChangeStreamMonitor auto-recovery
+- Connection pool counter drift and heartbeat leak fixes
+- Test infrastructure improvements
 
 ---
 
