@@ -122,7 +122,9 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
     public T next() {
         try {
             if (query.getType() == null) {
-                return (T) getMongoCursor().next();
+                @SuppressWarnings("unchecked")
+                T result = (T) getMongoCursor().next();
+                return result;
             }
 
             var ret = query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());

@@ -533,8 +533,11 @@ public class SingleMongoConnectDriver extends DriverBase {
                 return null;
             }
 
-            //noinspection unchecked
-            mem.stream().filter(d->d.get("optime") instanceof Map).forEach(d->d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
+            mem.stream().filter(d->d.get("optime") instanceof Map).forEach(d->{
+                @SuppressWarnings("unchecked")
+                Map<String, Doc> optimeMap = (Map<String, Doc>) d.get("optime");
+                d.put("optime", optimeMap.get("ts"));
+            });
             return result;
         } finally {
             if (cmd != null && cmd.getConnection() != null) {
@@ -708,12 +711,15 @@ public class SingleMongoConnectDriver extends DriverBase {
             if (cursor == null) {
                 //trying result
                 if (reply.getFirstDoc().get("result") != null) {
-                    //noinspection unchecked
-                    return (List<Map<String, Object>>) reply.getFirstDoc().get("result");
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> result = (List<Map<String, Object>>) reply.getFirstDoc().get("result");
+                    return result;
                 }
 
                 if (reply.getFirstDoc().containsKey("results")) {
-                    return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> results = (List<Map<String, Object>>) reply.getFirstDoc().get("results");
+                    return results;
                 }
                 throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
             }
@@ -729,11 +735,13 @@ public class SingleMongoConnectDriver extends DriverBase {
             }
 
             if (cursor.get("firstBatch") != null) {
-                //noinspection unchecked
-                ret.addAll((List) cursor.get("firstBatch"));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> firstBatch = (List<Map<String, Object>>) cursor.get("firstBatch");
+                ret.addAll(firstBatch);
             } else if (cursor.get("nextBatch") != null) {
-                //noinspection unchecked
-                ret.addAll((List) cursor.get("nextBatch"));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> nextBatch = (List<Map<String, Object>>) cursor.get("nextBatch");
+                ret.addAll(nextBatch);
             }
 
             if (((Long) cursor.get("id")) != 0) {

@@ -147,7 +147,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
         UncachedObject uc = new UncachedObject("value", 10055);
         uc.setIntData(new int[0]); // Initialize with empty array for push to work
         morphium.store(uc);
-        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(), "Did not store?", () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
+        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(), "Did not store?", () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).eq(uc.getMorphiumId())
             .push(UncachedObject.Fields.intData, 42);
         Thread.sleep(500);
@@ -162,7 +162,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
         UncachedObject uc = new UncachedObject("value", 10055);
         uc.setIntData(new int[0]); // Initialize with empty array for pushAll to work
         morphium.store(uc);
-        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(), "Did not store?", () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
+        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(), "Did not store?", () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
         List<Integer> lst = Arrays.asList(42, 123);
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pushAll(UncachedObject.Fields.intData, lst);
         Thread.sleep(500);
@@ -178,7 +178,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
         UncachedObject uc = new UncachedObject("value", 1021);
         uc.setIntData(new int[] {12, 23, 52, 42});
         morphium.store(uc);
-        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(), "Did not store?", () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
+        TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(), "Did not store?", () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pull(UncachedObject.Fields.intData, 12, false, false, null);
         Thread.sleep(100);
         morphium.reread(uc);
@@ -217,7 +217,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
         while (cnt == 0) {
             cnt = morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).gte(100).countAll();
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
         }
 
         assertNotEquals(0, cnt);
@@ -302,7 +302,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
             .f(UncachedObject.Fields.counter).lt(5)
             .dec(UncachedObject.Fields.dval, 0.2, false, true);
 
-        TestUtils.waitForConditionToBecomeTrue((long) morphium.getConfig().getMaxWaitTime(), "took too long", () -> morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.dval).lt(0).countAll() >= 4);
+        TestUtils.waitForConditionToBecomeTrue((long) morphium.getConfig().connectionSettings().getMaxWaitTime(), "took too long", () -> morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.dval).lt(0).countAll() >= 4);
 
     }
 
@@ -312,7 +312,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
         createUncachedObjects(morphium, 10);
         long s = System.currentTimeMillis();
 
-        TestUtils.waitForConditionToBecomeTrue((long) morphium.getConfig().getMaxWaitTime(), (dur, e) -> {
+        TestUtils.waitForConditionToBecomeTrue((long) morphium.getConfig().connectionSettings().getMaxWaitTime(), (dur, e) -> {
             log.info("Took to long");
         }, () -> TestUtils.countUC(morphium) >= 10, (dur) -> {
             log.info("waiting");
@@ -321,7 +321,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
         });
         while (TestUtils.countUC(morphium) < 10) {
             Thread.sleep(50);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
         }
 
         AtomicInteger ai = new AtomicInteger(0);

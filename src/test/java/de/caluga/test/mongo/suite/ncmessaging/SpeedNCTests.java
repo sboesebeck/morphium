@@ -3,7 +3,6 @@ import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
@@ -22,7 +21,8 @@ public class SpeedNCTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void writeSpeed(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
-        SingleCollectionMessaging msg = new SingleCollectionMessaging(morphium, 100, false, true, 10);
+        MorphiumMessaging msg = morphium.createMessaging();
+        msg.setPause(100).setMultithreadded(true).setWindowSize(1);
         msg.setUseChangeStream(false).start();
 
 
@@ -54,9 +54,11 @@ public class SpeedNCTests extends MultiDriverTestBase {
     public void writeRecSpeed(Morphium morphium) throws Exception  {
         morphium.clearCollection(Msg.class);
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false, true, 10);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setUseChangeStream(false).start();
-        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium, 100, true, true, 100);
+        MorphiumMessaging receiver = morphium.createMessaging();
+        receiver.setPause(100).setMultithreadded(true).setWindowSize(100);
         receiver.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 
@@ -98,11 +100,14 @@ public class SpeedNCTests extends MultiDriverTestBase {
     public void writeExclusiveRec(Morphium morphium) throws Exception  {
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
         morphium.clearCollection(Msg.class);
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false, true, 10);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setUseChangeStream(false).start();
-        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium, 100, true, true, 100);
+        MorphiumMessaging receiver = morphium.createMessaging();
+        receiver.setPause(100).setMultithreadded(true).setWindowSize(100);
         receiver.setUseChangeStream(false).start();
-        SingleCollectionMessaging receiver2 = new SingleCollectionMessaging(morphium, 100, true, true, 100);
+        MorphiumMessaging receiver2 = morphium.createMessaging();
+        receiver2.setPause(100).setMultithreadded(true).setWindowSize(100);
         receiver2.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 

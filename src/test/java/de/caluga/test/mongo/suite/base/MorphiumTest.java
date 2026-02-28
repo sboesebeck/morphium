@@ -24,7 +24,7 @@ public class MorphiumTest extends MultiDriverTestBase {
         createUncachedObjects(morphium, 1);
         Thread.sleep(10);
         assert (morphium.listDatabases().size() != 0);
-        assert (morphium.listDatabases().contains(morphium.getConfig().getDatabase()));
+        assert (morphium.listDatabases().contains(morphium.getConfig().connectionSettings().getDatabase()));
         assert (morphium.listCollections().contains(morphium.getMapper().getCollectionName(UncachedObject.class)));
     }
 

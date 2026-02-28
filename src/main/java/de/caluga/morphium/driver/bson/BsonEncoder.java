@@ -104,7 +104,7 @@ public class BsonEncoder {
         return out.toByteArray();
     }
 
-    @SuppressWarnings("UnusedReturnValue")
+    @SuppressWarnings({"UnusedReturnValue", "deprecation"})
     public BsonEncoder encodeObject(String n, Object v) {
 
         if (v == null) {
@@ -330,6 +330,26 @@ public class BsonEncoder {
             writeByte(2);
             cString(n);
             string(v.toString());
+        } else if (v instanceof java.time.LocalDateTime ldt) {
+            // Matches LocalDateTimeMapper format: {sec: epochSecond, n: nano}
+            writeByte(3);
+            cString(n);
+            writeBytes(BsonEncoder.encodeDocument(Doc.of("sec", ldt.toEpochSecond(java.time.ZoneOffset.UTC), "n", ldt.getNano())));
+        } else if (v instanceof java.time.LocalDate ld) {
+            // Matches LocalDateMapper format: epoch day as Long
+            writeByte(0x12);
+            cString(n);
+            writeLong(ld.toEpochDay());
+        } else if (v instanceof java.time.LocalTime lt) {
+            // Matches LocalTimeMapper format: nano of day as Long
+            writeByte(0x12);
+            cString(n);
+            writeLong(lt.toNanoOfDay());
+        } else if (v instanceof java.time.Instant inst) {
+            // Matches InstantMapper format: {type: "instant", seconds: epochSecond, nanos: nano}
+            writeByte(3);
+            cString(n);
+            writeBytes(BsonEncoder.encodeDocument(Doc.of("type", "instant", "seconds", inst.getEpochSecond(), "nanos", inst.getNano())));
         } else {
             throw new RuntimeException("Unhandled Data type: " + v.getClass().getName());
         }

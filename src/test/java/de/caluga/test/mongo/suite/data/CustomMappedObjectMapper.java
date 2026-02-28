@@ -6,6 +6,7 @@ import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import java.util.HashMap;
 import java.util.Map;
 
+@SuppressWarnings("unchecked")
 public class CustomMappedObjectMapper implements MorphiumTypeMapper<CustomMappedObject> {
 
     public Object marshall(CustomMappedObject o) {

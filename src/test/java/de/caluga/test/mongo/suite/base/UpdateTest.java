@@ -203,7 +203,7 @@ public class UpdateTest extends MultiDriverTestBase {
             Thread.sleep(100);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("strValue").eq("unexistent");
-            morphium.set(q, "counter", 999, true, false);
+            q.set("counter", 999, true, false);
             Thread.sleep(220);
             UncachedObject uc = q.get(); // should now work
             assertNotNull(uc, "Not found?!?!?");
@@ -344,7 +344,7 @@ public class UpdateTest extends MultiDriverTestBase {
             UncachedObject uc = q.get();
             assert(uc.getStrValue() == null);
             q = morphium.createQueryFor(UncachedObject.class).f("counter").gt(90);
-            morphium.unsetQ(q, false, "str_value");
+            q.unset(false, "str_value");
             Thread.sleep(300);
             List<UncachedObject> lst = q.asList();
             boolean found = false;

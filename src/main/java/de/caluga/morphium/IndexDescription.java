@@ -42,6 +42,7 @@ public class IndexDescription {
     public static IndexDescription fromMap(Map<String, Object> incoming) {
         if (incoming.get("name") == null || incoming.get("name").equals("")) {
             StringBuilder sb = new StringBuilder();
+            @SuppressWarnings("unchecked")
             Map<String, Object> keymap = (Map<String, Object>) incoming.get("key");
             for (var k : keymap.keySet()) {
                 sb.append(k);

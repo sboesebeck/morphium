@@ -1581,9 +1581,12 @@ public class PooledDriver extends DriverBase {
                 return null;
             }
 
-            // noinspection unchecked
             mem.stream().filter(d -> d.get("optime") instanceof Map)
-               .forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
+               .forEach(d -> {
+                   @SuppressWarnings("unchecked")
+                   Map<String, Doc> optimeMap = (Map<String, Doc>) d.get("optime");
+                   d.put("optime", optimeMap.get("ts"));
+               });
             return result;
         } finally {
             releaseConnection(con);

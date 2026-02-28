@@ -76,6 +76,7 @@ public class QueryHelper {
      * @param query the query to validate
      * @throws IllegalArgumentException if an unknown operator is found
      */
+    @SuppressWarnings("unchecked")
     public static void validateQuery(Map<String, Object> query) {
         if (query == null || query.isEmpty()) {
             return;
@@ -118,6 +119,7 @@ public class QueryHelper {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
@@ -1613,6 +1615,7 @@ public class QueryHelper {
         return map;
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean geoIntersects(Object documentGeometry, Object queryGeometry) {
         Map<String, Object> docGeo = asGeometry(documentGeometry);
         Map<String, Object> queryGeo = asGeometry(queryGeometry instanceof Map && ((Map<?, ?>) queryGeometry).containsKey("$geometry")
@@ -2121,6 +2124,7 @@ public class QueryHelper {
         return false;
     }
 
+    @SuppressWarnings("unchecked")
     private static List<Object> asList(Object value) {
         if (value == null) {
             return Collections.emptyList();
@@ -2376,6 +2380,7 @@ public class QueryHelper {
         final List<Object> values = new ArrayList<>();
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
@@ -2387,6 +2392,15 @@ public class QueryHelper {
 
         if (left instanceof Number && right instanceof Number) {
             return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) <= offset;
+        }
+
+        // Temporal types: normalise both sides to a comparable Long.
+        // Handles mixed forms: raw java.time objects (query filters) vs
+        // Map/Long-encoded values (stored documents).
+        Long leftNum = toTemporalNumber(left);
+        Long rightNum = toTemporalNumber(right);
+        if (leftNum != null && rightNum != null) {
+            return Long.compare(leftNum, rightNum) <= offset;
         }
 
         if (left instanceof Comparable && right instanceof Comparable) {
@@ -2401,6 +2415,7 @@ public class QueryHelper {
         return false;
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean compareGreaterThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
@@ -2414,6 +2429,13 @@ public class QueryHelper {
             return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) >= offset;
         }
 
+        // Temporal types: normalise both sides to a comparable Long.
+        Long leftNum = toTemporalNumber(left);
+        Long rightNum = toTemporalNumber(right);
+        if (leftNum != null && rightNum != null) {
+            return Long.compare(leftNum, rightNum) >= offset;
+        }
+
         if (left instanceof Comparable && right instanceof Comparable) {
             try {
                 //noinspection unchecked
@@ -2424,6 +2446,83 @@ public class QueryHelper {
         }
 
         return false;
+    }
+
+    /**
+     * Unified normalisation: tries toEpochNanos first (LocalDateTime, Instant),
+     * then toTemporalLong (LocalDate, LocalTime), then plain Number extraction.
+     * This allows comparisons between raw java.time objects (from query filters)
+     * and their serialised forms (stored as Map or Long in documents).
+     */
+    private static Long toTemporalNumber(Object value) {
+        Long result = toEpochNanos(value);
+        if (result != null) return result;
+        result = toTemporalLong(value);
+        if (result != null) return result;
+        // A stored LocalDate/LocalTime value is already a Long (Number)
+        if (value instanceof Number) return ((Number) value).longValue();
+        return null;
+    }
+
+    /**
+     * Tries to extract a comparable epoch-nanos value from temporal types.
+     * Handles both raw java.time objects (from query filters) and their
+     * serialised Map/Long forms (from stored documents).
+     * <p>Supports:
+     * <ul>
+     *   <li>Raw: {@code LocalDateTime}, {@code Instant}</li>
+     *   <li>Map: {@code {sec: epochSecond, n: nano}} (LocalDateTime format)</li>
+     *   <li>Map: {@code {type: "instant", seconds: epochSecond, nanos: nano}} (Instant format)</li>
+     * </ul>
+     * Returns null if the object is not a recognised temporal type.
+     */
+    @SuppressWarnings("unchecked")
+    private static Long toEpochNanos(Object value) {
+        // Raw java.time objects (from query filters — not serialised)
+        if (value instanceof java.time.LocalDateTime ldt) {
+            return ldt.toEpochSecond(java.time.ZoneOffset.UTC) * 1_000_000_000L + ldt.getNano();
+        }
+        if (value instanceof java.time.Instant inst) {
+            return inst.getEpochSecond() * 1_000_000_000L + inst.getNano();
+        }
+        // Map-encoded forms (from stored documents — serialised by TypeMapper)
+        if (value instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) value;
+            // LocalDateTime format: {sec, n}
+            if (map.containsKey("sec") && map.containsKey("n")) {
+                long sec = ((Number) map.get("sec")).longValue();
+                long n = ((Number) map.get("n")).longValue();
+                return sec * 1_000_000_000L + n;
+            }
+            // Instant format: {type: "instant", seconds, nanos}
+            if ("instant".equals(map.get("type")) && map.containsKey("seconds") && map.containsKey("nanos")) {
+                long sec = ((Number) map.get("seconds")).longValue();
+                long n = ((Number) map.get("nanos")).longValue();
+                return sec * 1_000_000_000L + n;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tries to normalise temporal values to a comparable Long.
+     * Handles both raw java.time objects and their Long-encoded forms.
+     * <p>Supports:
+     * <ul>
+     *   <li>Raw: {@code LocalDate} → epoch day</li>
+     *   <li>Raw: {@code LocalTime} → nano of day</li>
+     * </ul>
+     * Returns null if the object is not a recognised simple temporal type.
+     * (Number values are already handled by the Number comparison path.)
+     */
+    private static Long toTemporalLong(Object value) {
+        if (value instanceof java.time.LocalDate ld) {
+            return ld.toEpochDay();
+        }
+        if (value instanceof java.time.LocalTime lt) {
+            return lt.toNanoOfDay();
+        }
+        return null;
     }
 
     private static Pattern buildRegexPattern(Map<String, Object> commandMap, int baseFlags) {

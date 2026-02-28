@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SuppressWarnings("unchecked")
 @Tag("inmemory")
 public class InMemDriverTest extends MorphiumInMemTestBase {
     private Logger log = LoggerFactory.getLogger(InMemDriverTest.class);

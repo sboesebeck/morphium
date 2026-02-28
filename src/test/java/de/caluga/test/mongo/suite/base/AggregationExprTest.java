@@ -18,6 +18,7 @@ import java.util.Map;
 import static de.caluga.morphium.aggregation.Expr.*;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@SuppressWarnings("unchecked")
 @Testable
 @Tag("core")
 public class AggregationExprTest  {

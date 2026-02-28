@@ -172,6 +172,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         return "dm_" + morphium.getARHelper().createCamelCase(sender, false);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void start() {
         running.set(true);
@@ -646,6 +647,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
      * @param m the message to process
      * @param alreadyTracked if true, the message is already in processingMessages (caller did atomic add)
      */
+    @SuppressWarnings("unchecked")
     private void processMessage(Msg m, boolean alreadyTracked) {
         if (!monitorsByTopic.containsKey(m.getTopic())) {
             // log.error("I {} Got a message I do not have a listener configured for: {}!",
@@ -770,6 +772,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void pollAndProcessDms(String name) {
         // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
         var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f("processed_by.0").notExists() // not processed
@@ -1238,6 +1241,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
      * Create monitors for a topic without starting them and WITHOUT DB calls.
      * Used by batch registration to avoid connection pool exhaustion.
      */
+    @SuppressWarnings("unchecked")
     private Map<MType, Object> createTopicMonitorsLight(String n, MessageListener l) {
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
@@ -1606,6 +1610,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             allMessagings.remove(this);
     }
 
+    @SuppressWarnings("unchecked")
     private void persistMessage(Msg m, boolean async) {
         // Don't send messages if messaging has been terminated
         if (!running.get()) {
@@ -1759,6 +1764,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         return total;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void sendMessageToSelf(Msg m) {
 
@@ -1767,6 +1773,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         morphium.store(m, getDMCollectionName(), null);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void queueMessagetoSelf(Msg m) {
 
@@ -1786,6 +1793,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
         if (!running.get()) {
@@ -1869,6 +1877,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 // Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
             }
         } finally {
+            @SuppressWarnings("unchecked")
             List<T> answers = new ArrayList(waitingForAnswers.remove(requestMsgId));
             if (numberOfAnswers > 0 && answers.size() > numberOfAnswers) {
                 returnValue = new ArrayList<>(answers.subList(0, numberOfAnswers));
@@ -1923,6 +1932,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         return effectiveSettings.isProcessMultiple();
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public MorphiumMessaging setProcessMultiple(boolean processMultiple) {
         effectiveSettings.setProcessMultiple(processMultiple);

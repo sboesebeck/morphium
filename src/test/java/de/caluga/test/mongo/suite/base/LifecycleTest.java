@@ -55,7 +55,7 @@ public class LifecycleTest extends MultiDriverTestBase {
         assertTrue(postRemove, "Post remove not called");
         preUpdate = false;
         postUpdate = false;
-        morphium.set(q, "value", "a test - lifecycle won't be called");
+        q.set("value", "a test - lifecycle won't be called");
         assertFalse(preUpdate);
         assertFalse(postUpdate);
     }

@@ -144,10 +144,14 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
         var doc = super.asMap();
         doc.putIfAbsent("cursor", new Doc());
         if (getBatchSize() != null) {
-            ((Map) doc.get("cursor")).put("batchSize", getBatchSize());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cursorBatch = (Map<String, Object>) doc.get("cursor");
+            cursorBatch.put("batchSize", getBatchSize());
             doc.remove("batchSize");
         } else {
-            ((Map) doc.get("cursor")).put("batchSize", getConnection().getDriver().getDefaultBatchSize());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cursorDefault = (Map<String, Object>) doc.get("cursor");
+            cursorDefault.put("batchSize", getConnection().getDriver().getDefaultBatchSize());
         }
         return doc;
     }

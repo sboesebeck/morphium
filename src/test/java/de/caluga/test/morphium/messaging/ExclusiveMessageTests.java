@@ -279,7 +279,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
                     Thread.sleep(100);
                     org.junit.jupiter.api.Assertions
-                    .assertTrue(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                    .assertTrue(System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
                 }
 
                 org.junit.jupiter.api.Assertions.assertEquals(1, rec, "rec is " + rec);
@@ -334,8 +334,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
             cfg.encryptionSettings().setCredentialsEncryptionKey(
                                morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
             // Increase connection pool to handle multiple Morphium instances
-            cfg.setMaxConnections(50);
-            cfg.setMinConnections(5);
+            cfg.connectionSettings().setMaxConnections(50);
+            cfg.connectionSettings().setMinConnections(5);
             try (Morphium mx = new Morphium(cfg)) {
                 MorphiumMessaging sender = mx.createMessaging();
                 sender.setPause(100).setMultithreadded(true).setWindowSize(1);
@@ -344,13 +344,13 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 mx.dropCollection(MsgLock.class, sender.getLockCollectionName(), null);
                 Thread.sleep(500);
                 sender.start();
-                
+
                 // Create separate Morphium instances to simulate distributed receivers
                 MorphiumConfig c2 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
-                c2.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
-                c2.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c2.setMaxConnections(50);
-                c2.setMinConnections(5);
+                c2.encryptionSettings().setCredentialsEncryptionKey(mx.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                c2.encryptionSettings().setCredentialsDecryptionKey(mx.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                c2.connectionSettings().setMaxConnections(50);
+                c2.connectionSettings().setMinConnections(5);
                 Morphium morphium2 = new Morphium(c2);
                 MorphiumMessaging receiver = morphium2.createMessaging();
                 receiver.setPause(100).setMultithreadded(true).setWindowSize(15);
@@ -358,10 +358,10 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 receiver.start();
                 
                 MorphiumConfig c3 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
-                c3.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
-                c3.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c3.setMaxConnections(50);
-                c3.setMinConnections(5);
+                c3.encryptionSettings().setCredentialsEncryptionKey(mx.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                c3.encryptionSettings().setCredentialsDecryptionKey(mx.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                c3.connectionSettings().setMaxConnections(50);
+                c3.connectionSettings().setMinConnections(5);
                 Morphium morphium3 = new Morphium(c3);
                 MorphiumMessaging receiver2 = morphium3.createMessaging();
                 receiver2.setPause(100).setMultithreadded(false).setWindowSize(1);
@@ -369,10 +369,10 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 receiver2.start();
                 
                 MorphiumConfig c4 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
-                c4.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
-                c4.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c4.setMaxConnections(50);
-                c4.setMinConnections(5);
+                c4.encryptionSettings().setCredentialsEncryptionKey(mx.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                c4.encryptionSettings().setCredentialsDecryptionKey(mx.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                c4.connectionSettings().setMaxConnections(50);
+                c4.connectionSettings().setMinConnections(5);
                 Morphium morphium4 = new Morphium(c4);
                 MorphiumMessaging receiver3 = morphium4.createMessaging();
                 receiver3.setPause(100).setMultithreadded(false).setWindowSize(15);
@@ -380,10 +380,10 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 receiver3.start();
                 
                 MorphiumConfig c5 = MorphiumConfig.fromProperties(mx.getConfig().asProperties());
-                c5.setCredentialsEncryptionKey(mx.getConfig().getCredentialsEncryptionKey());
-                c5.setCredentialsDecryptionKey(mx.getConfig().getCredentialsDecryptionKey());
-                c5.setMaxConnections(50);
-                c5.setMinConnections(5);
+                c5.encryptionSettings().setCredentialsEncryptionKey(mx.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                c5.encryptionSettings().setCredentialsDecryptionKey(mx.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                c5.connectionSettings().setMaxConnections(50);
+                c5.connectionSettings().setMinConnections(5);
                 Morphium morphium5 = new Morphium(c5);
                 MorphiumMessaging receiver4 = morphium5.createMessaging();
                 receiver4.setPause(100).setMultithreadded(true).setWindowSize(1);
@@ -406,7 +406,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 log.info("All receivers ready");
 
                 try {
-                    MessageListener messageListener = (msg, m) -> {
+                    MessageListener<Msg> messageListener = (msg, m) -> {
                         try {
                             Thread.sleep((long) (500 * Math.random()));
                         } catch (InterruptedException e) {
@@ -635,7 +635,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 List<MorphiumId> msgIds = new ArrayList<>();
                 List<MorphiumId> sent = new ArrayList<>();
                 Map<String, List<Msg>> recByRecId = new ConcurrentHashMap<>();
-                List<Thread> threads = new ArrayList();
+                List<Thread> threads = new ArrayList<>();
                 for (int i = 0; i < listeners; i++) {
                     MorphiumMessaging r = mx.createMessaging();
                     r.setPause(100).setMultithreadded(true).setWindowSize(10);  // Increased pause from 10 to 100

@@ -19,6 +19,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
 
 
+@SuppressWarnings("unchecked")
 @Tag("core")
 public class TypeIdTests extends MultiDriverTestBase {
 
@@ -49,7 +50,7 @@ public class TypeIdTests extends MultiDriverTestBase {
         ad.setCounter(12);
         morphium.store(ad);
         Thread.sleep(100);
-        morphium.set(getIdQuery(morphium, ad), "test", new EmbeddedObject("emb", "key", 123));
+        getIdQuery(morphium, ad).set("test", new EmbeddedObject("emb", "key", 123));
         Thread.sleep(100);
         ad = morphium.reread(ad);
         assertNotNull(ad.getAdditionals());
@@ -179,15 +180,15 @@ public class TypeIdTests extends MultiDriverTestBase {
         return value;
     }
 
-    private void checkTypeId(Morphium morphium, Class cls, Object entity, String fieldName) {
+    private void checkTypeId(Morphium morphium, Class<?> cls, Object entity, String fieldName) {
         Map<String, Object> m = getMapForEntity(morphium, entity);
         String typeId = cls.getName();
-        Entity e = (Entity) cls.getAnnotation(Entity.class);
+        Entity e = cls.getAnnotation(Entity.class);
 
         if (e != null) {
             typeId = e.typeId();
         } else {
-            Embedded emb = (Embedded) cls.getAnnotation(Embedded.class);
+            Embedded emb = cls.getAnnotation(Embedded.class);
 
             if (emb != null) {
                 typeId = emb.typeId();

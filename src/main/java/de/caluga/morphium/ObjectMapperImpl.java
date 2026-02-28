@@ -97,15 +97,20 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             classByCollectionName.putAll(cachedClassByCollectionName);
             log.debug("Using cached classpath scan result with {} entities", classByCollectionName.size());
         } else {
+            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) {
+                cl = ObjectMapperImpl.class.getClassLoader();
+            }
             try (ScanResult scanResult = new ClassGraph()
                 .enableAnnotationInfo()
+                .overrideClassLoaders(cl)
                 .scan()) {
                 ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
                 log.debug("Found " + entities.size() + " entities in classpath");
 
                 for (String cn : entities.getNames()) {
                     try {
-                        Class c = Class.forName(cn);
+                        Class c = Class.forName(cn, true, cl);
                         classByCollectionName.put(getCollectionName(c), c);
                     } catch (ClassNotFoundException e) {
                         log.error("Could not get class / collection " + cn);
@@ -116,6 +121,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 //swallow
             }
         }
+    }
+
+    /**
+     * Clears the static entity-class cache so that the next {@link ObjectMapperImpl}
+     * instantiation performs a fresh classpath scan with the current ClassLoader.
+     * Call this before creating a new Morphium instance (e.g. after a hot-reload in
+     * Quarkus dev mode) to avoid stale references from a previous ClassLoader.
+     */
+    public static void clearEntityCache() {
+        cachedClassByCollectionName = null;
     }
 
     @Override
@@ -960,7 +975,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     //encrypted field
                     Encrypted enc = fld.getAnnotation(Encrypted.class);
                     Class <? extends ValueEncryptionProvider > encCls = enc.provider();
-                    ValueEncryptionProvider ep = encCls.newInstance();
+                    ValueEncryptionProvider ep = encCls.getDeclaredConstructor().newInstance();
                     String key = enc.keyName();
 
                     if (key.equals(".")) {

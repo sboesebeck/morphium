@@ -15,10 +15,10 @@ public class CacheEntry<T> {
     private long lru;
 
 
+    @SuppressWarnings("unchecked")
     public CacheEntry(T result, Object key) {
         this.result = result;
         this.key = key;
-        //noinspection unchecked
         type = (Class<? extends T>) result.getClass();
         created = System.currentTimeMillis();
     }

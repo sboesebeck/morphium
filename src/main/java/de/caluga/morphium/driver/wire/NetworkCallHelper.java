@@ -19,6 +19,7 @@ public class NetworkCallHelper<T> {
     private final Logger logger = LoggerFactory.getLogger(NetworkCallHelper.class);
 
 
+    @SuppressWarnings("unchecked")
     public T doCall(MorphiumDriverOperation r, int maxRetry, int sleep, ErrorCallback err) throws MorphiumDriverException {
         if (maxRetry == 0) {
             logger.error("MaxRetry set to 0?!?!?! Does not make sense! defaulting to 1");
