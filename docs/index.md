@@ -74,5 +74,5 @@ Benefits
 - SSL/TLS support for secure connections (since v6.0).
 
 Limitations
-- No MongoDB Atlas support.
 - Some advanced features of the official driver are not available.
+- MongoDB Atlas is supported since v6.0 via SSL/TLS (see [SSL/TLS Connections](./ssl-tls.md)).
