@@ -117,6 +117,7 @@ public class MorphiumServer {
     /**
      * Start the Netty server.
      */
+    @SuppressWarnings("deprecation")
     public void start() throws Exception {
         if (running) {
             throw new IllegalStateException("Server already running");

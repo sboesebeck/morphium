@@ -104,7 +104,7 @@ public class BsonEncoder {
         return out.toByteArray();
     }
 
-    @SuppressWarnings("UnusedReturnValue")
+    @SuppressWarnings({"UnusedReturnValue", "deprecation"})
     public BsonEncoder encodeObject(String n, Object v) {
 
         if (v == null) {

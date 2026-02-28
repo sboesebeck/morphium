@@ -21,7 +21,9 @@ public class ListDatabasesCommand extends MongoCommand<ListDatabasesCommand> {
         var ret = getConnection().sendCommand(this);
         var result = getConnection().readSingleAnswer(ret);
         if (result.containsKey("databases")) {
-            return (List<Map<String, Object>>) result.get("databases");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> databases = (List<Map<String, Object>>) result.get("databases");
+            return databases;
         }
         return null;
 

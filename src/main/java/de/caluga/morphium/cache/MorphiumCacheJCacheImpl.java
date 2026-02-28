@@ -51,7 +51,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     public MorphiumCacheJCacheImpl() {
         MorphiumConfig cfg = new MorphiumConfig();
 
-        hkHelper.setGlobalValidCacheTime(cfg.getGlobalCacheValidTime());
+        hkHelper.setGlobalValidCacheTime(cfg.cacheSettings().getGlobalCacheValidTime());
         hkHelper.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
         hkTask = () -> {
             for (String k : getCacheManager().getCacheNames()) {
@@ -82,14 +82,14 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         return cacheManager;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> void addToCache(String k, Class <? extends T> type, List<T> ret) {
 
-        Cache idCache = getIdCache(type);
-        Cache resultCache = getResultCache(type);
-        @SuppressWarnings("unchecked") CacheEntry v = new CacheEntry(ret, k);
+        Cache<Object, CacheEntry<T>> idCache = getIdCache(type);
+        Cache<Object, CacheEntry<List<T>>> resultCache = getResultCache(type);
+        CacheEntry<List<T>> v = new CacheEntry<>(ret, k);
         for (CacheListener cl : cacheListeners) {
-            //noinspection unchecked
             v = cl.wouldAddToCache(k, v, false);
             if (v == null) {
                 log.warn("Not adding null entry to cache - veto by listener");
@@ -97,13 +97,10 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         }
         for (T obj : ret) {
             Object id = anHelper.getId(obj);
-            //noinspection unchecked
             if (!idCache.containsKey(id)) {
-                //noinspection unchecked,unchecked
-                idCache.put(id, new CacheEntry(obj, id));
+                idCache.put(id, new CacheEntry<>(obj, id));
             }
         }
-        //noinspection unchecked
         resultCache.put(k, v);
     }
 
@@ -153,24 +150,22 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         return idCaches.keySet();
     }
 
-    @SuppressWarnings("CommentedOutCode")
+    @SuppressWarnings({"CommentedOutCode", "unchecked"})
     private <T> Cache<Object, CacheEntry<T>> getIdCache(Class <? extends T> type) {
         if (idCaches.containsKey(type)) {
-            //noinspection unchecked
             return (Cache<Object, CacheEntry<T>>) idCaches.get(type);
         }
         Cache<Object, CacheEntry<T>> cache;
         log.info("Creating new cache for " + type.getName());
-        MutableConfiguration config =
-                        new MutableConfiguration<>()
+        MutableConfiguration<Object, Object> config =
+                        new MutableConfiguration<Object, Object>()
         .setTypes(Object.class, Object.class)
         .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
         .setStoreByValue(false)
         .setStatisticsEnabled(false);
 
         try {
-            //noinspection unchecked
-            cache = getCacheManager().createCache(ID_CACHE_NAME + "|" + type.getName(), config);
+            cache = (Cache<Object, CacheEntry<T>>) (Cache<?, ?>) getCacheManager().createCache(ID_CACHE_NAME + "|" + type.getName(), config);
         } catch (Exception e) {
             //maybe already there
             cache = getCacheManager().getCache(ID_CACHE_NAME + "|" + type.getName());
@@ -188,23 +183,21 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         return cache;
     }
 
-    @SuppressWarnings("CommentedOutCode")
+    @SuppressWarnings({"CommentedOutCode", "unchecked"})
     private <T> Cache<Object, CacheEntry<List<T>>> getResultCache(Class <? extends T> type) {
         if (resultCaches.containsKey(type)) {
-            //noinspection unchecked
-            return resultCaches.get(type);
+            return (Cache<Object, CacheEntry<List<T>>>) resultCaches.get(type);
         }
         Cache<Object, CacheEntry<List<T>>> cache;
         log.info("Creating new cache for " + type.getName());
-        MutableConfiguration config =
-                        new MutableConfiguration<>()
+        MutableConfiguration<Object, Object> config =
+                        new MutableConfiguration<Object, Object>()
         .setTypes(Object.class, Object.class)
         .setStoreByValue(false)
         .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
         .setStatisticsEnabled(false);
         try {
-            //noinspection unchecked
-            cache = getCacheManager().createCache(RESULT_CACHE_NAME + "|" + type.getName(), config);
+            cache = (Cache<Object, CacheEntry<List<T>>>) (Cache<?, ?>) getCacheManager().createCache(RESULT_CACHE_NAME + "|" + type.getName(), config);
         } catch (Exception e) {
             //maybe already there
             cache = getCacheManager().getCache(RESULT_CACHE_NAME + "|" + type.getName());
@@ -244,32 +237,29 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         resetCache();
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public void removeEntryFromIdCache(Class cls, Object id) {
         for (CacheListener cl : cacheListeners) {
-            //noinspection unchecked,unchecked
-            if (!(cl.wouldRemoveEntryFromCache(id, (CacheEntry) getIdCache(cls).get(id), false))) {
+            if (!(cl.wouldRemoveEntryFromCache(id, (CacheEntry<?>) getIdCache(cls).get(id), false))) {
                 log.info("Veto from listener for ID " + id);
             }
         }
-        //noinspection unchecked
         getIdCache(cls).remove(id);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
-        @SuppressWarnings("unchecked") Object obj = getIdCache(cls).get(id);
+        Object obj = getIdCache(cls).get(id);
         if (obj != null) {
-            //noinspection unchecked
             getIdCache(cls).remove(id);
         }
         Set<String> toRemove = new HashSet<>();
-        //noinspection unchecked
-        for (Cache.Entry<String, CacheEntry> entry : (Iterable<Cache.Entry<String, CacheEntry >> ) getResultCache(cls)) {
-            for (Object el : (List) entry.getValue().getResult()) {
+        for (Cache.Entry<String, CacheEntry<?>> entry : (Iterable<Cache.Entry<String, CacheEntry<?>>>) (Iterable<?>) getResultCache(cls)) {
+            for (Object el : (List<?>) entry.getValue().getResult()) {
                 Object lid = anHelper.getId(el);
                 for (CacheListener cl : cacheListeners) {
-                    //noinspection unchecked
                     if (!(cl.wouldRemoveEntryFromCache(entry.getKey(), entry.getValue(), false))) {
                         log.warn("Veto from listener for ID " + id);
                     }
@@ -284,7 +274,6 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
             }
         }
 
-        //noinspection unchecked
         getResultCache(cls).removeAll(toRemove);
 
     }
@@ -296,9 +285,9 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         return c.get(id).getResult();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public String getCacheKey(Query q) {
-        //noinspection unchecked,unchecked,unchecked
         return getCacheKey(q.getType(), q.toQueryObject(), q.getSort(), q.getFieldListForQuery(), q.getCollectionName(), q.getSkip(), q.getLimit());
     }
 
@@ -307,13 +296,13 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         return getResultCache(type).containsKey(k);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void clearCacheIfNecessary(Class cls) {
         de.caluga.morphium.annotations.caching.Cache c = anHelper.getAnnotationFromHierarchy(cls, de.caluga.morphium.annotations.caching.Cache.class); //cls.getAnnotation(Cache.class);
         if (c != null) {
             if (c.clearOnWrite()) {
                 for (CacheListener cl : cacheListeners) {
-                    //noinspection unchecked
                     if (!(cl.wouldClearCache(cls))) {
                         log.warn("Veto from listener for clearing cache for " + cls.getName());
                     }
@@ -365,38 +354,36 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     }
 
 
+    @SuppressWarnings("unchecked")
     @Override
     public void onCreated(Iterable iterable) throws CacheEntryListenerException {
         for (CacheListener cl : cacheListeners) {
-            //noinspection unchecked
             iterable.forEach(o -> {
-                @SuppressWarnings("unchecked") CacheEntryEvent<Object, CacheEntry> evt = (CacheEntryEvent) o;
-                //noinspection unchecked
+                CacheEntryEvent<Object, CacheEntry<?>> evt = (CacheEntryEvent<Object, CacheEntry<?>>) o;
                 cl.wouldAddToCache(evt.getKey(), evt.getValue(), false);
             });
 
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void onExpired(Iterable iterable) throws CacheEntryListenerException {
         for (CacheListener cl : cacheListeners) {
-            //noinspection unchecked
             iterable.forEach(o -> {
-                @SuppressWarnings("unchecked") CacheEntryEvent<Object, CacheEntry> evt = (CacheEntryEvent) o;
-                //noinspection unchecked
+                CacheEntryEvent<Object, CacheEntry<?>> evt = (CacheEntryEvent<Object, CacheEntry<?>>) o;
                 cl.wouldRemoveEntryFromCache(evt.getKey(), evt.getValue(), true);
             });
 
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void onRemoved(Iterable iterable) throws CacheEntryListenerException {
         for (CacheListener cl : cacheListeners) {
-            //noinspection unchecked
             iterable.forEach(o -> {
-                @SuppressWarnings("unchecked") CacheEntryEvent<Object, CacheEntry> evt = (CacheEntryEvent) o;
+                CacheEntryEvent<Object, CacheEntry<?>> evt = (CacheEntryEvent<Object, CacheEntry<?>>) o;
                 if (evt.getKey() == null) {
                     //clear / removeall
                     try {
@@ -406,7 +393,6 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
                         throw new CacheEntryListenerException("Could not get type", e);
                     }
                 } else {
-                    //noinspection unchecked
                     cl.wouldRemoveEntryFromCache(evt.getKey(), evt.getValue(), false);
                 }
             });
@@ -414,13 +400,12 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
         for (CacheListener cl : cacheListeners) {
-            //noinspection unchecked
             iterable.forEach(o -> {
-                @SuppressWarnings("unchecked") CacheEntryEvent<Object, CacheEntry> evt = (CacheEntryEvent) o;
-                //noinspection unchecked
+                CacheEntryEvent<Object, CacheEntry<?>> evt = (CacheEntryEvent<Object, CacheEntry<?>>) o;
                 cl.wouldAddToCache(evt.getKey(), evt.getValue(), true);
             });
 
