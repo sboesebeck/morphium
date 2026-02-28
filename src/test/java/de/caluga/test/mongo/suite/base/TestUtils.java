@@ -125,8 +125,8 @@ public class TestUtils {
 
     public static Morphium newMorphiumFrom(Morphium morphium) {
         var cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-        cfg.setCredentialsDecryptionKey(morphium.getConfig().getCredentialsDecryptionKey());
-        cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
+        cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+        cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
         var m2 = new Morphium(cfg);
         return m2;
     }

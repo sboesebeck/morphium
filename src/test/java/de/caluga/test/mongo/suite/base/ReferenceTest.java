@@ -27,7 +27,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Time: 00:33
  * <p>
  */
-@SuppressWarnings("AssertWithSideEffects")
+@SuppressWarnings({"AssertWithSideEffects", "unchecked"})
 @Tag("core")
 public class ReferenceTest extends MultiDriverTestBase {
 
@@ -174,8 +174,8 @@ public class ReferenceTest extends MultiDriverTestBase {
         m.store(e3);
         m.clearCachefor(SimpleDoublyLinkedEntity.class);
         Thread.sleep(100);
-        e2 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e2.id);
-        e1 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e1.id);
+        e2 = m.findById(SimpleDoublyLinkedEntity.class, e2.id);
+        e1 = m.findById(SimpleDoublyLinkedEntity.class, e1.id);
         assert(e1.getValue() == e2.getPrev().getValue());
         assert(e2.getValue() == e1.getNext().getValue());
     }
@@ -308,7 +308,7 @@ public class ReferenceTest extends MultiDriverTestBase {
         }
 
         public void setLst(List<UncachedObject> lst) {
-            this.lst = (ArrayList) lst;
+            this.lst = (ArrayList<UncachedObject>) lst;
         }
 
         public UncachedObject getLazyUc() {

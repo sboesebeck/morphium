@@ -68,10 +68,10 @@ public class ServerCompressionTest {
 
         try {
             MorphiumConfig cfg = new MorphiumConfig();
-            cfg.setHostSeed("localhost:" + port);
-            cfg.setDatabase("compression_test");
-            cfg.setMaxConnections(5);
-            cfg.setCompressionType(CompressionType.SNAPPY);
+            cfg.clusterSettings().setHostSeed("localhost:" + port);
+            cfg.connectionSettings().setDatabase("compression_test");
+            cfg.connectionSettings().setMaxConnections(5);
+            cfg.driverSettings().setCompressionType(CompressionType.SNAPPY);
 
             Morphium morphium = new Morphium(cfg);
 
@@ -111,9 +111,9 @@ public class ServerCompressionTest {
 
         try {
             MorphiumConfig cfg = new MorphiumConfig();
-            cfg.setHostSeed("localhost:" + port);
-            cfg.setDatabase("compression_test");
-            cfg.setMaxConnections(5);
+            cfg.clusterSettings().setHostSeed("localhost:" + port);
+            cfg.connectionSettings().setDatabase("compression_test");
+            cfg.connectionSettings().setMaxConnections(5);
             // No compression on client side
 
             Morphium morphium = new Morphium(cfg);
@@ -152,10 +152,10 @@ public class ServerCompressionTest {
 
         try {
             MorphiumConfig cfg = new MorphiumConfig();
-            cfg.setHostSeed("localhost:" + port);
-            cfg.setDatabase("compression_test");
-            cfg.setMaxConnections(5);
-            cfg.setCompressionType(CompressionType.SNAPPY);
+            cfg.clusterSettings().setHostSeed("localhost:" + port);
+            cfg.connectionSettings().setDatabase("compression_test");
+            cfg.connectionSettings().setMaxConnections(5);
+            cfg.driverSettings().setCompressionType(CompressionType.SNAPPY);
 
             Morphium morphium = new Morphium(cfg);
 
@@ -221,10 +221,10 @@ public class ServerCompressionTest {
 
         try {
             MorphiumConfig cfg = new MorphiumConfig();
-            cfg.setHostSeed("localhost:" + port);
-            cfg.setDatabase("compression_test");
-            cfg.setMaxConnections(5);
-            cfg.setCompressionType(CompressionType.ZLIB);
+            cfg.clusterSettings().setHostSeed("localhost:" + port);
+            cfg.connectionSettings().setDatabase("compression_test");
+            cfg.connectionSettings().setMaxConnections(5);
+            cfg.driverSettings().setCompressionType(CompressionType.ZLIB);
 
             Morphium morphium = new Morphium(cfg);
 
@@ -261,10 +261,10 @@ public class ServerCompressionTest {
 
         try {
             MorphiumConfig cfg = new MorphiumConfig();
-            cfg.setHostSeed("localhost:" + port);
-            cfg.setDatabase("compression_test");
-            cfg.setMaxConnections(5);
-            cfg.setCompressionType(CompressionType.SNAPPY);
+            cfg.clusterSettings().setHostSeed("localhost:" + port);
+            cfg.connectionSettings().setDatabase("compression_test");
+            cfg.connectionSettings().setMaxConnections(5);
+            cfg.driverSettings().setCompressionType(CompressionType.SNAPPY);
 
             Morphium morphium = new Morphium(cfg);
 
@@ -381,10 +381,10 @@ public class ServerCompressionTest {
 
         try {
             MorphiumConfig cfg = new MorphiumConfig();
-            cfg.setHostSeed("localhost:" + port);
-            cfg.setDatabase("concurrent_compression");
-            cfg.setMaxConnections(10);
-            cfg.setCompressionType(CompressionType.SNAPPY);
+            cfg.clusterSettings().setHostSeed("localhost:" + port);
+            cfg.connectionSettings().setDatabase("concurrent_compression");
+            cfg.connectionSettings().setMaxConnections(10);
+            cfg.driverSettings().setCompressionType(CompressionType.SNAPPY);
 
             Morphium morphium = new Morphium(cfg);
             AtomicInteger errors = new AtomicInteger(0);
@@ -442,10 +442,10 @@ public class ServerCompressionTest {
 
         try {
             MorphiumConfig cfg = new MorphiumConfig();
-            cfg.setHostSeed("localhost:" + port);
-            cfg.setDatabase("large_doc_test");
-            cfg.setMaxConnections(5);
-            cfg.setCompressionType(CompressionType.SNAPPY);
+            cfg.clusterSettings().setHostSeed("localhost:" + port);
+            cfg.connectionSettings().setDatabase("large_doc_test");
+            cfg.connectionSettings().setMaxConnections(5);
+            cfg.driverSettings().setCompressionType(CompressionType.SNAPPY);
 
             Morphium morphium = new Morphium(cfg);
 

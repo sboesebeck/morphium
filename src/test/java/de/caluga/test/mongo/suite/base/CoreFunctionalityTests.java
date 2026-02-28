@@ -85,7 +85,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             // Test single field update
             Query<UncachedMultipleCounter> q = morphium.createQueryFor(UncachedMultipleCounter.class);
             q.f("counter").eq(5);
-            morphium.set(q, "strValue", "Updated Value");
+            q.set("strValue", "Updated Value");
 
             TestUtils.waitForConditionToBecomeTrue(5000,
                                                    (dur, e)-> log.error("Did not persist change"),
@@ -111,8 +111,8 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             Map<String, Object> updates = new HashMap<>();
             updates.put("strValue", "Multi Update");
             updates.put("counter2", 99.9);
-            morphium.set(morphium.createQueryFor(UncachedMultipleCounter.class)
-                         .f("counter").lt(5), updates, false, true);
+            morphium.createQueryFor(UncachedMultipleCounter.class)
+                         .f("counter").lt(5).set(updates, false, true);
 
             TestUtils.waitForConditionToBecomeTrue(5000,
                                                    (dur, e)-> log.error("Did not persist change"),
@@ -208,8 +208,8 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
                                                    () -> TestUtils.countUC(morphium) == 100);
 
             // Test batch update
-            morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").mod(2, 0),
-                         "strValue", "Even Number", false, true);
+            morphium.createQueryFor(UncachedObject.class).f("counter").mod(2, 0)
+                         .set("strValue", "Even Number", false, true);
 
             Thread.sleep(1000);
             long evenCount = morphium.createQueryFor(UncachedObject.class)
@@ -217,8 +217,8 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             assertEquals(50, evenCount);
 
             // Test find and modify operations (using set on query to simulate)
-            morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(1),
-                         "strValue", "Found and Modified");
+            morphium.createQueryFor(UncachedObject.class).f("counter").eq(1)
+                         .set("strValue", "Found and Modified");
 
             Thread.sleep(1000);
             UncachedObject verified = morphium.createQueryFor(UncachedObject.class)

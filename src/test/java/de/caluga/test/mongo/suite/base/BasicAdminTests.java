@@ -119,7 +119,7 @@ public class BasicAdminTests extends MultiDriverTestBase {
 
         try(morphium) {
             morphium.store(new UncachedObject("value", 123));
-            assertTrue(morphium.getDriver().exists(morphium.getConfig().getDatabase()));
+            assertTrue(morphium.getDriver().exists(morphium.getConfig().connectionSettings().getDatabase()));
         }
     }
 
@@ -141,7 +141,7 @@ public class BasicAdminTests extends MultiDriverTestBase {
 
             while (TestUtils.countUC(morphium) < 10) {
                 Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                assert(System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
             }
 
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -152,7 +152,7 @@ public class BasicAdminTests extends MultiDriverTestBase {
             while (c != 1) {
                 c = q.countAll();
                 Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                assert(System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
             }
 
             assert(c == 1) : "Count wrong: " + c;
@@ -161,7 +161,7 @@ public class BasicAdminTests extends MultiDriverTestBase {
 
             while (o == null) {
                 Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                assert(System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
                 o = q.get();
             }
 

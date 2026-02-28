@@ -11,7 +11,7 @@ import de.caluga.morphium.cache.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.StoreMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.messaging.SingleCollectionMessaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -55,7 +55,8 @@ public class CacheSyncTest extends MultiDriverTestBase {
             return;
         }
         morphium.dropCollection(Msg.class);
-        SingleCollectionMessaging msg = new SingleCollectionMessaging(morphium, 100, true);
+        MorphiumMessaging msg = morphium.createMessaging();
+        msg.setPause(100).setMultithreadded(true);
         msg.start();
         MessagingCacheSynchronizer cs = new MessagingCacheSynchronizer(msg, morphium);
 
@@ -119,9 +120,11 @@ public class CacheSyncTest extends MultiDriverTestBase {
             return;
         }
 
-        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
+        MorphiumMessaging msg1 = morphium.createMessaging();
+        msg1.setPause(100).setMultithreadded(true);
         msg1.start();
-        SingleCollectionMessaging msg2 = new SingleCollectionMessaging(morphium, 100, true);
+        MorphiumMessaging msg2 = morphium.createMessaging();
+        msg2.setPause(100).setMultithreadded(true);
         msg2.start();
         MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
         MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, morphium);
@@ -209,10 +212,11 @@ public class CacheSyncTest extends MultiDriverTestBase {
 
 
         morphium.clearCollection(IdCachedObject.class);
-        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
-        msg1.start();
+        MorphiumMessaging idMsg1 = morphium.createMessaging();
+        idMsg1.setPause(100).setMultithreadded(true);
+        idMsg1.start();
 
-        MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
+        MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(idMsg1, morphium);
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             o = new IdCachedObject();
@@ -252,7 +256,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
         log.info("Updating with synchronizer: " + dur + " ms");
 
 
-        msg1.terminate();
+        idMsg1.terminate();
         cs1.detach();
         while (cs1.isAttached()) {
             log.info("still attached - waiting");
@@ -281,9 +285,11 @@ public class CacheSyncTest extends MultiDriverTestBase {
             return;
         }
         morphium.dropCollection(IdCachedObject.class);
-        final SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
+        final MorphiumMessaging msg1 = morphium.createMessaging();
+        msg1.setPause(100).setMultithreadded(true);
         msg1.start();
-        final SingleCollectionMessaging msg2 = new SingleCollectionMessaging(morphium, 100, true);
+        final MorphiumMessaging msg2 = morphium.createMessaging();
+        msg2.setPause(100).setMultithreadded(true);
         msg2.start();
         Thread.sleep(1000);
 
@@ -376,14 +382,16 @@ public class CacheSyncTest extends MultiDriverTestBase {
         Morphium m1 = morphium;
         // MorphiumConfig cfg2 = new MorphiumConfig();
         MorphiumConfig cfg2 = MorphiumConfig.fromProperties(m1.getConfig().asProperties());
-        cfg2.setCredentialsEncryptionKey(m1.getConfig().getCredentialsEncryptionKey());
-        cfg2.setCredentialsDecryptionKey(m1.getConfig().getCredentialsDecryptionKey());
-        cfg2.setHostSeed(m1.getConfig().getHostSeed());
-        cfg2.setDatabase(m1.getConfig().getDatabase());
+        cfg2.encryptionSettings().setCredentialsEncryptionKey(m1.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+        cfg2.encryptionSettings().setCredentialsDecryptionKey(m1.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+        cfg2.clusterSettings().setHostSeed(m1.getConfig().clusterSettings().getHostSeed());
+        cfg2.connectionSettings().setDatabase(m1.getConfig().connectionSettings().getDatabase());
 
         Morphium m2 = new Morphium(cfg2);
-        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(m1, 200, true);
-        SingleCollectionMessaging msg2 = new SingleCollectionMessaging(m2, 200, true);
+        MorphiumMessaging msg1 = m1.createMessaging();
+        msg1.setPause(200).setMultithreadded(true);
+        MorphiumMessaging msg2 = m2.createMessaging();
+        msg2.setPause(200).setMultithreadded(true);
 
         msg1.start();
         msg2.start();
@@ -463,10 +471,10 @@ public class CacheSyncTest extends MultiDriverTestBase {
 
         Morphium m1 = morphium;
         MorphiumConfig cfg2 = MorphiumConfig.fromProperties(m1.getConfig().asProperties());
-        cfg2.setCredentialsEncryptionKey(m1.getConfig().getCredentialsEncryptionKey());
-        cfg2.setCredentialsDecryptionKey(m1.getConfig().getCredentialsDecryptionKey());
-        cfg2.setHostSeed(m1.getConfig().getHostSeed());
-        cfg2.setDatabase(m1.getConfig().getDatabase());
+        cfg2.encryptionSettings().setCredentialsEncryptionKey(m1.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+        cfg2.encryptionSettings().setCredentialsDecryptionKey(m1.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+        cfg2.clusterSettings().setHostSeed(m1.getConfig().clusterSettings().getHostSeed());
+        cfg2.connectionSettings().setDatabase(m1.getConfig().connectionSettings().getDatabase());
 
         Morphium m2 = new Morphium(cfg2);
 
@@ -571,10 +579,10 @@ public class CacheSyncTest extends MultiDriverTestBase {
         Morphium m1 = morphium;
         // MorphiumConfig cfg2 = new MorphiumConfig();
         MorphiumConfig cfg2 = MorphiumConfig.fromProperties(m1.getConfig().asProperties());
-        cfg2.setCredentialsEncryptionKey(m1.getConfig().getCredentialsEncryptionKey());
-        cfg2.setCredentialsDecryptionKey(m1.getConfig().getCredentialsDecryptionKey());
-        cfg2.setHostSeed(m1.getConfig().getHostSeed());
-        cfg2.setDatabase(m1.getConfig().getDatabase());
+        cfg2.encryptionSettings().setCredentialsEncryptionKey(m1.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+        cfg2.encryptionSettings().setCredentialsDecryptionKey(m1.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+        cfg2.clusterSettings().setHostSeed(m1.getConfig().clusterSettings().getHostSeed());
+        cfg2.connectionSettings().setDatabase(m1.getConfig().connectionSettings().getDatabase());
 
         Morphium m2 = new Morphium(cfg2);
 

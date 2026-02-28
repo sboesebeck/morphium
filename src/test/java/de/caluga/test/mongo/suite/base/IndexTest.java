@@ -57,11 +57,11 @@ public class IndexTest extends MultiDriverTestBase {
             morphium.dropCollection(UncachedObject.class);
             morphium.dropCollection(IndexedObject.class);
             morphium.dropCollection(CappedCol.class);
-            morphium.getConfig().setIndexCheck(de.caluga.morphium.config.CollectionCheckSettings.IndexCheck.NO_CHECK);
+            morphium.getConfig().collectionCheckSettings().setIndexCheck(de.caluga.morphium.config.CollectionCheckSettings.IndexCheck.NO_CHECK);
             // morphium.createIndex(UncachedObject.class,"uncached_object",new IndexDescription().setKey(Doc.of("counter",-1)).setName("test1"),null);
             morphium.storeNoCache(new UncachedObject("value", 12));
             Thread.sleep(100);
-            morphium.getConfig().setIndexCheck(de.caluga.morphium.config.CollectionCheckSettings.IndexCheck.CREATE_ON_WRITE_NEW_COL);
+            morphium.getConfig().collectionCheckSettings().setIndexCheck(de.caluga.morphium.config.CollectionCheckSettings.IndexCheck.CREATE_ON_WRITE_NEW_COL);
             morphium.store(new IndexedObject("name", 123));
             Map<Class<?>, List<IndexDescription >> missing = morphium.checkIndices();
             log.info("Got indexes");
@@ -90,10 +90,10 @@ public class IndexTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void indexOnNewCollTest(Morphium morphium) throws Exception {
         try (morphium) {
-            morphium.getConfig().setIndexCheck(de.caluga.morphium.config.CollectionCheckSettings.IndexCheck.CREATE_ON_WRITE_NEW_COL);
+            morphium.getConfig().collectionCheckSettings().setIndexCheck(de.caluga.morphium.config.CollectionCheckSettings.IndexCheck.CREATE_ON_WRITE_NEW_COL);
             morphium.dropCollection(IndexedObject.class);
 
-            while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
+            while (morphium.getDriver().exists(morphium.getConfig().connectionSettings().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
                 log.info("Collection still exists... waiting");
                 Thread.sleep(100);
             }

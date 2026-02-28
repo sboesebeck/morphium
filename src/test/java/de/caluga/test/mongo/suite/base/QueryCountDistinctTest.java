@@ -108,7 +108,7 @@ public class QueryCountDistinctTest extends MultiDriverTestBase {
 
         while (c.get() != 10) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
         }
 
         assert (c.get() == 10);
