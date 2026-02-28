@@ -5,7 +5,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.SingleCollectionMessaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.support.TestConfig;
 import org.junit.jupiter.api.AfterAll;
@@ -234,8 +234,10 @@ public class PerformanceBenchmarkTest {
         System.out.println("Tests SingleCollectionMessaging throughput");
         
         // pause=10ms, multithreaded=true, windowSize=100
-        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 10, true, 100);
-        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium, 10, true, 100);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(10).setMultithreadded(true).setWindowSize(100);
+        MorphiumMessaging receiver = morphium.createMessaging();
+        receiver.setPause(10).setMultithreadded(true).setWindowSize(100);
         
         sender.start();
         receiver.start();

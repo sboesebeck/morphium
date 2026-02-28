@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+@SuppressWarnings("unchecked")
 @Tag("inmemory")
 @Tag("slow")  // May be flaky under high parallel load - uses change streams with timing-sensitive assertions
 public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
@@ -62,7 +63,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         TestUtils.waitForConditionToBecomeTrue(30000, "Expected 2 change events but got " + count,
             () -> count == 2);
         run[0] = false;
-        morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
+        morphium.createQueryFor(UncachedObject.class).f("counter").eq(123).set("counter", 7777);
         TestUtils.waitForConditionToBecomeTrue(30000, "Expected 3 change events but got " + count,
             () -> count == 3); //the listener needs to be called to return false ;-)
         morphium.store(new UncachedObject("test", 123)); //to have the monitor stop
@@ -184,7 +185,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
                 }
 
                 log.info("Setting to value " + i);
-                morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "strValue", "new value " + i, false, true);
+                morphium.createQueryFor(UncachedObject.class).f("counter").lte(50).set("strValue", "new value " + i, false, true);
             }
             log.info("Writing thread finished...");
         }).start();

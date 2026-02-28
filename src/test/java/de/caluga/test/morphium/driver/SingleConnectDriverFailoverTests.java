@@ -21,6 +21,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 
 
+@SuppressWarnings("unchecked")
 @Tag("external")
 public class SingleConnectDriverFailoverTests extends DriverTestBase{
     private Logger log=LoggerFactory.getLogger(SingleConnectDriverFailoverTests.class);
