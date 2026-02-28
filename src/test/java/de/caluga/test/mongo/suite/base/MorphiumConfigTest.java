@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 
@@ -195,6 +196,53 @@ public class MorphiumConfigTest {
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
         assertEquals(cfg.connectionSettings().getDatabase(), getConfig().connectionSettings().getDatabase());
         assertTrue(cfg.clusterSettings().getHostSeed().size() != 0);
+    }
+
+    // ------------------------------------------------------------------
+    // setAutoIndexAndCappedCreationOnWrite – must set BOTH checks
+    // ------------------------------------------------------------------
+
+    @Test
+    public void autoIndexAndCapped_enabledSetsBothChecks() {
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setAutoIndexAndCappedCreationOnWrite(true);
+
+        assertEquals(IndexCheck.CREATE_ON_WRITE_NEW_COL,
+                cfg.collectionCheckSettings().getIndexCheck(),
+                "IndexCheck should be CREATE_ON_WRITE_NEW_COL when enabled");
+        assertEquals(CappedCheck.CREATE_ON_WRITE_NEW_COL,
+                cfg.collectionCheckSettings().getCappedCheck(),
+                "CappedCheck should be CREATE_ON_WRITE_NEW_COL when enabled");
+    }
+
+    @Test
+    public void autoIndexAndCapped_disabledSetsBothToNoCheck() {
+        MorphiumConfig cfg = new MorphiumConfig();
+        // First enable, then disable to verify it resets both
+        cfg.setAutoIndexAndCappedCreationOnWrite(true);
+        cfg.setAutoIndexAndCappedCreationOnWrite(false);
+
+        assertEquals(IndexCheck.NO_CHECK,
+                cfg.collectionCheckSettings().getIndexCheck(),
+                "IndexCheck should be NO_CHECK when disabled");
+        assertEquals(CappedCheck.NO_CHECK,
+                cfg.collectionCheckSettings().getCappedCheck(),
+                "CappedCheck should be NO_CHECK when disabled");
+    }
+
+    @Test
+    public void autoIndexAndCapped_isAutoReflectsBothChecks() {
+        MorphiumConfig cfg = new MorphiumConfig();
+        assertFalse(cfg.isAutoIndexAndCappedCreationOnWrite(),
+                "Should be false by default");
+
+        cfg.setAutoIndexAndCappedCreationOnWrite(true);
+        assertTrue(cfg.isAutoIndexAndCappedCreationOnWrite(),
+                "Should be true after enabling");
+
+        cfg.setAutoIndexAndCappedCreationOnWrite(false);
+        assertFalse(cfg.isAutoIndexAndCappedCreationOnWrite(),
+                "Should be false after disabling");
     }
 
     @Test
