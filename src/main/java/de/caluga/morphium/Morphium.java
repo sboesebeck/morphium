@@ -50,6 +50,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -57,6 +59,10 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import javax.naming.NamingEnumeration;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.InitialDirContext;
 
 /**
  * This is the single access point for accessing MongoDB. This conains a ton of convenience Methods
@@ -410,6 +416,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         morphiumDriver.setSslContext(getConfig().connectionSettings().getSslContext());
         morphiumDriver.setSslInvalidHostNameAllowed(getConfig().connectionSettings().isSslInvalidHostNameAllowed());
 
+        resolveAtlasUrlIfNeeded();
+
         if (getConfig().clusterSettings().getHostSeed().isEmpty() && !(morphiumDriver instanceof InMemoryDriver)) {
             throw new RuntimeException("Error - no server address specified!");
         }
@@ -639,6 +647,87 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (lst == null) {
             throw new RuntimeException("Validation not possible - javax.validation implementation not in Classpath?");
+        }
+    }
+
+    /**
+     * Resolves a {@code mongodb+srv://} Atlas connection string stored in
+     * {@link de.caluga.morphium.config.ClusterSettings#getAtlasUrl()} and populates
+     * {@code hostSeed} via DNS SRV lookup when the seed list is still empty.
+     *
+     * <p>The SRV record {@code _mongodb._tcp.<hostname>} is queried through JNDI.
+     * TLS is enabled automatically because Atlas always requires it.  Any
+     * {@code authMechanism} / {@code authSource} query parameters present in the
+     * URL are ignored here – they must be configured separately via
+     * {@link MorphiumConfig#setAuthMechanism} / {@link MorphiumConfig#setMongoAuthDb}.
+     *
+     * <p>If the atlasUrl is absent, the seed list is already populated, or the
+     * URL does not start with {@code mongodb+srv://}, the method returns immediately
+     * without changing any state.
+     */
+    private void resolveAtlasUrlIfNeeded() {
+        String atlasUrl = getConfig().clusterSettings().getAtlasUrl();
+        if (atlasUrl == null || atlasUrl.isBlank()) {
+            return;
+        }
+        if (!getConfig().clusterSettings().getHostSeed().isEmpty()) {
+            return; // already resolved or manually configured
+        }
+        if (!atlasUrl.startsWith("mongodb+srv://")) {
+            log.warn("atlasUrl '{}' is not a mongodb+srv:// URI – ignoring", atlasUrl);
+            return;
+        }
+
+        // Extract the bare hostname from mongodb+srv://[user:pass@]hostname[/db][?opts]
+        String hostname;
+        try {
+            // Replace the custom scheme so java.net.URI can parse it
+            URI uri = new URI(atlasUrl.replaceFirst("^mongodb\\+srv://", "https://"));
+            hostname = uri.getHost();
+        } catch (URISyntaxException e) {
+            log.warn("Could not parse atlasUrl '{}': {}", atlasUrl, e.getMessage());
+            return;
+        }
+
+        if (hostname == null || hostname.isBlank()) {
+            log.warn("Could not extract hostname from atlasUrl '{}'", atlasUrl);
+            return;
+        }
+
+        // Atlas always requires TLS
+        if (!getConfig().connectionSettings().isUseSSL()) {
+            log.debug("Enabling TLS automatically for mongodb+srv:// connection");
+            getConfig().connectionSettings().setUseSSL(true);
+        }
+
+        String srvName = "_mongodb._tcp." + hostname;
+        log.info("Resolving Atlas SRV record '{}'", srvName);
+
+        try {
+            Hashtable<String, String> env = new Hashtable<>();
+            env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
+            env.put("java.naming.provider.url", "dns:");
+            InitialDirContext ctx = new InitialDirContext(env);
+            Attributes attrs = ctx.getAttributes(srvName, new String[]{"SRV"});
+            NamingEnumeration<? extends Attribute> attrEnum = attrs.getAll();
+            while (attrEnum.hasMoreElements()) {
+                Attribute attr = attrEnum.next();
+                for (int i = 0; i < attr.size(); i++) {
+                    // SRV record: "<priority> <weight> <port> <target>"
+                    String[] parts = attr.get(i).toString().split("\\s+");
+                    if (parts.length >= 4) {
+                        int port = Integer.parseInt(parts[2]);
+                        String target = parts[3];
+                        if (target.endsWith(".")) {
+                            target = target.substring(0, target.length() - 1);
+                        }
+                        getConfig().clusterSettings().addHostToSeed(target, port);
+                        log.info("  → resolved host {}:{}", target, port);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to resolve SRV record '{}': {}", srvName, e.getMessage());
         }
     }
 
