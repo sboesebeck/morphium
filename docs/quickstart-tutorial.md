@@ -18,7 +18,7 @@
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>6.1.1</version>
+    <version>6.2.0-SNAPSHOT</version>
 </dependency>
 ```
 

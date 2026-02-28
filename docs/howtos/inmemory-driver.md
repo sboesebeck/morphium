@@ -26,7 +26,7 @@ If you want to run a **MongoDB-compatible server** that other applications can c
 - Standalone network server
 - MongoDB wire protocol compatible
 - Any MongoDB client can connect
-- Run with: `java -jar target/morphium-6.1.1-server-cli.jar --port 27017`
+- Run with: `java -jar target/morphium-6.2.0-SNAPSHOT-server-cli.jar --port 27017`
 
 ### Core Operations
 - ✅ **CRUD Operations**: insert, find, update, delete, upsert
