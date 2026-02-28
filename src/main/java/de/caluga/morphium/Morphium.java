@@ -1822,27 +1822,34 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         int w = safety.level().getValue();
         long timeout = safety.timeout();
 
-        if (isReplicaSet() && w > 2) {
-            var hostSeed = getDriver().getHostSeed(); //list of available hosts
-            // de.caluga.morphium.replicaset.ReplicaSetStatus s = RsMonitor.getCurrentStatus();
-
-            if (log.isDebugEnabled()) {
-                log.debug("Active nodes now: " + hostSeed.size());
+        if (!isReplicaSet()) {
+            // Standalone MongoDB: downgrade write concern that requires replica set
+            if (w > 1 || safety.level() == SafetyLevel.MAJORITY) {
+                log.warn("Entity {} has @WriteSafety(level={}) which requires a replica set, "
+                        + "but connected to standalone MongoDB. Downgrading to w:1 (BASIC).",
+                        cls.getSimpleName(), safety.level());
+                w = 1;
             }
-
-            int activeNodes = hostSeed.size();
-
-            if (activeNodes > 50) {
-                activeNodes = 50;
+            if (timeout < 0) {
+                timeout = 0;
             }
+        } else {
+            // Replica set: scale WAIT_FOR_ALL_SLAVES to active nodes (existing logic)
+            if (w > 2) {
+                var hostSeed = getDriver().getHostSeed();
 
-            long maxReplLag = 0;
-            // Wait for all active slaves (-1 for the timeout bug)
-            w = activeNodes;
-        }
+                if (log.isDebugEnabled()) {
+                    log.debug("Active nodes now: " + hostSeed.size());
+                }
 
-        if (!isReplicaSet() && timeout < 0) {
-            timeout = 0;
+                int activeNodes = hostSeed.size();
+
+                if (activeNodes > 50) {
+                    activeNodes = 50;
+                }
+
+                w = activeNodes;
+            }
         }
 
         return WriteConcern.getWc(w, j, (int) timeout);
@@ -3115,6 +3122,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void startTransaction() {
+        if (!isReplicaSet()) {
+            log.warn("Transactions require a replica set. Current MongoDB is standalone. "
+                    + "Transaction will likely fail.");
+        }
         getDriver().startTransaction(false);
     }
 
