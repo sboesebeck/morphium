@@ -15,7 +15,29 @@
  */
 package io.quarkiverse.morphium.showcase.common;
 
+/**
+ * Immutable data transfer object carrying metadata about the currently rendered page.
+ *
+ * <p>Used by the Qute template layout to set the HTML page title and to determine which
+ * navigation item should be highlighted as "active". Each JAX-RS resource passes a
+ * {@code PageInfo} (or its individual fields) into the template context so the shared
+ * layout can render the correct navigation state.</p>
+ *
+ * <p>Like {@link DocLink}, this is a presentation-layer DTO with no connection to Morphium
+ * or MongoDB.</p>
+ *
+ * @param title  the page title displayed in the browser tab and page header
+ * @param active the identifier of the currently active navigation item (e.g. "polymorphism", "docs")
+ */
 public record PageInfo(String title, String active) {
+
+    /**
+     * Factory method for convenient construction.
+     *
+     * @param title  the page title
+     * @param active the active navigation identifier
+     * @return a new {@code PageInfo} instance
+     */
     public static PageInfo of(String title, String active) {
         return new PageInfo(title, active);
     }

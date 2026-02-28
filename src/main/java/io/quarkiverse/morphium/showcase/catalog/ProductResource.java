@@ -29,6 +29,20 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * JAX-RS resource serving the product catalog pages.
+ *
+ * <p>This resource demonstrates how a Quarkus REST endpoint integrates with Morphium through the
+ * {@link ProductService}. It uses Quarkus Qute templates for server-side HTML rendering and
+ * showcases Morphium features including:</p>
+ * <ul>
+ *   <li><strong>CRUD operations</strong> -- create, read, update, delete products via Morphium</li>
+ *   <li><strong>Regex search</strong> -- case-insensitive pattern matching via Morphium's query API</li>
+ *   <li><strong>Range queries</strong> -- filter products by price range</li>
+ *   <li><strong>Cache management</strong> -- view cache statistics and manually clear the cache</li>
+ *   <li><strong>Seed data</strong> -- bulk-insert sample data with {@code morphium.storeList()}</li>
+ * </ul>
+ */
 @Path("/catalog")
 public class ProductResource {
 
@@ -45,6 +59,12 @@ public class ProductResource {
             new DocLink("/docs/howtos/field-names", "Field Names", "@Property, @FieldNameConstants")
     );
 
+    /**
+     * Renders the main catalog page with all products, count, and cache statistics.
+     * Seeds sample data on first access if the collection is empty.
+     *
+     * @return the rendered catalog HTML page
+     */
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance page() {
@@ -57,6 +77,19 @@ public class ProductResource {
                 .data("docLinks", DOC_LINKS);
     }
 
+    /**
+     * Creates a new product from form data and redirects back to the catalog page.
+     * Demonstrates Morphium's {@code store()} for inserting new entities.
+     *
+     * @param name         the product name
+     * @param description  the product description
+     * @param price        the product price
+     * @param stock        the stock quantity
+     * @param categoryName the category name (stored as an embedded document)
+     * @param categoryDesc the category description
+     * @param tagsStr      comma-separated tags
+     * @return a redirect response to the catalog page
+     */
     @POST
     @Path("/products")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -76,6 +109,12 @@ public class ProductResource {
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
+    /**
+     * Deletes a single product by id. Demonstrates Morphium's {@code delete()} operation.
+     *
+     * @param id the MorphiumId string of the product to delete
+     * @return a redirect response to the catalog page
+     */
     @DELETE
     @Path("/products/{id}")
     @Produces(MediaType.TEXT_HTML)
@@ -84,6 +123,13 @@ public class ProductResource {
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
+    /**
+     * Searches products by name using a regex pattern. Demonstrates Morphium's
+     * {@code matches()} query operator for case-insensitive pattern matching.
+     *
+     * @param query the search pattern
+     * @return the catalog page filtered by the search query
+     */
     @POST
     @Path("/products/search")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -100,6 +146,14 @@ public class ProductResource {
                 .data("docLinks", DOC_LINKS);
     }
 
+    /**
+     * Filters products by price range. Demonstrates Morphium's {@code gte()} and {@code lte()}
+     * range query operators combined with sorting.
+     *
+     * @param min minimum price (inclusive)
+     * @param max maximum price (inclusive)
+     * @return the catalog page showing products within the price range
+     */
     @POST
     @Path("/products/price-range")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -115,6 +169,12 @@ public class ProductResource {
                 .data("docLinks", DOC_LINKS);
     }
 
+    /**
+     * Clears the Morphium read cache for the Product entity. Useful for demonstrating that
+     * subsequent reads will fetch from MongoDB instead of the cache.
+     *
+     * @return a redirect response to the catalog page
+     */
     @POST
     @Path("/cache/clear")
     @Produces(MediaType.TEXT_HTML)
@@ -123,6 +183,11 @@ public class ProductResource {
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
+    /**
+     * Drops the entire products collection. Demonstrates Morphium's {@code dropCollection()}.
+     *
+     * @return a redirect response to the catalog page
+     */
     @DELETE
     @Path("/products")
     @Produces(MediaType.TEXT_HTML)
@@ -131,6 +196,12 @@ public class ProductResource {
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
+    /**
+     * Resets the collection and re-seeds sample data. Demonstrates Morphium's
+     * {@code dropCollection()} followed by {@code storeList()} for bulk inserts.
+     *
+     * @return a redirect response to the catalog page
+     */
     @POST
     @Path("/products/seed")
     @Produces(MediaType.TEXT_HTML)

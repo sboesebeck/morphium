@@ -26,6 +26,20 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.util.List;
 
+/**
+ * JAX-RS resource serving the banking demo pages.
+ *
+ * <p>This resource demonstrates how Morphium handles transactional operations, atomic field updates,
+ * and optimistic locking through the {@link BankService}. Key Morphium features exposed through
+ * this UI:</p>
+ * <ul>
+ *   <li><strong>Account creation</strong> -- {@code morphium.store()} with auto-populated @Version,
+ *       @CreationTime, and @Id fields</li>
+ *   <li><strong>Money transfers</strong> -- {@code @MorphiumTransactional} wrapping multiple atomic
+ *       {@code morphium.inc()} operations</li>
+ *   <li><strong>Deposits/Withdrawals</strong> -- Atomic {@code morphium.inc()} without transactions</li>
+ * </ul>
+ */
 @Path("/bank")
 public class BankResource {
 
@@ -41,6 +55,12 @@ public class BankResource {
             new DocLink("/docs/api-reference", "API Reference", "inc(), dec(), Atomic Operations")
     );
 
+    /**
+     * Renders the main banking page showing all accounts and recent transfers.
+     * Seeds sample data on first access if the collection is empty.
+     *
+     * @return the rendered bank HTML page
+     */
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance page() {
@@ -53,6 +73,16 @@ public class BankResource {
                 .data("docLinks", DOC_LINKS);
     }
 
+    /**
+     * Creates a new bank account. Demonstrates Morphium's {@code store()} with automatic
+     * {@code @Version}, {@code @CreationTime}, and {@code @Id} population.
+     *
+     * @param accountNumber  the unique account identifier
+     * @param ownerName      the account holder's name
+     * @param initialBalance the starting balance
+     * @param currency       the currency code (defaults to "EUR")
+     * @return a redirect to the bank page
+     */
     @POST
     @Path("/accounts")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -67,6 +97,17 @@ public class BankResource {
         return Response.seeOther(URI.create("/bank")).build();
     }
 
+    /**
+     * Executes a money transfer between two accounts. This endpoint triggers the
+     * {@code @MorphiumTransactional} transfer method, which wraps all operations in a
+     * MongoDB multi-document transaction.
+     *
+     * @param from        the source account number
+     * @param to          the target account number
+     * @param amount      the transfer amount
+     * @param description a human-readable description
+     * @return the bank page with the transfer result (success or error message)
+     */
     @POST
     @Path("/transfer")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -85,6 +126,13 @@ public class BankResource {
                 .data("docLinks", DOC_LINKS);
     }
 
+    /**
+     * Deposits money into an account using Morphium's atomic {@code inc()} operation.
+     *
+     * @param accountNumber the account to deposit into
+     * @param amount        the deposit amount
+     * @return a redirect to the bank page
+     */
     @POST
     @Path("/deposit")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -96,6 +144,14 @@ public class BankResource {
         return Response.seeOther(URI.create("/bank")).build();
     }
 
+    /**
+     * Withdraws money from an account. Uses Morphium's atomic {@code inc()} with a negative value
+     * after validating sufficient funds.
+     *
+     * @param accountNumber the account to withdraw from
+     * @param amount        the withdrawal amount
+     * @return a redirect to the bank page
+     */
     @POST
     @Path("/withdraw")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -112,6 +168,11 @@ public class BankResource {
         return Response.seeOther(URI.create("/bank")).build();
     }
 
+    /**
+     * Resets the banking data by dropping both collections and re-seeding sample accounts.
+     *
+     * @return a redirect to the bank page
+     */
     @POST
     @Path("/seed")
     @Produces(MediaType.TEXT_HTML)

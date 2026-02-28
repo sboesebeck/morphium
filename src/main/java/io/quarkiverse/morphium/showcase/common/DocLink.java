@@ -15,5 +15,20 @@
  */
 package io.quarkiverse.morphium.showcase.common;
 
+/**
+ * Immutable data transfer object representing a hyperlink to a documentation page.
+ *
+ * <p>Each showcase page (e.g. the polymorphism demo, the catalog demo) includes a list of
+ * relevant documentation links. This record carries the URL, a human-readable title, and a
+ * short description of the topics covered. It is rendered by the Qute templates in the sidebar
+ * or footer of each showcase page.</p>
+ *
+ * <p>This is a plain Java record -- it is <em>not</em> a Morphium entity and is never stored
+ * in MongoDB. It exists purely for the UI/presentation layer.</p>
+ *
+ * @param url         the relative URL to the documentation page (e.g. "/docs/developer-guide")
+ * @param title       the display title for the link (e.g. "Developer Guide")
+ * @param description a comma-separated summary of key topics covered by the linked page
+ */
 public record DocLink(String url, String title, String description) {
 }
