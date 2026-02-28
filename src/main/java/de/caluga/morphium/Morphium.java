@@ -59,10 +59,15 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
-import javax.naming.NamingEnumeration;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.InitialDirContext;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 
 /**
  * This is the single access point for accessing MongoDB. This conains a ton of convenience Methods
@@ -665,6 +670,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * URL does not start with {@code mongodb+srv://}, the method returns immediately
      * without changing any state.
      */
+    /**
+     * Resolves a {@code mongodb+srv://} Atlas URL to concrete host:port seeds via DNS SRV lookup.
+     * Uses raw UDP/TCP DNS – no JNDI required, works in any JVM environment (including Quarkus).
+     * When resolution fails an exception is thrown with a diagnostic message so the root cause
+     * is never swallowed by the generic "no server address specified" error.
+     */
     private void resolveAtlasUrlIfNeeded() {
         String atlasUrl = getConfig().clusterSettings().getAtlasUrl();
         if (atlasUrl == null || atlasUrl.isBlank()) {
@@ -681,17 +692,14 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         // Extract the bare hostname from mongodb+srv://[user:pass@]hostname[/db][?opts]
         String hostname;
         try {
-            // Replace the custom scheme so java.net.URI can parse it
             URI uri = new URI(atlasUrl.replaceFirst("^mongodb\\+srv://", "https://"));
             hostname = uri.getHost();
         } catch (URISyntaxException e) {
-            log.warn("Could not parse atlasUrl '{}': {}", atlasUrl, e.getMessage());
-            return;
+            throw new RuntimeException("Could not parse atlasUrl '" + atlasUrl + "': " + e.getMessage(), e);
         }
 
         if (hostname == null || hostname.isBlank()) {
-            log.warn("Could not extract hostname from atlasUrl '{}'", atlasUrl);
-            return;
+            throw new RuntimeException("Could not extract hostname from atlasUrl '" + atlasUrl + "'");
         }
 
         // Atlas always requires TLS
@@ -701,34 +709,248 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
 
         String srvName = "_mongodb._tcp." + hostname;
-        log.info("Resolving Atlas SRV record '{}'", srvName);
+        log.info("Resolving Atlas SRV record '{}' (pure-Java DNS, no JNDI)", srvName);
 
+        List<String[]> resolved;
         try {
-            Hashtable<String, String> env = new Hashtable<>();
-            env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
-            env.put("java.naming.provider.url", "dns:");
-            InitialDirContext ctx = new InitialDirContext(env);
-            Attributes attrs = ctx.getAttributes(srvName, new String[]{"SRV"});
-            NamingEnumeration<? extends Attribute> attrEnum = attrs.getAll();
-            while (attrEnum.hasMoreElements()) {
-                Attribute attr = attrEnum.next();
-                for (int i = 0; i < attr.size(); i++) {
-                    // SRV record: "<priority> <weight> <port> <target>"
-                    String[] parts = attr.get(i).toString().split("\\s+");
-                    if (parts.length >= 4) {
-                        int port = Integer.parseInt(parts[2]);
-                        String target = parts[3];
-                        if (target.endsWith(".")) {
-                            target = target.substring(0, target.length() - 1);
-                        }
-                        getConfig().clusterSettings().addHostToSeed(target, port);
-                        log.info("  → resolved host {}:{}", target, port);
+            resolved = srvLookup(srvName);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Atlas SRV lookup failed for '" + srvName + "' (atlasUrl='" + atlasUrl + "'): " + e.getMessage(), e);
+        }
+
+        if (resolved.isEmpty()) {
+            throw new RuntimeException(
+                    "Atlas SRV lookup returned no records for '" + srvName
+                    + "' – verify atlasUrl and network/firewall settings");
+        }
+
+        for (String[] hp : resolved) {
+            getConfig().clusterSettings().addHostToSeed(hp[0], Integer.parseInt(hp[1]));
+            log.info("  → resolved Atlas host {}:{}", hp[0], hp[1]);
+        }
+    }
+
+    // ── DNS SRV resolution (pure Java, no JNDI) ───────────────────────────────
+
+    private static final int DNS_SRV_PORT       = 53;
+    private static final int DNS_SRV_TIMEOUT_MS = 5_000;
+
+    /** Tries each system DNS server in turn; returns on the first non-empty result. */
+    private List<String[]> srvLookup(String srvName) throws Exception {
+        List<InetAddress> servers = systemDnsServers();
+        if (servers.isEmpty()) {
+            throw new Exception("No DNS name-servers found on this host");
+        }
+        Exception lastEx = null;
+        for (InetAddress dns : servers) {
+            try {
+                List<String[]> records = srvQuery(dns, srvName);
+                if (!records.isEmpty()) {
+                    return records;
+                }
+                log.debug("DNS server {} returned no SRV records for '{}'", dns, srvName);
+            } catch (Exception ex) {
+                lastEx = ex;
+                log.debug("DNS server {} failed for '{}': {}", dns, srvName, ex.getMessage());
+            }
+        }
+        if (lastEx != null) throw lastEx;
+        return Collections.emptyList();
+    }
+
+    /** Collects name-server addresses from JVM properties and /etc/resolv.conf, with a public fallback. */
+    private List<InetAddress> systemDnsServers() {
+        List<InetAddress> servers = new ArrayList<>();
+
+        String prop = System.getProperty("sun.net.spi.nameservice.nameservers");
+        if (prop != null) {
+            for (String s : prop.split(",")) {
+                try { servers.add(InetAddress.getByName(s.trim())); } catch (Exception ignored) {}
+            }
+        }
+
+        File resolvConf = new File("/etc/resolv.conf");
+        if (resolvConf.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(resolvConf))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    line = line.trim();
+                    if (line.startsWith("nameserver ")) {
+                        String addr = line.substring("nameserver ".length()).trim();
+                        try { servers.add(InetAddress.getByName(addr)); } catch (Exception ignored) {}
                     }
                 }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to resolve SRV record '{}': {}", srvName, e.getMessage());
+            } catch (Exception ignored) {}
         }
+
+        if (servers.isEmpty()) {
+            // Public fallback – should rarely be needed
+            try { servers.add(InetAddress.getByName("8.8.8.8")); } catch (Exception ignored) {}
+            try { servers.add(InetAddress.getByName("1.1.1.1")); } catch (Exception ignored) {}
+        }
+        return servers;
+    }
+
+    /** Sends a DNS SRV query over UDP; retries over TCP if the response is truncated. */
+    private List<String[]> srvQuery(InetAddress dns, String srvName) throws Exception {
+        byte[] query    = buildDnsQuery(srvName, 33 /* SRV */);
+        byte[] response = dnsOverUdp(dns, query);
+        // TC bit (byte 2, bit 1) set → response was truncated, retry over TCP
+        if ((response[2] & 0x02) != 0) {
+            log.debug("DNS UDP response truncated, retrying over TCP");
+            response = dnsOverTcp(dns, query);
+        }
+        return parseSrvRecords(response);
+    }
+
+    private byte[] dnsOverUdp(InetAddress dns, byte[] query) throws Exception {
+        try (DatagramSocket sock = new DatagramSocket()) {
+            sock.setSoTimeout(DNS_SRV_TIMEOUT_MS);
+            sock.send(new DatagramPacket(query, query.length, dns, DNS_SRV_PORT));
+            byte[] buf   = new byte[4096];
+            DatagramPacket reply = new DatagramPacket(buf, buf.length);
+            sock.receive(reply);
+            return Arrays.copyOf(buf, reply.getLength());
+        }
+    }
+
+    private byte[] dnsOverTcp(InetAddress dns, byte[] query) throws Exception {
+        try (java.net.Socket sock = new java.net.Socket()) {
+            sock.connect(new InetSocketAddress(dns, DNS_SRV_PORT), DNS_SRV_TIMEOUT_MS);
+            sock.setSoTimeout(DNS_SRV_TIMEOUT_MS);
+            OutputStream out = sock.getOutputStream();
+            InputStream  in  = sock.getInputStream();
+            // TCP DNS: 2-byte big-endian length prefix
+            out.write((query.length >> 8) & 0xFF);
+            out.write(query.length & 0xFF);
+            out.write(query);
+            out.flush();
+            int len  = ((in.read() & 0xFF) << 8) | (in.read() & 0xFF);
+            byte[] resp = new byte[len];
+            int read = 0;
+            while (read < len) {
+                int n = in.read(resp, read, len - read);
+                if (n < 0) break;
+                read += n;
+            }
+            return resp;
+        }
+    }
+
+    private byte[] buildDnsQuery(String name, int qtype) {
+        byte[] qname  = encodeDnsName(name);
+        byte[] packet = new byte[12 + qname.length + 4];
+        int    id     = ThreadLocalRandom.current().nextInt(0x10000);
+        packet[0] = (byte) (id >> 8);
+        packet[1] = (byte) (id & 0xFF);
+        packet[2] = 0x01; // RD = 1 (recursion desired)
+        packet[4] = 0x00; packet[5] = 0x01; // QDCOUNT = 1
+        System.arraycopy(qname, 0, packet, 12, qname.length);
+        int off = 12 + qname.length;
+        packet[off]   = (byte) (qtype >> 8);
+        packet[off+1] = (byte) (qtype & 0xFF);
+        packet[off+3] = 0x01; // QCLASS = IN
+        return packet;
+    }
+
+    private byte[] encodeDnsName(String name) {
+        String[] labels = name.split("\\.");
+        int size = 1; // trailing null byte
+        for (String l : labels) size += 1 + l.length();
+        byte[] buf = new byte[size];
+        int pos = 0;
+        for (String l : labels) {
+            byte[] lb = l.getBytes(StandardCharsets.US_ASCII);
+            buf[pos++] = (byte) lb.length;
+            System.arraycopy(lb, 0, buf, pos, lb.length);
+            pos += lb.length;
+        }
+        return buf; // buf[pos] == 0 (null terminator, already zero from new byte[])
+    }
+
+    /**
+     * Parses an SRV DNS response and returns a list of [hostname, port] pairs.
+     */
+    private List<String[]> parseSrvRecords(byte[] data) throws Exception {
+        if (data.length < 12) throw new Exception("DNS response too short (" + data.length + " bytes)");
+        int rcode = data[3] & 0x0F;
+        if (rcode != 0) throw new Exception("DNS RCODE=" + rcode + " error for SRV query");
+
+        int qdCount = dnsShort(data, 4);
+        int anCount = dnsShort(data, 6);
+        int offset  = 12;
+
+        // Skip question section
+        for (int i = 0; i < qdCount && offset < data.length; i++) {
+            offset = dnsSkipName(data, offset) + 4; // +4 for QTYPE + QCLASS
+        }
+
+        List<String[]> results = new ArrayList<>();
+        for (int i = 0; i < anCount && offset + 10 <= data.length; i++) {
+            offset  = dnsSkipName(data, offset);     // NAME field
+            int type     = dnsShort(data, offset);
+            int rdLength = dnsShort(data, offset + 8); // TYPE(2)+CLASS(2)+TTL(4) = 8
+            offset += 10;                              // past TYPE+CLASS+TTL+RDLENGTH
+
+            if (offset + rdLength > data.length) break; // malformed
+
+            if (type == 33 /* SRV */ && rdLength >= 7) {
+                int    port     = dnsShort(data, offset + 4);
+                int[]  nameOff  = {offset + 6};
+                String target   = dnsDecodeName(data, nameOff);
+                results.add(new String[]{target, String.valueOf(port)});
+            }
+            offset += rdLength;
+        }
+        return results;
+    }
+
+    private int dnsShort(byte[] data, int off) {
+        return ((data[off] & 0xFF) << 8) | (data[off + 1] & 0xFF);
+    }
+
+    /** Skips a DNS-encoded name and returns the offset of the first byte after it. */
+    private int dnsSkipName(byte[] data, int offset) {
+        while (offset < data.length) {
+            int len = data[offset] & 0xFF;
+            if (len == 0) return offset + 1;
+            if ((len & 0xC0) == 0xC0) return offset + 2; // compression pointer
+            offset += 1 + len;
+        }
+        return offset;
+    }
+
+    /**
+     * Decodes a DNS-encoded name (supports compression pointers).
+     * {@code offsetHolder[0]} is updated to point past the name in the original buffer.
+     */
+    private String dnsDecodeName(byte[] data, int[] offsetHolder) {
+        StringBuilder sb       = new StringBuilder();
+        int           off      = offsetHolder[0];
+        boolean       jumped   = false;
+        int           savedNext = -1;
+        int           hops     = 0;
+
+        while (off < data.length) {
+            int len = data[off] & 0xFF;
+            if (len == 0) {
+                if (!jumped) offsetHolder[0] = off + 1;
+                else         offsetHolder[0] = savedNext;
+                break;
+            }
+            if ((len & 0xC0) == 0xC0) {
+                if (!jumped) savedNext = off + 2;
+                off    = ((len & 0x3F) << 8) | (data[off + 1] & 0xFF);
+                jumped = true;
+                if (++hops > 20) { offsetHolder[0] = savedNext < 0 ? off : savedNext; break; }
+                continue;
+            }
+            if (sb.length() > 0) sb.append('.');
+            sb.append(new String(data, off + 1, len, StandardCharsets.US_ASCII));
+            off += 1 + len;
+        }
+        return sb.toString();
     }
 
     @SuppressWarnings("UnusedDeclaration")
