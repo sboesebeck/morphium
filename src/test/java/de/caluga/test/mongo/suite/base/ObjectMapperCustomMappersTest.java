@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 @Tag("core")
 public class ObjectMapperCustomMappersTest extends MultiDriverTestBase {
 

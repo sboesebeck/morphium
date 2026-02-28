@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 @Tag("inmemory")
 public class InMemAggregationTests extends MorphiumInMemTestBase {
 

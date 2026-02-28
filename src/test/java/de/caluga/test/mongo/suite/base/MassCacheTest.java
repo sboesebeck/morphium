@@ -57,7 +57,7 @@ public class MassCacheTest extends MultiDriverTestBase {
                         o.setValue(getName() + " " + j);
                         log.info("Storing...");
                         morphium.store(o);
-                        log.info("Stored object..." + j + ": " + getId() + " / " + getName());
+                        log.info("Stored object..." + j + ": " + threadId() + " / " + getName());
                     }
                 }
             };
@@ -214,8 +214,8 @@ public class MassCacheTest extends MultiDriverTestBase {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
-        morphium.getConfig().disableReadCache();
-        morphium.getConfig().disableBufferedWrites();
+        morphium.getConfig().cacheSettings().setReadCacheEnabled(false);
+        morphium.getConfig().cacheSettings().setBufferedWritesEnabled(false);
         morphium.resetStatistics();
         try {
             log.info("Preparing test data...");
@@ -245,7 +245,7 @@ public class MassCacheTest extends MultiDriverTestBase {
             Map<String, Double> statistics = morphium.getStatistics();
             assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == null || statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
             assert (statistics.get("WRITES_CACHED") == 0);
-            morphium.getConfig().enableReadCache();
+            morphium.getConfig().cacheSettings().setReadCacheEnabled(true);
             for (int j = 0; j < 3; j++) {
                 for (int i = 0; i < NO_OBJECTS; i++) {
                     Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
@@ -264,8 +264,8 @@ public class MassCacheTest extends MultiDriverTestBase {
             assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0);
             assert (statistics.get("CHITS") != 0);
         } finally {
-            morphium.getConfig().enableReadCache();
-            morphium.getConfig().enableBufferedWrites();
+            morphium.getConfig().cacheSettings().setReadCacheEnabled(true);
+            morphium.getConfig().cacheSettings().setBufferedWritesEnabled(true);
         }
     }
 

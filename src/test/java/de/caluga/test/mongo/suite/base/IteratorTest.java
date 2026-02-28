@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Time: 12:04
  * <p>
  */
+@SuppressWarnings("unchecked")
 @Tag("core")
 public class IteratorTest extends MultiDriverTestBase {
 

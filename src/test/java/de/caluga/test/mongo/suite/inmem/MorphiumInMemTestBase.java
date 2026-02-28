@@ -33,10 +33,10 @@ public class MorphiumInMemTestBase {
         System.gc();
         log.info("creating in Memory instance");
         MorphiumConfig cfg = de.caluga.test.support.TestConfig.forDriver(InMemoryDriver.driverName);
-        cfg.setHostSeed("inMem");
-        cfg.setDatabase("test");
-        cfg.setReplicasetMonitoring(false);
-        cfg.setMaxWaitTime(1550);
+        cfg.clusterSettings().setHostSeed("inMem");
+        cfg.connectionSettings().setDatabase("test");
+        cfg.clusterSettings().setReplicaset(false);
+        cfg.connectionSettings().setMaxWaitTime(1550);
         morphium = new Morphium(cfg);
         log.info("Done!");
 
@@ -49,6 +49,7 @@ public class MorphiumInMemTestBase {
         try {
             Field f = morphium.getClass().getDeclaredField("shutDownListeners");
             f.setAccessible(true);
+            @SuppressWarnings("unchecked")
             List<ShutdownListener> listeners = (List<ShutdownListener>) f.get(morphium);
             for (ShutdownListener l : listeners) {
                 if (l instanceof MorphiumMessaging) {

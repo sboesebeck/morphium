@@ -35,7 +35,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
             createUncachedObjects(morphium, 10);
             TestUtils.waitForWrites(morphium, log);
 
-            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(),
                 "UncachedObject not found",
                 () -> morphium.createQueryFor(UncachedObject.class).get() != null);
             UncachedObject uc1 = morphium.createQueryFor(UncachedObject.class).get();
@@ -88,7 +88,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
             //        UpdateBulkRequest up = c
             c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 999, true, true);
             Map<String, Object> ret = c.runBulk();
-            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(),
                 "Bulk set operation not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).f("counter").eq(999).countAll() == 100);
             for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
@@ -108,7 +108,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
             MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
             c.addIncRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 1000, true, true);
             c.runBulk();
-            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().getMaxWaitTime(),
+            TestUtils.waitForConditionToBecomeTrue(morphium.getConfig().connectionSettings().getMaxWaitTime(),
                 "Bulk inc operation not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll() == 100);
             for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {

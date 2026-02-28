@@ -35,7 +35,7 @@ public class MongoCommandTest {
     @Test
     public void testMongoCommands() throws Exception{
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(false);
-        Map < String, Class <? extends MongoCommand>> commandsByName = new HashMap<>();
+        Map<String, Class<? extends MongoCommand<?>>> commandsByName = new HashMap<>();
         try (ScanResult scanResult =
                     new ClassGraph()
             //                     .verbose()             // Enable verbose logging
@@ -46,17 +46,19 @@ public class MongoCommandTest {
             scanResult.getSubclasses(MongoCommand.class.getName());
             for (ClassInfo info : entities) {
                 String n = info.getName();
-                Class cls = Class.forName(n);
+                Class<?> cls = Class.forName(n);
                 if (Modifier.isAbstract(cls.getModifiers())) continue;
                 if (cls.isInterface()) continue;
-                MongoCommand<MongoCommand> cmd = null;
 
-                Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
+                Constructor<?> declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
                 declaredConstructor.setAccessible(true);
-                cmd = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(new SingleMongoConnection());
+                @SuppressWarnings("unchecked")
+                MongoCommand<? extends MongoCommand<?>> cmd = (MongoCommand<? extends MongoCommand<?>>) declaredConstructor.newInstance(new SingleMongoConnection());
 
                 log.info("Processing " + cls.getName() + "  command " + cmd.getCommandName());
-                commandsByName.put(cmd.getCommandName(), cls);
+                @SuppressWarnings("unchecked")
+                Class<? extends MongoCommand<?>> cmdClass = (Class<? extends MongoCommand<?>>) cls;
+                commandsByName.put(cmd.getCommandName(), cmdClass);
                 //generating test-data
                 for (Field f : an.getAllFields(cls)) {
                     if (f.getAnnotation(Transient.class) != null) continue;
@@ -93,9 +95,10 @@ public class MongoCommandTest {
                 log.info("... creating Map took " + dur + "ms");
                 var commandName = m.keySet().toArray(new String[1])[0];
                 assertEquals(commandName, cmd.getCommandName());
-                declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
-                declaredConstructor.setAccessible(true);
-                var cmd2 = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(new SingleMongoConnection());
+                Constructor<?> declaredConstructor2 = cls.getDeclaredConstructor(MongoConnection.class);
+                declaredConstructor2.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                MongoCommand<? extends MongoCommand<?>> cmd2 = (MongoCommand<? extends MongoCommand<?>>) declaredConstructor2.newInstance(new SingleMongoConnection());
                 start = System.currentTimeMillis();
                 cmd2.fromMap(m);
                 dur = System.currentTimeMillis() - start;

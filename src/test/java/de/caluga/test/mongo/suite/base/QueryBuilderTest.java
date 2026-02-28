@@ -16,6 +16,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@SuppressWarnings("unchecked")
 @Tag("core")
 public class QueryBuilderTest extends MultiDriverTestBase {
 
@@ -127,7 +128,7 @@ public class QueryBuilderTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testOverrideDB(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.getDB().equals(morphium.getConfig().getDatabase()));
+        assert (q.getDB().equals(morphium.getConfig().connectionSettings().getDatabase()));
         q.overrideDB("testDB");
         assert (q.getDB().equals("testDB"));
     }
@@ -151,10 +152,10 @@ public class QueryBuilderTest extends MultiDriverTestBase {
         Map<String, Object> qo = q.toQueryObject();
         assertNotNull(qo.get("$or"));
         ;
-        assert (((java.util.List) qo.get("$or")).size() == 2);
-        assertNotNull(((java.util.List<Map>) qo.get("$or")).get(0).get("counter"));
+        assert (((java.util.List<?>) qo.get("$or")).size() == 2);
+        assertNotNull(((java.util.List<Map<String, Object>>) qo.get("$or")).get(0).get("counter"));
         ;
-        assertNotNull(((java.util.List<Map>) qo.get("$or")).get(1).get("str_value"));
+        assertNotNull(((java.util.List<Map<String, Object>>) qo.get("$or")).get(1).get("str_value"));
         ;
     }
 
@@ -168,10 +169,10 @@ public class QueryBuilderTest extends MultiDriverTestBase {
         Map<String, Object> qo = q.toQueryObject();
         assertNotNull(qo.get("$nor"));
         ;
-        assert (((java.util.List) qo.get("$nor")).size() == 2);
-        assertNotNull(((java.util.List<Map>) qo.get("$nor")).get(0).get("counter"));
+        assert (((java.util.List<?>) qo.get("$nor")).size() == 2);
+        assertNotNull(((java.util.List<Map<String, Object>>) qo.get("$nor")).get(0).get("counter"));
         ;
-        assertNotNull(((java.util.List<Map>) qo.get("$nor")).get(1).get("str_value"));
+        assertNotNull(((java.util.List<Map<String, Object>>) qo.get("$nor")).get(1).get("str_value"));
         ;
     }
 

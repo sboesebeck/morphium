@@ -34,7 +34,7 @@ public class InMemAggregatorSmokeTest {
     @BeforeEach
     public void setup() throws Exception {
         MorphiumConfig cfg = new MorphiumConfig(db, 10, 10000, 1000);
-        cfg.setDriverName(InMemoryDriver.driverName);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
         morphium = new Morphium(cfg);
         drv = (InMemoryDriver) morphium.getDriver();
         new ClearCollectionCommand(drv).setDb(db).setColl(coll).doClear();

@@ -79,7 +79,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         q = morphium.createQueryFor(BufferedBySizeObject.class).f(BufferedBySizeObject.Fields.counter).eq(201);
         morphium.dec(q, UncachedObject.Fields.counter, 1.0, true, false);
         q = morphium.createQueryFor(BufferedBySizeObject.class).f(BufferedBySizeObject.Fields.counter).eq(300);
-        morphium.set(q, UncachedObject.Fields.counter, 1, true, false);
+        q.set(UncachedObject.Fields.counter, 1, true, false);
         waitForAsyncOperationsToStart(morphium, 2000);
         TestUtils.waitForWrites(morphium, log);
         TestUtils.waitForConditionToBecomeTrue(5000, "Update operations not persisted",
@@ -204,7 +204,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testWriteBufferBySize(Morphium morphium) throws Exception  {
         int amount = 1500;
-        morphium.getConfig().setMaxWaitTime(15000);
+        morphium.getConfig().connectionSettings().setMaxWaitTime(15000);
         morphium.getDriver().setMaxWaitTime(15000);
         for (int i = 0; i < amount; i++) {
             BufferedBySizeObject bo = new BufferedBySizeObject();
@@ -262,7 +262,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
             log.info("Skipping write-buffer test for InMemoryDriver");
             return;
         }
-        morphium.getConfig().setMaxWaitTime(15000);
+        morphium.getConfig().connectionSettings().setMaxWaitTime(15000);
         int amount = 1500;
 
         for (int i = 0; i < amount; i++) {
@@ -312,7 +312,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
             return;
         }
         int amount = 1500;
-        morphium.getConfig().setMaxWaitTime(60000);
+        morphium.getConfig().connectionSettings().setMaxWaitTime(60000);
         morphium.getDriver().setMaxWaitTime(60000);
         for (int i = 0; i < amount; i++) {
             BufferedBySizeWaitObject bo = new BufferedBySizeWaitObject();
@@ -375,7 +375,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
             TestUtils.waitForCollectionToBeDeleted(morphium, SimpleObject.class);
         }
         morphium.getDriver().setMaxWaitTime(15000);
-        morphium.getConfig().setMaxWaitTime(15000);
+        morphium.getConfig().connectionSettings().setMaxWaitTime(15000);
         int threads = 5;
         int count = 100;
         Vector<Thread> thr = new Vector<>();

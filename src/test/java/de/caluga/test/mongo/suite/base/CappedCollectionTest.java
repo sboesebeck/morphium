@@ -34,7 +34,7 @@ public class CappedCollectionTest extends MultiDriverTestBase {
             cc.setStrValue("A value");
             cc.setCounter(-1);
             morphium.store(cc);
-            assert(morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
+            assert(morphium.getDriver().isCapped(morphium.getConfig().connectionSettings().getDatabase(), "capped_col"));
 
             //storing more than max entries
             for (int i = 0; i < 1000; i++) {
@@ -57,8 +57,8 @@ public class CappedCollectionTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void testAutCappedCollOnWrite(Morphium morphium) throws Exception {
         try(morphium) {
-            var orig = morphium.getConfig().getCappedCheck();
-            morphium.getConfig().setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
+            var orig = morphium.getConfig().collectionCheckSettings().getCappedCheck();
+            morphium.getConfig().collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
             morphium.dropCollection(CappedCol.class);
             Thread.sleep(1000);
             assertFalse(morphium.exists(morphium.getDatabase(), "capped_col"));
@@ -68,7 +68,7 @@ public class CappedCollectionTest extends MultiDriverTestBase {
             morphium.store(cc);
             //should be written, non existent hence capped
             assertTrue(morphium.getDriver().isCapped(morphium.getDatabase(), "capped_col"));
-            morphium.getConfig().setCappedCheck(orig);
+            morphium.getConfig().collectionCheckSettings().setCappedCheck(orig);
         }
     }
 
@@ -78,8 +78,8 @@ public class CappedCollectionTest extends MultiDriverTestBase {
         log.info("Running test with " + morphium.getDriver().getName());
 
         try (morphium) {
-            var orig = morphium.getConfig().getCappedCheck();
-            morphium.getConfig().setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
+            var orig = morphium.getConfig().collectionCheckSettings().getCappedCheck();
+            morphium.getConfig().collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
             morphium.dropCollection(CappedCol.class);
             Thread.sleep(1000);
             assertFalse(morphium.exists(morphium.getDatabase(), "capped_col"));
@@ -95,14 +95,14 @@ public class CappedCollectionTest extends MultiDriverTestBase {
 
             morphium.storeList(lst);
             Thread.sleep(100);
-            assert(morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
+            assert(morphium.getDriver().isCapped(morphium.getConfig().connectionSettings().getDatabase(), "capped_col"));
             assertTrue(morphium.createQueryFor(CappedCol.class).countAll() <= 10);
 
             for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
                 log.info("Capped: " + cp.getCounter() + " - " + cp.getStrValue());
             }
 
-            morphium.getConfig().setCappedCheck(orig);
+            morphium.getConfig().collectionCheckSettings().setCappedCheck(orig);
         }
     }
 
