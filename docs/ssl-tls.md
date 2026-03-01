@@ -118,6 +118,26 @@ keytool -importkeystore \
 
 ## MongoDB Atlas Example
 
+### Recommended: Using `mongodb+srv://` Connection String
+
+The simplest way to connect to MongoDB Atlas is via the SRV connection string.
+Morphium resolves the `mongodb+srv://` URI automatically, performing DNS SRV
+lookup to discover all cluster hosts -- no need to specify individual hosts manually.
+
+```java
+MorphiumConfig cfg = MorphiumConfig.fromConnection(
+    "mongodb+srv://atlasUser:atlasPassword@cluster0.abc123.mongodb.net/mydb"
+);
+
+Morphium morphium = new Morphium(cfg);
+```
+
+SSL/TLS is enabled automatically when using `mongodb+srv://`.
+
+### Alternative: Manual Host Configuration
+
+If you prefer explicit configuration or cannot use SRV DNS resolution:
+
 ```java
 MorphiumConfig cfg = new MorphiumConfig();
 cfg.clusterSettings()
@@ -125,25 +145,17 @@ cfg.clusterSettings()
    .addHostToSeed("cluster0-shard-00-01.abc123.mongodb.net", 27017)
    .addHostToSeed("cluster0-shard-00-02.abc123.mongodb.net", 27017)
    .setRequiredReplicaSetName("atlas-abc123-shard-0");
-   
+
 cfg.connectionSettings()
    .setDatabase("mydb")
    .setUseSSL(true);  // Atlas requires SSL
-   
+
 cfg.authSettings()
    .setMongoLogin("atlasUser")
    .setMongoPassword("atlasPassword")
    .setMongoAuthDb("admin");
 
 Morphium morphium = new Morphium(cfg);
-```
-
-Or use a connection URI:
-
-```java
-// URI parsing handles SSL automatically for mongodb+srv://
-MorphiumConfig cfg = new MorphiumConfig();
-// ... parse from URI or set manually
 ```
 
 ## Troubleshooting
