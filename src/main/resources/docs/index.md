@@ -29,7 +29,7 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
   - Perfect for CI/CD pipelines, integration testing, and microservices development
   - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
   - Supports **Replica Sets** (experimental) and **Persistence (Snapshots)**
-  - Run with: `java -jar target/morphium-6.1.1-server-cli.jar --port 27017`
+  - Run with: `java -jar target/morphium-6.2.0-SNAPSHOT-server-cli.jar --port 27017`
 
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
@@ -74,5 +74,5 @@ Benefits
 - SSL/TLS support for secure connections (since v6.0).
 
 Limitations
-- No MongoDB Atlas support.
 - Some advanced features of the official driver are not available.
+- MongoDB Atlas is supported since v6.0 via SSL/TLS (see [SSL/TLS Connections](./ssl-tls.md)).

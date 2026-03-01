@@ -25,7 +25,7 @@ The InMemory Driver emulates MongoDB completely in RAM — including aggregation
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>6.1.1</version>
+    <version>6.2.0-SNAPSHOT</version>
 </dependency>
 <dependency>
     <groupId>org.junit.jupiter</groupId>

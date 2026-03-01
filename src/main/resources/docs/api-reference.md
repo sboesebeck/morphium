@@ -446,6 +446,22 @@ Enables **optimistic locking**. Morphium automatically:
 
 The exception carries `getExpectedVersion()` (the version the caller held) for diagnostic and retry logic. See `docs/howtos/optimistic-locking.md` for a complete guide.
 
+**@AutoSequence**
+```java
+@AutoSequence(
+    name = ".",         // "." = derive sequence name from MongoDB field name (default)
+                        // or set an explicit name, e.g. name = "order_number"
+    startValue = 1,     // First value when sequence is created for the first time
+    inc = 1             // Step size between consecutive values
+)
+```
+
+Marks a field for **automatic sequence number assignment**. When a document is stored and the annotated field is unset (`null` for boxed types, `0` for primitives), Morphium assigns the next value from the named sequence. Fields with existing values are never overwritten.
+
+- Supported types: `long`, `Long`, `int`, `Integer`, `String`
+- **Batch optimisation**: `storeList()` allocates all required numbers in a single lock+increment round-trip via `SequenceGenerator.getNextBatch(int)` instead of one round-trip per document
+- Sequence generators are cached per Morphium instance and reused across calls
+
 **@Reference**
 ```java
 @Reference(
@@ -642,6 +658,35 @@ Entity entity = mapper.unmarshall(Entity.class, bson);
 // JSON support
 String json = mapper.marshall(entity).toString();
 Entity entity = mapper.unmarshall(Entity.class, json);
+```
+
+### SequenceGenerator
+
+**Distributed Sequence Numbers:**
+```java
+// Create a sequence generator
+SequenceGenerator sg = new SequenceGenerator(morphium, "order_seq", 1 /* inc */, 1 /* startValue */);
+
+// Get next value (single)
+long next = sg.getNextValue();
+
+// Get a batch of values (bulk allocation — single lock cycle)
+long[] batch = sg.getNextBatch(1000);
+// returns [1, 2, 3, ..., 1000] for inc=1, startValue=1
+```
+
+`getNextBatch(int count)` reserves a contiguous block of `count` values in one atomic lock+increment+unlock round-trip. For bulk inserts of N records, this replaces N individual `getNextValue()` calls, reducing MongoDB round-trips from 5 x N to a constant 5.
+
+### DnsSrvResolver
+
+**DNS SRV Resolution (for MongoDB Atlas):**
+```java
+// Resolve SRV records (pure-Java, no JNDI)
+List<String> hosts = DnsSrvResolver.resolve("_mongodb._tcp.cluster0.abc123.mongodb.net");
+// returns ["shard-00-00.abc123.mongodb.net:27017", ...]
+
+// Get system DNS servers (respects /etc/resolv.conf on Linux/macOS, public fallbacks on Windows)
+List<InetAddress> servers = DnsSrvResolver.systemDnsServers();
 ```
 
 This API reference provides comprehensive documentation of all major Morphium APIs, including method signatures, parameters, and usage examples.

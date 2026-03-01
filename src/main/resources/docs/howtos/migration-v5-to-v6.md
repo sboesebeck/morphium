@@ -330,7 +330,7 @@ Morphium 6 uses Java 21 virtual threads for:
 ## Migration Checklist
 
 - [ ] Update to Java 21+
-- [ ] Update pom.xml dependency to `6.1.1` or higher
+- [ ] Update pom.xml dependency to `6.2.0-SNAPSHOT` or higher
 - [ ] Replace flat config setters with nested settings objects
 - [ ] Change messaging instantiation to `morphium.createMessaging()`
 - [ ] Update messaging code: replace `getName()`/`setName()` with `getTopic()`/`setTopic()`
