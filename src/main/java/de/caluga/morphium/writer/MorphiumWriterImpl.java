@@ -275,10 +275,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
 
                             List<Map<String, Object>> dbLst = new ArrayList<>();
-                            // DBCollection collection =
-                            // morphium.getDbName().getCollection(collectionName);
                             WriteConcern wc = morphium.getWriteConcernForClass(entry.getValue().get(0).getClass());
                             HashMap<Object, Boolean> isNew = new HashMap<>();
+
+                            if (morphium.isAutoValuesEnabledForThread()) {
+                                try {
+                                    morphium.setAutoValuesBatch(entry.getValue());
+                                } catch (IllegalAccessException e) {
+                                    throw new RuntimeException("could not set @AutoSequence values!", e);
+                                }
+                            }
 
                             for (Object o : entry.getValue()) {
                                 boolean isn = true;
@@ -500,6 +506,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         // Versioned-update entities keep their original objects so that
                         // we can read currentVersion, apply the filter, and increment in-memory.
                         Map<Class, List<Object>> toVersionedUpdate = new HashMap<>();
+
+                        if (morphium.isAutoValuesEnabledForThread()) {
+                            try {
+                                morphium.setAutoValuesBatch(lst);
+                            } catch (IllegalAccessException e) {
+                                throw new RuntimeException("could not set @AutoSequence values!", e);
+                            }
+                        }
 
                         // HashMap<Object, Boolean> isNew = new HashMap<>();
                         for (int i = 0; i < lst.size(); i++) {
