@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title} - Quarkus Morphium Showcase</title>
+    <script>
+    document.documentElement.setAttribute('data-theme',
+      localStorage.getItem('theme') || 'light');
+    function toggleTheme() {
+      var d = document.documentElement;
+      var t = d.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      d.setAttribute('data-theme', t);
+      localStorage.setItem('theme', t);
+    }
+    </script>
     <link rel="stylesheet" href="/css/showcase.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 </head>
