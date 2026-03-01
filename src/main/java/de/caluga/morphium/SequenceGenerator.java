@@ -246,6 +246,106 @@ public class SequenceGenerator {
         }
     }
 
+    /**
+     * Reserves a contiguous block of {@code count} sequence numbers in a single lock+increment
+     * round-trip instead of calling {@link #getNextValue()} {@code count} times.
+     *
+     * <p>This is the preferred method for bulk operations. For a bulk insert of N records,
+     * one call to {@code getNextBatch(N)} replaces N individual {@link #getNextValue()} calls,
+     * reducing MongoDB round-trips from {@code 5 × N} (lock + read + inc + re-read + unlock per
+     * value) down to a constant {@code 5} round-trips regardless of batch size.</p>
+     *
+     * <p>The returned array contains exactly {@code count} values forming a monotonically
+     * increasing sequence: {@code [first, first+inc, first+2*inc, ..., first+(count-1)*inc]}.
+     * The range is atomically reserved — no other caller can receive any of these values.</p>
+     *
+     * @param count number of sequence values to reserve; must be &gt; 0
+     * @return array of {@code count} unique, consecutive sequence values
+     * @throws IllegalArgumentException if {@code count} is &lt;= 0
+     * @throws RuntimeException         if the sequence lock cannot be acquired within the timeout
+     */
+    public long[] getNextBatch(int count) {
+        if (count <= 0) {
+            throw new IllegalArgumentException("count must be > 0, was: " + count);
+        }
+        if (count == 1) {
+            return new long[]{getNextValue()};
+        }
+
+        long start = System.currentTimeMillis();
+        SeqLock lock = new SeqLock();
+        lock.setName(name);
+        lock.setLockedBy(id);
+
+        while (true) {
+            if (System.currentTimeMillis() - start > 100_000) {
+                throw new RuntimeException(String.format("Getting lock on sequence %s failed!", name));
+            }
+
+            try {
+                lock.setLockedAt(new Date());
+                morphium.insert(lock);
+                break;
+            } catch (Exception e) {
+                try {
+                    SeqLock existingLock = morphium.createQueryFor(SeqLock.class)
+                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(name).get();
+
+                    if (existingLock != null && existingLock.getLockedAt() != null) {
+                        long age = System.currentTimeMillis() - existingLock.getLockedAt().getTime();
+
+                        if (age > LOCK_EXPIRE_MILLIS + LOCK_EXPIRE_GRACE_MILLIS) {
+                            morphium.delete(
+                                morphium.createQueryFor(SeqLock.class)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(name)
+                                    .f("lockedBy").eq(existingLock.getLockedBy())
+                                    .f("lockedAt").eq(existingLock.getLockedAt())
+                            );
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
+
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos((long) (100 * Math.random() + 10)));
+            }
+        }
+
+        try {
+            Query<Sequence> seq = morphium.createQueryFor(Sequence.class)
+                .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                .f("_id").eq(name);
+            Sequence val = seq.get();
+            int retries = 0;
+            while (val == null || val.getCurrentValue() == null) {
+                if (retries++ > morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
+                    throw new RuntimeException("Could not read from Sequence");
+                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(
+                    morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
+                val = seq.get();
+            }
+
+            // Capture the pre-increment value; the batch starts at preValue + inc.
+            // Since we hold the lock, no other thread can modify the sequence between
+            // this read and the atomic increment below.
+            long preValue = val.getCurrentValue();
+
+            // Reserve the entire batch with one atomic $inc
+            morphium.inc(val, "current_value", (long) count * inc);
+
+            // Build result without re-reading DB: we know the exact range from the lock-protected read.
+            long[] result = new long[count];
+            for (int i = 0; i < count; i++) {
+                result[i] = preValue + (long) (i + 1) * inc;
+            }
+            return result;
+        } finally {
+            morphium.delete(lock);
+        }
+    }
+
     public int getInc() {
         return inc;
     }
