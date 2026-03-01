@@ -1,0 +1,157 @@
+package de.caluga.test.morphium.driver;
+
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.driver.BackendType;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.wire.HelloResult;
+import de.caluga.morphium.driver.wire.PooledDriver;
+import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@Tag("core")
+public class CosmosDBDetectionTest extends MorphiumInMemTestBase {
+
+    @Test
+    public void testInMemoryDriverBackendType() {
+        assertEquals(BackendType.IN_MEMORY, morphium.getBackendType());
+        assertTrue(morphium.getDriver().isInMemoryBackend());
+        assertFalse(morphium.getDriver().isCosmosDB());
+    }
+
+    @Test
+    public void testDefaultDriverNotCosmosDB() {
+        // InMemoryDriver should not be CosmosDB
+        assertFalse(morphium.getDriver().isCosmosDB());
+        assertEquals(BackendType.IN_MEMORY, morphium.getDriver().getBackendType());
+    }
+
+    @Test
+    public void testBackendTypeEnumDerivation() {
+        // Test the default method logic by mocking the flags
+        // InMemory takes priority
+        var driver = new InMemoryDriver();
+        assertEquals(BackendType.IN_MEMORY, driver.getBackendType());
+        assertTrue(driver.isInMemoryBackend());
+    }
+
+    @Test
+    public void testPooledDriverCosmosDBHostDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("myaccount.mongo.cosmos.azure.com:10255");
+
+        // Use reflection to invoke the private detectCosmosDB method
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+        hello.setSetName("globaldb");
+
+        // Signal 1: hostname match
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "myaccount.mongo.cosmos.azure.com:10255");
+        assertTrue(result, "Should detect CosmosDB from hostname");
+
+        // Non-CosmosDB host should not match
+        boolean nonCosmos = (boolean) detectMethod.invoke(driver, hello, "localhost:27017");
+        // But seed hosts contain cosmos host, so Signal 2 should still match
+        assertTrue(nonCosmos, "Should detect CosmosDB from seed hosts");
+    }
+
+    @Test
+    public void testPooledDriverCosmosDBVCoreHostDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("mycluster.mongocluster.cosmos.azure.com:10260");
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "mycluster.mongocluster.cosmos.azure.com:10260");
+        assertTrue(result, "Should detect CosmosDB vCore from hostname");
+    }
+
+    @Test
+    public void testPooledDriverGlobaldbSSLFallback() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("somehost:27017");
+        driver.setUseSSL(true);
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+        hello.setSetName("globaldb");
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "somehost:27017");
+        assertTrue(result, "Should detect CosmosDB from setName=globaldb + SSL");
+    }
+
+    @Test
+    public void testPooledDriverGlobaldbWithoutSSLNotCosmosDB() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("somehost:27017");
+        driver.setUseSSL(false);
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+        hello.setSetName("globaldb");
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "somehost:27017");
+        assertFalse(result, "globaldb without SSL should not be detected as CosmosDB");
+    }
+
+    @Test
+    public void testNormalMongoDBNotDetectedAsCosmosDB() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("mongo1:27017", "mongo2:27017", "mongo3:27017");
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+        hello.setSetName("rs0");
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "mongo1:27017");
+        assertFalse(result, "Normal MongoDB should not be detected as CosmosDB");
+    }
+
+    @Test
+    public void testBackendTypeEnumValues() {
+        // Ensure all expected values exist
+        assertEquals(4, BackendType.values().length);
+        assertNotNull(BackendType.MONGODB);
+        assertNotNull(BackendType.COSMOSDB);
+        assertNotNull(BackendType.MORPHIUM_SERVER);
+        assertNotNull(BackendType.IN_MEMORY);
+    }
+
+    @Test
+    public void testHelloResultCosmosDBField() {
+        HelloResult hello = new HelloResult();
+        assertNull(hello.getCosmosDB());
+
+        hello.setCosmosDB(true);
+        assertEquals(true, hello.getCosmosDB());
+
+        hello.setCosmosDB(false);
+        assertEquals(false, hello.getCosmosDB());
+    }
+
+    @Test
+    public void testMorphiumConvenienceMethod() {
+        // getBackendType() on Morphium delegates to driver
+        BackendType type = morphium.getBackendType();
+        assertNotNull(type);
+        assertEquals(morphium.getDriver().getBackendType(), type);
+    }
+}

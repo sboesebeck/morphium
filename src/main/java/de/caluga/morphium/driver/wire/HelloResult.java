@@ -50,6 +50,9 @@ public class HelloResult {
     private Boolean morphiumServer;
     private Boolean inMemoryBackend;
 
+    // CosmosDB detection (set by driver, not from hello response)
+    private Boolean cosmosDB;
+
     public static HelloResult fromMsg(Map<String, Object> msg) {
         if (msg == null) return null;
 
@@ -375,6 +378,15 @@ public class HelloResult {
 
     public HelloResult setInMemoryBackend(Boolean inMemoryBackend) {
         this.inMemoryBackend = inMemoryBackend;
+        return this;
+    }
+
+    public Boolean getCosmosDB() {
+        return cosmosDB;
+    }
+
+    public HelloResult setCosmosDB(Boolean cosmosDB) {
+        this.cosmosDB = cosmosDB;
         return this;
     }
 

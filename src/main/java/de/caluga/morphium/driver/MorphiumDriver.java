@@ -95,6 +95,25 @@ public interface MorphiumDriver extends Closeable {
      */
     boolean isMorphiumServer();
 
+    /**
+     * Returns true if the backend is Azure CosmosDB for MongoDB API.
+     * Detected automatically via hostname and hello handshake signals.
+     */
+    default boolean isCosmosDB() {
+        return false;
+    }
+
+    /**
+     * Returns the detected backend type (MongoDB, CosmosDB, MorphiumServer, InMemory).
+     * Derived from the specific detection flags set during connect.
+     */
+    default BackendType getBackendType() {
+        if (isInMemoryBackend()) return BackendType.IN_MEMORY;
+        if (isCosmosDB()) return BackendType.COSMOSDB;
+        if (isMorphiumServer()) return BackendType.MORPHIUM_SERVER;
+        return BackendType.MONGODB;
+    }
+
     public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType);
 
     List<String> listDatabases() throws MorphiumDriverException;

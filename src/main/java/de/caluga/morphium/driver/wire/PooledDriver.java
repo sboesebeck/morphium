@@ -110,6 +110,7 @@ public class PooledDriver extends DriverBase {
     private final Object primaryNodeLock = new Object();  // Lock for primaryNode updates only
     private volatile boolean inMemoryBackend = false;
     private volatile boolean morphiumServer = false;
+    private volatile boolean cosmosDB = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
         Thread.ofPlatform().name("MCon-", 0).factory());
 
@@ -359,6 +360,15 @@ public class PooledDriver extends DriverBase {
         }
         if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
             inMemoryBackend = true;
+        }
+
+        // CosmosDB detection (only check once)
+        if (!cosmosDB) {
+            cosmosDB = detectCosmosDB(hello, hostConnected);
+            if (cosmosDB) {
+                log.info("Detected Azure CosmosDB backend (host: {}, setName: {})",
+                         hostConnected, hello.getSetName());
+            }
         }
 
         // Keep track of server-advertised vs reachable names.
@@ -1455,6 +1465,45 @@ public class PooledDriver extends DriverBase {
     @Override
     public boolean isMorphiumServer() {
         return morphiumServer;
+    }
+
+    @Override
+    public boolean isCosmosDB() {
+        return cosmosDB;
+    }
+
+    /**
+     * Detect CosmosDB via hostname patterns and hello handshake signals.
+     * Signal 1: Hostname contains .mongo.cosmos.azure.com or .mongocluster.cosmos.azure.com (vCore)
+     * Signal 2: Seed hosts contain CosmosDB patterns
+     * Signal 3: setName == "globaldb" + SSL active (fallback heuristic)
+     */
+    private boolean detectCosmosDB(HelloResult hello, String host) {
+        // Signal 1: Connected host is a CosmosDB endpoint
+        if (isCosmosDBHost(host)) {
+            return true;
+        }
+
+        // Signal 2: Any seed host is a CosmosDB endpoint
+        for (String seed : getHostSeed()) {
+            if (isCosmosDBHost(seed)) {
+                return true;
+            }
+        }
+
+        // Signal 3: setName == "globaldb" with SSL (CosmosDB's default replica set name)
+        if ("globaldb".equals(hello.getSetName()) && isUseSSL()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isCosmosDBHost(String hostPort) {
+        if (hostPort == null) return false;
+        String h = hostPort.split(":")[0].toLowerCase();
+        return h.endsWith(".mongo.cosmos.azure.com")
+            || h.endsWith(".mongocluster.cosmos.azure.com");
     }
 
     @Override

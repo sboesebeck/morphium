@@ -78,6 +78,10 @@ public class SingleMongoConnectDriver extends DriverBase {
     private boolean connectionInUse = false;
     private AtomicInteger waitingForHeartbeatCounter = new AtomicInteger(0);
 
+    private volatile boolean inMemoryBackend = false;
+    private volatile boolean morphiumServer = false;
+    private volatile boolean cosmosDB = false;
+
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, r -> {
         Thread ret = new Thread(r);
@@ -320,6 +324,40 @@ public class SingleMongoConnectDriver extends DriverBase {
                 setMaxBsonObjectSize(hello.getMaxBsonObjectSize());
                 setMaxMessageSize(hello.getMaxMessageSizeBytes());
                 setMaxWriteBatchSize(hello.getMaxWriteBatchSize());
+
+                // Extract backend type flags from hello result
+                if (Boolean.TRUE.equals(hello.getMorphiumServer())) {
+                    morphiumServer = true;
+                }
+                if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
+                    inMemoryBackend = true;
+                }
+
+                // CosmosDB detection via hostname
+                String connectedHost = host.split(":")[0].toLowerCase();
+                if (connectedHost.endsWith(".mongo.cosmos.azure.com")
+                        || connectedHost.endsWith(".mongocluster.cosmos.azure.com")) {
+                    cosmosDB = true;
+                }
+                // Fallback: check seed hosts
+                if (!cosmosDB) {
+                    for (String seed : getHostSeed()) {
+                        String sh = seed.split(":")[0].toLowerCase();
+                        if (sh.endsWith(".mongo.cosmos.azure.com")
+                                || sh.endsWith(".mongocluster.cosmos.azure.com")) {
+                            cosmosDB = true;
+                            break;
+                        }
+                    }
+                }
+                // Fallback: setName == "globaldb" + SSL
+                if (!cosmosDB && "globaldb".equals(hello.getSetName()) && isUseSSL()) {
+                    cosmosDB = true;
+                }
+                if (cosmosDB) {
+                    log.info("Detected Azure CosmosDB backend (host: {})", host);
+                }
+
                 break;
             } catch (Exception e) {
                 incStat(DriverStatsKey.ERRORS);
@@ -840,6 +878,21 @@ public class SingleMongoConnectDriver extends DriverBase {
     @Override
     public Map<String, Integer> getNumConnectionsByHost() {
         return UtilsMap.of(connection.getConnectedTo(), 1);
+    }
+
+    @Override
+    public boolean isInMemoryBackend() {
+        return inMemoryBackend;
+    }
+
+    @Override
+    public boolean isMorphiumServer() {
+        return morphiumServer;
+    }
+
+    @Override
+    public boolean isCosmosDB() {
+        return cosmosDB;
     }
 
     @Override
