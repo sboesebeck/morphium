@@ -60,7 +60,7 @@ public class ObjectMapperClassLoaderTest {
     public void clearEntityCache_allowsFreshScan() {
         // First Morphium instance populates the static entity cache
         MorphiumConfig cfg1 = new MorphiumConfig("classloader_test_db_1", 10, 10_000, 1_000);
-        cfg1.setDriverName(InMemoryDriver.driverName);
+        cfg1.driverSettings().setDriverName(InMemoryDriver.driverName);
         Morphium m1 = new Morphium(cfg1);
 
         ClassLoaderTestEntity e1 = new ClassLoaderTestEntity("from-first-instance");
@@ -74,7 +74,7 @@ public class ObjectMapperClassLoaderTest {
 
         // Second Morphium instance should perform a fresh scan
         MorphiumConfig cfg2 = new MorphiumConfig("classloader_test_db_2", 10, 10_000, 1_000);
-        cfg2.setDriverName(InMemoryDriver.driverName);
+        cfg2.driverSettings().setDriverName(InMemoryDriver.driverName);
         morphium = new Morphium(cfg2);
 
         // Verify the entity type is still recognized after cache clear + fresh scan
@@ -97,7 +97,7 @@ public class ObjectMapperClassLoaderTest {
 
         // Create Morphium — this triggers entity scanning using the context ClassLoader
         MorphiumConfig cfg = new MorphiumConfig("classloader_ctx_test_db", 10, 10_000, 1_000);
-        cfg.setDriverName(InMemoryDriver.driverName);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
         morphium = new Morphium(cfg);
 
         // If context ClassLoader is not used, this entity from the test ClassLoader

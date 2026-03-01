@@ -49,9 +49,9 @@ public class MorphiumDriverExceptionPropagationTest {
     @BeforeEach
     public void setup() {
         MorphiumConfig cfg = new MorphiumConfig("driver_exception_test_db", 10, 10_000, 1_000);
-        cfg.setDriverName(InMemoryDriver.driverName);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
         // Configure retries > 0 so we can verify the exception is NOT retried
-        cfg.setRetriesOnNetworkError(3);
+        cfg.connectionSettings().setRetriesOnNetworkError(3);
         morphium = new Morphium(cfg);
         morphium.ensureIndicesFor(UniqueEntity.class);
     }
