@@ -1174,27 +1174,48 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public void flush() {
-        //        synchronized (opLog) {
-        List < Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
+        List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
         for (Class<?> clz : localBuffer) {
-            if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
+            // Atomically take ownership of the queue for this class.
+            // ConcurrentHashMap.remove() is atomic: if two threads call flush()
+            // concurrently (e.g. explicit saveList flush + background housekeeping thread),
+            // only one will receive the list — the other gets null and skips.
+            // This prevents both threads from processing the same entries and causing
+            // duplicate-key errors on insert.
+            List<WriteBufferEntry> queue = opLog.remove(clz);
+            if (queue == null || queue.isEmpty()) {
                 continue;
             }
 
-            flushQueueToMongo(opLog.get(clz));
-        }
+            flushQueueToMongo(queue);
 
-        //        }
+            // flushQueueToMongo removes successfully-written entries from queue.
+            // Any remaining entries (didNotWrite) must be re-queued for the next cycle.
+            if (!queue.isEmpty()) {
+                synchronized (opLog) {
+                    opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));
+                }
+                opLog.get(clz).addAll(queue);
+            }
+        }
     }
 
     @Override
     public void flush(Class type) {
-        if (opLog.get(type) == null || opLog.get(type).isEmpty()) {
+        List<WriteBufferEntry> queue = opLog.remove(type);
+        if (queue == null || queue.isEmpty()) {
             return;
         }
 
-        flushQueueToMongo(opLog.get(type));
+        flushQueueToMongo(queue);
+
+        if (!queue.isEmpty()) {
+            synchronized (opLog) {
+                opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
+            }
+            opLog.get(type).addAll(queue);
+        }
     }
 
     @Override
