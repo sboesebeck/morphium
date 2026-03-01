@@ -1,13 +1,20 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.annotations.Capped;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,10 +29,19 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ClassForNameTest {
 
     private AnnotationAndReflectionHelper helper;
+    private Morphium morphium;
 
     @BeforeEach
     public void setup() {
         helper = new AnnotationAndReflectionHelper(true);
+    }
+
+    @AfterEach
+    public void tearDown() {
+        if (morphium != null) {
+            morphium.close();
+            morphium = null;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -161,8 +177,76 @@ public class ClassForNameTest {
     }
 
     // ------------------------------------------------------------------
+    // checkCapped / checkIndices – context classloader in Morphium core
+    // ------------------------------------------------------------------
+
+    /**
+     * Verifies that {@link Morphium#checkCapped()} uses the thread context classloader
+     * to load entity classes found via ClassGraph.
+     *
+     * <p>In Quarkus dev mode application classes are loaded by an isolated
+     * QuarkusClassLoader that is set as the thread context classloader.
+     * Without this fix (bare {@code Class.forName}), those classes would produce a
+     * {@code ClassNotFoundException} because the Morphium library JAR's own classloader
+     * has no visibility into the application's isolated classloader.
+     * With the fix ({@code AnnotationAndReflectionHelper.classForName}), the thread
+     * context classloader is tried first and the class is found.
+     */
+    @Test
+    public void checkCapped_usesContextClassLoader() throws Exception {
+        MorphiumConfig cfg = new MorphiumConfig("classloader_capped_test_db", 10, 10_000, 1_000);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+        morphium = new Morphium(cfg);
+
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        TrackingClassLoader tracking = new TrackingClassLoader(original);
+        Thread.currentThread().setContextClassLoader(tracking);
+        try {
+            Map<Class<?>, Map<String, Integer>> result = morphium.checkCapped();
+            // Result may be empty (no @Capped entity in test scope needs capping), but the call
+            // must not throw and must have consulted the thread context classloader.
+            assertNotNull(result);
+            assertTrue(tracking.wasUsed(),
+                    "checkCapped() must use the thread context classloader (AnnotationAndReflectionHelper.classForName)");
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
+    }
+
+    /**
+     * Verifies that {@link Morphium#checkIndices(io.github.classgraph.ClassInfoList.ClassInfoFilter)}
+     * uses the thread context classloader for the same reason as {@link #checkCapped_usesContextClassLoader()}.
+     */
+    @Test
+    public void checkIndices_usesContextClassLoader() throws Exception {
+        MorphiumConfig cfg = new MorphiumConfig("classloader_indices_test_db", 10, 10_000, 1_000);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+        morphium = new Morphium(cfg);
+
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        TrackingClassLoader tracking = new TrackingClassLoader(original);
+        Thread.currentThread().setContextClassLoader(tracking);
+        try {
+            // null filter = check all entities
+            assertDoesNotThrow(() -> morphium.checkIndices(null));
+            assertTrue(tracking.wasUsed(),
+                    "checkIndices() must use the thread context classloader (AnnotationAndReflectionHelper.classForName)");
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Test data classes
     // ------------------------------------------------------------------
+
+    @Capped(maxEntries = 100, maxSize = 1024)
+    @Entity(collectionName = "sample_capped_entity")
+    public static class SampleCappedEntity {
+        @Id
+        public MorphiumId id;
+        public String msg;
+    }
 
     @Entity
     public static class SampleEntity {
