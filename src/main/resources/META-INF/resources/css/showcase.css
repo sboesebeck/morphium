@@ -65,10 +65,10 @@
     --tag-orange-bg: rgba(225,112,85,0.15); --tag-orange-color: #fab1a0;
     --tag-purple-bg: rgba(162,155,254,0.15); --tag-purple-color: #a29bfe;
     /* alerts get dark variants */
-    --alert-success-bg: rgba(0,184,148,0.1); --alert-success-border: rgba(0,184,148,0.3);
-    --alert-error-bg: rgba(225,112,85,0.1);  --alert-error-border: rgba(225,112,85,0.3);
-    --alert-info-bg: rgba(9,132,227,0.1);    --alert-info-border: rgba(9,132,227,0.3);
-    --alert-warning-bg: rgba(253,203,110,0.1); --alert-warning-border: rgba(253,203,110,0.3);
+    --alert-success-bg: rgba(0,184,148,0.1); --alert-success-border: rgba(0,184,148,0.3); --alert-success-color: #55efc4;
+    --alert-error-bg: rgba(225,112,85,0.1);  --alert-error-border: rgba(225,112,85,0.3);  --alert-error-color: #fab1a0;
+    --alert-info-bg: rgba(9,132,227,0.1);    --alert-info-border: rgba(9,132,227,0.3);    --alert-info-color: #74b9ff;
+    --alert-warning-bg: rgba(253,203,110,0.1); --alert-warning-border: rgba(253,203,110,0.3); --alert-warning-color: #fdcb6e;
 }
 
 * { box-sizing: border-box; }
@@ -356,7 +356,7 @@ body {
 }
 .btn-outline:hover {
     background: var(--bg);
-    border-color: #b2bec3;
+    border-color: var(--text-secondary);
 }
 
 .btn-sm {
@@ -529,10 +529,10 @@ table tr:hover td {
     font-size: 0.88rem;
 }
 
-.alert-success { background: var(--alert-success-bg, #e8f5e9); color: #2e7d32; border: 1px solid var(--alert-success-border, #c8e6c9); }
-.alert-error { background: var(--alert-error-bg, #ffebee); color: #c62828; border: 1px solid var(--alert-error-border, #ffcdd2); }
-.alert-info { background: var(--alert-info-bg, #e3f2fd); color: #1565c0; border: 1px solid var(--alert-info-border, #bbdefb); }
-.alert-warning { background: var(--alert-warning-bg, #fff3e0); color: #e65100; border: 1px solid var(--alert-warning-border, #ffe0b2); }
+.alert-success { background: var(--alert-success-bg, #e8f5e9); color: var(--alert-success-color, #2e7d32); border: 1px solid var(--alert-success-border, #c8e6c9); }
+.alert-error { background: var(--alert-error-bg, #ffebee); color: var(--alert-error-color, #c62828); border: 1px solid var(--alert-error-border, #ffcdd2); }
+.alert-info { background: var(--alert-info-bg, #e3f2fd); color: var(--alert-info-color, #1565c0); border: 1px solid var(--alert-info-border, #bbdefb); }
+.alert-warning { background: var(--alert-warning-bg, #fff3e0); color: var(--alert-warning-color, #e65100); border: 1px solid var(--alert-warning-border, #ffe0b2); }
 
 /* Chat Messages (Messaging page) */
 .chat-container {
