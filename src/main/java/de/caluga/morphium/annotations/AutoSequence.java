@@ -19,7 +19,9 @@ import java.lang.annotation.Target;
  * nor manage a {@link de.caluga.morphium.SequenceGenerator} instance manually.</p>
  *
  * <p><b>Supported field types:</b> {@code long}, {@code Long}, {@code int}, {@code Integer},
- * {@code String}.</p>
+ * {@code String}. For primitive types ({@code long}, {@code int}), a field value of {@code 0}
+ * is treated as "not yet assigned" — consistent with Java's default initialisation.
+ * For boxed types, {@code null} signals "not yet assigned".</p>
  *
  * <p><b>Example:</b></p>
  * <pre>{@code

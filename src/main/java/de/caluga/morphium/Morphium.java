@@ -1963,8 +1963,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         List<String> autoSeqFields = getARHelper().getFields(type, AutoSequence.class);
         for (String fldName : autoSeqFields) {
             Field f = getARHelper().getField(type, fldName);
-            if (f.get(o) != null) {
-                continue; // never overwrite an explicitly set value
+            if (!isAutoSequenceUnset(f, o)) {
+                continue; // already has a value — never overwrite
             }
             AutoSequence ann = f.getAnnotation(AutoSequence.class);
             String seqName = ".".equals(ann.name())
@@ -2005,7 +2005,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 // collect only entities that still need a value
                 List<T> needSeq = new ArrayList<>();
                 for (T o : entities) {
-                    if (f.get(o) == null) {
+                    if (isAutoSequenceUnset(f, o)) {
                         needSeq.add(o);
                     }
                 }
@@ -2023,6 +2023,23 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     private SequenceGenerator getOrCreateSequenceGenerator(String name, int inc, long startValue) {
         return sequenceGenerators.computeIfAbsent(name, k -> new SequenceGenerator(this, k, inc, startValue));
+    }
+
+    /**
+     * Returns {@code true} when an {@code @AutoSequence} field should receive a value.
+     * <ul>
+     *   <li>Boxed types ({@code Long}, {@code Integer}, {@code String}): unset means {@code null}.</li>
+     *   <li>Primitive types ({@code long}, {@code int}): unset means the default zero value
+     *       ({@code 0}). A field explicitly initialised to {@code 0} is therefore treated
+     *       as unset, consistent with how {@code @CreationTime} treats zero timestamps.</li>
+     * </ul>
+     */
+    private boolean isAutoSequenceUnset(Field f, Object o) throws IllegalAccessException {
+        Object current = f.get(o);
+        if (f.getType().isPrimitive()) {
+            return current instanceof Number && ((Number) current).longValue() == 0L;
+        }
+        return current == null;
     }
 
     private Object convertToFieldType(Class<?> type, long value) {
