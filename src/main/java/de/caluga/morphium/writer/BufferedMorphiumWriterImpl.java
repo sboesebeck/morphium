@@ -401,6 +401,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         if (morphium.isAutoValuesEnabledForThread()) {
+            try {
+                morphium.setAutoValuesBatch(lstSnapshot);
+            } catch (IllegalAccessException e) {
+                logger.error("Could not set @AutoSequence batch values", e);
+            }
             for (T obj : lstSnapshot) {
                 try {
                     morphium.setAutoValues(obj);
@@ -542,6 +547,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         if (morphium.isAutoValuesEnabledForThread()) {
+            try {
+                morphium.setAutoValuesBatch(lstSnapshot);
+            } catch (IllegalAccessException e) {
+                logger.error("Could not set @AutoSequence batch values", e);
+            }
             for (T obj : lstSnapshot) {
                 try {
                     morphium.setAutoValues(obj);
