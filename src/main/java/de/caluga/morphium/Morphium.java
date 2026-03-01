@@ -3266,10 +3266,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         if (missing != null && !missing.isEmpty()) {
                             missingIndicesByClass.put(entity, missing);
                         }
-                    } else {
-                        // does not exists => create
-                        missingIndicesByClass.put(entity, getIndexesFromEntity(entity));
                     }
+                    // Collection does not exist yet: indices will be created on first write
+                    // (depending on IndexCheck/CappedCheck settings). No warning needed here.
                 } catch (Throwable e) {
                     // Swallow most errors to keep startup lenient, but fail fast if the cluster has no primary.
                     // Otherwise, startup can appear to "hang" for a very long time because each entity check
