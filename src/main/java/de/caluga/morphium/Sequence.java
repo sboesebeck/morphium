@@ -18,7 +18,7 @@ import de.caluga.morphium.annotations.caching.NoCache;
  */
 @Entity(typeId = "sequence")
 @NoCache
-@WriteSafety(timeout = 10000, level = SafetyLevel.WAIT_FOR_SLAVE)
+@WriteSafety(timeout = 10000, level = SafetyLevel.BASIC)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class Sequence {
     @Id

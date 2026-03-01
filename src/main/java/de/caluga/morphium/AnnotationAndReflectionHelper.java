@@ -117,8 +117,24 @@ public class AnnotationAndReflectionHelper {
         }
     }
 
+    /**
+     * Loads a class by name using the thread context classloader first, falling back to Class.forName().
+     * This is necessary for compatibility with frameworks like Quarkus that use isolated classloaders.
+     */
+    public static Class<?> classForName(String className) throws ClassNotFoundException {
+        ClassLoader tcl = Thread.currentThread().getContextClassLoader();
+        if (tcl != null) {
+            try {
+                return Class.forName(className, true, tcl);
+            } catch (ClassNotFoundException ignored) {
+                // fall through to default
+            }
+        }
+        return Class.forName(className);
+    }
+
     public String getTypeIdForClassName(String n) throws ClassNotFoundException {
-        return getTypeIdForClass(Class.forName(n));
+        return getTypeIdForClass(classForName(n));
     }
 
     public String getTypeIdForClass(Class cls) {
@@ -137,10 +153,10 @@ public class AnnotationAndReflectionHelper {
 
     public Class getClassForTypeId(String typeId) throws ClassNotFoundException {
         if (classNameByType.containsKey(typeId)) {
-            return Class.forName(classNameByType.get(typeId));
+            return classForName(classNameByType.get(typeId));
         }
 
-        return Class.forName(typeId);
+        return classForName(typeId);
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(final Class<?> aClass, final Class <? extends T > annotationClass) {
@@ -1244,7 +1260,7 @@ public class AnnotationAndReflectionHelper {
 
     private <T> Class<?> realClassOf(Class <? extends T > superClass) {
         try {
-            return Class.forName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
+            return classForName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
         } catch (ClassNotFoundException e) {
             throw AnnotationAndReflectionException.of(e);
         }
