@@ -18,6 +18,7 @@ package io.quarkiverse.morphium.showcase.importer;
 import io.quarkiverse.morphium.showcase.common.DocLink;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -91,6 +92,7 @@ public class ImportResource {
     @Path("/bulk-import")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
+    @RunOnVirtualThread
     public TemplateInstance bulkImport(@FormParam("count") int count) {
         long durationMs = importService.bulkImport(count);
         return importer.data("active", "importer")
@@ -179,5 +181,15 @@ public class ImportResource {
     public Response deleteAll() {
         importService.deleteAll();
         return Response.seeOther(URI.create("/importer")).build();
+    }
+
+    /**
+     * POST-based delete-all for HTML forms (browsers only support GET/POST).
+     * Delegates to {@link #deleteAll()}.
+     */
+    @POST
+    @Path("/records/delete")
+    public Response deleteAllViaPost() {
+        return deleteAll();
     }
 }
