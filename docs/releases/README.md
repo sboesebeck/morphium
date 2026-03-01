@@ -29,12 +29,67 @@ When creating a new release:
 
 ## Available Releases
 
-### [6.0.1](CHANGELOG-6.0.1.md) - TBD
-Bugfix release with enhanced null handling and connection stability
+Releases are listed newest-first. For the full changelog, see [CHANGELOG.md](../../CHANGELOG.md).
+
+### [6.2.0-SNAPSHOT](RELEASE-NOTES-6.2.0-SNAPSHOT.md) - Unreleased
+Current development version with significant new features.
+- [Release Notes](RELEASE-NOTES-6.2.0-SNAPSHOT.md)
+
+**Highlights:**
+- **Breaking:** `MorphiumDriverException` is now unchecked (`RuntimeException`)
+- `@Version` annotation for optimistic locking
+- MONGODB-X509 client certificate authentication
+- MongoDB Atlas `mongodb+srv://` connection support
+
+---
+
+### 6.1.9
+Latest stable release. Bugfixes and minor improvements.
+
+---
+
+### [6.1.8](RELEASE-NOTES-6.1.8.md)
+Stability release with connection pool fixes and test stabilization.
+- [Quick Release Notes](RELEASE-NOTES-6.1.8.md)
+
+**Highlights:**
+- Connection pool counter drift and heartbeat leak fixes
+- Test infrastructure improvements
+
+---
+
+### [6.1.0](RELEASE-NOTES-6.1.0.md)
+Major feature release: MorphiumServer replica sets, SSL/TLS, persistence, InMemoryDriver improvements.
+- [Quick Release Notes](RELEASE-NOTES-6.1.0.md)
+
+**Highlights:**
+- MorphiumServer: replica set support, SSL/TLS, snapshot persistence, standalone CLI
+- InMemoryDriver: shared databases, `$text` queries, performance optimizations
+- Test infrastructure overhaul (MultiDriverTestBase, parameterized tests)
+
+---
+
+### 6.0.3 - 2025-11-28
+Bugfix: NPE in MultiCollectionMessaging `getLockCollectionName()`.
+
+---
+
+### 6.0.2 - 2025-10-16
+Bugfix: NPE in `Query.set()` and `Msg.preStore()`.
+
+---
+
+### [6.0.1](CHANGELOG-6.0.1.md)
+Bugfix release with enhanced null handling and connection stability.
 - [Detailed Changelog](CHANGELOG-6.0.1.md)
 - [Quick Release Notes](RELEASE-NOTES-6.0.1.md)
 
 **Highlights:**
-- Bidirectional @UseIfNull behavior (protection from null contamination)
-- Socket timeout retry logic
-- Annotation rename: @UseIfnull → @UseIfNull
+- New `@IgnoreNullFromDB` annotation (replaces deprecated `@UseIfNull`)
+- Default null handling aligned with standard ORMs (Hibernate, JPA)
+- Socket timeout retry logic, bulk operation statistics
+
+---
+
+### 6.0.0
+Major release: Java 21+, own wire-protocol driver, SSL/TLS support, virtual threads.
