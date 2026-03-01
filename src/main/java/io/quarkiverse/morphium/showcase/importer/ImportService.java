@@ -16,7 +16,6 @@
 package io.quarkiverse.morphium.showcase.importer;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.SequenceGenerator;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import io.quarkiverse.morphium.showcase.importer.entity.ImportRecord;
@@ -118,21 +117,19 @@ public class ImportService {
      * @return the elapsed time in milliseconds for the bulk import operation
      */
     public long bulkImport(int count) {
-        // SequenceGenerator creates a MongoDB-backed atomic counter.
-        // Each call to getNextValue() atomically increments and returns the next number.
-        // The sequence state is stored in a dedicated MongoDB collection ("sequence" by default).
-        SequenceGenerator seq = new SequenceGenerator(morphium, "import_number", 1, 1);
-        List<ImportRecord> records = new ArrayList<>();
         String[] sources = {"API", "CSV", "FTP", "S3", "MANUAL"};
         String[] statuses = {"PENDING", "PROCESSED", "ERROR"};
+        List<ImportRecord> records = new ArrayList<>();
 
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < count; i++) {
+            // importNumber is intentionally left null — @AutoSequence will assign it.
+            // Morphium detects @AutoSequence on the field and, because we use storeList(),
+            // calls getNextBatch(count) once for the entire list instead of getNextValue()
+            // per record. This means the sequence allocation costs exactly 5 round-trips
+            // regardless of how large "count" is.
             records.add(ImportRecord.builder()
-                    // getNextValue() performs an atomic findAndModify on the sequence document,
-                    // guaranteeing unique, monotonically increasing values even under concurrency
-                    .importNumber(seq.getNextValue())
                     .source(sources[i % sources.length])
                     .data("Bulk import record #" + (i + 1))
                     .status(statuses[i % statuses.length])
@@ -140,9 +137,8 @@ public class ImportService {
                     .build());
         }
 
-        // storeList() performs a single MongoDB bulk write for all records.
-        // This is much faster than calling store() individually for each record.
-        // Note: storeList() bypasses the @WriteBuffer and writes directly to MongoDB.
+        // storeList() performs a single MongoDB bulk write for all records AND triggers
+        // the @AutoSequence batch allocation via getNextBatch(count) — all in one go.
         morphium.storeList(records);
 
         return System.currentTimeMillis() - start;
@@ -266,16 +262,13 @@ public class ImportService {
     public void seedData() {
         if (count() > 0) return;
 
-        // Create a SequenceGenerator named "import_number" starting at 1 with step 1
-        SequenceGenerator seq = new SequenceGenerator(morphium, "import_number", 1, 1);
-
         String[] sources = {"API", "CSV", "FTP", "S3", "MANUAL"};
         String[] statuses = {"PENDING", "PROCESSED", "ERROR"};
         List<ImportRecord> records = new ArrayList<>();
 
         for (int i = 0; i < 20; i++) {
+            // importNumber left null — @AutoSequence assigns it via getNextBatch(20)
             records.add(ImportRecord.builder()
-                    .importNumber(seq.getNextValue())
                     .source(sources[i % sources.length])
                     .data("Sample data record #" + (i + 1))
                     .status(statuses[i % statuses.length])
@@ -283,7 +276,6 @@ public class ImportService {
                     .build());
         }
 
-        // Bulk insert all 20 records in a single MongoDB operation
         morphium.storeList(records);
     }
 }
