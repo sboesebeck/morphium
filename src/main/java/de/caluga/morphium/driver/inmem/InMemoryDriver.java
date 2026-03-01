@@ -112,6 +112,7 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.auth.CreateRoleAdminCommand;
 import de.caluga.morphium.driver.commands.auth.CreateUserAdminCommand;
 import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
+import de.caluga.morphium.driver.commands.auth.X509AuthCommand;
 import de.caluga.morphium.driver.wire.AtomicDecimal;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -824,6 +825,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int runCommand(SaslAuthCommand cmd) {
+        return 0;
+    }
+
+    public int runCommand(X509AuthCommand cmd) {
         return 0;
     }
 
