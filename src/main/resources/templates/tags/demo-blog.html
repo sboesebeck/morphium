@@ -52,7 +52,7 @@
                 <select name="authorId" required>
                     <option value="" disabled selected>Select an author</option>
                     {#for a in authors}
-                    <option value="{a.id}">{a.name}</option>
+                    <option value="{a.id}">{a.displayName}</option>
                     {/for}
                 </select>
             </div>
@@ -82,7 +82,7 @@
         <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
             <h4 style="margin: 0;">{post.title}</h4>
             {#if post.author}
-            <span class="tag tag-blue">{post.author.name}</span>
+            <span class="tag tag-blue">{post.author.displayName}</span>
             {/if}
             {#if post.published}
             <span class="tag tag-green">Published</span>
