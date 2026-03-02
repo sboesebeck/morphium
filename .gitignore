@@ -25,3 +25,6 @@ Thumbs.db
 
 # Claude
 .claude/
+
+# Docker local credentials
+.env

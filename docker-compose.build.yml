@@ -1,0 +1,8 @@
+services:
+  showcase:
+    build:
+      context: .
+      args:
+        GITHUB_ACTOR: ${GITHUB_ACTOR}
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    image: quarkus-morphium-showcase:local

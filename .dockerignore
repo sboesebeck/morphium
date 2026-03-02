@@ -1,0 +1,9 @@
+target/
+.git/
+.idea/
+*.iml
+.DS_Store
+.quarkus/
+.claude/
+.github/
+LICENSE

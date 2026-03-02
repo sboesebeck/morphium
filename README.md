@@ -5,6 +5,10 @@
 [![Quarkus](https://img.shields.io/badge/Quarkus-3.32.1-blue)](https://quarkus.io)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange)](https://adoptium.net)
 
+> **Note:** This showcase is built on the [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) fork.
+> Some features may not yet be available in the upstream [sboesebeck/morphium](https://github.com/sboesebeck/morphium).
+> Alignment with upstream is planned.
+
 A comprehensive demo application showcasing all [Morphium](https://github.com/sboesebeck/morphium) ORM
 features with [Quarkus](https://quarkus.io) and [Qute](https://quarkus.io/guides/qute) templates.
 
@@ -54,6 +58,39 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 > cd quarkus-morphium && mvn install -DskipTests && cd ..
 > ```
 
+## Docker Quickstart
+
+Run the showcase with a single command -- no JDK, Maven, or local MongoDB required:
+
+```bash
+docker compose up
+```
+
+Open [http://localhost:8080](http://localhost:8080) in your browser.
+
+To stop and clean up:
+
+```bash
+# Stop containers (keep data)
+docker compose down
+
+# Stop containers and remove data
+docker compose down -v
+```
+
+### Local build
+
+To build the Docker image locally instead of pulling from GHCR:
+
+```bash
+# Set GitHub credentials for Maven (quarkus-morphium SNAPSHOT resolution)
+export GITHUB_ACTOR=your-github-username
+export GITHUB_TOKEN=your-github-pat
+
+# Build and start
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+```
+
 ## Configuration
 
 The showcase uses Quarkus Dev Services -- a MongoDB container is started
@@ -96,6 +133,7 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 
 ## Related Projects
 
+- [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) -- fork of Morphium used by this showcase
+- [sboesebeck/morphium](https://github.com/sboesebeck/morphium) -- upstream Morphium ORM
 - [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) -- the Quarkus extension for Morphium
-- [Morphium](https://github.com/sboesebeck/morphium) -- the underlying MongoDB ORM
 - [Quarkus](https://quarkus.io) -- the supersonic, subatomic Java framework
