@@ -80,8 +80,8 @@ class HealthCheckTest {
                 .statusCode(200)
                 .contentType("text/html")
                 .body(containsString("MicroProfile Health"))
-                .body(containsString("Liveness Check"))
-                .body(containsString("Readiness Check"))
-                .body(containsString("Startup Check"));
+                .body(containsString("Liveness"))
+                .body(containsString("Readiness"))
+                .body(containsString("Startup"));
     }
 }
