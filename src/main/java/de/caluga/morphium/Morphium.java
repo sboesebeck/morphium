@@ -107,6 +107,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private JavaxValidationStorageListener lst;
     private ValueEncryptionProvider valueEncryptionProvider;
     private String CREDENTIAL_ENCRYPT_KEY_NAME;
+    private final ConcurrentHashMap<String, SequenceGenerator> sequenceGenerators = new ConcurrentHashMap<>();
 
     private Class <? extends MorphiumMessaging > messagingClass;
 
@@ -1959,7 +1960,98 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         }
 
+        List<String> autoSeqFields = getARHelper().getFields(type, AutoSequence.class);
+        for (String fldName : autoSeqFields) {
+            Field f = getARHelper().getField(type, fldName);
+            if (!isAutoSequenceUnset(f, o)) {
+                continue; // already has a value — never overwrite
+            }
+            AutoSequence ann = f.getAnnotation(AutoSequence.class);
+            String seqName = ".".equals(ann.name())
+                    ? getARHelper().getMongoFieldName(type, fldName)
+                    : ann.name();
+            long next = getOrCreateSequenceGenerator(seqName, ann.inc(), ann.startValue()).getNextValue();
+            f.set(o, convertToFieldType(f.getType(), next));
+        }
+
         return aNew;
+    }
+
+    /**
+     * Allocates sequence numbers for all {@code @AutoSequence}-annotated fields across the entire
+     * list in one batch per sequence — {@code getNextBatch(n)} instead of {@code n × getNextValue()}.
+     * Called by the writer before processing a list of entities.
+     */
+    public <T> void setAutoValuesBatch(List<T> lst) throws IllegalAccessException {
+        if (lst == null || lst.isEmpty() || !isAutoValuesEnabledForThread()) {
+            return;
+        }
+        // group by real class so we only inspect annotations once per class
+        Map<Class<?>, List<T>> byClass = new LinkedHashMap<>();
+        for (T o : lst) {
+            Class<?> type = getARHelper().getRealClass(o.getClass());
+            byClass.computeIfAbsent(type, k -> new ArrayList<>()).add(o);
+        }
+        for (Map.Entry<Class<?>, List<T>> entry : byClass.entrySet()) {
+            Class<?> type = entry.getKey();
+            List<T> entities = entry.getValue();
+            List<String> autoSeqFields = getARHelper().getFields(type, AutoSequence.class);
+            for (String fldName : autoSeqFields) {
+                Field f = getARHelper().getField(type, fldName);
+                AutoSequence ann = f.getAnnotation(AutoSequence.class);
+                String seqName = ".".equals(ann.name())
+                        ? getARHelper().getMongoFieldName(type, fldName)
+                        : ann.name();
+                // collect only entities that still need a value
+                List<T> needSeq = new ArrayList<>();
+                for (T o : entities) {
+                    if (isAutoSequenceUnset(f, o)) {
+                        needSeq.add(o);
+                    }
+                }
+                if (needSeq.isEmpty()) {
+                    continue;
+                }
+                SequenceGenerator sg = getOrCreateSequenceGenerator(seqName, ann.inc(), ann.startValue());
+                long[] values = sg.getNextBatch(needSeq.size());
+                for (int i = 0; i < needSeq.size(); i++) {
+                    f.set(needSeq.get(i), convertToFieldType(f.getType(), values[i]));
+                }
+            }
+        }
+    }
+
+    private SequenceGenerator getOrCreateSequenceGenerator(String name, int inc, long startValue) {
+        return sequenceGenerators.computeIfAbsent(name, k -> new SequenceGenerator(this, k, inc, startValue));
+    }
+
+    /**
+     * Returns {@code true} when an {@code @AutoSequence} field should receive a value.
+     * <ul>
+     *   <li>Boxed types ({@code Long}, {@code Integer}, {@code String}): unset means {@code null}.</li>
+     *   <li>Primitive types ({@code long}, {@code int}): unset means the default zero value
+     *       ({@code 0}). A field explicitly initialised to {@code 0} is therefore treated
+     *       as unset, consistent with how {@code @CreationTime} treats zero timestamps.</li>
+     * </ul>
+     */
+    private boolean isAutoSequenceUnset(Field f, Object o) throws IllegalAccessException {
+        Object current = f.get(o);
+        if (f.getType().isPrimitive()) {
+            return current instanceof Number && ((Number) current).longValue() == 0L;
+        }
+        return current == null;
+    }
+
+    private Object convertToFieldType(Class<?> type, long value) {
+        if (type == long.class || type == Long.class) {
+            return value;
+        } else if (type == int.class || type == Integer.class) {
+            return (int) value;
+        } else if (type == String.class) {
+            return String.valueOf(value);
+        }
+        throw new IllegalArgumentException("@AutoSequence is not supported on field type: " + type.getName()
+                + " — use long, Long, int, Integer, or String");
     }
 
     /**
