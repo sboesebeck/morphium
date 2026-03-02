@@ -2022,7 +2022,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     private SequenceGenerator getOrCreateSequenceGenerator(String name, int inc, long startValue) {
-        return sequenceGenerators.computeIfAbsent(name, k -> new SequenceGenerator(this, k, inc, startValue));
+        SequenceGenerator sg = sequenceGenerators.computeIfAbsent(name, k -> new SequenceGenerator(this, k, inc, startValue));
+        if (sg.getInc() != inc || sg.getStartValue() != startValue) {
+            log.warn("@AutoSequence '{}': conflicting parameters (existing: inc={}, startValue={} — requested: inc={}, startValue={}). Using existing.",
+                    name, sg.getInc(), sg.getStartValue(), inc, startValue);
+        }
+        return sg;
     }
 
     /**
@@ -2046,7 +2051,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (type == long.class || type == Long.class) {
             return value;
         } else if (type == int.class || type == Integer.class) {
-            return (int) value;
+            return Math.toIntExact(value);
         } else if (type == String.class) {
             return String.valueOf(value);
         }
@@ -2731,6 +2736,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     @SuppressWarnings("CommentedOutCode")
     public void close() {
+        sequenceGenerators.clear();
+
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
         }
