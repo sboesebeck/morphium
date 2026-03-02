@@ -373,9 +373,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         } else if (idf.getType().equals(ObjectId.class)) {
             idf.set(o, new ObjectId());
         } else {
-            // Unknown ID type (e.g. Long, Integer): leave null — MongoDB will assign _id on insert.
-            logger.warn("Cannot auto-set ID for type '{}' on entity '{}' — leaving null, MongoDB will assign.",
-                    idf.getType().getSimpleName(), o.getClass().getSimpleName());
+            throw new RuntimeException("Cannot auto-generate ID for type "
+                    + idf.getType().getSimpleName());
         }
     }
 
