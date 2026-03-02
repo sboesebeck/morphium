@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 
+import de.caluga.morphium.IndexDescription;
 import java.util.List;
 import java.util.Map;
 
@@ -259,7 +260,7 @@ public class ClassForNameTest {
 
         // IndexedTestEntity has @Index annotations but its collection has never been created.
         // checkIndices must not return it as "having missing indices".
-        Map<Class<?>, List<?>> missing = (Map) morphium.checkIndices(
+        Map<Class<?>, List<IndexDescription>> missing = morphium.checkIndices(
                 ci -> ci.getName().equals(IndexedTestEntity.class.getName()));
 
         assertTrue(missing == null || !missing.containsKey(IndexedTestEntity.class),
