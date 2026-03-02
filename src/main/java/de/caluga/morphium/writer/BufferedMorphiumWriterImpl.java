@@ -22,6 +22,8 @@ import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.bson.types.ObjectId;
+
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -205,6 +207,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             strategy = w.strategy();
         }
 
+        if (size == 0) {
+            // No @WriteBuffer on this class → execute immediately, do not buffer.
+            BulkRequestContext ctx = morphium.getDriver().createBulkContext(
+                    morphium,
+                    morphium.getConfig().connectionSettings().getDatabase(),
+                    collectionName,
+                    ordered,
+                    morphium.getWriteConcernForClass(type));
+            r.queue(ctx);
+            ctx.execute();
+            return;
+        }
+
         //        synchronized (opLog) {
         if (opLog.get(type) == null) {
             synchronized (opLog) {
@@ -349,12 +364,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return;
         }
 
-        if (idf.get(o) == null && idf.getType().equals(MorphiumId.class)) {
+        if (idf.getType().equals(MorphiumId.class)) {
             idf.set(o, new MorphiumId());
-        } else if (idf.get(o) == null && idf.getType().equals(String.class)) {
+        } else if (idf.getType().equals(String.class)) {
             idf.set(o, new MorphiumId().toString());
+        } else if (idf.getType().equals(UUID.class)) {
+            idf.set(o, UUID.randomUUID());
+        } else if (idf.getType().equals(ObjectId.class)) {
+            idf.set(o, new ObjectId());
         } else {
-            throw new RuntimeException("Cannot set ID");
+            // Unknown ID type (e.g. Long, Integer): leave null — MongoDB will assign _id on insert.
+            logger.warn("Cannot auto-set ID for type '{}' on entity '{}' — leaving null, MongoDB will assign.",
+                    idf.getType().getSimpleName(), o.getClass().getSimpleName());
         }
     }
 
