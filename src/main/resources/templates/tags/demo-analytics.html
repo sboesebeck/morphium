@@ -46,9 +46,9 @@
                     {#if salesByRegion}
                     {#for row in salesByRegion}
                     <tr>
-                        <td><strong>{row.region}</strong></td>
-                        <td>{row.totalAmount}</td>
-                        <td>{row.count}</td>
+                        <td><strong>{row.get('_id')}</strong></td>
+                        <td>{row.totalRevenue}</td>
+                        <td>{row.totalOrders}</td>
                     </tr>
                     {/for}
                     {#else}
@@ -75,8 +75,8 @@
                     {#if salesByProduct}
                     {#for row in salesByProduct}
                     <tr>
-                        <td><strong>{row.product}</strong></td>
-                        <td>{row.totalAmount}</td>
+                        <td><strong>{row.get('_id')}</strong></td>
+                        <td>{row.totalRevenue}</td>
                         <td>{row.totalQuantity}</td>
                     </tr>
                     {/for}
@@ -106,9 +106,9 @@
                     {#if monthlySales}
                     {#for row in monthlySales}
                     <tr>
-                        <td><strong>{row.month}</strong></td>
-                        <td>{row.totalAmount}</td>
-                        <td>{row.count}</td>
+                        <td><strong>{row.get('_id').year}-{row.get('_id').month}</strong></td>
+                        <td>{row.totalRevenue}</td>
+                        <td>{row.totalOrders}</td>
                     </tr>
                     {/for}
                     {#else}
@@ -135,9 +135,9 @@
                     {#if topSalesReps}
                     {#for row in topSalesReps}
                     <tr>
-                        <td><strong>{row.salesRep}</strong></td>
-                        <td>{row.totalAmount}</td>
-                        <td>{row.count}</td>
+                        <td><strong>{row.get('_id')}</strong></td>
+                        <td>{row.totalRevenue}</td>
+                        <td>{row.totalSales}</td>
                     </tr>
                     {/for}
                     {#else}
