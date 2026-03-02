@@ -13,6 +13,24 @@
       d.setAttribute('data-theme', t);
       localStorage.setItem('theme', t);
     }
+    function activateTab(el) {
+      var tabs = el.parentElement.querySelectorAll('.tab');
+      tabs.forEach(function(t) {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      el.classList.add('active');
+      el.setAttribute('aria-selected', 'true');
+    }
+    function copyCode(btn) {
+      var block = btn.closest('.code-card').querySelector('pre');
+      var text = block.textContent || block.innerText;
+      navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      });
+    }
     </script>
     <link rel="stylesheet" href="/css/showcase.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>

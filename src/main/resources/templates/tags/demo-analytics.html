@@ -1,0 +1,186 @@
+<!-- Demo Tab: Sales Analytics -->
+
+<div class="demo-context">
+    Explore MongoDB aggregation results. Data is pre-computed from SalesRecord documents using
+    <code>$project</code>, <code>$group</code>, <code>$sort</code>, and <code>$limit</code> pipeline stages.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<!-- Stats Row -->
+<div class="card-grid">
+    <div class="card">
+        <h3>Total Records</h3>
+        <div class="stat-value">{totalRecords}</div>
+    </div>
+    <div class="card">
+        <h3>Distinct Regions</h3>
+        <div class="stat-value">{#if distinctRegions}{distinctRegions.size}{#else}0{/if}</div>
+    </div>
+    <div class="card">
+        <h3>Distinct Products</h3>
+        <div class="stat-value">{#if distinctProducts}{distinctProducts.size}{#else}0{/if}</div>
+    </div>
+</div>
+
+<!-- Aggregation Result Tables -->
+<div class="card-grid">
+    <!-- Sales by Region -->
+    <div class="card">
+        <h3>Sales by Region <span class="tag tag-green">$group by region</span></h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Region</th>
+                        <th>Total Amount</th>
+                        <th>Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#if salesByRegion}
+                    {#for row in salesByRegion}
+                    <tr>
+                        <td><strong>{row.region}</strong></td>
+                        <td>{row.totalAmount}</td>
+                        <td>{row.count}</td>
+                    </tr>
+                    {/for}
+                    {#else}
+                    <tr><td colspan="3">No data &mdash; seed records first.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Top Products -->
+    <div class="card">
+        <h3>Top Products <span class="tag tag-green">$group by product</span></h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Total Amount</th>
+                        <th>Total Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#if salesByProduct}
+                    {#for row in salesByProduct}
+                    <tr>
+                        <td><strong>{row.product}</strong></td>
+                        <td>{row.totalAmount}</td>
+                        <td>{row.totalQuantity}</td>
+                    </tr>
+                    {/for}
+                    {#else}
+                    <tr><td colspan="3">No data &mdash; seed records first.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card-grid">
+    <!-- Monthly Sales -->
+    <div class="card">
+        <h3>Monthly Sales <span class="tag tag-green">$group by month</span></h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Total Amount</th>
+                        <th>Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#if monthlySales}
+                    {#for row in monthlySales}
+                    <tr>
+                        <td><strong>{row.month}</strong></td>
+                        <td>{row.totalAmount}</td>
+                        <td>{row.count}</td>
+                    </tr>
+                    {/for}
+                    {#else}
+                    <tr><td colspan="3">No data &mdash; seed records first.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Top Sales Reps -->
+    <div class="card">
+        <h3>Top Sales Reps <span class="tag tag-orange">$sort + $limit</span></h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sales Rep</th>
+                        <th>Total Amount</th>
+                        <th>Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#if topSalesReps}
+                    {#for row in topSalesReps}
+                    <tr>
+                        <td><strong>{row.salesRep}</strong></td>
+                        <td>{row.totalAmount}</td>
+                        <td>{row.count}</td>
+                    </tr>
+                    {/for}
+                    {#else}
+                    <tr><td colspan="3">No data &mdash; seed records first.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Distinct Values -->
+<div class="card-grid">
+    <div class="card">
+        <h3>Distinct Regions</h3>
+        <div class="feature-tags-grid">
+            {#if distinctRegions}
+            {#for region in distinctRegions}
+            <span class="tag tag-blue">{region}</span>
+            {/for}
+            {#else}
+            <span class="tag">No regions</span>
+            {/if}
+        </div>
+    </div>
+    <div class="card">
+        <h3>Distinct Products</h3>
+        <div class="feature-tags-grid">
+            {#if distinctProducts}
+            {#for product in distinctProducts}
+            <span class="tag tag-green">{product}</span>
+            {/for}
+            {#else}
+            <span class="tag">No products</span>
+            {/if}
+        </div>
+    </div>
+</div>
+
+<!-- Seed Button -->
+<div class="demo-actions">
+    <button class="btn btn-outline btn-sm"
+            hx-post="/analytics/seed" hx-target="#tab-content" hx-swap="innerHTML">
+        Re-seed Data
+    </button>
+</div>

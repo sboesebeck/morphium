@@ -1,0 +1,219 @@
+<!-- Demo Tab: Bank / Wallet -->
+
+<div class="demo-context">
+    Test transactional transfers, atomic deposits/withdrawals, and optimistic locking.
+    All operations use HTMX &mdash; no page reloads. Transfers are wrapped in
+    <code>@MorphiumTransactional</code>.
+</div>
+
+{#if transferResult}
+<div class="alert {#if transferResult.success}alert-success{#else}alert-error{/if}">
+    {transferResult.message}
+</div>
+{/if}
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<!-- Accounts + Transfer -->
+<div class="card-grid">
+    <!-- Accounts Table + Create Form -->
+    <div class="card">
+        <h3>Accounts</h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Account #</th>
+                        <th>Owner</th>
+                        <th>Balance</th>
+                        <th>Currency</th>
+                        <th>Version</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#if accounts}
+                    {#for account in accounts}
+                    <tr>
+                        <td><code>{account.accountNumber}</code></td>
+                        <td><strong>{account.ownerName}</strong></td>
+                        <td>{account.balance}</td>
+                        <td><span class="tag tag-blue">{account.currency}</span></td>
+                        <td><span class="tag tag-purple">v{account.version}</span></td>
+                    </tr>
+                    {/for}
+                    {#else}
+                    <tr><td colspan="5">No accounts &mdash; seed data or create one below.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+
+        <h4 style="margin-top:1.5rem">Create Account</h4>
+        <form hx-post="/bank/accounts" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Account Number</label>
+                    <input type="text" name="accountNumber" required placeholder="ACC-001">
+                </div>
+                <div class="form-group">
+                    <label>Owner Name</label>
+                    <input type="text" name="ownerName" required placeholder="John Doe">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Initial Balance</label>
+                    <input type="number" name="balance" step="0.01" value="0.00" required>
+                </div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <input type="text" name="currency" value="EUR" required placeholder="EUR">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Create Account</button>
+        </form>
+    </div>
+
+    <!-- Transfer Money Form -->
+    <div class="card">
+        <h3>Transfer Money <span class="tag tag-orange">@MorphiumTransactional</span></h3>
+        <form hx-post="/bank/transfer" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>From Account</label>
+                <select name="fromAccount" required>
+                    <option value="">-- Select source --</option>
+                    {#if accounts}
+                    {#for account in accounts}
+                    <option value="{account.accountNumber}">{account.accountNumber} &mdash; {account.ownerName} ({account.balance} {account.currency})</option>
+                    {/for}
+                    {/if}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>To Account</label>
+                <select name="toAccount" required>
+                    <option value="">-- Select target --</option>
+                    {#if accounts}
+                    {#for account in accounts}
+                    <option value="{account.accountNumber}">{account.accountNumber} &mdash; {account.ownerName} ({account.balance} {account.currency})</option>
+                    {/for}
+                    {/if}
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="number" name="amount" step="0.01" required placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" name="description" placeholder="Payment for...">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Transfer</button>
+        </form>
+    </div>
+</div>
+
+<!-- Deposit / Withdraw -->
+<div class="card-grid">
+    <!-- Deposit -->
+    <div class="card">
+        <h3>Deposit <span class="tag tag-green">inc (atomic)</span></h3>
+        <form hx-post="/bank/deposit" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Account</label>
+                <select name="accountNumber" required>
+                    <option value="">-- Select account --</option>
+                    {#if accounts}
+                    {#for account in accounts}
+                    <option value="{account.accountNumber}">{account.accountNumber} &mdash; {account.ownerName} ({account.balance} {account.currency})</option>
+                    {/for}
+                    {/if}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" name="amount" step="0.01" required placeholder="0.00">
+            </div>
+            <button type="submit" class="btn btn-primary">Deposit</button>
+        </form>
+    </div>
+
+    <!-- Withdraw -->
+    <div class="card">
+        <h3>Withdraw <span class="tag tag-green">dec (atomic)</span></h3>
+        <form hx-post="/bank/withdraw" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Account</label>
+                <select name="accountNumber" required>
+                    <option value="">-- Select account --</option>
+                    {#if accounts}
+                    {#for account in accounts}
+                    <option value="{account.accountNumber}">{account.accountNumber} &mdash; {account.ownerName} ({account.balance} {account.currency})</option>
+                    {/for}
+                    {/if}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" name="amount" step="0.01" required placeholder="0.00">
+            </div>
+            <button type="submit" class="btn btn-primary">Withdraw</button>
+        </form>
+    </div>
+</div>
+
+<!-- Recent Transfers -->
+{#if transfers}
+<div class="card">
+    <h3>Recent Transfers</h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Amount</th>
+                    <th>Currency</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for t in transfers}
+                <tr>
+                    <td><code>{t.fromAccount}</code></td>
+                    <td><code>{t.toAccount}</code></td>
+                    <td>{t.amount}</td>
+                    <td>{t.currency}</td>
+                    <td>{t.description}</td>
+                    <td>
+                        {#if t.status == "COMPLETED"}
+                        <span class="tag tag-green">{t.status}</span>
+                        {#else}
+                        <span class="tag tag-orange">{t.status}</span>
+                        {/if}
+                    </td>
+                    <td>{t.createdAt}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/if}
+
+<!-- Seed Button -->
+<div class="demo-actions">
+    <button class="btn btn-outline btn-sm"
+            hx-post="/bank/seed" hx-target="#tab-content" hx-swap="innerHTML">
+        Re-seed Data
+    </button>
+</div>

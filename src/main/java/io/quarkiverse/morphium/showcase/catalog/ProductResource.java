@@ -17,10 +17,13 @@ package io.quarkiverse.morphium.showcase.catalog;
 
 import io.quarkiverse.morphium.showcase.catalog.entity.Product;
 import io.quarkiverse.morphium.showcase.common.DocLink;
+import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -50,6 +53,14 @@ public class ProductResource {
     Template catalog;
 
     @Inject
+    @Location("tags/learn-catalog.html")
+    Template learnCatalog;
+
+    @Inject
+    @Location("tags/demo-catalog.html")
+    Template demoCatalog;
+
+    @Inject
     ProductService productService;
 
     private static final List<DocLink> DOC_LINKS = List.of(
@@ -60,35 +71,65 @@ public class ProductResource {
     );
 
     /**
-     * Renders the main catalog page with all products, count, and cache statistics.
-     * Seeds sample data on first access if the collection is empty.
-     *
-     * @return the rendered catalog HTML page
+     * Renders the main catalog page with the Learn tab as default.
      */
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance page() {
         productService.seedData();
         return catalog.data("active", "catalog")
-                .data("products", productService.findAll())
-                .data("count", productService.count())
-                .data("cacheStats", productService.getCacheStats())
-                .data("searchQuery", null)
                 .data("docLinks", DOC_LINKS);
     }
 
     /**
-     * Creates a new product from form data and redirects back to the catalog page.
-     * Demonstrates Morphium's {@code store()} for inserting new entities.
-     *
-     * @param name         the product name
-     * @param description  the product description
-     * @param price        the product price
-     * @param stock        the stock quantity
-     * @param categoryName the category name (stored as an embedded document)
-     * @param categoryDesc the category description
-     * @param tagsStr      comma-separated tags
-     * @return a redirect response to the catalog page
+     * Returns the Learn tab partial (for HTMX).
+     */
+    @GET
+    @Path("/tab/learn")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance learnTab() {
+        return learnCatalog.data("docLinks", DOC_LINKS);
+    }
+
+    /**
+     * Returns the Demo tab partial (for HTMX).
+     */
+    @GET
+    @Path("/tab/demo")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance demoTab() {
+        productService.seedData();
+        return demoCatalog.data("products", productService.findAll())
+                .data("count", productService.count())
+                .data("searchQuery", null)
+                .data("successMessage", null)
+                .data("errorMessage", null);
+    }
+
+    private TemplateInstance demoTabWithMessage(String successMessage, String errorMessage) {
+        return demoCatalog.data("products", productService.findAll())
+                .data("count", productService.count())
+                .data("searchQuery", null)
+                .data("successMessage", successMessage)
+                .data("errorMessage", errorMessage);
+    }
+
+    private TemplateInstance demoTabWithProducts(List<Product> products, String searchQuery) {
+        return demoCatalog.data("products", products)
+                .data("count", productService.count())
+                .data("searchQuery", searchQuery)
+                .data("successMessage", null)
+                .data("errorMessage", null);
+    }
+
+    private boolean isHtmxRequest(HttpHeaders headers) {
+        return headers.getHeaderString("HX-Request") != null;
+    }
+
+    /**
+     * Creates a new product from form data.
+     * HTMX: returns demo tab partial with success message.
+     * Non-HTMX: redirects to catalog page.
      */
     @POST
     @Path("/products")
@@ -101,113 +142,117 @@ public class ProductResource {
             @FormParam("stock") int stock,
             @FormParam("categoryName") String categoryName,
             @FormParam("categoryDesc") String categoryDesc,
-            @FormParam("tags") String tagsStr) {
+            @FormParam("tags") String tagsStr,
+            @Context HttpHeaders headers) {
         List<String> tags = tagsStr != null && !tagsStr.isBlank()
                 ? Arrays.asList(tagsStr.split(",\\s*"))
                 : List.of();
         productService.create(name, description, price, stock, categoryName, categoryDesc, tags);
+        if (isHtmxRequest(headers)) {
+            return Response.ok(demoTabWithMessage("Product '" + name + "' created successfully.", null)).build();
+        }
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
     /**
-     * Deletes a single product by id. Demonstrates Morphium's {@code delete()} operation.
-     *
-     * @param id the MorphiumId string of the product to delete
-     * @return a redirect response to the catalog page
+     * Deletes a single product by id.
+     * HTMX: returns demo tab partial with success message.
+     * Non-HTMX: redirects to catalog page.
      */
     @DELETE
     @Path("/products/{id}")
     @Produces(MediaType.TEXT_HTML)
-    public Response deleteProduct(@PathParam("id") String id) {
+    public Response deleteProduct(@PathParam("id") String id, @Context HttpHeaders headers) {
         productService.delete(id);
+        if (isHtmxRequest(headers)) {
+            return Response.ok(demoTabWithMessage("Product deleted.", null)).build();
+        }
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
     /**
-     * Searches products by name using a regex pattern. Demonstrates Morphium's
-     * {@code matches()} query operator for case-insensitive pattern matching.
-     *
-     * @param query the search pattern
-     * @return the catalog page filtered by the search query
+     * Searches products by name using a regex pattern.
+     * HTMX: returns demo tab partial with filtered results.
+     * Non-HTMX: returns full catalog page.
      */
     @POST
     @Path("/products/search")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance searchProducts(@FormParam("query") String query) {
+    public Response searchProducts(@FormParam("query") String query, @Context HttpHeaders headers) {
         List<Product> results = (query != null && !query.isBlank())
                 ? productService.searchByName(query)
                 : productService.findAll();
-        return catalog.data("active", "catalog")
-                .data("products", results)
-                .data("count", productService.count())
-                .data("searchQuery", query)
-                .data("cacheStats", productService.getCacheStats())
-                .data("docLinks", DOC_LINKS);
+        if (isHtmxRequest(headers)) {
+            return Response.ok(demoTabWithProducts(results, query)).build();
+        }
+        return Response.ok(catalog.data("active", "catalog").data("docLinks", DOC_LINKS)).build();
     }
 
     /**
-     * Filters products by price range. Demonstrates Morphium's {@code gte()} and {@code lte()}
-     * range query operators combined with sorting.
-     *
-     * @param min minimum price (inclusive)
-     * @param max maximum price (inclusive)
-     * @return the catalog page showing products within the price range
+     * Filters products by price range.
+     * HTMX: returns demo tab partial with filtered results.
+     * Non-HTMX: returns full catalog page.
      */
     @POST
     @Path("/products/price-range")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance filterByPrice(
+    public Response filterByPrice(
             @FormParam("minPrice") double min,
-            @FormParam("maxPrice") double max) {
-        return catalog.data("active", "catalog")
-                .data("products", productService.findByPriceRange(min, max))
-                .data("count", productService.count())
-                .data("priceFilter", Map.of("min", min, "max", max))
-                .data("cacheStats", productService.getCacheStats())
-                .data("docLinks", DOC_LINKS);
+            @FormParam("maxPrice") double max,
+            @Context HttpHeaders headers) {
+        List<Product> results = productService.findByPriceRange(min, max);
+        if (isHtmxRequest(headers)) {
+            return Response.ok(demoTabWithProducts(results, null)).build();
+        }
+        return Response.ok(catalog.data("active", "catalog").data("docLinks", DOC_LINKS)).build();
     }
 
     /**
-     * Clears the Morphium read cache for the Product entity. Useful for demonstrating that
-     * subsequent reads will fetch from MongoDB instead of the cache.
-     *
-     * @return a redirect response to the catalog page
+     * Clears the Morphium read cache for the Product entity.
+     * HTMX: returns demo tab partial with success message.
+     * Non-HTMX: redirects to catalog page.
      */
     @POST
     @Path("/cache/clear")
     @Produces(MediaType.TEXT_HTML)
-    public Response clearCache() {
+    public Response clearCache(@Context HttpHeaders headers) {
         productService.clearCache();
+        if (isHtmxRequest(headers)) {
+            return Response.ok(demoTabWithMessage("Cache cleared for Product entity.", null)).build();
+        }
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
     /**
-     * Drops the entire products collection. Demonstrates Morphium's {@code dropCollection()}.
-     *
-     * @return a redirect response to the catalog page
+     * Drops the entire products collection.
      */
     @DELETE
     @Path("/products")
     @Produces(MediaType.TEXT_HTML)
-    public Response deleteAll() {
+    public Response deleteAll(@Context HttpHeaders headers) {
         productService.deleteAll();
+        if (isHtmxRequest(headers)) {
+            return Response.ok(demoTabWithMessage("All products deleted.", null)).build();
+        }
         return Response.seeOther(URI.create("/catalog")).build();
     }
 
     /**
-     * Resets the collection and re-seeds sample data. Demonstrates Morphium's
-     * {@code dropCollection()} followed by {@code storeList()} for bulk inserts.
-     *
-     * @return a redirect response to the catalog page
+     * Resets the collection and re-seeds sample data.
+     * HTMX: returns demo tab partial with success message.
+     * Non-HTMX: redirects to catalog page.
      */
     @POST
     @Path("/products/seed")
     @Produces(MediaType.TEXT_HTML)
-    public Response seed() {
+    public Response seed(@Context HttpHeaders headers) {
         productService.deleteAll();
         productService.seedData();
+        if (isHtmxRequest(headers)) {
+            return Response.ok(demoTabWithMessage("Sample data re-seeded.", null)).build();
+        }
         return Response.seeOther(URI.create("/catalog")).build();
     }
 }

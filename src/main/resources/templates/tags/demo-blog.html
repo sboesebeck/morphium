@@ -1,0 +1,176 @@
+<!-- Demo Tab: Blog -->
+
+<div class="demo-context">
+    Explore Morphium's advanced features: create authors (stored via <code>@Reference</code>),
+    write blog posts with <code>@Version</code> optimistic locking, add <code>@Embedded</code> comments,
+    and observe automatic timestamps (<code>@CreationTime</code>, <code>@LastChange</code>).
+    All actions use HTMX &mdash; no page reloads.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<div class="card-grid">
+    <!-- Create Author Form -->
+    <div class="card">
+        <h3>Create Author</h3>
+        <form hx-post="/blog/authors" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" name="name" required placeholder="Author name">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" required placeholder="author@example.com">
+            </div>
+            <div class="form-group">
+                <label>Bio</label>
+                <input type="text" name="bio" placeholder="Short biography">
+            </div>
+            <button type="submit" class="btn btn-primary">Create Author</button>
+        </form>
+    </div>
+
+    <!-- Create Blog Post Form -->
+    <div class="card">
+        <h3>Create Blog Post</h3>
+        <form hx-post="/blog/posts" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" name="title" required placeholder="Post title">
+            </div>
+            <div class="form-group">
+                <label>Content</label>
+                <textarea name="content" rows="3" required placeholder="Post content"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Author</label>
+                <select name="authorId" required>
+                    <option value="" disabled selected>Select an author</option>
+                    {#for a in authors}
+                    <option value="{a.id}">{a.name}</option>
+                    {/for}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tags (comma-separated)</label>
+                <input type="text" name="tags" placeholder="java, morphium, quarkus">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="published" value="true"> Published
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Create Post</button>
+        </form>
+    </div>
+</div>
+
+<!-- Blog Posts Display -->
+<div class="card">
+    <h3>Blog Posts <span class="tag tag-blue">{count} in collection <code>blog_posts</code></span></h3>
+
+    {#if posts.isEmpty}
+    <p class="text-muted">No blog posts yet. Create an author first, then write a post.</p>
+    {#else}
+    {#for post in posts}
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+            <h4 style="margin: 0;">{post.title}</h4>
+            {#if post.author}
+            <span class="tag tag-blue">{post.author.name}</span>
+            {/if}
+            {#if post.published}
+            <span class="tag tag-green">Published</span>
+            {#else}
+            <span class="tag tag-orange">Draft</span>
+            {/if}
+        </div>
+
+        <p>{post.content}</p>
+
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">
+            <span><strong>Version:</strong> <span class="tag tag-blue">v{post.version}</span></span>
+            {#if post.createdAt}
+            <span><strong>Created:</strong> {post.createdAt}</span>
+            {/if}
+            {#if post.lastChange}
+            <span><strong>Last Change:</strong> {post.lastChange}</span>
+            {/if}
+        </div>
+
+        <!-- Tags -->
+        {#if post.tags && !post.tags.isEmpty}
+        <div style="margin-bottom: 0.75rem;">
+            {#for tag in post.tags}
+            <span class="tag">{tag}</span>
+            {/for}
+        </div>
+        {/if}
+
+        <!-- Embedded Comments -->
+        <div style="margin-bottom: 0.75rem;">
+            <strong>Comments</strong>
+            {#if post.comments && !post.comments.isEmpty}
+            <ul style="margin: 0.25rem 0 0 0; padding-left: 1.25rem;">
+                {#for comment in post.comments}
+                <li>
+                    <strong>{comment.author}</strong>: {comment.text}
+                    {#if comment.commentedAt}
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);"> &mdash; {comment.commentedAt}</span>
+                    {/if}
+                </li>
+                {/for}
+            </ul>
+            {#else}
+            <span class="text-muted"> &mdash; No comments yet</span>
+            {/if}
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="demo-actions">
+            <!-- Add Comment (inline form) -->
+            <form hx-post="/blog/posts/{post.id}/comments" hx-target="#tab-content" hx-swap="innerHTML"
+                  style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <input type="text" name="author" placeholder="Your name" required style="width: 8rem;">
+                <input type="text" name="text" placeholder="Comment text" required style="width: 14rem;">
+                <button type="submit" class="btn btn-outline btn-sm">Add Comment</button>
+            </form>
+
+            <!-- Update Post (toggle published status + version bump) -->
+            <form hx-post="/blog/posts/{post.id}/update" hx-target="#tab-content" hx-swap="innerHTML"
+                  style="display: inline;">
+                <button type="submit" class="btn btn-outline btn-sm">
+                    {#if post.published}Unpublish{#else}Publish{/if}
+                </button>
+            </form>
+
+            <!-- Delete Post -->
+            <button class="btn btn-danger btn-sm"
+                    hx-delete="/blog/posts/{post.id}"
+                    hx-target="#tab-content" hx-swap="innerHTML"
+                    hx-confirm="Delete this blog post?">
+                Delete
+            </button>
+        </div>
+    </div>
+    {/for}
+    {/if}
+</div>
+
+<!-- Seed / Clear Actions -->
+<div class="demo-actions" style="margin-top: 1rem;">
+    <button class="btn btn-outline btn-sm"
+            hx-post="/blog/seed" hx-target="#tab-content" hx-swap="innerHTML">
+        Seed Sample Data
+    </button>
+    <button class="btn btn-danger btn-sm"
+            hx-delete="/blog/all" hx-target="#tab-content" hx-swap="innerHTML"
+            hx-confirm="Delete ALL blog posts and authors?">
+        Delete All
+    </button>
+</div>

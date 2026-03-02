@@ -1,0 +1,232 @@
+<!-- Learn Tab: Polymorphism -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Polymorphism page demonstrates Morphium's inheritance mapping: a <code>Vehicle</code> hierarchy
+        where <code>Car</code> and <code>Truck</code> subclasses are stored in a <strong>single shared MongoDB
+        collection</strong>. When you query for <code>Vehicle.class</code>, Morphium automatically returns a
+        mixed list of <code>Car</code> and <code>Truck</code> instances &mdash; true polymorphic deserialization.
+        Each document carries a <code>class_name</code> discriminator field so Morphium knows which Java class
+        to instantiate. You will also see how a custom <code>MorphiumTypeMapper&lt;Money&gt;</code> teaches
+        Morphium to serialize/deserialize arbitrary value objects.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="polymorph = true" compat="all"}
+        {#tip}Enables polymorphic persistence. When set on @Entity, Morphium stores a class_name discriminator field in each document so it can reconstruct the correct Java subtype on read. Must be set on EVERY class in the hierarchy.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="typeId (class_name)" compat="all"}
+        {#tip}The discriminator field automatically stored by Morphium when polymorph = true. Contains the fully-qualified Java class name (e.g. &quot;io.quarkiverse.morphium.showcase.polymorphism.entity.Car&quot;). Used during deserialization to pick the correct class.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Entity(collectionName)" compat="all"}
+        {#tip}Maps a Java class to a specific MongoDB collection. In a polymorphic hierarchy, ALL classes must declare the SAME collectionName so they share one collection. Import: de.caluga.morphium.annotations.Entity{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="MorphiumTypeMapper" compat="all"}
+        {#tip}Interface for custom serialization/deserialization of arbitrary Java types. Implement marshall() to convert Java to BSON and unmarshall() to convert BSON back to Java. Registered automatically via CDI in Quarkus. Import: de.caluga.morphium.objectmapping.MorphiumTypeMapper{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@FieldNameConstants" compat="all"}
+        {#tip}Lombok annotation (not Morphium!). Generates Vehicle.Fields.manufacturer, Car.Fields.doors etc. at compile time for type-safe queries. Import: lombok.experimental.FieldNameConstants{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="storeList (batch)" compat="all"}
+        {#tip}Bulk-inserts multiple entities in a single MongoDB write operation. Much more efficient than individual store() calls. Morphium sends a single bulkWrite command. Usage: morphium.storeList(vehicleList){/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>All subclasses must have the same <code>collectionName</code></strong> &mdash; Vehicle, Car, and Truck all declare <code>@Entity(collectionName = &quot;vehicles&quot;, polymorph = true)</code>. Without this, each class would map to its own collection and polymorphic queries would fail.</li>
+            <li><strong><code>polymorph = true</code> on every class</strong> &mdash; this annotation must appear on the base class AND every subclass. It tells Morphium to write and read the <code>class_name</code> discriminator field.</li>
+            <li><strong><code>class_name</code> discriminator</strong> is stored automatically in each document. It contains the fully-qualified Java class name. On read, Morphium uses this field to instantiate the correct subtype.</li>
+            <li><strong><code>MorphiumTypeMapper&lt;Money&gt;</code></strong> &mdash; for custom value types that Morphium does not know how to serialize by default, you implement a type mapper. The mapper converts <code>Money</code> to a simple <code>Map</code> for storage and back on read. In Quarkus, annotating the mapper with <code>@ApplicationScoped</code> auto-registers it.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: ER Diagram -->
+<div class="learn-section">
+    <h2>Entity Relationship</h2>
+    {#include tags/er-diagram layout="er-hub-layout"}
+    {#entities}
+    <div class="er-hub-primary">
+        <div class="er-entity er-type-entity">
+            <div class="er-entity-name">Vehicle (@Entity, polymorph)</div>
+            <div class="er-entity-fields">
+                <div class="er-field"><span class="er-field-name">_id</span>: <span class="er-field-type">MorphiumId</span> <span class="er-field-annotation">@Id</span></div>
+                <div class="er-field"><span class="er-field-name">manufacturer</span>: <span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">model</span>: <span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">year</span>: <span class="er-field-type">int</span></div>
+                <div class="er-field"><span class="er-field-name">price</span>: <span class="er-field-type">double</span></div>
+                <div class="er-field"><span class="er-field-name">class_name</span>: <span class="er-field-type">String</span> <span class="er-field-annotation">auto (discriminator)</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="er-hub-targets">
+        <div class="er-hub-target">
+            <div class="er-connector">
+                <span class="er-connector-label">extends &rarr;</span>
+            </div>
+            <div class="er-entity er-type-entity">
+                <div class="er-entity-name">Car (@Entity, polymorph)</div>
+                <div class="er-entity-fields">
+                    <div class="er-field"><span class="er-field-name">doors</span>: <span class="er-field-type">int</span></div>
+                    <div class="er-field"><span class="er-field-name">fuelType</span>: <span class="er-field-type">String</span></div>
+                    <div class="er-field"><span class="er-field-name">convertible</span>: <span class="er-field-type">boolean</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="er-hub-target">
+            <div class="er-connector">
+                <span class="er-connector-label">extends &rarr;</span>
+            </div>
+            <div class="er-entity er-type-entity">
+                <div class="er-entity-name">Truck (@Entity, polymorph)</div>
+                <div class="er-entity-fields">
+                    <div class="er-field"><span class="er-field-name">payloadTons</span>: <span class="er-field-type">double</span></div>
+                    <div class="er-field"><span class="er-field-name">axles</span>: <span class="er-field-type">int</span></div>
+                    <div class="er-field"><span class="er-field-name">hasTowbar</span>: <span class="er-field-type">boolean</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {/entities}
+    {/include}
+</div>
+
+<!-- Section 5: Full Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="Vehicle.java (Base Class)" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;vehicles&quot;</span>, polymorph = <span class="keyword">true</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Vehicle</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line">    <span class="keyword">private</span> String manufacturer;</span>
+<span class="line">    <span class="keyword">private</span> String model;</span>
+<span class="line">    <span class="keyword">private int</span> year;</span>
+<span class="line">    <span class="keyword">private double</span> price;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">public</span> String <span class="method">getTypeName</span>() &#123;<span class="code-callout">2</span></span>
+<span class="line">        <span class="keyword">return</span> getClass().getSimpleName();</span>
+<span class="line">    &#125;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>polymorph = true</code> stores a <code>class_name</code> discriminator field so Morphium can reconstruct the correct Java subtype on read. ALL classes in the hierarchy must use the same <code>collectionName</code>.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Returns the actual runtime type name (e.g. "Car", "Truck") &mdash; proves polymorphic deserialization works.</div>
+    </div>
+
+    {#include tags/code-block title="Car.java (Subclass)" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.EqualsAndHashCode;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;vehicles&quot;</span>, polymorph = <span class="keyword">true</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@EqualsAndHashCode</span>(callSuper = <span class="keyword">true</span>)</span>
+<span class="line"><span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Car</span> <span class="keyword">extends</span> <span class="type">Vehicle</span> &#123;<span class="code-callout">2</span></span>
+<span class="line">    <span class="keyword">private int</span> doors;</span>
+<span class="line">    <span class="keyword">private</span> String fuelType;</span>
+<span class="line">    <span class="keyword">private boolean</span> convertible;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Must repeat <code>@Entity</code> with the SAME <code>collectionName</code> and <code>polymorph = true</code></div>
+        <div class="callout-item"><span class="code-callout">2</span> Extends Vehicle &mdash; subclass fields are stored alongside inherited fields in the same document</div>
+    </div>
+
+    {#include tags/code-block title="Truck.java (Subclass)" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.EqualsAndHashCode;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;vehicles&quot;</span>, polymorph = <span class="keyword">true</span>)</span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@EqualsAndHashCode</span>(callSuper = <span class="keyword">true</span>)</span>
+<span class="line"><span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Truck</span> <span class="keyword">extends</span> <span class="type">Vehicle</span> &#123;<span class="code-callout">1</span></span>
+<span class="line">    <span class="keyword">private double</span> payloadTons;</span>
+<span class="line">    <span class="keyword">private int</span> axles;</span>
+<span class="line">    <span class="keyword">private boolean</span> hasTowbar;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Another subclass sharing the same <code>"vehicles"</code> collection &mdash; same pattern as Car with truck-specific fields.</div>
+    </div>
+</div>
+
+<!-- Section 6: Custom Type Mapper -->
+<div class="learn-section">
+    <h2>Custom Type Mapper</h2>
+    {#include tags/code-block title="MoneyMapper.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.objectmapping.MorphiumTypeMapper;</span>
+<span class="line"><span class="keyword">import</span> jakarta.enterprise.context.ApplicationScoped;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@ApplicationScoped</span><span class="code-callout">1</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">MoneyMapper</span> <span class="keyword">implements</span> <span class="type">MorphiumTypeMapper</span>&lt;<span class="type">Money</span>&gt; &#123;<span class="code-callout">2</span></span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Override</span></span>
+<span class="line">    <span class="keyword">public</span> Object <span class="method">marshall</span>(<span class="type">Money</span> o) &#123;<span class="code-callout">3</span></span>
+<span class="line">        <span class="comment">// Convert Money to a Map for MongoDB storage</span></span>
+<span class="line">        <span class="keyword">return</span> Map.of(</span>
+<span class="line">            <span class="string">&quot;amount&quot;</span>, o.getAmount(),</span>
+<span class="line">            <span class="string">&quot;currency&quot;</span>, o.getCurrency()</span>
+<span class="line">        );</span>
+<span class="line">    &#125;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Override</span></span>
+<span class="line">    <span class="keyword">public</span> <span class="type">Money</span> <span class="method">unmarshall</span>(Object d) &#123;<span class="code-callout">4</span></span>
+<span class="line">        <span class="comment">// Reconstruct Money from the Map read from MongoDB</span></span>
+<span class="line">        <span class="keyword">if</span> (d <span class="keyword">instanceof</span> Map&lt;?, ?&gt; map) &#123;</span>
+<span class="line">            <span class="keyword">double</span> amount = ((Number) map.get(<span class="string">&quot;amount&quot;</span>)).doubleValue();</span>
+<span class="line">            String currency = (String) map.get(<span class="string">&quot;currency&quot;</span>);</span>
+<span class="line">            <span class="keyword">return new</span> <span class="type">Money</span>(amount, currency);</span>
+<span class="line">        &#125;</span>
+<span class="line">        <span class="keyword">throw new</span> <span class="type">IllegalArgumentException</span>(<span class="string">&quot;Cannot unmarshall Money from: &quot;</span> + d);</span>
+<span class="line">    &#125;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>@ApplicationScoped</code> makes this a CDI bean — Quarkus Morphium auto-discovers and registers it as the type mapper for <code>Money</code>.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>implements MorphiumTypeMapper&lt;Money&gt;</code> tells Morphium which Java type this mapper handles; the generic parameter is the key for registration.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>marshall()</code> converts the Java object to a BSON-compatible value (here a <code>Map</code>) for storage in MongoDB.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>unmarshall()</code> reconstructs the Java object from the raw BSON value read back from MongoDB.</div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

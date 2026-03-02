@@ -282,6 +282,11 @@ public class AnalyticsService {
      * stores them, MongoDB will auto-generate an ObjectId for each document's {@code _id} field,
      * and Morphium will populate the Java object's {@code id} field with the generated value.</p>
      */
+    public void resetData() {
+        morphium.dropCollection(SalesRecord.class);
+        seedData();
+    }
+
     public void seedData() {
         // Guard: only seed if the collection is empty. This makes the seed operation idempotent.
         if (morphium.createQueryFor(SalesRecord.class).countAll() > 0) return;

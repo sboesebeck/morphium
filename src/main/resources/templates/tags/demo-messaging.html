@@ -1,0 +1,113 @@
+<!-- Demo Tab: Messaging -->
+
+<div class="demo-context">
+    Chat messaging system using a custom ChatMessage entity. Send messages, filter by topic,
+    and mark messages as read using Morphium's <code>query.set()</code> for targeted field updates. All actions use HTMX &mdash; no page reloads.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<!-- Stats Row -->
+<div class="stats-row">
+    <div class="stat">
+        <span class="stat-value">{count}</span>
+        <span class="stat-label">messages</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value">{topics.size}</span>
+        <span class="stat-label">topics</span>
+    </div>
+</div>
+
+<div class="card-grid">
+    <!-- Send Message Form -->
+    <div class="card">
+        <h3>Send Message</h3>
+        <form hx-post="/messaging/send" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Sender</label>
+                    <input type="text" name="sender" required placeholder="e.g. Alice">
+                </div>
+                <div class="form-group">
+                    <label>Recipient</label>
+                    <input type="text" name="recipient" required placeholder="e.g. Bob">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Topic</label>
+                <input type="text" name="topic" required placeholder="e.g. general">
+            </div>
+            <div class="form-group">
+                <label>Message</label>
+                <textarea name="text" required placeholder="Type your message..." rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Send Message</button>
+        </form>
+    </div>
+
+    <!-- Topic Filter -->
+    <div class="card">
+        <h3>Filter by Topic</h3>
+        <div class="demo-actions" style="flex-wrap:wrap; gap:0.5rem;">
+            <button class="btn btn-sm {#if selectedTopic == null}btn-primary{#else}btn-outline{/if}"
+                    hx-get="/messaging/tab/demo" hx-target="#tab-content" hx-swap="innerHTML">
+                All
+            </button>
+            {#for topic in topics}
+            <button class="btn btn-sm {#if selectedTopic == topic}btn-primary{#else}btn-outline{/if}"
+                    hx-get="/messaging/tab/demo?topic={topic}" hx-target="#tab-content" hx-swap="innerHTML">
+                {topic}
+            </button>
+            {/for}
+        </div>
+
+        <div class="demo-actions" style="margin-top:1.5rem">
+            <button class="btn btn-outline btn-sm"
+                    hx-post="/messaging/seed" hx-target="#tab-content" hx-swap="innerHTML">
+                Re-seed Data
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Messages Display -->
+<div class="card">
+    <h3>Messages
+        {#if selectedTopic}
+        <span class="tag tag-blue">{selectedTopic}</span>
+        {/if}
+    </h3>
+    <div class="chat-container">
+        {#for msg in messages}
+        <div class="chat-message">
+            <div class="chat-header">
+                <strong>{msg.sender}</strong> &rarr; <span>{msg.recipient}</span>
+                <span class="tag tag-blue" style="margin-left:0.5rem">{msg.topic}</span>
+                {#if msg.read}
+                <span class="tag tag-green" style="margin-left:0.25rem">Read</span>
+                {#else}
+                <span class="tag tag-orange" style="margin-left:0.25rem">Unread</span>
+                {/if}
+            </div>
+            <div class="chat-body">
+                <p>{msg.text}</p>
+            </div>
+            <div class="chat-footer">
+                <span class="chat-time">{msg.sentAt}</span>
+                {#if !msg.read}
+                <button class="btn btn-sm btn-outline"
+                        hx-post="/messaging/read/{msg.id}" hx-target="#tab-content" hx-swap="innerHTML">
+                    Mark Read
+                </button>
+                {/if}
+            </div>
+        </div>
+        {/for}
+    </div>
+</div>

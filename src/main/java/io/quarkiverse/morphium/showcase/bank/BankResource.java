@@ -16,35 +16,32 @@
 package io.quarkiverse.morphium.showcase.bank;
 
 import io.quarkiverse.morphium.showcase.common.DocLink;
+import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.net.URI;
 import java.util.List;
 
-/**
- * JAX-RS resource serving the banking demo pages.
- *
- * <p>This resource demonstrates how Morphium handles transactional operations, atomic field updates,
- * and optimistic locking through the {@link BankService}. Key Morphium features exposed through
- * this UI:</p>
- * <ul>
- *   <li><strong>Account creation</strong> -- {@code morphium.store()} with auto-populated @Version,
- *       @CreationTime, and @Id fields</li>
- *   <li><strong>Money transfers</strong> -- {@code @MorphiumTransactional} wrapping multiple atomic
- *       {@code morphium.inc()} operations</li>
- *   <li><strong>Deposits/Withdrawals</strong> -- Atomic {@code morphium.inc()} without transactions</li>
- * </ul>
- */
 @Path("/bank")
 public class BankResource {
 
     @Inject
     Template bank;
+
+    @Inject
+    @Location("tags/learn-bank.html")
+    Template learnBank;
+
+    @Inject
+    @Location("tags/demo-bank.html")
+    Template demoBank;
 
     @Inject
     BankService bankService;
@@ -55,34 +52,42 @@ public class BankResource {
             new DocLink("/docs/api-reference", "API Reference", "inc(), dec(), Atomic Operations")
     );
 
-    /**
-     * Renders the main banking page showing all accounts and recent transfers.
-     * Seeds sample data on first access if the collection is empty.
-     *
-     * @return the rendered bank HTML page
-     */
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance page() {
         bankService.seedData();
         return bank.data("active", "bank")
-                .data("accounts", bankService.findAllAccounts())
-                .data("transfers", bankService.findAllTransfers())
-                .data("accountCount", bankService.countAccounts())
-                .data("transferResult", null)
                 .data("docLinks", DOC_LINKS);
     }
 
-    /**
-     * Creates a new bank account. Demonstrates Morphium's {@code store()} with automatic
-     * {@code @Version}, {@code @CreationTime}, and {@code @Id} population.
-     *
-     * @param accountNumber  the unique account identifier
-     * @param ownerName      the account holder's name
-     * @param initialBalance the starting balance
-     * @param currency       the currency code (defaults to "EUR")
-     * @return a redirect to the bank page
-     */
+    @GET
+    @Path("/tab/learn")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance learnTab() {
+        return learnBank.data("docLinks", DOC_LINKS);
+    }
+
+    @GET
+    @Path("/tab/demo")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance demoTab() {
+        bankService.seedData();
+        return demoData(null, null, null);
+    }
+
+    private TemplateInstance demoData(String success, String error, Object transferResult) {
+        return demoBank.data("accounts", bankService.findAllAccounts())
+                .data("transfers", bankService.findAllTransfers())
+                .data("accountCount", bankService.countAccounts())
+                .data("transferResult", transferResult)
+                .data("successMessage", success)
+                .data("errorMessage", error);
+    }
+
+    private boolean isHtmx(HttpHeaders h) {
+        return h.getHeaderString("HX-Request") != null;
+    }
+
     @POST
     @Path("/accounts")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -90,95 +95,70 @@ public class BankResource {
     public Response createAccount(
             @FormParam("accountNumber") String accountNumber,
             @FormParam("ownerName") String ownerName,
-            @FormParam("initialBalance") double initialBalance,
-            @FormParam("currency") String currency) {
-        bankService.createAccount(accountNumber, ownerName, initialBalance,
+            @FormParam("balance") double balance,
+            @FormParam("currency") String currency,
+            @Context HttpHeaders headers) {
+        bankService.createAccount(accountNumber, ownerName, balance,
                 currency != null && !currency.isBlank() ? currency : "EUR");
+        if (isHtmx(headers)) return Response.ok(demoData("Account created.", null, null)).build();
         return Response.seeOther(URI.create("/bank")).build();
     }
 
-    /**
-     * Executes a money transfer between two accounts. This endpoint triggers the
-     * {@code @MorphiumTransactional} transfer method, which wraps all operations in a
-     * MongoDB multi-document transaction.
-     *
-     * @param from        the source account number
-     * @param to          the target account number
-     * @param amount      the transfer amount
-     * @param description a human-readable description
-     * @return the bank page with the transfer result (success or error message)
-     */
     @POST
     @Path("/transfer")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance transfer(
+    public Response transfer(
             @FormParam("from") String from,
             @FormParam("to") String to,
             @FormParam("amount") double amount,
-            @FormParam("description") String description) {
+            @FormParam("description") String description,
+            @Context HttpHeaders headers) {
         var result = bankService.transfer(from, to, amount, description);
-        return bank.data("active", "bank")
-                .data("accounts", bankService.findAllAccounts())
-                .data("transfers", bankService.findAllTransfers())
-                .data("accountCount", bankService.countAccounts())
-                .data("transferResult", result)
-                .data("docLinks", DOC_LINKS);
+        if (isHtmx(headers)) {
+            String msg = result.success() ? null : null;
+            return Response.ok(demoData(null, null, result)).build();
+        }
+        return Response.ok(bank.data("active", "bank").data("docLinks", DOC_LINKS)).build();
     }
 
-    /**
-     * Deposits money into an account using Morphium's atomic {@code inc()} operation.
-     *
-     * @param accountNumber the account to deposit into
-     * @param amount        the deposit amount
-     * @return a redirect to the bank page
-     */
     @POST
     @Path("/deposit")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     public Response deposit(
             @FormParam("accountNumber") String accountNumber,
-            @FormParam("amount") double amount) {
+            @FormParam("amount") double amount,
+            @Context HttpHeaders headers) {
         bankService.deposit(accountNumber, amount);
+        if (isHtmx(headers)) return Response.ok(demoData("Deposited " + amount + ".", null, null)).build();
         return Response.seeOther(URI.create("/bank")).build();
     }
 
-    /**
-     * Withdraws money from an account. Uses Morphium's atomic {@code inc()} with a negative value
-     * after validating sufficient funds.
-     *
-     * @param accountNumber the account to withdraw from
-     * @param amount        the withdrawal amount
-     * @return a redirect to the bank page
-     */
     @POST
     @Path("/withdraw")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     public Response withdraw(
             @FormParam("accountNumber") String accountNumber,
-            @FormParam("amount") double amount) {
+            @FormParam("amount") double amount,
+            @Context HttpHeaders headers) {
         try {
             bankService.withdraw(accountNumber, amount);
+            if (isHtmx(headers)) return Response.ok(demoData("Withdrawn " + amount + ".", null, null)).build();
         } catch (IllegalArgumentException e) {
-            // Redirect back with error shown on next page load
-            return Response.seeOther(URI.create("/bank")).build();
+            if (isHtmx(headers)) return Response.ok(demoData(null, e.getMessage(), null)).build();
         }
         return Response.seeOther(URI.create("/bank")).build();
     }
 
-    /**
-     * Resets the banking data by dropping both collections and re-seeding sample accounts.
-     *
-     * @return a redirect to the bank page
-     */
     @POST
     @Path("/seed")
     @Produces(MediaType.TEXT_HTML)
-    public Response seed() {
+    public Response seed(@Context HttpHeaders headers) {
         bankService.deleteAll();
         bankService.seedData();
+        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null, null)).build();
         return Response.seeOther(URI.create("/bank")).build();
     }
 }

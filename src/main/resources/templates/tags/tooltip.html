@@ -1,0 +1,13 @@
+<span class="tag tag-{color} has-tooltip" tabindex="0">
+    {text}
+    <span class="tooltip-content">
+        {#insert tip}No description{/insert}
+        {#if compat == "all"}
+        <span class="compat-line"><span class="compat-ok">MongoDB</span><span class="compat-ok">Atlas</span><span class="compat-ok">CosmosDB</span></span>
+        {#else if compat == "no-cosmos"}
+        <span class="compat-line"><span class="compat-ok">MongoDB</span><span class="compat-ok">Atlas</span><span class="compat-no">CosmosDB</span></span>
+        {#else if compat == "warn-cosmos"}
+        <span class="compat-line"><span class="compat-ok">MongoDB</span><span class="compat-ok">Atlas</span><span class="compat-warn">CosmosDB</span></span>
+        {/if}
+    </span>
+</span>

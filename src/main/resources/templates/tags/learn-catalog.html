@@ -1,0 +1,231 @@
+<!-- Learn Tab: Product Catalog -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Product Catalog demonstrates Morphium's core CRUD operations: how Java objects
+        are mapped to MongoDB documents, how indexes accelerate queries, and how the built-in
+        LRU cache reduces database round-trips. You will see how <code>@Entity</code> maps a class
+        to a collection, how <code>@Embedded</code> stores related objects as sub-documents, and how
+        Morphium's fluent query API builds type-safe MongoDB queries.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="@Entity" compat="all"}
+        {#tip}Maps a Java class to a MongoDB collection. The collectionName attribute sets the collection explicitly. Import: de.caluga.morphium.annotations.Entity{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Id (MorphiumId)" compat="all"}
+        {#tip}Primary key &rarr; MongoDB _id. Auto-generated on first store() if null. Type MorphiumId is Morphium's ObjectId implementation. Import: de.caluga.morphium.annotations.Id{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Embedded" compat="all"}
+        {#tip}Stores the object inline as a sub-document (no separate collection). The embedded class must NOT have @Entity. Import: de.caluga.morphium.annotations.Embedded{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Cache (LRU)" compat="all"}
+        {#tip}Activates the LRU read cache. maxEntries limits cache size, timeout invalidates entries after N ms. Writes through Morphium auto-invalidate. Import: de.caluga.morphium.annotations.caching.Cache{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Index" compat="all"}
+        {#tip}Creates a MongoDB index for faster queries. Field-level: single index. Class-level: compound index. Import: de.caluga.morphium.annotations.Index{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Property" compat="all"}
+        {#tip}Overrides the MongoDB field name. Java field &apos;description&apos; becomes MongoDB field &apos;product_description&apos;. Import: de.caluga.morphium.annotations.Property{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@WriteSafety" compat="all"}
+        {#tip}Controls MongoDB write concern. NORMAL = acknowledged writes (w:1). WAIT_FOR_ALL_SLAVES = wait for all replicas. There is also MAJORITY = w:majority. Import: de.caluga.morphium.annotations.WriteSafety{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@DefaultReadPreference" compat="all"}
+        {#tip}Specifies which replica set member to read from. PRIMARY = strongest consistency. SECONDARY_PREFERRED = distribute read load. Import: de.caluga.morphium.annotations.DefaultReadPreference{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@FieldNameConstants" compat="all"}
+        {#tip}Lombok annotation (not Morphium!). Generates Product.Fields.name, .price etc. at compile time for type-safe queries. Import: lombok.experimental.FieldNameConstants{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Lombok <code>@FieldNameConstants</code></strong> generates an inner class <code>Product.Fields</code> with constants like <code>Fields.name</code>, <code>Fields.price</code>. These are used in Morphium queries instead of hard-coded strings: <code>query.f(Product.Fields.name)</code>.</li>
+            <li><strong><code>MorphiumId</code></strong> is Morphium's own ObjectId type, compatible with MongoDB's native ObjectId. Import: <code>de.caluga.morphium.driver.MorphiumId</code>.</li>
+            <li><strong><code>@Embedded</code></strong> goes on the sub-document class (e.g. <code>Category</code>), NOT on the field in the parent. An <code>@Embedded</code> class must NOT also have <code>@Entity</code>.</li>
+            <li><strong><code>@Cache</code></strong> requires the Morphium cache to be enabled. In Quarkus: <code>quarkus.morphium.cache.read-cache-enabled=true</code> (default). The cache is auto-invalidated on writes through the same Morphium instance.</li>
+            <li><strong>Compound Index</strong> <code>@Index</code> on the class creates a compound index &mdash; optimal for price-range queries sorted by name.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: ER Diagram -->
+<div class="learn-section">
+    <h2>Entity Relationship</h2>
+    {#include tags/er-diagram}
+    {#entities}
+    <div class="er-entity er-type-entity">
+        <div class="er-entity-name">Product (@Entity)</div>
+        <div class="er-entity-fields">
+            <div class="er-field"><span class="er-field-name">_id</span>: <span class="er-field-type">MorphiumId</span> <span class="er-field-annotation">@Id</span></div>
+            <div class="er-field"><span class="er-field-name">name</span>: <span class="er-field-type">String</span> <span class="er-field-annotation">@Index</span></div>
+            <div class="er-field"><span class="er-field-name">product_description</span>: <span class="er-field-type">String</span> <span class="er-field-annotation">@Property</span></div>
+            <div class="er-field"><span class="er-field-name">price</span>: <span class="er-field-type">double</span> <span class="er-field-annotation">@Index</span></div>
+            <div class="er-field"><span class="er-field-name">stock</span>: <span class="er-field-type">int</span></div>
+            <div class="er-field"><span class="er-field-name">category</span>: <span class="er-field-type">Category</span> <span class="er-field-annotation">@Embedded</span></div>
+            <div class="er-field"><span class="er-field-name">tags</span>: <span class="er-field-type">List&lt;String&gt;</span></div>
+        </div>
+    </div>
+    <div class="er-connector">
+        <span class="er-connector-label">@Embedded &rarr;</span>
+    </div>
+    <div class="er-entity er-type-embedded">
+        <div class="er-entity-name">Category (@Embedded)</div>
+        <div class="er-entity-fields">
+            <div class="er-field"><span class="er-field-name">name</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">description</span>: <span class="er-field-type">String</span></div>
+        </div>
+    </div>
+    {/entities}
+    {/include}
+</div>
+
+<!-- Section 5: Full Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="Product.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Index;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Property;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.caching.Cache;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.caching.Cache.ClearStrategy;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.WriteSafety;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.SafetyLevel;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.DefaultReadPreference;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.ReadPreferenceLevel;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"><span class="keyword">import</span> java.util.List;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;products&quot;</span>) <span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Index</span>(<span class="string">&quot;-price, name&quot;</span>) <span class="code-callout">2</span></span>
+<span class="line"><span class="annotation">@Cache</span>(maxEntries = <span class="number">100</span>, strategy = ClearStrategy.LRU, timeout = <span class="number">30000</span>) <span class="code-callout">3</span></span>
+<span class="line"><span class="annotation">@WriteSafety</span>(level = SafetyLevel.NORMAL) <span class="code-callout">4</span></span>
+<span class="line"><span class="annotation">@DefaultReadPreference</span>(ReadPreferenceLevel.PRIMARY) <span class="code-callout">5</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Product</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span> <span class="code-callout">6</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span></span>
+<span class="line">    <span class="keyword">private</span> String name;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Property</span>(fieldName = <span class="string">&quot;product_description&quot;</span>) <span class="code-callout">7</span></span>
+<span class="line">    <span class="keyword">private</span> String description;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span></span>
+<span class="line">    <span class="keyword">private double</span> price;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private int</span> stock;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">Category</span> category; <span class="code-callout">8</span></span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;String&gt; tags;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Maps this class to the <code>products</code> MongoDB collection</div>
+        <div class="callout-item"><span class="code-callout">2</span> Compound index on price (descending) and name &mdash; optimizes sorted range queries</div>
+        <div class="callout-item"><span class="code-callout">3</span> LRU read cache: max 100 entries, auto-invalidated after 30s or on writes</div>
+        <div class="callout-item"><span class="code-callout">4</span> Write concern: acknowledged writes (w:1)</div>
+        <div class="callout-item"><span class="code-callout">5</span> Always read from the primary replica</div>
+        <div class="callout-item"><span class="code-callout">6</span> Primary key &rarr; MongoDB <code>_id</code>. Auto-generated on first <code>store()</code></div>
+        <div class="callout-item"><span class="code-callout">7</span> Overrides the MongoDB field name: Java <code>description</code> &rarr; MongoDB <code>product_description</code></div>
+        <div class="callout-item"><span class="code-callout">8</span> Embedded sub-document &mdash; stored inline, no separate collection</div>
+    </div>
+
+    {#include tags/code-block title="Category.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Embedded;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Embedded</span> <span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Category</span> &#123;</span>
+<span class="line">    <span class="keyword">private</span> String name;</span>
+<span class="line">    <span class="keyword">private</span> String description;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Marks this class as an embedded sub-document &mdash; must NOT also have <code>@Entity</code></div>
+    </div>
+</div>
+
+<!-- Section 6: Service Code Examples -->
+<div class="learn-section">
+    <h2>Service Code (Morphium API)</h2>
+    {#include tags/code-block title="CRUD Operations" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Store (insert or upsert) a product</span></span>
+<span class="line">morphium.store(product);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Bulk insert &mdash; one batch, fewer network round-trips</span></span>
+<span class="line">morphium.storeList(products);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Delete a single entity by its @Id</span></span>
+<span class="line">morphium.delete(product);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Drop entire collection (destructive!)</span></span>
+<span class="line">morphium.dropCollection(<span class="type">Product</span>.<span class="keyword">class</span>);</span>{/content}
+    {/include}
+
+    {#include tags/code-block title="Query Examples" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Find all products</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Product</span>.<span class="keyword">class</span>).asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Search by name (regex, case-insensitive)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Product</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Product</span>.Fields.name).matches(<span class="string">&quot;(?i)laptop&quot;</span>)</span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Price range query with sort</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Product</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Product</span>.Fields.price).gte(min)</span>
+<span class="line">    .f(<span class="type">Product</span>.Fields.price).lte(max)</span>
+<span class="line">    .sort(Map.of(<span class="type">Product</span>.Fields.price, <span class="number">1</span>))</span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Query embedded sub-document fields (dot notation)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Product</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="string">&quot;category.name&quot;</span>).eq(<span class="string">&quot;Electronics&quot;</span>)</span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Clear the read cache</span></span>
+<span class="line">morphium.getCache().clearCachefor(<span class="type">Product</span>.<span class="keyword">class</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Ensure indexes from annotations</span></span>
+<span class="line">morphium.ensureIndicesFor(<span class="type">Product</span>.<span class="keyword">class</span>);</span>{/content}
+    {/include}
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

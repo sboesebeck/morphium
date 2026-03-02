@@ -274,6 +274,12 @@ public class BlogService {
      *   <li>Adding embedded comments to a persisted post</li>
      * </ul>
      */
+    public void resetData() {
+        morphium.dropCollection(BlogPost.class);
+        morphium.dropCollection(Author.class);
+        seedData();
+    }
+
     public void seedData() {
         if (morphium.createQueryFor(Author.class).countAll() > 0) return;
 

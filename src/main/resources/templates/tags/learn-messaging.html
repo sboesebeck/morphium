@@ -1,0 +1,186 @@
+<!-- Learn Tab: Messaging -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Messaging page demonstrates a chat system built with a custom <code>ChatMessage</code> entity
+        stored in MongoDB via Morphium. You will see how topic-based filtering narrows query results,
+        how <code>query.set()</code> performs targeted field-level updates (marking a message as read)
+        without rewriting the entire document, and how <code>@CreationTime</code> automatically timestamps
+        new messages on first store.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="purple" text="Morphium Messaging" compat="warn-cosmos"}
+        {#tip}Morphium includes a built-in messaging system based on the Msg class and MessageListener interface. This showcase uses a custom ChatMessage entity instead, but the built-in system supports topics, priorities, TTL, and exclusive message processing out of the box.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="Topics" compat="all"}
+        {#tip}Topics allow messages to be filtered by channel or category. In the built-in system, use addListenerForTopic(). In this custom entity, topics are plain String fields filtered with query.f(field).eq(value).{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="query.set() ($set)" compat="all"}
+        {#tip}Performs a targeted field-level update using MongoDB's $set operator. Only the specified field is modified on the server &mdash; the document is never loaded into Java memory. Signature: query.set(field, value, upsert, multiple, AsyncOperationCallback).{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Entity" compat="all"}
+        {#tip}Maps a Java class to a MongoDB collection. The collectionName attribute sets the collection explicitly. Import: de.caluga.morphium.annotations.Entity{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@CreationTime" compat="all"}
+        {#tip}Automatically populated by Morphium with the current timestamp on first store(). Supports Date, long (epoch millis), and String. Not modified on subsequent updates. Import: de.caluga.morphium.annotations.CreationTime{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@FieldNameConstants" compat="all"}
+        {#tip}Lombok annotation that generates ChatMessage.Fields.sender, .topic, .sentAt etc. at compile time. Used in Morphium queries for type-safe field references instead of hard-coded strings. Import: lombok.experimental.FieldNameConstants{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="sort / countAll" compat="all"}
+        {#tip}sort(Map.of(field, -1)) orders results descending. countAll() executes a server-side count without transferring documents. Both are methods on Morphium's Query object.{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Built-in Messaging vs. Custom Entity</strong> &mdash; Morphium ships with a full messaging system based on the <code>Msg</code> class, <code>SingleCollectionMessaging</code> manager, and <code>MessageListener</code> interface. It supports topics, priorities, TTL, exclusive consumers, and pause/unpause. This showcase uses a <em>custom</em> <code>ChatMessage</code> entity instead to demonstrate how Morphium's ORM features (queries, sort, set) work with any entity. Both approaches store documents in MongoDB.</li>
+            <li><strong><code>query.set()</code></strong> updates a single field without loading the document. Morphium translates <code>query.set(&quot;read&quot;, true, false, false, null)</code> into MongoDB&apos;s <code>&#123;&quot;$set&quot;: &#123;&quot;read&quot;: true&#125;&#125;</code>. The 5th parameter is an async callback (<code>AsyncOperationCallback</code>), or <code>null</code> for synchronous execution. This avoids race conditions and reduces network traffic.</li>
+            <li><strong>Topic Filtering</strong> &mdash; Uses <code>query.f(ChatMessage.Fields.topic).eq(value)</code> which translates to <code>&#123;&quot;topic&quot;: &quot;general&quot;&#125;</code> in MongoDB. Multiple <code>.f().eq()</code> calls are combined with AND logic.</li>
+            <li><strong><code>@CreationTime</code></strong> fires during the <code>store()</code> lifecycle, before the document reaches MongoDB. It only sets the field when the entity is new (no <code>_id</code> yet).</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: Built-in Messaging System -->
+<div class="learn-section">
+    <h2>Built-in Messaging System</h2>
+    <p>For reference, here is how Morphium's built-in messaging API works. This showcase uses a custom entity,
+    but the built-in system is available for production message queue patterns.</p>
+    {#include tags/code-block title="Built-in Messaging API" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.messaging.SingleCollectionMessaging;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.messaging.Msg;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.messaging.MessageListener;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Create a SingleCollectionMessaging instance (wraps a Morphium instance)</span></span>
+<span class="line"><span class="type">SingleCollectionMessaging</span> messaging = <span class="keyword">new</span> <span class="type">SingleCollectionMessaging</span>(morphium, <span class="number">100</span>, <span class="keyword">true</span>);<span class="code-callout">1</span></span>
+<span class="line">messaging.start();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Listen for messages on a specific topic</span></span>
+<span class="line">messaging.addListenerForTopic(<span class="string">&quot;chat-topic&quot;</span>, (msg, m) -&gt; &#123;<span class="code-callout">2</span></span>
+<span class="line">    System.out.println(<span class="string">&quot;Received: &quot;</span> + m.getValue());</span>
+<span class="line">    <span class="keyword">return</span> <span class="keyword">null</span>; <span class="comment">// return a Msg to send a reply, or null</span></span>
+<span class="line">&#125;);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Send a message to a topic</span></span>
+<span class="line"><span class="type">Msg</span> msg = <span class="keyword">new</span> <span class="type">Msg</span>(<span class="string">&quot;chat-topic&quot;</span>, <span class="string">&quot;Hello!&quot;</span>, <span class="string">&quot;Message body&quot;</span>);<span class="code-callout">3</span></span>
+<span class="line">msg.setTtl(<span class="number">300000</span>); <span class="comment">// 5 min TTL</span><span class="code-callout">4</span></span>
+<span class="line">messaging.sendMessage(msg);<span class="code-callout">5</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Create a <code>SingleCollectionMessaging</code> instance wrapping a <code>Morphium</code> instance; the second arg is the polling interval in ms.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>addListenerForTopic()</code> subscribes to a named topic; the lambda receives each incoming <code>Msg</code>.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>Msg</code> constructor takes topic name, subject, and body; the built-in system stores this in MongoDB automatically.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>setTtl()</code> sets a time-to-live in milliseconds; expired messages are ignored by consumers.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>sendMessage()</code> persists the message to MongoDB and notifies all matching listeners.</div>
+    </div>
+</div>
+
+<!-- Section 5: Full Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="ChatMessage.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.CreationTime;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.Builder;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"><span class="keyword">import</span> java.time.LocalDateTime;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;chat_messages&quot;</span>) <span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span> <span class="annotation">@Builder</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span> <span class="code-callout">2</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">ChatMessage</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span> <span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String sender;</span>
+<span class="line">    <span class="keyword">private</span> String recipient;</span>
+<span class="line">    <span class="keyword">private</span> String topic;</span>
+<span class="line">    <span class="keyword">private</span> String text;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span> <span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> sentAt;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private boolean</span> read; <span class="code-callout">5</span></span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Maps to the <code>chat_messages</code> collection. This is a custom entity &mdash; separate from Morphium&apos;s built-in <code>SingleCollectionMessaging</code> which uses its own internal collection.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Lombok: generates <code>ChatMessage.Fields.sender</code>, <code>.topic</code>, <code>.sentAt</code> etc. for type-safe query field references</div>
+        <div class="callout-item"><span class="code-callout">3</span> Primary key &rarr; MongoDB <code>_id</code>. Auto-generated on first <code>store()</code>.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Automatically set to current time on first <code>store()</code>. Never updated on subsequent saves.</div>
+        <div class="callout-item"><span class="code-callout">5</span> Used with <code>query.set(&quot;read&quot;, true, false, false, null)</code> for atomic field-level updates without rewriting the full document</div>
+    </div>
+</div>
+
+<!-- Section 6: Service Code -->
+<div class="learn-section">
+    <h2>Service Code (Morphium API)</h2>
+    {#include tags/code-block title="Topic Filtering & Sorting" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Find all messages sorted by sentAt descending (newest first)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">ChatMessage</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .sort(Map.of(<span class="type">ChatMessage</span>.Fields.sentAt, <span class="number">-1</span>))<span class="code-callout">1</span></span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Filter by topic</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">ChatMessage</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">ChatMessage</span>.Fields.topic).eq(<span class="string">&quot;general&quot;</span>)<span class="code-callout">2</span></span>
+<span class="line">    .sort(Map.of(<span class="type">ChatMessage</span>.Fields.sentAt, <span class="number">-1</span>))</span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Server-side count (no documents transferred)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">ChatMessage</span>.<span class="keyword">class</span>).countAll();<span class="code-callout">3</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>sort(Map.of(field, -1))</code> orders results descending by the given field; <code>-1</code> = descending, <code>1</code> = ascending.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>.f(field).eq(value)</code> adds a filter condition; chaining multiple calls combines them with AND logic.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>countAll()</code> executes a server-side count without transferring any documents to the Java application.</div>
+    </div>
+
+    {#include tags/code-block title="Mark as Read (query.set)" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Build a query targeting a single document by _id</span></span>
+<span class="line"><span class="keyword">var</span> query = morphium.createQueryFor(<span class="type">ChatMessage</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">ChatMessage</span>.Fields.id).eq(<span class="keyword">new</span> <span class="type">MorphiumId</span>(id));<span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// set() performs a MongoDB $set &mdash; only the &quot;read&quot; field is updated</span></span>
+<span class="line"><span class="comment">// Parameters: field, value, upsert=false, multiple=false, callback=null</span></span>
+<span class="line">query.set(<span class="type">ChatMessage</span>.Fields.read, <span class="keyword">true</span>, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);<span class="code-callout">2</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> The query targets a single document by its <code>_id</code>; Morphium translates this into a <code>{"_id": ObjectId(...)}</code> filter.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>query.set()</code> issues a MongoDB <code>$set</code> update — only the <code>read</code> field is written; no document round-trip to Java.</div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

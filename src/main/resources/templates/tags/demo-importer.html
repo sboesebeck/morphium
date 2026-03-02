@@ -1,0 +1,129 @@
+<!-- Demo Tab: Data Importer -->
+
+<div class="demo-context">
+    Bulk import pipeline with write buffering, atomic sequence numbers, and server-side array/field
+    manipulation. All actions use HTMX &mdash; no page reloads.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<!-- Stats Row -->
+<div class="stats-row">
+    <div class="stat">
+        <span class="stat-value">{count}</span>
+        <span class="stat-label">records</span>
+    </div>
+    {#if bulkImportDuration}
+    <div class="stat">
+        <span class="stat-value">{bulkImportDuration} ms</span>
+        <span class="stat-label">bulk import of {bulkImportCount} records</span>
+    </div>
+    {/if}
+</div>
+
+<div class="card-grid">
+    <!-- Bulk Import Form -->
+    <div class="card">
+        <h3>Bulk Import</h3>
+        <p>Import records using <code>storeList()</code> for a single bulk write to MongoDB.
+        Each record gets a unique <code>@AutoSequence</code> number assigned atomically.</p>
+        <form hx-post="/importer/bulk-import" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Number of Records</label>
+                <select name="count">
+                    <option value="100">100</option>
+                    <option value="500">500</option>
+                    <option value="1000" selected>1,000</option>
+                    <option value="5000">5,000</option>
+                    <option value="10000">10,000</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Import</button>
+        </form>
+    </div>
+
+    <!-- Array Operations Info -->
+    <div class="card">
+        <h3>Array &amp; Field Operations</h3>
+        <p>The table below includes inline actions that demonstrate Morphium's server-side operations:</p>
+        <ul class="prereq-list">
+            <li><strong>+Tag</strong> &mdash; <code>morphium.push()</code> appends a tag to the <code>tags</code> array using MongoDB's <code>$push</code></li>
+            <li><strong>Process</strong> &mdash; <code>query.set()</code> updates only the <code>status</code> field using MongoDB's <code>$set</code></li>
+        </ul>
+        <div class="demo-actions" style="margin-top:1rem">
+            <button class="btn btn-outline btn-sm"
+                    hx-post="/importer/seed" hx-target="#tab-content" hx-swap="innerHTML">
+                Re-seed Data
+            </button>
+            <button class="btn btn-danger btn-sm"
+                    hx-post="/importer/records/delete" hx-target="#tab-content" hx-swap="innerHTML"
+                    hx-confirm="Delete all import records?">
+                Delete All
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Records Table -->
+<div class="card">
+    <h3>Import Records <span class="tag tag-blue">{count} in collection <code>import_records</code></span></h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Source</th>
+                    <th>Data</th>
+                    <th>Status</th>
+                    <th>Tags</th>
+                    <th>Imported At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for record in records}
+                <tr>
+                    <td><code>{record.importNumber}</code></td>
+                    <td>{record.source}</td>
+                    <td title="{record.data}">{#if record.data != null}{#if record.data.length > 40}{record.data.substring(0, 40)}...{#else}{record.data}{/if}{/if}</td>
+                    <td>
+                        {#if record.status == "PENDING"}
+                        <span class="tag tag-orange">{record.status}</span>
+                        {#else if record.status == "PROCESSED"}
+                        <span class="tag tag-green">{record.status}</span>
+                        {#else if record.status == "ERROR"}
+                        <span class="tag tag-red">{record.status}</span>
+                        {#else}
+                        <span class="tag">{record.status}</span>
+                        {/if}
+                    </td>
+                    <td>
+                        {#if record.tags}
+                        {#for tag in record.tags}
+                        <span class="tag">{tag}</span>
+                        {/for}
+                        {/if}
+                        <form style="display:inline" hx-post="/importer/records/{record.id}/tag" hx-target="#tab-content" hx-swap="innerHTML">
+                            <input type="text" name="tag" placeholder="+tag" style="width:4rem; padding:0.15rem 0.3rem; font-size:0.75rem">
+                        </form>
+                    </td>
+                    <td><code>{record.importedAt}</code></td>
+                    <td>
+                        {#if record.status != "PROCESSED"}
+                        <button class="btn btn-sm btn-outline"
+                                hx-post="/importer/records/{record.id}/process" hx-target="#tab-content" hx-swap="innerHTML">
+                            Process
+                        </button>
+                        {/if}
+                    </td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>

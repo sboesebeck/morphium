@@ -1,0 +1,190 @@
+<!-- Demo Tab: Polymorphism -->
+
+<div class="demo-context">
+    Explore polymorphic persistence: add Cars and Trucks to a shared <code>vehicles</code> collection,
+    then query for all Vehicle types. Morphium automatically deserializes each document into its correct
+    Java subtype using the <code>class_name</code> discriminator. All actions use HTMX &mdash; no page reloads.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<!-- Stats Row -->
+<div class="card-grid">
+    <div class="card">
+        <h3>Collection Stats</h3>
+        <div class="stats-row">
+            <div class="stat">
+                <span class="stat-value">{totalCount}</span>
+                <span class="stat-label">Total Vehicles</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value">{cars.size}</span>
+                <span class="stat-label">Cars</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value">{trucks.size}</span>
+                <span class="stat-label">Trucks</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card-grid">
+    <!-- Add Car Form -->
+    <div class="card">
+        <h3>Add Car</h3>
+        <form hx-post="/polymorphism/cars" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Manufacturer</label>
+                    <input type="text" name="manufacturer" required placeholder="e.g. Porsche">
+                </div>
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" name="model" required placeholder="e.g. 911 Carrera">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Year</label>
+                    <input type="number" name="year" required placeholder="2024">
+                </div>
+                <div class="form-group">
+                    <label>Price</label>
+                    <input type="number" name="price" step="0.01" required placeholder="0.00">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Doors</label>
+                    <input type="number" name="doors" required placeholder="4" value="4">
+                </div>
+                <div class="form-group">
+                    <label>Fuel Type</label>
+                    <select name="fuelType">
+                        <option value="Petrol">Petrol</option>
+                        <option value="Diesel">Diesel</option>
+                        <option value="Electric">Electric</option>
+                        <option value="Hybrid">Hybrid</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="convertible" value="true"> Convertible
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Car</button>
+        </form>
+    </div>
+
+    <!-- Add Truck Form -->
+    <div class="card">
+        <h3>Add Truck</h3>
+        <form hx-post="/polymorphism/trucks" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Manufacturer</label>
+                    <input type="text" name="manufacturer" required placeholder="e.g. MAN">
+                </div>
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" name="model" required placeholder="e.g. TGX 18.510">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Year</label>
+                    <input type="number" name="year" required placeholder="2024">
+                </div>
+                <div class="form-group">
+                    <label>Price</label>
+                    <input type="number" name="price" step="0.01" required placeholder="0.00">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Payload (tons)</label>
+                    <input type="number" name="payloadTons" step="0.1" required placeholder="18.5">
+                </div>
+                <div class="form-group">
+                    <label>Axles</label>
+                    <input type="number" name="axles" required placeholder="4">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="hasTowbar" value="true"> Has Towbar
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Truck</button>
+        </form>
+    </div>
+</div>
+
+<!-- Seed Data -->
+<div class="demo-actions">
+    <button class="btn btn-outline btn-sm"
+            hx-post="/polymorphism/seed" hx-target="#tab-content" hx-swap="innerHTML">
+        Seed Sample Data
+    </button>
+</div>
+
+<!-- Vehicles Table -->
+<div class="card">
+    <h3>All Vehicles <span class="tag tag-blue">{totalCount} in collection <code>vehicles</code></span></h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Manufacturer</th>
+                    <th>Model</th>
+                    <th>Year</th>
+                    <th>Price</th>
+                    <th>Type-Specific Details</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for v in vehicles}
+                <tr>
+                    <td>
+                        {#if v.typeName == 'Car'}
+                        <span class="tag tag-blue">Car</span>
+                        {#else if v.typeName == 'Truck'}
+                        <span class="tag tag-orange">Truck</span>
+                        {#else}
+                        <span class="tag">Vehicle</span>
+                        {/if}
+                    </td>
+                    <td><strong>{v.manufacturer}</strong></td>
+                    <td>{v.model}</td>
+                    <td>{v.year}</td>
+                    <td>{v.price}</td>
+                    <td>
+                        {#if v.typeName == 'Car'}
+                        {v.doors} doors, {v.fuelType}{#if v.convertible}, Convertible{/if}
+                        {#else if v.typeName == 'Truck'}
+                        {v.payloadTons}t payload, {v.axles} axles{#if v.hasTowbar}, Towbar{/if}
+                        {/if}
+                    </td>
+                    <td>
+                        <button class="btn btn-danger btn-sm"
+                                hx-delete="/polymorphism/vehicles/{v.id}"
+                                hx-target="#tab-content" hx-swap="innerHTML"
+                                hx-confirm="Delete this vehicle?">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>

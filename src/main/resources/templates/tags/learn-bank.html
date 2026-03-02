@@ -1,0 +1,265 @@
+<!-- Learn Tab: Bank / Wallet -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Bank / Wallet page demonstrates <strong>transactional operations</strong> with Morphium.
+        Transfers between accounts use <code>@MorphiumTransactional</code>, a CDI interceptor that wraps
+        the method in a MongoDB multi-document transaction (start &rarr; commit / abort). Individual
+        deposits and withdrawals use Morphium's <code>inc()</code> and <code>dec()</code> methods &mdash;
+        atomic server-side operations that modify a field without reading the document first.
+        The <code>@Version</code> annotation enables <strong>optimistic locking</strong>: every
+        <code>store()</code> increments the version, and a concurrent update with a stale version
+        throws an exception instead of silently overwriting. Transfers are recorded as denormalized
+        <code>Transfer</code> audit-log documents.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="orange" text="@MorphiumTransactional" compat="no-cosmos"}
+        {#tip}CDI interceptor that wraps the annotated method in a MongoDB multi-document transaction. On success the transaction is committed; on exception it is aborted. Import: de.caluga.morphium.quarkus.transaction.MorphiumTransactional (Quarkus extension){/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Version" compat="all"}
+        {#tip}Optimistic locking field. Morphium auto-increments this value on every store(). If another thread stored a newer version, the update fails with a version conflict. Import: de.caluga.morphium.annotations.Version{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@CreationTime" compat="all"}
+        {#tip}Auto-populated with the current timestamp when the document is first stored. Import: de.caluga.morphium.annotations.CreationTime{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="inc / dec (atomic)" compat="all"}
+        {#tip}Server-side atomic increment/decrement. morphium.inc(query, field, amount) modifies the field directly in MongoDB without reading the document. No race conditions, no optimistic locking needed for this single-field update.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="set (field update)" compat="all"}
+        {#tip}Server-side field update. morphium.set(query, field, value) sets a single field atomically. No full-document read/modify/write cycle required.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="CDI Transaction Events" compat="all"}
+        {#tip}Quarkus CDI events fired before/after transaction commit or abort, enabling audit logging and side-effect decoupling.{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong><code>@MorphiumTransactional</code> is a CDI interceptor</strong>, not an entity annotation. It goes on the <em>service method</em> (e.g. <code>transfer()</code>), not on the entity class. The Quarkus Morphium extension registers the interceptor automatically.</li>
+            <li><strong><code>inc()</code> / <code>dec()</code> are server-side atomic operations</strong>. They translate to MongoDB's <code>$inc</code> operator and execute without reading the document first. This avoids race conditions on balance updates.</li>
+            <li><strong><code>@Version</code> auto-increments on each <code>store()</code></strong>. If two threads load the same Account (both see version 3), the first store succeeds (version &rarr; 4), and the second fails because its expected version (3) no longer matches. This is <em>optimistic</em> locking &mdash; no database locks are held.</li>
+            <li><strong>Transfer is a denormalized audit log</strong>. It stores <code>fromAccount</code> and <code>toAccount</code> as Strings (account numbers), not as <code>@Reference</code> links. This makes the transfer history self-contained and query-friendly.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: ER Diagram -->
+<div class="learn-section">
+    <h2>Entity Relationship</h2>
+    {#include tags/er-diagram}
+    {#entities}
+    <div class="er-entity er-type-entity">
+        <div class="er-entity-name">Account (@Entity, @FieldNameConstants, @Builder)</div>
+        <div class="er-entity-fields">
+            <div class="er-field"><span class="er-field-name">_id</span>: <span class="er-field-type">MorphiumId</span> <span class="er-field-annotation">@Id</span></div>
+            <div class="er-field"><span class="er-field-name">accountNumber</span>: <span class="er-field-type">String</span> <span class="er-field-annotation">@Index(unique)</span></div>
+            <div class="er-field"><span class="er-field-name">ownerName</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">balance</span>: <span class="er-field-type">double</span></div>
+            <div class="er-field"><span class="er-field-name">currency</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">version</span>: <span class="er-field-type">Long</span> <span class="er-field-annotation">@Version</span></div>
+            <div class="er-field"><span class="er-field-name">createdAt</span>: <span class="er-field-type">LocalDateTime</span> <span class="er-field-annotation">@CreationTime</span></div>
+        </div>
+    </div>
+    <div class="er-connector">
+        <span class="er-connector-label">String Reference &rarr;</span>
+    </div>
+    <div class="er-entity er-type-entity">
+        <div class="er-entity-name">Transfer (@Entity, @FieldNameConstants, @Builder)</div>
+        <div class="er-entity-fields">
+            <div class="er-field"><span class="er-field-name">_id</span>: <span class="er-field-type">MorphiumId</span> <span class="er-field-annotation">@Id</span></div>
+            <div class="er-field"><span class="er-field-name">fromAccount</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">toAccount</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">amount</span>: <span class="er-field-type">double</span></div>
+            <div class="er-field"><span class="er-field-name">currency</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">description</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">status</span>: <span class="er-field-type">String</span></div>
+            <div class="er-field"><span class="er-field-name">createdAt</span>: <span class="er-field-type">LocalDateTime</span> <span class="er-field-annotation">@CreationTime</span></div>
+        </div>
+    </div>
+    {/entities}
+    {/include}
+</div>
+
+<!-- Section 5: Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="Account.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.CreationTime;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Index;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Version;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.Builder;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"><span class="keyword">import</span> java.time.LocalDateTime;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;accounts&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span> <span class="annotation">@Builder</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span><span class="code-callout">2</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Account</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span><span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span>(options = &#123;<span class="string">&quot;unique:1&quot;</span>&#125;)<span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">private</span> String accountNumber;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String ownerName;</span>
+<span class="line">    <span class="keyword">private double</span> balance;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Builder.Default</span></span>
+<span class="line">    <span class="keyword">private</span> String currency = <span class="string">&quot;EUR&quot;</span>;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Version</span><span class="code-callout">5</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">Long</span> version;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span><span class="code-callout">6</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> createdAt;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Maps this class to the <code>accounts</code> MongoDB collection.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Lombok: generates <code>Account.Fields.accountNumber</code>, <code>.balance</code> etc. for type-safe queries.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Primary key, mapped to MongoDB <code>_id</code>. Auto-generated if null.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Unique index &mdash; MongoDB rejects duplicate account numbers at database level.</div>
+        <div class="callout-item"><span class="code-callout">5</span> Optimistic locking &mdash; Morphium increments on every <code>store()</code> and throws <code>VersionMismatchException</code> on conflict.</div>
+        <div class="callout-item"><span class="code-callout">6</span> Automatically set on first <code>store()</code>, never updated again.</div>
+    </div>
+
+    {#include tags/code-block title="Transfer.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.CreationTime;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.Builder;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"><span class="keyword">import</span> java.time.LocalDateTime;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;transfers&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span> <span class="annotation">@Builder</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Transfer</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String fromAccount;<span class="code-callout">2</span></span>
+<span class="line">    <span class="keyword">private</span> String toAccount;</span>
+<span class="line">    <span class="keyword">private double</span> amount;</span>
+<span class="line">    <span class="keyword">private</span> String currency;</span>
+<span class="line">    <span class="keyword">private</span> String description;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span><span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> createdAt;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String status;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Stored in a separate <code>transfers</code> collection &mdash; acts as an immutable audit log.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Account references stored as plain Strings (not <code>@Reference</code>) &mdash; the record survives even if the referenced account is deleted.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Automatically timestamped on creation &mdash; ideal for audit records.</div>
+    </div>
+</div>
+
+<!-- Section 6: Transaction Code -->
+<div class="learn-section">
+    <h2>Transaction Code</h2>
+    {#include tags/code-block title="@MorphiumTransactional Transfer" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.quarkus.transaction.MorphiumTransactional;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@MorphiumTransactional</span><span class="code-callout">1</span></span>
+<span class="line"><span class="keyword">public</span> <span class="type">TransferResult</span> transfer(String fromNumber, String toNumber,</span>
+<span class="line">        <span class="keyword">double</span> amount, String description) &#123;<span class="code-callout">2</span></span>
+<span class="line">    <span class="comment">// Atomic decrement on source account</span></span>
+<span class="line">    <span class="keyword">var</span> fromQ = morphium.createQueryFor(<span class="type">Account</span>.<span class="keyword">class</span>)</span>
+<span class="line">        .f(<span class="type">Account</span>.Fields.accountNumber).eq(fromNumber);<span class="code-callout">3</span></span>
+<span class="line">    morphium.inc(fromQ, <span class="type">Account</span>.Fields.balance, -amount);<span class="code-callout">4</span></span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Atomic increment on target account</span></span>
+<span class="line">    <span class="keyword">var</span> toQ = morphium.createQueryFor(<span class="type">Account</span>.<span class="keyword">class</span>)</span>
+<span class="line">        .f(<span class="type">Account</span>.Fields.accountNumber).eq(toNumber);</span>
+<span class="line">    morphium.inc(toQ, <span class="type">Account</span>.Fields.balance, amount);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Store audit log inside the same transaction</span></span>
+<span class="line">    <span class="type">Transfer</span> t = <span class="type">Transfer</span>.builder()</span>
+<span class="line">        .fromAccount(fromNumber).toAccount(toNumber)</span>
+<span class="line">        .amount(amount).description(description)</span>
+<span class="line">        .status(<span class="string">&quot;COMPLETED&quot;</span>).build();</span>
+<span class="line">    morphium.store(t);<span class="code-callout">5</span></span>
+<span class="line">    <span class="keyword">return new</span> <span class="type">TransferResult</span>(<span class="keyword">true</span>, <span class="string">&quot;OK&quot;</span>, t);<span class="code-callout">6</span></span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> CDI interceptor that wraps the entire method in a MongoDB multi-document transaction; commits on success, aborts on any exception.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Returns a <code>TransferResult</code> record (success flag, message, transfer entity). Accepts four parameters including a human-readable description.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Fluent query builder: <code>.f(Account.Fields.accountNumber)</code> uses Lombok-generated <code>@FieldNameConstants</code> for type-safe field references.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>morphium.inc()</code> with a negative value debits the source balance atomically via MongoDB's <code>$inc</code> operator &mdash; no read required.</div>
+        <div class="callout-item"><span class="code-callout">5</span> Stores the audit-log <code>Transfer</code> document inside the same transaction so the record is only visible after a successful commit.</div>
+        <div class="callout-item"><span class="code-callout">6</span> Returns a typed result record instead of void, allowing the caller to inspect the outcome and the created <code>Transfer</code> entity.</div>
+    </div>
+</div>
+
+<!-- Section 7: Service Code -->
+<div class="learn-section">
+    <h2>Service Code (Deposit / Withdraw)</h2>
+    {#include tags/code-block title="Atomic inc/dec Operations" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Deposit &mdash; atomic server-side increment</span></span>
+<span class="line"><span class="keyword">public void</span> deposit(String accountNumber, <span class="keyword">double</span> amount) &#123;</span>
+<span class="line">    <span class="type">Query</span>&lt;<span class="type">Account</span>&gt; q = morphium.createQueryFor(<span class="type">Account</span>.<span class="keyword">class</span>)</span>
+<span class="line">        .f(<span class="string">&quot;accountNumber&quot;</span>).eq(accountNumber);</span>
+<span class="line">    morphium.inc(q, <span class="string">&quot;balance&quot;</span>, amount);<span class="code-callout">1</span></span>
+<span class="line">&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Withdraw &mdash; atomic decrement (inc with negative)</span></span>
+<span class="line"><span class="keyword">public void</span> withdraw(String accountNumber, <span class="keyword">double</span> amount) &#123;</span>
+<span class="line">    <span class="type">Query</span>&lt;<span class="type">Account</span>&gt; q = morphium.createQueryFor(<span class="type">Account</span>.<span class="keyword">class</span>)</span>
+<span class="line">        .f(<span class="string">&quot;accountNumber&quot;</span>).eq(accountNumber);</span>
+<span class="line">    morphium.inc(q, <span class="string">&quot;balance&quot;</span>, -amount);<span class="code-callout">2</span></span>
+<span class="line">&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Create account &mdash; store() with @Version for optimistic locking</span></span>
+<span class="line"><span class="keyword">public void</span> createAccount(<span class="type">Account</span> account) &#123;</span>
+<span class="line">    morphium.store(account); <span class="comment">// @Version auto-set to 1</span><span class="code-callout">3</span></span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>morphium.inc()</code> translates to a MongoDB <code>$inc</code> update — the balance is incremented server-side without reading the document first.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Passing a negative value to <code>inc()</code> performs a decrement. Morphium also provides <code>dec()</code> convenience methods (they delegate to <code>inc()</code> with a negated amount), so either approach works.</div>
+        <div class="callout-item"><span class="code-callout">3</span> On first <code>store()</code> Morphium initializes the <code>@Version</code> field to 1; every subsequent store increments it for optimistic-locking checks.</div>
+    </div>
+</div>
+
+<!-- Section 8: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

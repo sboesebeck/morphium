@@ -16,32 +16,20 @@
 package io.quarkiverse.morphium.showcase.importer;
 
 import io.quarkiverse.morphium.showcase.common.DocLink;
+import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.net.URI;
 import java.util.List;
 
-/**
- * JAX-RS resource exposing the Morphium data importer showcase as an HTML UI.
- *
- * <p>This resource demonstrates how Morphium's bulk write, array manipulation, and field-level
- * update capabilities can be used in a typical data import/processing pipeline. Endpoints
- * delegate to {@link ImportService} which performs the actual Morphium operations.</p>
- *
- * <p><b>Morphium features exposed through this resource:</b></p>
- * <ul>
- *   <li>Bulk import with {@code storeList()} and {@code SequenceGenerator} (via {@code /bulk-import})</li>
- *   <li>Array manipulation with {@code push()} and {@code pull()} (via {@code /records/{id}/tag})</li>
- *   <li>Field-level updates with {@code query.set()} (via {@code /records/{id}/process})</li>
- *   <li>Collection management with {@code dropCollection()} (via {@code /seed} and {@code /records})</li>
- * </ul>
- */
 @Path("/importer")
 public class ImportResource {
 
@@ -49,147 +37,117 @@ public class ImportResource {
     Template importer;
 
     @Inject
+    @Location("tags/learn-importer.html")
+    Template learnImporter;
+
+    @Inject
+    @Location("tags/demo-importer.html")
+    Template demoImporter;
+
+    @Inject
     ImportService importService;
 
-    /** Links to Morphium documentation relevant to the import features shown on this page. */
     private static final List<DocLink> DOC_LINKS = List.of(
             new DocLink("/docs/api-reference", "API Reference", "storeList(), push(), pull(), set(), unset()"),
             new DocLink("/docs/developer-guide", "Developer Guide", "Batch Operations, @WriteBuffer"),
             new DocLink("/docs/performance-scalability-guide", "Performance Guide", "Bulk Writes, SequenceGenerator")
     );
 
-    /**
-     * Renders the importer showcase page with the most recent 50 import records.
-     *
-     * <p>Seeds sample data on first access to ensure the demo has content to display.</p>
-     *
-     * @return a Qute template instance populated with import records and metadata
-     */
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance page() {
         importService.seedData();
         return importer.data("active", "importer")
-                .data("records", importService.findAll(50))
-                .data("count", importService.count())
-                .data("bulkImportDuration", null)
-                .data("bulkImportCount", null)
                 .data("docLinks", DOC_LINKS);
     }
 
-    /**
-     * Triggers a bulk import of the specified number of records.
-     *
-     * <p>Demonstrates Morphium's {@code storeList()} for high-performance batch inserts
-     * and {@code SequenceGenerator} for generating unique sequential IDs. The response
-     * includes the elapsed time so users can observe the performance characteristics
-     * of bulk writes vs. individual inserts.</p>
-     *
-     * @param count the number of records to generate and import in bulk
-     * @return the importer page showing the imported records and timing information
-     */
+    @GET
+    @Path("/tab/learn")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance learnTab() {
+        return learnImporter.data("docLinks", DOC_LINKS);
+    }
+
+    @GET
+    @Path("/tab/demo")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance demoTab() {
+        importService.seedData();
+        return demoData(null, null, null, null);
+    }
+
+    private TemplateInstance demoData(String success, String error, Long duration, Integer importCount) {
+        return demoImporter.data("records", importService.findAll(50))
+                .data("count", importService.count())
+                .data("bulkImportDuration", duration)
+                .data("bulkImportCount", importCount)
+                .data("successMessage", success)
+                .data("errorMessage", error);
+    }
+
+    private boolean isHtmx(HttpHeaders h) {
+        return h.getHeaderString("HX-Request") != null;
+    }
+
     @POST
     @Path("/bulk-import")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     @RunOnVirtualThread
-    public TemplateInstance bulkImport(@FormParam("count") int count) {
+    public Response bulkImport(@FormParam("count") int count, @Context HttpHeaders headers) {
         long durationMs = importService.bulkImport(count);
-        return importer.data("active", "importer")
-                .data("records", importService.findAll(50))
-                .data("count", importService.count())
-                .data("bulkImportDuration", durationMs)
-                .data("bulkImportCount", count)
-                .data("docLinks", DOC_LINKS);
+        if (isHtmx(headers)) {
+            return Response.ok(demoData("Imported " + count + " records in " + durationMs + "ms.", null, durationMs, count)).build();
+        }
+        return Response.ok(importer.data("active", "importer").data("docLinks", DOC_LINKS)).build();
     }
 
-    /**
-     * Adds a tag to an import record using Morphium's {@code push()} operation.
-     *
-     * <p>Demonstrates MongoDB's {@code $push} operator through Morphium -- appending
-     * a value to an array field without loading the document.</p>
-     *
-     * @param id  the MorphiumId of the import record
-     * @param tag the tag string to add to the record's tags array
-     * @return a redirect response to the importer page
-     */
     @POST
     @Path("/records/{id}/tag")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response addTag(@PathParam("id") String id, @FormParam("tag") String tag) {
+    public Response addTag(@PathParam("id") String id, @FormParam("tag") String tag, @Context HttpHeaders headers) {
         importService.addTag(id, tag);
+        if (isHtmx(headers)) return Response.ok(demoData("Tag added.", null, null, null)).build();
         return Response.seeOther(URI.create("/importer")).build();
     }
 
-    /**
-     * Removes a tag from an import record using Morphium's {@code pull()} operation.
-     *
-     * <p>Demonstrates MongoDB's {@code $pull} operator through Morphium -- removing
-     * all occurrences of a value from an array field without loading the document.</p>
-     *
-     * @param id  the MorphiumId of the import record
-     * @param tag the tag string to remove from the record's tags array
-     * @return a redirect response to the importer page
-     */
     @DELETE
     @Path("/records/{id}/tag")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response removeTag(@PathParam("id") String id, @FormParam("tag") String tag) {
+    public Response removeTag(@PathParam("id") String id, @FormParam("tag") String tag, @Context HttpHeaders headers) {
         importService.removeTag(id, tag);
+        if (isHtmx(headers)) return Response.ok(demoData("Tag removed.", null, null, null)).build();
         return Response.seeOther(URI.create("/importer")).build();
     }
 
-    /**
-     * Marks an import record as processed using Morphium's {@code query.set()} operation.
-     *
-     * <p>Demonstrates targeted field-level updates -- only the "status" field is modified
-     * via MongoDB's {@code $set} operator, leaving all other fields untouched.</p>
-     *
-     * @param id the MorphiumId of the import record to mark as processed
-     * @return a redirect response to the importer page
-     */
     @POST
     @Path("/records/{id}/process")
-    public Response markProcessed(@PathParam("id") String id) {
+    public Response markProcessed(@PathParam("id") String id, @Context HttpHeaders headers) {
         importService.markProcessed(id);
+        if (isHtmx(headers)) return Response.ok(demoData("Record marked as processed.", null, null, null)).build();
         return Response.seeOther(URI.create("/importer")).build();
     }
 
-    /**
-     * Resets the demo data by dropping the collection and re-seeding with sample records.
-     *
-     * @return a redirect response to the importer page
-     */
     @POST
     @Path("/seed")
-    public Response seed() {
+    public Response seed(@Context HttpHeaders headers) {
         importService.deleteAll();
         importService.seedData();
+        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null, null, null)).build();
         return Response.seeOther(URI.create("/importer")).build();
     }
 
-    /**
-     * Deletes all import records by dropping the entire MongoDB collection.
-     *
-     * <p>Uses {@code morphium.dropCollection()} which removes the collection, all documents,
-     * and all indexes in a single operation.</p>
-     *
-     * @return a redirect response to the importer page
-     */
     @DELETE
     @Path("/records")
-    public Response deleteAll() {
+    public Response deleteAll(@Context HttpHeaders headers) {
         importService.deleteAll();
+        if (isHtmx(headers)) return Response.ok(demoData("All records deleted.", null, null, null)).build();
         return Response.seeOther(URI.create("/importer")).build();
     }
 
-    /**
-     * POST-based delete-all for HTML forms (browsers only support GET/POST).
-     * Delegates to {@link #deleteAll()}.
-     */
     @POST
     @Path("/records/delete")
-    public Response deleteAllViaPost() {
-        return deleteAll();
+    public Response deleteAllViaPost(@Context HttpHeaders headers) {
+        return deleteAll(headers);
     }
 }

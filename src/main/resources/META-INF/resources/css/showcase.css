@@ -205,8 +205,8 @@ body {
 .main-content {
     margin-left: var(--sidebar-width);
     flex: 1;
-    padding: 2rem 2.5rem;
-    max-width: 1200px;
+    padding: 2rem clamp(1.5rem, 3vw, 3rem);
+    max-width: 1800px;
 }
 
 /* Page Header */
@@ -827,4 +827,483 @@ table tr:hover td {
 /* Service Code Card */
 .service-code-card .code-block {
     margin-top: 0.75rem;
+}
+
+/* ===========================================
+   Tooltip System
+   =========================================== */
+.has-tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.tooltip-content {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--code-bg);
+    color: #e0e0e0;
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.5;
+    white-space: normal;
+    width: max-content;
+    max-width: 320px;
+    z-index: 200;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    text-align: left;
+}
+
+.tooltip-content::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--code-bg);
+}
+
+.has-tooltip:hover .tooltip-content,
+.has-tooltip:focus .tooltip-content {
+    display: block;
+}
+
+/* Compatibility indicators inside tooltips */
+.compat-line {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid rgba(255,255,255,0.12);
+}
+.compat-ok, .compat-no, .compat-warn {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.compat-ok {
+    background: rgba(0,184,148,0.2);
+    color: #55efc4;
+}
+.compat-ok::before { content: "\2713\00a0"; }
+.compat-no {
+    background: rgba(225,112,85,0.25);
+    color: #fab1a0;
+}
+.compat-no::before { content: "\2717\00a0"; }
+.compat-warn {
+    background: rgba(253,203,110,0.2);
+    color: #ffeaa7;
+}
+.compat-warn::before { content: "\26A0\00a0"; }
+
+/* ===========================================
+   Enhanced Code Blocks (code-card)
+   =========================================== */
+.code-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+.code-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--table-header-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+}
+
+.code-card-title {
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+}
+
+.code-card-lang {
+    font-size: 0.7rem;
+}
+
+.code-copy-btn {
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.75rem;
+}
+
+.code-copy-btn.copied {
+    background: var(--success);
+    color: #fff;
+    border-color: var(--success);
+}
+
+.code-card .code-block {
+    margin: 0;
+    border-radius: 0;
+    counter-reset: line;
+    line-height: 1;
+    padding: 0.75rem 1rem;
+}
+
+.code-card .code-block pre {
+    margin: 0;
+}
+
+.code-card .code-block .line {
+    display: block;
+    padding-left: 3.5rem;
+    position: relative;
+    min-height: 1em;
+}
+
+.code-card .code-block .line::before {
+    counter-increment: line;
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 2.5rem;
+    text-align: right;
+    color: #676e95;
+    font-size: 0.75rem;
+    padding-right: 0.5rem;
+    user-select: none;
+}
+
+/* Code callout badges (numbered references like Quarkus docs) */
+.code-callout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.6em;
+    height: 1.6em;
+    padding: 0 0.3em;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    margin-left: 0.5em;
+    vertical-align: middle;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+[data-theme="dark"] .code-callout {
+    background: #74b9ff;
+    color: #0f0f1a;
+}
+
+.callout-list {
+    margin: 0.75rem 0 1.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--hover-bg);
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.callout-item {
+    position: relative;
+    padding: 0.3rem 0 0.3rem 2.4em;
+}
+
+.callout-item .code-callout {
+    position: absolute;
+    left: 0;
+    top: 0.4rem;
+    margin-left: 0;
+}
+
+[data-theme="dark"] .callout-list {
+    background: rgba(255,255,255,0.03);
+    border-color: var(--border);
+}
+
+/* ===========================================
+   ER Diagrams
+   =========================================== */
+.er-diagram {
+    margin: 1.5rem 0;
+}
+
+.er-entities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.er-entity {
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    min-width: 200px;
+    max-width: 340px;
+    background: var(--card-bg);
+    overflow: hidden;
+}
+
+.er-entity-name {
+    padding: 0.5rem 0.75rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border-bottom: 2px solid;
+}
+
+.er-entity.er-type-entity .er-entity-name {
+    background: var(--tag-blue-bg, #e3f2fd);
+    color: var(--tag-blue-color, #1565c0);
+    border-bottom-color: var(--tag-blue-color, #1565c0);
+}
+
+.er-entity.er-type-embedded .er-entity-name {
+    background: var(--tag-green-bg, #e8f5e9);
+    color: var(--tag-green-color, #2e7d32);
+    border-bottom-color: var(--tag-green-color, #2e7d32);
+}
+
+.er-entity.er-type-reference .er-entity-name {
+    background: var(--tag-orange-bg, #fff3e0);
+    color: var(--tag-orange-color, #e65100);
+    border-bottom-color: var(--tag-orange-color, #e65100);
+}
+
+.er-entity-fields {
+    padding: 0.5rem 0.75rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+}
+
+.er-entity-fields .er-field {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.er-field-name {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.er-field-type {
+    color: var(--text-secondary);
+}
+
+.er-field-annotation {
+    color: var(--warning);
+    font-size: 0.72rem;
+}
+
+.er-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.5rem 0;
+    align-self: center;
+}
+
+.er-connector-label {
+    background: var(--tag-bg);
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.er-legend {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.er-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.er-legend-color {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.er-color-entity { background: var(--tag-blue-color, #1565c0); }
+.er-color-embedded { background: var(--tag-green-color, #2e7d32); }
+.er-color-reference { background: var(--tag-orange-color, #e65100); }
+
+/* Hub layout: primary entity left, targets stacked right */
+.er-entities.er-hub-layout {
+    flex-wrap: nowrap;
+    gap: 0;
+}
+.er-hub-primary {
+    flex-shrink: 0;
+}
+.er-hub-targets {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.er-hub-target {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.er-hub-target .er-connector {
+    padding: 0;
+}
+
+/* ===========================================
+   Learn Sections
+   =========================================== */
+.learn-section {
+    margin-bottom: 2rem;
+}
+
+.learn-section h2 {
+    font-size: 1.15rem;
+    margin: 0 0 0.75rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.learn-intro {
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: var(--text);
+    margin-bottom: 1rem;
+}
+
+.learn-intro p {
+    margin: 0.5rem 0;
+}
+
+.prereq-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.prereq-list li {
+    padding: 0.4rem 0 0.4rem 1.2rem;
+    position: relative;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.prereq-list li:last-child {
+    border-bottom: none;
+}
+
+.prereq-list li::before {
+    content: "\2022";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.feature-tags-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+}
+
+/* ===========================================
+   Tab Extensions for HTMX
+   =========================================== */
+#tab-content {
+    min-height: 300px;
+    transition: opacity 0.15s;
+}
+
+.htmx-request #tab-content,
+#tab-content.htmx-swapping {
+    opacity: 0.5;
+}
+
+/* Demo-specific styles */
+.demo-context {
+    background: var(--blockquote-bg);
+    border-left: 4px solid var(--accent);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.88rem;
+    border-radius: 0 6px 6px 0;
+    color: var(--text);
+}
+
+.demo-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+/* Inline code in prose */
+.learn-section code {
+    background: var(--inline-code-bg);
+    color: var(--inline-code-color);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.85em;
+}
+
+/* ===========================================
+   Responsive: ER + Tabs
+   =========================================== */
+@media (max-width: 768px) {
+    .er-entities {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .er-entity {
+        max-width: 100%;
+    }
+    .er-connector {
+        transform: rotate(90deg);
+        padding: 0.25rem 0;
+    }
+    .er-entities.er-hub-layout {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .er-hub-targets {
+        align-items: stretch;
+    }
+    .er-hub-target {
+        flex-direction: column;
+    }
+    .er-hub-target .er-connector {
+        transform: rotate(90deg);
+        padding: 0.25rem 0;
+    }
+    .tabs {
+        flex-wrap: wrap;
+    }
 }

@@ -1,0 +1,356 @@
+<!-- Learn Tab: Blog -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Blog page showcases a realistic content-management scenario built on Morphium's advanced
+        mapping features. A <code>BlogPost</code> entity references an <code>Author</code> stored in a
+        separate collection via <code>@Reference</code> (eager or lazy), while <code>Comment</code> objects
+        are stored inline as <code>@Embedded</code> sub-documents. Optimistic locking is handled by
+        <code>@Version</code>, which automatically increments a version counter on every write and throws a
+        <code>VersionMismatchException</code> if two threads try to update the same revision.
+        Lifecycle hooks (<code>@PreStore</code>, <code>@PostLoad</code>) let the entity react to persistence
+        events, and automatic timestamps (<code>@CreationTime</code>, <code>@LastChange</code>,
+        <code>@LastAccess</code>) are maintained by Morphium without any application code. Finally,
+        <code>@Transient</code> fields demonstrate how to carry computed, non-persisted state that is
+        re-hydrated after load via <code>@PostLoad</code>.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="green" text="@Index" compat="all"}
+        {#tip}Creates a MongoDB index on this field. Without options, creates a standard ascending index. Use @Index(options = {"unique:1"}) for a unique constraint enforced at the database level. Import: de.caluga.morphium.annotations.Index{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Version" compat="all"}
+        {#tip}Optimistic locking counter. Morphium auto-increments this field on every store() and rejects concurrent updates with stale version numbers. Import: de.caluga.morphium.annotations.Version{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@Reference" compat="all"}
+        {#tip}Stores a DBRef (or ID) pointing to another @Entity in a separate collection. Set lazyLoading=true for on-demand loading (proxy), or leave default (eager) to resolve immediately on read. Import: de.caluga.morphium.annotations.Reference{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Embedded" compat="all"}
+        {#tip}Stores the object inline as a sub-document (no separate collection). The embedded class must NOT have @Entity. Ideal for comments, addresses, and other value objects. Import: de.caluga.morphium.annotations.Embedded{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@CreationTime" compat="all"}
+        {#tip}Morphium sets this field automatically the first time the entity is stored. It is never updated again. Import: de.caluga.morphium.annotations.CreationTime{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@LastChange" compat="all"}
+        {#tip}Morphium updates this field automatically on every store() or set() call. Useful for audit trails and cache invalidation. Import: de.caluga.morphium.annotations.LastChange{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@LastAccess" compat="all"}
+        {#tip}Morphium updates this field every time the entity is read from the database. Useful for tracking activity and implementing TTL-based eviction. Import: de.caluga.morphium.annotations.LastAccess{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@Lifecycle" compat="all"}
+        {#tip}Marker annotation on the entity class that enables lifecycle callbacks. Required for @PreStore, @PostStore, @PreRemove, @PostRemove, @PostLoad, @PreUpdate, @PostUpdate to fire. Import: de.caluga.morphium.annotations.lifecycle.Lifecycle{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@PreStore" compat="all"}
+        {#tip}Method-level callback invoked before Morphium writes the entity to MongoDB. Use it for validation, computed field updates, or last-minute transformations. Requires @Lifecycle on the class. Import: de.caluga.morphium.annotations.lifecycle.PreStore{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@PostLoad" compat="all"}
+        {#tip}Method-level callback invoked after Morphium reads the entity from MongoDB and maps all fields. Use it to re-hydrate @Transient fields or initialize computed state. Requires @Lifecycle on the class. Import: de.caluga.morphium.annotations.lifecycle.PostLoad{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@Transient" compat="all"}
+        {#tip}Marks a field as non-persistent &mdash; Morphium will not store it in MongoDB. Combine with @PostLoad to recompute the value after every read. Import: de.caluga.morphium.annotations.Transient{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@FieldNameConstants" compat="all"}
+        {#tip}Lombok annotation (not Morphium!). Generates BlogPost.Fields.title, .author etc. at compile time for type-safe queries. Import: lombok.experimental.FieldNameConstants{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Eager vs Lazy <code>@Reference</code></strong> &mdash; By default, <code>@Reference</code> is eager: Morphium resolves the referenced entity immediately when the parent is loaded (extra query). With <code>@Reference(lazyLoading = true)</code>, Morphium returns a proxy that fetches the target only when a getter is first called. Lazy references reduce initial load time but may cause unexpected queries later.</li>
+            <li><strong><code>@Version</code> counter</strong> &mdash; When you store an entity with a <code>@Version</code> field, Morphium adds a filter <code>&#123; version: currentValue &#125;</code> to the update. If another thread already incremented the version, the update matches zero documents and Morphium throws <code>VersionMismatchException</code>. This is <em>optimistic locking</em> &mdash; no database-level locks are held.</li>
+            <li><strong><code>@Lifecycle</code> requirement</strong> &mdash; The class-level <code>@Lifecycle</code> annotation is a prerequisite for any lifecycle method (<code>@PreStore</code>, <code>@PostLoad</code>, etc.) to fire. Without it, the callbacks are silently ignored.</li>
+            <li><strong><code>@Transient</code> + <code>@PostLoad</code> pattern</strong> &mdash; Mark a field <code>@Transient</code> so Morphium skips it during serialization. Then annotate a method with <code>@PostLoad</code> to recompute the transient value after every read. This is useful for summary strings, computed flags, or denormalized counts that should not be stored.</li>
+            <li><strong>Container types</strong> &mdash; Morphium natively handles <code>List&lt;String&gt;</code> (stored as a JSON array) and <code>Map&lt;String, String&gt;</code> (stored as a sub-document). No special annotation is needed for these standard collection types.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: ER Diagram -->
+<div class="learn-section">
+    <h2>Entity Relationship</h2>
+    {#include tags/er-diagram layout="er-hub-layout"}
+    {#entities}
+    <div class="er-hub-primary">
+        <div class="er-entity er-type-entity">
+            <div class="er-entity-name">BlogPost (@Entity)</div>
+            <div class="er-entity-fields">
+                <div class="er-field"><span class="er-field-name">_id</span>: <span class="er-field-type">MorphiumId</span> <span class="er-field-annotation">@Id</span></div>
+                <div class="er-field"><span class="er-field-name">title</span>: <span class="er-field-type">String</span> <span class="er-field-annotation">@Index</span></div>
+                <div class="er-field"><span class="er-field-name">content</span>: <span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">author</span>: <span class="er-field-type">Author</span> <span class="er-field-annotation">@Reference</span></div>
+                <div class="er-field"><span class="er-field-name">reviewer</span>: <span class="er-field-type">Author</span> <span class="er-field-annotation">@Reference(lazyLoading = true)</span></div>
+                <div class="er-field"><span class="er-field-name">comments</span>: <span class="er-field-type">List&lt;Comment&gt;</span> <span class="er-field-annotation">@Embedded</span></div>
+                <div class="er-field"><span class="er-field-name">tags</span>: <span class="er-field-type">List&lt;String&gt;</span></div>
+                <div class="er-field"><span class="er-field-name">metadata</span>: <span class="er-field-type">Map&lt;String, String&gt;</span></div>
+                <div class="er-field"><span class="er-field-name">published</span>: <span class="er-field-type">boolean</span></div>
+                <div class="er-field"><span class="er-field-name">version</span>: <span class="er-field-type">Long</span> <span class="er-field-annotation">@Version</span></div>
+                <div class="er-field"><span class="er-field-name">createdAt</span>: <span class="er-field-type">LocalDateTime</span> <span class="er-field-annotation">@CreationTime</span></div>
+                <div class="er-field"><span class="er-field-name">lastChanged</span>: <span class="er-field-type">LocalDateTime</span> <span class="er-field-annotation">@LastChange</span></div>
+                <div class="er-field"><span class="er-field-name">lastAccessed</span>: <span class="er-field-type">LocalDateTime</span> <span class="er-field-annotation">@LastAccess</span></div>
+                <div class="er-field"><span class="er-field-name">editNote</span>: <span class="er-field-type">String</span> <span class="er-field-annotation">@Transient</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="er-hub-targets">
+        <div class="er-hub-target">
+            <div class="er-connector">
+                <span class="er-connector-label">@Reference &rarr;</span>
+            </div>
+            <div class="er-entity er-type-reference">
+                <div class="er-entity-name">Author (@Entity)</div>
+                <div class="er-entity-fields">
+                    <div class="er-field"><span class="er-field-name">_id</span>: <span class="er-field-type">MorphiumId</span> <span class="er-field-annotation">@Id</span></div>
+                    <div class="er-field"><span class="er-field-name">username</span>: <span class="er-field-type">String</span> <span class="er-field-annotation">@Index(unique)</span></div>
+                    <div class="er-field"><span class="er-field-name">displayName</span>: <span class="er-field-type">String</span></div>
+                    <div class="er-field"><span class="er-field-name">email</span>: <span class="er-field-type">String</span></div>
+                    <div class="er-field"><span class="er-field-name">bio</span>: <span class="er-field-type">String</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="er-hub-target">
+            <div class="er-connector">
+                <span class="er-connector-label">@Embedded &rarr;</span>
+            </div>
+            <div class="er-entity er-type-embedded">
+                <div class="er-entity-name">Comment (@Embedded)</div>
+                <div class="er-entity-fields">
+                    <div class="er-field"><span class="er-field-name">text</span>: <span class="er-field-type">String</span></div>
+                    <div class="er-field"><span class="er-field-name">author</span>: <span class="er-field-type">String</span></div>
+                    <div class="er-field"><span class="er-field-name">createdAt</span>: <span class="er-field-type">LocalDateTime</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {/entities}
+    {/include}
+</div>
+
+<!-- Section 5: Full Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="BlogPost.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.*;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.lifecycle.Lifecycle;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.lifecycle.PreStore;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.lifecycle.PostLoad;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"><span class="keyword">import</span> java.time.LocalDateTime;</span>
+<span class="line"><span class="keyword">import</span> java.util.ArrayList;</span>
+<span class="line"><span class="keyword">import</span> java.util.HashMap;</span>
+<span class="line"><span class="keyword">import</span> java.util.List;</span>
+<span class="line"><span class="keyword">import</span> java.util.Map;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;blog_posts&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Lifecycle</span><span class="code-callout">2</span></span>
+<span class="line"><span class="annotation">@Data</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">BlogPost</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span><span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> String title;</span>
+<span class="line">    <span class="keyword">private</span> String content;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Reference</span><span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">Author</span> author; <span class="comment">// eager by default</span></span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Reference</span>(lazyLoading = <span class="keyword">true</span>)<span class="code-callout">5</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">Author</span> reviewer; <span class="comment">// loaded on first access</span></span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;<span class="type">Comment</span>&gt; comments; <span class="comment">// @Embedded sub-documents</span></span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;String&gt; tags;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">Map</span>&lt;String, String&gt; metadata;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private boolean</span> published;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Version</span><span class="code-callout">6</span></span>
+<span class="line">    <span class="keyword">private</span> Long version;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span><span class="code-callout">7</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> createdAt;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@LastChange</span><span class="code-callout">8</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> lastChanged;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@LastAccess</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> lastAccessed;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Transient</span><span class="code-callout">9</span></span>
+<span class="line">    <span class="keyword">private transient</span> String editNote; <span class="comment">// not persisted</span></span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@PreStore</span><span class="code-callout">10</span></span>
+<span class="line">    <span class="keyword">public void</span> onPreStore() &#123;</span>
+<span class="line">        <span class="keyword">if</span> (tags == <span class="keyword">null</span>) tags = <span class="keyword">new</span> <span class="type">ArrayList</span>&lt;&gt;();</span>
+<span class="line">        <span class="keyword">if</span> (metadata == <span class="keyword">null</span>) metadata = <span class="keyword">new</span> <span class="type">HashMap</span>&lt;&gt;();</span>
+<span class="line">    &#125;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@PostLoad</span><span class="code-callout">11</span></span>
+<span class="line">    <span class="keyword">public void</span> onPostLoad() &#123;</span>
+<span class="line">        <span class="comment">// Could perform validation or enrichment after loading</span></span>
+<span class="line">    &#125;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Maps this class to the <code>blog_posts</code> MongoDB collection.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Required for lifecycle callbacks (<code>@PreStore</code>, <code>@PostLoad</code>, etc.) to fire. Imported from <code>de.caluga.morphium.annotations.lifecycle</code>.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Creates a single-field ascending index on <code>title</code> for fast lookups.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Stores a DBRef to the <code>Author</code> in a separate collection; resolved eagerly by default.</div>
+        <div class="callout-item"><span class="code-callout">5</span> Lazy reference &mdash; Morphium creates a proxy; the <code>Author</code> is not loaded from the database until a method on <code>reviewer</code> is actually called.</div>
+        <div class="callout-item"><span class="code-callout">6</span> Optimistic locking counter &mdash; Morphium auto-increments on every store and throws <code>VersionMismatchException</code> on conflict.</div>
+        <div class="callout-item"><span class="code-callout">7</span> Set once by Morphium when the entity is first persisted; never updated again.</div>
+        <div class="callout-item"><span class="code-callout">8</span> Updated automatically by Morphium on every <code>store()</code> or field-level <code>set()</code> call.</div>
+        <div class="callout-item"><span class="code-callout">9</span> Not stored in MongoDB. The <code>transient</code> keyword adds Java serialization safety on top of Morphium's <code>@Transient</code>.</div>
+        <div class="callout-item"><span class="code-callout">10</span> Called before each write &mdash; ensures <code>tags</code> and <code>metadata</code> are never null in the database.</div>
+        <div class="callout-item"><span class="code-callout">11</span> Called after each read &mdash; can be used for validation, enrichment, or rehydrating transient state.</div>
+    </div>
+
+    {#include tags/code-block title="Author.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Index;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;authors&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Author</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span><span class="code-callout">2</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span>(options = &#123;<span class="string">&quot;unique:1&quot;</span>&#125;)<span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> String username;</span>
+<span class="line">    <span class="keyword">private</span> String displayName;</span>
+<span class="line">    <span class="keyword">private</span> String email;</span>
+<span class="line">    <span class="keyword">private</span> String bio;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Declares this class as a top-level Morphium entity stored in the <code>authors</code> collection.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Marks the field as the MongoDB document identifier (<code>_id</code>); <code>MorphiumId</code> wraps an <code>ObjectId</code>.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Unique index &mdash; MongoDB enforces that no two authors can share the same <code>username</code>, even under concurrent inserts.</div>
+    </div>
+
+    {#include tags/code-block title="Comment.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Embedded;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> java.time.LocalDateTime;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Embedded</span><span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Comment</span> &#123;</span>
+<span class="line">    <span class="keyword">private</span> String author;</span>
+<span class="line">    <span class="keyword">private</span> String text;</span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> createdAt;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Marks this class as an embedded sub-document — stored inline inside the parent document, not in its own collection.</div>
+    </div>
+</div>
+
+<!-- Section 6: Service Code Examples -->
+<div class="learn-section">
+    <h2>Service Code (Morphium API)</h2>
+    {#include tags/code-block title="Store & Version Bump" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;<span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Store a new blog post &mdash; @Version starts at 1</span></span>
+<span class="line">morphium.store(blogPost);<span class="code-callout">2</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Update the post &mdash; @Version auto-increments (1 &rarr; 2)</span></span>
+<span class="line"><span class="comment">// If another thread stored version 2 first, this throws</span></span>
+<span class="line"><span class="comment">// VersionMismatchException (optimistic locking)</span></span>
+<span class="line">blogPost.setTitle(<span class="string">&quot;Updated Title&quot;</span>);</span>
+<span class="line">morphium.store(blogPost);<span class="code-callout">3</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> CDI-injected <code>Morphium</code> instance provided by the Quarkus extension.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Persists the entity for the first time; Morphium sets the <code>@Version</code> field to <code>1</code>.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Increments <code>@Version</code> to <code>2</code>; throws <code>VersionMismatchException</code> if another thread already wrote version <code>2</code>.</div>
+    </div>
+
+    {#include tags/code-block title="Add Embedded Comment" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Add a comment as an embedded sub-document</span></span>
+<span class="line"><span class="type">Comment</span> comment = <span class="keyword">new</span> <span class="type">Comment</span>();</span>
+<span class="line">comment.setText(<span class="string">&quot;Great post!&quot;</span>);</span>
+<span class="line">comment.setAuthor(<span class="string">&quot;Alice&quot;</span>);</span>
+<span class="line">comment.setCreatedAt(<span class="type">LocalDateTime</span>.now());</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Push directly into the embedded list</span></span>
+<span class="line">morphium.push(blogPost, BlogPost.Fields.comments, comment, <span class="keyword">false</span>);<span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Or add to list and re-store the whole entity</span></span>
+<span class="line">blogPost.getComments().add(comment);</span>
+<span class="line">morphium.store(blogPost); <span class="comment">// @Version increments</span><span class="code-callout">2</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Appends a single element to the embedded array in MongoDB using an atomic <code>$push</code> update. The fourth parameter (<code>false</code>) disables upsert &mdash; the document must already exist.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Re-stores the entire entity including the updated comments list; <code>@Version</code> is incremented atomically.</div>
+    </div>
+
+    {#include tags/code-block title="@Reference Eager Loading" lang="Java"}
+    {#content}<span class="line"><span class="comment">// When loading a BlogPost, the @Reference author</span></span>
+<span class="line"><span class="comment">// is resolved eagerly (extra query to &quot;authors&quot; collection)</span></span>
+<span class="line"><span class="type">BlogPost</span> post = morphium.createQueryFor(<span class="type">BlogPost</span>.<span class="keyword">class</span>)<span class="code-callout">1</span></span>
+<span class="line">    .f(BlogPost.Fields.title).eq(<span class="string">&quot;My First Post&quot;</span>)<span class="code-callout">2</span></span>
+<span class="line">    .get();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// author is already populated &mdash; no lazy proxy</span></span>
+<span class="line">String authorName = post.getAuthor().getDisplayName();<span class="code-callout">3</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// The Author must be stored first before referencing</span></span>
+<span class="line"><span class="type">Author</span> author = <span class="keyword">new</span> <span class="type">Author</span>();</span>
+<span class="line">author.setUsername(<span class="string">&quot;janedoe&quot;</span>);</span>
+<span class="line">author.setDisplayName(<span class="string">&quot;Jane Doe&quot;</span>);</span>
+<span class="line">morphium.store(author);<span class="code-callout">4</span></span>
+<span class="line"></span>
+<span class="line"><span class="type">BlogPost</span> newPost = <span class="keyword">new</span> <span class="type">BlogPost</span>();</span>
+<span class="line">newPost.setAuthor(author); <span class="comment">// sets the @Reference</span><span class="code-callout">5</span></span>
+<span class="line">morphium.store(newPost);</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Creates a type-safe, fluent query builder for the <code>BlogPost</code> collection.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>BlogPost.Fields.title</code> is a Lombok-generated compile-time constant — no magic strings.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Eager <code>@Reference</code> means the <code>Author</code> is already fully populated when this line runs — no further query is triggered.</div>
+        <div class="callout-item"><span class="code-callout">4</span> The referenced entity must have its own <code>_id</code> before the parent can store the DBRef — always store the dependency first.</div>
+        <div class="callout-item"><span class="code-callout">5</span> Morphium serializes this assignment as a DBRef (or just the <code>ObjectId</code>) inside the <code>BlogPost</code> document.</div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

@@ -1,0 +1,218 @@
+<!-- Learn Tab: Query Builder -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Query Builder page is an interactive showcase of Morphium's full Query API. You can
+        build queries using all common MongoDB operators &mdash; <code>eq</code>, <code>ne</code>,
+        <code>gt</code>, <code>lt</code>, <code>gte</code>, <code>lte</code>, <code>in</code>,
+        <code>nin</code>, <code>matches</code> (regex), and <code>exists</code> &mdash; combined with
+        server-side <code>sort</code>, <code>skip</code>, <code>limit</code> for pagination, plus
+        <code>countAll</code> and <code>distinct</code> aggregation. The <code>Employee</code> entity
+        also demonstrates advanced Morphium annotations: <code>@Aliases</code> for schema evolution,
+        <code>@Transient</code> for computed fields, <code>@IgnoreNullFromDB</code> for safe null handling,
+        and <code>@Lifecycle</code> / <code>@PostLoad</code> for lifecycle callbacks.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="eq / ne" compat="all"}
+        {#tip}Equality and not-equal operators. f(&quot;field&quot;).eq(value) matches documents where the field equals the value ($eq). ne(value) matches where the field does NOT equal the value ($ne).{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="gt / lt" compat="all"}
+        {#tip}Strictly greater-than ($gt) and strictly less-than ($lt). Used for open-ended range queries. f(&quot;salary&quot;).gt(50000) finds salaries above 50k (exclusive).{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="gte / lte" compat="all"}
+        {#tip}Greater-than-or-equal ($gte) and less-than-or-equal ($lte). Used for inclusive range queries. Chain both on the same field for bounded ranges: f(&quot;salary&quot;).gte(min).f(&quot;salary&quot;).lte(max).{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="in / nin" compat="all"}
+        {#tip}Membership operators. in(list) matches documents where the field value is in the list ($in). nin(list) matches where the field value is NOT in the list ($nin). For array fields, $in matches if ANY element matches.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="matches (regex)" compat="all"}
+        {#tip}Regular expression matching ($regex). f(&quot;lastName&quot;).matches(&quot;^M&quot;) finds last names starting with M. Prefix-anchored patterns can use indexes; unanchored patterns trigger collection scans.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="exists" compat="all"}
+        {#tip}Field existence check ($exists: true). f(&quot;email&quot;).exists() finds documents where the email field is present. Morphium does not store null fields by default, so exists() also filters out nulls.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="sort / skip / limit" compat="all"}
+        {#tip}Server-side pagination and ordering. sort(Map.of(&quot;field&quot;, 1)) sorts ascending, -1 descending. skip(n) skips the first n documents. limit(m) returns at most m documents.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="countAll / distinct" compat="all"}
+        {#tip}Server-side aggregation. countAll() returns the number of matching documents without transferring data. distinct(&quot;field&quot;) returns all unique values for a field. Both run entirely on the MongoDB server.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Aliases" compat="all"}
+        {#tip}Declares alternative field names for schema evolution. @Aliases(&#123;&quot;mail&quot;, &quot;e_mail&quot;&#125;) on email means Morphium will read values from &quot;mail&quot; or &quot;e_mail&quot; fields in legacy documents. Only affects reads; writes always use the current field name. Import: de.caluga.morphium.annotations.Aliases{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Transient" compat="all"}
+        {#tip}Marks a field as NOT persisted to MongoDB. The field exists only in Java and is never written to or read from the database. Useful for computed/derived values populated by @PostLoad. Import: de.caluga.morphium.annotations.Transient{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@IgnoreNullFromDB" compat="all"}
+        {#tip}If the field is null or missing in the MongoDB document, Morphium keeps the Java field&apos;s current value instead of overwriting it with null. Prevents NullPointerExceptions for List/Collection fields. Import: de.caluga.morphium.annotations.IgnoreNullFromDB{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@FieldNameConstants" compat="all"}
+        {#tip}Lombok annotation. Generates Employee.Fields.firstName, .salary etc. for type-safe query construction. Usage: query.f(Employee.Fields.salary).gte(min). Import: lombok.experimental.FieldNameConstants{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Lifecycle" compat="all"}
+        {#tip}Class-level annotation that enables lifecycle callback processing. Without it, Morphium will NOT scan for or invoke @PostLoad, @PreStore, etc. on this class. A performance optimization. Import: de.caluga.morphium.annotations.lifecycle.Lifecycle{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@PostLoad" compat="all"}
+        {#tip}Method-level lifecycle callback invoked after a document is loaded from MongoDB and deserialized. Ideal for computing derived fields. Requires @Lifecycle on the class. Import: de.caluga.morphium.annotations.lifecycle.PostLoad{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong><code>@Aliases</code> for field name migration</strong> &mdash; if a field was previously stored under a different name (e.g., <code>&quot;mail&quot;</code> or <code>&quot;e_mail&quot;</code>), Morphium will still map those legacy field names to the current Java field when reading. Writes always use the current name, so documents naturally migrate over time.</li>
+            <li><strong><code>@Transient</code> fields are computed in <code>@PostLoad</code></strong> &mdash; the <code>fullName</code> field is never stored in MongoDB. Instead, the <code>@PostLoad</code> callback recomputes it from <code>firstName</code> and <code>lastName</code> every time the entity is loaded. The class must be annotated with <code>@Lifecycle</code> for this to work.</li>
+            <li><strong><code>@IgnoreNullFromDB</code> keeps Java defaults when DB field is null</strong> &mdash; the <code>skills</code> list uses this annotation so that if a document lacks a <code>skills</code> field, the Java field keeps its default value instead of being set to <code>null</code>. This prevents <code>NullPointerException</code>s.</li>
+            <li><strong>Compound Index <code>@Index(&#123;&quot;lastName, firstName&quot;&#125;)</code></strong> &mdash; declared at class level, creates a compound index that accelerates queries filtering or sorting by <code>lastName</code> and/or <code>firstName</code>.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="Employee.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Aliases;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.IgnoreNullFromDB;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Index;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Transient;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.lifecycle.Lifecycle;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.lifecycle.PostLoad;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;employees&quot;</span>)</span>
+<span class="line"><span class="annotation">@Index</span>(&#123;<span class="string">&quot;lastName, firstName&quot;</span>&#125;) <span class="comment">// compound index</span><span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Lifecycle</span> <span class="comment">// enables @PostLoad, @PreStore, etc.</span><span class="code-callout">2</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span> <span class="annotation">@Builder</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span><span class="code-callout">3</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Employee</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String firstName;</span>
+<span class="line">    <span class="keyword">private</span> String lastName;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Aliases</span>(&#123;<span class="string">&quot;mail&quot;</span>, <span class="string">&quot;e_mail&quot;</span>&#125;) <span class="comment">// reads legacy field names</span><span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">private</span> String email;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span> <span class="comment">// single-field index for department queries</span></span>
+<span class="line">    <span class="keyword">private</span> String department;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String position;</span>
+<span class="line">    <span class="keyword">private double</span> salary;</span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> hireDate;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Transient</span> <span class="comment">// NOT stored in MongoDB</span><span class="code-callout">5</span></span>
+<span class="line">    <span class="keyword">private transient</span> String fullName;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@IgnoreNullFromDB</span> <span class="comment">// keeps Java default if DB field is null</span><span class="code-callout">6</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;String&gt; skills;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private boolean</span> active;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@PostLoad</span> <span class="comment">// called after deserialization from MongoDB</span><span class="code-callout">7</span></span>
+<span class="line">    <span class="keyword">public void</span> <span class="method">onPostLoad</span>() &#123;</span>
+<span class="line">        <span class="keyword">this</span>.fullName = firstName + <span class="string">&quot; &quot;</span> + lastName;</span>
+<span class="line">    &#125;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Class-level <code>@Index</code> with multiple fields creates a compound index — accelerates queries filtering or sorting by <code>lastName</code> and <code>firstName</code> together.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>@Lifecycle</code> must be present for Morphium to scan and invoke lifecycle callbacks like <code>@PostLoad</code> on this class.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>@FieldNameConstants</code> generates <code>Employee.Fields.salary</code> etc. for type-safe field references in queries.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>@Aliases</code> maps legacy field names from older documents to this Java field on read — writes always use the current name <code>email</code>.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>@Transient</code> excludes this field from MongoDB persistence; it exists only in Java memory and is populated by the <code>@PostLoad</code> callback.</div>
+        <div class="callout-item"><span class="code-callout">6</span> <code>@IgnoreNullFromDB</code> prevents Morphium from overwriting the Java field with <code>null</code> when the field is absent in the MongoDB document.</div>
+        <div class="callout-item"><span class="code-callout">7</span> <code>@PostLoad</code> is called after deserialization — ideal for computing derived fields like <code>fullName</code> that are not stored in the database.</div>
+    </div>
+</div>
+
+<!-- Section 5: Query Operations Reference -->
+<div class="learn-section">
+    <h2>Query Operations Reference</h2>
+    {#include tags/code-block title="All Query Operators" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Equality: f().eq(value) &rarr; MongoDB $eq</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.department).eq(<span class="string">&quot;Engineering&quot;</span>).asList();<span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Range: gte/lte &rarr; MongoDB $gte/$lte (inclusive bounds)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.salary).gte(<span class="number">60000</span>)<span class="code-callout">2</span></span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.salary).lte(<span class="number">100000</span>)</span>
+<span class="line">    .sort(Map.of(<span class="type">Employee</span>.Fields.salary, <span class="number">1</span>)).asList();<span class="code-callout">3</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Regex: matches() &rarr; MongoDB $regex</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.lastName).matches(<span class="string">&quot;^M&quot;</span>).asList();<span class="code-callout">4</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Membership: in(list) &rarr; MongoDB $in</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.skills).in(List.of(<span class="string">&quot;Java&quot;</span>, <span class="string">&quot;Python&quot;</span>)).asList();<span class="code-callout">5</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Exclusion: nin(list) &rarr; MongoDB $nin</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.department).nin(List.of(<span class="string">&quot;Sales&quot;</span>, <span class="string">&quot;HR&quot;</span>)).asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Existence: exists() &rarr; MongoDB $exists: true</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.email).exists().asList();<span class="code-callout">6</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Pagination: sort + skip + limit</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .sort(Map.of(<span class="type">Employee</span>.Fields.lastName, <span class="number">1</span>))</span>
+<span class="line">    .skip(page * size).limit(size).asList();<span class="code-callout">7</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Count: server-side count without data transfer</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">Employee</span>.Fields.department).eq(<span class="string">&quot;Engineering&quot;</span>).countAll();<span class="code-callout">8</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Distinct: unique values for a field, runs on server</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .distinct(<span class="type">Employee</span>.Fields.department);</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>.eq()</code> translates to MongoDB's <code>$eq</code> — chain multiple <code>.f().eq()</code> calls to AND conditions together.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>.gte()</code> and <code>.lte()</code> create inclusive range bounds; chain them on the same field for a bounded salary range.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>.sort()</code> accepts a <code>Map</code> of field name to direction (<code>1</code> = ascending, <code>-1</code> = descending) for server-side ordering.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>.matches()</code> maps to MongoDB's <code>$regex</code> — prefix-anchored patterns like <code>^M</code> can leverage string indexes.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>.in()</code> maps to <code>$in</code> — for array fields it matches documents where ANY element of the array is in the provided list.</div>
+        <div class="callout-item"><span class="code-callout">6</span> <code>.exists()</code> maps to <code>$exists: true</code> — finds documents where the field is present (Morphium omits null fields by default, so this also filters them out).</div>
+        <div class="callout-item"><span class="code-callout">7</span> <code>.skip(n).limit(m)</code> implements cursor-based pagination entirely on the MongoDB server without transferring unwanted documents.</div>
+        <div class="callout-item"><span class="code-callout">8</span> <code>.countAll()</code> runs a server-side count — no documents are transferred to the application, making it very efficient for large collections.</div>
+    </div>
+</div>
+
+<!-- Section 6: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

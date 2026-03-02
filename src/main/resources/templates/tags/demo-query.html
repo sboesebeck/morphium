@@ -1,0 +1,171 @@
+<!-- Demo Tab: Query Builder -->
+
+<div class="demo-context">
+    Build interactive queries against the <code>employees</code> collection: filter by department, salary range,
+    name pattern (regex), and active status. Paginate results with server-side sort/skip/limit. All actions use
+    HTMX &mdash; no page reloads.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<div class="card-grid">
+    <!-- Query Builder Form -->
+    <div class="card">
+        <h3>Query Builder</h3>
+        <form hx-post="/query/filter" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Department</label>
+                <select name="department">
+                    <option value="">All Departments</option>
+                    {#for dept in departments}
+                    <option value="{dept}" {#if dept == filterDepartment}selected{/if}>{dept}</option>
+                    {/for}
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Min Salary</label>
+                    <input type="number" name="minSalary" step="1000" placeholder="0" value="{filterMinSalary.orEmpty}">
+                </div>
+                <div class="form-group">
+                    <label>Max Salary</label>
+                    <input type="number" name="maxSalary" step="1000" placeholder="999999" value="{filterMaxSalary.orEmpty}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Name Pattern (regex)</label>
+                <input type="text" name="namePattern" placeholder="e.g. ^M or .*er$" value="{filterNamePattern.orEmpty}">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="active" value="true" {#if filterActive}checked{/if}> Active Only
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Run Query</button>
+        </form>
+    </div>
+
+    <!-- Pagination Form -->
+    <div class="card">
+        <h3>Pagination &amp; Sorting</h3>
+        <form hx-post="/query/paginate" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Page</label>
+                    <input type="number" name="page" min="0" value="{currentPage ?: 0}">
+                </div>
+                <div class="form-group">
+                    <label>Page Size</label>
+                    <select name="pageSize">
+                        <option value="5" {#if pageSize == 5}selected{/if}>5</option>
+                        <option value="10" {#if pageSize == 10}selected{/if}>10</option>
+                        <option value="15" {#if pageSize == 15}selected{/if}>15</option>
+                        <option value="25" {#if pageSize == 25}selected{/if}>25</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Sort Field</label>
+                    <select name="sortField">
+                        <option value="lastName" {#if sortField == 'lastName'}selected{/if}>Last Name</option>
+                        <option value="salary" {#if sortField == 'salary'}selected{/if}>Salary</option>
+                        <option value="department" {#if sortField == 'department'}selected{/if}>Department</option>
+                        <option value="hireDate" {#if sortField == 'hireDate'}selected{/if}>Hire Date</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Direction</label>
+                    <select name="sortDir">
+                        <option value="1" {#if sortDir == 1}selected{/if}>Ascending</option>
+                        <option value="-1" {#if sortDir == -1}selected{/if}>Descending</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Paginate</button>
+        </form>
+
+        {#if totalPages}
+        <div class="page-info" style="margin-top:1rem">
+            <span class="tag tag-blue">Page {currentPage + 1} of {totalPages}</span>
+            <span class="tag">{totalCount} total employees</span>
+        </div>
+        {/if}
+
+        <div class="demo-actions" style="margin-top:1.5rem">
+            <button class="btn btn-outline btn-sm"
+                    hx-post="/query/seed" hx-target="#tab-content" hx-swap="innerHTML">
+                Seed Sample Data
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Employees Table -->
+<div class="card">
+    <h3>Employees
+        <span class="tag tag-blue">{count} results</span>
+        {#if resultCount}
+        <span class="tag tag-blue">{resultCount} matching filter</span>
+        {/if}
+    </h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Department</th>
+                    <th>Position</th>
+                    <th>Salary</th>
+                    <th>Skills</th>
+                    <th>Active</th>
+                    <th>Hire Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for emp in employees}
+                <tr>
+                    <td><strong>{emp.fullName ?: emp.firstName + ' ' + emp.lastName}</strong></td>
+                    <td>{emp.email ?: '-'}</td>
+                    <td><span class="tag tag-blue">{emp.department}</span></td>
+                    <td>{emp.position}</td>
+                    <td>{emp.salary}</td>
+                    <td>
+                        {#if emp.skills}
+                        {#for skill in emp.skills}
+                        <span class="tag">{skill}</span>
+                        {/for}
+                        {/if}
+                    </td>
+                    <td>
+                        {#if emp.active}
+                        <span class="tag tag-green">Active</span>
+                        {#else}
+                        <span class="tag tag-orange">Inactive</span>
+                        {/if}
+                    </td>
+                    <td>{emp.hireDate}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Distinct Departments -->
+{#if departments}
+<div class="card">
+    <h3>Distinct Departments <span class="tag">{departments.size} unique</span></h3>
+    <div class="feature-tags-grid">
+        {#for dept in departments}
+        <span class="tag tag-blue">{dept}</span>
+        {/for}
+    </div>
+</div>
+{/if}

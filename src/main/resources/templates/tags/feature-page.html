@@ -1,0 +1,24 @@
+<div class="page-header">
+    <h1>{pageTitle}</h1>
+    <p>{pageSubtitle}</p>
+</div>
+
+<div class="tabs" role="tablist">
+    <button class="tab active" role="tab" aria-selected="true"
+            onclick="activateTab(this)"
+            hx-get="/{featureId}/tab/learn" hx-target="#tab-content" hx-swap="innerHTML"
+            hx-trigger="click" hx-push-url="false">
+        Learn
+    </button>
+    <button class="tab" role="tab" aria-selected="false"
+            onclick="activateTab(this)"
+            hx-get="/{featureId}/tab/demo" hx-target="#tab-content" hx-swap="innerHTML"
+            hx-trigger="click" hx-push-url="false">
+        Demo
+    </button>
+    <span class="htmx-indicator spinner" style="margin-left:0.5rem"></span>
+</div>
+
+<div id="tab-content">
+    {#insert tab-default}{/insert}
+</div>

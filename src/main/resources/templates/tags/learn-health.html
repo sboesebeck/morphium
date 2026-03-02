@@ -1,0 +1,159 @@
+<!-- Learn Tab: Health Checks -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Health page demonstrates the automatic MicroProfile Health integration provided by the
+        <code>quarkus-morphium</code> extension. When <code>quarkus-smallrye-health</code> is on the classpath,
+        three health checks are registered automatically &mdash; liveness, readiness, and startup &mdash;
+        without writing any code. This page displays the underlying Morphium driver statistics that the
+        health checks evaluate.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="green" text="@Liveness" compat="all"}
+        {#tip}MicroProfile Health liveness probe. Checks morphium.getDriver().isConnected(). If DOWN, Kubernetes restarts the pod. Endpoint: /q/health/live{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Readiness" compat="all"}
+        {#tip}MicroProfile Health readiness probe. Checks connection status and pool statistics. If DOWN, Kubernetes stops routing traffic to the pod. Endpoint: /q/health/ready{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Startup" compat="all"}
+        {#tip}MicroProfile Health startup probe. Verifies that the initial MongoDB connection was established successfully. Only checked once during pod startup. Endpoint: /q/health/started{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="MicroProfile Health" compat="all"}
+        {#tip}Eclipse MicroProfile Health specification for reporting application health. Provides a standard JSON format and HTTP endpoints (/q/health/*) that container orchestrators (Kubernetes, OpenShift) can use for automated health monitoring.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="SmallRye Health" compat="all"}
+        {#tip}The Quarkus implementation of MicroProfile Health. Add quarkus-smallrye-health to your project to activate the /q/health endpoints. The quarkus-morphium extension automatically registers Morphium health checks when SmallRye Health is present.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="DriverStatsKey" compat="all"}
+        {#tip}Enum in MorphiumDriver that provides keys for driver pool statistics: CONNECTIONS_IN_POOL, CONNECTIONS_IN_USE, CONNECTIONS_OPENED, CONNECTIONS_CLOSED, ERRORS, FAILOVERS, MSG_SENT, REPLY_RECEIVED, and more.{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: How It Works -->
+<div class="learn-section">
+    <h2>How It Works</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Zero configuration</strong> &mdash; Simply adding <code>quarkus-smallrye-health</code> to your project activates the Morphium health checks automatically. No code, no annotations, no beans to define.</li>
+            <li><strong>Automatic probe registration</strong> &mdash; The <code>quarkus-morphium</code> deployment processor detects SmallRye Health on the classpath and registers three health check beans: one for liveness, one for readiness, and one for startup.</li>
+            <li><strong>Disable if needed</strong> &mdash; Set <code>quarkus.morphium.health.enabled=false</code> in <code>application.properties</code> to disable the automatic health checks while keeping SmallRye Health for other checks.</li>
+            <li><strong>All three probes</strong> check <code>morphium.getDriver().isConnected()</code> as the primary indicator. The readiness and startup checks additionally include pool statistics in their health response data.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: Configuration -->
+<div class="learn-section">
+    <h2>Configuration</h2>
+    {#include tags/code-block title="pom.xml (dependency)" lang="XML"}
+    {#content}<span class="line"><span class="comment">&lt;!-- Add SmallRye Health to activate Morphium health checks --&gt;</span></span>
+<span class="line">&lt;<span class="keyword">dependency</span>&gt;</span>
+<span class="line">    &lt;<span class="keyword">groupId</span>&gt;io.quarkus&lt;/<span class="keyword">groupId</span>&gt;</span>
+<span class="line">    &lt;<span class="keyword">artifactId</span>&gt;quarkus-smallrye-health&lt;/<span class="keyword">artifactId</span>&gt;<span class="code-callout">1</span></span>
+<span class="line">&lt;/<span class="keyword">dependency</span>&gt;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Adding <code>quarkus-smallrye-health</code> to the classpath is the only step required; the <code>quarkus-morphium</code> extension detects it and auto-registers all three health check beans.</div>
+    </div>
+
+    {#include tags/code-block title="application.properties" lang="Properties"}
+    {#content}<span class="line"><span class="comment"># Health checks are enabled by default when SmallRye Health is present</span></span>
+<span class="line">quarkus.morphium.health.enabled=<span class="keyword">true</span><span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment"># To disable Morphium health checks (keeps other health checks active):</span></span>
+<span class="line"><span class="comment"># quarkus.morphium.health.enabled=false</span><span class="code-callout">2</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Health checks are enabled by default; no configuration is needed unless you want to disable them.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Setting <code>health.enabled=false</code> removes only the Morphium health checks while leaving any other SmallRye Health checks in place.</div>
+    </div>
+</div>
+
+<!-- Section 5: Driver APIs -->
+<div class="learn-section">
+    <h2>Driver APIs</h2>
+    {#include tags/code-block title="Morphium Driver Health APIs" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumDriver;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;</span>
+<span class="line"></span>
+<span class="line"><span class="type">MorphiumDriver</span> driver = morphium.getDriver();<span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Liveness: is the driver connected to MongoDB?</span></span>
+<span class="line"><span class="keyword">boolean</span> connected = driver.isConnected();<span class="code-callout">2</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Pool statistics (Map&lt;DriverStatsKey, Double&gt;)</span></span>
+<span class="line"><span class="type">Map</span>&lt;<span class="type">DriverStatsKey</span>, <span class="type">Double</span>&gt; stats = driver.getDriverStats();<span class="code-callout">3</span></span>
+<span class="line"><span class="keyword">long</span> inPool = stats.getOrDefault(<span class="type">DriverStatsKey</span>.CONNECTIONS_IN_POOL, <span class="number">0.0</span>).longValue();<span class="code-callout">4</span></span>
+<span class="line"><span class="keyword">long</span> inUse  = stats.getOrDefault(<span class="type">DriverStatsKey</span>.CONNECTIONS_IN_USE, <span class="number">0.0</span>).longValue();</span>
+<span class="line"><span class="keyword">long</span> errors = stats.getOrDefault(<span class="type">DriverStatsKey</span>.ERRORS, <span class="number">0.0</span>).longValue();<span class="code-callout">5</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Per-host connection counts (Map&lt;String, Integer&gt;)</span></span>
+<span class="line"><span class="type">Map</span>&lt;String, <span class="type">Integer</span>&gt; hostConns = driver.getNumConnectionsByHost();<span class="code-callout">6</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>morphium.getDriver()</code> returns the active <code>MorphiumDriver</code> instance — the same object the health checks use internally.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>isConnected()</code> is the primary liveness signal; <code>false</code> causes the liveness probe to report DOWN and triggers a Kubernetes pod restart.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>getDriverStats()</code> returns a <code>Map&lt;DriverStatsKey, Double&gt;</code> with connection pool metrics used by the readiness and startup probes.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>DriverStatsKey</code> is an enum with keys such as <code>CONNECTIONS_IN_POOL</code>, <code>CONNECTIONS_IN_USE</code>, <code>ERRORS</code>, <code>FAILOVERS</code>, and more.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>ERRORS</code> counts connection-level errors since the driver started; a rising error count can indicate connectivity problems.</div>
+        <div class="callout-item"><span class="code-callout">6</span> <code>getNumConnectionsByHost()</code> breaks down open connections per replica-set member, useful for diagnosing uneven load distribution.</div>
+    </div>
+</div>
+
+<!-- Section 6: Health Check Endpoints -->
+<div class="learn-section">
+    <h2>Health Check Endpoints</h2>
+    <div class="card">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Purpose</th>
+                        <th>K8s Probe Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>/q/health</code></td>
+                        <td>Combined health status (all checks)</td>
+                        <td>&mdash;</td>
+                    </tr>
+                    <tr>
+                        <td><code>/q/health/live</code></td>
+                        <td>Is the MongoDB driver connected?</td>
+                        <td>Liveness</td>
+                    </tr>
+                    <tr>
+                        <td><code>/q/health/ready</code></td>
+                        <td>Is the connection pool healthy and accepting requests?</td>
+                        <td>Readiness</td>
+                    </tr>
+                    <tr>
+                        <td><code>/q/health/started</code></td>
+                        <td>Was the initial connection to MongoDB established?</td>
+                        <td>Startup</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

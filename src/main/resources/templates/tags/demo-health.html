@@ -1,0 +1,141 @@
+<!-- Demo Tab: Health Checks -->
+
+<div class="demo-context">
+    Live health check status and driver pool statistics. These values are read directly from
+    Morphium's driver API &mdash; the same data used by the MicroProfile Health probes.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<!-- Health Check Cards -->
+<div class="card-grid">
+    <!-- Liveness -->
+    <div class="card">
+        <h3>Liveness Check</h3>
+        <p>Verifies that the Morphium driver is connected to MongoDB. If DOWN, Kubernetes restarts the pod.</p>
+        <div style="margin:1rem 0">
+            {#if livenessStatus == "UP"}
+            <span class="tag tag-green" style="font-size:1.1rem; padding:0.4rem 0.8rem">UP</span>
+            {#else}
+            <span class="tag tag-red" style="font-size:1.1rem; padding:0.4rem 0.8rem">DOWN</span>
+            {/if}
+        </div>
+        <p><a href="/q/health/live" target="_blank"><code>/q/health/live</code></a> &rarr; JSON</p>
+        <code>driver.isConnected()</code>
+    </div>
+
+    <!-- Readiness -->
+    <div class="card">
+        <h3>Readiness Check</h3>
+        <p>Verifies that the connection pool is healthy and accepting requests. If DOWN, Kubernetes stops routing traffic.</p>
+        <div style="margin:1rem 0">
+            {#if readinessStatus == "UP"}
+            <span class="tag tag-green" style="font-size:1.1rem; padding:0.4rem 0.8rem">UP</span>
+            {#else}
+            <span class="tag tag-red" style="font-size:1.1rem; padding:0.4rem 0.8rem">DOWN</span>
+            {/if}
+        </div>
+        <p><a href="/q/health/ready" target="_blank"><code>/q/health/ready</code></a> &rarr; JSON</p>
+        <code>driver.isConnected() + pool stats</code>
+    </div>
+
+    <!-- Startup -->
+    <div class="card">
+        <h3>Startup Check</h3>
+        <p>Verifies that the initial MongoDB connection was established successfully. Only checked once during pod startup.</p>
+        <div style="margin:1rem 0">
+            {#if startupStatus == "UP"}
+            <span class="tag tag-green" style="font-size:1.1rem; padding:0.4rem 0.8rem">UP</span>
+            {#else}
+            <span class="tag tag-red" style="font-size:1.1rem; padding:0.4rem 0.8rem">DOWN</span>
+            {/if}
+        </div>
+        <p><a href="/q/health/started" target="_blank"><code>/q/health/started</code></a> &rarr; JSON</p>
+        <code>driver.isConnected()</code>
+    </div>
+</div>
+
+<!-- Connection Info -->
+<div class="card">
+    <h3>Connection Info</h3>
+    <div class="table-wrapper">
+        <table>
+            <tbody>
+                <tr>
+                    <td><strong>Driver</strong></td>
+                    <td><code>{driverName}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Database</strong></td>
+                    <td><code>{database}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Connected</strong></td>
+                    <td>
+                        {#if connected}
+                        <span class="tag tag-green">Yes</span>
+                        {#else}
+                        <span class="tag tag-red">No</span>
+                        {/if}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Driver Pool Statistics -->
+<div class="card">
+    <h3>Driver Pool Statistics</h3>
+    <p>Raw driver statistics from <code>morphium.getDriver().getDriverStats()</code>. These metrics
+    are included in the readiness and startup health check responses.</p>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for entry in poolStats.entrySet}
+                <tr>
+                    <td>{entry.key}</td>
+                    <td><code>{entry.value}</code></td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Per-Host Connections -->
+{#if hostConnections != null && !hostConnections.isEmpty}
+<div class="card">
+    <h3>Per-Host Connections</h3>
+    <p>Connection counts per MongoDB host from <code>morphium.getDriver().getNumConnectionsByHost()</code>.</p>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Host</th>
+                    <th>Connections</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for entry in hostConnections.entrySet}
+                <tr>
+                    <td><code>{entry.key}</code></td>
+                    <td><code>{entry.value}</code></td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/if}

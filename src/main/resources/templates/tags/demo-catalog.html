@@ -1,0 +1,145 @@
+<!-- Demo Tab: Product Catalog -->
+
+<div class="demo-context">
+    Test the Morphium CRUD API: create products with embedded categories, search by regex,
+    filter by price range, and observe cache behavior. All actions use HTMX &mdash; no page reloads.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<div class="card-grid">
+    <!-- Create Product Form -->
+    <div class="card">
+        <h3>Create Product</h3>
+        <form hx-post="/catalog/products" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" name="name" required placeholder="Product name">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" placeholder="Description">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Price</label>
+                    <input type="number" name="price" step="0.01" required placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label>Stock</label>
+                    <input type="number" name="stock" required placeholder="0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Category</label>
+                    <input type="text" name="categoryName" placeholder="Category name">
+                </div>
+                <div class="form-group">
+                    <label>Category Desc</label>
+                    <input type="text" name="categoryDesc" placeholder="Category description">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Tags (comma-separated)</label>
+                <input type="text" name="tags" placeholder="tag1, tag2, tag3">
+            </div>
+            <button type="submit" class="btn btn-primary">Create Product</button>
+        </form>
+    </div>
+
+    <!-- Search / Filter -->
+    <div class="card">
+        <h3>Search Products</h3>
+        <form hx-post="/catalog/products/search" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Search by name (regex)</label>
+                <input type="text" name="query" placeholder="e.g. Laptop" value="{searchQuery.orEmpty}">
+            </div>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+
+        <h3 style="margin-top:1.5rem">Filter by Price Range</h3>
+        <form hx-post="/catalog/products/price-range" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Min Price</label>
+                    <input type="number" name="minPrice" step="0.01" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Max Price</label>
+                    <input type="number" name="maxPrice" step="0.01" value="9999">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Filter</button>
+        </form>
+
+        <div class="demo-actions" style="margin-top:1.5rem">
+            <button class="btn btn-outline btn-sm"
+                    hx-post="/catalog/cache/clear" hx-target="#tab-content" hx-swap="innerHTML">
+                Clear Cache
+            </button>
+            <button class="btn btn-outline btn-sm"
+                    hx-post="/catalog/products/seed" hx-target="#tab-content" hx-swap="innerHTML">
+                Re-seed Data
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Products Table -->
+<div class="card">
+    <h3>Products <span class="tag tag-blue">{count} in collection <code>products</code></span></h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th>Category</th>
+                    <th>Tags</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for product in products}
+                <tr>
+                    <td><code>{product.id}</code></td>
+                    <td><strong>{product.name}</strong></td>
+                    <td>{product.description}</td>
+                    <td>{product.price}</td>
+                    <td>{product.stock}</td>
+                    <td>
+                        {#if product.category}
+                        <span class="tag tag-blue">{product.category.name}</span>
+                        {/if}
+                    </td>
+                    <td>
+                        {#if product.tags}
+                        {#for tag in product.tags}
+                        <span class="tag">{tag}</span>
+                        {/for}
+                        {/if}
+                    </td>
+                    <td>
+                        <button class="btn btn-danger btn-sm"
+                                hx-delete="/catalog/products/{product.id}"
+                                hx-target="#tab-content" hx-swap="innerHTML"
+                                hx-confirm="Delete this product?">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>

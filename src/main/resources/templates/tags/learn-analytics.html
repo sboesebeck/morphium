@@ -1,0 +1,219 @@
+<!-- Learn Tab: Sales Analytics -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Sales Analytics page demonstrates Morphium's <strong>Aggregation Pipeline</strong> API &mdash;
+        the MongoDB equivalent of SQL's GROUP BY, HAVING, and ORDER BY. Instead of writing raw BSON
+        documents, you build a type-safe pipeline with <code>Aggregator&lt;T, R&gt;</code>. Each stage
+        (<code>$project</code>, <code>$group</code>, <code>$sort</code>, <code>$limit</code>,
+        <code>$bucket</code>) transforms the document stream, and the final <code>aggregate()</code> call
+        executes the pipeline on the server. The fluent <code>group()</code> builder chains accumulators
+        like <code>.sum()</code>, <code>.avg()</code>, and <code>.end()</code>, keeping aggregation code
+        readable and refactor-safe.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="Aggregator" compat="warn-cosmos"}
+        {#tip}Entry point for building aggregation pipelines. Created via morphium.createAggregator(InputType.class, OutputType.class). Stages are chained fluently. Import: de.caluga.morphium.aggregation.Aggregator{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="$group" compat="all"}
+        {#tip}Groups documents by a key expression and applies accumulators ($sum, $avg, $min, $max) to each group. Equivalent to SQL GROUP BY. Called via aggregator.group(&quot;$field&quot;).sum(...).avg(...).end().{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="$project" compat="all"}
+        {#tip}Reshapes documents: include/exclude fields or compute new ones. Called via aggregator.project(...). Only projected fields appear in subsequent stages.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="$sort" compat="all"}
+        {#tip}Orders documents by one or more fields. 1 = ascending, -1 = descending. Called via aggregator.sort(...). Place after $group to sort aggregated results.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="$limit" compat="all"}
+        {#tip}Restricts the pipeline output to N documents. Called via aggregator.limit(n). Use after $sort to get &quot;top N&quot; results.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="$bucket" compat="warn-cosmos"}
+        {#tip}Categorises documents into buckets defined by boundary values. Useful for histograms (e.g. price ranges, quantity ranges). Called via aggregator.bucket(...).{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Entity" compat="all"}
+        {#tip}Maps a Java class to a MongoDB collection. The collectionName attribute sets the collection explicitly. Import: de.caluga.morphium.annotations.Entity{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@Index" compat="all"}
+        {#tip}Creates indexes for faster queries. At class level: compound index on multiple fields (e.g. &quot;region, product_name&quot;). At field level: single-field index. Import: de.caluga.morphium.annotations.Index{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>MongoDB field names vs Java field names</strong> &mdash; Aggregation pipelines operate on MongoDB field names (snake_case by default), not Java field names. Morphium converts camelCase to snake_case automatically, so <code>productName</code> becomes <code>&quot;product_name&quot;</code> and <code>unitPrice</code> becomes <code>&quot;unit_price&quot;</code> in the database. Pipeline expressions must use the MongoDB names (e.g. <code>&quot;$unit_price&quot;</code>).</li>
+            <li><strong>Fluent group() builder</strong> &mdash; Morphium's <code>group()</code> method returns a builder that chains accumulators: <code>agg.group(&quot;$region&quot;).sum(&quot;total&quot;, &quot;$field&quot;).avg(&quot;average&quot;, &quot;$field&quot;).end()</code>. The <code>.end()</code> call finalizes the <code>$group</code> stage and returns to the pipeline builder.</li>
+            <li><strong>Pipeline stage order matters</strong> &mdash; Stages execute sequentially: <code>$project</code> first reshapes documents, then <code>$group</code> aggregates, then <code>$sort</code> orders, then <code>$limit</code> caps output. Re-ordering stages changes the result.</li>
+            <li><strong>Result type</strong> &mdash; <code>Aggregator&lt;In, Out&gt;</code> takes an input entity type and an output type. The output type can be a custom class or <code>Map</code> for ad-hoc results.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: Aggregation Pipeline Visualisation -->
+<div class="learn-section">
+    <h2>Aggregation Pipeline</h2>
+    <div class="er-diagram">
+        <div class="er-entities">
+            <div class="er-entity er-type-entity">
+                <div class="er-entity-name">$project</div>
+                <div class="er-entity-fields">
+                    <div class="er-field">Extract month/year from sale_date</div>
+                    <div class="er-field">Compute revenue: unit_price * quantity</div>
+                </div>
+            </div>
+            <div class="er-connector">
+                <span class="er-connector-label">&rarr;</span>
+            </div>
+            <div class="er-entity er-type-entity">
+                <div class="er-entity-name">$group</div>
+                <div class="er-entity-fields">
+                    <div class="er-field">Group by: region / product_name / month</div>
+                    <div class="er-field">Accumulators: $sum, $avg</div>
+                </div>
+            </div>
+            <div class="er-connector">
+                <span class="er-connector-label">&rarr;</span>
+            </div>
+            <div class="er-entity er-type-entity">
+                <div class="er-entity-name">$sort</div>
+                <div class="er-entity-fields">
+                    <div class="er-field">Order by totalRevenue descending</div>
+                </div>
+            </div>
+            <div class="er-connector">
+                <span class="er-connector-label">&rarr;</span>
+            </div>
+            <div class="er-entity er-type-entity">
+                <div class="er-entity-name">$limit</div>
+                <div class="er-entity-fields">
+                    <div class="er-field">Return top N results</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 5: Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="SalesRecord.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Index;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> java.time.LocalDateTime;</span>
+<span class="line"><span class="keyword">import</span> java.util.List;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;sales_records&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Index</span>(&#123;<span class="string">&quot;region, product_name&quot;</span>&#125;)<span class="code-callout">2</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span></span>
+<span class="line"><span class="annotation">@Builder</span> <span class="annotation">@FieldNameConstants</span><span class="code-callout">3</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">SalesRecord</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span><span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span><span class="code-callout">5</span></span>
+<span class="line">    <span class="keyword">private</span> String productName;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private double</span> unitPrice;</span>
+<span class="line">    <span class="keyword">private int</span> quantity;</span>
+<span class="line">    <span class="keyword">private double</span> discount;</span>
+<span class="line">    <span class="keyword">private</span> String region;</span>
+<span class="line">    <span class="keyword">private</span> String salesRep;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span><span class="code-callout">6</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> saleDate;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;String&gt; categories;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Maps this class to the <code>sales_records</code> MongoDB collection.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Class-level <code>@Index</code> defines a compound index on <code>(region, product_name)</code>. Uses the MongoDB snake_case field name.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Lombok: <code>@Builder</code> enables the builder pattern, <code>@FieldNameConstants</code> generates a <code>Fields</code> inner class with constants for each field name.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Designates this field as the MongoDB document <code>_id</code>; Morphium auto-generates a <code>MorphiumId</code> on first store.</div>
+        <div class="callout-item"><span class="code-callout">5</span> Field-level <code>@Index</code> creates a single-field index on <code>productName</code> (stored as <code>product_name</code>).</div>
+        <div class="callout-item"><span class="code-callout">6</span> Field-level <code>@Index</code> on <code>saleDate</code> enables efficient time-range queries and date sorting.</div>
+    </div>
+</div>
+
+<!-- Section 6: Service Code -->
+<div class="learn-section">
+    <h2>Service Code (Aggregation API)</h2>
+    {#include tags/code-block title="Aggregation Pipeline — Sales by Region" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.aggregation.Aggregator;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Create an aggregator for SalesRecord &rarr; Map</span></span>
+<span class="line"><span class="type">Aggregator</span>&lt;<span class="type">SalesRecord</span>, <span class="type">Map</span>&gt; agg = morphium.createAggregator(<span class="code-callout">1</span></span>
+<span class="line">    <span class="type">SalesRecord</span>.<span class="keyword">class</span>, <span class="type">Map</span>.<span class="keyword">class</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// $group &mdash; group by region using the fluent builder</span></span>
+<span class="line">agg.group(<span class="string">&quot;$region&quot;</span>)<span class="code-callout">2</span></span>
+<span class="line">    .sum(<span class="string">&quot;totalRevenue&quot;</span>,<span class="code-callout">3</span></span>
+<span class="line">        Map.of(<span class="string">&quot;$multiply&quot;</span>, List.of(<span class="string">&quot;$unit_price&quot;</span>, <span class="string">&quot;$quantity&quot;</span>)))</span>
+<span class="line">    .sum(<span class="string">&quot;totalOrders&quot;</span>, <span class="number">1</span>)<span class="code-callout">4</span></span>
+<span class="line">    .avg(<span class="string">&quot;avgOrderValue&quot;</span>,<span class="code-callout">5</span></span>
+<span class="line">        Map.of(<span class="string">&quot;$multiply&quot;</span>, List.of(<span class="string">&quot;$unit_price&quot;</span>, <span class="string">&quot;$quantity&quot;</span>)))</span>
+<span class="line">    .end();<span class="code-callout">6</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// $sort &mdash; order by totalRevenue descending</span></span>
+<span class="line">agg.sort(Map.of(<span class="string">&quot;totalRevenue&quot;</span>, <span class="number">-1</span>));<span class="code-callout">7</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Execute the pipeline</span></span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">Map</span>&gt; results = agg.aggregate();<span class="code-callout">8</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Creates a typed aggregation pipeline: input documents are <code>SalesRecord</code>, output is a plain <code>Map</code>.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>group(&quot;$region&quot;)</code> starts a <code>$group</code> stage with <code>region</code> as the grouping key (<code>_id</code>). Returns a fluent builder for chaining accumulators.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>.sum(&quot;totalRevenue&quot;, expr)</code> accumulates the sum of <code>unit_price * quantity</code> using a <code>$multiply</code> expression. Note: uses MongoDB field names (<code>$unit_price</code>, <code>$quantity</code>).</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>.sum(&quot;totalOrders&quot;, 1)</code> counts documents by summing 1 for each document in the group.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>.avg(&quot;avgOrderValue&quot;, expr)</code> computes the average of the <code>$multiply</code> expression across the group.</div>
+        <div class="callout-item"><span class="code-callout">6</span> <code>.end()</code> finalizes the <code>$group</code> stage and returns to the pipeline builder.</div>
+        <div class="callout-item"><span class="code-callout">7</span> <code>$sort</code> stage &mdash; orders groups by <code>totalRevenue</code> descending (<code>-1</code>).</div>
+        <div class="callout-item"><span class="code-callout">8</span> Sends the assembled pipeline to MongoDB and returns the results as a <code>List&lt;Map&gt;</code>.</div>
+    </div>
+
+    {#include tags/code-block title="Distinct Values & Count" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Get distinct regions</span></span>
+<span class="line"><span class="type">List</span>&lt;String&gt; regions = morphium.createQueryFor(<span class="code-callout">1</span></span>
+<span class="line">    <span class="type">SalesRecord</span>.<span class="keyword">class</span>).distinct(<span class="string">&quot;region&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Get distinct products (uses MongoDB field name!)</span></span>
+<span class="line"><span class="type">List</span>&lt;String&gt; products = morphium.createQueryFor(<span class="code-callout">2</span></span>
+<span class="line">    <span class="type">SalesRecord</span>.<span class="keyword">class</span>).distinct(<span class="string">&quot;product_name&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Count total records</span></span>
+<span class="line"><span class="keyword">long</span> count = morphium.createQueryFor(<span class="type">SalesRecord</span>.<span class="keyword">class</span>).countAll();<span class="code-callout">3</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>createQueryFor().distinct(&quot;region&quot;)</code> returns all unique values for a field, equivalent to MongoDB's <code>db.collection.distinct()</code>.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Uses the MongoDB field name <code>&quot;product_name&quot;</code> (snake_case), not the Java field name <code>&quot;productName&quot;</code>. This is a common gotcha with Morphium's default name mapping.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>countAll()</code> executes a server-side count without loading any documents into memory.</div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

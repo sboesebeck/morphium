@@ -1,0 +1,100 @@
+<!-- Demo Tab: Audit Log -->
+
+<div class="demo-context">
+    Audit logging with a capped collection. Oldest entries are automatically evicted when the collection
+    reaches its size or document count limit. All actions use HTMX &mdash; no page reloads.
+</div>
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<div class="card-grid">
+    <!-- Log Manual Entry Form -->
+    <div class="card">
+        <h3>Log Manual Entry</h3>
+        <form hx-post="/audit/log" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Entity Type</label>
+                    <input type="text" name="entityType" required placeholder="e.g. Product">
+                </div>
+                <div class="form-group">
+                    <label>Entity ID</label>
+                    <input type="text" name="entityId" required placeholder="e.g. product-42">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Action</label>
+                <select name="action" required>
+                    <option value="CREATE">CREATE</option>
+                    <option value="UPDATE">UPDATE</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Details</label>
+                <input type="text" name="details" placeholder="Description of the change">
+            </div>
+            <button type="submit" class="btn btn-primary">Log Entry</button>
+        </form>
+    </div>
+
+    <!-- Seed Data -->
+    <div class="card">
+        <h3>Seed Data</h3>
+        <p>Populate the capped audit log with 20 randomized sample entries. Because the collection
+        is capped, you can seed repeatedly without worrying about unbounded growth &mdash; MongoDB
+        automatically evicts the oldest entries.</p>
+        <div class="demo-actions">
+            <button class="btn btn-outline btn-sm"
+                    hx-post="/audit/seed" hx-target="#tab-content" hx-swap="innerHTML">
+                Seed 20 Entries
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Audit Entries Table -->
+<div class="card">
+    <h3>Audit Log <span class="tag tag-blue">{count} entries in capped collection <code>audit_log</code></span></h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Entity Type</th>
+                    <th>Entity ID</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                    <th>User</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for entry in entries}
+                <tr>
+                    <td><code>{entry.timestamp}</code></td>
+                    <td>{entry.entityType}</td>
+                    <td><code>{entry.entityId}</code></td>
+                    <td>
+                        {#if entry.action == "CREATE"}
+                        <span class="tag tag-green">{entry.action}</span>
+                        {#else if entry.action == "UPDATE"}
+                        <span class="tag tag-blue">{entry.action}</span>
+                        {#else if entry.action == "DELETE"}
+                        <span class="tag tag-orange">{entry.action}</span>
+                        {#else}
+                        <span class="tag">{entry.action}</span>
+                        {/if}
+                    </td>
+                    <td>{entry.details}</td>
+                    <td>{entry.user}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>

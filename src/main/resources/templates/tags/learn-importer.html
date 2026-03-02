@@ -1,0 +1,200 @@
+<!-- Learn Tab: Data Importer -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Data Importer demonstrates a bulk import pipeline using Morphium's advanced write features:
+        <code>@WriteBuffer</code> for client-side write batching, <code>@AutoSequence</code> for
+        MongoDB-backed atomic sequence numbers, <code>storeList()</code> for high-throughput bulk inserts,
+        and server-side array and field manipulation with <code>push</code>, <code>pull</code>,
+        <code>set</code>, and <code>unset</code>.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="orange" text="storeList (Batch)" compat="all"}
+        {#tip}morphium.storeList(records) sends all entities to MongoDB in a single bulk write operation. Dramatically faster than individual store() calls because it requires only one network round-trip. Bypasses @WriteBuffer and writes directly.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@WriteBuffer" compat="all"}
+        {#tip}Buffers individual store() calls in memory and flushes them in batches. Parameters: size (max buffered ops), strategy (WRITE_NEW, WRITE_OLD, DEL_OLD, IGNORE_NEW, JUST_WARN, WAIT), timeout (max ms before flush). WAIT is the default strategy. Import: de.caluga.morphium.annotations.caching.WriteBuffer{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@AutoSequence" compat="all"}
+        {#tip}Automatically assigns the next value from a named MongoDB-backed sequence when the field is null at store time. Uses atomic findAndModify for thread-safe, distributed counters. For storeList(), calls getNextBatch(n) &mdash; a single logical batch call (5 MongoDB round-trips internally: lock, read, increment, re-read, unlock) regardless of batch size.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="push (array add)" compat="all"}
+        {#tip}morphium.push(query, field, value) appends a value to an array field using MongoDB's $push operator. The document is never loaded &mdash; the update happens entirely on the server. Efficient for managing list-valued fields.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="pull (array remove)" compat="all"}
+        {#tip}morphium.pull(query, field, value) removes all occurrences of a value from an array field using MongoDB's $pull operator. Like push(), this operates directly on the server without loading the document.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="set (atomic)" compat="all"}
+        {#tip}query.set(field, value, upsert, multiple, AsyncOperationCallback) updates a single field using MongoDB's $set operator. Only the specified field is modified on the server &mdash; all other fields remain untouched.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="unset (field remove)" compat="all"}
+        {#tip}query.unset(field) completely removes a field from the BSON document using MongoDB's $unset operator. Different from set(field, null) which stores a null value &mdash; unset removes the key entirely.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="MorphiumIterator" compat="all"}
+        {#tip}Iterates over large result sets without loading all documents into memory at once. Uses server-side cursors with configurable batch sizes. Ideal for processing millions of documents.{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong><code>@WriteBuffer</code></strong> buffers writes client-side. In this showcase, the entity uses <code>size=500</code> and <code>strategy=WRITE_NEW</code>: when the buffer is full and a new write arrives, the newest write is sent immediately while older buffered writes wait. Writes are also flushed after <code>timeout</code> milliseconds regardless of buffer fill level.</li>
+            <li><strong><code>@AutoSequence</code></strong> uses a separate MongoDB collection to store atomic counters. Each sequence is identified by name (e.g. <code>&quot;import_number&quot;</code>). For <code>storeList()</code>, Morphium calls <code>getNextBatch(count)</code> &mdash; a single atomic lock+increment+unlock regardless of how many records are in the list.</li>
+            <li><strong><code>push</code> / <code>pull</code></strong> modify array fields directly on the MongoDB server using the <code>$push</code> and <code>$pull</code> operators. The document is never loaded into Java memory, making these operations efficient and concurrency-safe.</li>
+            <li><strong><code>set</code> / <code>unset</code></strong> are server-side atomic operations. <code>set</code> changes a field's value; <code>unset</code> removes the field entirely from the document (not the same as setting it to null).</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: Full Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="ImportRecord.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.AutoSequence;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.CreationTime;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.caching.WriteBuffer;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.Data;</span>
+<span class="line"><span class="keyword">import</span> lombok.Builder;</span>
+<span class="line"><span class="keyword">import</span> lombok.NoArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.AllArgsConstructor;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"><span class="keyword">import</span> java.time.LocalDateTime;</span>
+<span class="line"><span class="keyword">import</span> java.util.List;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;import_records&quot;</span>) <span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@WriteBuffer</span>(size = <span class="number">500</span>, strategy = WriteBuffer.STRATEGY.WRITE_NEW, timeout = <span class="number">5000</span>) <span class="code-callout">2</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span> <span class="annotation">@Builder</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">ImportRecord</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@AutoSequence</span>(name = <span class="string">&quot;import_number&quot;</span>) <span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">Long</span> importNumber;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String source;</span>
+<span class="line">    <span class="keyword">private</span> String data;</span>
+<span class="line">    <span class="keyword">private</span> String status;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span> <span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> importedAt;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;String&gt; tags; <span class="code-callout">5</span></span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Maps to the <code>import_records</code> collection</div>
+        <div class="callout-item"><span class="code-callout">2</span> Buffers up to 500 writes in memory, flushing as bulk operations. <code>WRITE_NEW</code> sends new writes immediately when buffer is full. <code>timeout = 5000</code> ms ensures flush even at low throughput.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Morphium auto-assigns the next value from the <code>import_number</code> sequence. Uses <code>Long</code> (boxed) so <code>null</code> signals &quot;not yet assigned&quot;. For bulk inserts, <code>getNextBatch(n)</code> reserves N values in a single atomic operation.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Automatically timestamped on first <code>store()</code> &mdash; never overwritten on updates</div>
+        <div class="callout-item"><span class="code-callout">5</span> Modified via <code>morphium.push()</code> / <code>morphium.pull()</code> for atomic array operations without loading the full document</div>
+    </div>
+</div>
+
+<!-- Section 5: WriteBuffer + Sequence Code -->
+<div class="learn-section">
+    <h2>WriteBuffer + Sequence Code</h2>
+    {#include tags/code-block title="ImportRecord.java (annotations)" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.AutoSequence;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.caching.WriteBuffer;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;import_records&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@WriteBuffer</span>(size = <span class="number">500</span>, strategy = WriteBuffer.STRATEGY.WRITE_NEW, timeout = <span class="number">5000</span>)<span class="code-callout">2</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">ImportRecord</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@AutoSequence</span>(name = <span class="string">&quot;import_number&quot;</span>)<span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">Long</span> importNumber; <span class="comment">// Long (not long) so null = &quot;not yet assigned&quot;</span><span class="code-callout">4</span></span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String source;</span>
+<span class="line">    <span class="keyword">private</span> String data;</span>
+<span class="line">    <span class="keyword">private</span> String status;</span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;String&gt; tags;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span><span class="code-callout">5</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> importedAt;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>@Entity</code> maps this class to a MongoDB collection with an explicit collection name.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>@WriteBuffer</code> batches individual <code>store()</code> calls; <code>size=500</code> caps the buffer, <code>WRITE_NEW</code> flushes the newest entry when the buffer is full.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>@AutoSequence(name=...)</code> assigns the next value from a named MongoDB-backed counter when the field is <code>null</code> at store time.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Using <code>Long</code> (boxed) instead of <code>long</code> is required so the field can be <code>null</code>, which signals that no sequence number has been assigned yet.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>@CreationTime</code> is automatically populated by Morphium on the first <code>store()</code> call.</div>
+    </div>
+
+    {#include tags/code-block title="Bulk Import with storeList()" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Build a list of records &mdash; importNumber left null for @AutoSequence</span></span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">ImportRecord</span>&gt; records = <span class="keyword">new</span> <span class="type">ArrayList</span>&lt;&gt;();</span>
+<span class="line"><span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; count; i++) &#123;</span>
+<span class="line">    records.add(<span class="type">ImportRecord</span>.builder()</span>
+<span class="line">        .source(sources[i % sources.length])</span>
+<span class="line">        .data(<span class="string">&quot;Record #&quot;</span> + (i + <span class="number">1</span>))</span>
+<span class="line">        .status(<span class="string">&quot;PENDING&quot;</span>)</span>
+<span class="line">        .tags(List.of(<span class="string">&quot;bulk&quot;</span>, <span class="string">&quot;auto-generated&quot;</span>))</span>
+<span class="line">        .build());</span>
+<span class="line">&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// storeList() &mdash; single bulk write + single getNextBatch() for sequences</span></span>
+<span class="line">morphium.storeList(records);<span class="code-callout">1</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>storeList()</code> sends all records in a single bulk write operation and calls <code>getNextBatch(n)</code> once to assign sequence numbers atomically — regardless of batch size.</div>
+    </div>
+</div>
+
+<!-- Section 6: Array & Field Operations -->
+<div class="learn-section">
+    <h2>Array &amp; Field Operations</h2>
+    {#include tags/code-block title="push / pull / set / unset" lang="Java"}
+    {#content}<span class="line"><span class="type">Query</span>&lt;<span class="type">ImportRecord</span>&gt; query = morphium.createQueryFor(<span class="type">ImportRecord</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(<span class="type">ImportRecord</span>.Fields.id).eq(<span class="keyword">new</span> <span class="type">MorphiumId</span>(id));</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// push: append a tag to the tags array ($push)</span></span>
+<span class="line">morphium.push(query, <span class="type">ImportRecord</span>.Fields.tags, <span class="string">&quot;priority&quot;</span>);<span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// pull: remove a tag from the tags array ($pull)</span></span>
+<span class="line">morphium.pull(query, <span class="type">ImportRecord</span>.Fields.tags, <span class="string">&quot;auto-generated&quot;</span>);<span class="code-callout">2</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// set: update status without loading the document ($set)</span></span>
+<span class="line">query.set(<span class="type">ImportRecord</span>.Fields.status, <span class="string">&quot;PROCESSED&quot;</span>, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);<span class="code-callout">3</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment">// unset: remove the &quot;source&quot; field entirely from the document ($unset)</span></span>
+<span class="line">query.unset(<span class="type">ImportRecord</span>.Fields.source);<span class="code-callout">4</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>morphium.push()</code> appends a value to an array field using MongoDB's <code>$push</code> operator — the document is never loaded into Java memory.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>morphium.pull()</code> removes all matching values from an array field using MongoDB's <code>$pull</code> operator entirely on the server.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>query.set()</code> updates a single field with <code>$set</code>; parameters are field, value, upsert, multiple, and async callback (<code>AsyncOperationCallback</code>).</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>query.unset()</code> removes the field key entirely from the BSON document, which is different from setting it to <code>null</code>.</div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

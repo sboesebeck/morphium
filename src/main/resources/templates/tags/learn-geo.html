@@ -1,0 +1,157 @@
+<!-- Learn Tab: Store Locator (Geo) -->
+
+<!-- Section 1: What does this page show? -->
+<div class="learn-section">
+    <h2>What This Page Demonstrates</h2>
+    <div class="learn-intro">
+        <p>The Store Locator demonstrates Morphium's geospatial data handling: storing locations as
+        GeoJSON-compatible <code>[longitude, latitude]</code> coordinate pairs, creating <strong>2dsphere
+        indexes</strong> for efficient spatial queries, and using MongoDB's <code>$near</code> and
+        <code>$geoWithin</code> operators to find stores near a given point. You will see how
+        <code>ensureIndicesFor()</code> creates indexes from annotations at application startup,
+        and how <code>double[]</code> arrays map directly to BSON arrays in MongoDB.</p>
+    </div>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="GeoJSON Point [lng, lat]" compat="all"}
+        {#tip}MongoDB uses GeoJSON convention: coordinates are stored as [longitude, latitude] (NOT lat/lng!). Morphium maps a Java double[] directly to a BSON array. Example: new double[]&#123;11.576, 48.137&#125; for Munich.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="2dsphere Index" compat="all"}
+        {#tip}MongoDB index type for spherical (Earth-like) geometry. Required for geospatial query operators like $nearSphere, $geoWithin, and $geoIntersects. Created via db.stores.createIndex(&#123;location: &quot;2dsphere&quot;&#125;) or Morphium&apos;s ensureIndicesFor().{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="$near Query" compat="all"}
+        {#tip}MongoDB geospatial operator that finds documents near a given point, sorted by distance. Requires a 2dsphere index. Supports $maxDistance in meters for radius limiting. Can be executed via Morphium&apos;s driver-level command API.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="$geoWithin" compat="all"}
+        {#tip}MongoDB geospatial operator that finds documents within a specified geographic shape (circle, polygon, box). Unlike $near, it does NOT sort by distance. Also requires a 2dsphere index.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Entity" compat="all"}
+        {#tip}Maps the Store class to the &quot;stores&quot; MongoDB collection. Required on every Morphium-managed entity. Import: de.caluga.morphium.annotations.Entity{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Index" compat="all"}
+        {#tip}Creates a MongoDB index on the annotated field. On Store.name, it creates a single-field index for fast name lookups. Import: de.caluga.morphium.annotations.Index{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="ensureIndicesFor()" compat="all"}
+        {#tip}Scans the entity class for @Index annotations and creates the corresponding MongoDB indexes if they do not exist. Idempotent and safe to call multiple times. Called in @PostConstruct to ensure indexes are ready before queries. Usage: morphium.ensureIndicesFor(Store.class){/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>GeoJSON format is <code>[longitude, latitude]</code></strong> &mdash; this is the opposite of the everyday &quot;latitude, longitude&quot; convention. Getting the order wrong is the most common mistake when working with geospatial data in MongoDB. Munich is <code>[11.576, 48.137]</code> (longitude first).</li>
+            <li><strong>2dsphere index required for geo queries</strong> &mdash; without this index, MongoDB cannot execute <code>$nearSphere</code>, <code>$geoWithin</code>, or <code>$geoIntersects</code> queries. The index can be created via the MongoDB shell or programmatically.</li>
+            <li><strong><code>ensureIndicesFor()</code> creates indexes from annotations</strong> &mdash; call this at startup (e.g., in <code>@PostConstruct</code>) to ensure all <code>@Index</code>-annotated fields have their corresponding MongoDB indexes. This is idempotent and safe to call multiple times.</li>
+            <li><strong>Morphium maps <code>double[]</code> to BSON arrays</strong> &mdash; no special annotation needed. Java arrays and <code>List&lt;String&gt;</code> are automatically serialized to and from BSON arrays.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="Store.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Index;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;stores&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span> <span class="annotation">@Builder</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Store</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Index</span> <span class="comment">// single-field index for name lookups</span><span class="code-callout">2</span></span>
+<span class="line">    <span class="keyword">private</span> String name;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String address;</span>
+<span class="line">    <span class="keyword">private</span> String city;</span>
+<span class="line">    <span class="keyword">private</span> String country;</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// GeoJSON: [longitude, latitude] -- NOT [lat, lng]!</span></span>
+<span class="line">    <span class="keyword">private double</span>[] location;<span class="code-callout">3</span></span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String phone;</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// List&lt;String&gt; maps to BSON array automatically</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">List</span>&lt;String&gt; services;<span class="code-callout">4</span></span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>@Entity</code> maps this class to the <code>stores</code> MongoDB collection — required on every Morphium-managed entity.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>@Index</code> on a field creates a single-field index; <code>ensureIndicesFor(Store.class)</code> at startup materialises it in MongoDB.</div>
+        <div class="callout-item"><span class="code-callout">3</span> A plain Java <code>double[]</code> stores the GeoJSON coordinate pair <code>[longitude, latitude]</code> — Morphium maps it directly to a BSON array, no special annotation required.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>List&lt;String&gt;</code> is also serialised to a BSON array automatically — Morphium handles all Java collection and array types natively.</div>
+    </div>
+</div>
+
+<!-- Section 5: Service Code -->
+<div class="learn-section">
+    <h2>Service Code (Morphium API)</h2>
+    {#include tags/code-block title="GeoService.java (Key Methods)" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Ensure indexes at startup (reads @Index annotations)</span></span>
+<span class="line"><span class="annotation">@PostConstruct</span><span class="code-callout">1</span></span>
+<span class="line"><span class="keyword">void</span> <span class="method">init</span>() &#123;</span>
+<span class="line">    morphium.ensureIndicesFor(<span class="type">Store</span>.<span class="keyword">class</span>);<span class="code-callout">2</span></span>
+<span class="line">&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Store with coordinates [lng, lat]</span></span>
+<span class="line"><span class="type">Store</span> store = <span class="type">Store</span>.builder()</span>
+<span class="line">    .name(<span class="string">&quot;Munich Store&quot;</span>)</span>
+<span class="line">    .address(<span class="string">&quot;Marienplatz 1&quot;</span>)</span>
+<span class="line">    .city(<span class="string">&quot;Munich&quot;</span>).country(<span class="string">&quot;Germany&quot;</span>)</span>
+<span class="line">    .location(<span class="keyword">new double</span>[]&#123;<span class="number">11.576</span>, <span class="number">48.137</span>&#125;) <span class="comment">// [lng, lat]</span><span class="code-callout">3</span></span>
+<span class="line">    .phone(<span class="string">&quot;+49 89 1234567&quot;</span>)</span>
+<span class="line">    .services(List.of(<span class="string">&quot;Repair&quot;</span>, <span class="string">&quot;Sales&quot;</span>))</span>
+<span class="line">    .build();</span>
+<span class="line">morphium.store(store);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Nearby query pattern (driver-level command)</span></span>
+<span class="line"><span class="comment">// Requires 2dsphere index on location field:</span></span>
+<span class="line"><span class="comment">// db.stores.createIndex(&#123;location: &quot;2dsphere&quot;&#125;)</span></span>
+<span class="line">morphium.getDriver().runCommand(<span class="string">&quot;stores&quot;</span>, Map.of(<span class="code-callout">4</span></span>
+<span class="line">    <span class="string">&quot;find&quot;</span>, <span class="string">&quot;stores&quot;</span>,</span>
+<span class="line">    <span class="string">&quot;filter&quot;</span>, Map.of(<span class="string">&quot;location&quot;</span>, Map.of(</span>
+<span class="line">        <span class="string">&quot;$nearSphere&quot;</span>, Map.of(<span class="code-callout">5</span></span>
+<span class="line">            <span class="string">&quot;$geometry&quot;</span>, Map.of(</span>
+<span class="line">                <span class="string">&quot;type&quot;</span>, <span class="string">&quot;Point&quot;</span>,</span>
+<span class="line">                <span class="string">&quot;coordinates&quot;</span>, List.of(lng, lat)),</span>
+<span class="line">            <span class="string">&quot;$maxDistance&quot;</span>, maxDistMeters<span class="code-callout">6</span></span>
+<span class="line">    ))))</span>
+<span class="line">));</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>@PostConstruct</code> ensures index creation runs once at bean initialisation, before any geo queries are executed.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>ensureIndicesFor(Store.class)</code> reads all <code>@Index</code> annotations on the entity and creates the corresponding MongoDB indexes if they do not yet exist — idempotent and safe to call on every startup.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Coordinates must be <code>[longitude, latitude]</code> — the GeoJSON convention is the reverse of everyday "lat, lng" notation; swapping them causes silent wrong results.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Geospatial queries use Morphium's driver-level <code>runCommand()</code> to pass raw MongoDB commands when the query builder does not yet expose a geo-specific DSL.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>$nearSphere</code> finds documents sorted by spherical (great-circle) distance from the given point — requires a <code>2dsphere</code> index on the <code>location</code> field.</div>
+        <div class="callout-item"><span class="code-callout">6</span> <code>$maxDistance</code> limits results to documents within the given radius in metres, avoiding a full collection scan of distant stores.</div>
+    </div>
+</div>
+
+<!-- Section 6: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>
