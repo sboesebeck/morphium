@@ -2,7 +2,13 @@ services:
   showcase:
     build:
       context: .
-      args:
-        GITHUB_ACTOR: ${GITHUB_ACTOR}
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
+      secrets:
+        - GITHUB_ACTOR
+        - GITHUB_TOKEN
     image: quarkus-morphium-showcase:local
+
+secrets:
+  GITHUB_ACTOR:
+    environment: GITHUB_ACTOR
+  GITHUB_TOKEN:
+    environment: GITHUB_TOKEN
