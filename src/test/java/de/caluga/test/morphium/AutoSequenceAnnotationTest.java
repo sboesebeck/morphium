@@ -138,7 +138,7 @@ public class AutoSequenceAnnotationTest {
     @BeforeEach
     public void setUp() {
         MorphiumConfig cfg = new MorphiumConfig("auto_seq_test_db", 10, 10_000, 1_000);
-        cfg.setDriverName(InMemoryDriver.driverName);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
         morphium = new Morphium(cfg);
         morphium.dropCollection(Sequence.class);
         morphium.dropCollection(SeqLock.class);
