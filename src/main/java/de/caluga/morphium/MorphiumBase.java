@@ -511,6 +511,7 @@ public abstract class MorphiumBase {
     }
 
     public void remove(Object o, String collection) {
+        CascadeHelper.cascadeDelete(this, o);
         getWriterForClass(o.getClass()).remove(o, collection, null);
     }
 
@@ -571,6 +572,7 @@ public abstract class MorphiumBase {
             return;
         }
 
+        CascadeHelper.cascadeDelete(this, lo);
         getWriterForClass(lo.getClass()).remove(lo, getMapper().getCollectionName(lo.getClass()), callback);
     }
 
@@ -580,6 +582,7 @@ public abstract class MorphiumBase {
     }
 
     public <T> void remove(final T lo, String collection, final AsyncOperationCallback<T> callback) {
+        CascadeHelper.cascadeDelete(this, lo);
         getWriterForClass(lo.getClass()).remove(lo, collection, callback);
     }
 
@@ -703,10 +706,18 @@ public abstract class MorphiumBase {
             saveList(new ArrayList<>((Collection) o), collection, callback);
         }
 
+        // Orphan removal: collect old references before store
+        CascadeHelper.collectOrphanCandidates(this, o);
+
         if (getARHelper().getId(o) != null) {
             getWriterForClass(o.getClass()).store(o, collection, callback);
         } else {
             getWriterForClass(o.getClass()).insert(o, collection, callback);
+        }
+
+        // Orphan removal: delete references that are no longer present
+        if (callback == null) {
+            CascadeHelper.deleteOrphans(this, o);
         }
     }
 
