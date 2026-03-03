@@ -449,10 +449,15 @@ The exception carries `getExpectedVersion()` (the version the caller held) for d
 **@Reference**
 ```java
 @Reference(
-    lazyLoading = false,    // Enable lazy loading
-    fieldName = "ref_field" // Custom field name
+    lazyLoading = false,    // Enable lazy loading via CGLib proxy
+    fieldName = "ref_field", // Custom field name in MongoDB
+    automaticStore = true,  // Auto-persist unreferenced objects on store
+    targetCollection = ".", // Override target collection (default: derived from type)
+    cascadeDelete = false,  // Delete referenced entities when parent is deleted
+    orphanRemoval = false   // Delete dereferenced entities on parent update
 )
 ```
+See `docs/howtos/references-and-relationships.md` for a comprehensive guide.
 
 ### Index Annotations
 
