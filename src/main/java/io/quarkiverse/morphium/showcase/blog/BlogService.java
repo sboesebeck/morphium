@@ -88,7 +88,8 @@ public class BlogService {
      *
      * <p>When storing a BlogPost with a non-null {@code author} field, Morphium stores only the
      * author's {@code _id} as a DBRef in the blog post document -- the Author object is NOT
-     * duplicated. The author must already exist in the "authors" collection.</p>
+     * duplicated. With {@code @Reference(automaticStore = true)} (the default), Morphium
+     * automatically stores the author if it doesn't have an ID yet.</p>
      *
      * @param title    the post title
      * @param content  the post content
@@ -100,7 +101,7 @@ public class BlogService {
         Author author = null;
         if (authorId != null && !authorId.isBlank()) {
             // Load the Author entity so Morphium can store a @Reference to it in the BlogPost.
-            // The author must be a persisted entity (with a valid _id) for the reference to work.
+            // Note: with automaticStore=true (default), Morphium would also auto-store a new Author.
             author = morphium.createQueryFor(Author.class)
                     .f(Author.Fields.id).eq(new MorphiumId(authorId))
                     .get();
@@ -215,8 +216,9 @@ public class BlogService {
     /**
      * Deletes a blog post by its id.
      *
-     * <p>Note: Deleting a BlogPost does NOT delete the referenced Author, because {@code @Reference}
-     * does not cascade deletes. The Author continues to exist in the "authors" collection.</p>
+     * <p>Note: Deleting a BlogPost does NOT delete the referenced Author, because this
+     * {@code @Reference} does not use {@code cascadeDelete = true}. The Author continues to exist
+     * in the "authors" collection. To cascade deletes, use {@code @Reference(cascadeDelete = true)}.</p>
      *
      * @param id the blog post id
      */
@@ -242,8 +244,9 @@ public class BlogService {
     /**
      * Creates a new author and persists it.
      *
-     * <p>Authors must be stored before they can be used as {@code @Reference} targets in BlogPost.
-     * Morphium needs a valid {@code _id} on the Author to create the DBRef.</p>
+     * <p>With {@code @Reference(automaticStore = true)} (the default), Morphium automatically stores
+     * referenced entities that lack an ID. Storing the Author explicitly beforehand is not strictly
+     * required, but is done here for clarity.</p>
      *
      * @param username    the unique username
      * @param displayName the display name
@@ -268,7 +271,8 @@ public class BlogService {
      *
      * <p>Demonstrates:</p>
      * <ul>
-     *   <li>Creating referenced entities (Authors) before the referencing entity (BlogPost)</li>
+     *   <li>Storing referenced entities (Authors) before the referencing entity (not strictly
+     *       required with automaticStore=true, but explicit here for clarity)</li>
      *   <li>Storing a BlogPost with both {@code @Reference author} and
      *       {@code @Reference(lazyLoading = true) reviewer}</li>
      *   <li>Adding embedded comments to a persisted post</li>
@@ -283,7 +287,8 @@ public class BlogService {
     public void seedData() {
         if (morphium.createQueryFor(Author.class).countAll() > 0) return;
 
-        // Create authors first -- they must exist in the DB before being referenced.
+        // Create authors first -- stored explicitly here for clarity, but automaticStore=true
+        // (the default on @Reference) would also auto-store them when the BlogPost is stored.
         Author alice = createAuthor("alice", "Alice Smith", "alice@example.com", "Tech blogger");
         Author bob = createAuthor("bob", "Bob Johnson", "bob@example.com", "Java enthusiast");
 

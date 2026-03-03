@@ -47,7 +47,11 @@ import java.util.Map;
  *   <li><strong>{@code @CreationTime}</strong> -- Auto-set on first store (never overwritten).</li>
  *   <li><strong>{@code @LastChange}</strong> -- Auto-updated on every store (tracks last modification).</li>
  *   <li><strong>{@code @LastAccess}</strong> -- Auto-updated on every read (tracks last access time).</li>
- *   <li><strong>{@code @Reference}</strong> -- Stores a link to an Author document in a separate collection.</li>
+ *   <li><strong>{@code @Reference}</strong> -- Stores a link to an Author document in a separate collection.
+ *       With {@code automaticStore = true} (the default), Morphium auto-stores the referenced entity
+ *       if it lacks an ID. Additional options: {@code cascadeDelete = true} to delete the referenced
+ *       entity when the parent is deleted, {@code orphanRemoval = true} to delete entities removed
+ *       from the reference during an update.</li>
  *   <li><strong>{@code @Reference(lazyLoading = true)}</strong> -- Like @Reference, but the referenced
  *       object is not loaded from the database until it is actually accessed (lazy proxy).</li>
  *   <li><strong>{@code @Transient}</strong> -- Field is excluded from MongoDB storage entirely.</li>
@@ -160,6 +164,8 @@ public class BlogPost {
      * }</pre>
      */
     // @Reference: Stores only the author's _id in this document. Morphium resolves it on load (eager by default).
+    // With automaticStore=true (default), Morphium auto-stores the Author if it has no ID yet.
+    // Optional: cascadeDelete=true would delete the Author when this BlogPost is deleted.
     @Reference
     private Author author;
 
