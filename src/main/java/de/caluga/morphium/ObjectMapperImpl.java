@@ -60,6 +60,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private static volatile Map<String, Class<?>> cachedClassByCollectionName = null;
     private Morphium morphium;
 
+    // Tracks objects currently being serialized to detect circular @Reference chains
+    private static final ThreadLocal<Set<Object>> serializingObjects =
+        ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
+
     public ObjectMapperImpl() {
         nameProviders = new ConcurrentHashMap<>();
         mongoTypes = new ArrayList<>();
@@ -288,6 +292,28 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return new HashMap<>();
         }
 
+        // Cycle detection: track objects currently being serialized
+        Set<Object> inProgress = serializingObjects.get();
+        boolean isTopLevel = inProgress.isEmpty();
+
+        if (!inProgress.add(o)) {
+            // Already serializing this exact object instance — circular reference
+            try {
+                Object id = annotationHelper.getId(o);
+                if (id != null) {
+                    // Object has an ID, return minimal reference doc
+                    return new HashMap<>(UtilsMap.of("_id", id));
+                }
+            } catch (Exception e) {
+                // getId may throw if no @Id field — fall through to exception
+            }
+            throw new IllegalStateException(
+                "Circular @Reference detected while auto-storing: " +
+                o.getClass().getSimpleName() + " is already being serialized. " +
+                "Store one side of the cycle manually first or set automaticStore=false on one reference.");
+        }
+
+        try {
         Class<?> cls = annotationHelper.getRealClass(o.getClass());
 
         if (customMappers.containsKey(cls)) {
@@ -590,6 +616,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
 
         return dbo;
+        } finally {
+            inProgress.remove(o);
+            if (isTopLevel) {
+                serializingObjects.remove(); // Clean ThreadLocal to prevent leaks
+            }
+        }
     }
 
     private Object automaticStore(Reference r, Object rec) {
