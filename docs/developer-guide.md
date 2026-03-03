@@ -66,6 +66,9 @@ public class Order {
   - Stores only the target entity’s ID in the parent; the referenced entity lives in its own collection/document.
   - Reading references may incur N+1 queries: one for the parent plus one per referenced entity (unless `lazyLoading=true` defers loads until first access).
   - Use for large/independent aggregates or when the referenced object changes on its own lifecycle.
+  - Supports `cascadeDelete=true` to delete referenced entities when the parent is deleted, and `orphanRemoval=true` to delete referenced entities that are removed from the parent during an update.
+  - Circular `@Reference` chains are handled by cycle detection during serialization. For bidirectional references, use `lazyLoading=true` on at least one side.
+  - See `docs/howtos/references-and-relationships.md` for a comprehensive guide.
 
 ### Simple Example
 ```java
