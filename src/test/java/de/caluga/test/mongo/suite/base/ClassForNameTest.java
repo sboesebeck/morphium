@@ -14,6 +14,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import de.caluga.morphium.annotations.Index;
+import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
+
+import de.caluga.morphium.IndexDescription;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -236,9 +241,44 @@ public class ClassForNameTest {
         }
     }
 
+    /**
+     * Verifies that {@code WARN_ON_STARTUP} does NOT report missing indices for
+     * entities whose collection does not yet exist.
+     *
+     * <p>Before the fix, {@link Morphium#checkIndices} added ALL configured indices of
+     * a non-existent collection to the "missing" map, causing spurious WARN log lines
+     * for every test entity (and any application entity on a fresh database).
+     * After the fix, only collections that already exist but are missing indices are
+     * reported.
+     */
+    @Test
+    public void checkIndices_doesNotReportMissingIndicesForNonexistentCollection() {
+        MorphiumConfig cfg = new MorphiumConfig("classloader_indexwarn_test_db", 10, 10_000, 1_000);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+        cfg.collectionCheckSettings().setIndexCheck(IndexCheck.WARN_ON_STARTUP);
+        morphium = new Morphium(cfg);
+
+        // IndexedTestEntity has @Index annotations but its collection has never been created.
+        // checkIndices must not return it as "having missing indices".
+        Map<Class<?>, List<IndexDescription>> missing = morphium.checkIndices(
+                ci -> ci.getName().equals(IndexedTestEntity.class.getName()));
+
+        assertTrue(missing == null || !missing.containsKey(IndexedTestEntity.class),
+                "checkIndices must not report missing indices for a collection that does not exist yet");
+    }
+
     // ------------------------------------------------------------------
     // Test data classes
     // ------------------------------------------------------------------
+
+    @Entity(collectionName = "indexed_test_entity_for_warn_check")
+    @Index({"name, 1", "value, 1"})
+    public static class IndexedTestEntity {
+        @Id
+        public MorphiumId id;
+        public String name;
+        public String value;
+    }
 
     @Capped(maxEntries = 100, maxSize = 1024)
     @Entity(collectionName = "sample_capped_entity")
