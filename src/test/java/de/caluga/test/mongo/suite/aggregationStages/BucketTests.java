@@ -91,6 +91,8 @@ public class BucketTests extends MultiDriverTestBase {
         public Integer yearBorn, yearDied;
         public String nationality;
 
+        public Artist() {}
+
         public Artist(String firstName, String lastName, Integer yearBorn, Integer yearDied, String nationality) {
             this.firstName = firstName;
             this.lastName = lastName;

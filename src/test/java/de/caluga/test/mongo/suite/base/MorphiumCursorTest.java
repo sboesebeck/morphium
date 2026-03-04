@@ -108,6 +108,8 @@ public class MorphiumCursorTest extends MultiDriverTestBase {
         public long v2;
         public String v1str;
 
+        public SimpleEntity() {}
+
         public SimpleEntity(int v1, long v2) {
             this.v1 = v1;
             this.v2 = v2;

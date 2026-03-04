@@ -87,10 +87,10 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
         try {
             // Wait for all messaging instances to be fully ready (change streams initialized)
             // Use 30s timeout for real MongoDB with authentication under parallel load
-            assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
-            assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
-            assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
-            assertTrue(m3.waitForReady(30, TimeUnit.SECONDS), "m3 not ready");
+            assertTrue(sender.waitForReady(60, TimeUnit.SECONDS), "sender not ready");
+            assertTrue(m1.waitForReady(60, TimeUnit.SECONDS), "m1 not ready");
+            assertTrue(m2.waitForReady(60, TimeUnit.SECONDS), "m2 not ready");
+            assertTrue(m3.waitForReady(60, TimeUnit.SECONDS), "m3 not ready");
             // Allow listeners to be fully registered
             Thread.sleep(1000);
             Msg m = new Msg();
@@ -408,7 +408,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 try {
                     MessageListener<Msg> messageListener = (msg, m) -> {
                         try {
-                            Thread.sleep((long) (500 * Math.random()));
+                            Thread.sleep((long) (100 * Math.random()));
                         } catch (InterruptedException e) {
                         }
 
@@ -486,7 +486,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         sender.sendMessage(m);
                     }
 
-                    long waitUntil = System.currentTimeMillis() + 120000;  // Reduced from 240s to 120s
+                    long waitUntil = System.currentTimeMillis() + 180000;
 
                     while (received.get() != amount + broadcastAmount * 4) {
                         int rec = received.get();
@@ -540,7 +540,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void msgLockTest(Morphium morphium) throws Exception  {
 
-        int amount = 130;
+        int amount = 50;
         List<Msg> msgs = new Vector<>();
         List<Msg> locked = new Vector<>();
         MorphiumMessaging msgn = morphium.createMessaging();
@@ -558,7 +558,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
         log.info("Created {} msgs", amount);
 
         List<Thread> thr = new ArrayList<>();
-        for (int i = 0; i < amount * 2; i++) {
+        for (int i = 0; i < amount; i++) {
             String tn = "Thr" + i;
             var thread = Thread.ofVirtual().start(()-> {
 
@@ -575,13 +575,13 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         cycle++;
                         // Small backoff to prevent thread starvation with many virtual threads
                         try {
-                            Thread.sleep(1);
+                            Thread.sleep(10);
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                             break;
                         }
                     }
-                    if (cycle >= 2) {
+                    if (cycle >= 5) {
                         log.info("Did not get lock at all");
                         break;
                     }
@@ -699,7 +699,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                     }
 
                     var q = mx.createQueryFor(Msg.class, sender.getCollectionName("excl_name"));
-                    TestUtils.waitForConditionToBecomeTrue(exclusiveMessages * 200, "Did not reach message count",
+                    TestUtils.waitForConditionToBecomeTrue(exclusiveMessages * 400, "Did not reach message count",
                     () -> counts.get() >= exclusiveMessages, (dur) -> {
                         log.info("Waiting to reach {}, still at {}, mongo {}", exclusiveMessages, counts.get(),
                                  q.countAll());

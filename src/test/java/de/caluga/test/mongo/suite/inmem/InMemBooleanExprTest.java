@@ -57,6 +57,8 @@ class InMemBooleanExprTest extends MorphiumInMemTestBase {
         @Property(fieldName = "a_boolean_primitive")
         private boolean aBooleanPrimitive;
 
+        public BooleanTest() {}
+
         public BooleanTest(Boolean aBooleanObject, boolean aBooleanPrimitive) {
             this.aBooleanObject = aBooleanObject;
             this.aBooleanPrimitive = aBooleanPrimitive;
