@@ -5,9 +5,10 @@
 [![Quarkus](https://img.shields.io/badge/Quarkus-3.32.1-blue)](https://quarkus.io)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange)](https://adoptium.net)
 
-> **Note:** This showcase is built on the [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) fork.
-> Some features may not yet be available in the upstream [sboesebeck/morphium](https://github.com/sboesebeck/morphium).
-> Alignment with upstream is planned.
+> **Note:** This showcase is built on the [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) fork
+> (currently **6.2.0-SNAPSHOT**) via the [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) extension.
+> Fork improvements are being contributed back to the upstream [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
+> project via pull requests and are progressively merged.
 
 A comprehensive demo application showcasing all [Morphium](https://github.com/sboesebeck/morphium) ORM
 features with [Quarkus](https://quarkus.io) and [Qute](https://quarkus.io/guides/qute) templates.
