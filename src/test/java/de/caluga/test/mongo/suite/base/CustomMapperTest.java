@@ -304,7 +304,7 @@ public class CustomMapperTest extends MultiDriverTestBase {
         morphium.getMapper().deregisterCustomMapperFor(CustomMappedObject.class);
     }
 
-    private static class ComplexCustomMapperObject extends ObjectWithCustomMappedObject {
+    public static class ComplexCustomMapperObject extends ObjectWithCustomMappedObject {
         private List<Map<String, CustomMappedObject >> complexList;
         private Map<String, List<CustomMappedObject >> complexMap;
 

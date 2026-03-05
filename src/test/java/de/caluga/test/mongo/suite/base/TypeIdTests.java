@@ -212,6 +212,8 @@ public class TypeIdTests extends MultiDriverTestBase {
     public static class EmbSubClass extends EmbeddedObject {
         private String subElement;
 
+        public EmbSubClass() {}
+
         public EmbSubClass(String name, String value, long testValueLong, String subElement) {
             super(name, value, testValueLong);
             this.subElement = subElement;

@@ -62,6 +62,7 @@ public class MongoCommandTest {
                 //generating test-data
                 for (Field f : an.getAllFields(cls)) {
                     if (f.getAnnotation(Transient.class) != null) continue;
+                    if (Modifier.isStatic(f.getModifiers())) continue;
                     if (Modifier.isPublic(f.getModifiers()))continue;
                     f.setAccessible(true);
                     if (Integer.class.equals(f.getType()) || Long.class.equals(f.getType()) || Float.class.equals(f.getType()) || Double.class.equals(f.getType()) ||

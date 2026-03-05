@@ -120,6 +120,8 @@ class Simple {
 }
 
 class NoDefaultConstructorUncachedObject extends UncachedObject {
+    public NoDefaultConstructorUncachedObject() {}
+
     public NoDefaultConstructorUncachedObject(String v, int c) {
         setCounter(c);
         setStrValue(v);

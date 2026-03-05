@@ -163,6 +163,8 @@ public class LifecycleTest extends MultiDriverTestBase {
         @Id
         MorphiumId id;
 
+        public EntityPostLoad() {}
+
         public EntityPostLoad(String value) {
             this.value = value;
         }

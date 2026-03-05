@@ -885,7 +885,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             Object ret = null;
 
             try {
-                ret = cls.getDeclaredConstructor().newInstance();
+                Constructor<?> cons = cls.getDeclaredConstructor();
+                cons.setAccessible(true);
+                ret = cons.newInstance();
             } catch (Exception ignored) {
             }
 

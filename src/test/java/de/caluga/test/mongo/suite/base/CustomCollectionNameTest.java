@@ -75,6 +75,8 @@ assert eFetched.value == 1 : "fetched s2:";
         @Id
         MorphiumId id;
 
+        public EntityCollectionName() {}
+
         public EntityCollectionName(int value) {
             this.value = value;
         }

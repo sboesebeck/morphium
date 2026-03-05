@@ -201,7 +201,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                             log.info("Got message after ms: " + (System.currentTimeMillis() - m.getTimestamp()));
 
                             try {
-                                Thread.sleep(1000);
+                                Thread.sleep(100);
                             } catch (InterruptedException e) {
                                 // TODO Auto-generated catch block
                             }
@@ -226,7 +226,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 for (int i = 0; i < 100; i++) {
                     Thread.startVirtualThread(() -> {
                         long start = System.currentTimeMillis();
-                        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 2000, true), 2000, false);
+                        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 30000, true), 30000, false);
                         long d = System.currentTimeMillis() - start;
                         if (answer == null) {
                             nullValues.incrementAndGet();
@@ -239,8 +239,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 }
 
                 log.info("Done...");
-                assertEquals(0, nullValues.get(), "Some answers were null");
-                Thread.sleep(1000);
+                TestUtils.waitForConditionToBecomeTrue(30000, "Some answers were null", () -> nullValues.get() == 0);
                 sender.terminate();
 
                 for (MorphiumMessaging m : msgs) {

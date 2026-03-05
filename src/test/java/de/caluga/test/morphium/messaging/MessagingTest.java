@@ -39,6 +39,7 @@ public class MessagingTest extends MultiDriverTestBase {
 
 
     @Test
+    @Tag("external")
     @org.junit.jupiter.api.Timeout(value = 60, unit = java.util.concurrent.TimeUnit.SECONDS)
     public void runMessageRoundtripForEver() throws Exception {
         // This used to be an infinite soak test against a hard-coded local replica set.
@@ -47,8 +48,8 @@ public class MessagingTest extends MultiDriverTestBase {
         baseCfg.driverSettings().setDriverName(PooledDriver.driverName);
         baseCfg.connectionSettings().setMaxConnections(10);
         baseCfg.connectionSettings().setMaxWaitTime(10000);
-        baseCfg.connectionSettings().setConnectionTimeout(2000);
-        baseCfg.connectionSettings().setRetriesOnNetworkError(3);
+        baseCfg.connectionSettings().setConnectionTimeout(10000);
+        baseCfg.connectionSettings().setRetriesOnNetworkError(5);
         baseCfg.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
 
         // Use an isolated DB name for this test run
