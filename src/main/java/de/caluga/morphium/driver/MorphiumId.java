@@ -23,6 +23,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
     private static final int THE_MACHINE_ID;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
 
+
     static {
         try {
             THE_MACHINE_ID = createMachineId();

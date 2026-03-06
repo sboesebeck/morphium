@@ -694,6 +694,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private Object findByIdOrLazyOnCycle(Class<?> type, Object id, String collection) {
         String key = type.getName() + "#" + id;
         Set<String> inProgress = deserializingRefs.get();
+        boolean isTopLevel = inProgress.isEmpty();
         if (!inProgress.add(key)) {
             log.debug("Circular @Reference detected during deserialization: {} #{} — using lazy proxy", type.getSimpleName(), id);
             return morphium.createLazyLoadedEntity(type, id, collection);
@@ -702,6 +703,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return morphium.findById(type, id, collection);
         } finally {
             inProgress.remove(key);
+            if (isTopLevel) {
+                deserializingRefs.remove(); // Clean ThreadLocal to prevent leaks in thread pools
+            }
         }
     }
 
