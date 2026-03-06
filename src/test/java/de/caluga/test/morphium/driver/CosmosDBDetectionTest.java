@@ -126,6 +126,77 @@ public class CosmosDBDetectionTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void testPooledDriverAzureChinaDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("myaccount.mongo.cosmos.azure.cn:10255");
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+
+        // RU API (China)
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "myaccount.mongo.cosmos.azure.cn:10255");
+        assertTrue(result, "Should detect CosmosDB from Azure China RU API hostname");
+    }
+
+    @Test
+    public void testPooledDriverAzureChinaVCoreDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("mycluster.mongocluster.cosmos.azure.cn:10260");
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "mycluster.mongocluster.cosmos.azure.cn:10260");
+        assertTrue(result, "Should detect CosmosDB from Azure China vCore hostname");
+    }
+
+    @Test
+    public void testPooledDriverAzureUSGovDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("myaccount.mongo.cosmos.azure.us:10255");
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "myaccount.mongo.cosmos.azure.us:10255");
+        assertTrue(result, "Should detect CosmosDB from Azure US Gov RU API hostname");
+    }
+
+    @Test
+    public void testPooledDriverAzureUSGovVCoreDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("mycluster.mongocluster.cosmos.usgovcloudapi.net:10260");
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "mycluster.mongocluster.cosmos.usgovcloudapi.net:10260");
+        assertTrue(result, "Should detect CosmosDB from Azure US Gov vCore hostname");
+    }
+
+    @Test
+    public void testPooledDriverAzureGermanyDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("myaccount.mongo.cosmos.microsoftazure.de:10255");
+
+        Method detectMethod = PooledDriver.class.getDeclaredMethod("detectCosmosDB", HelloResult.class, String.class);
+        detectMethod.setAccessible(true);
+
+        HelloResult hello = new HelloResult();
+
+        boolean result = (boolean) detectMethod.invoke(driver, hello, "myaccount.mongo.cosmos.microsoftazure.de:10255");
+        assertTrue(result, "Should detect CosmosDB from Azure Germany hostname");
+    }
+
+    @Test
     public void testBackendTypeEnumValues() {
         // Ensure all expected values exist
         assertEquals(4, BackendType.values().length);

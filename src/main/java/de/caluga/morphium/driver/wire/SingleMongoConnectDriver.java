@@ -333,18 +333,16 @@ public class SingleMongoConnectDriver extends DriverBase {
                     inMemoryBackend = true;
                 }
 
-                // CosmosDB detection via hostname
+                // CosmosDB detection via hostname (all sovereign clouds)
                 String connectedHost = host.split(":")[0].toLowerCase();
-                if (connectedHost.endsWith(".mongo.cosmos.azure.com")
-                        || connectedHost.endsWith(".mongocluster.cosmos.azure.com")) {
+                if (isCosmosDBHost(connectedHost)) {
                     cosmosDB = true;
                 }
                 // Fallback: check seed hosts
                 if (!cosmosDB) {
                     for (String seed : getHostSeed()) {
                         String sh = seed.split(":")[0].toLowerCase();
-                        if (sh.endsWith(".mongo.cosmos.azure.com")
-                                || sh.endsWith(".mongocluster.cosmos.azure.com")) {
+                        if (isCosmosDBHost(sh)) {
                             cosmosDB = true;
                             break;
                         }
@@ -893,6 +891,21 @@ public class SingleMongoConnectDriver extends DriverBase {
     @Override
     public boolean isCosmosDB() {
         return cosmosDB;
+    }
+
+    private static boolean isCosmosDBHost(String host) {
+        if (host == null) return false;
+        // Azure Global (Commercial Cloud)
+        return host.endsWith(".mongo.cosmos.azure.com")
+            || host.endsWith(".mongocluster.cosmos.azure.com")
+            // Azure China (21Vianet)
+            || host.endsWith(".mongo.cosmos.azure.cn")
+            || host.endsWith(".mongocluster.cosmos.azure.cn")
+            // Azure US Government
+            || host.endsWith(".mongo.cosmos.azure.us")
+            || host.endsWith(".mongocluster.cosmos.usgovcloudapi.net")
+            // Azure Germany (legacy, deprecated but may still exist)
+            || host.endsWith(".mongo.cosmos.microsoftazure.de");
     }
 
     @Override

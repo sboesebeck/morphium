@@ -1474,7 +1474,7 @@ public class PooledDriver extends DriverBase {
 
     /**
      * Detect CosmosDB via hostname patterns and hello handshake signals.
-     * Signal 1: Hostname contains .mongo.cosmos.azure.com or .mongocluster.cosmos.azure.com (vCore)
+     * Signal 1: Hostname matches a CosmosDB endpoint (Global, China, US Gov)
      * Signal 2: Seed hosts contain CosmosDB patterns
      * Signal 3: setName == "globaldb" + SSL active (fallback heuristic)
      */
@@ -1502,8 +1502,17 @@ public class PooledDriver extends DriverBase {
     private static boolean isCosmosDBHost(String hostPort) {
         if (hostPort == null) return false;
         String h = hostPort.split(":")[0].toLowerCase();
+        // Azure Global (Commercial Cloud)
         return h.endsWith(".mongo.cosmos.azure.com")
-            || h.endsWith(".mongocluster.cosmos.azure.com");
+            || h.endsWith(".mongocluster.cosmos.azure.com")
+            // Azure China (21Vianet)
+            || h.endsWith(".mongo.cosmos.azure.cn")
+            || h.endsWith(".mongocluster.cosmos.azure.cn")
+            // Azure US Government
+            || h.endsWith(".mongo.cosmos.azure.us")
+            || h.endsWith(".mongocluster.cosmos.usgovcloudapi.net")
+            // Azure Germany (legacy, deprecated but may still exist)
+            || h.endsWith(".mongo.cosmos.microsoftazure.de");
     }
 
     @Override
