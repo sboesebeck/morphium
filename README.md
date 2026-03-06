@@ -30,6 +30,8 @@ interactive web pages:
 - **Polymorphism** -- Inheritance mapping, custom type mappers
 - **Query Builder** -- Fluent query API, complex filters, sorting, projection
 - **Bulk Import** -- `SequenceGenerator`, batch inserts
+- **Reference Cascade** -- `@Reference(cascadeDelete, orphanRemoval)`, bidirectional references with automatic cycle detection
+- **CosmosDB Support** -- Auto-detection via `BackendType` (Global, China, US Gov); graceful degradation for unsupported features
 - **Docs Hub** -- Integrated Morphium documentation rendered from Markdown
 
 ## Prerequisites
