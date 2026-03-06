@@ -22,9 +22,6 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
 
     private static final int THE_MACHINE_ID;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
-    @SuppressWarnings("unused")
-    public static ThreadLocal<Short> threadPid;
-
     static {
         try {
             THE_MACHINE_ID = createMachineId();
@@ -98,10 +95,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
         }
     }
 
-    @SuppressWarnings("CommentedOutCode")
     private static short createPID() {
-        //        if (threadPid == null || threadPid.get() == null) {
-
         short processId;
         try {
             String pName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
@@ -114,12 +108,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
             LoggerFactory.getLogger(MorphiumId.class).error("could not get processID - using random fallback");
             processId = (short) new SecureRandom().nextInt();
         }
-        //            threadPid = new ThreadLocal<>();
-        //            threadPid.set(processId);
         return processId;
-        //        }
-        //
-        //        return threadPid.get();
     }
 
     private static int createMachineId() {
