@@ -87,7 +87,7 @@ BlogPost post = morphium.findById(BlogPost.class, id);
 String name = post.getAuthor().getName(); // DB query happens here
 ```
 
-**Important for bidirectional references:** If entity A references B and B references A, you must use `lazyLoading = true` on at least one side to prevent infinite deserialization loops.
+**Bidirectional references:** If entity A references B and B references A, Morphium automatically detects the cycle during deserialization and breaks it by substituting a lazy proxy for the back-reference. This works transparently even without `lazyLoading = true` — no `StackOverflowError` will occur. For best performance you can still set `lazyLoading = true` on one side to avoid the extra DB round-trip.
 
 ## cascadeDelete (default: false)
 
@@ -178,9 +178,10 @@ morphium.store(a);
 ```
 
 **Best practices for bidirectional references:**
-1. Use `lazyLoading = true` on at least one side to prevent deserialization cycles
-2. Use `automaticStore = false` on one side and store that entity first
-3. Both approaches can be combined:
+1. Cycle detection is automatic — bidirectional references work out of the box
+2. For performance, consider `lazyLoading = true` on one side to skip a DB round-trip
+3. Use `automaticStore = false` on one side and store that entity first
+4. These approaches can be combined:
 
 ```java
 @Entity

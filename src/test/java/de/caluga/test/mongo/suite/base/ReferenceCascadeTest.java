@@ -135,6 +135,36 @@ public class ReferenceCascadeTest extends MultiDriverTestBase {
         assertEquals(a.id, readA.refB.getRefA().getId());
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testBidirectionalReferenceWithoutLazyLoading(Morphium morphium) throws Exception {
+        // Before deserialization cycle detection, this would StackOverflow.
+        // Now the ObjectMapper detects (type#id) already being loaded and
+        // breaks the cycle with a lazy proxy automatically.
+        morphium.clearCollection(CycleEntityA.class);
+        morphium.clearCollection(CycleEntityB.class);
+
+        CycleEntityA a = new CycleEntityA();
+        a.name = "A";
+        CycleEntityB b = new CycleEntityB();
+        b.name = "B";
+
+        a.refB = b;
+        b.refA = a;
+
+        morphium.store(a);
+        Thread.sleep(200);
+
+        // This was previously impossible without lazyLoading — would cause infinite recursion
+        CycleEntityA readA = morphium.findById(CycleEntityA.class, a.id);
+        assertNotNull(readA, "A should be loaded from DB");
+        assertEquals("A", readA.name);
+        assertNotNull(readA.refB, "B reference should be resolved");
+        assertEquals("B", readA.refB.name);
+        // B.refA should be resolved as lazy proxy (cycle broken)
+        assertNotNull(readA.refB.refA, "Back-reference to A should not be null (lazy proxy)");
+    }
+
     // ========================
     // Cascade Delete Tests
     // ========================
