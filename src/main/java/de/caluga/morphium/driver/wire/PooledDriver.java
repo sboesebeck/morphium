@@ -110,6 +110,7 @@ public class PooledDriver extends DriverBase {
     private final Object primaryNodeLock = new Object();  // Lock for primaryNode updates only
     private volatile boolean inMemoryBackend = false;
     private volatile boolean morphiumServer = false;
+    private volatile boolean cosmosDB = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
         Thread.ofPlatform().name("MCon-", 0).factory());
 
@@ -353,12 +354,21 @@ public class PooledDriver extends DriverBase {
         if (hello == null)
             return;
 
-        // Check if connected to MorphiumServer (InMemory backend)
-        if (Boolean.TRUE.equals(hello.getMorphiumServer())) {
+        // Detect backend type from hello handshake
+        if (!morphiumServer && Boolean.TRUE.equals(hello.getMorphiumServer())) {
             morphiumServer = true;
+            log.info("Detected MorphiumServer backend (host: {})", hostConnected);
         }
-        if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
+        if (!inMemoryBackend && Boolean.TRUE.equals(hello.getInMemoryBackend())) {
             inMemoryBackend = true;
+            log.info("Detected InMemory backend (host: {})", hostConnected);
+        }
+        if (!cosmosDB) {
+            cosmosDB = detectCosmosDB(hello, hostConnected);
+            if (cosmosDB) {
+                log.info("Detected Azure CosmosDB backend (host: {}, setName: {})",
+                         hostConnected, hello.getSetName());
+            }
         }
 
         // Keep track of server-advertised vs reachable names.
@@ -1455,6 +1465,54 @@ public class PooledDriver extends DriverBase {
     @Override
     public boolean isMorphiumServer() {
         return morphiumServer;
+    }
+
+    @Override
+    public boolean isCosmosDB() {
+        return cosmosDB;
+    }
+
+    /**
+     * Detect CosmosDB via hostname patterns and hello handshake signals.
+     * Signal 1: Hostname matches a CosmosDB endpoint (Global, China, US Gov)
+     * Signal 2: Seed hosts contain CosmosDB patterns
+     * Signal 3: setName == "globaldb" + SSL active (fallback heuristic)
+     */
+    private boolean detectCosmosDB(HelloResult hello, String host) {
+        // Signal 1: Connected host is a CosmosDB endpoint
+        if (isCosmosDBHost(host)) {
+            return true;
+        }
+
+        // Signal 2: Any seed host is a CosmosDB endpoint
+        for (String seed : getHostSeed()) {
+            if (isCosmosDBHost(seed)) {
+                return true;
+            }
+        }
+
+        // Signal 3: setName == "globaldb" with SSL (CosmosDB's default replica set name)
+        if ("globaldb".equals(hello.getSetName()) && isUseSSL()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isCosmosDBHost(String hostPort) {
+        if (hostPort == null) return false;
+        String h = hostPort.split(":")[0].toLowerCase();
+        // Azure Global (Commercial Cloud)
+        return h.endsWith(".mongo.cosmos.azure.com")
+            || h.endsWith(".mongocluster.cosmos.azure.com")
+            // Azure China (21Vianet)
+            || h.endsWith(".mongo.cosmos.azure.cn")
+            || h.endsWith(".mongocluster.cosmos.azure.cn")
+            // Azure US Government
+            || h.endsWith(".mongo.cosmos.azure.us")
+            || h.endsWith(".mongocluster.cosmos.usgovcloudapi.net")
+            // Azure Germany (legacy, deprecated but may still exist)
+            || h.endsWith(".mongo.cosmos.microsoftazure.de");
     }
 
     @Override
