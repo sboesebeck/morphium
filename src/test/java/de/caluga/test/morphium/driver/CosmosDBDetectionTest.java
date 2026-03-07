@@ -225,4 +225,68 @@ public class CosmosDBDetectionTest extends MorphiumInMemTestBase {
         assertNotNull(type);
         assertEquals(morphium.getDriver().getBackendType(), type);
     }
+
+    @Test
+    public void testPooledDriverMorphiumServerDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+
+        // Before detection: default is MONGODB
+        assertEquals(BackendType.MONGODB, driver.getBackendType());
+        assertFalse(driver.isMorphiumServer());
+
+        // Simulate hello response with morphiumServer=true
+        Field morphiumServerField = PooledDriver.class.getDeclaredField("morphiumServer");
+        morphiumServerField.setAccessible(true);
+        morphiumServerField.set(driver, true);
+
+        assertTrue(driver.isMorphiumServer());
+        assertEquals(BackendType.MORPHIUM_SERVER, driver.getBackendType());
+    }
+
+    @Test
+    public void testPooledDriverInMemoryDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+
+        // Simulate hello response with inMemoryBackend=true and morphiumServer=true
+        Field inMemoryField = PooledDriver.class.getDeclaredField("inMemoryBackend");
+        inMemoryField.setAccessible(true);
+        inMemoryField.set(driver, true);
+
+        Field morphiumServerField = PooledDriver.class.getDeclaredField("morphiumServer");
+        morphiumServerField.setAccessible(true);
+        morphiumServerField.set(driver, true);
+
+        assertTrue(driver.isInMemoryBackend());
+        assertTrue(driver.isMorphiumServer());
+        // IN_MEMORY takes priority over MORPHIUM_SERVER
+        assertEquals(BackendType.IN_MEMORY, driver.getBackendType());
+    }
+
+    @Test
+    public void testPooledDriverPlainMongoDBDetection() throws Exception {
+        PooledDriver driver = new PooledDriver();
+        driver.setHostSeed("mongo1:27017");
+
+        assertFalse(driver.isCosmosDB());
+        assertFalse(driver.isMorphiumServer());
+        assertFalse(driver.isInMemoryBackend());
+        assertEquals(BackendType.MONGODB, driver.getBackendType());
+    }
+
+    @Test
+    public void testBackendTypePriority() throws Exception {
+        // CosmosDB + MorphiumServer flags both set: CosmosDB should win over MORPHIUM_SERVER
+        PooledDriver driver = new PooledDriver();
+
+        Field cosmosDBField = PooledDriver.class.getDeclaredField("cosmosDB");
+        cosmosDBField.setAccessible(true);
+        cosmosDBField.set(driver, true);
+
+        Field morphiumServerField = PooledDriver.class.getDeclaredField("morphiumServer");
+        morphiumServerField.setAccessible(true);
+        morphiumServerField.set(driver, true);
+
+        // IN_MEMORY > CosmosDB > MORPHIUM_SERVER > MONGODB
+        assertEquals(BackendType.COSMOSDB, driver.getBackendType());
+    }
 }

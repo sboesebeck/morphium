@@ -325,12 +325,14 @@ public class SingleMongoConnectDriver extends DriverBase {
                 setMaxMessageSize(hello.getMaxMessageSizeBytes());
                 setMaxWriteBatchSize(hello.getMaxWriteBatchSize());
 
-                // Extract backend type flags from hello result
+                // Detect backend type from hello handshake
                 if (Boolean.TRUE.equals(hello.getMorphiumServer())) {
                     morphiumServer = true;
+                    log.info("Detected MorphiumServer backend (host: {})", host);
                 }
                 if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
                     inMemoryBackend = true;
+                    log.info("Detected InMemory backend (host: {})", host);
                 }
 
                 // CosmosDB detection via hostname (all sovereign clouds)

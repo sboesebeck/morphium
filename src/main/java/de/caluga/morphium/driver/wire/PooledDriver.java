@@ -354,15 +354,15 @@ public class PooledDriver extends DriverBase {
         if (hello == null)
             return;
 
-        // Check if connected to MorphiumServer (InMemory backend)
-        if (Boolean.TRUE.equals(hello.getMorphiumServer())) {
+        // Detect backend type from hello handshake
+        if (!morphiumServer && Boolean.TRUE.equals(hello.getMorphiumServer())) {
             morphiumServer = true;
+            log.info("Detected MorphiumServer backend (host: {})", hostConnected);
         }
-        if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
+        if (!inMemoryBackend && Boolean.TRUE.equals(hello.getInMemoryBackend())) {
             inMemoryBackend = true;
+            log.info("Detected InMemory backend (host: {})", hostConnected);
         }
-
-        // CosmosDB detection (only check once)
         if (!cosmosDB) {
             cosmosDB = detectCosmosDB(hello, hostConnected);
             if (cosmosDB) {
