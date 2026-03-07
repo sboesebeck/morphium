@@ -224,6 +224,7 @@ public class LastAccessTest extends MultiDriverTestBase {
 
         // Now using ID query
         lc = la.getLastChange();
+        Thread.sleep(50); // Ensure timestamp difference from previous operation
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class).f("_id").eq(la.getId());
         q.set("int_value", 1);
 
@@ -238,6 +239,7 @@ public class LastAccessTest extends MultiDriverTestBase {
         assert(la.getIntValue() == 1);
         assert(lc != la.getLastChange());
         lc = la.getLastChange();
+        Thread.sleep(50); // Ensure timestamp difference from previous operation
         morphium.inc(q, "int_value", 41);
 
         final long lc4 = lc;
