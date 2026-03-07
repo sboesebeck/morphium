@@ -75,6 +75,15 @@
                     <td><code>{database}</code></td>
                 </tr>
                 <tr>
+                    <td><strong>Backend Type</strong></td>
+                    <td>
+                        <code>{backendType}</code>
+                        {#if backendType == "COSMOSDB"}
+                        <span class="tag tag-yellow" style="margin-left:0.5rem">CosmosDB detected</span>
+                        {/if}
+                    </td>
+                </tr>
+                <tr>
                     <td><strong>Connected</strong></td>
                     <td>
                         {#if connected}

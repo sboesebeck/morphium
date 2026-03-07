@@ -177,12 +177,19 @@ public class BlogPost {
      * on the reviewer object is called (e.g., {@code getReviewer().getDisplayName()}). This is useful
      * for references that are rarely accessed, as it avoids unnecessary database round-trips.</p>
      *
+     * <p>{@code cascadeDelete = true} means that when this BlogPost is deleted via
+     * {@code morphium.delete(post)}, the referenced reviewer Author is automatically deleted as well.
+     * Compare with the {@code author} field above which does NOT use cascade — deleting a post leaves
+     * the author intact because it may be shared across multiple posts.</p>
+     *
      * <p>Under the hood, Morphium creates a proxy (using Java dynamic proxies or cglib) that intercepts
      * method calls and triggers the load on first access.</p>
      */
     // @Reference(lazyLoading = true): The Author is NOT loaded from DB until you actually call a method on it.
     // This saves a DB round-trip if the reviewer is never accessed in a given request.
-    @Reference(lazyLoading = true)
+    // cascadeDelete = true: When this BlogPost is deleted, the reviewer Author is deleted too.
+    // Compare with "author" above (no cascade) — a shared reference where cascade would be dangerous.
+    @Reference(lazyLoading = true, cascadeDelete = true)
     private Author reviewer;
 
     /**

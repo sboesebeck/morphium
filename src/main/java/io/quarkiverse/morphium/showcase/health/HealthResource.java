@@ -16,6 +16,7 @@
 package io.quarkiverse.morphium.showcase.health;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.BackendType;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
 import io.quarkiverse.morphium.showcase.common.DocLink;
@@ -80,6 +81,7 @@ public class HealthResource {
         boolean connected = driver.isConnected();
         String driverName = driver.getClass().getSimpleName();
         String database = morphium.getConfig().connectionSettings().getDatabase();
+        BackendType backendType = driver.getBackendType();
 
         Map<DriverStatsKey, Double> stats = driver.getDriverStats();
         Map<String, Long> poolStats = new LinkedHashMap<>();
@@ -108,6 +110,7 @@ public class HealthResource {
         return demoHealth.data("connected", connected)
                 .data("driverName", driverName)
                 .data("database", database)
+                .data("backendType", backendType.name())
                 .data("poolStats", poolStats)
                 .data("hostConnections", hostConnections)
                 .data("livenessStatus", livenessStatus)

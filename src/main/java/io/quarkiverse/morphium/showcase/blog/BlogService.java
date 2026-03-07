@@ -216,9 +216,12 @@ public class BlogService {
     /**
      * Deletes a blog post by its id.
      *
-     * <p>Note: Deleting a BlogPost does NOT delete the referenced Author, because this
-     * {@code @Reference} does not use {@code cascadeDelete = true}. The Author continues to exist
-     * in the "authors" collection. To cascade deletes, use {@code @Reference(cascadeDelete = true)}.</p>
+     * <p>Because the {@code author} field uses plain {@code @Reference} (no cascade), the Author
+     * remains in the "authors" collection after the BlogPost is deleted — it may be shared across
+     * multiple posts.</p>
+     *
+     * <p>The {@code reviewer} field, however, uses {@code @Reference(cascadeDelete = true)}, so
+     * Morphium automatically deletes the reviewer Author when this BlogPost is deleted.</p>
      *
      * @param id the blog post id
      */
