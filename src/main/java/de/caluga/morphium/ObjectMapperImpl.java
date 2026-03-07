@@ -40,7 +40,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -1554,7 +1553,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             Object unmarshalled = unmarshallInternal(val);
             elementClass = ClassUtils.primitiveToWrapper(elementClass);
 
-            if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
+            if (unmarshalled instanceof String && elementClass != null && elementClass.isEnum()) {
+                unmarshalled = Enum.valueOf((Class<? extends Enum>) elementClass, (String) unmarshalled);
+            } else if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
                 try {
                     unmarshalled = AnnotationAndReflectionHelper.convertType(unmarshalled, "", elementClass);
                 } catch (Exception e) {
@@ -1785,7 +1786,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
             Object unmarshalled = unmarshallInternal(val);
 
-            if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
+            if (unmarshalled instanceof String && elementClass != null && elementClass.isEnum()) {
+                unmarshalled = Enum.valueOf((Class<? extends Enum>) elementClass, (String) unmarshalled);
+            } else if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
                 try {
                     unmarshalled = AnnotationAndReflectionHelper.convertType(unmarshalled, "", elementClass);
                 } catch (Exception e) {

@@ -2981,6 +2981,26 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return (disableAsyncWrites.get() == null || disableAsyncWrites.get()) && getConfig().cacheSettings().isAsyncWritesEnabled();
     }
 
+    /**
+     * Resets all per-thread overrides (autoValues, readCache, writeBuffer, asyncWrites)
+     * back to their defaults (= follow global config).
+     * <p>
+     * Call this at the end of a request or task to prevent state leaking between
+     * threads in a thread pool. This is especially important with virtual threads
+     * where thread-local state is not automatically cleaned up.
+     * <p>
+     * <b>Future:</b> Once {@code java.lang.ScopedValue} (JEP 487) is finalized,
+     * these thread-local overrides should be replaced with scoped values, which
+     * provide automatic cleanup at scope exit and are inherently safe with
+     * virtual threads.
+     */
+    public void resetThreadLocalOverrides() {
+        enableAutoValues.remove();
+        enableReadCache.remove();
+        disableWriteBuffer.remove();
+        disableAsyncWrites.remove();
+    }
+
     public void queueTask(Runnable runnable) {
         boolean queued = false;
 
