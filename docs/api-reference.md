@@ -95,6 +95,39 @@ public boolean isTransactionInProgress()
 public MorphiumTransactionContext getTransactionContext()
 ```
 
+#### Per-Thread Behavior Overrides
+
+Morphium allows overriding certain global settings on a per-thread basis. This is useful for temporarily disabling caching or auto-values within a specific request or task.
+
+```java
+// Disable/enable auto-values for the current thread
+public void disableAutoValuesForThread()
+public void enableAutoValuesForThread()
+public boolean isAutoValuesEnabledForThread()
+
+// Disable/enable read cache for the current thread
+public void disableReadCacheForThread()
+public void enableReadCacheForThread()
+public boolean isReadCacheEnabledForThread()
+
+// Disable/enable write buffer for the current thread
+public void disableWriteBufferForThread()
+public void enableWriteBufferForThread()
+public boolean isWriteBufferEnabledForThread()
+
+// Disable/enable async writes for the current thread
+public void disableAsyncWritesForThread()
+public void enableAsyncWritesForThread()
+public boolean isAsyncWritesEnabledForThread()
+
+// Reset ALL per-thread overrides back to defaults (= follow global config)
+public void resetThreadLocalOverrides()
+```
+
+**Important:** These overrides are backed by `ThreadLocal` and are **not** automatically cleaned up. In thread-pool or virtual-thread environments, always call `resetThreadLocalOverrides()` at the end of a request or task to prevent state from leaking between threads.
+
+> **Future improvement:** Once `java.lang.ScopedValue` ([JEP 487](https://openjdk.org/jeps/487)) is finalized (currently in preview as of JDK 24), these thread-local overrides should be replaced with scoped values. Scoped values provide automatic cleanup at scope exit and are inherently safe with virtual threads — eliminating the need for manual `resetThreadLocalOverrides()` calls.
+
 ## Query API
 
 ### Query Interface
