@@ -1933,8 +1933,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     long now = System.currentTimeMillis();
 
                     for (String ctf : lst) {
-                        Object val = null;
                         Field f = getARHelper().getField(type, ctf);
+
+                        // Don't overwrite a manually set creation time
+                        Object existing = f.get(o);
+                        if (existing != null) {
+                            continue;
+                        }
+
+                        Object val = null;
 
                         if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
                             val = now;
