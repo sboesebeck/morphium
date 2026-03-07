@@ -107,7 +107,7 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
         }
         if (includeClient) {
             ret.put("client", Doc.of("application", Doc.of("name", "Morphium"),
-                                     "driver", Doc.of("name", "Morphium V6/" + driverName, "version", "6.1"),
+                                     "driver", Doc.of("name", "Morphium V6/" + driverName, "version", "6.2"),
                                      "os", Doc.of("type", System.getProperty("os.name"))));
         }
         // Advertise supported compressors to the server (MongoDB wire protocol compression negotiation)
