@@ -709,15 +709,21 @@ public abstract class MorphiumBase {
         // Orphan removal: collect old references before store
         CascadeHelper.collectOrphanCandidates(this, o);
 
-        if (getARHelper().getId(o) != null) {
-            getWriterForClass(o.getClass()).store(o, collection, callback);
-        } else {
-            getWriterForClass(o.getClass()).insert(o, collection, callback);
-        }
+        try {
+            if (getARHelper().getId(o) != null) {
+                getWriterForClass(o.getClass()).store(o, collection, callback);
+            } else {
+                getWriterForClass(o.getClass()).insert(o, collection, callback);
+            }
 
-        // Orphan removal: delete references that are no longer present
-        if (callback == null) {
-            CascadeHelper.deleteOrphans(this, o);
+            // Orphan removal: delete references that are no longer present
+            if (callback == null) {
+                CascadeHelper.deleteOrphans(this, o);
+            }
+        } catch (RuntimeException e) {
+            // Ensure pendingOrphans ThreadLocal is cleaned up on store failure
+            CascadeHelper.clearPendingOrphans(o);
+            throw e;
         }
     }
 

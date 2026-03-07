@@ -8,6 +8,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Helper class for cascade operations on @Reference fields.
@@ -24,6 +25,10 @@ public class CascadeHelper {
     private static final ThreadLocal<Map<Object, List<OrphanCandidate>>> pendingOrphans =
         ThreadLocal.withInitial(IdentityHashMap::new);
 
+    // Class-level caches to avoid scanning all fields on every store/delete (see @Lifecycle pattern)
+    private static final Map<Class<?>, Boolean> cascadeDeleteCache = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, Boolean> orphanRemovalCache = new ConcurrentHashMap<>();
+
     record OrphanCandidate(Class<?> type, Object id, String collection) {}
 
     /**
@@ -34,22 +39,23 @@ public class CascadeHelper {
     public static void cascadeDelete(MorphiumBase morphium, Object entity) {
         if (entity == null) return;
 
+        AnnotationAndReflectionHelper arHelper = morphium.getARHelper();
+        Object realEntity = arHelper.getRealObject(entity);
+        if (realEntity == null) return;
+
+        // Cached check: skip field scan entirely if class has no @Reference(cascadeDelete=true)
+        if (!hasCascadeDelete(arHelper, realEntity.getClass())) return;
+
         Set<Object> inProgress = deletingObjects.get();
         if (!inProgress.add(entity)) return; // Cycle detected, skip
 
         boolean isTopLevel = (inProgress.size() == 1);
         try {
-            AnnotationAndReflectionHelper arHelper = morphium.getARHelper();
-            Object realEntity = arHelper.getRealObject(entity);
-            if (realEntity == null) return;
-
-            boolean hasCascade = false;
             for (Field fld : arHelper.getAllFields(realEntity.getClass())) {
                 if (!fld.isAnnotationPresent(Reference.class)) continue;
                 Reference ref = fld.getAnnotation(Reference.class);
                 if (!ref.cascadeDelete()) continue;
 
-                hasCascade = true;
                 fld.setAccessible(true);
                 Object value;
                 try {
@@ -73,7 +79,7 @@ public class CascadeHelper {
                 }
             }
 
-            if (hasCascade && log.isDebugEnabled()) {
+            if (log.isDebugEnabled()) {
                 log.debug("Cascade delete processed for {}", realEntity.getClass().getSimpleName());
             }
         } finally {
@@ -97,18 +103,33 @@ public class CascadeHelper {
     }
 
     /**
-     * Checks if any @Reference field on the entity has cascadeDelete=true.
-     * Used to avoid unnecessary processing.
+     * Cached check whether any @Reference field on the given class has cascadeDelete=true.
+     * Result is computed once per class and cached (similar to @Lifecycle marker pattern).
      */
-    public static boolean hasCascadeDelete(MorphiumBase morphium, Object entity) {
-        if (entity == null) return false;
-        AnnotationAndReflectionHelper arHelper = morphium.getARHelper();
-        for (Field fld : arHelper.getAllFields(entity.getClass())) {
-            if (fld.isAnnotationPresent(Reference.class) && fld.getAnnotation(Reference.class).cascadeDelete()) {
-                return true;
+    public static boolean hasCascadeDelete(AnnotationAndReflectionHelper arHelper, Class<?> type) {
+        return cascadeDeleteCache.computeIfAbsent(type, cls -> {
+            for (Field fld : arHelper.getAllFields(cls)) {
+                if (fld.isAnnotationPresent(Reference.class) && fld.getAnnotation(Reference.class).cascadeDelete()) {
+                    return true;
+                }
             }
-        }
-        return false;
+            return false;
+        });
+    }
+
+    /**
+     * Cached check whether any @Reference field on the given class has orphanRemoval=true.
+     * Result is computed once per class and cached (similar to @Lifecycle marker pattern).
+     */
+    public static boolean hasOrphanRemoval(AnnotationAndReflectionHelper arHelper, Class<?> type) {
+        return orphanRemovalCache.computeIfAbsent(type, cls -> {
+            for (Field fld : arHelper.getAllFields(cls)) {
+                if (fld.isAnnotationPresent(Reference.class) && fld.getAnnotation(Reference.class).orphanRemoval()) {
+                    return true;
+                }
+            }
+            return false;
+        });
     }
 
     /**
@@ -123,6 +144,9 @@ public class CascadeHelper {
         Object realEntity = arHelper.getRealObject(entity);
         if (realEntity == null) return;
 
+        // Cached check: skip entirely if class has no @Reference(orphanRemoval=true)
+        if (!hasOrphanRemoval(arHelper, realEntity.getClass())) return;
+
         Object entityId;
         try {
             entityId = arHelper.getId(realEntity);
@@ -130,16 +154,6 @@ public class CascadeHelper {
             return; // No @Id field
         }
         if (entityId == null) return; // Insert, not update — nothing to orphan-check
-
-        // Check if any field has orphanRemoval
-        boolean hasOrphanRemoval = false;
-        for (Field fld : arHelper.getAllFields(realEntity.getClass())) {
-            if (fld.isAnnotationPresent(Reference.class) && fld.getAnnotation(Reference.class).orphanRemoval()) {
-                hasOrphanRemoval = true;
-                break;
-            }
-        }
-        if (!hasOrphanRemoval) return;
 
         // Load old version from DB
         @SuppressWarnings("unchecked")
@@ -213,6 +227,24 @@ public class CascadeHelper {
         if (pendingOrphans.get().isEmpty()) {
             pendingOrphans.remove();
         }
+    }
+
+    /**
+     * Discards pending orphan candidates for the given entity without deleting anything.
+     * Called when the store operation fails, to prevent ThreadLocal leaks.
+     */
+    public static void clearPendingOrphans(Object entity) {
+        if (entity == null) return;
+        pendingOrphans.get().remove(entity);
+        cleanupPendingOrphans();
+    }
+
+    /**
+     * Clears the class-level caches. Useful for testing or after dynamic class changes.
+     */
+    public static void clearCaches() {
+        cascadeDeleteCache.clear();
+        orphanRemovalCache.clear();
     }
 
     /**
