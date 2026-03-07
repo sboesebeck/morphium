@@ -40,6 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import sun.reflect.ReflectionFactory;
+
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -49,6 +51,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
+    private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map < Class<?>, NameProvider > nameProviders;
     private final JSONParser jsonParser = new JSONParser();
 
@@ -891,8 +894,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             if (ret == null) {
-                throw new IllegalArgumentException("Could not instantiate " + cls.getName()
-                    + ": entity classes must declare a public no-arg constructor");
+                try {
+                    @SuppressWarnings("unchecked")
+                    Constructor<Object> constructor = (Constructor<Object>) reflection.newConstructorForSerialization(
+                        cls, Object.class.getDeclaredConstructor());
+                    ret = constructor.newInstance();
+                } catch (Exception e) {
+                    log.error("Could not instantiate {} via ReflectionFactory", cls.getName(), e);
+                }
+            }
+
+            if (ret == null) {
+                throw new IllegalArgumentException("Could not instantiate " + cls.getName());
             }
 
             List<String> flds = annotationHelper.getFields(cls);
