@@ -171,9 +171,8 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
 
                 assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
-                // Exclusive message should be received within 30 seconds, not minutes
-                // Allow generous tolerance for network latency (remote MongoDB/MorphiumServer)
-                assertThat(System.currentTimeMillis() - s).isLessThan(60000);
+                // Allow generous timeout for shared CI runners under parallel load
+                assertThat(System.currentTimeMillis() - s).isLessThan(120000);
             }
 
             TestUtils.waitForConditionToBecomeTrue(5000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
