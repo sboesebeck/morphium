@@ -40,6 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import sun.reflect.ReflectionFactory;
+
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -49,6 +51,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
+    private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map < Class<?>, NameProvider > nameProviders;
     private final JSONParser jsonParser = new JSONParser();
 
@@ -58,6 +61,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Map < String, Class<?>> classByCollectionName = new ConcurrentHashMap<>();
     private static volatile Map<String, Class<?>> cachedClassByCollectionName = null;
     private Morphium morphium;
+
+    // Tracks objects currently being serialized to detect circular @Reference chains
+    private static final ThreadLocal<Set<Object>> serializingObjects =
+        ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
+
+    // Tracks (type#id) pairs currently being deserialized to detect circular @Reference chains
+    private static final ThreadLocal<Set<String>> deserializingRefs =
+        ThreadLocal.withInitial(HashSet::new);
 
     public ObjectMapperImpl() {
         nameProviders = new ConcurrentHashMap<>();
@@ -287,6 +298,28 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return new HashMap<>();
         }
 
+        // Cycle detection: track objects currently being serialized
+        Set<Object> inProgress = serializingObjects.get();
+        boolean isTopLevel = inProgress.isEmpty();
+
+        if (!inProgress.add(o)) {
+            // Already serializing this exact object instance — circular reference
+            try {
+                Object id = annotationHelper.getId(o);
+                if (id != null) {
+                    // Object has an ID, return minimal reference doc
+                    return new HashMap<>(UtilsMap.of("_id", id));
+                }
+            } catch (Exception e) {
+                // getId may throw if no @Id field — fall through to exception
+            }
+            throw new IllegalStateException(
+                "Circular @Reference detected while auto-storing: " +
+                o.getClass().getSimpleName() + " is already being serialized. " +
+                "Store one side of the cycle manually first or set automaticStore=false on one reference.");
+        }
+
+        try {
         Class<?> cls = annotationHelper.getRealClass(o.getClass());
 
         if (customMappers.containsKey(cls)) {
@@ -589,6 +622,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
 
         return dbo;
+        } finally {
+            inProgress.remove(o);
+            if (isTopLevel) {
+                serializingObjects.remove(); // Clean ThreadLocal to prevent leaks
+            }
+        }
     }
 
     private Object automaticStore(Reference r, Object rec) {
@@ -612,6 +651,29 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
 
         return id;
+    }
+
+    /**
+     * Resolve a @Reference by ID, with automatic cycle detection.
+     * If the same (type, id) is already being deserialized further up the call stack,
+     * a lazy proxy is returned instead of fetching — breaking the infinite loop.
+     */
+    private Object findByIdOrLazyOnCycle(Class<?> type, Object id, String collection) {
+        String key = type.getName() + "#" + id;
+        Set<String> inProgress = deserializingRefs.get();
+        boolean isTopLevel = inProgress.isEmpty();
+        if (!inProgress.add(key)) {
+            log.debug("Circular @Reference detected during deserialization: {} #{} — using lazy proxy", type.getSimpleName(), id);
+            return morphium.createLazyLoadedEntity(type, id, collection);
+        }
+        try {
+            return morphium.findById(type, id, collection);
+        } finally {
+            inProgress.remove(key);
+            if (isTopLevel) {
+                deserializingRefs.remove(); // Clean ThreadLocal to prevent leaks in thread pools
+            }
+        }
     }
 
     public List<Object> serializeIterable(Iterable v, Class<?> collectionClass, Type collectionType) {
@@ -891,8 +953,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             if (ret == null) {
-                throw new IllegalArgumentException("Could not instantiate " + cls.getName()
-                    + ": entity classes must declare a public no-arg constructor");
+                try {
+                    @SuppressWarnings("unchecked")
+                    Constructor<Object> constructor = (Constructor<Object>) reflection.newConstructorForSerialization(
+                        cls, Object.class.getDeclaredConstructor());
+                    ret = constructor.newInstance();
+                } catch (Exception e) {
+                    log.error("Could not instantiate {} via ReflectionFactory", cls.getName(), e);
+                }
+            }
+
+            if (ret == null) {
+                throw new IllegalArgumentException("Could not instantiate " + cls.getName());
             }
 
             List<String> flds = annotationHelper.getFields(cls);
@@ -1085,7 +1157,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     value = morphium.createLazyLoadedEntity(fldType, id, collectionName);
                                 } else {
                                     try {
-                                        value = morphium.findById(type, id, collectionName);
+                                        value = findByIdOrLazyOnCycle(type, id, collectionName);
                                     } catch (MorphiumAccessVetoException ex) {
                                         log.debug("not dereferencing due to veto from listener", ex);
                                     }
@@ -1126,10 +1198,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                                     value = morphium.createLazyLoadedEntity(fldType, id, collection);
                                 } else {
-                                    //                                Query q = morphium.createQueryFor(fld.getSearchType());
-                                    //                                q.f("_id").eq(id);
                                     try {
-                                        value = morphium.findById(fldType, id, collection);
+                                        value = findByIdOrLazyOnCycle(fldType, id, collection);
                                     } catch (MorphiumAccessVetoException e) {
                                         log.debug("not dereferencing due to veto from listener", e);
                                     }
@@ -1493,7 +1563,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                     toFillIn.add(morphium.createLazyLoadedEntity(type, r.getId(), r.getCollectionName()));
                 } else {
-                    toFillIn.add(morphium.findById(type, r.getId(), r.getCollectionName()));
+                    toFillIn.add(findByIdOrLazyOnCycle(type, r.getId(), r.getCollectionName()));
                 }
             }
 

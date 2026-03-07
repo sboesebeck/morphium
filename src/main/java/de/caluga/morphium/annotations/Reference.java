@@ -11,9 +11,9 @@ import static java.lang.annotation.ElementType.FIELD;
  * Date: 26.03.12
  * Time: 11:18
  * <p>
- * Mark this field as a reference to annother mongo object
- * In mongo only the id will be stored here
- * if <code> automaticStore</code> is true (default), objects will be stored if not already done
+ * Mark this field as a reference to another mongo object.
+ * In mongo only the id will be stored here.
+ * If <code>automaticStore</code> is true (default), objects will be stored if not already done.
  */
 
 
@@ -27,4 +27,18 @@ public @interface Reference {
     boolean lazyLoading() default false;
 
     String targetCollection() default ".";
+
+    /**
+     * If true, referenced entities will be deleted when the parent entity is deleted.
+     * Only applies to entity-based remove(Object) calls, not query-based deletes.
+     * Cycle-safe: circular cascadeDelete references will not cause infinite loops.
+     */
+    boolean cascadeDelete() default false;
+
+    /**
+     * If true, referenced entities that are no longer referenced after an update
+     * will be automatically deleted. Only applies when updating existing entities
+     * (entities with a non-null ID).
+     */
+    boolean orphanRemoval() default false;
 }
