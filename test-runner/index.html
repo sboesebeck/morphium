@@ -894,6 +894,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#headless-vm-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Headless VM Testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Headless VM Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploy-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploy scripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1852,6 +1913,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#headless-vm-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Headless VM Testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Headless VM Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploy-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploy scripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1926,6 +2048,28 @@ This prevents different JVMs from dropping or overwriting each other’s data du
 <p>If you run tests manually with Maven, it’s recommended to set an explicit DB as well:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>mvn<span class="w"> </span>-Pexternal<span class="w"> </span>-Dmorphium.driver<span class="o">=</span>pooled<span class="w"> </span>-Dmorphium.uri<span class="o">=</span>mongodb://...<span class="w"> </span>-Dmorphium.database<span class="o">=</span>morphium_test_manual<span class="w"> </span><span class="nb">test</span>
 </span></code></pre></div>
+<h2 id="headless-vm-testing">Headless VM Testing<a class="headerlink" href="#headless-vm-testing" title="Permanent link">&para;</a></h2>
+<p>For running the full test matrix on a dedicated VM (e.g., Proxmox):</p>
+<h3 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Create Ubuntu 24.04 VM (4 CPU, 8 GB RAM minimum)</li>
+<li>Run provisioning: <code>sudo bash ci/setup-testvm.sh</code></li>
+<li>Set API key: edit <code>/home/morphium-test/.claude_env</code></li>
+<li>Update git remote if needed</li>
+</ol>
+<h3 id="deploy-scripts">Deploy scripts<a class="headerlink" href="#deploy-scripts" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./ci/deploy-to-vm.sh<span class="w"> </span>testrunner.fritz.box
+</span></code></pre></div>
+<h3 id="run-tests">Run tests<a class="headerlink" href="#run-tests" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>ssh<span class="w"> </span>morphium-test@testrunner.fritz.box<span class="w"> </span><span class="s2">&quot;~/run-morphium-tests.sh&quot;</span>
+</span></code></pre></div>
+<h3 id="view-results">View results<a class="headerlink" href="#view-results" title="Permanent link">&para;</a></h3>
+<p>Open <code>http://testrunner.fritz.box:8080/</code> in your browser.</p>
+<p>The test orchestration runs three phases sequentially:
+1. InMemDriver (fast, no external deps)
+2. MongoDB Replica Set (mongo1 + mongo2)
+3. MorphiumServer Replica Set (local, 3 nodes)</p>
+<p>Claude Code analyzes failures and generates a detailed HTML report.</p>
 
 
 
