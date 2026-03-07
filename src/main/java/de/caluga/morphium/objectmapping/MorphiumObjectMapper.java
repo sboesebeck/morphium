@@ -47,6 +47,14 @@ public interface MorphiumObjectMapper {
 
     void deregisterCustomMapperFor(Class cls);
 
+    /**
+     * If a custom type mapper is registered for the value's class, marshalls the
+     * value through that mapper. Otherwise returns the value unchanged.
+     * This is used by the query builder to ensure query parameter values
+     * (e.g. LocalDateTime) are serialized consistently with how they are stored.
+     */
+    Object marshallIfCustomMapped(Object value);
+
     void setAnnotationHelper(AnnotationAndReflectionHelper an);
 
     Morphium getMorphium();

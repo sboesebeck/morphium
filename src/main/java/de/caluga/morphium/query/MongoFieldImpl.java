@@ -170,6 +170,8 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     val = ((Enum) val).name();
                 }
             }
+            // Apply custom type mappers (e.g. LocalDateTime -> BSON Date)
+            val = mapper.marshallIfCustomMapped(val);
         }
         return val;
     }
