@@ -1889,10 +1889,18 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             return aNew;
         }
 
-        if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)) {
+        if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)
+                || getARHelper().isAnnotationOnAnyField(type, CreationTime.class)) {
             Object reread = null;
             CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
-            boolean checkForNew = Objects.requireNonNull(ct).checkForNew() && getConfig().objectMappingSettings().isCheckForNew();
+            if (ct == null) {
+                List<String> ctFields = getARHelper().getFields(type, CreationTime.class);
+                if (!ctFields.isEmpty()) {
+                    Field ctField = getARHelper().getField(type, ctFields.get(0));
+                    ct = ctField.getAnnotation(CreationTime.class);
+                }
+            }
+            boolean checkForNew = ct != null && ct.checkForNew() && getConfig().objectMappingSettings().isCheckForNew();
             List<String> lst = getARHelper().getFields(type, CreationTime.class);
 
             if (id == null) {
@@ -1951,7 +1959,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         }
 
-        if (getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)) {
+        if (getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)
+                || getARHelper().isAnnotationOnAnyField(type, LastChange.class)) {
             List<String> lst = getARHelper().getFields(type, LastChange.class);
 
             if (lst != null && !lst.isEmpty()) {
