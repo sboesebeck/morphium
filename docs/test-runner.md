@@ -85,3 +85,37 @@ If you run tests manually with Maven, it’s recommended to set an explicit DB a
 ```bash
 mvn -Pexternal -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://... -Dmorphium.database=morphium_test_manual test
 ```
+
+## Headless VM Testing
+
+For running the full test matrix on a dedicated VM (e.g., Proxmox):
+
+### Setup
+
+1. Create Ubuntu 24.04 VM (4 CPU, 8 GB RAM minimum)
+2. Run provisioning: `sudo bash ci/setup-testvm.sh`
+3. Set API key: edit `/home/morphium-test/.claude_env`
+4. Update git remote if needed
+
+### Deploy scripts
+
+```bash
+./ci/deploy-to-vm.sh testrunner.fritz.box
+```
+
+### Run tests
+
+```bash
+ssh morphium-test@testrunner.fritz.box "~/run-morphium-tests.sh"
+```
+
+### View results
+
+Open `http://testrunner.fritz.box:8080/` in your browser.
+
+The test orchestration runs three phases sequentially:
+1. InMemDriver (fast, no external deps)
+2. MongoDB Replica Set (mongo1 + mongo2)
+3. MorphiumServer Replica Set (local, 3 nodes)
+
+Claude Code analyzes failures and generates a detailed HTML report.
