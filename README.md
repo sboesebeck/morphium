@@ -24,11 +24,11 @@ Built on the [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium)
 The showcase demonstrates how Jakarta Data `@Repository` interfaces replace imperative
 Morphium API calls. Three repositories show different query styles side by side:
 
-### ProductRepository (`CrudRepository`)
+### ProductRepository (`MorphiumRepository`)
 
 ```java
 @Repository
-public interface ProductRepository extends CrudRepository<Product, MorphiumId> {
+public interface ProductRepository extends MorphiumRepository<Product, MorphiumId> {
 
     // Query derivation -- method name becomes the query
     List<Product> findByName(String name);
@@ -48,6 +48,20 @@ public interface ProductRepository extends CrudRepository<Product, MorphiumId> {
     @Query("WHERE price >= :min AND price <= :max ORDER BY price ASC")
     List<Product> queryByPriceRange(@Param("min") double min, @Param("max") double max);
 }
+```
+
+`MorphiumRepository` extends `CrudRepository` with Morphium-specific operations:
+
+```java
+// Distinct values for a field -- no Jakarta Data equivalent
+List<Object> categories = products.distinct("category.name");
+
+// Direct access to Morphium for aggregation, atomic updates, etc.
+products.morphium().inc(product, "stock", 5);
+
+// Create a typed query for complex conditions
+Query<Product> q = products.query();
+q.f("price").gt(100).f("category.name").eq("electronics");
 ```
 
 ### BlogPostRepository (`BasicRepository`)
@@ -97,15 +111,17 @@ repository calls because the generated implementation delegates to `morphium.sto
 
 ### When to use which
 
-| Use Jakarta Data for | Use Morphium API for |
+| Use Jakarta Data / MorphiumRepository for | Use Morphium API for |
 |---|---|
 | Standard CRUD (save, findById, delete) | Aggregation pipelines ($group, $project) |
 | Simple to medium queries (findBy, countBy) | Atomic field operations (inc, push, pull) |
-| Paginated results (Page, PageRequest) | Distinct queries |
-| JDQL queries (WHERE, ORDER BY, LIKE) | Bulk updates ($set, $unset) |
-| Testable interfaces (easy to mock) | Change streams, messaging |
+| Paginated results (Page, PageRequest) | Bulk updates ($set, $unset) |
+| JDQL queries (WHERE, ORDER BY, LIKE) | Change streams, messaging |
+| Distinct queries (via `MorphiumRepository`) | Geospatial queries ($near, $geoWithin) |
+| Testable interfaces (easy to mock) | Complex aggregation pipelines |
 
-Both approaches work together -- `@Inject Morphium` alongside `@Inject ProductRepository`.
+Both approaches work together. Use `MorphiumRepository` for the best of both worlds --
+standard Jakarta Data CRUD plus `morphium()` and `query()` as the escape hatch.
 
 ---
 

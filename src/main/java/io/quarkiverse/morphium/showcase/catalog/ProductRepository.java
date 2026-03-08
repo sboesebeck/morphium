@@ -6,7 +6,7 @@ import jakarta.data.Limit;
 import jakarta.data.Order;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
-import jakarta.data.repository.CrudRepository;
+import de.caluga.morphium.quarkus.data.MorphiumRepository;
 import jakarta.data.repository.Find;
 import jakarta.data.repository.OrderBy;
 import jakarta.data.repository.Param;
@@ -22,9 +22,9 @@ import java.util.List;
 /**
  * Jakarta Data repository for {@link Product}.
  *
- * <p>This interface demonstrates how Jakarta Data replaces imperative Morphium API calls
- * with a declarative, type-safe approach. The quarkus-morphium extension generates an
- * implementation at build time using Gizmo bytecode generation.</p>
+ * <p>Extends {@link MorphiumRepository} which adds {@code distinct()}, {@code morphium()},
+ * and {@code query()} on top of standard {@code CrudRepository} CRUD operations.
+ * The quarkus-morphium extension generates an implementation at build time.</p>
  *
  * <h3>Comparison: Morphium API vs Jakarta Data</h3>
  * <pre>
@@ -35,10 +35,14 @@ import java.util.List;
  *
  * // Jakarta Data (declarative)
  * productRepository.findByName(name);
+ *
+ * // MorphiumRepository escape hatch
+ * List&lt;Object&gt; categories = productRepository.distinct("category.name");
+ * productRepository.morphium().inc(product, "stock", 5);
  * </pre>
  */
 @Repository
-public interface ProductRepository extends CrudRepository<Product, MorphiumId> {
+public interface ProductRepository extends MorphiumRepository<Product, MorphiumId> {
 
     // ---- Query Derivation ----
 

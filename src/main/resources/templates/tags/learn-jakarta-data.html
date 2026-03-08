@@ -27,6 +27,10 @@
         {#tip}Provides save(), findById(), delete(), findAll(), insert(), insertAll() etc. Extends BasicRepository with insert operations. Import: jakarta.data.repository.CrudRepository{/tip}
         {/include}
 
+        {#include tags/tooltip color="blue" text="MorphiumRepository" compat="all"}
+        {#tip}Extends CrudRepository with Morphium-specific operations: distinct(), morphium(), query(). The escape hatch for features beyond Jakarta Data 1.0 without injecting Morphium separately. Import: de.caluga.morphium.quarkus.data.MorphiumRepository{/tip}
+        {/include}
+
         {#include tags/tooltip color="green" text="Query Derivation" compat="all"}
         {#tip}Method names like findByDepartment(), countByStatus(), existsByEmail() are parsed at build time into Morphium queries. Supports Equals, GreaterThan, LessThan, Between, Like, True, False, In, Not, and more.{/tip}
         {/include}
@@ -230,11 +234,22 @@
             <li><strong><code>@Index</code></strong> &mdash; Indexes are created on startup, independent of how you access the data.</li>
         </ul>
     </div>
+    <h3>MorphiumRepository &mdash; The Escape Hatch</h3>
+    <div class="card">
+        <p><code>MorphiumRepository&lt;T, K&gt;</code> extends <code>CrudRepository</code> with three
+        Morphium-specific methods for features beyond Jakarta Data 1.0:</p>
+        <ul class="prereq-list">
+            <li><strong><code>distinct(fieldName)</code></strong> &mdash; returns unique values for a field across all documents</li>
+            <li><strong><code>morphium()</code></strong> &mdash; direct access to the Morphium instance for aggregation, atomic updates, etc.</li>
+            <li><strong><code>query()</code></strong> &mdash; creates a typed Morphium Query for complex conditions</li>
+        </ul>
+        <p>This means you can use <code>repository.morphium().inc(entity, "field", 1)</code> instead of
+        injecting <code>Morphium</code> separately. All standard Jakarta Data features still work exactly the same.</p>
+    </div>
     <h3>Requires Direct Morphium API</h3>
     <div class="card">
-        <p>The following features have no Jakarta Data equivalent and require <code>@Inject Morphium</code>:</p>
+        <p>The following features require <code>MorphiumRepository.morphium()</code> or <code>@Inject Morphium</code>:</p>
         <ul class="prereq-list">
-            <li><strong><code>distinct()</code></strong> &mdash; <code>morphium.createQueryFor(E.class).distinct("field")</code></li>
             <li><strong>Atomic updates (<code>$inc</code>, <code>$set</code>, <code>$push</code>, <code>$pull</code>)</strong> &mdash; field-level updates without loading the entity</li>
             <li><strong>Aggregation pipelines</strong> &mdash; $group, $lookup, $unwind, $bucket</li>
             <li><strong>Change streams / Messaging</strong> &mdash; real-time event processing</li>
@@ -280,8 +295,12 @@
                     <td><strong>Both!</strong> &mdash; work transparently through repository calls</td>
                 </tr>
                 <tr>
+                    <td>Distinct queries</td>
+                    <td><strong>MorphiumRepository</strong> &mdash; <code>repository.distinct("field")</code></td>
+                </tr>
+                <tr>
                     <td>Mixed: CRUD + advanced features</td>
-                    <td><strong>Both!</strong> &mdash; Inject both Repository and Morphium in the same service</td>
+                    <td><strong>MorphiumRepository</strong> &mdash; Jakarta Data + <code>morphium()</code> / <code>query()</code> escape hatch</td>
                 </tr>
             </tbody>
         </table>
