@@ -14,25 +14,16 @@ import java.util.List;
 /**
  * Jakarta Data repository for {@link BlogPost}.
  *
- * <p>Demonstrates JDQL (@Query) for blog-specific queries. Note that Jakarta Data cannot
- * handle {@code @Reference} resolution or {@code @Embedded} comment manipulation — those
- * features remain the domain of the direct Morphium API.</p>
+ * <p>Demonstrates JDQL (@Query) for blog-specific queries and pagination.</p>
  *
- * <h3>What Jakarta Data CAN do for Blog</h3>
- * <ul>
- *   <li>CRUD operations (save, findById, delete)</li>
- *   <li>Simple field queries (findByPublished, findByTitle)</li>
- *   <li>JDQL queries with WHERE, ORDER BY, LIKE, BETWEEN</li>
- *   <li>Pagination with Page/PageRequest</li>
- * </ul>
+ * <p>All Morphium ORM features work transparently through this repository:
+ * {@code @Version} (optimistic locking), {@code @CreationTime}, {@code @Reference}
+ * (lazy/eager), and lifecycle callbacks ({@code @PreStore}, {@code @PostLoad}) all
+ * fire normally because the generated implementation delegates to {@code morphium.store()},
+ * {@code morphium.findById()} etc.</p>
  *
- * <h3>What still requires direct Morphium API</h3>
- * <ul>
- *   <li>{@code @Reference} author/reviewer resolution (automatic in Morphium queries)</li>
- *   <li>Adding/removing embedded comments (requires load-modify-store pattern)</li>
- *   <li>{@code @Version} conflict handling with VersionMismatchException</li>
- *   <li>Lazy loading proxies ({@code @Reference(lazyLoading = true)})</li>
- * </ul>
+ * <p>For operations that have no Jakarta Data equivalent (adding/removing embedded comments,
+ * aggregations, atomic field updates), use the direct Morphium API alongside this repository.</p>
  */
 @Repository
 public interface BlogPostRepository extends BasicRepository<BlogPost, MorphiumId> {

@@ -88,6 +88,13 @@ to demonstrate the Jakarta Data equivalent for each Morphium operator:
 The `/jakarta-data` page lets you run queries through **both** the Morphium API and Jakarta Data
 side by side, showing the code and results for each approach.
 
+### Morphium ORM features work transparently
+
+`@Version` (optimistic locking), `@CreationTime`/`@LastChange`, lifecycle callbacks
+(`@PreStore`, `@PostLoad`), `@Cache`, `@Reference` (lazy/eager) -- all work through
+repository calls because the generated implementation delegates to `morphium.store()`,
+`morphium.findById()` etc.
+
 ### When to use which
 
 | Use Jakarta Data for | Use Morphium API for |

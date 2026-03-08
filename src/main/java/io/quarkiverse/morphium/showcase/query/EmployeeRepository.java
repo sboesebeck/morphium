@@ -33,12 +33,19 @@ import java.util.List;
  *   <tr><td>{@code .countAll()}</td><td>{@code countByDepartment(dept)}</td><td>{@code WHERE department = :dept} (long return)</td></tr>
  * </table>
  *
- * <h3>What Jakarta Data CANNOT do (Morphium-only)</h3>
+ * <h3>Morphium ORM features that work transparently through this repository</h3>
+ * <ul>
+ *   <li>{@code @Version} — optimistic locking on save/update</li>
+ *   <li>{@code @CreationTime} / {@code @LastChange} — auto-timestamps</li>
+ *   <li>{@code @PreStore} / {@code @PostLoad} — lifecycle callbacks</li>
+ *   <li>{@code @Cache} / {@code @WriteBuffer} — read cache and write batching</li>
+ * </ul>
+ *
+ * <h3>Requires direct Morphium API</h3>
  * <ul>
  *   <li>{@code query.distinct("department")} — no distinct support in Jakarta Data 1.0</li>
  *   <li>{@code morphium.inc(query, "salary", amount)} — atomic field updates</li>
  *   <li>{@code query.set("position", newValue)} — partial field updates via $set</li>
- *   <li>{@code query.unset("skills")} — field removal via $unset</li>
  *   <li>Aggregation pipeline ($group, $project, $unwind)</li>
  * </ul>
  */

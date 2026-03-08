@@ -17,7 +17,7 @@
 
 <!-- Section 2: Jakarta Data Features -->
 <div class="learn-section">
-    <h2>Jakarta Data Features (6 Phases)</h2>
+    <h2>Jakarta Data Features</h2>
     <div class="feature-tags-grid">
         {#include tags/tooltip color="blue" text="@Repository" compat="all"}
         {#tip}Marks an interface as a Jakarta Data repository. The quarkus-morphium extension generates the implementation at build time. Extends BasicRepository or CrudRepository for CRUD methods. Import: jakarta.data.repository.Repository{/tip}
@@ -53,7 +53,7 @@
 <div class="learn-section">
     <h2>Morphium API vs Jakarta Data &mdash; Side-by-Side</h2>
 
-    <h3>Phase 1: CRUD Operations</h3>
+    <h3>CRUD Operations</h3>
     <div class="comparison-table">
         <table>
             <thead>
@@ -94,7 +94,7 @@
         </table>
     </div>
 
-    <h3>Phase 2: Query Derivation</h3>
+    <h3>Query Derivation</h3>
     {#include tags/code-block title="Repository Interface" lang="Java"}
     {#content}<span class="line"><span class="annotation">@Repository</span></span>
 <span class="line"><span class="keyword">public interface</span> <span class="type">EmployeeRepository</span></span>
@@ -139,7 +139,7 @@
 <span class="line">    .countAll();</span>{/content}
     {/include}
 
-    <h3>Phase 3: Pagination &amp; Sorting</h3>
+    <h3>Pagination &amp; Sorting</h3>
     <div class="comparison-table">
         <table>
             <thead>
@@ -163,7 +163,7 @@
     <code>totalPages()</code>, <code>hasNext()</code> &mdash; all in one call. With Morphium,
     you need a separate <code>countAll()</code> call.</p>
 
-    <h3>Phase 4: @Find / @By / @OrderBy</h3>
+    <h3>@Find / @By / @OrderBy</h3>
     {#include tags/code-block title="Fine-Grained Queries" lang="Java"}
     {#content}<span class="line"><span class="comment">// Embedded field (dot notation) + sort + limit</span></span>
 <span class="line"><span class="annotation">@Find</span></span>
@@ -182,7 +182,7 @@
 <span class="line">    .asList();</span>{/content}
     {/include}
 
-    <h3>Phase 5: @Query / JDQL</h3>
+    <h3>@Query / JDQL</h3>
     {#include tags/code-block title="JDQL (Jakarta Data Query Language)" lang="Java"}
     {#content}<span class="line"><span class="comment">// Complex query with multiple conditions + sort</span></span>
 <span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;WHERE department = :dept&quot;</span></span>
@@ -199,7 +199,7 @@
 <span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;pattern&quot;</span>) String pattern);</span>{/content}
     {/include}
 
-    <h3>Phase 6: @StaticMetamodel</h3>
+    <h3>@StaticMetamodel</h3>
     {#include tags/code-block title="Generated Metamodel" lang="Java"}
     {#content}<span class="line"><span class="comment">// Generated at Quarkus build time (not in source code!)</span></span>
 <span class="line"><span class="annotation">@StaticMetamodel</span>(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
@@ -215,18 +215,29 @@
     {/include}
 </div>
 
-<!-- Section 4: What Jakarta Data CANNOT do -->
+<!-- Section 4: Morphium ORM features through Jakarta Data -->
 <div class="learn-section">
-    <h2>Morphium-Only Features (Not in Jakarta Data 1.0)</h2>
+    <h2>Morphium ORM Features &mdash; Transparent Through Repositories</h2>
     <div class="card">
+        <p>Since generated repositories delegate to <code>morphium.store()</code>, <code>morphium.findById()</code> etc.
+        internally, <strong>all Morphium ORM features work transparently</strong> through Jakarta Data repositories:</p>
         <ul class="prereq-list">
-            <li><strong><code>distinct()</code></strong> &mdash; Jakarta Data has no distinct query support. Use <code>morphium.createQueryFor(E.class).distinct("field")</code>.</li>
-            <li><strong>Atomic updates (<code>$inc</code>, <code>$set</code>, <code>$unset</code>)</strong> &mdash; Jakarta Data only supports full-entity save/insert/delete. For field-level updates: <code>morphium.inc(query, field, amount)</code>.</li>
-            <li><strong><code>@Reference</code> resolution</strong> &mdash; Morphium automatically resolves lazy/eager references between entities. Jakarta Data operates on the entity as-is.</li>
-            <li><strong>Aggregation pipelines</strong> &mdash; $group, $lookup, $unwind, $bucket are Morphium/MongoDB-specific. No JDQL equivalent.</li>
-            <li><strong><code>@Version</code> conflict handling</strong> &mdash; Morphium's VersionMismatchException is not part of Jakarta Data.</li>
-            <li><strong>Auto-timestamps</strong> &mdash; <code>@CreationTime</code>, <code>@LastChange</code>, <code>@LastAccess</code> are Morphium lifecycle features.</li>
-            <li><strong>Caching</strong> &mdash; Morphium's <code>@Cache</code> with LRU strategy is transparent and not part of Jakarta Data.</li>
+            <li><strong><code>@Version</code> (Optimistic Locking)</strong> &mdash; <code>repository.save(entity)</code> checks and increments the version automatically. A <code>VersionMismatchException</code> is thrown on concurrent modification, just like with <code>morphium.store()</code>.</li>
+            <li><strong><code>@CreationTime</code> / <code>@LastChange</code></strong> &mdash; Timestamps are set automatically on every <code>save()</code> or <code>insert()</code> call through the repository.</li>
+            <li><strong><code>@PreStore</code> / <code>@PostStore</code> / <code>@PostLoad</code></strong> &mdash; All lifecycle callbacks fire normally when entities are loaded or stored through repositories.</li>
+            <li><strong><code>@Cache</code> / <code>@WriteBuffer</code></strong> &mdash; Morphium's read cache and write buffer are active for all repository queries.</li>
+            <li><strong><code>@Reference</code></strong> &mdash; Lazy and eager references are resolved automatically when entities are loaded via <code>findById()</code>, <code>findAll()</code> or query methods.</li>
+            <li><strong><code>@Index</code></strong> &mdash; Indexes are created on startup, independent of how you access the data.</li>
+        </ul>
+    </div>
+    <h3>Requires Direct Morphium API</h3>
+    <div class="card">
+        <p>The following features have no Jakarta Data equivalent and require <code>@Inject Morphium</code>:</p>
+        <ul class="prereq-list">
+            <li><strong><code>distinct()</code></strong> &mdash; <code>morphium.createQueryFor(E.class).distinct("field")</code></li>
+            <li><strong>Atomic updates (<code>$inc</code>, <code>$set</code>, <code>$push</code>, <code>$pull</code>)</strong> &mdash; field-level updates without loading the entity</li>
+            <li><strong>Aggregation pipelines</strong> &mdash; $group, $lookup, $unwind, $bucket</li>
+            <li><strong>Change streams / Messaging</strong> &mdash; real-time event processing</li>
         </ul>
     </div>
 </div>
@@ -258,15 +269,15 @@
                 </tr>
                 <tr>
                     <td>Atomic field updates ($inc, $set)</td>
-                    <td><strong>Morphium API</strong> &mdash; not supported by Jakarta Data</td>
+                    <td><strong>Morphium API</strong> &mdash; field-level updates without loading the entity</td>
                 </tr>
                 <tr>
                     <td>Aggregation pipelines</td>
                     <td><strong>Morphium API</strong> &mdash; $group, $lookup, $unwind etc.</td>
                 </tr>
                 <tr>
-                    <td>@Reference, @Version, Lifecycle</td>
-                    <td><strong>Morphium API</strong> &mdash; ORM-specific features</td>
+                    <td>@Version, @CreationTime, @PreStore, @Cache</td>
+                    <td><strong>Both!</strong> &mdash; work transparently through repository calls</td>
                 </tr>
                 <tr>
                     <td>Mixed: CRUD + advanced features</td>
