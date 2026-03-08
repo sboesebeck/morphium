@@ -93,6 +93,13 @@
             <version>${quarkus-morphium.version}</version>
         </dependency>
 
+        <!-- Jakarta Data API for @Repository, @Query, @StaticMetamodel support -->
+        <dependency>
+            <groupId>jakarta.data</groupId>
+            <artifactId>jakarta.data-api</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
         <!-- Markdown Rendering (for Docs Hub) -->
         <dependency>
             <groupId>com.vladsch.flexmark</groupId>

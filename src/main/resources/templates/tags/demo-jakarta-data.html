@@ -1,0 +1,116 @@
+<!-- Demo Tab: Jakarta Data — Interactive Comparison -->
+<div id="demo-jakarta-data">
+
+    {#if successMessage}
+    <div class="alert alert-success">{successMessage}</div>
+    {/if}
+    {#if errorMessage}
+    <div class="alert alert-error">{errorMessage}</div>
+    {/if}
+
+    <div class="card" style="margin-bottom:1.5rem">
+        <h3>Interactive Comparison: Run the Same Query Both Ways</h3>
+        <p>Select an operation below and click <strong>Compare</strong>. The same query runs through both
+        the <strong>Morphium API</strong> and <strong>Jakarta Data repository</strong>. Results should be identical.</p>
+
+        <form hx-post="/jakarta-data/compare" hx-target="#demo-jakarta-data" hx-swap="outerHTML">
+            <div style="display:flex; gap:1rem; align-items:end; flex-wrap:wrap; margin-top:1rem">
+                <div style="flex:1; min-width:300px">
+                    <label for="operation"><strong>Operation:</strong></label>
+                    <select name="operation" id="operation" class="form-control" style="width:100%; padding:0.5rem; margin-top:0.25rem">
+                        <optgroup label="Phase 2: Query Derivation">
+                            <option value="findByDepartment" {#if selectedOperation == 'findByDepartment'}selected{/if}>findByDepartment("Engineering")</option>
+                            <option value="findBySalaryGt" {#if selectedOperation == 'findBySalaryGt'}selected{/if}>findBySalaryGreaterThan(90000)</option>
+                            <option value="findBySalaryRange" {#if selectedOperation == 'findBySalaryRange'}selected{/if}>findBySalaryBetween(60000, 100000)</option>
+                            <option value="findActive" {#if selectedOperation == 'findActive'}selected{/if}>findByActiveTrue()</option>
+                            <option value="countByDepartment" {#if selectedOperation == 'countByDepartment'}selected{/if}>countByDepartment("Engineering")</option>
+                            <option value="existsByEmail" {#if selectedOperation == 'existsByEmail'}selected{/if}>existsByEmail("alice@example.com")</option>
+                        </optgroup>
+                        <optgroup label="Phase 4: @Find / @OrderBy">
+                            <option value="topEarners" {#if selectedOperation == 'topEarners'}selected{/if}>topEarnersInDepartment("Engineering", Limit.of(2))</option>
+                        </optgroup>
+                        <optgroup label="Phase 5: @Query / JDQL">
+                            <option value="topActiveEarners" {#if selectedOperation == 'topActiveEarners'}selected{/if}>topActiveEarners("Engineering", 90000)</option>
+                        </optgroup>
+                        <optgroup label="Morphium-Only">
+                            <option value="distinct" {#if selectedOperation == 'distinct'}selected{/if}>distinct("department") — no Jakarta Data equivalent</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary">
+                        <span class="htmx-indicator spinner" style="margin-right:0.3rem"></span>
+                        Compare
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {#if comparisonResult}
+    <div class="card" style="margin-bottom:1.5rem">
+        <h3>
+            Comparison Result
+            {#if comparisonResult.get('match') == true && comparisonResult.get('morphiumOnly') == null}
+                <span style="color:var(--color-success); margin-left:0.5rem">&#10003; Results match</span>
+            {#else if comparisonResult.get('morphiumOnly') == true}
+                <span style="color:var(--color-warning); margin-left:0.5rem">&#9888; Morphium-only feature</span>
+            {/if}
+        </h3>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-top:1rem">
+            <!-- Morphium Side -->
+            <div>
+                <h4 style="color:var(--color-primary)">Morphium API (imperative)</h4>
+                <pre class="code-block" style="font-size:0.85rem; padding:0.75rem; background:var(--bg-code); border-radius:4px; overflow-x:auto; white-space:pre-wrap">{comparisonResult.get('morphiumCode')}</pre>
+                <div style="margin-top:0.5rem">
+                    <strong>Result:</strong>
+                    <ul style="margin:0.25rem 0 0 1rem">
+                        {#for item in comparisonResult.get('morphiumResult')}
+                        <li>{item}</li>
+                        {/for}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Jakarta Data Side -->
+            <div>
+                <h4 style="color:var(--color-accent)">Jakarta Data (declarative)</h4>
+                <pre class="code-block" style="font-size:0.85rem; padding:0.75rem; background:var(--bg-code); border-radius:4px; overflow-x:auto; white-space:pre-wrap">{comparisonResult.get('jakartaCode')}</pre>
+                <div style="margin-top:0.5rem">
+                    <strong>Result:</strong>
+                    <ul style="margin:0.25rem 0 0 1rem">
+                        {#for item in comparisonResult.get('jakartaResult')}
+                        <li>{item}</li>
+                        {/for}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {/if}
+
+    <!-- Seed Data Reset -->
+    <div class="card">
+        <h3>Test Data</h3>
+        <p>The demo uses 5 employees across Engineering, Marketing, and Sales departments with varying salaries and active states.</p>
+        <table class="data-table" style="width:100%; margin:0.75rem 0">
+            <thead>
+                <tr><th>Name</th><th>Department</th><th>Salary</th><th>Active</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Alice Smith</td><td>Engineering</td><td>$95,000</td><td>&#10003;</td></tr>
+                <tr><td>Bob Johnson</td><td>Engineering</td><td>$120,000</td><td>&#10003;</td></tr>
+                <tr><td>Carol Williams</td><td>Marketing</td><td>$85,000</td><td>&#10003;</td></tr>
+                <tr><td>Dave Brown</td><td>Engineering</td><td>$65,000</td><td>&#10007;</td></tr>
+                <tr><td>Eve Davis</td><td>Sales</td><td>$55,000</td><td>&#10003;</td></tr>
+            </tbody>
+        </table>
+        <form hx-post="/jakarta-data/seed" hx-target="#demo-jakarta-data" hx-swap="outerHTML">
+            <button type="submit" class="btn btn-secondary">
+                <span class="htmx-indicator spinner" style="margin-right:0.3rem"></span>
+                Reset &amp; Re-Seed Data
+            </button>
+        </form>
+    </div>
+</div>

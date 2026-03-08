@@ -4,43 +4,129 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Quarkus](https://img.shields.io/badge/Quarkus-3.32.1-blue)](https://quarkus.io)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange)](https://adoptium.net)
+[![Jakarta Data](https://img.shields.io/badge/Jakarta%20Data-1.0-green)](https://jakarta.ee/specifications/data/1.0/)
 
 > **Note:** This showcase is built on the [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) fork
 > (currently **6.2.0-SNAPSHOT**) via the [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) extension.
 > Fork improvements are being contributed back to the upstream [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
 > project via pull requests and are progressively merged.
 
-A comprehensive demo application showcasing all [Morphium](https://github.com/sboesebeck/morphium) ORM
-features with [Quarkus](https://quarkus.io) and [Qute](https://quarkus.io/guides/qute) templates.
+An interactive demo application showcasing [Morphium](https://github.com/sboesebeck/morphium) ORM
+and **Jakarta Data 1.0** with [Quarkus](https://quarkus.io), [Qute](https://quarkus.io/guides/qute) templates
+and [HTMX](https://htmx.org).
 
 Built on the [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) extension.
 
-## Features
+---
 
-The showcase demonstrates the following Morphium ORM capabilities through
-interactive web pages:
+## Jakarta Data -- Declarative Repositories for MongoDB
 
-- **Product Catalog** -- CRUD operations, `@Entity`, `@Embedded`, `@Version` (optimistic locking)
-- **Blog** -- References between entities, `@CreationTime`, pagination
+The showcase demonstrates how Jakarta Data `@Repository` interfaces replace imperative
+Morphium API calls. Three repositories show different query styles side by side:
+
+### ProductRepository (`CrudRepository`)
+
+```java
+@Repository
+public interface ProductRepository extends CrudRepository<Product, MorphiumId> {
+
+    // Query derivation -- method name becomes the query
+    List<Product> findByName(String name);
+    List<Product> findByPriceBetween(double min, double max);
+    long countByStockLessThan(int threshold);
+    boolean existsByName(String name);
+
+    // @Find + @By -- explicit field binding with annotations
+    @Find
+    @OrderBy(value = "price", descending = true)
+    List<Product> topByCategory(@By("category.name") String name, Limit limit);
+
+    // @Query (JDQL) -- SQL-like syntax for complex queries
+    @Query("WHERE name LIKE :pattern ORDER BY price ASC")
+    List<Product> searchByNameLike(@Param("pattern") String pattern);
+
+    @Query("WHERE price >= :min AND price <= :max ORDER BY price ASC")
+    List<Product> queryByPriceRange(@Param("min") double min, @Param("max") double max);
+}
+```
+
+### BlogPostRepository (`BasicRepository`)
+
+```java
+@Repository
+public interface BlogPostRepository extends BasicRepository<BlogPost, MorphiumId> {
+
+    List<BlogPost> findByPublishedTrue();
+    long countByPublishedTrue();
+
+    @Query("WHERE published = true ORDER BY createdAt DESC")
+    Page<BlogPost> findPublishedPaged(PageRequest pageRequest);
+
+    @Query("WHERE title LIKE :pattern ORDER BY createdAt DESC")
+    List<BlogPost> searchByTitle(@Param("pattern") String titlePattern);
+}
+```
+
+### EmployeeRepository -- Operator Comparison
+
+The `EmployeeRepository` mirrors every query from the imperative `QueryShowcaseService`
+to demonstrate the Jakarta Data equivalent for each Morphium operator:
+
+| Morphium API | Jakarta Data |
+|---|---|
+| `.f("department").eq(val).asList()` | `findByDepartment(val)` |
+| `.f("salary").gt(val).asList()` | `findBySalaryGreaterThan(val)` |
+| `.f("salary").gte(min).f("salary").lte(max)` | `findBySalaryBetween(min, max)` |
+| `.f("active").eq(true).asList()` | `findByActiveTrue()` |
+| `.f("department").eq(dept).countAll()` | `countByDepartment(dept)` |
+| `.f("email").eq(e).countAll() > 0` | `existsByEmail(e)` |
+| `.sort(Map.of("salary", -1)).limit(2)` | `@Find @OrderBy("salary" DESC) ... Limit.of(2)` |
+| `.f("dept").eq(d).f("salary").gte(m)` | `@Query("WHERE department = :d AND salary >= :m")` |
+
+### Interactive Comparison (Jakarta Data Page)
+
+The `/jakarta-data` page lets you run queries through **both** the Morphium API and Jakarta Data
+side by side, showing the code and results for each approach.
+
+### When to use which
+
+| Use Jakarta Data for | Use Morphium API for |
+|---|---|
+| Standard CRUD (save, findById, delete) | Aggregation pipelines ($group, $project) |
+| Simple to medium queries (findBy, countBy) | Atomic field operations (inc, push, pull) |
+| Paginated results (Page, PageRequest) | Distinct queries |
+| JDQL queries (WHERE, ORDER BY, LIKE) | Bulk updates ($set, $unset) |
+| Testable interfaces (easy to mock) | Change streams, messaging |
+
+Both approaches work together -- `@Inject Morphium` alongside `@Inject ProductRepository`.
+
+---
+
+## All Showcase Features
+
+### Core
+- **Product Catalog** -- CRUD, `@Entity`, `@Embedded`, `@Version` (optimistic locking), `@Index`
+- **Blog System** -- `@Reference` between entities, `@CreationTime`, pagination, comments
 - **Banking** -- `@MorphiumTransactional` declarative transactions, CDI transaction events
-- **Analytics** -- Aggregation pipeline, `$group`, `$sort`, `$match`
+
+### Extended
+- **Analytics** -- Aggregation pipeline with `$group`, `$sort`, `$match`
 - **Audit Log** -- `@PreStore` / `@PostStore` lifecycle callbacks
-- **Geospatial** -- `2dsphere` index, `$near` queries
-- **Messaging** -- Morphium's built-in messaging system
+- **Store Locator** -- `2dsphere` index, `$near` geospatial queries
+- **Messaging** -- Morphium's built-in messaging system with SSE live updates
 - **Polymorphism** -- Inheritance mapping, custom type mappers
-- **Query Builder** -- Fluent query API, complex filters, sorting, projection
-- **Bulk Import** -- `SequenceGenerator`, batch inserts
-- **Reference Cascade** -- `@Reference(cascadeDelete, orphanRemoval)`, bidirectional references with automatic cycle detection
-- **CosmosDB Support** -- Auto-detection via `BackendType` (Global, China, US Gov); graceful degradation for unsupported features
+
+### Jakarta Data
+- **Jakarta Data** -- Interactive side-by-side comparison of Morphium API vs `@Repository`
+- **Query Builder** -- Fluent query API vs query derivation vs JDQL
+
+### Advanced
+- **Bulk Import** -- `SequenceGenerator`, batch inserts, cursor-based iteration
+- **Reference Cascade** -- `@Reference(cascadeDelete, orphanRemoval)`, cycle detection
+- **CosmosDB** -- Auto-detection via `BackendType`; graceful degradation
 - **Docs Hub** -- Integrated Morphium documentation rendered from Markdown
 
-## Prerequisites
-
-| Dependency | Minimum version |
-|---|---|
-| Java | 21 |
-| Maven | 3.9 |
-| Docker | (for Dev Services) |
+---
 
 ## Quick Start
 
@@ -71,8 +157,6 @@ docker compose up
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
 
-To stop and clean up:
-
 ```bash
 # Stop containers (keep data)
 docker compose down
@@ -83,8 +167,6 @@ docker compose down -v
 
 ### Local build
 
-To build the Docker image locally instead of pulling from GHCR:
-
 ```bash
 # Set GitHub credentials for Maven (quarkus-morphium SNAPSHOT resolution)
 export GITHUB_ACTOR=your-github-username
@@ -94,17 +176,13 @@ export GITHUB_TOKEN=your-github-pat
 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
-## Configuration
+## Prerequisites
 
-The showcase uses Quarkus Dev Services -- a MongoDB container is started
-automatically in dev and test mode. No manual MongoDB setup required.
-
-```properties
-# src/main/resources/application.properties
-quarkus.morphium.database=morphium_showcase
-quarkus.morphium.devservices.enabled=true
-quarkus.morphium.devservices.image-name=mongo:8
-```
+| Dependency | Minimum version |
+|---|---|
+| Java | 21 |
+| Maven | 3.9 |
+| Docker | (for Dev Services) |
 
 ## Testing
 
@@ -113,6 +191,8 @@ Tests use Morphium's `InMemDriver` -- no Docker or MongoDB needed:
 ```bash
 mvn test
 ```
+
+67 tests covering all repositories, services, and query operators.
 
 ## Building
 
@@ -132,11 +212,12 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE)
 
 ## Related Projects
 
+- [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) -- Quarkus extension for Morphium (with Jakarta Data 1.0)
 - [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) -- fork of Morphium used by this showcase
 - [sboesebeck/morphium](https://github.com/sboesebeck/morphium) -- upstream Morphium ORM
-- [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) -- the Quarkus extension for Morphium
-- [Quarkus](https://quarkus.io) -- the supersonic, subatomic Java framework
+- [Quarkus](https://quarkus.io) -- supersonic, subatomic Java framework
+- [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/) -- the specification
