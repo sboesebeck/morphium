@@ -1,5 +1,6 @@
 package io.quarkiverse.morphium.showcase.jakartadata;
 
+import de.caluga.morphium.Morphium;
 import io.quarkiverse.morphium.showcase.catalog.ProductDataService;
 import io.quarkiverse.morphium.showcase.common.DocLink;
 import io.quarkiverse.morphium.showcase.query.QueryComparisonService;
@@ -48,7 +49,7 @@ public class JakartaDataResource {
     ProductDataService productDataService;
 
     @Inject
-    de.caluga.morphium.Morphium morphium;
+    Morphium morphium;
 
     private static final List<DocLink> DOC_LINKS = List.of(
             new DocLink("/docs/developer-guide", "Developer Guide", "@Entity, @Embedded, Query API"),
@@ -145,6 +146,7 @@ public class JakartaDataResource {
         switch (operation) {
             case "findByDepartment" -> {
                 result.put("morphiumCode", "morphium.createQueryFor(Employee.class)\n    .f(Fields.department).eq(\"Engineering\")\n    .asList()");
+                result.put("jakartaInterface", "List<Employee> findByDepartment(String department);");
                 result.put("jakartaCode", "repository.findByDepartment(\"Engineering\")");
                 var m = comparisonService.findByDepartmentMorphium("Engineering");
                 var j = comparisonService.findByDepartmentJakartaData("Engineering");
@@ -154,6 +156,7 @@ public class JakartaDataResource {
             }
             case "findBySalaryGt" -> {
                 result.put("morphiumCode", "morphium.createQueryFor(Employee.class)\n    .f(Fields.salary).gt(90000)\n    .asList()");
+                result.put("jakartaInterface", "List<Employee> findBySalaryGreaterThan(double minSalary);");
                 result.put("jakartaCode", "repository.findBySalaryGreaterThan(90000)");
                 var m = comparisonService.findBySalaryGtMorphium(90000);
                 var j = comparisonService.findBySalaryGtJakartaData(90000);
@@ -163,6 +166,7 @@ public class JakartaDataResource {
             }
             case "findBySalaryRange" -> {
                 result.put("morphiumCode", "query.f(Fields.salary).gte(60000)\n    .f(Fields.salary).lte(100000)\n    .sort(Map.of(Fields.salary, 1)).asList()");
+                result.put("jakartaInterface", "List<Employee> findBySalaryBetween(double min, double max);");
                 result.put("jakartaCode", "repository.findBySalaryBetween(60000, 100000)");
                 var m = comparisonService.findBySalaryRangeMorphium(60000, 100000);
                 var j = comparisonService.findBySalaryRangeJakartaData(60000, 100000);
@@ -172,6 +176,7 @@ public class JakartaDataResource {
             }
             case "findActive" -> {
                 result.put("morphiumCode", "query.f(Fields.active).eq(true).asList()");
+                result.put("jakartaInterface", "List<Employee> findByActiveTrue();");
                 result.put("jakartaCode", "repository.findByActiveTrue()");
                 var m = comparisonService.findActiveMorphium();
                 var j = comparisonService.findActiveJakartaData();
@@ -181,6 +186,7 @@ public class JakartaDataResource {
             }
             case "countByDepartment" -> {
                 result.put("morphiumCode", "query.f(Fields.department).eq(\"Engineering\")\n    .countAll()");
+                result.put("jakartaInterface", "long countByDepartment(String department);");
                 result.put("jakartaCode", "repository.countByDepartment(\"Engineering\")");
                 long m = comparisonService.countByDepartmentMorphium("Engineering");
                 long j = comparisonService.countByDepartmentJakartaData("Engineering");
@@ -190,6 +196,7 @@ public class JakartaDataResource {
             }
             case "existsByEmail" -> {
                 result.put("morphiumCode", "query.f(Fields.email).eq(email)\n    .countAll() > 0");
+                result.put("jakartaInterface", "boolean existsByEmail(String email);");
                 result.put("jakartaCode", "repository.existsByEmail(\"alice@example.com\")");
                 boolean m = comparisonService.existsByEmailMorphium("alice@example.com");
                 boolean j = comparisonService.existsByEmailJakartaData("alice@example.com");
@@ -199,7 +206,8 @@ public class JakartaDataResource {
             }
             case "topEarners" -> {
                 result.put("morphiumCode", "query.f(Fields.department).eq(\"Engineering\")\n    .f(Fields.active).eq(true)\n    .sort(Map.of(Fields.salary, -1))\n    .limit(2).asList()");
-                result.put("jakartaCode", "@Find @OrderBy(\"salary\" DESC)\nrepository.topEarnersInDepartment(\n    \"Engineering\", true, Limit.of(2))");
+                result.put("jakartaInterface", "@Find\n@OrderBy(value = \"salary\", descending = true)\nList<Employee> topEarnersInDepartment(\n    @By(\"department\") String dept,\n    @By(\"active\") boolean active,\n    Limit limit);");
+                result.put("jakartaCode", "repository.topEarnersInDepartment(\n    \"Engineering\", true, Limit.of(2))");
                 var m = comparisonService.topEarnersMorphium("Engineering", 2);
                 var j = comparisonService.topEarnersJakartaData("Engineering", 2);
                 result.put("morphiumResult", m.stream().map(e -> e.getFirstName() + " ($" + (int) e.getSalary() + ")").toList());
@@ -208,7 +216,8 @@ public class JakartaDataResource {
             }
             case "topActiveEarners" -> {
                 result.put("morphiumCode", "query.f(Fields.department).eq(\"Engineering\")\n    .f(Fields.salary).gte(90000)\n    .f(Fields.active).eq(true)\n    .sort(Map.of(Fields.salary, -1)).asList()");
-                result.put("jakartaCode", "@Query(\"WHERE department = :dept\n  AND salary >= :min AND active = true\n  ORDER BY salary DESC\")\nrepository.topActiveEarners(\"Engineering\", 90000)");
+                result.put("jakartaInterface", "@Query(\"WHERE department = :dept\n    AND salary >= :min\n    AND active = true\n    ORDER BY salary DESC\")\nList<Employee> topActiveEarners(\n    @Param(\"dept\") String department,\n    @Param(\"min\") double minSalary);");
+                result.put("jakartaCode", "repository.topActiveEarners(\n    \"Engineering\", 90000)");
                 var m = comparisonService.topActiveEarnersMorphium("Engineering", 90000);
                 var j = comparisonService.topActiveEarnersJakartaData("Engineering", 90000);
                 result.put("morphiumResult", m.stream().map(e -> e.getFirstName() + " ($" + (int) e.getSalary() + ")").toList());
@@ -217,12 +226,13 @@ public class JakartaDataResource {
             }
             case "distinct" -> {
                 result.put("morphiumCode", "morphium.createQueryFor(Employee.class)\n    .distinct(Fields.department)");
-                result.put("jakartaCode", "// Not available in Jakarta Data 1.0\n// Use Morphium API directly");
+                result.put("jakartaInterface", "// Inherited from MorphiumRepository<T, K>:\nList<Object> distinct(String fieldName);");
+                result.put("jakartaCode", "repository.distinct(\"department\")");
                 var m = comparisonService.distinctDepartmentsMorphium();
+                var j = comparisonService.distinctDepartmentsJakartaData();
                 result.put("morphiumResult", m);
-                result.put("jakartaResult", List.of("(not supported)"));
-                result.put("match", false);
-                result.put("morphiumOnly", true);
+                result.put("jakartaResult", j);
+                result.put("match", m.size() == j.size());
             }
             default -> {
                 result.put("morphiumCode", "");

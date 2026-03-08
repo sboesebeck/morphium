@@ -226,6 +226,56 @@
     </div>
 </div>
 
+<!-- Section 6b: Service Code — Morphium API vs Jakarta Data -->
+<div class="learn-section">
+    <h2>Service Code</h2>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Polymorphic Query" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Query base class — returns mixed Car/Truck list</span></span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">Vehicle</span>&gt; all = morphium.createQueryFor(</span>
+<span class="line">    <span class="type">Vehicle</span>.<span class="keyword">class</span>).asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Query specific subclass</span></span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">Car</span>&gt; cars = morphium.createQueryFor(</span>
+<span class="line">    <span class="type">Car</span>.<span class="keyword">class</span>).asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Store mixed types</span></span>
+<span class="line">morphium.storeList(List.of(car, truck));</span>{/content}
+    {/include}
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">VehicleRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">Vehicle</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Vehicle</span>&gt; findByManufacturer(String manufacturer);</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Vehicle</span>&gt; findByYearGreaterThanEqual(<span class="keyword">int</span> year);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">VehicleRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Returns mixed Car/Truck list — polymorphism works!</span></span>
+<span class="line">repository.findAll();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Query derived from method name</span></span>
+<span class="line">repository.findByManufacturer(<span class="string">&quot;Porsche&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Save — polymorph discriminator set automatically</span></span>
+<span class="line">repository.save(car);</span>
+<span class="line">repository.save(truck);</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
+</div>
+
 <!-- Section 7: Related Documentation -->
 <div class="learn-section">
     {#include tags/doc-links docLinks=docLinks /}

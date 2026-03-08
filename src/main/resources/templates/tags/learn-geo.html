@@ -102,10 +102,12 @@
     </div>
 </div>
 
-<!-- Section 5: Service Code -->
+<!-- Section 5: Service Code — Morphium API vs Jakarta Data -->
 <div class="learn-section">
-    <h2>Service Code (Morphium API)</h2>
-    {#include tags/code-block title="GeoService.java (Key Methods)" lang="Java"}
+    <h2>Service Code</h2>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Geo Queries" lang="Java"}
     {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
 <span class="line"></span>
 <span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
@@ -149,6 +151,42 @@
         <div class="callout-item"><span class="code-callout">5</span> <code>$nearSphere</code> finds documents sorted by spherical (great-circle) distance from the given point — requires a <code>2dsphere</code> index on the <code>location</code> field.</div>
         <div class="callout-item"><span class="code-callout">6</span> <code>$maxDistance</code> limits results to documents within the given radius in metres, avoiding a full collection scan of distant stores.</div>
     </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">StoreRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">Store</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Store</span>&gt; findByCity(String city);</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Store</span>&gt; findByCountry(String country);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">StoreRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// CRUD — via repository</span></span>
+<span class="line">repository.save(store);</span>
+<span class="line">repository.findByCity(<span class="string">&quot;Munich&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Geospatial queries ($nearSphere, $geoWithin)</span></span>
+<span class="line"><span class="comment">// have NO equivalent in Jakarta Data 1.0.</span></span>
+<span class="line"><span class="comment">// Use the MorphiumRepository escape hatch:</span></span>
+<span class="line">repository.morphium().getDriver().runCommand(</span>
+<span class="line">    <span class="string">&quot;stores&quot;</span>, Map.of(</span>
+<span class="line">        <span class="string">&quot;find&quot;</span>, <span class="string">&quot;stores&quot;</span>,</span>
+<span class="line">        <span class="string">&quot;filter&quot;</span>, Map.of(<span class="string">&quot;location&quot;</span>, Map.of(</span>
+<span class="line">            <span class="string">&quot;$nearSphere&quot;</span>, Map.of(</span>
+<span class="line">                <span class="string">&quot;$geometry&quot;</span>, Map.of(</span>
+<span class="line">                    <span class="string">&quot;type&quot;</span>, <span class="string">&quot;Point&quot;</span>,</span>
+<span class="line">                    <span class="string">&quot;coordinates&quot;</span>,</span>
+<span class="line">                    List.of(lng, lat)),</span>
+<span class="line">                <span class="string">&quot;$maxDistance&quot;</span>, maxDist</span>
+<span class="line">    ))));</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
 </div>
 
 <!-- Section 6: Related Documentation -->

@@ -279,10 +279,14 @@
     </div>
 </div>
 
-<!-- Section 6: Service Code Examples -->
+<!-- Section 6: Service Code — Morphium API vs Jakarta Data -->
 <div class="learn-section">
-    <h2>Service Code (Morphium API)</h2>
-    {#include tags/code-block title="Store & Version Bump" lang="Java"}
+    <h2>Service Code</h2>
+
+    <h3>Store &amp; Version Bump</h3>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Store & Version" lang="Java"}
     {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
 <span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
 <span class="line"></span>
@@ -302,7 +306,33 @@
         <div class="callout-item"><span class="code-callout">2</span> Persists the entity for the first time; Morphium sets the <code>@Version</code> field to <code>1</code>.</div>
         <div class="callout-item"><span class="code-callout">3</span> Increments <code>@Version</code> to <code>2</code>; throws <code>VersionMismatchException</code> if another thread already wrote version <code>2</code>.</div>
     </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">BlogPostRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">BasicRepository</span>&lt;<span class="type">BlogPost</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">BlogPost</span>&gt; findByPublishedTrue();</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">BlogPost</span>&gt; findByTitleLike(String pattern);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">BlogPostRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Save — @Version auto-increments, @CreationTime auto-set</span></span>
+<span class="line">repository.save(blogPost);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// @Lifecycle callbacks (@PreStore, @PostLoad) fire</span></span>
+<span class="line"><span class="comment">// transparently through the repository</span></span>
+<span class="line">blogPost.setTitle(<span class="string">&quot;Updated Title&quot;</span>);</span>
+<span class="line">repository.save(blogPost);</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
 
+    <h3>Add Embedded Comment</h3>
     {#include tags/code-block title="Add Embedded Comment" lang="Java"}
     {#content}<span class="line"><span class="comment">// Add a comment as an embedded sub-document</span></span>
 <span class="line"><span class="type">Comment</span> comment = <span class="keyword">new</span> <span class="type">Comment</span>();</span>

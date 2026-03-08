@@ -136,10 +136,12 @@
     </div>
 </div>
 
-<!-- Section 6: Service Code -->
+<!-- Section 6: Service Code — Morphium API vs Jakarta Data -->
 <div class="learn-section">
-    <h2>Service Code (Morphium API)</h2>
-    {#include tags/code-block title="Topic Filtering & Sorting" lang="Java"}
+    <h2>Service Code</h2>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Topic Filtering & Sorting" lang="Java"}
     {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
 <span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
 <span class="line"></span>
@@ -178,6 +180,42 @@
         <div class="callout-item"><span class="code-callout">1</span> The query targets a single document by its <code>_id</code>; Morphium translates this into a <code>{"_id": ObjectId(...)}</code> filter.</div>
         <div class="callout-item"><span class="code-callout">2</span> <code>query.set()</code> issues a MongoDB <code>$set</code> update — only the <code>read</code> field is written; no document round-trip to Java.</div>
     </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">ChatMessageRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">ChatMessage</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">ChatMessage</span>&gt; findByTopic(String topic);</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">ChatMessage</span>&gt; findBySender(String sender);</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">long</span> countByTopic(String topic);</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">boolean</span> existsByReadFalse();</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">ChatMessageRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Query by topic</span></span>
+<span class="line">repository.findByTopic(<span class="string">&quot;general&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Count messages</span></span>
+<span class="line">repository.countByTopic(<span class="string">&quot;general&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Save a new message</span></span>
+<span class="line">repository.save(chatMessage);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Mark as read — atomic field update via escape hatch</span></span>
+<span class="line"><span class="keyword">var</span> q = repository.query()</span>
+<span class="line">    .f(ChatMessage.Fields.id).eq(<span class="keyword">new</span> <span class="type">MorphiumId</span>(id));</span>
+<span class="line">q.set(ChatMessage.Fields.read, <span class="keyword">true</span>,</span>
+<span class="line">    <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
 </div>
 
 <!-- Section 7: Related Documentation -->

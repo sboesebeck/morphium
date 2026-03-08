@@ -154,10 +154,12 @@
     </div>
 </div>
 
-<!-- Section 5: Query Operations Reference -->
+<!-- Section 5: Query Operations Reference — Morphium API vs Jakarta Data -->
 <div class="learn-section">
     <h2>Query Operations Reference</h2>
-    {#include tags/code-block title="All Query Operators" lang="Java"}
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — All Query Operators" lang="Java"}
     {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
 <span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
 <span class="line"></span>
@@ -210,6 +212,69 @@
         <div class="callout-item"><span class="code-callout">7</span> <code>.skip(n).limit(m)</code> implements cursor-based pagination entirely on the MongoDB server without transferring unwanted documents.</div>
         <div class="callout-item"><span class="code-callout">8</span> <code>.countAll()</code> runs a server-side count — no documents are transferred to the application, making it very efficient for large collections.</div>
     </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — EmployeeRepository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">EmployeeRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">Employee</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Equality: findByDepartment("Engineering")</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findByDepartment(String department);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Range: findBySalaryBetween(60000, 100000)</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findBySalaryBetween(<span class="keyword">double</span> min, <span class="keyword">double</span> max);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Greater than: findBySalaryGreaterThan(90000)</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findBySalaryGreaterThan(<span class="keyword">double</span> min);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Pattern matching: findByLastNameLike("%M%")</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findByLastNameLike(String pattern);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Boolean: findByActiveTrue()</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findByActiveTrue();</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Count: countByDepartment("Engineering")</span></span>
+<span class="line">    <span class="keyword">long</span> countByDepartment(String department);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Exists: existsByEmail("alice@example.com")</span></span>
+<span class="line">    <span class="keyword">boolean</span> existsByEmail(String email);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Pagination with sorting</span></span>
+<span class="line">    <span class="type">Page</span>&lt;<span class="type">Employee</span>&gt; findByDepartment(String dept,</span>
+<span class="line">        <span class="type">PageRequest</span> pageRequest, <span class="type">Order</span>&lt;<span class="type">Employee</span>&gt; order);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// @Find with @OrderBy</span></span>
+<span class="line">    <span class="annotation">@Find</span></span>
+<span class="line">    <span class="annotation">@OrderBy</span>(value = <span class="string">&quot;salary&quot;</span>, descending = <span class="keyword">true</span>)</span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; topEarnersInDepartment(</span>
+<span class="line">        <span class="annotation">@By</span>(<span class="string">&quot;department&quot;</span>) String dept,</span>
+<span class="line">        <span class="annotation">@By</span>(<span class="string">&quot;active&quot;</span>) <span class="keyword">boolean</span> active,</span>
+<span class="line">        <span class="type">Limit</span> limit);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// @Query with JDQL</span></span>
+<span class="line">    <span class="annotation">@Query</span>(<span class="string">&quot;WHERE department = :dept&quot;</span></span>
+<span class="line">        + <span class="string">&quot; AND salary &gt;= :min AND active = true&quot;</span></span>
+<span class="line">        + <span class="string">&quot; ORDER BY salary DESC&quot;</span>)</span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; topActiveEarners(</span>
+<span class="line">        <span class="annotation">@Param</span>(<span class="string">&quot;dept&quot;</span>) String department,</span>
+<span class="line">        <span class="annotation">@Param</span>(<span class="string">&quot;min&quot;</span>) <span class="keyword">double</span> minSalary);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">EmployeeRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// All queries derived from method name</span></span>
+<span class="line">repository.findByDepartment(<span class="string">&quot;Engineering&quot;</span>);</span>
+<span class="line">repository.findBySalaryBetween(<span class="number">60000</span>, <span class="number">100000</span>);</span>
+<span class="line">repository.findByActiveTrue();</span>
+<span class="line">repository.countByDepartment(<span class="string">&quot;Engineering&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Distinct via MorphiumRepository escape hatch</span></span>
+<span class="line">repository.distinct(<span class="string">&quot;department&quot;</span>);</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
 </div>
 
 <!-- Section 6: Related Documentation -->

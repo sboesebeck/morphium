@@ -174,29 +174,64 @@
     </div>
 </div>
 
-<!-- Section 6: Service Code Examples -->
+<!-- Section 6: Service Code — Morphium API vs Jakarta Data -->
 <div class="learn-section">
-    <h2>Service Code (Morphium API)</h2>
-    {#include tags/code-block title="CRUD Operations" lang="Java"}
+    <h2>Service Code</h2>
+
+    <h3>CRUD Operations</h3>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — CRUD" lang="Java"}
     {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
-<span class="line"><span class="keyword">import</span> de.caluga.morphium.query.Query;</span>
 <span class="line"></span>
 <span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
 <span class="line"></span>
 <span class="line"><span class="comment">// Store (insert or upsert) a product</span></span>
 <span class="line">morphium.store(product);</span>
 <span class="line"></span>
-<span class="line"><span class="comment">// Bulk insert &mdash; one batch, fewer network round-trips</span></span>
+<span class="line"><span class="comment">// Bulk insert</span></span>
 <span class="line">morphium.storeList(products);</span>
 <span class="line"></span>
-<span class="line"><span class="comment">// Delete a single entity by its @Id</span></span>
+<span class="line"><span class="comment">// Delete a single entity</span></span>
 <span class="line">morphium.delete(product);</span>
 <span class="line"></span>
-<span class="line"><span class="comment">// Drop entire collection (destructive!)</span></span>
-<span class="line">morphium.dropCollection(<span class="type">Product</span>.<span class="keyword">class</span>);</span>{/content}
+<span class="line"><span class="comment">// Find by ID</span></span>
+<span class="line">morphium.findById(<span class="type">Product</span>.<span class="keyword">class</span>, id);</span>{/content}
+    {/include}
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.quarkus.data.MorphiumRepository;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> jakarta.data.repository.Repository;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">ProductRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">Product</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">ProductRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Save (insert or update)</span></span>
+<span class="line">repository.save(product);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Bulk insert</span></span>
+<span class="line">repository.insertAll(List.of(p1, p2, p3));</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Delete</span></span>
+<span class="line">repository.delete(product);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Find by ID</span></span>
+<span class="line">repository.findById(id);</span>{/content}
+    {/include}
+    {/jakarta}
     {/include}
 
-    {#include tags/code-block title="Query Examples" lang="Java"}
+    <h3>Query Examples</h3>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Queries" lang="Java"}
     {#content}<span class="line"><span class="comment">// Find all products</span></span>
 <span class="line">morphium.createQueryFor(<span class="type">Product</span>.<span class="keyword">class</span>).asList();</span>
 <span class="line"></span>
@@ -212,16 +247,41 @@
 <span class="line">    .sort(Map.of(<span class="type">Product</span>.Fields.price, <span class="number">1</span>))</span>
 <span class="line">    .asList();</span>
 <span class="line"></span>
-<span class="line"><span class="comment">// Query embedded sub-document fields (dot notation)</span></span>
+<span class="line"><span class="comment">// Query embedded sub-document fields</span></span>
 <span class="line">morphium.createQueryFor(<span class="type">Product</span>.<span class="keyword">class</span>)</span>
 <span class="line">    .f(<span class="string">&quot;category.name&quot;</span>).eq(<span class="string">&quot;Electronics&quot;</span>)</span>
 <span class="line">    .asList();</span>
 <span class="line"></span>
-<span class="line"><span class="comment">// Clear the read cache</span></span>
-<span class="line">morphium.getCache().clearCachefor(<span class="type">Product</span>.<span class="keyword">class</span>);</span>
+<span class="line"><span class="comment">// Distinct values</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Product</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .distinct(<span class="type">Product</span>.Fields.name);</span>{/content}
+    {/include}
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">ProductRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">Product</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
 <span class="line"></span>
-<span class="line"><span class="comment">// Ensure indexes from annotations</span></span>
-<span class="line">morphium.ensureIndicesFor(<span class="type">Product</span>.<span class="keyword">class</span>);</span>{/content}
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Product</span>&gt; findByNameLike(String pattern);</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Product</span>&gt; findByPriceBetween(<span class="keyword">double</span> min, <span class="keyword">double</span> max);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Search by name pattern</span></span>
+<span class="line">repository.findByNameLike(<span class="string">&quot;%laptop%&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Price range — derived from method name</span></span>
+<span class="line">repository.findByPriceBetween(min, max);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Find all</span></span>
+<span class="line">repository.findAll();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Distinct values (MorphiumRepository escape hatch)</span></span>
+<span class="line">repository.distinct(<span class="string">&quot;name&quot;</span>);</span>{/content}
+    {/include}
+    {/jakarta}
     {/include}
 </div>
 

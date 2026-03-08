@@ -108,10 +108,12 @@
     </div>
 </div>
 
-<!-- Section 6: Service Code -->
+<!-- Section 6: Service Code — Morphium API vs Jakarta Data -->
 <div class="learn-section">
-    <h2>Service Code (Morphium API)</h2>
-    {#include tags/code-block title="Storing to a Capped Collection" lang="Java"}
+    <h2>Service Code</h2>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Capped Collection" lang="Java"}
     {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
 <span class="line"></span>
 <span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
@@ -146,6 +148,38 @@
         <div class="callout-item"><span class="code-callout">2</span> <code>limit(N)</code> restricts how many documents MongoDB returns, keeping memory usage bounded.</div>
         <div class="callout-item"><span class="code-callout">3</span> <code>countAll()</code> runs a server-side count query without transferring documents to the application.</div>
     </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">AuditEntryRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">AuditEntry</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">AuditEntry</span>&gt; findByAction(String action);</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">AuditEntry</span>&gt; findByEntityType(String entityType);</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">long</span> countByAction(String action);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">AuditEntryRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Store — @Capped, @CreationTime work transparently</span></span>
+<span class="line">repository.save(entry);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Query by action</span></span>
+<span class="line">repository.findByAction(<span class="string">&quot;UPDATE&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Count</span></span>
+<span class="line">repository.count();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Tailable cursors — Morphium-specific,</span></span>
+<span class="line"><span class="comment">// use the escape hatch:</span></span>
+<span class="line">repository.morphium();</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
 </div>
 
 <!-- Section 7: Related Documentation -->

@@ -167,10 +167,12 @@
     </div>
 </div>
 
-<!-- Section 6: Array & Field Operations -->
+<!-- Section 6: Array & Field Operations — Morphium API vs Jakarta Data -->
 <div class="learn-section">
     <h2>Array &amp; Field Operations</h2>
-    {#include tags/code-block title="push / pull / set / unset" lang="Java"}
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — push / pull / set / unset" lang="Java"}
     {#content}<span class="line"><span class="type">Query</span>&lt;<span class="type">ImportRecord</span>&gt; query = morphium.createQueryFor(<span class="type">ImportRecord</span>.<span class="keyword">class</span>)</span>
 <span class="line">    .f(<span class="type">ImportRecord</span>.Fields.id).eq(<span class="keyword">new</span> <span class="type">MorphiumId</span>(id));</span>
 <span class="line"></span>
@@ -192,6 +194,37 @@
         <div class="callout-item"><span class="code-callout">3</span> <code>query.set()</code> updates a single field with <code>$set</code>; parameters are field, value, upsert, multiple, and async callback (<code>AsyncOperationCallback</code>).</div>
         <div class="callout-item"><span class="code-callout">4</span> <code>query.unset()</code> removes the field key entirely from the BSON document, which is different from setting it to <code>null</code>.</div>
     </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">ImportRecordRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">ImportRecord</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">ImportRecord</span>&gt; findByStatus(String status);</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">long</span> countBySource(String source);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">ImportRecordRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// CRUD via repository</span></span>
+<span class="line">repository.save(record);</span>
+<span class="line">repository.findByStatus(<span class="string">&quot;PENDING&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Bulk insert</span></span>
+<span class="line">repository.insertAll(records);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// push/pull/set/unset — Morphium-specific,</span></span>
+<span class="line"><span class="comment">// use MorphiumRepository escape hatch:</span></span>
+<span class="line"><span class="keyword">var</span> q = repository.query()</span>
+<span class="line">    .f(ImportRecord.Fields.id).eq(<span class="keyword">new</span> <span class="type">MorphiumId</span>(id));</span>
+<span class="line">repository.morphium().push(q,</span>
+<span class="line">    ImportRecord.Fields.tags, <span class="string">&quot;priority&quot;</span>);</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
 </div>
 
 <!-- Section 7: Related Documentation -->

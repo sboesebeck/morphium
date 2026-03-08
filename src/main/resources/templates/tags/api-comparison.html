@@ -1,0 +1,15 @@
+<!-- Reusable API Comparison: Morphium Query API vs Jakarta Data tabs -->
+<div class="api-comparison">
+    <div class="api-comparison-tabs" role="tablist">
+        <button class="api-tab active" role="tab" aria-selected="true"
+                onclick="switchApiTab(this, 'morphium')">Morphium Query API</button>
+        <button class="api-tab" role="tab" aria-selected="false"
+                onclick="switchApiTab(this, 'jakarta')">Jakarta Data</button>
+    </div>
+    <div class="api-tab-panel" data-api="morphium">
+        {#insert morphium}{/insert}
+    </div>
+    <div class="api-tab-panel" data-api="jakarta" style="display:none">
+        {#insert jakarta}{/insert}
+    </div>
+</div>

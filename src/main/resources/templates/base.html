@@ -22,6 +22,18 @@
       el.classList.add('active');
       el.setAttribute('aria-selected', 'true');
     }
+    function switchApiTab(el, api) {
+      var container = el.closest('.api-comparison');
+      container.querySelectorAll('.api-tab').forEach(function(t) {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      el.classList.add('active');
+      el.setAttribute('aria-selected', 'true');
+      container.querySelectorAll('.api-tab-panel').forEach(function(p) {
+        p.style.display = p.getAttribute('data-api') === api ? '' : 'none';
+      });
+    }
     function copyCode(btn) {
       var block = btn.closest('.code-card').querySelector('pre');
       var text = block.textContent || block.innerText;

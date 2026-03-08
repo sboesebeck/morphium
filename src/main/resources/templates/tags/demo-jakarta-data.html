@@ -18,7 +18,7 @@
                 <div style="flex:1; min-width:300px">
                     <label for="operation"><strong>Operation:</strong></label>
                     <select name="operation" id="operation" class="form-control" style="width:100%; padding:0.5rem; margin-top:0.25rem">
-                        <optgroup label="Phase 2: Query Derivation">
+                        <optgroup label="Query Derivation">
                             <option value="findByDepartment" {#if selectedOperation == 'findByDepartment'}selected{/if}>findByDepartment("Engineering")</option>
                             <option value="findBySalaryGt" {#if selectedOperation == 'findBySalaryGt'}selected{/if}>findBySalaryGreaterThan(90000)</option>
                             <option value="findBySalaryRange" {#if selectedOperation == 'findBySalaryRange'}selected{/if}>findBySalaryBetween(60000, 100000)</option>
@@ -26,14 +26,14 @@
                             <option value="countByDepartment" {#if selectedOperation == 'countByDepartment'}selected{/if}>countByDepartment("Engineering")</option>
                             <option value="existsByEmail" {#if selectedOperation == 'existsByEmail'}selected{/if}>existsByEmail("alice@example.com")</option>
                         </optgroup>
-                        <optgroup label="Phase 4: @Find / @OrderBy">
+                        <optgroup label="@Find / @OrderBy">
                             <option value="topEarners" {#if selectedOperation == 'topEarners'}selected{/if}>topEarnersInDepartment("Engineering", Limit.of(2))</option>
                         </optgroup>
-                        <optgroup label="Phase 5: @Query / JDQL">
+                        <optgroup label="@Query / JDQL">
                             <option value="topActiveEarners" {#if selectedOperation == 'topActiveEarners'}selected{/if}>topActiveEarners("Engineering", 90000)</option>
                         </optgroup>
-                        <optgroup label="Morphium-Only">
-                            <option value="distinct" {#if selectedOperation == 'distinct'}selected{/if}>distinct("department") — no Jakarta Data equivalent</option>
+                        <optgroup label="MorphiumRepository">
+                            <option value="distinct" {#if selectedOperation == 'distinct'}selected{/if}>distinct("department") &mdash; via MorphiumRepository</option>
                         </optgroup>
                     </select>
                 </div>
@@ -51,10 +51,8 @@
     <div class="card" style="margin-bottom:1.5rem">
         <h3>
             Comparison Result
-            {#if comparisonResult.get('match') == true && comparisonResult.get('morphiumOnly') == null}
+            {#if comparisonResult.get('match') == true}
                 <span style="color:var(--color-success); margin-left:0.5rem">&#10003; Results match</span>
-            {#else if comparisonResult.get('morphiumOnly') == true}
-                <span style="color:var(--color-warning); margin-left:0.5rem">&#9888; Morphium-only feature</span>
             {/if}
         </h3>
 
@@ -62,7 +60,10 @@
             <!-- Morphium Side -->
             <div>
                 <h4 style="color:var(--color-primary)">Morphium API (imperative)</h4>
-                <pre class="code-block" style="font-size:0.85rem; padding:0.75rem; background:var(--bg-code); border-radius:4px; overflow-x:auto; white-space:pre-wrap">{comparisonResult.get('morphiumCode')}</pre>
+                <div style="margin-bottom:0.5rem">
+                    <strong style="font-size:0.8rem; color:var(--text-secondary)">Query Code:</strong>
+                    <pre class="code-block" style="font-size:0.85rem; padding:0.75rem; background:var(--bg-code); border-radius:4px; overflow-x:auto; white-space:pre-wrap">{comparisonResult.get('morphiumCode')}</pre>
+                </div>
                 <div style="margin-top:0.5rem">
                     <strong>Result:</strong>
                     <ul style="margin:0.25rem 0 0 1rem">
@@ -75,8 +76,17 @@
 
             <!-- Jakarta Data Side -->
             <div>
-                <h4 style="color:var(--color-accent)">Jakarta Data (declarative)</h4>
-                <pre class="code-block" style="font-size:0.85rem; padding:0.75rem; background:var(--bg-code); border-radius:4px; overflow-x:auto; white-space:pre-wrap">{comparisonResult.get('jakartaCode')}</pre>
+                <h4 style="color:var(--color-accent)">Jakarta Data / MorphiumRepository</h4>
+                {#if comparisonResult.get('jakartaInterface')}
+                <div style="margin-bottom:0.5rem">
+                    <strong style="font-size:0.8rem; color:var(--text-secondary)">Repository Interface Declaration:</strong>
+                    <pre class="code-block" style="font-size:0.8rem; padding:0.5rem 0.75rem; background:var(--sidebar-bg); border-radius:4px; overflow-x:auto; white-space:pre-wrap; color:var(--accent-light); border:1px solid var(--header-border)">{comparisonResult.get('jakartaInterface')}</pre>
+                </div>
+                {/if}
+                <div style="margin-bottom:0.5rem">
+                    <strong style="font-size:0.8rem; color:var(--text-secondary)">Invocation:</strong>
+                    <pre class="code-block" style="font-size:0.85rem; padding:0.75rem; background:var(--bg-code); border-radius:4px; overflow-x:auto; white-space:pre-wrap">{comparisonResult.get('jakartaCode')}</pre>
+                </div>
                 <div style="margin-top:0.5rem">
                     <strong>Result:</strong>
                     <ul style="margin:0.25rem 0 0 1rem">
@@ -89,6 +99,41 @@
         </div>
     </div>
     {/if}
+
+    <!-- Repository Hierarchy -->
+    <div class="card" style="margin-bottom:1.5rem">
+        <h3>Repository Hierarchy</h3>
+        <p>The showcase uses all three repository levels:</p>
+        <table class="data-table" style="width:100%; margin:0.75rem 0">
+            <thead>
+                <tr><th>Repository</th><th>Extends</th><th>Extra Features</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>BlogPostRepository</code></td>
+                    <td><code>BasicRepository</code></td>
+                    <td>save, findById, delete, findAll</td>
+                </tr>
+                <tr>
+                    <td><code>ProductRepository</code></td>
+                    <td><code>MorphiumRepository</code></td>
+                    <td>+ insert, update + <strong>distinct()</strong>, <strong>morphium()</strong>, <strong>query()</strong></td>
+                </tr>
+                <tr>
+                    <td><code>EmployeeRepository</code></td>
+                    <td><code>MorphiumRepository</code></td>
+                    <td>+ insert, update + <strong>distinct()</strong>, <strong>morphium()</strong>, <strong>query()</strong></td>
+                </tr>
+            </tbody>
+        </table>
+        <p><code>MorphiumRepository</code> extends <code>CrudRepository</code> with three Morphium-specific methods
+        that have no equivalent in Jakarta Data 1.0:</p>
+        <ul>
+            <li><strong><code>distinct("field")</code></strong> &mdash; unique values across all documents</li>
+            <li><strong><code>morphium()</code></strong> &mdash; escape hatch to the full Morphium API (aggregation, atomic updates, etc.)</li>
+            <li><strong><code>query()</code></strong> &mdash; typed Morphium Query for complex conditions</li>
+        </ul>
+    </div>
 
     <!-- Seed Data Reset -->
     <div class="card">

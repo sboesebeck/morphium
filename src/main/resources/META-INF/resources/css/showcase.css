@@ -598,6 +598,48 @@ table tr:hover td {
     border-bottom-color: var(--accent);
 }
 
+/* API Comparison Tabs (inline code tabs) */
+.api-comparison {
+    margin: 1rem 0;
+    border: 1px solid var(--header-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.api-comparison-tabs {
+    display: flex;
+    gap: 0;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--header-border);
+}
+.api-tab {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--sidebar-text);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+}
+.api-tab:hover { color: var(--accent-light); }
+.api-tab.active {
+    color: #fff;
+    background: rgba(9, 132, 227, 0.15);
+    border-bottom-color: var(--accent);
+}
+.api-tab-panel {
+    padding: 0;
+}
+.api-tab-panel .code-card {
+    border: none;
+    border-radius: 0;
+    margin: 0;
+}
+.api-tab-panel .code-card + .callout-list {
+    padding: 0.5rem 1rem 0.75rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar { width: 200px; }

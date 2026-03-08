@@ -155,10 +155,14 @@
     </div>
 </div>
 
-<!-- Section 6: Service Code -->
+<!-- Section 6: Service Code — Morphium API vs Jakarta Data -->
 <div class="learn-section">
-    <h2>Service Code (Aggregation API)</h2>
-    {#include tags/code-block title="Aggregation Pipeline — Sales by Region" lang="Java"}
+    <h2>Service Code</h2>
+
+    <h3>Aggregation Pipeline</h3>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Aggregation Pipeline" lang="Java"}
     {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
 <span class="line"><span class="keyword">import</span> de.caluga.morphium.aggregation.Aggregator;</span>
 <span class="line"></span>
@@ -194,7 +198,7 @@
         <div class="callout-item"><span class="code-callout">8</span> Sends the assembled pipeline to MongoDB and returns the results as a <code>List&lt;Map&gt;</code>.</div>
     </div>
 
-    {#include tags/code-block title="Distinct Values & Count" lang="Java"}
+    {#include tags/code-block title="Morphium API — Distinct Values & Count" lang="Java"}
     {#content}<span class="line"><span class="comment">// Get distinct regions</span></span>
 <span class="line"><span class="type">List</span>&lt;String&gt; regions = morphium.createQueryFor(<span class="code-callout">1</span></span>
 <span class="line">    <span class="type">SalesRecord</span>.<span class="keyword">class</span>).distinct(<span class="string">&quot;region&quot;</span>);</span>
@@ -211,6 +215,40 @@
         <div class="callout-item"><span class="code-callout">2</span> Uses the MongoDB field name <code>&quot;product_name&quot;</code> (snake_case), not the Java field name <code>&quot;productName&quot;</code>. This is a common gotcha with Morphium's default name mapping.</div>
         <div class="callout-item"><span class="code-callout">3</span> <code>countAll()</code> executes a server-side count without loading any documents into memory.</div>
     </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Note" lang="Info"}
+    {#content}<span class="line"><span class="comment">// Aggregation pipelines ($group, $project, $bucket)</span></span>
+<span class="line"><span class="comment">// have NO equivalent in Jakarta Data 1.0.</span></span>
+<span class="line"><span class="comment">// Use the MorphiumRepository escape hatch:</span></span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">SalesRecordRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">SalesRecord</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage with Escape Hatch" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">SalesRecordRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Distinct values — via MorphiumRepository</span></span>
+<span class="line">repository.distinct(<span class="string">&quot;region&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Count — inherited from CrudRepository</span></span>
+<span class="line">repository.count();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Aggregation pipeline — via escape hatch</span></span>
+<span class="line"><span class="keyword">var</span> agg = repository.morphium().createAggregator(</span>
+<span class="line">    <span class="type">SalesRecord</span>.<span class="keyword">class</span>, <span class="type">Map</span>.<span class="keyword">class</span>);</span>
+<span class="line">agg.group(<span class="string">&quot;$region&quot;</span>)</span>
+<span class="line">    .sum(<span class="string">&quot;totalRevenue&quot;</span>,</span>
+<span class="line">        Map.of(<span class="string">&quot;$multiply&quot;</span>,</span>
+<span class="line">            List.of(<span class="string">&quot;$unit_price&quot;</span>, <span class="string">&quot;$quantity&quot;</span>)))</span>
+<span class="line">    .end();</span>
+<span class="line">agg.sort(Map.of(<span class="string">&quot;totalRevenue&quot;</span>, -<span class="number">1</span>));</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">Map</span>&gt; results = agg.aggregate();</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
 </div>
 
 <!-- Section 7: Related Documentation -->
