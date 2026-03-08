@@ -40,6 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import sun.misc.Unsafe;
+
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -49,6 +51,40 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
+
+    /**
+     * {@code Unsafe} is used solely for {@link Unsafe#allocateInstance(Class)} — creating entity
+     * instances without calling a constructor. This is the fallback when an entity class has no
+     * accessible no-arg constructor (e.g. only {@code @AllArgsConstructor} from Lombok).
+     *
+     * <p><b>Why not a public API?</b> Java does not provide a public API for constructor-free
+     * instantiation. The previously used {@code sun.reflect.ReflectionFactory} was removed from
+     * the internal API surface. {@code Unsafe.allocateInstance()} is the de facto standard,
+     * used by Spring, Jackson, Gson, Kryo, Hibernate/Objenesis, and Netty.</p>
+     *
+     * <p><b>JEP 471</b> (JDK 23) deprecates Unsafe's memory-access methods but does
+     * <b>not</b> cover {@code allocateInstance()} — no replacement exists yet.</p>
+     *
+     * <p>To avoid this code path entirely, add a no-arg constructor (can be {@code private})
+     * to all {@code @Entity} and {@code @Embedded} classes.</p>
+     *
+     * @see <a href="https://openjdk.org/jeps/471">JEP 471: Deprecate the Memory-Access Methods in sun.misc.Unsafe for Removal</a>
+     */
+    private static final Unsafe UNSAFE;
+    static {
+        try {
+            Field f = Unsafe.class.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            UNSAFE = (Unsafe) f.get(null);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(
+                "Failed to obtain sun.misc.Unsafe instance. Morphium requires "
+                + "Unsafe.allocateInstance() to deserialize entity classes without a no-arg "
+                + "constructor. If running on a modular JDK, ensure "
+                + "--add-opens java.base/sun.misc=ALL-UNNAMED is set.");
+        }
+    }
+
     private final Map < Class<?>, NameProvider > nameProviders;
     private final JSONParser jsonParser = new JSONParser();
 
@@ -891,8 +927,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             if (ret == null) {
-                throw new IllegalArgumentException("Could not instantiate " + cls.getName()
-                    + ": entity classes must declare a public no-arg constructor");
+                // No no-arg constructor — use Unsafe.allocateInstance() to create an
+                // instance without calling any constructor. See UNSAFE field JavaDoc.
+                try {
+                    ret = UNSAFE.allocateInstance(cls);
+                } catch (InstantiationException e) {
+                    log.error("Could not instantiate {} via Unsafe.allocateInstance(). "
+                        + "Consider adding a no-arg constructor (can be private).", cls.getName(), e);
+                }
+            }
+
+            if (ret == null) {
+                throw new IllegalArgumentException("Could not instantiate " + cls.getName());
             }
 
             List<String> flds = annotationHelper.getFields(cls);
