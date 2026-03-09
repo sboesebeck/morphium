@@ -492,6 +492,13 @@ The exception carries `getExpectedVersion()` (the version the caller held) for d
 ```
 See `docs/howtos/references-and-relationships.md` for a comprehensive guide.
 
+**@CascadeAware**
+```java
+@CascadeAware // Required on entity classes using cascadeDelete or orphanRemoval
+```
+
+Marker annotation (analogous to `@Lifecycle`). Without `@CascadeAware`, cascade delete and orphan removal checks are skipped entirely for performance. Add this annotation to any `@Entity` class that has `@Reference(cascadeDelete = true)` or `@Reference(orphanRemoval = true)` fields.
+
 ### Index Annotations
 
 **@Index (Field Level)**

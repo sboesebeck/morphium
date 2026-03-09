@@ -463,6 +463,7 @@ public class ReferenceCascadeTest extends MultiDriverTestBase {
 
     @Entity
     @NoCache
+    @CascadeAware
     public static class CascadeParent {
         @Id
         MorphiumId id;
@@ -480,6 +481,7 @@ public class ReferenceCascadeTest extends MultiDriverTestBase {
 
     @Entity
     @NoCache
+    @CascadeAware
     public static class CascadeNodeA {
         @Id
         MorphiumId id;
@@ -490,6 +492,7 @@ public class ReferenceCascadeTest extends MultiDriverTestBase {
 
     @Entity
     @NoCache
+    @CascadeAware
     public static class CascadeNodeB {
         @Id
         MorphiumId id;
@@ -500,6 +503,7 @@ public class ReferenceCascadeTest extends MultiDriverTestBase {
 
     @Entity
     @NoCache
+    @CascadeAware
     public static class OrphanParent {
         @Id
         MorphiumId id;

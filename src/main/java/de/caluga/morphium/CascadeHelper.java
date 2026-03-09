@@ -1,5 +1,6 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.annotations.CascadeAware;
 import de.caluga.morphium.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Helper class for cascade operations on @Reference fields.
  * Handles cascade delete and orphan removal with identity-based cycle detection.
+ * Entities must be annotated with {@link CascadeAware} for cascade operations to take effect.
  */
 public class CascadeHelper {
     private static final Logger log = LoggerFactory.getLogger(CascadeHelper.class);
@@ -25,9 +27,8 @@ public class CascadeHelper {
     private static final ThreadLocal<Map<Object, List<OrphanCandidate>>> pendingOrphans =
         ThreadLocal.withInitial(IdentityHashMap::new);
 
-    // Class-level caches to avoid scanning all fields on every store/delete (see @Lifecycle pattern)
-    private static final Map<Class<?>, Boolean> cascadeDeleteCache = new ConcurrentHashMap<>();
-    private static final Map<Class<?>, Boolean> orphanRemovalCache = new ConcurrentHashMap<>();
+    // Track classes already checked for missing @CascadeAware (warn once per class)
+    private static final Set<Class<?>> warnedClasses = ConcurrentHashMap.newKeySet();
 
     record OrphanCandidate(Class<?> type, Object id, String collection) {}
 
@@ -43,8 +44,11 @@ public class CascadeHelper {
         Object realEntity = arHelper.getRealObject(entity);
         if (realEntity == null) return;
 
-        // Cached check: skip field scan entirely if class has no @Reference(cascadeDelete=true)
-        if (!hasCascadeDelete(arHelper, realEntity.getClass())) return;
+        // Skip entirely if class is not marked @CascadeAware
+        if (!arHelper.isAnnotationPresentInHierarchy(realEntity.getClass(), CascadeAware.class)) {
+            warnIfCascadeFieldsPresent(arHelper, realEntity.getClass());
+            return;
+        }
 
         Set<Object> inProgress = deletingObjects.get();
         if (!inProgress.add(entity)) return; // Cycle detected, skip
@@ -103,36 +107,6 @@ public class CascadeHelper {
     }
 
     /**
-     * Cached check whether any @Reference field on the given class has cascadeDelete=true.
-     * Result is computed once per class and cached (similar to @Lifecycle marker pattern).
-     */
-    public static boolean hasCascadeDelete(AnnotationAndReflectionHelper arHelper, Class<?> type) {
-        return cascadeDeleteCache.computeIfAbsent(type, cls -> {
-            for (Field fld : arHelper.getAllFields(cls)) {
-                if (fld.isAnnotationPresent(Reference.class) && fld.getAnnotation(Reference.class).cascadeDelete()) {
-                    return true;
-                }
-            }
-            return false;
-        });
-    }
-
-    /**
-     * Cached check whether any @Reference field on the given class has orphanRemoval=true.
-     * Result is computed once per class and cached (similar to @Lifecycle marker pattern).
-     */
-    public static boolean hasOrphanRemoval(AnnotationAndReflectionHelper arHelper, Class<?> type) {
-        return orphanRemovalCache.computeIfAbsent(type, cls -> {
-            for (Field fld : arHelper.getAllFields(cls)) {
-                if (fld.isAnnotationPresent(Reference.class) && fld.getAnnotation(Reference.class).orphanRemoval()) {
-                    return true;
-                }
-            }
-            return false;
-        });
-    }
-
-    /**
      * Called BEFORE store. Loads old version from DB and records reference IDs
      * for fields with orphanRemoval=true.
      * Does nothing for inserts (entity ID is null).
@@ -144,8 +118,11 @@ public class CascadeHelper {
         Object realEntity = arHelper.getRealObject(entity);
         if (realEntity == null) return;
 
-        // Cached check: skip entirely if class has no @Reference(orphanRemoval=true)
-        if (!hasOrphanRemoval(arHelper, realEntity.getClass())) return;
+        // Skip entirely if class is not marked @CascadeAware
+        if (!arHelper.isAnnotationPresentInHierarchy(realEntity.getClass(), CascadeAware.class)) {
+            warnIfCascadeFieldsPresent(arHelper, realEntity.getClass());
+            return;
+        }
 
         Object entityId;
         try {
@@ -240,11 +217,22 @@ public class CascadeHelper {
     }
 
     /**
-     * Clears the class-level caches. Useful for testing or after dynamic class changes.
+     * Warns once per class if @Reference(cascadeDelete/orphanRemoval) fields exist
+     * but @CascadeAware is missing. The field scan happens at most once per class.
      */
-    public static void clearCaches() {
-        cascadeDeleteCache.clear();
-        orphanRemovalCache.clear();
+    private static void warnIfCascadeFieldsPresent(AnnotationAndReflectionHelper arHelper, Class<?> cls) {
+        if (!warnedClasses.add(cls)) return; // already checked
+
+        for (Field fld : arHelper.getAllFields(cls)) {
+            if (!fld.isAnnotationPresent(Reference.class)) continue;
+            Reference ref = fld.getAnnotation(Reference.class);
+            if (ref.cascadeDelete() || ref.orphanRemoval()) {
+                log.warn("{} has @Reference fields with cascadeDelete/orphanRemoval but is missing "
+                    + "@CascadeAware — cascade operations will be skipped. "
+                    + "Add @CascadeAware to the class to enable them.", cls.getName());
+                return;
+            }
+        }
     }
 
     /**

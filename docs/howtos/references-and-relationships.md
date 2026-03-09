@@ -91,10 +91,13 @@ String name = post.getAuthor().getName(); // DB query happens here
 
 ## cascadeDelete (default: false)
 
-When `cascadeDelete = true`, deleting the parent entity also deletes the referenced entities:
+When `cascadeDelete = true`, deleting the parent entity also deletes the referenced entities.
+
+**Important:** The entity class must be annotated with `@CascadeAware` for cascade operations to take effect. Without this marker, `cascadeDelete` and `orphanRemoval` checks are skipped entirely for performance (analogous to `@Lifecycle` for lifecycle callbacks).
 
 ```java
 @Entity
+@CascadeAware
 public class Order {
     @Id
     private MorphiumId id;
@@ -111,6 +114,7 @@ morphium.delete(order);
 ```
 
 **Key behaviors:**
+- **Requires `@CascadeAware`** on the entity class — without it, cascade operations are silently skipped
 - Only applies to entity-based `remove(Object)` / `delete(Object)` calls, not query-based deletes
 - Cascade delete is recursive: if OrderItem also has `@Reference(cascadeDelete = true)`, those references are deleted too
 - **Cycle-safe:** Circular cascade references (A→B→A) are detected and won't cause infinite loops
@@ -122,6 +126,7 @@ When `orphanRemoval = true`, updating a parent entity will automatically delete 
 
 ```java
 @Entity
+@CascadeAware
 public class Team {
     @Id
     private MorphiumId id;
