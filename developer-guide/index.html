@@ -2502,6 +2502,9 @@
 <li>Stores only the target entity’s ID in the parent; the referenced entity lives in its own collection/document.</li>
 <li>Reading references may incur N+1 queries: one for the parent plus one per referenced entity (unless <code>lazyLoading=true</code> defers loads until first access).</li>
 <li>Use for large/independent aggregates or when the referenced object changes on its own lifecycle.</li>
+<li>Supports <code>cascadeDelete=true</code> to delete referenced entities when the parent is deleted, and <code>orphanRemoval=true</code> to delete referenced entities that are removed from the parent during an update.</li>
+<li>Circular <code>@Reference</code> chains are handled by cycle detection during serialization. For bidirectional references, use <code>lazyLoading=true</code> on at least one side.</li>
+<li>See <code>docs/howtos/references-and-relationships.md</code> for a comprehensive guide.</li>
 </ul>
 <h3 id="simple-example">Simple Example<a class="headerlink" href="#simple-example" title="Permanent link">&para;</a></h3>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nd">@Embedded</span><span class="p">(</span><span class="n">typeId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;Address&quot;</span><span class="p">)</span>
