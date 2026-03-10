@@ -1,4 +1,4 @@
-package de.caluga.morphium.server;
+package de.caluga.poppydb;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
@@ -17,14 +17,14 @@ import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
-import de.caluga.morphium.server.election.ElectionConfig;
-import de.caluga.morphium.server.election.ElectionManager;
-import de.caluga.morphium.server.election.ElectionNetworkClient;
-import de.caluga.morphium.server.netty.MongoCommandHandler;
-import de.caluga.morphium.server.netty.MongoWireProtocolDecoder;
-import de.caluga.morphium.server.netty.MongoWireProtocolEncoder;
-import de.caluga.morphium.server.netty.WatchCursorManager;
-import de.caluga.morphium.server.messaging.MessagingOptimizer;
+import de.caluga.poppydb.election.ElectionConfig;
+import de.caluga.poppydb.election.ElectionManager;
+import de.caluga.poppydb.election.ElectionNetworkClient;
+import de.caluga.poppydb.netty.MongoCommandHandler;
+import de.caluga.poppydb.netty.MongoWireProtocolDecoder;
+import de.caluga.poppydb.netty.MongoWireProtocolEncoder;
+import de.caluga.poppydb.netty.WatchCursorManager;
+import de.caluga.poppydb.messaging.MessagingOptimizer;
 
 import javax.net.ssl.SSLContext;
 import java.io.File;
@@ -39,9 +39,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Event-driven architecture that can handle thousands of concurrent
  * connections with few threads.
  */
-public class MorphiumServer {
+public class PoppyDB {
 
-    private static final Logger log = LoggerFactory.getLogger(MorphiumServer.class);
+    private static final Logger log = LoggerFactory.getLogger(PoppyDB.class);
 
     // Configuration
     private final int port;
@@ -89,7 +89,7 @@ public class MorphiumServer {
     private ReplicationManager replicationManager = null;
     private ReplicationCoordinator replicationCoordinator = null;
 
-    public MorphiumServer(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
+    public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
         this.host = host;
         this.maxConnections = maxConnections;
@@ -106,11 +106,11 @@ public class MorphiumServer {
         driver.setServerMode(true);
     }
 
-    public MorphiumServer(int port, String host, int maxConnections, int idleTimeoutSeconds) {
+    public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds) {
         this(port, host, maxConnections, idleTimeoutSeconds, OpCompressed.COMPRESSOR_NOOP);
     }
 
-    public MorphiumServer() {
+    public PoppyDB() {
         this(17017, "localhost", 10000, 60, OpCompressed.COMPRESSOR_NOOP);
     }
 
@@ -123,7 +123,7 @@ public class MorphiumServer {
             throw new IllegalStateException("Server already running");
         }
 
-        log.info("Starting MorphiumServer on {}:{} (maxConnections={}, idleTimeout={}s)",
+        log.info("Starting PoppyDB on {}:{} (maxConnections={}, idleTimeout={}s)",
                 host, port, maxConnections, idleTimeoutSeconds);
 
         // Configure event loop groups
@@ -204,7 +204,7 @@ public class MorphiumServer {
         serverChannel = future.channel();
         running = true;
 
-        log.info("MorphiumServer started on {}:{} (workers: {})", host, port, workerThreads);
+        log.info("PoppyDB started on {}:{} (workers: {})", host, port, workerThreads);
 
         // Start dump scheduler if configured
         startDumpScheduler();
@@ -227,7 +227,7 @@ public class MorphiumServer {
             return;
         }
 
-        log.info("Shutting down MorphiumServer...");
+        log.info("Shutting down PoppyDB...");
         running = false;
 
         // Stop election system
@@ -273,7 +273,7 @@ public class MorphiumServer {
         // Shutdown the driver (force shutdown since it's in server mode)
         driver.forceShutdown();
 
-        log.info("MorphiumServer shutdown complete");
+        log.info("PoppyDB shutdown complete");
     }
 
     private io.netty.handler.ssl.SslContext buildSslContext() throws Exception {
@@ -485,7 +485,7 @@ public class MorphiumServer {
         }
 
         dumpScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "MorphiumServer-DumpScheduler");
+            Thread t = new Thread(r, "PoppyDB-DumpScheduler");
             t.setDaemon(true);
             return t;
         });

@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.election;
+package de.caluga.poppydb.election;
 
 /**
  * Represents the possible states of a node in the election protocol.

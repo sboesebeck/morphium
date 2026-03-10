@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.netty;
+package de.caluga.poppydb.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

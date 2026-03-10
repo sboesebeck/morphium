@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.election;
+package de.caluga.poppydb.election;
 
 import java.util.Map;
 import java.util.HashMap;

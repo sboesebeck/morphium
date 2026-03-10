@@ -1,4 +1,4 @@
-package de.caluga.morphium.server;
+package de.caluga.poppydb;
 
 import de.caluga.morphium.driver.wire.SslHelper;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
@@ -12,8 +12,8 @@ import java.util.Map;
 
 import static java.lang.Thread.sleep;
 
-public class MorphiumServerCLI {
-    private static final Logger log = LoggerFactory.getLogger(MorphiumServerCLI.class);
+public class PoppyDBCLI {
+    private static final Logger log = LoggerFactory.getLogger(PoppyDBCLI.class);
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0 || (args.length == 1 && (args[0].equals("--help") || args[0].equals("-h")))) {
@@ -187,7 +187,7 @@ public class MorphiumServerCLI {
             }
         }
 
-        var srv = new MorphiumServer(port, host, maxConnections, socketTimeoutSec, compressorId);
+        var srv = new PoppyDB(port, host, maxConnections, socketTimeoutSec, compressorId);
 
         // Configure replica set - election is always enabled for multi-node replica sets
         boolean enableElection = !rsNameArg.isEmpty() && hostsArg.size() > 1;
@@ -243,7 +243,7 @@ public class MorphiumServerCLI {
         }));
 
         while (srv.isRunning()) {
-            log.info("MorphiumServer alive - connections: {}", srv.getConnectionCount());
+            log.info("PoppyDB alive - connections: {}", srv.getConnectionCount());
             sleep(10000);
         }
     }
@@ -252,7 +252,7 @@ public class MorphiumServerCLI {
     private static void printHelp() {
         System.out.println("Usage: java -jar morphium-server.jar [options]");
         System.out.println();
-        System.out.println("MorphiumServer is a MongoDB-compatible in-memory server using async I/O (Netty).");
+        System.out.println("PoppyDB is a MongoDB-compatible in-memory server using async I/O (Netty).");
         System.out.println("It can handle thousands of concurrent connections efficiently.");
         System.out.println();
         System.out.println("Options:");

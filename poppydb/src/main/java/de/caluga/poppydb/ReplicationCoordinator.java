@@ -1,4 +1,4 @@
-package de.caluga.morphium.server;
+package de.caluga.poppydb;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +12,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Coordinates replication between primary and secondary MorphiumServer nodes.
+ * Coordinates replication between primary and secondary PoppyDB nodes.
  * Tracks write sequence numbers and waits for replication acknowledgment.
  */
 public class ReplicationCoordinator {

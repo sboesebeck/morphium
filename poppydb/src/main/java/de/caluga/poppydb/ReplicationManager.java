@@ -1,4 +1,4 @@
-package de.caluga.morphium.server;
+package de.caluga.poppydb;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Handles replication from primary to secondary MorphiumServer nodes.
+ * Handles replication from primary to secondary PoppyDB nodes.
  *
  * Secondaries connect to the primary and watch for changes via change streams.
  * When change events arrive, they are applied to the local InMemoryDriver.
@@ -110,7 +110,7 @@ public class ReplicationManager {
         log.info("Starting replication from primary {}:{}", primaryHost, primaryPort);
 
         replicationExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "MorphiumServer-Replication");
+            Thread t = new Thread(r, "PoppyDB-Replication");
             t.setDaemon(true);
             return t;
         });
@@ -133,7 +133,7 @@ public class ReplicationManager {
      */
     private void startBatchProcessor() {
         batchProcessor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "MorphiumServer-BatchProcessor");
+            Thread t = new Thread(r, "PoppyDB-BatchProcessor");
             t.setDaemon(true);
             return t;
         });
@@ -268,7 +268,7 @@ public class ReplicationManager {
      */
     private void startProgressReporter() {
         progressReporter = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "MorphiumServer-ProgressReporter");
+            Thread t = new Thread(r, "PoppyDB-ProgressReporter");
             t.setDaemon(true);
             return t;
         });

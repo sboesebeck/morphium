@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.election;
+package de.caluga.poppydb.election;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +11,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Manages leader election for MorphiumServer replica set.
+ * Manages leader election for PoppyDB replica set.
  * Implements a Raft-inspired election protocol.
  *
  * Thread-safety: All state modifications are synchronized via the stateLock.
@@ -48,7 +48,7 @@ public class ElectionManager {
     private ScheduledFuture<?> heartbeatTask;
     private ScheduledFuture<?> leaseCheckTask;
 
-    // Callbacks for integration with MorphiumServer
+    // Callbacks for integration with PoppyDB
     private Consumer<Boolean> onLeadershipChange;  // Called with true when becoming leader, false when stepping down
     private Consumer<String> onLeaderDiscovered;   // Called when a new leader is discovered
     private BiConsumer<String, VoteRequest> sendVoteRequest;  // Send vote request to peer

@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.messaging;
+package de.caluga.poppydb.messaging;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;

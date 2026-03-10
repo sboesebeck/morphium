@@ -1,8 +1,8 @@
-package de.caluga.morphium.server.messaging;
+package de.caluga.poppydb.messaging;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.server.netty.WatchCursorManager;
+import de.caluga.poppydb.netty.WatchCursorManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Optimizes MorphiumServer for messaging workloads.
+ * Optimizes PoppyDB for messaging workloads.
  *
  * When a messaging collection is registered, the server can:
  * - Create optimized indexes for messaging queries

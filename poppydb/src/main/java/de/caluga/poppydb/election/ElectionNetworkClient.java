@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.election;
+package de.caluga.poppydb.election;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -14,7 +14,7 @@ import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 
 /**
- * Handles network communication between MorphiumServer nodes for elections.
+ * Handles network communication between PoppyDB nodes for elections.
  * Creates connections to peer servers and sends vote requests / heartbeats.
  */
 public class ElectionNetworkClient {

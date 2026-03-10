@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.election;
+package de.caluga.poppydb.election;
 
 /**
  * Configuration for the election protocol.

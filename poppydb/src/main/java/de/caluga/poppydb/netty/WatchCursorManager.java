@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.netty;
+package de.caluga.poppydb.netty;
 
 import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;

@@ -1,4 +1,4 @@
-package de.caluga.morphium.server.netty;
+package de.caluga.poppydb.netty;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -14,10 +14,10 @@ import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.server.ReplicationCoordinator;
-import de.caluga.morphium.server.election.*;
-import de.caluga.morphium.server.messaging.MessagingCollectionInfo;
-import de.caluga.morphium.server.messaging.MessagingOptimizer;
+import de.caluga.poppydb.ReplicationCoordinator;
+import de.caluga.poppydb.election.*;
+import de.caluga.poppydb.messaging.MessagingCollectionInfo;
+import de.caluga.poppydb.messaging.MessagingOptimizer;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wireprotocol.*;
 
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Netty handler for processing MongoDB commands.
- * This is the async equivalent of MorphiumServer.incoming().
+ * This is the async equivalent of PoppyDB.incoming().
  */
 public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
@@ -859,7 +859,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
         res.setMe(myAddress);
         res.setLogicalSessionTimeoutMinutes(30);
-        res.setMsg("MorphiumServer V0.1ALPHA (Netty)");
+        res.setMsg("PoppyDB V0.1ALPHA (Netty)");
 
         // Advertise supported compression algorithms
         List<String> compressionAlgorithms = new ArrayList<>();
