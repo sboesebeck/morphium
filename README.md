@@ -92,13 +92,24 @@ See `docs/howtos/optimistic-locking.md` for the full guide.
 
 ## 🚀 What’s New in v6.2
 
-### PoppyDB (formerly MorphiumServer) – The "Drop-in" Replacement
-Morphium 6.2 extracts the server into its own module `de.caluga:poppydb` and renames it to **PoppyDB**:
+### PoppyDB – Lightweight MongoDB Replacement for Testing
+Morphium 6.2 extracts the server into its own module `de.caluga:poppydb` and renames it from MorphiumServer to **PoppyDB**.
+
+**Why the split?** The server brought in dependencies (Netty, etc.) that most Morphium users don't need — if you're just using the core library to talk to MongoDB, you don't want the extra baggage. Now `de.caluga:morphium` stays lean, and if you want a lightweight MongoDB replacement for your tests, just add PoppyDB as a test dependency:
+
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
 - ✅ **Full Wire Protocol Support**: Use any standard MongoDB client (mongosh, Compass, etc.)
-- ✅ **CLI Tooling**: Dedicated `poppydb-<version>-cli.jar` for easy deployment
+- ✅ **CLI Tooling**: Dedicated `poppydb-<version>-cli.jar` for standalone deployment
 - ✅ **Replica Set Emulation**: Test multi-node cluster behavior without real MongoDB
 - ✅ **Persistence**: Snapshot support to preserve in-memory data across restarts
-- ✅ **Messaging Optimization**: PoppyDB-specific optimizations for messaging workloads
 
 ## 🚀 What’s New in v6.0
 

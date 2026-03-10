@@ -51,10 +51,22 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 
 ## 🚀 Neu in Version 6.2
 
-### PoppyDB – Der "Drop-in"-Ersatz
-Morphium 6.2 macht **PoppyDB** (ehemals MorphiumServer) zu einem echten "Drop-in"-Ersatz für MongoDB in Entwicklungs- und Testumgebungen:
+### PoppyDB – Leichtgewichtiger MongoDB-Ersatz für Tests
+Morphium 6.2 extrahiert den Server in ein eigenes Maven-Modul `de.caluga:poppydb` und benennt ihn von MorphiumServer in **PoppyDB** um.
+
+**Warum?** Der Server hat Dependencies (Netty etc.) mitgebracht, die 90% der Morphium-Nutzer nicht brauchen. Jetzt bleibt `de.caluga:morphium` schlank. Wer PoppyDB als leichtgewichtigen MongoDB-Ersatz für seine Tests haben möchte, fügt es einfach als Test-Dependency hinzu:
+
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
 - ✅ **Volle Wire-Protocol-Unterstützung**: Verwendung jedes Standard-MongoDB-Clients (mongosh, Compass, etc.)
-- ✅ **CLI-Tooling**: Eigener `poppydb-cli` für einfache Bereitstellung
+- ✅ **CLI-Tooling**: Eigener `poppydb-cli.jar` für Standalone-Deployment
 - ✅ **Replica-Set-Emulation**: Testen von Multi-Node-Cluster-Verhalten ohne echtes MongoDB
 - ✅ **Persistenz**: Snapshot-Unterstützung zur Bewahrung von In-Memory-Daten über Neustarts hinweg
 

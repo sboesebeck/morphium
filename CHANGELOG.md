@@ -9,12 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
-#### PoppyDB: Server extracted into separate module (renamed from PoppyDB)
-The server component is now a standalone Maven module with a new name:
+#### PoppyDB: Server extracted into separate module (renamed from MorphiumServer)
+The server component has been extracted into its own Maven module and renamed to **PoppyDB**.
+
+**Why?** The server pulled in dependencies (Netty, etc.) that 90% of Morphium users don't need — most projects just use the core library to talk to MongoDB. By extracting PoppyDB into a separate module, `de.caluga:morphium` stays lean. If you want PoppyDB as a lightweight MongoDB replacement for your tests, just add it as a test dependency:
+
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+This also makes standalone deployment and testing of PoppyDB much simpler.
+
+**What changed:**
 - **Module**: `de.caluga:poppydb` (was part of `de.caluga:morphium`)
 - **Package**: `de.caluga.poppydb` (was `de.caluga.morphium.server`)
 - **CLI JAR**: `poppydb-<version>-cli.jar` (was `morphium-<version>-server-cli.jar`)
-- **Main classes**: `PoppyDB` / `PoppyDBCLI` (were `PoppyDB` / `PoppyDBCLI`)
+- **Main classes**: `PoppyDB` / `PoppyDBCLI` (were `MorphiumServer` / `MorphiumServerCLI`)
 - Netty handlers → `de.caluga.poppydb.netty`, election → `de.caluga.poppydb.election`
 - Morphium core library (`de.caluga:morphium`) is **unaffected**
 - Wire protocol backward compatible: server sends both `poppyDB: true` and `morphiumServer: true` in hello response
