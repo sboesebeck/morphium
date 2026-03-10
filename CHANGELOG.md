@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### PoppyDB: Server extracted into separate module (renamed from MorphiumServer)
 The server component has been extracted into its own Maven module and renamed to **PoppyDB**.
 
-**Why?** The server pulled in dependencies (Netty, etc.) that 90% of Morphium users don't need — most projects just use the core library to talk to MongoDB. By extracting PoppyDB into a separate module, `de.caluga:morphium` stays lean. If you want PoppyDB as a lightweight MongoDB replacement for your tests, just add it as a test dependency:
+**Why?** The server pulled in dependencies (Netty, etc.) that 90% of Morphium users don't need — most projects just use the core library to talk to MongoDB. By extracting PoppyDB into a separate module, `de.caluga:morphium` stays lean. Beyond testing, PoppyDB is a fully functional MongoDB-compatible server — particularly useful as a **messaging backend**, providing a lightweight messaging solution without requiring a full MongoDB deployment. Add it as a test dependency or use it standalone:
 
 ```xml
 <dependency>

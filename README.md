@@ -92,11 +92,14 @@ See `docs/howtos/optimistic-locking.md` for the full guide.
 
 ## 🚀 What’s New in v6.2
 
-### PoppyDB – Lightweight MongoDB Replacement for Testing
+### PoppyDB – Lightweight MongoDB-Compatible Server
 Morphium 6.2 extracts the server into its own module `de.caluga:poppydb` and renames it from MorphiumServer to **PoppyDB**.
 
-**Why the split?** The server brought in dependencies (Netty, etc.) that most Morphium users don't need — if you're just using the core library to talk to MongoDB, you don't want the extra baggage. Now `de.caluga:morphium` stays lean, and if you want a lightweight MongoDB replacement for your tests, just add PoppyDB as a test dependency:
+**Why the split?** The server brought in dependencies (Netty, etc.) that most Morphium users don't need — if you're just using the core library to talk to MongoDB, you don't want the extra baggage. Now `de.caluga:morphium` stays lean, and you only pull in PoppyDB when you actually need it.
 
+PoppyDB is not just for testing — it's a fully functional MongoDB-compatible server that's particularly useful as a **messaging backend**. Morphium's built-in messaging system works out of the box with PoppyDB, giving you a lightweight, zero-infrastructure messaging solution without requiring a full MongoDB deployment.
+
+For **testing**, add it as a test dependency:
 ```xml
 <dependency>
     <groupId>de.caluga</groupId>
@@ -106,7 +109,10 @@ Morphium 6.2 extracts the server into its own module `de.caluga:poppydb` and ren
 </dependency>
 ```
 
+For **production use** (e.g., as a messaging hub), use it as a regular dependency or run it standalone via the CLI jar.
+
 - ✅ **Full Wire Protocol Support**: Use any standard MongoDB client (mongosh, Compass, etc.)
+- ✅ **Messaging Backend**: Run Morphium messaging without a MongoDB deployment
 - ✅ **CLI Tooling**: Dedicated `poppydb-<version>-cli.jar` for standalone deployment
 - ✅ **Replica Set Emulation**: Test multi-node cluster behavior without real MongoDB
 - ✅ **Persistence**: Snapshot support to preserve in-memory data across restarts

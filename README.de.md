@@ -51,11 +51,14 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 
 ## 🚀 Neu in Version 6.2
 
-### PoppyDB – Leichtgewichtiger MongoDB-Ersatz für Tests
+### PoppyDB – Leichtgewichtiger MongoDB-kompatibler Server
 Morphium 6.2 extrahiert den Server in ein eigenes Maven-Modul `de.caluga:poppydb` und benennt ihn von MorphiumServer in **PoppyDB** um.
 
-**Warum?** Der Server hat Dependencies (Netty etc.) mitgebracht, die 90% der Morphium-Nutzer nicht brauchen. Jetzt bleibt `de.caluga:morphium` schlank. Wer PoppyDB als leichtgewichtigen MongoDB-Ersatz für seine Tests haben möchte, fügt es einfach als Test-Dependency hinzu:
+**Warum?** Der Server hat Dependencies (Netty etc.) mitgebracht, die 90% der Morphium-Nutzer nicht brauchen. Jetzt bleibt `de.caluga:morphium` schlank — PoppyDB wird nur eingebunden, wenn man es tatsächlich braucht.
 
+PoppyDB ist nicht nur zum Testen da — es ist ein voll funktionsfähiger MongoDB-kompatibler Server, der sich besonders als **Messaging-Backend** eignet. Morphiums eingebautes Messaging-System funktioniert direkt mit PoppyDB, was eine leichtgewichtige Messaging-Lösung ohne MongoDB-Infrastruktur ermöglicht.
+
+Für **Tests** als Test-Dependency einbinden:
 ```xml
 <dependency>
     <groupId>de.caluga</groupId>
@@ -65,7 +68,10 @@ Morphium 6.2 extrahiert den Server in ein eigenes Maven-Modul `de.caluga:poppydb
 </dependency>
 ```
 
+Für **produktiven Einsatz** (z.B. als Messaging-Hub) als reguläre Dependency nutzen oder standalone via CLI-Jar betreiben.
+
 - ✅ **Volle Wire-Protocol-Unterstützung**: Verwendung jedes Standard-MongoDB-Clients (mongosh, Compass, etc.)
+- ✅ **Messaging-Backend**: Morphium-Messaging ohne MongoDB-Deployment betreiben
 - ✅ **CLI-Tooling**: Eigener `poppydb-cli.jar` für Standalone-Deployment
 - ✅ **Replica-Set-Emulation**: Testen von Multi-Node-Cluster-Verhalten ohne echtes MongoDB
 - ✅ **Persistenz**: Snapshot-Unterstützung zur Bewahrung von In-Memory-Daten über Neustarts hinweg
