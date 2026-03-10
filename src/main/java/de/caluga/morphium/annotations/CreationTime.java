@@ -12,15 +12,17 @@ import static java.lang.annotation.ElementType.FIELD;
  * Date: 29.05.12
  * Time: 15:30
  * <p>
- * define the field to store the creation timestamp. Only works ifthis annotation is also added to  the type
+ * Define the field to store the creation timestamp. Can be used on field level only,
+ * or on both field and type level.
  * <code>
  *
- * @CreationTime class Test {
+ * class Test {
  * @CreationTime private long theTimestamp;
  * ...
  * }
  * </code>
- * if you use a non-MongoId-Field or create the IDs in code, you should set checkForNew to true. Otherwise creationtime won't be set.
+ * Supported field types: long, Long, Date, LocalDateTime, String.
+ * If you use a non-MongoId-Field or create the IDs in code, you should set checkForNew to true. Otherwise creationtime won't be set.
  */
 @Target({FIELD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)

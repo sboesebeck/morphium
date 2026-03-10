@@ -12,8 +12,9 @@ import static java.lang.annotation.ElementType.TYPE;
  * Date: 29.05.12
  * Time: 15:31
  * <p>
- * tell Morphium to store the timestamp of the last change. put this annotation both to the type and the field to store
- * the last access timestamp. Field needs to be of type long
+ * Tell Morphium to store the timestamp of the last change. Can be used on field level only,
+ * or on both field and type level.
+ * Supported field types: long, Long, Date, LocalDateTime, String.
  */
 @Target({FIELD, TYPE})
 @Retention(RetentionPolicy.RUNTIME)
