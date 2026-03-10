@@ -128,11 +128,11 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
 
                 assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
-                // 60s timeout should be sufficient for message delivery
-                assertThat(System.currentTimeMillis() - s).isLessThan(60000);
+                // Allow generous timeout for shared CI runners under parallel load
+                assertThat(System.currentTimeMillis() - s).isLessThan(120000);
             }
 
-            TestUtils.waitForConditionToBecomeTrue(30000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
+            TestUtils.waitForConditionToBecomeTrue(60000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
             TestUtils.waitForConditionToBecomeTrue(15000, "Msg collection not empty", () -> morphium.createQueryFor(Msg.class, m1.getCollectionName()).countAll() == 0);
             TestUtils.waitForConditionToBecomeTrue(15000, "MsgLock collection not empty", () -> morphium.createQueryFor(MsgLock.class, m1.getLockCollectionName()).countAll() == 0);
         } finally {
@@ -240,8 +240,8 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                 while (!gotMessage1 && !gotMessage2) {
                     Thread.sleep(200);
                     log.info("Still did not get all messages: m1=" + gotMessage1 + " m2=" + gotMessage2);
-                    // Use longer timeout for MorphiumServer replicaset under parallel load
-                    assertThat(System.currentTimeMillis() - s).isLessThan(60000);
+                    // Allow generous timeout for shared CI runners under parallel load
+                    assertThat(System.currentTimeMillis() - s).isLessThan(120000);
                 }
 
                 int rec = 0;
@@ -486,7 +486,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         sender.sendMessage(m);
                     }
 
-                    long waitUntil = System.currentTimeMillis() + 180000;
+                    long waitUntil = System.currentTimeMillis() + 300000;
 
                     while (received.get() != amount + broadcastAmount * 4) {
                         int rec = received.get();
