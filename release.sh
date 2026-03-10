@@ -825,14 +825,19 @@ git push origin master || {
 
 log_success "Merged to master"
 
-# Return to develop and push
+# Push develop (release:prepare already committed the next SNAPSHOT there)
 git checkout develop
 git push origin develop || true
+
+# Return to original branch
+if [ -n "$ORIGINAL_BRANCH" ] && [ "$ORIGINAL_BRANCH" != "develop" ]; then
+	git checkout "$ORIGINAL_BRANCH"
+fi
 
 # Clear ORIGINAL_BRANCH so cleanup trap doesn't try to switch again
 ORIGINAL_BRANCH=""
 
-log_success "Back on develop branch"
+log_success "Back on $branch branch"
 
 # Clean up release leftovers (also in trap, but be thorough)
 rm -f release.properties pom.xml.releaseBackup 2>/dev/null || true
