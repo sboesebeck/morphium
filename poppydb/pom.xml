@@ -80,13 +80,6 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>de.caluga</groupId>
-      <artifactId>morphium</artifactId>
-      <version>${project.version}</version>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
     </dependency>
