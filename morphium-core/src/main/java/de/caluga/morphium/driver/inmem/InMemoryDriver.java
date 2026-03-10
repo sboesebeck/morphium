@@ -247,10 +247,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private static final int OPLOG_MAX = 5000;
     private final AtomicLong oplogInc = new AtomicLong();
     private final AtomicBoolean initialized = new AtomicBoolean(false);
-    // Used to support the "aggregate" wire command (e.g. when running against MorphiumServer).
+    // Used to support the "aggregate" wire command (e.g. when running against PoppyDB).
     // NOTE: These Morphium instances must NOT be closed, as they would close this driver as well.
     private final ConcurrentHashMap<String, Morphium> aggregationMorphiumByDb = new ConcurrentHashMap<>();
-    // When true, close() is a no-op. Used when InMemoryDriver is managed by MorphiumServer
+    // When true, close() is a no-op. Used when InMemoryDriver is managed by PoppyDB
     // to prevent internal Morphium instances from shutting down the driver via their shutdown hooks.
     private volatile boolean serverMode = false;
 
@@ -349,7 +349,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     /**
      * Dump a single database to file without requiring a Morphium instance.
-     * Useful for MorphiumServer persistence.
+     * Useful for PoppyDB persistence.
      *
      * This method creates a shallow snapshot of the database structure to minimize
      * blocking time, then serializes it. The actual document data uses CopyOnWriteArrayList
@@ -883,7 +883,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var commandName = cmdMap.keySet().stream().findFirst().get();
         log.debug("InMemoryDriver.runCommand(GenericCommand): commandName={}, filter={}", commandName, cmdMap.get("filter"));
 
-        // Handle MorphiumServer-specific messaging commands
+        // Handle PoppyDB-specific messaging commands
         if (commandName.equals("registerMessagingCollection")) {
             String collection = (String) cmdMap.get("registerMessagingCollection");
             String db = (String) cmdMap.get("$db");
@@ -2194,8 +2194,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
-    public boolean isMorphiumServer() {
-        // InMemoryDriver is always a MorphiumServer-compatible backend
+    public boolean isPoppyDB() {
+        // InMemoryDriver is always a PoppyDB-compatible backend
         return true;
     }
 
@@ -2464,7 +2464,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     /**
      * Get the current change stream sequence number.
-     * Used by MorphiumServer for write concern coordination.
+     * Used by PoppyDB for write concern coordination.
      */
     public long getChangeStreamSequence() {
         return changeStreamSequence.get();
@@ -2661,7 +2661,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * Close method for when InMemoryDriver itself is used as a connection.
      * This happens in some legacy code paths.
      *
-     * NOTE: In server mode (when used by MorphiumServer), this is a no-op to prevent
+     * NOTE: In server mode (when used by PoppyDB), this is a no-op to prevent
      * internal Morphium instances from shutting down the driver via their shutdown hooks.
      * Use forceShutdown() to actually shutdown the driver in server mode.
      */
@@ -2678,7 +2678,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     /**
      * Force shutdown of the InMemoryDriver, even in server mode.
-     * Called by MorphiumServer.shutdown() to properly shut down the driver.
+     * Called by PoppyDB.shutdown() to properly shut down the driver.
      */
     public void forceShutdown() {
         log.info("InMemoryDriver.forceShutdown() called - instance {}", System.identityHashCode(this));
@@ -4849,7 +4849,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 var dbSubs = changeStreamSubscribers.get(eventInfo.db);
                 deliverToSubscribers(dbSubs, eventInfo);
 
-                // Deliver to database-level watches registered via MorphiumServer (with collection="1")
+                // Deliver to database-level watches registered via PoppyDB (with collection="1")
                 // When aggregate with $changeStream comes through wire protocol, collection is set to "1" for db-level watches
                 var dbAllSubs = changeStreamSubscribers.get(eventInfo.db + ".1");
                 deliverToSubscribers(dbAllSubs, eventInfo);
@@ -4984,7 +4984,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return true;
         }
 
-        // Check for database-level watches registered via MorphiumServer (with collection="1")
+        // Check for database-level watches registered via PoppyDB (with collection="1")
         List<ChangeStreamSubscription> dbAllSubs = changeStreamSubscribers.get(db + ".1");
 
         if (dbAllSubs != null && !dbAllSubs.isEmpty()) {

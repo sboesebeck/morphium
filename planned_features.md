@@ -189,7 +189,7 @@ config.setTlsMinVersion("TLSv1.2");
 - Compatible with standard MongoDB drivers
 
 ### 2. User management
-- Store users in a system collection (`morphium_server.users`)
+- Store users in a system collection (`poppydb.users`)
 - Support for creating, updating, deleting users
 - Password hashing with bcrypt or PBKDF2
 

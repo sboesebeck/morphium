@@ -54,7 +54,7 @@ public interface MorphiumDriver extends Closeable {
 
     /**
      * Returns true if the backend is an InMemory database (either InMemoryDriver directly
-     * or connecting to a MorphiumServer with InMemory backend).
+     * or connecting to a PoppyDB with InMemory backend).
      * This is useful for tests that need to skip features not supported by the InMemory backend.
      */
     boolean isInMemoryBackend();
@@ -90,10 +90,10 @@ public interface MorphiumDriver extends Closeable {
     boolean isReplicaset();
 
     /**
-     * Check if connected to a MorphiumServer (in-memory MongoDB implementation).
-     * This allows clients to use MorphiumServer-specific optimizations.
+     * Check if connected to a PoppyDB (in-memory MongoDB implementation).
+     * This allows clients to use PoppyDB-specific optimizations.
      */
-    boolean isMorphiumServer();
+    boolean isPoppyDB();
 
     /**
      * Returns true if the backend is Azure CosmosDB for MongoDB API.
@@ -104,13 +104,13 @@ public interface MorphiumDriver extends Closeable {
     }
 
     /**
-     * Returns the detected backend type (MongoDB, CosmosDB, MorphiumServer, InMemory).
+     * Returns the detected backend type (MongoDB, CosmosDB, PoppyDB, InMemory).
      * Derived from the specific detection flags set during connect.
      */
     default BackendType getBackendType() {
         if (isInMemoryBackend()) return BackendType.IN_MEMORY;
         if (isCosmosDB()) return BackendType.COSMOSDB;
-        if (isMorphiumServer()) return BackendType.MORPHIUM_SERVER;
+        if (isPoppyDB()) return BackendType.POPPY_DB;
         return BackendType.MONGODB;
     }
 

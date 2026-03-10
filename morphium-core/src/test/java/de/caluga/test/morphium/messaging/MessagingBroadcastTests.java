@@ -222,7 +222,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         }
                     }
                     long start = System.currentTimeMillis();
-                    long maxTotalTimeout = 600000; // Max 600 seconds total (for MorphiumServer replicaset under parallel load)
+                    long maxTotalTimeout = 600000; // Max 600 seconds total (for PoppyDB replicaset under parallel load)
                     long idleTimeout = 60000; // 60 seconds after last message received (for parallel load with connection retries)
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;

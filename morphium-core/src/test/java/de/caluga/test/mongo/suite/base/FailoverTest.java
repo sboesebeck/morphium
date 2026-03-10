@@ -4,11 +4,11 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Failover tests removed - MorphiumServer now uses simplified static primary election.
+ * Failover tests removed - PoppyDB now uses simplified static primary election.
  * The complex failover/replication functionality was removed when consolidating
- * to the async Netty-based MorphiumServer implementation.
+ * to the async Netty-based PoppyDB implementation.
  */
-@Disabled("Failover functionality removed - MorphiumServer now uses simplified primary election")
+@Disabled("Failover functionality removed - PoppyDB now uses simplified primary election")
 @Tag("failover")
 @Tag("morphiumserver")
 public class FailoverTest {

@@ -112,9 +112,9 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
             log.info("Skipping test %s for InMemoryDriver", tstName);
             return;
         }
-        // Skip for MorphiumServer - cache sync doesn't work over network
+        // Skip for PoppyDB - cache sync doesn't work over network
         if (morphium.getDriver().isInMemoryBackend()) {
-            log.info("Skipping cache test for MorphiumServer - cache sync not supported over network");
+            log.info("Skipping cache test for PoppyDB - cache sync not supported over network");
             morphium.close();
             return;
         }

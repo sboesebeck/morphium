@@ -70,10 +70,10 @@ public class QueryCountDistinctTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testCountAllWhere(Morphium morphium) throws Exception {
-        // When connected through MorphiumServer (via PooledDriver), skip because
-        // the MorphiumServer process doesn't have GraalJS available
+        // When connected through PoppyDB (via PooledDriver), skip because
+        // the PoppyDB process doesn't have GraalJS available
         if (morphium.getDriver().isInMemoryBackend()) {
-            log.info("Connected to in-memory backend (MorphiumServer) - skipping $where test (no JavaScript support)");
+            log.info("Connected to in-memory backend (PoppyDB) - skipping $where test (no JavaScript support)");
             return;
         }
         createUncachedObjects(morphium, 10);

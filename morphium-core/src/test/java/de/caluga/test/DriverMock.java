@@ -99,7 +99,7 @@ public class DriverMock implements MorphiumDriver {
     }
 
     @Override
-    public boolean isMorphiumServer() {
+    public boolean isPoppyDB() {
         return false;
     }
 

@@ -163,6 +163,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             reply.setNumReturned(1);
 
             Map<String, Object> response = getHelloResult().toMsg();
+            response.put("poppyDB", true);
             response.put("morphiumServer", true);
             response.put("inMemoryBackend", true);
             reply.setDocuments(Arrays.asList(response));
@@ -211,6 +212,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             case "hello":
                 log.debug("OpMsg->hello/ismaster");
                 answer = getHelloResult().toMsg();
+                answer.put("poppyDB", true);
                 answer.put("morphiumServer", true);
                 answer.put("inMemoryBackend", true);
                 break;

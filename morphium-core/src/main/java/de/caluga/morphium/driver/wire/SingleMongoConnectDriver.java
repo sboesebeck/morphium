@@ -79,7 +79,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     private AtomicInteger waitingForHeartbeatCounter = new AtomicInteger(0);
 
     private volatile boolean inMemoryBackend = false;
-    private volatile boolean morphiumServer = false;
+    private volatile boolean poppyDB = false;
     private volatile boolean cosmosDB = false;
 
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
@@ -326,9 +326,9 @@ public class SingleMongoConnectDriver extends DriverBase {
                 setMaxWriteBatchSize(hello.getMaxWriteBatchSize());
 
                 // Detect backend type from hello handshake
-                if (Boolean.TRUE.equals(hello.getMorphiumServer())) {
-                    morphiumServer = true;
-                    log.info("Detected MorphiumServer backend (host: {})", host);
+                if (Boolean.TRUE.equals(hello.getPoppyDB())) {
+                    poppyDB = true;
+                    log.info("Detected PoppyDB backend (host: {})", host);
                 }
                 if (Boolean.TRUE.equals(hello.getInMemoryBackend())) {
                     inMemoryBackend = true;
@@ -886,8 +886,8 @@ public class SingleMongoConnectDriver extends DriverBase {
     }
 
     @Override
-    public boolean isMorphiumServer() {
-        return morphiumServer;
+    public boolean isPoppyDB() {
+        return poppyDB;
     }
 
     @Override

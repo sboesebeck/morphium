@@ -413,7 +413,7 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
-    public boolean isMorphiumServer() {
+    public boolean isPoppyDB() {
         return false;
     }
 

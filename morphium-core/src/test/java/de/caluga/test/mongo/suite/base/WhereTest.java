@@ -29,10 +29,10 @@ public class WhereTest extends MultiDriverTestBase {
     public void testWhere(Morphium m) throws Exception {
         log.info("Running with Driver " + m.getDriver().getName());
 
-        // When connected through MorphiumServer (via PooledDriver), skip because
-        // the MorphiumServer process doesn't have GraalJS available
+        // When connected through PoppyDB (via PooledDriver), skip because
+        // the PoppyDB process doesn't have GraalJS available
         if (m.getDriver().isInMemoryBackend()) {
-            log.info("Connected to in-memory backend (MorphiumServer) - skipping $where test (no JavaScript support)");
+            log.info("Connected to in-memory backend (PoppyDB) - skipping $where test (no JavaScript support)");
             return;
         }
 
@@ -65,10 +65,10 @@ public class WhereTest extends MultiDriverTestBase {
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        // When connected through MorphiumServer (via PooledDriver), skip because
-        // the MorphiumServer process doesn't have GraalJS available
+        // When connected through PoppyDB (via PooledDriver), skip because
+        // the PoppyDB process doesn't have GraalJS available
         if (morphium.getDriver().isInMemoryBackend()) {
-            log.info("Connected to in-memory backend (MorphiumServer) - skipping $where test (no JavaScript support)");
+            log.info("Connected to in-memory backend (PoppyDB) - skipping $where test (no JavaScript support)");
             return;
         }
 

@@ -13,7 +13,7 @@
   <logger name="org.mongodb.driver.connection" level="WARN"/>
   <logger name="de.caluga" level="WARN"/>
   <logger name="de.caluga.morphium.driver" level="INFO"/>
-  <logger name="de.caluga.morphium.server" level="INFO"/>
+  <logger name="de.caluga.poppydb" level="INFO"/>
   <logger name="de.caluga.morphium.driver.inmem.InMemoryDriver" level="INFO"/>
   <logger name="de.caluga.morphium.messaging.SingleCollectionMessaging" level="INFO"/>
   <root level="INFO">

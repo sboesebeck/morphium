@@ -51,10 +51,10 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 
 ## 🚀 Neu in Version 6.1
 
-### MorphiumServer – Der "Drop-in"-Ersatz
-Morphium 6.1 macht den **MorphiumServer** zu einem echten "Drop-in"-Ersatz für MongoDB in Entwicklungs- und Testumgebungen:
+### PoppyDB – Der "Drop-in"-Ersatz
+Morphium 6.1 macht **PoppyDB** (ehemals MorphiumServer) zu einem echten "Drop-in"-Ersatz für MongoDB in Entwicklungs- und Testumgebungen:
 - ✅ **Volle Wire-Protocol-Unterstützung**: Verwendung jedes Standard-MongoDB-Clients (mongosh, Compass, etc.)
-- ✅ **CLI-Tooling**: Eigener `morphium-server-cli` für einfache Bereitstellung
+- ✅ **CLI-Tooling**: Eigener `poppydb-cli` für einfache Bereitstellung
 - ✅ **Replica-Set-Emulation**: Testen von Multi-Node-Cluster-Verhalten ohne echtes MongoDB
 - ✅ **Persistenz**: Snapshot-Unterstützung zur Bewahrung von In-Memory-Daten über Neustarts hinweg
 
@@ -265,7 +265,7 @@ Weitere Optionen zeigt `./runtests.sh --help`.
 3. `src/test/resources/morphium-test.properties`
 4. Defaults (localhost:27017)
 
-## 🔧 MorphiumServer & InMemoryDriver
+## 🔧 PoppyDB & InMemoryDriver
 
 ### InMemoryDriver - Testing ohne MongoDB
 
@@ -294,27 +294,27 @@ Der InMemoryDriver bietet eine weitgehend kompatible MongoDB-Simulation im Speic
 mvn test -Dmorphium.driver=inmem -Dtest="CacheTests"
 ```
 
-### MorphiumServer - Standalone MongoDB-Ersatz
+### PoppyDB - Standalone MongoDB-Ersatz
 
-MorphiumServer ist ein eigenständiger Prozess, der das MongoDB Wire Protocol implementiert:
+PoppyDB (ehemals MorphiumServer) ist ein eigenständiger Prozess, der das MongoDB Wire Protocol implementiert:
 
 ```bash
 # Server starten
-java -jar target/morphium-6.1.1-server-cli.jar
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
 
 # Clients verbinden (z.B. MongoDB Compass, mongosh)
 mongosh mongodb://localhost:27017
 
 # Start mit Persistenz (Snapshots)
-java -jar target/morphium-6.1.1-server-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Unterstützung (experimentell)**
 
-MorphiumServer unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
+PoppyDB unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
 
 ```bash
-java -jar target/morphium-6.1.1-server-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use Cases:**

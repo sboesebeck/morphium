@@ -1,121 +1,41 @@
 #!/bin/bash
 
-# This script contains functions for managing a local PoppyDB instance for testing.
-# It is sourced by the main runtests.sh script.
+# Functions for managing a local PoppyDB instance for testing.
+# Sourced by runtests.sh.
 
 function _pdb_port_open() {
   local host="$1"
   local port="$2"
-  python3 - "$host" "$port" <<'PY'
-import socket, sys
-host = sys.argv[1]
-port = int(sys.argv[2])
-s = socket.socket()
-s.settimeout(0.5)
-try:
-    s.connect((host, port))
-    sys.exit(0)
-except Exception:
-    sys.exit(1)
-finally:
-    try:
-        s.close()
-    except Exception:
-        pass
-PY
+  nc -z "$host" "$port" >/dev/null 2>&1
 }
 
 function _pdb_wait_for_port() {
   local host="$1"
   local port="$2"
   local timeout_s="${3:-30}"
-  python3 - "$host" "$port" "$timeout_s" <<'PY'
-import socket, sys, time
-host = sys.argv[1]
-port = int(sys.argv[2])
-deadline = time.time() + float(sys.argv[3])
-last = None
-while time.time() < deadline:
-    try:
-        with socket.create_connection((host, port), timeout=0.5):
-            sys.exit(0)
-    except Exception as e:
-        last = e
-        time.sleep(0.2)
-print(f"Timed out waiting for {host}:{port} - last output: {last}", file=sys.stderr)
-sys.exit(1)
-PY
+  local end=$((SECONDS + timeout_s))
+  while [ $SECONDS -lt $end ]; do
+    if nc -z "$host" "$port" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.3
+  done
+  echo -e "${RD}Error:${CL} Timed out waiting for ${host}:${port}" >&2
+  return 1
 }
 
 function _pdb_wait_for_primary() {
   local uri_in="$1"
   local timeout_s="${2:-45}"
-  local pid_dir="${poppydbLocalPidDir:-${morphiumserverLocalPidDir:-.poppydb-local}}"
-  local jar
-  jar=$(_pdb_find_cli_jar)
-  if [ -z "$jar" ]; then
-    echo -e "${RD}Error:${CL} Cannot probe local cluster readiness - PoppyDB cli jar missing under poppydb/target/"
-    return 1
-  fi
-
-  mkdir -p "$pid_dir"
-  local probe_java="${pid_dir}/PoppyDBProbe_${PID}.java"
-  local probe_class="PoppyDBProbe_${PID}"
-
-  cat >"$probe_java" <<'JAVA'
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.wire.PooledDriver;
-public class PoppyDBProbe_0 {
-  public static void main(String[] args) throws Exception {
-    String uri = args[0];
-    String hostsCsv = args[1];
-    String[] hosts = hostsCsv.split(",");
-    PooledDriver d = new PooledDriver();
-    d.setServerSelectionTimeout(15000);
-    d.setHostSeed(hosts);
-    d.connect(null);
-    // Primary must be selectable for any write-heavy tests.
-    d.getPrimaryConnection(null).close();
-    System.out.println("OK primary selectable for " + uri);
-  }
-}
-JAVA
-
-  # Replace placeholder class name with unique name
-  if sed --version >/dev/null 2>&1; then
-    sed -i.bak "s/public class PoppyDBProbe_0/public class ${probe_class}/" "$probe_java" 2>/dev/null || true
-  else
-    sed -i '' -e "s/public class PoppyDBProbe_0/public class ${probe_class}/" "$probe_java" 2>/dev/null || true
-  fi
-  rm -f "$probe_java.bak" >/dev/null 2>&1 || true
-
-  javac -cp "$jar" "$probe_java" >/dev/null 2>&1 || true
-
-  # Parse hosts for seeding the driver (no DB part, no scheme)
-  local hostports
-  hostports=$(_pdb_parse_hosts_from_uri "$uri_in" | tr '\n' ',' | sed 's/,$//')
-  if [ -z "$hostports" ]; then
-    hostports="localhost:17017,localhost:17018,localhost:17019"
-  fi
-
-  python3 - "$jar" "$pid_dir" "$probe_class" "$uri_in" "$hostports" "$timeout_s" <<'PY'
-import subprocess, sys, time
-jar, pid_dir, cls, uri, hosts, timeout_s = sys.argv[1:]
-deadline = time.time() + float(timeout_s)
-last = None
-while time.time() < deadline:
-    try:
-        p = subprocess.run(["java", "-cp", f"{jar}:{pid_dir}", cls, uri, hosts],
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
-        if p.returncode == 0:
-            sys.exit(0)
-        last = p.stdout.strip()
-    except Exception as e:
-        last = str(e)
-    time.sleep(0.5)
-print(f"Timed out waiting for primary to become selectable - last output: {last}", file=sys.stderr)
-sys.exit(1)
-PY
+  local end=$((SECONDS + timeout_s))
+  while [ $SECONDS -lt $end ]; do
+    if mongosh --quiet --norc "$uri_in" --eval "db.hello().isWritablePrimary" 2>/dev/null | grep -q "true"; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo -e "${RD}Error:${CL} Timed out waiting for primary on ${uri_in}" >&2
+  return 1
 }
 
 function _pdb_parse_hosts_from_uri() {
@@ -138,7 +58,6 @@ function _pdb_parse_hosts_from_uri() {
   local parts=($u)
   local p
   for p in "${parts[@]}"; do
-    # remove query (if any leaked into host list)
     p="${p%%\n*}"
     p="${p// /}"
     [ -z "$p" ] && continue
@@ -182,14 +101,13 @@ function _pdb_find_cli_jar() {
   if [ -z "$jar" ]; then
     jar=$(ls -1 target/*server-cli*.jar 2>/dev/null | head -n 1)
   fi
-  # Fallback to the stable copy (survives mvn clean)
+  # Fallback to stable copy (survives mvn clean)
   if [ -z "$jar" ]; then
     local pid_dir="${poppydbLocalPidDir:-${morphiumserverLocalPidDir:-.poppydb-local}}"
     local stable="${pid_dir}/poppydb.jar"
     if [ -f "$stable" ]; then
       jar="$stable"
     fi
-    # Legacy fallback
     if [ -z "$jar" ]; then
       stable="${pid_dir}/morphiumserver.jar"
       if [ -f "$stable" ]; then
@@ -204,11 +122,8 @@ function _pdb_start_cluster() {
   local uri_in="$1"
   local rs_name="${2:-rs0}"
   local pid_dir="${poppydbLocalPidDir:-${morphiumserverLocalPidDir:-.poppydb-local}}"
-  mkdir -p "$pid_dir" "$pid_dir/logs" test.log
+  mkdir -p "$pid_dir" "$pid_dir/logs"
 
-  # Calculate max-connections based on parallel slots if not explicitly set
-  # Formula: base 2000 + 500 per parallel slot (PoppyDB uses NIO, can handle many connections)
-  # AsyncOperationTest alone uses 1134+ connections, so we need large pool for parallel tests
   local max_conn="${poppydbMaxConnections:-${morphiumserverMaxConnections}}"
   local sock_timeout="${poppydbSocketTimeout:-${morphiumserverSocketTimeout:-30}}"
   local heap_size="${poppydbHeapSize:-${morphiumserverHeapSize:-8g}}"
@@ -236,11 +151,11 @@ function _pdb_start_cluster() {
     return 1
   fi
 
-  # Copy jar to stable location to prevent issues if mvn clean runs while servers are active
+  # Copy jar to stable location (safe from mvn clean)
   local stable_jar="${pid_dir}/poppydb.jar"
   cp "$jar" "$stable_jar"
   jar="$stable_jar"
-  echo -e "${BL}Info:${CL} Copied server jar to ${stable_jar} (safe from mvn clean)"
+  echo -e "${BL}Info:${CL} Copied server jar to ${stable_jar}"
 
   local hostports
   hostports=$(_pdb_parse_hosts_from_uri "$uri_in")
@@ -248,11 +163,10 @@ function _pdb_start_cluster() {
     if [ "${poppydbSingleNode:-${morphiumserverSingleNode:-0}}" -eq 1 ]; then
       hostports="localhost:17017"
     else
-      hostports="localhost:17017'$'\n'localhost:17018'$'\n''localhost:17019'"
+      hostports=$'localhost:17017\nlocalhost:17018\nlocalhost:17019'
     fi
   fi
 
-  # Build seed list from the URI host list to support non-default ports.
   local seed
   seed=$(echo "$hostports" | tr '\n' ',' | sed 's/,$//')
 
@@ -268,7 +182,6 @@ function _pdb_start_cluster() {
     local host="${hp%:*}"
     local port="${hp##*:}"
 
-    # Only auto-start for local addresses. If the URI points elsewhere, we can't safely start it.
     if [[ "$host" != "localhost" && "$host" != "127.0.0.1" && "$host" != "::1" ]]; then
       echo -e "${YL}Warning:${CL} --poppydb only starts local hosts; skipping ${host}:${port}"
       continue
@@ -282,22 +195,19 @@ function _pdb_start_cluster() {
     local log_file="${pid_dir}/logs/poppydb_${port}.log"
     local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout"
     if [ "${poppydbSingleNode:-${morphiumserverSingleNode:-0}}" -eq 1 ]; then
-      # Single-node mode: no replica set arguments (using Netty async I/O)
       nohup java $jvm_opts -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &
     else
-      # Replica set mode (using Netty async I/O)
       nohup java $jvm_opts -jar "$jar" --bind "$host" --port "$port" --rs-name "$rs_name" --rs-seed "$seed" $conn_args >"$log_file" 2>&1 &
     fi
     local pid=$!
-    # Detach from the job table so that the main status loop ignores these helper processes.
     disown
     echo "$pid" >"${pid_dir}/${host}_${port}.pid"
     poppydbLocalStarted=1
-    morphiumserverLocalStarted=1  # backward compat
+    morphiumserverLocalStarted=1
     echo -e "${BL}Info:${CL} Started PoppyDB on ${host}:${port} (pid ${pid}) - log ${log_file}"
   done <<<"$hostports"
 
-  # Wait for the requested ports to be reachable (best-effort).
+  # Wait for ports
   while IFS= read -r hp; do
     [ -z "$hp" ] && continue
     local host="${hp%:*}"
@@ -305,7 +215,7 @@ function _pdb_start_cluster() {
     _pdb_wait_for_port "$host" "$port" 30 || return 1
   done <<<"$hostports"
 
-  # Ports being open is not enough; wait until a primary is actually selectable.
+  # Wait for primary via mongosh
   _pdb_wait_for_primary "$uri_in" 60 || return 1
 
   return 0
@@ -331,7 +241,6 @@ function _pdb_cleanup() {
     fi
   done
 
-  # Give processes a moment to stop cleanly
   sleep 1
 
   for pidfile in "$pid_dir"/*.pid; do
@@ -359,7 +268,7 @@ function _pdb_ensure_cluster() {
     if [ "${poppydbSingleNode:-${morphiumserverSingleNode:-0}}" -eq 1 ]; then
       hostports="localhost:17017"
     else
-      hostports="localhost:17017$'\n''localhost:17018'$'\n''localhost:17019'"
+      hostports=$'localhost:17017\nlocalhost:17018\nlocalhost:17019'
     fi
   fi
 
@@ -398,7 +307,7 @@ function _pdb_ensure_cluster() {
   exit 1
 }
 
-# Backward compatibility aliases for CI scripts that may still use old names
+# Backward compatibility aliases
 function _ms_local_cleanup() { _pdb_cleanup "$@"; }
 function _ms_local_ensure_cluster() { _pdb_ensure_cluster "$@"; }
 function _ms_local_start_cluster() { _pdb_start_cluster "$@"; }

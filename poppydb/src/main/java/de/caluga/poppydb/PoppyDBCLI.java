@@ -250,7 +250,7 @@ public class PoppyDBCLI {
 
 
     private static void printHelp() {
-        System.out.println("Usage: java -jar morphium-server.jar [options]");
+        System.out.println("Usage: java -jar poppydb.jar [options]");
         System.out.println();
         System.out.println("PoppyDB is a MongoDB-compatible in-memory server using async I/O (Netty).");
         System.out.println("It can handle thousands of concurrent connections efficiently.");
@@ -286,9 +286,9 @@ public class PoppyDBCLI {
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
         System.out.println("Examples:");
-        System.out.println("  java -jar morphium-server.jar -p 27017");
-        System.out.println("  java -jar morphium-server.jar -p 27018 --ssl --sslKeystore server.jks --sslKeystorePassword changeit");
-        System.out.println("  java -jar morphium-server.jar -p 27017 --dump-dir /var/morphium/data --dump-interval 300");
-        System.out.println("  java -jar morphium-server.jar --rs-name myrs --rs-seed localhost:27017,localhost:27018,localhost:27019");
+        System.out.println("  java -jar poppydb.jar -p 27017");
+        System.out.println("  java -jar poppydb.jar -p 27018 --ssl --sslKeystore server.jks --sslKeystorePassword changeit");
+        System.out.println("  java -jar poppydb.jar -p 27017 --dump-dir /var/poppydb/data --dump-interval 300");
+        System.out.println("  java -jar poppydb.jar --rs-name myrs --rs-seed localhost:27017,localhost:27018,localhost:27019");
     }
 }

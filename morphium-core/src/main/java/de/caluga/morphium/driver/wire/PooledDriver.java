@@ -109,7 +109,7 @@ public class PooledDriver extends DriverBase {
     private volatile String primaryNode;
     private final Object primaryNodeLock = new Object();  // Lock for primaryNode updates only
     private volatile boolean inMemoryBackend = false;
-    private volatile boolean morphiumServer = false;
+    private volatile boolean poppyDB = false;
     private volatile boolean cosmosDB = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
         Thread.ofPlatform().name("MCon-", 0).factory());
@@ -195,7 +195,7 @@ public class PooledDriver extends DriverBase {
             }
 
             // Ensure at least one pooled connection to the discovered primary exists.
-            // When connecting to a fresh replica set (e.g. MorphiumServer RS), the initial
+            // When connecting to a fresh replica set (e.g. PoppyDB RS), the initial
             // createNewConnection() calls happen before election completes — all nodes report
             // as secondary, so the primary's pool may be empty or the connection was created
             // when the node was still secondary. Without this, borrowConnection(primaryNode)
@@ -355,9 +355,9 @@ public class PooledDriver extends DriverBase {
             return;
 
         // Detect backend type from hello handshake
-        if (!morphiumServer && Boolean.TRUE.equals(hello.getMorphiumServer())) {
-            morphiumServer = true;
-            log.info("Detected MorphiumServer backend (host: {})", hostConnected);
+        if (!poppyDB && Boolean.TRUE.equals(hello.getPoppyDB())) {
+            poppyDB = true;
+            log.info("Detected PoppyDB backend (host: {})", hostConnected);
         }
         if (!inMemoryBackend && Boolean.TRUE.equals(hello.getInMemoryBackend())) {
             inMemoryBackend = true;
@@ -1078,7 +1078,7 @@ public class PooledDriver extends DriverBase {
                 type = ReadPreferenceType.PRIMARY;
             }
 
-            // Force PRIMARY reads for InMemory backend (MorphiumServer) to ensure read-your-writes consistency
+            // Force PRIMARY reads for InMemory backend (PoppyDB) to ensure read-your-writes consistency
             // InMemory backend replication is eventually consistent, so NEAREST/SECONDARY reads may return stale data
             if (inMemoryBackend && type != ReadPreferenceType.PRIMARY) {
                 type = ReadPreferenceType.PRIMARY;
@@ -1463,8 +1463,8 @@ public class PooledDriver extends DriverBase {
     }
 
     @Override
-    public boolean isMorphiumServer() {
-        return morphiumServer;
+    public boolean isPoppyDB() {
+        return poppyDB;
     }
 
     @Override

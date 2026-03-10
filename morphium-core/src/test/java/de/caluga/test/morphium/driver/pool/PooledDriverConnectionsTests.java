@@ -22,7 +22,7 @@ import de.caluga.test.support.TestConfig;
 
 @Tag("driver")
 @Tag("external")  // Requires real MongoDB - directly creates PooledDriver
-@Tag("failover")  // Skip on MorphiumServer - connection pool stress tests require real MongoDB
+@Tag("failover")  // Skip on PoppyDB - connection pool stress tests require real MongoDB
 public class PooledDriverConnectionsTests {
     private Logger log = LoggerFactory.getLogger(PooledDriverConnectionsTests.class);
 

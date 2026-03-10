@@ -261,7 +261,7 @@ public class CacheTests extends MultiDriverTestBase {
             }
 
             // CachedObject uses @WriteBuffer - flush to ensure all writes are committed
-            // Use longer timeout for MorphiumServer which may have higher latency
+            // Use longer timeout for PoppyDB which may have higher latency
             TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushed",
                                                    () -> morphium.writeBufferCount() == 0);
 
@@ -365,7 +365,7 @@ public class CacheTests extends MultiDriverTestBase {
                 morphium.store(co);
             }
 
-            // MorphiumServer RS mode: 100 individual writes can take 30+ seconds with replication
+            // PoppyDB RS mode: 100 individual writes can take 30+ seconds with replication
             TestUtils.waitForConditionToBecomeTrue(60000, "Objects not stored",
                                                    () -> morphium.createQueryFor(CachedObject.class).countAll() == objectCount);
 

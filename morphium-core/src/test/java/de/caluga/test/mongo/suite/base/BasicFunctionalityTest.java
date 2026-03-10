@@ -576,9 +576,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             log.info("Caching not enabled in Memory - skipping");
             return;
         }
-        // Skip for MorphiumServer - cache sync doesn't work over network
+        // Skip for PoppyDB - cache sync doesn't work over network
         if (m.getDriver().isInMemoryBackend()) {
-            log.info("Skipping cache test for MorphiumServer - cache sync not supported over network");
+            log.info("Skipping cache test for PoppyDB - cache sync not supported over network");
             return;
         }
         String tstName = new Object() {
@@ -681,9 +681,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         .getClass().getEnclosingMethod().getName();
         log.info("----------------> Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        // Skip for MorphiumServer - cache sync doesn't work over network
+        // Skip for PoppyDB - cache sync doesn't work over network
         if (morphium.getDriver().isInMemoryBackend()) {
-            log.info("Skipping cache test for MorphiumServer - cache sync not supported over network");
+            log.info("Skipping cache test for PoppyDB - cache sync not supported over network");
             morphium.close();
             return;
         }

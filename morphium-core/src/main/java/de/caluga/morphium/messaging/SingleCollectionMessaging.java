@@ -435,7 +435,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         try {
-            // MorphiumServer pushes synthetic "lock_released" events when a lock is deleted.
+            // PoppyDB pushes synthetic "lock_released" events when a lock is deleted.
             // These have no documentKey/fullDocument - just trigger a re-poll.
             if ("lock_released".equals(evt.getOperationType())) {
                 log.debug("CSE: {}: lock_released event received, triggering re-poll", this.id);
@@ -565,13 +565,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * Register this messaging collection with MorphiumServer for optimizations.
-     * Only effective when connected to a MorphiumServer instance.
+     * Register this messaging collection with PoppyDB for optimizations.
+     * Only effective when connected to a PoppyDB instance.
      */
-    private void registerWithMorphiumServer() {
+    private void registerWithPoppyDB() {
         try {
-            if (morphium.getDriver().isMorphiumServer()) {
-                log.info("Registering messaging collection with MorphiumServer: {}", getCollectionName());
+            if (morphium.getDriver().isPoppyDB()) {
+                log.info("Registering messaging collection with PoppyDB: {}", getCollectionName());
                 Map<String, Object> cmdData = Doc.of(
                         "lockCollection", getLockCollectionName(),
                         "senderId", id
@@ -579,28 +579,28 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 List<Map<String, Object>> result = morphium.runCommand(
                         "registerMessagingCollection", getCollectionName(), cmdData);
                 if (result != null && !result.isEmpty() && Boolean.TRUE.equals(result.get(0).get("registered"))) {
-                    log.info("Successfully registered messaging collection with MorphiumServer: optimizations={}",
+                    log.info("Successfully registered messaging collection with PoppyDB: optimizations={}",
                              result.get(0).get("optimizations"));
                 }
             }
         } catch (Exception e) {
             // Registration is optional - don't fail messaging if it doesn't work
-            log.debug("Could not register messaging collection with MorphiumServer: {}", e.getMessage());
+            log.debug("Could not register messaging collection with PoppyDB: {}", e.getMessage());
         }
     }
 
     /**
-     * Unregister this messaging subscriber from MorphiumServer.
+     * Unregister this messaging subscriber from PoppyDB.
      */
-    private void unregisterFromMorphiumServer() {
+    private void unregisterFromPoppyDB() {
         try {
-            if (morphium.getDriver().isMorphiumServer()) {
-                log.debug("Unregistering messaging subscriber from MorphiumServer: {}", id);
+            if (morphium.getDriver().isPoppyDB()) {
+                log.debug("Unregistering messaging subscriber from PoppyDB: {}", id);
                 Map<String, Object> cmdData = Doc.of("senderId", id);
                 morphium.runCommand("unregisterMessagingSubscriber", getCollectionName(), cmdData);
             }
         } catch (Exception e) {
-            log.debug("Could not unregister from MorphiumServer: {}", e.getMessage());
+            log.debug("Could not unregister from PoppyDB: {}", e.getMessage());
         }
     }
 
@@ -609,7 +609,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        // Accept "insert" (new messages) and "lock_released" (MorphiumServer pushes this when
+        // Accept "insert" (new messages) and "lock_released" (PoppyDB pushes this when
         // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
         in.put("$in", Arrays.asList("insert", "lock_released"));
         match.put("operationType", in);
@@ -648,8 +648,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
         }
 
-        // Register with MorphiumServer for optimizations if connected
-        registerWithMorphiumServer();
+        // Register with PoppyDB for optimizations if connected
+        registerWithPoppyDB();
 
         if (useChangeStream) {
             log.info("Changestream init");
@@ -1593,8 +1593,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @Override
     public void terminate() {
         log.info("Terminate messaging");
-        // Unregister from MorphiumServer before terminating
-        unregisterFromMorphiumServer();
+        // Unregister from PoppyDB before terminating
+        unregisterFromPoppyDB();
         if (networkRegistry != null) {
             networkRegistry.terminate();
         }

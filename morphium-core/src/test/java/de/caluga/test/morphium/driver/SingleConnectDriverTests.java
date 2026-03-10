@@ -52,9 +52,9 @@ public class SingleConnectDriverTests extends DriverTestBase {
         StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(15).setForce(Boolean.TRUE);
         var res = cmd.execute();
         log.info("result: " + Utils.toJsonString(res));
-        // Check if stepdown is supported - MorphiumServer returns "stepping down not supported in memory"
+        // Check if stepdown is supported - PoppyDB returns "stepping down not supported in memory"
         if (res.containsKey("msg") && res.get("msg").toString().contains("not supported")) {
-            log.info("Stepdown not supported on this server (likely MorphiumServer) - skipping failover test");
+            log.info("Stepdown not supported on this server (likely PoppyDB) - skipping failover test");
             cmd.releaseConnection();
             org.junit.jupiter.api.Assumptions.assumeTrue(false, "Stepdown not supported on this server");
             return;

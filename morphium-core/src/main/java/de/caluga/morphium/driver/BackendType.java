@@ -7,6 +7,6 @@ package de.caluga.morphium.driver;
 public enum BackendType {
     MONGODB,           // Standard MongoDB
     COSMOSDB,          // Azure CosmosDB for MongoDB API
-    MORPHIUM_SERVER,   // MorphiumServer (Netty-based)
+    POPPY_DB,          // PoppyDB (Netty-based)
     IN_MEMORY          // InMemoryDriver (Tests)
 }

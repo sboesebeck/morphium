@@ -232,7 +232,7 @@ public class MultiDriverTestBase {
         }
 
         // Clean databases for ALL morphium instances, not just the first one.
-        // This is critical because PooledDriver→MorphiumServer and InMemoryDriver
+        // This is critical because PooledDriver→PoppyDB and InMemoryDriver
         // are completely separate storage systems.
         for (Arguments arg : morphiums) {
             Morphium m = (Morphium) arg.get()[0];
@@ -400,7 +400,7 @@ public class MultiDriverTestBase {
         morphium.storeList(lst);
 
         long targetCount = amount;
-        // Wait longer for replica set replication - MorphiumServer needs more time
+        // Wait longer for replica set replication - PoppyDB needs more time
         long waitTimeout = Math.max(targetCount * 100, 15000);  // At least 15 seconds for replication
         TestUtils.waitForConditionToBecomeTrue(waitTimeout, (dur, e)->log.error("Could not store after {}ms", dur), ()->q.countAll() >= targetCount, (dur)->log.info("Waiting for data to be stored...{}/{}", q.countAll(), targetCount));
         log.info("createUncachedObjects complete: created {} objects, total now {}", amount, q.countAll());

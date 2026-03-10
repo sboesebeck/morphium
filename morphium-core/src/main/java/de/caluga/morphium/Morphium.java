@@ -814,7 +814,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     /**
-     * Returns the detected backend type (MongoDB, CosmosDB, MorphiumServer, InMemory).
+     * Returns the detected backend type (MongoDB, CosmosDB, PoppyDB, InMemory).
      * Convenience method delegating to the driver.
      */
     public BackendType getBackendType() {

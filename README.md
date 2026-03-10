@@ -307,7 +307,7 @@ Tests are parameterized to run against multiple drivers. Use `--driver` to selec
 ./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver pooled
 
 # Against PoppyDB (auto-starts local server)
-./runtests.sh --morphium-server --driver pooled
+./runtests.sh --poppydb --driver pooled  # --morphium-server is a deprecated alias
 ```
 
 **Complete test coverage** requires running against all backends:
@@ -319,7 +319,7 @@ Tests are parameterized to run against multiple drivers. Use `--driver` to selec
 ./runtests.sh --uri mongodb://your-mongodb/testdb --driver all
 
 # 3. PoppyDB tests
-./runtests.sh --morphium-server --driver pooled
+./runtests.sh --poppydb --driver pooled  # --morphium-server is a deprecated alias
 ```
 
 **New in v6.1**

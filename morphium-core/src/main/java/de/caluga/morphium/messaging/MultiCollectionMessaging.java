@@ -1166,7 +1166,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         } catch (Exception e) {
             log.warn("Could not ensure indices for {}: {} - will retry later", getCollectionName(n), e.getMessage());
         }
-        registerTopicWithMorphiumServer(n);
+        registerTopicWithPoppyDB(n);
         // Wait for cursor to be ready (returns immediately if already established)
         cm.awaitReady(10, TimeUnit.SECONDS);
         pollAndProcess(n);
@@ -1201,7 +1201,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         }
         log.info("Phase 2: Started {} monitors in {}ms", allCsm.size(), System.currentTimeMillis() - startTime);
 
-        // Phase 3: Register topics with MorphiumServer and poll for existing messages.
+        // Phase 3: Register topics with PoppyDB and poll for existing messages.
         // Done in a background thread to not block startup - monitors are already receiving
         // new messages via change streams.
         final var topicNames = new ArrayList<>(allMonitors.keySet());
@@ -1211,9 +1211,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             for (var csm : allCsm) {
                 csm.awaitReady(10, TimeUnit.SECONDS);
             }
-            log.info("Phase 3: Registering {} topics with MorphiumServer and polling", topicNames.size());
+            log.info("Phase 3: Registering {} topics with PoppyDB and polling", topicNames.size());
             for (var topicName : topicNames) {
-                registerTopicWithMorphiumServer(topicName);
+                registerTopicWithPoppyDB(topicName);
             }
             for (var topicName : topicNames) {
                 try {
@@ -1231,7 +1231,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     /**
      * Create monitors for a topic without starting them. Handles index creation,
-     * MorphiumServer registration, and monitor setup.
+     * PoppyDB registration, and monitor setup.
      */
     private Map<MType, Object> createTopicMonitors(String n, MessageListener l) {
         var monitors = createTopicMonitorsLight(n, l);
@@ -1240,7 +1240,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         } catch (Exception e) {
             log.warn("Could not ensure indices for {}: {} - will retry later", getCollectionName(n), e.getMessage());
         }
-        registerTopicWithMorphiumServer(n);
+        registerTopicWithPoppyDB(n);
         return monitors;
     }
 
@@ -1252,7 +1252,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private Map<MType, Object> createTopicMonitorsLight(String n, MessageListener l) {
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        // Accept "insert" (new messages) and "lock_released" (MorphiumServer pushes this when
+        // Accept "insert" (new messages) and "lock_released" (PoppyDB pushes this when
         // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
         in.put("$in", Arrays.asList("insert", "lock_released"));
         match.put("operationType", in);
@@ -1267,7 +1267,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 return true;
             }
 
-            // MorphiumServer sends "lock_released" when a lock is deleted on the lock collection.
+            // PoppyDB sends "lock_released" when a lock is deleted on the lock collection.
             // Trigger a re-poll so exclusive messages can be picked up by another subscriber.
             if ("lock_released".equals(evt.getOperationType())) {
                 log.debug("CSM: Lock released event for topic {}, triggering re-poll", n);
@@ -1420,9 +1420,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             return true;  // Always keep listener registered - cleanup happens in terminate()
         });
         // For standard MongoDB: use shared DB-level lock monitor (1 connection for all lock collections).
-        // For MorphiumServer: no lock monitor needed - server pushes "lock_released" events
+        // For PoppyDB: no lock monitor needed - server pushes "lock_released" events
         // directly to the message change stream (0 extra connections).
-        if (!morphium.getDriver().isMorphiumServer()) {
+        if (!morphium.getDriver().isPoppyDB()) {
             lockCollectionToTopic.put(getLockCollectionName(n), n);
             ensureSharedLockMonitor();
         }
@@ -1520,15 +1520,15 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     /**
-     * Register a topic's messaging collection with MorphiumServer for optimizations.
-     * Only effective when connected to a MorphiumServer instance.
+     * Register a topic's messaging collection with PoppyDB for optimizations.
+     * Only effective when connected to a PoppyDB instance.
      */
-    private void registerTopicWithMorphiumServer(String topicName) {
+    private void registerTopicWithPoppyDB(String topicName) {
         try {
-            if (morphium.getDriver().isMorphiumServer()) {
+            if (morphium.getDriver().isPoppyDB()) {
                 String collection = getCollectionName(topicName);
                 String lockCollection = getLockCollectionName(topicName);
-                log.info("Registering messaging topic with MorphiumServer: {}", collection);
+                log.info("Registering messaging topic with PoppyDB: {}", collection);
                 Map<String, Object> cmdData = Doc.of(
                         "lockCollection", lockCollection,
                         "senderId", getSenderId()
@@ -1536,30 +1536,30 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 List<Map<String, Object>> result = morphium.runCommand(
                         "registerMessagingCollection", collection, cmdData);
                 if (result != null && !result.isEmpty() && Boolean.TRUE.equals(result.get(0).get("registered"))) {
-                    log.debug("Registered topic {} with MorphiumServer", topicName);
+                    log.debug("Registered topic {} with PoppyDB", topicName);
                 }
             }
         } catch (Exception e) {
-            log.debug("Could not register topic {} with MorphiumServer: {}", topicName, e.getMessage());
+            log.debug("Could not register topic {} with PoppyDB: {}", topicName, e.getMessage());
         }
     }
 
     /**
-     * Unregister all messaging subscriptions from MorphiumServer.
+     * Unregister all messaging subscriptions from PoppyDB.
      */
-    private void unregisterFromMorphiumServer() {
+    private void unregisterFromPoppyDB() {
         try {
-            if (morphium.getDriver().isMorphiumServer()) {
+            if (morphium.getDriver().isPoppyDB()) {
                 // Unregister all topics
                 for (String topicName : monitorsByTopic.keySet()) {
                     String collection = getCollectionName(topicName);
                     Map<String, Object> cmdData = Doc.of("senderId", getSenderId());
                     morphium.runCommand("unregisterMessagingSubscriber", collection, cmdData);
                 }
-                log.debug("Unregistered messaging subscriber {} from MorphiumServer", getSenderId());
+                log.debug("Unregistered messaging subscriber {} from PoppyDB", getSenderId());
             }
         } catch (Exception e) {
-            log.debug("Could not unregister from MorphiumServer: {}", e.getMessage());
+            log.debug("Could not unregister from PoppyDB: {}", e.getMessage());
         }
     }
 
@@ -1586,8 +1586,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     @Override
     public void terminate() {
         running.set(false);
-        // Unregister from MorphiumServer before terminating
-        unregisterFromMorphiumServer();
+        // Unregister from PoppyDB before terminating
+        unregisterFromPoppyDB();
         if (networkRegistry != null) {
             networkRegistry.terminate();
         }

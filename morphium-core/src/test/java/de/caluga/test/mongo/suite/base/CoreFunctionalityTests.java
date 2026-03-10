@@ -233,10 +233,10 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        // Skip for MorphiumServer - cache sync doesn't work over network, cache invalidation
-        // messages don't propagate back to the client when operations go through MorphiumServer
+        // Skip for PoppyDB - cache sync doesn't work over network, cache invalidation
+        // messages don't propagate back to the client when operations go through PoppyDB
         if (morphium.getDriver().isInMemoryBackend() && !morphium.getDriver().getName().equals("InMemDriver")) {
-            log.info("Skipping cache test for MorphiumServer - cache sync not supported over network");
+            log.info("Skipping cache test for PoppyDB - cache sync not supported over network");
             morphium.close();
             return;
         }

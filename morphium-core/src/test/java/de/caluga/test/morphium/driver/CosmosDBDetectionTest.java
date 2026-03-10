@@ -202,7 +202,7 @@ public class CosmosDBDetectionTest extends MorphiumInMemTestBase {
         assertEquals(4, BackendType.values().length);
         assertNotNull(BackendType.MONGODB);
         assertNotNull(BackendType.COSMOSDB);
-        assertNotNull(BackendType.MORPHIUM_SERVER);
+        assertNotNull(BackendType.POPPY_DB);
         assertNotNull(BackendType.IN_MEMORY);
     }
 
@@ -227,38 +227,38 @@ public class CosmosDBDetectionTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void testPooledDriverMorphiumServerDetection() throws Exception {
+    public void testPooledDriverPoppyDBDetection() throws Exception {
         PooledDriver driver = new PooledDriver();
 
         // Before detection: default is MONGODB
         assertEquals(BackendType.MONGODB, driver.getBackendType());
-        assertFalse(driver.isMorphiumServer());
+        assertFalse(driver.isPoppyDB());
 
-        // Simulate hello response with morphiumServer=true
-        Field morphiumServerField = PooledDriver.class.getDeclaredField("morphiumServer");
-        morphiumServerField.setAccessible(true);
-        morphiumServerField.set(driver, true);
+        // Simulate hello response with poppyDB=true
+        Field poppyDBField = PooledDriver.class.getDeclaredField("poppyDB");
+        poppyDBField.setAccessible(true);
+        poppyDBField.set(driver, true);
 
-        assertTrue(driver.isMorphiumServer());
-        assertEquals(BackendType.MORPHIUM_SERVER, driver.getBackendType());
+        assertTrue(driver.isPoppyDB());
+        assertEquals(BackendType.POPPY_DB, driver.getBackendType());
     }
 
     @Test
     public void testPooledDriverInMemoryDetection() throws Exception {
         PooledDriver driver = new PooledDriver();
 
-        // Simulate hello response with inMemoryBackend=true and morphiumServer=true
+        // Simulate hello response with inMemoryBackend=true and poppyDB=true
         Field inMemoryField = PooledDriver.class.getDeclaredField("inMemoryBackend");
         inMemoryField.setAccessible(true);
         inMemoryField.set(driver, true);
 
-        Field morphiumServerField = PooledDriver.class.getDeclaredField("morphiumServer");
-        morphiumServerField.setAccessible(true);
-        morphiumServerField.set(driver, true);
+        Field poppyDBField = PooledDriver.class.getDeclaredField("poppyDB");
+        poppyDBField.setAccessible(true);
+        poppyDBField.set(driver, true);
 
         assertTrue(driver.isInMemoryBackend());
-        assertTrue(driver.isMorphiumServer());
-        // IN_MEMORY takes priority over MORPHIUM_SERVER
+        assertTrue(driver.isPoppyDB());
+        // IN_MEMORY takes priority over POPPY_DB
         assertEquals(BackendType.IN_MEMORY, driver.getBackendType());
     }
 
@@ -268,25 +268,25 @@ public class CosmosDBDetectionTest extends MorphiumInMemTestBase {
         driver.setHostSeed("mongo1:27017");
 
         assertFalse(driver.isCosmosDB());
-        assertFalse(driver.isMorphiumServer());
+        assertFalse(driver.isPoppyDB());
         assertFalse(driver.isInMemoryBackend());
         assertEquals(BackendType.MONGODB, driver.getBackendType());
     }
 
     @Test
     public void testBackendTypePriority() throws Exception {
-        // CosmosDB + MorphiumServer flags both set: CosmosDB should win over MORPHIUM_SERVER
+        // CosmosDB + PoppyDB flags both set: CosmosDB should win over POPPY_DB
         PooledDriver driver = new PooledDriver();
 
         Field cosmosDBField = PooledDriver.class.getDeclaredField("cosmosDB");
         cosmosDBField.setAccessible(true);
         cosmosDBField.set(driver, true);
 
-        Field morphiumServerField = PooledDriver.class.getDeclaredField("morphiumServer");
-        morphiumServerField.setAccessible(true);
-        morphiumServerField.set(driver, true);
+        Field poppyDBField = PooledDriver.class.getDeclaredField("poppyDB");
+        poppyDBField.setAccessible(true);
+        poppyDBField.set(driver, true);
 
-        // IN_MEMORY > CosmosDB > MORPHIUM_SERVER > MONGODB
+        // IN_MEMORY > CosmosDB > POPPY_DB > MONGODB
         assertEquals(BackendType.COSMOSDB, driver.getBackendType());
     }
 }

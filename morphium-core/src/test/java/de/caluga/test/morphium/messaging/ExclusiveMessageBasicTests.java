@@ -305,7 +305,7 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
     /**
      * Verifies that lock_released events drive fast re-polling for exclusive messages.
      * <p>
-     * When using MorphiumServer, the server pushes synthetic "lock_released" events through
+     * When using PoppyDB, the server pushes synthetic "lock_released" events through
      * the message change stream (0 extra connections). For MongoDB, a shared DB-level lock
      * monitor detects lock deletions (1 connection for all topics).
      * <p>
@@ -318,8 +318,8 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
     public void lockReleasedEventDrivenPickupTest(Morphium morphium) throws Exception {
         for (String msgImpl : de.caluga.test.mongo.suite.base.MultiDriverTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
-            log.info("Using messaging implementation: {} (isMorphiumServer={})", msgImpl,
-                    morphium.getDriver().isMorphiumServer());
+            log.info("Using messaging implementation: {} (isPoppyDB={})", msgImpl,
+                    morphium.getDriver().isPoppyDB());
             var cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             cfg.encryptionSettings()

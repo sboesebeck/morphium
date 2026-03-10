@@ -47,3 +47,4 @@ package.json
 # MkDocs build output
 site/
 .morphiumserver-local
+.poppydb-local

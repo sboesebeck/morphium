@@ -46,8 +46,8 @@ public class HelloResult {
     private Map<String, Object> topologyVersion;
     private Long operationTime;
 
-    // MorphiumServer-specific fields
-    private Boolean morphiumServer;
+    // PoppyDB-specific fields
+    private Boolean poppyDB;
     private Boolean inMemoryBackend;
 
     // CosmosDB detection (set by driver, not from hello response)
@@ -70,6 +70,11 @@ public class HelloResult {
                 //e.printStackTrace();
                 LoggerFactory.getLogger(HelloResult.class).error("Exception parsing answer", e);
             }
+        }
+
+        // Backward compat: old servers send "morphiumServer" instead of "poppyDB"
+        if (ret.getPoppyDB() == null && msg.containsKey("morphiumServer")) {
+            ret.setPoppyDB((Boolean) msg.get("morphiumServer"));
         }
 
         return ret;
@@ -363,12 +368,12 @@ public class HelloResult {
         return this;
     }
 
-    public Boolean getMorphiumServer() {
-        return morphiumServer;
+    public Boolean getPoppyDB() {
+        return poppyDB;
     }
 
-    public HelloResult setMorphiumServer(Boolean morphiumServer) {
-        this.morphiumServer = morphiumServer;
+    public HelloResult setPoppyDB(Boolean poppyDB) {
+        this.poppyDB = poppyDB;
         return this;
     }
 

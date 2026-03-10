@@ -32,7 +32,7 @@ public class AggregationExpQuery extends MultiDriverTestBase {
             for (UncachedObject u : allObjects) {
                 u.setDval(Math.random() * 100);
             }
-            // Use storeList for batch update - more efficient and works better with MorphiumServer
+            // Use storeList for batch update - more efficient and works better with PoppyDB
             morphium.storeList(allObjects);
             // Wait for writes to complete
             TestUtils.waitForWrites(morphium, log);
