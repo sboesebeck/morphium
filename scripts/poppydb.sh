@@ -226,8 +226,8 @@ function _pdb_start_cluster() {
   local jar
   jar=$(_pdb_find_cli_jar)
   if [ -z "$jar" ] || find poppydb/src/main/java -newer "$jar" 2>/dev/null | head -n 1 | grep -q .; then
-    echo -e "${BL}Info:${CL} Building PoppyDB CLI jar (mvn -Dmaven.test.skip=true package -pl poppydb -am)..."
-    mvn -Dmaven.test.skip=true -Dmaven.javadoc.skip=true package -pl poppydb -am
+    echo -e "${BL}Info:${CL} Building PoppyDB CLI jar..."
+    mvn -DskipTests -Dmaven.javadoc.skip=true package
     jar=$(_pdb_find_cli_jar)
   fi
 
