@@ -1156,10 +1156,19 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void addListenerForTopic(String n, MessageListener l) {
-        var monitors = createTopicMonitors(n, l);
-        var cm = monitors.get(MType.monitor);
-        ((ChangeStreamMonitor) cm).startAsync();
-        ((ChangeStreamMonitor) cm).awaitReady(2, TimeUnit.SECONDS);
+        // Start monitor first, then do DB calls while cursor is establishing
+        var monitors = createTopicMonitorsLight(n, l);
+        var cm = (ChangeStreamMonitor) monitors.get(MType.monitor);
+        cm.startAsync();
+        // DB calls (ensureIndices, registerTopic) happen while cursor connects
+        try {
+            morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
+        } catch (Exception e) {
+            log.warn("Could not ensure indices for {}: {} - will retry later", getCollectionName(n), e.getMessage());
+        }
+        registerTopicWithMorphiumServer(n);
+        // Wait for cursor to be ready (returns immediately if already established)
+        cm.awaitReady(10, TimeUnit.SECONDS);
         pollAndProcess(n);
     }
 
@@ -1197,12 +1206,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         // new messages via change streams.
         final var topicNames = new ArrayList<>(allMonitors.keySet());
         Thread.ofPlatform().name("mcm-batch-init").start(() -> {
-            // Wait briefly for monitors to establish connections
-            try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
+            // Wait for all monitors to establish their change stream cursors
+            // (returns immediately per monitor once cursor is ready, max 10s timeout)
+            for (var csm : allCsm) {
+                csm.awaitReady(10, TimeUnit.SECONDS);
             }
             log.info("Phase 3: Registering {} topics with MorphiumServer and polling", topicNames.size());
             for (var topicName : topicNames) {
