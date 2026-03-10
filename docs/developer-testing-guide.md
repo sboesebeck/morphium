@@ -9,10 +9,10 @@ This guide explains how to run and write tests for Morphium. It covers the test 
 ./runtests.sh --driver inmem --restart
 
 # Test against PoppyDB (single node - recommended for most testing)
-./runtests.sh --morphium-server --driver pooled --restart
+./runtests.sh --poppydb --driver pooled --restart
 
 # Test against PoppyDB replica set (for replication testing)
-./runtests.sh --morphium-server-replicaset --driver pooled --restart
+./runtests.sh --poppydb-replicaset --driver pooled --restart
 
 # Run specific test class
 ./runtests.sh --driver inmem --test BasicFunctionalityTest
@@ -173,8 +173,9 @@ Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache
 
 #### PoppyDB Options
 ```bash
---morphium-server              # Start single-node PoppyDB (recommended)
---morphium-server-replicaset   # Start 3-node replica set (ports 27017-27019)
+--poppydb                      # Start single-node PoppyDB (recommended)
+--poppydb-replicaset           # Start 3-node replica set (ports 27017-27019)
+# Deprecated aliases: --morphium-server, --morphium-server-replicaset
 ```
 
 #### Execution Control
@@ -200,7 +201,7 @@ Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache
 ./runtests.sh --driver inmem --test MyNewTest --restart
 
 # Full test against PoppyDB single node
-./runtests.sh --morphium-server --driver pooled --restart
+./runtests.sh --poppydb --driver pooled --restart
 
 # Parallel testing for speed
 ./runtests.sh --driver inmem --parallel 4 --restart
@@ -301,7 +302,7 @@ morphium.dropCollection(MyClass.class);
 ### Test Hangs
 
 1. Check for infinite loops in wait conditions
-2. Verify PoppyDB is running (if using `--morphium-server`)
+2. Verify PoppyDB is running (if using `--poppydb`)
 3. Check connection timeouts in logs
 
 ### Flaky Tests with Replica Sets
@@ -309,7 +310,7 @@ morphium.dropCollection(MyClass.class);
 Replica set tests can be timing-sensitive:
 
 1. Increase wait timeouts for replication
-2. Use `--morphium-server` (single node) instead of `--morphium-server-replicaset` for most tests
+2. Use `--poppydb` (single node) instead of `--poppydb-replicaset` for most tests
 3. Run flaky tests with `--retry 2`
 
 ### Database Conflicts in Parallel Mode

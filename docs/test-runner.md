@@ -39,7 +39,7 @@ Notes:
 If you have a replica set running locally on `localhost:27017,localhost:27018,localhost:27019` (MongoDB or PoppyDB), use:
 
 ```bash
-./runtests.sh --morphiumserver-local --parallel 2 --restart
+./runtests.sh --poppydb --parallel 2 --restart
 ```
 
 This mode sets:
@@ -49,24 +49,26 @@ This mode sets:
 The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start PoppyDB:
 
 ```bash
-./runtests.sh --morphiumserver-local --start-morphiumserver-local --parallel 2 --restart
+./runtests.sh --poppydb --start-poppydb-local --parallel 2 --restart
 ```
 
 To keep the locally started cluster running after the test run:
 
 ```bash
-./runtests.sh --morphiumserver-local --start-morphiumserver-local --keep-morphiumserver-local --parallel 2 --restart
+./runtests.sh --poppydb --start-poppydb-local --keep-poppydb-local --parallel 2 --restart
 ```
+
+Note: The old flags `--morphiumserver-local`, `--start-morphiumserver-local`, and `--keep-morphiumserver-local` are deprecated aliases and still work for backward compatibility.
 
 When auto-start is used, PoppyDB logs are written to `.poppydb-local/logs/`.
 
-Note: `--start-morphiumserver-local` is idempotent. If something is already listening (MongoDB or another PoppyDB), the runner will just use it.
+Note: `--start-poppydb-local` is idempotent. If something is already listening (MongoDB or another PoppyDB), the runner will just use it.
 `--allow-existing-localhost-rs` is deprecated and has no effect.
 
 If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
 
 ```bash
-./runtests.sh --morphiumserver-local --exclude-tags server --parallel 2 --restart
+./runtests.sh --poppydb --exclude-tags server --parallel 2 --restart
 ```
 
 ## Debugging Failures
