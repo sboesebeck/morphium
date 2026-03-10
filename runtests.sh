@@ -921,6 +921,7 @@ else
 	testMethods2=$(safe_grep_count '@MethodSource\("getMorphiumInstancesNo.*"\)' "$p" "$filesList")
 	testMethods1=$(safe_grep_count '@MethodSource\("getMorphiumInstances.*Only"\)' "$p" "$filesList")
 	((testMethods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
+	echo "$testMethods" > "$TEST_TMP_DIR/testMethods"
 fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
