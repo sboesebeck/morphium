@@ -19,7 +19,7 @@ set -eo pipefail
 #   ./release.sh [OPTIONS]
 #
 # Options:
-#   --skip-tests       Skip running tests before release
+#   --run-tests        Run tests before release (default: skip)
 #   --dry-run          Validate everything but don't actually release
 #   --auto-publish     Automatically publish to Maven Central after validation
 #   --deploy-docs      Deploy documentation to gh-pages after release
@@ -39,7 +39,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default options
-SKIP_TESTS=false
+RUN_TESTS=false
 DRY_RUN=false
 AUTO_PUBLISH=false
 DEPLOY_DOCS=false
@@ -47,8 +47,8 @@ DEPLOY_DOCS=false
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
 	case $1 in
-	--skip-tests)
-		SKIP_TESTS=true
+	--run-tests)
+		RUN_TESTS=true
 		shift
 		;;
 	--dry-run)
@@ -315,10 +315,8 @@ log_success "Multi-module structure: morphium-parent, morphium-core (morphium), 
 # Step 2: Run tests (optional)
 # -----------------------------------------------------------------------------
 
-if [ "$SKIP_TESTS" = true ]; then
-	log_step "Skipping tests (--skip-tests)"
-else
-	log_step "Running tests"
+if [ "$RUN_TESTS" = true ]; then
+	log_step "Running tests (--run-tests)"
 
 	if ! mvn clean test -q; then
 		log_error "Tests failed!"
@@ -328,6 +326,8 @@ else
 	else
 		log_success "All tests passed"
 	fi
+else
+	log_step "Skipping tests (use --run-tests to enable)"
 fi
 
 # -----------------------------------------------------------------------------
