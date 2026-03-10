@@ -2,18 +2,13 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
-  <artifactId>morphium</artifactId>
+  <artifactId>morphium-parent</artifactId>
   <version>6.2.0-SNAPSHOT</version>
-  <packaging>jar</packaging>
-  <!--    <parent>-->
-  <!--        <groupId>org.sonatype.oss</groupId>-->
-  <!--        <artifactId>oss-parent</artifactId>-->
-  <!--        <version>9</version>-->
-  <!--    </parent>-->
-  <name>Morphium</name>
+  <packaging>pom</packaging>
+  <name>Morphium Parent</name>
   <url>http://caluga.de</url>
   <description>
-        Morphium - a Caching Object Mapper for MongoDB
+        Morphium - a Caching Object Mapper for MongoDB (Parent POM)
     </description>
   <licenses>
     <license>
@@ -35,6 +30,10 @@
       <email>sb@caluga.de</email>
     </developer>
   </developers>
+  <modules>
+    <module>morphium-core</module>
+    <module>poppydb</module>
+  </modules>
   <properties>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
@@ -44,6 +43,7 @@
     <jacoco.percentage.instruction>0.40</jacoco.percentage.instruction>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.11.5</mongodbDriver.version>
+    <netty.version>4.2.9.Final</netty.version>
     <!--  This is required for later correct replacement of argline -->
     <argLine/>
     <!-- JUnit tag control (defaults) -->
@@ -51,138 +51,268 @@
     <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
-    <sourceDirectory>src/main/java</sourceDirectory>
-    <testSourceDirectory>src/test/java</testSourceDirectory>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.0.0</version>
-        <configuration>
-          <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
-          <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
-          <groups>${test.includeTags}</groups>
-          <excludedGroups>${test.excludeTags}</excludedGroups>
-          <properties>
-            <configurationParameters>
-              junit.jupiter.extensions.autodetection.enabled=true
-            </configurationParameters>
-          </properties>
-          <systemPropertyVariables>
-            <morphium.tests.verbose>${morphium.tests.verbose}</morphium.tests.verbose>
-          </systemPropertyVariables>
-          <forkCount>1</forkCount>
-          <reuseForks>false</reuseForks>
-          <runOrder>filesystem</runOrder>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-source-plugin</artifactId>
-        <version>3.1.0</version>
-        <executions>
-          <execution>
-            <id>attach-sources</id>
-            <goals>
-              <goal>jar</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-javadoc-plugin</artifactId>
-        <version>3.4.1</version>
-        <configuration>
-          <failOnError>false</failOnError>
-          <javadocExecutable>/usr/bin/javadoc</javadocExecutable>
-          <additionalJOption>-J-Xmx2048m</additionalJOption>
-        </configuration>
-        <executions>
-          <execution>
-            <id>attach-javadocs</id>
-            <goals>
-              <goal>jar</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.12.1</version>
-        <configuration>
-          <source>${maven.compiler.source}</source>
-          <target>${maven.compiler.target}</target>
-          <release>${maven.compiler.release}</release>
-          <skip>${maven.compiler.skip}</skip>
-          <compilerArgs>
-            <arg>-Xlint:deprecation,unchecked</arg>
-          </compilerArgs>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-jar-plugin</artifactId>
-        <configuration>
-          <excludes>
-            <exclude>log4j*.xml</exclude>
-            <exclude>logging*.properties</exclude>
-            <exclude>logback*.xml</exclude>
-          </excludes>
-        </configuration>
-        <version>3.2.2</version>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-release-plugin</artifactId>
-        <version>2.5.3</version>
-        <configuration>
-          <tagNameFormat>v@{project.version}</tagNameFormat>
-          <autoVersionSubmodules>true</autoVersionSubmodules>
-          <releaseProfiles>release-sign-artifacts</releaseProfiles>
-          <arguments>-Dmaven.javadoc.skip=false -Dmaven.test.skipTests=true -Dmaven.test.skip=true</arguments>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-assembly-plugin</artifactId>
-        <version>3.7.1</version>
-        <configuration>
-          <descriptors>
-            <descriptor>src/main/assembly/server-cli.xml</descriptor>
-          </descriptors>
-          <archive>
-            <manifest>
-              <mainClass>de.caluga.morphium.server.MorphiumServerCLI</mainClass>
-            </manifest>
-            <manifestEntries>
-              <Multi-Release>true</Multi-Release>
-            </manifestEntries>
-          </archive>
-        </configuration>
-        <executions>
-          <execution>
-            <id>make-assembly</id>
-            <phase>package</phase>
-            <goals>
-              <goal>single</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-    <testResources>
-      <testResource>
-        <directory>${project.basedir}/src/test/resources</directory>
-      </testResource>
-    </testResources>
-    <resources>
-      <resource>
-        <directory>${project.basedir}/src/main/resources</directory>
-      </resource>
-    </resources>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.0.0</version>
+          <configuration>
+            <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
+            <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
+            <groups>${test.includeTags}</groups>
+            <excludedGroups>${test.excludeTags}</excludedGroups>
+            <properties>
+              <configurationParameters>
+                junit.jupiter.extensions.autodetection.enabled=true
+              </configurationParameters>
+            </properties>
+            <systemPropertyVariables>
+              <morphium.tests.verbose>${morphium.tests.verbose}</morphium.tests.verbose>
+            </systemPropertyVariables>
+            <forkCount>1</forkCount>
+            <reuseForks>false</reuseForks>
+            <runOrder>filesystem</runOrder>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-source-plugin</artifactId>
+          <version>3.1.0</version>
+          <executions>
+            <execution>
+              <id>attach-sources</id>
+              <goals>
+                <goal>jar</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>3.4.1</version>
+          <configuration>
+            <failOnError>false</failOnError>
+            <javadocExecutable>/usr/bin/javadoc</javadocExecutable>
+            <additionalJOption>-J-Xmx2048m</additionalJOption>
+          </configuration>
+          <executions>
+            <execution>
+              <id>attach-javadocs</id>
+              <goals>
+                <goal>jar</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.12.1</version>
+          <configuration>
+            <source>${maven.compiler.source}</source>
+            <target>${maven.compiler.target}</target>
+            <release>${maven.compiler.release}</release>
+            <skip>${maven.compiler.skip}</skip>
+            <compilerArgs>
+              <arg>-Xlint:deprecation,unchecked</arg>
+            </compilerArgs>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.2.2</version>
+          <configuration>
+            <excludes>
+              <exclude>log4j*.xml</exclude>
+              <exclude>logging*.properties</exclude>
+              <exclude>logback*.xml</exclude>
+            </excludes>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-release-plugin</artifactId>
+          <version>2.5.3</version>
+          <configuration>
+            <tagNameFormat>v@{project.version}</tagNameFormat>
+            <autoVersionSubmodules>true</autoVersionSubmodules>
+            <releaseProfiles>release-sign-artifacts</releaseProfiles>
+            <arguments>-Dmaven.javadoc.skip=false -Dmaven.test.skipTests=true -Dmaven.test.skip=true</arguments>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
   </build>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.xerial.snappy</groupId>
+        <artifactId>snappy-java</artifactId>
+        <version>1.1.10.8</version>
+        <type>jar</type>
+        <scope>compile</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.openjdk.jol</groupId>
+        <artifactId>jol-core</artifactId>
+        <version>0.17</version>
+      </dependency>
+      <dependency>
+        <groupId>org.graalvm.js</groupId>
+        <artifactId>js-scriptengine</artifactId>
+        <version>25.0.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.graalvm.polyglot</groupId>
+        <artifactId>polyglot</artifactId>
+        <version>25.0.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.graalvm.polyglot</groupId>
+        <artifactId>js</artifactId>
+        <version>25.0.1</version>
+        <type>pom</type>
+        <exclusions>
+          <exclusion>
+            <groupId>org.graalvm.truffle</groupId>
+            <artifactId>truffle-enterprise</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-params</artifactId>
+        <version>5.9.0</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>javax.jms</groupId>
+        <artifactId>javax.jms-api</artifactId>
+        <version>2.0.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>2.0.17</version>
+      </dependency>
+      <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-core</artifactId>
+        <version>1.5.25</version>
+      </dependency>
+      <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.5.25</version>
+      </dependency>
+      <dependency>
+        <groupId>com.colofabrix.scala</groupId>
+        <artifactId>figlet4s-java</artifactId>
+        <version>0.3.1</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-core</artifactId>
+        <version>5.3.39</version>
+        <scope>compile</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.mongodb</groupId>
+        <artifactId>bson</artifactId>
+        <version>${mongodbDriver.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mongodb</groupId>
+        <artifactId>mongodb-driver-sync</artifactId>
+        <version>${mongodbDriver.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.mongodb</groupId>
+        <artifactId>mongodb-driver-core</artifactId>
+        <version>${mongodbDriver.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.ongres.scram</groupId>
+        <artifactId>client</artifactId>
+        <version>2.1</version>
+      </dependency>
+      <dependency>
+        <groupId>com.googlecode.json-simple</groupId>
+        <artifactId>json-simple</artifactId>
+        <version>1.1.1</version>
+        <exclusions>
+          <exclusion>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>javax.validation</groupId>
+        <artifactId>validation-api</artifactId>
+        <version>2.0.1.Final</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ehcache</groupId>
+        <artifactId>jcache</artifactId>
+        <version>1.0.1</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.hibernate.validator</groupId>
+        <artifactId>hibernate-validator</artifactId>
+        <version>8.0.0.Final</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>javax.cache</groupId>
+        <artifactId>cache-api</artifactId>
+        <version>1.1.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>3.20.0</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.classgraph</groupId>
+        <artifactId>classgraph</artifactId>
+        <version>4.8.184</version>
+      </dependency>
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>3.27.7</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>de.caluga</groupId>
+        <artifactId>rsa</artifactId>
+        <version>1.1</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
   <profiles>
     <profile>
       <id>release-nosign-artifacts</id>
@@ -241,233 +371,4 @@
       </properties>
     </profile>
   </profiles>
-  <dependencies>
-    <dependency>
-      <groupId>org.xerial.snappy</groupId>
-      <artifactId>snappy-java</artifactId>
-      <version>1.1.10.8</version>
-      <type>jar</type>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.openjdk.jol</groupId>
-      <artifactId>jol-core</artifactId>
-      <version>0.17</version>
-    </dependency>
-    <dependency>
-      <groupId>org.graalvm.js</groupId>
-      <artifactId>js-scriptengine</artifactId>
-      <version>25.0.1</version>
-      <!-- Compile scope so it's included in server jar for MapReduce -->
-    </dependency>
-    <dependency>
-      <groupId>org.graalvm.polyglot</groupId>
-      <artifactId>polyglot</artifactId>
-      <version>25.0.1</version>
-      <!-- Compile scope so it's included in server jar for MapReduce -->
-    </dependency>
-    <dependency>
-      <groupId>org.graalvm.polyglot</groupId>
-      <artifactId>js</artifactId>
-      <version>25.0.1</version>
-      <type>pom</type>
-      <!-- POM type pulls in transitive dependencies for JS language -->
-      <exclusions>
-        <!-- Exclude enterprise module - causes ServiceConfigurationError in fat jar -->
-        <exclusion>
-          <groupId>org.graalvm.truffle</groupId>
-          <artifactId>truffle-enterprise</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <!-- https://mvnrepository.com/artifact/rhino/js -->
-    <!-- <dependency> -->
-    <!--   <groupId>org.mozilla</groupId> -->
-    <!--   <artifactId>rhino</artifactId> -->
-    <!--   <version>1.7.11</version> -->
-    <!-- </dependency> -->
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-params</artifactId>
-      <version>5.9.0</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>javax.jms</groupId>
-      <artifactId>javax.jms-api</artifactId>
-      <version>2.0.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-      <version>2.0.17</version>
-    </dependency>
-    <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-core</artifactId>
-      <version>1.5.25</version>
-    </dependency>
-    <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>1.5.25</version>
-    </dependency>
-    <dependency>
-      <groupId>com.colofabrix.scala</groupId>
-      <artifactId>figlet4s-java</artifactId>
-      <version>0.3.1</version>
-      <scope>test</scope>
-    </dependency>
-    <!-- NOTE: CVE-2025-41249 - Fixed in 5.3.45 (commercial only) or 6.2.11+ (OSS)
-         5.3.39 is the latest OSS version but still vulnerable. Consider upgrading to Spring 6.2.11+
-         or obtaining commercial support for 5.3.45 if using @EnableMethodSecurity -->
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-core</artifactId>
-      <version>5.3.39</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.mongodb</groupId>
-      <artifactId>bson</artifactId>
-      <version>${mongodbDriver.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.mongodb</groupId>
-      <artifactId>mongodb-driver-sync</artifactId>
-      <version>${mongodbDriver.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.mongodb</groupId>
-      <artifactId>mongodb-driver-core</artifactId>
-      <version>${mongodbDriver.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.ongres.scram</groupId>
-      <artifactId>client</artifactId>
-      <version>2.1</version>
-    </dependency>
-    <dependency>
-      <groupId>com.googlecode.json-simple</groupId>
-      <artifactId>json-simple</artifactId>
-      <version>1.1.1</version>
-      <exclusions>
-        <exclusion>
-          <groupId>junit</groupId>
-          <artifactId>junit</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <!-- for validation, we compile against the validation API -->
-    <!-- these classes are not needed at runtime but if they   -->
-    <!-- are present, validation will be applied.              -->
-    <dependency>
-      <groupId>javax.validation</groupId>
-      <artifactId>validation-api</artifactId>
-      <version>2.0.1.Final</version>
-    </dependency>
-    <dependency>
-      <groupId>org.ehcache</groupId>
-      <artifactId>jcache</artifactId>
-      <version>1.0.1</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.hibernate.validator</groupId>
-      <artifactId>hibernate-validator</artifactId>
-      <version>8.0.0.Final</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>javax.cache</groupId>
-      <artifactId>cache-api</artifactId>
-      <version>1.1.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.20.0</version>
-    </dependency>
-    <!-- <dependency> -->
-    <!--   <groupId>uk.com.robust-it</groupId> -->
-    <!--   <artifactId>cloning</artifactId> -->
-    <!--   <version>1.9.12</version> -->
-    <!-- </dependency> -->
-    <dependency>
-      <groupId>io.github.classgraph</groupId>
-      <artifactId>classgraph</artifactId>
-      <version>4.8.184</version>
-    </dependency>
-    <dependency>
-      <groupId>org.assertj</groupId>
-      <artifactId>assertj-core</artifactId>
-      <version>3.27.7</version>
-      <scope>test</scope>
-    </dependency>
-    <!-- Netty for async I/O in MorphiumServer (optional - not needed for Morphium client) -->
-    <dependency>
-      <groupId>io.netty</groupId>
-      <artifactId>netty-all</artifactId>
-      <version>4.2.9.Final</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>de.caluga</groupId>
-      <artifactId>rsa</artifactId>
-      <version>1.1</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.logging.log4j</groupId>
-          <artifactId>log4j</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>log4j</groupId>
-          <artifactId>log4j</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <!--        <dependency>-->
-    <!--            <groupId>com.rabbitmq</groupId>-->
-    <!--            <artifactId>amqp-client</artifactId>-->
-    <!--            <version>5.14.2</version>-->
-    <!--        </dependency>-->
-  </dependencies>
-  <!--    <repositories>-->
-  <!--        <repository>-->
-  <!--            <id>sonatype-nexus-snapshots</id>-->
-  <!--            <name>Sonatype Nexus Snapshots</name>-->
-  <!--            <url>https://oss.sonatype.org/content/repositories/snapshots</url>-->
-  <!--            <releases>-->
-  <!--                <enabled>false</enabled>-->
-  <!--            </releases>-->
-  <!--            <snapshots>-->
-  <!--                <enabled>true</enabled>-->
-  <!--            </snapshots>-->
-  <!--        </repository>-->
-  <!--        <repository>-->
-  <!--            <id>sonatype-nexus-staging</id>-->
-  <!--            <name>Sonatype Nexus Release Repository</name>-->
-  <!--            <url>https://oss.sonatype.orgservice/local/staging/deploy/maven2/</url>-->
-  <!--            <releases>-->
-  <!--                <enabled>true</enabled>-->
-  <!--            </releases>-->
-  <!--            <snapshots>-->
-  <!--                <enabled>false</enabled>-->
-  <!--            </snapshots>-->
-  <!--        </repository>-->
-  <!--    </repositories>-->
-  <!--    <distributionManagement>-->
-  <!--        <snapshotRepository>-->
-  <!--            <id>sonatype-nexus-snapshots</id>-->
-  <!--            <name>Sonatype Nexus Snapshots</name>-->
-  <!--            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>-->
-  <!--        </snapshotRepository>-->
-  <!--        <repository>-->
-  <!--            <id>sonatype-nexus-staging</id>-->
-  <!--            <name>Nexus Release Repository</name>-->
-  <!--            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
-  <!--        </repository>-->
-  <!--    </distributionManagement>-->
 </project>
