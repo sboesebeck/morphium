@@ -225,12 +225,19 @@ cleanup() {
 
 trap cleanup EXIT
 
+# Record starting branch early so cleanup trap can return here on any error
+ORIGINAL_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
 # -----------------------------------------------------------------------------
 # Rollback handler
 # -----------------------------------------------------------------------------
 
 do_rollback() {
 	log_step "Rolling back last release"
+
+	# Remember where we started so we can return after rollback
+	local start_branch
+	start_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
 
 	# Find the latest v* tag (excluding -rolled-back tags)
 	local last_tag
@@ -309,11 +316,18 @@ do_rollback() {
 	git push origin develop
 	log_success "Develop version reset to ${tag_version}-SNAPSHOT"
 
+	# Return to the branch we started on
+	if [ -n "$start_branch" ] && [ "$start_branch" != "develop" ]; then
+		log_info "Returning to $start_branch..."
+		git checkout "$start_branch"
+	fi
+
 	log_step "Rollback complete"
 	echo ""
 	echo "  Rolled back: $last_tag → ${last_tag}-rolled-back"
 	echo "  Master: reset to pre-release state"
 	echo "  Develop: ${tag_version}-SNAPSHOT"
+	echo "  Branch: $(git symbolic-ref --short HEAD)"
 	echo ""
 	echo "  Don't forget to delete the Sonatype deployment if it was uploaded:"
 	echo "    https://central.sonatype.com/publishing/deployments"
