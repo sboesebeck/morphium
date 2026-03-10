@@ -18,7 +18,7 @@
         <link rel="prev" href="../test-runner/">
       
       
-        <link rel="next" href="../morphium-server/">
+        <link rel="next" href="../poppydb/">
       
       
         
@@ -1359,14 +1359,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../morphium-server/" class="md-nav__link">
+      <a href="../poppydb/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -2724,7 +2724,7 @@
 <li><strong>Microservices</strong>: Lightweight in-process data storage</li>
 </ul>
 <blockquote>
-<p><strong>Note</strong>: For running MorphiumServer as a standalone MongoDB-compatible server, see <a href="../morphium-server/">MorphiumServer</a>.</p>
+<p><strong>Note</strong>: For running PoppyDB as a standalone MongoDB-compatible server, see <a href="../poppydb/">PoppyDB</a>.</p>
 </blockquote>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <p>Set the driver name to <code>InMemDriver</code>:
@@ -2766,7 +2766,7 @@
 <li>✅ <strong>Full Document Support</strong>: Access complete document in change events</li>
 <li>✅ <strong>Database-scoped Sharing</strong>: Optional driver sharing for multiple Morphium instances (opt-in)</li>
 <li>✅ <strong>Database-level Watches</strong>: Watch all collections in a database (v6.1.0)</li>
-<li>✅ <strong>MorphiumServer Integration</strong>: Full change stream support via wire protocol (v6.1.0)</li>
+<li>✅ <strong>PoppyDB Integration</strong>: Full change stream support via wire protocol (v6.1.0)</li>
 </ul>
 <h3 id="messaging-system-v61">Messaging System (v6.1)<a class="headerlink" href="#messaging-system-v61" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2787,10 +2787,10 @@
 <ul>
 <li>✅ <strong>Basic Transactions</strong>: start, commit, abort (single-instance)</li>
 <li>❌ <strong>Multi-document ACID</strong>: Limited to single instance</li>
-<li>⚠️ <strong>Replica Sets</strong>: Experimental support in <code>MorphiumServer</code> (v6.1); no replica set simulation within a single <code>InMemoryDriver</code> instance.</li>
+<li>⚠️ <strong>Replica Sets</strong>: Experimental support in <code>PoppyDB</code> (v6.1); no replica set simulation within a single <code>InMemoryDriver</code> instance.</li>
 </ul>
 <h2 id="v61-improvements">V6.1 Improvements<a class="headerlink" href="#v61-improvements" title="Permanent link">&para;</a></h2>
-<p>Morphium 6.1 introduced the features that make MorphiumServer a true <strong>drop-in replacement</strong> for MongoDB:</p>
+<p>Morphium 6.1 introduced the features that make PoppyDB a true <strong>drop-in replacement</strong> for MongoDB:</p>
 <h3 id="change-stream-enhancements">Change Stream Enhancements<a class="headerlink" href="#change-stream-enhancements" title="Permanent link">&para;</a></h3>
 <p>The v6.1 release significantly improved change stream reliability and feature parity:</p>
 <p><strong>Deep Copy Snapshots</strong>
@@ -3197,7 +3197,7 @@
 <p><strong>Solution</strong>: v6.1+ includes reference counting to prevent premature shutdown</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../morphium-server/">MorphiumServer</a> - Standalone MongoDB-compatible server</li>
+<li><a href="../poppydb/">PoppyDB</a> - Standalone MongoDB-compatible server</li>
 <li><a href="../messaging/">Messaging</a> - Messaging patterns with InMemory driver</li>
 <li><a href="../howtos/migration-v5-to-v6/">Migration v5 to v6</a> - Upgrading to latest InMemory driver features</li>
 <li><a href="../configuration-reference/">Configuration Reference</a> - Complete configuration options</li>

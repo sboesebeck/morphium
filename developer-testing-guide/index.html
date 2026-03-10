@@ -797,14 +797,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../morphium-server/" class="md-nav__link">
+      <a href="../poppydb/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -1769,10 +1769,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#morphiumserver-options" class="md-nav__link">
+  <a href="#poppydb-options" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MorphiumServer Options
+        PoppyDB Options
       
     </span>
   </a>
@@ -2036,11 +2036,11 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Fast local testing with InMemoryDriver (no MongoDB needed)</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./runtests.sh<span class="w"> </span>--driver<span class="w"> </span>inmem<span class="w"> </span>--restart
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Test against MorphiumServer (single node - recommended for most testing)</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>./runtests.sh<span class="w"> </span>--morphium-server<span class="w"> </span>--driver<span class="w"> </span>pooled<span class="w"> </span>--restart
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Test against PoppyDB (single node - recommended for most testing)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>./runtests.sh<span class="w"> </span>--poppydb<span class="w"> </span>--driver<span class="w"> </span>pooled<span class="w"> </span>--restart
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Test against MorphiumServer replica set (for replication testing)</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>./runtests.sh<span class="w"> </span>--morphium-server-replicaset<span class="w"> </span>--driver<span class="w"> </span>pooled<span class="w"> </span>--restart
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Test against PoppyDB replica set (for replication testing)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>./runtests.sh<span class="w"> </span>--poppydb-replicaset<span class="w"> </span>--driver<span class="w"> </span>pooled<span class="w"> </span>--restart
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Run specific test class</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>./runtests.sh<span class="w"> </span>--driver<span class="w"> </span>inmem<span class="w"> </span>--test<span class="w"> </span>BasicFunctionalityTest
@@ -2051,7 +2051,7 @@
 <h2 id="test-infrastructure-overview">Test Infrastructure Overview<a class="headerlink" href="#test-infrastructure-overview" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>┌─────────────────────────────────────────────────────────────────┐
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>│                        runtests.sh                               │
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>│  (orchestrates test runs, manages MorphiumServer, collects stats)│
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>│  (orchestrates test runs, manages PoppyDB, collects stats)      │
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>└─────────────────────────────────────────────────────────────────┘
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                              │
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                              ▼
@@ -2075,7 +2075,7 @@
 </span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>              │               │               │
 </span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>              ▼               ▼               ▼
 </span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>        ┌──────────┐   ┌─────────────────────────────┐
-</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>        │In-Memory │   │  MongoDB / MorphiumServer   │
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>        │In-Memory │   │  MongoDB / PoppyDB          │
 </span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>        │ Storage  │   │                             │
 </span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>        └──────────┘   └─────────────────────────────┘
 </span></code></pre></div>
@@ -2222,9 +2222,10 @@
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>--rerunfailed<span class="w">       </span><span class="c1"># Rerun only previously failed tests</span>
 </span></code></pre></div>
 <p>Available tags: <code>core</code>, <code>messaging</code>, <code>driver</code>, <code>inmemory</code>, <code>aggregation</code>, <code>cache</code>, <code>admin</code>, <code>performance</code>, <code>encryption</code>, <code>jms</code>, <code>geo</code>, <code>util</code>, <code>external</code></p>
-<h4 id="morphiumserver-options">MorphiumServer Options<a class="headerlink" href="#morphiumserver-options" title="Permanent link">&para;</a></h4>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>--morphium-server<span class="w">              </span><span class="c1"># Start single-node MorphiumServer (recommended)</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>--morphium-server-replicaset<span class="w">   </span><span class="c1"># Start 3-node replica set (ports 27017-27019)</span>
+<h4 id="poppydb-options">PoppyDB Options<a class="headerlink" href="#poppydb-options" title="Permanent link">&para;</a></h4>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>--poppydb<span class="w">                      </span><span class="c1"># Start single-node PoppyDB (recommended)</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>--poppydb-replicaset<span class="w">           </span><span class="c1"># Start 3-node replica set (ports 27017-27019)</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Deprecated aliases: --morphium-server, --morphium-server-replicaset</span>
 </span></code></pre></div>
 <h4 id="execution-control">Execution Control<a class="headerlink" href="#execution-control" title="Permanent link">&para;</a></h4>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>--parallel<span class="w"> </span>N<span class="w">        </span><span class="c1"># Run tests in N parallel slots (1-16)</span>
@@ -2242,8 +2243,8 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Fast development cycle - InMemory only</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>./runtests.sh<span class="w"> </span>--driver<span class="w"> </span>inmem<span class="w"> </span>--test<span class="w"> </span>MyNewTest<span class="w"> </span>--restart
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Full test against MorphiumServer single node</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>./runtests.sh<span class="w"> </span>--morphium-server<span class="w"> </span>--driver<span class="w"> </span>pooled<span class="w"> </span>--restart
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Full test against PoppyDB single node</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>./runtests.sh<span class="w"> </span>--poppydb<span class="w"> </span>--driver<span class="w"> </span>pooled<span class="w"> </span>--restart
 </span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Parallel testing for speed</span>
 </span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>./runtests.sh<span class="w"> </span>--driver<span class="w"> </span>inmem<span class="w"> </span>--parallel<span class="w"> </span><span class="m">4</span><span class="w"> </span>--restart
@@ -2262,7 +2263,7 @@
 <ul>
 <li><strong>Sequential runs</strong>: <code>test.log/&lt;TestClass&gt;.log</code></li>
 <li><strong>Parallel runs</strong>: <code>test.log/slot_&lt;N&gt;/&lt;TestClass&gt;.log</code></li>
-<li><strong>MorphiumServer logs</strong>: <code>.morphiumserver-local/logs/morphiumserver_&lt;port&gt;.log</code></li>
+<li><strong>PoppyDB logs</strong>: <code>.poppydb-local/logs/poppydb_&lt;port&gt;.log</code></li>
 <li><strong>Failed tests summary</strong>: <code>failed.txt</code></li>
 </ul>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
@@ -2289,7 +2290,7 @@
 </span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="p">()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">MyClass</span><span class="p">.</span><span class="na">class</span><span class="p">).</span><span class="na">countAll</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">expectedCount</span><span class="p">);</span>
 </span></code></pre></div>
 <h3 id="4-handle-replica-set-timing">4. Handle Replica Set Timing<a class="headerlink" href="#4-handle-replica-set-timing" title="Permanent link">&para;</a></h3>
-<p>When testing against replica sets (MorphiumServer or MongoDB), data replication takes time:</p>
+<p>When testing against replica sets (PoppyDB or MongoDB), data replication takes time:</p>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1">// Allow time for replication (increase timeout for replica sets)</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">TestUtils</span><span class="p">.</span><span class="na">waitForConditionToBecomeTrue</span><span class="p">(</span><span class="mi">5000</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Replication timeout&quot;</span><span class="p">,</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="p">()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">query</span><span class="p">.</span><span class="na">countAll</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">expected</span><span class="p">);</span>
@@ -2319,14 +2320,14 @@
 <h3 id="test-hangs">Test Hangs<a class="headerlink" href="#test-hangs" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Check for infinite loops in wait conditions</li>
-<li>Verify MorphiumServer is running (if using <code>--morphium-server</code>)</li>
+<li>Verify PoppyDB is running (if using <code>--poppydb</code>)</li>
 <li>Check connection timeouts in logs</li>
 </ol>
 <h3 id="flaky-tests-with-replica-sets">Flaky Tests with Replica Sets<a class="headerlink" href="#flaky-tests-with-replica-sets" title="Permanent link">&para;</a></h3>
 <p>Replica set tests can be timing-sensitive:</p>
 <ol>
 <li>Increase wait timeouts for replication</li>
-<li>Use <code>--morphium-server</code> (single node) instead of <code>--morphium-server-replicaset</code> for most tests</li>
+<li>Use <code>--poppydb</code> (single node) instead of <code>--poppydb-replicaset</code> for most tests</li>
 <li>Run flaky tests with <code>--retry 2</code></li>
 </ol>
 <h3 id="database-conflicts-in-parallel-mode">Database Conflicts in Parallel Mode<a class="headerlink" href="#database-conflicts-in-parallel-mode" title="Permanent link">&para;</a></h3>
@@ -2360,7 +2361,7 @@
 <ul>
 <li><a href="../test-runner/">Test Runner Reference</a> - Additional <code>runtests.sh</code> details</li>
 <li><a href="../inmemory-driver/">InMemory Driver</a> - InMemoryDriver specifics</li>
-<li><a href="../morphium-server/">MorphiumServer</a> - MorphiumServer documentation</li>
+<li><a href="../poppydb/">PoppyDB</a> - PoppyDB (formerly MorphiumServer) documentation</li>
 </ul>
 
 

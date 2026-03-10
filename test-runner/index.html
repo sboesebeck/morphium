@@ -999,14 +999,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../morphium-server/" class="md-nav__link">
+      <a href="../poppydb/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -2009,7 +2009,7 @@
 </span></code></pre></div>
 <p>Notes:
 - Use <code>--restart</code> to wipe <code>test.log/</code> and start fresh.
-- Use <code>--exclude-tags server</code> to skip MorphiumServer-specific tests when you only want MongoDB.
+- Use <code>--exclude-tags server</code> to skip PoppyDB-specific tests when you only want MongoDB.
 - Use <code>--exclude-tags inmemory</code> if you want to avoid in-memory-only suites.</p>
 <h3 id="inmemorydriver-fast-local">InMemoryDriver (fast local)<a class="headerlink" href="#inmemorydriver-fast-local" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./runtests.sh<span class="w"> </span>--driver<span class="w"> </span>inmem<span class="w"> </span>--parallel<span class="w"> </span><span class="m">4</span><span class="w"> </span>--restart
@@ -2018,23 +2018,24 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./runtests.sh<span class="w"> </span>--rerunfailed<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span>
 </span></code></pre></div>
 <h2 id="local-cluster-localhost">Local Cluster (localhost)<a class="headerlink" href="#local-cluster-localhost" title="Permanent link">&para;</a></h2>
-<p>If you have a replica set running locally on <code>localhost:27017,localhost:27018,localhost:27019</code> (MongoDB or MorphiumServer), use:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
+<p>If you have a replica set running locally on <code>localhost:27017,localhost:27018,localhost:27019</code> (MongoDB or PoppyDB), use:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./runtests.sh<span class="w"> </span>--poppydb<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
 <p>This mode sets:
 - <code>--driver pooled</code>
 - <code>--uri mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests</code></p>
-<p>The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start MorphiumServer:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--start-morphiumserver-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
+<p>The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start PoppyDB:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./runtests.sh<span class="w"> </span>--poppydb<span class="w"> </span>--start-poppydb-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
 <p>To keep the locally started cluster running after the test run:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--start-morphiumserver-local<span class="w"> </span>--keep-morphiumserver-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./runtests.sh<span class="w"> </span>--poppydb<span class="w"> </span>--start-poppydb-local<span class="w"> </span>--keep-poppydb-local<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
-<p>When auto-start is used, MorphiumServer logs are written to <code>.morphiumserver-local/logs/</code>.</p>
-<p>Note: <code>--start-morphiumserver-local</code> is idempotent. If something is already listening (MongoDB or another MorphiumServer), the runner will just use it.
+<p>Note: The old flags <code>--morphiumserver-local</code>, <code>--start-morphiumserver-local</code>, and <code>--keep-morphiumserver-local</code> are deprecated aliases and still work for backward compatibility.</p>
+<p>When auto-start is used, PoppyDB logs are written to <code>.poppydb-local/logs/</code>.</p>
+<p>Note: <code>--start-poppydb-local</code> is idempotent. If something is already listening (MongoDB or another PoppyDB), the runner will just use it.
 <code>--allow-existing-localhost-rs</code> is deprecated and has no effect.</p>
 <p>If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./runtests.sh<span class="w"> </span>--morphiumserver-local<span class="w"> </span>--exclude-tags<span class="w"> </span>server<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./runtests.sh<span class="w"> </span>--poppydb<span class="w"> </span>--exclude-tags<span class="w"> </span>server<span class="w"> </span>--parallel<span class="w"> </span><span class="m">2</span><span class="w"> </span>--restart
 </span></code></pre></div>
 <h2 id="debugging-failures">Debugging Failures<a class="headerlink" href="#debugging-failures" title="Permanent link">&para;</a></h2>
 <ul>
@@ -2068,7 +2069,7 @@ This prevents different JVMs from dropping or overwriting each other’s data du
 <p>The test orchestration runs three phases sequentially:
 1. InMemDriver (fast, no external deps)
 2. MongoDB Replica Set (mongo1 + mongo2)
-3. MorphiumServer Replica Set (local, 3 nodes)</p>
+3. PoppyDB Replica Set (local, 3 nodes)</p>
 <p>Claude Code analyzes failures and generates a detailed HTML report.</p>
 
 

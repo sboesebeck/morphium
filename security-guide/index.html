@@ -803,14 +803,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../morphium-server/" class="md-nav__link">
+      <a href="../poppydb/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -1639,10 +1639,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#morphiumserver-ssl-configuration" class="md-nav__link">
+  <a href="#poppydb-ssl-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MorphiumServer SSL Configuration
+        PoppyDB SSL Configuration
       
     </span>
   </a>
@@ -2145,10 +2145,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#morphiumserver-ssl-configuration" class="md-nav__link">
+  <a href="#poppydb-ssl-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MorphiumServer SSL Configuration
+        PoppyDB SSL Configuration
       
     </span>
   </a>
@@ -2591,8 +2591,8 @@
 </span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="c1">// For testing only - trust all certificates (INSECURE!)</span>
 </span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="n">SSLContext</span><span class="w"> </span><span class="n">testCtx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SslHelper</span><span class="p">.</span><span class="na">createTrustAllSslContext</span><span class="p">();</span>
 </span></code></pre></div></p>
-<h3 id="morphiumserver-ssl-configuration">MorphiumServer SSL Configuration<a class="headerlink" href="#morphiumserver-ssl-configuration" title="Permanent link">&para;</a></h3>
-<p>MorphiumServer can accept SSL/TLS encrypted connections:</p>
+<h3 id="poppydb-ssl-configuration">PoppyDB SSL Configuration<a class="headerlink" href="#poppydb-ssl-configuration" title="Permanent link">&para;</a></h3>
+<p>PoppyDB (formerly MorphiumServer) can accept SSL/TLS encrypted connections:</p>
 <p><strong>Command Line:</strong>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Generate a keystore with server certificate</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>keytool<span class="w"> </span>-genkeypair<span class="w"> </span>-alias<span class="w"> </span>morphium<span class="w"> </span>-keyalg<span class="w"> </span>RSA<span class="w"> </span>-keysize<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
@@ -2600,14 +2600,14 @@
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>-dname<span class="w"> </span><span class="s2">&quot;CN=localhost&quot;</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># Start server with SSL</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>java<span class="w"> </span>-jar<span class="w"> </span>morphium-server.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span>--ssl<span class="w"> </span>--sslKeystore<span class="w"> </span>server.jks<span class="w"> </span>--sslKeystorePassword<span class="w"> </span>changeit
 </span></code></pre></div></p>
 <p><strong>Programmatic:</strong>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.server.MorphiumServer</span><span class="p">;</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.poppydb.PoppyDB</span><span class="p">;</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.driver.wire.SslHelper</span><span class="p">;</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27018</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27018</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1">// Configure SSL</span>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">SSLContext</span><span class="w"> </span><span class="n">sslContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SslHelper</span><span class="p">.</span><span class="na">createServerSslContext</span><span class="p">(</span>

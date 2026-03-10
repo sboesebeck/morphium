@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://sboesebeck.github.io/morphium/howtos/inmemory-driver/">
       
       
-        <link rel="prev" href="../../morphium-server/">
+        <link rel="prev" href="../../poppydb/">
       
       
         <link rel="next" href="../migration-v5-to-v6/">
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#inmemory-driver-morphiumserver" class="md-skip">
+        <a href="#inmemory-driver-poppydb" class="md-skip">
           Skip to content
         </a>
       
@@ -806,14 +806,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../morphium-server/" class="md-nav__link">
+      <a href="../../poppydb/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -2472,11 +2472,11 @@
   
 
 
-<h1 id="inmemory-driver-morphiumserver">InMemory Driver &amp; MorphiumServer<a class="headerlink" href="#inmemory-driver-morphiumserver" title="Permanent link">&para;</a></h1>
+<h1 id="inmemory-driver-poppydb">InMemory Driver &amp; PoppyDB<a class="headerlink" href="#inmemory-driver-poppydb" title="Permanent link">&para;</a></h1>
 <blockquote>
 <p><strong>This page has been split into two focused documents:</strong>
 - <strong><a href="../../inmemory-driver/">InMemory Driver</a></strong> - For embedded in-memory driver usage (unit tests, embedded applications)
-- <strong><a href="../../morphium-server/">MorphiumServer</a></strong> - For standalone MongoDB-compatible server (CI/CD, microservices, integration testing)</p>
+- <strong><a href="../../poppydb/">PoppyDB</a></strong> - For standalone MongoDB-compatible server (CI/CD, microservices, integration testing)</p>
 </blockquote>
 <h2 id="quick-links">Quick Links<a class="headerlink" href="#quick-links" title="Permanent link">&para;</a></h2>
 <h3 id="for-testing-and-development">For Testing and Development<a class="headerlink" href="#for-testing-and-development" title="Permanent link">&para;</a></h3>
@@ -2484,18 +2484,18 @@
 - 👉 <strong><a href="../../inmemory-driver/">InMemory Driver Documentation</a></strong></p>
 <h3 id="for-standalone-server">For Standalone Server<a class="headerlink" href="#for-standalone-server" title="Permanent link">&para;</a></h3>
 <p>If you want to run a <strong>MongoDB-compatible server</strong> that other applications can connect to:
-- 👉 <strong><a href="../../morphium-server/">MorphiumServer Documentation</a></strong></p>
+- 👉 <strong><a href="../../poppydb/">PoppyDB Documentation</a></strong></p>
 <h2 id="at-a-glance">At a Glance<a class="headerlink" href="#at-a-glance" title="Permanent link">&para;</a></h2>
 <p><strong>InMemory Driver:</strong>
 - Embedded in-process driver
 - No network overhead
 - Perfect for unit tests
 - Use with: <code>cfg.driverSettings().setDriverName("InMemDriver")</code></p>
-<p><strong>MorphiumServer:</strong>
+<p><strong>PoppyDB:</strong>
 - Standalone network server
 - MongoDB wire protocol compatible
 - Any MongoDB client can connect
-- Run with: <code>java -jar target/morphium-6.1.1-server-cli.jar --port 27017</code></p>
+- Run with: <code>java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017</code></p>
 <h3 id="core-operations">Core Operations<a class="headerlink" href="#core-operations" title="Permanent link">&para;</a></h3>
 <ul>
 <li>✅ <strong>CRUD Operations</strong>: insert, find, update, delete, upsert</li>
@@ -2539,7 +2539,7 @@
 <ul>
 <li>✅ <strong>Basic Transactions</strong>: start, commit, abort (single-instance)</li>
 <li>❌ <strong>Multi-document ACID</strong>: Limited to single instance</li>
-<li>⚠️ <strong>Replica Sets</strong>: Experimental support in <code>MorphiumServer</code> (v6.1); no replica set simulation within a single <code>InMemoryDriver</code> instance.</li>
+<li>⚠️ <strong>Replica Sets</strong>: Experimental support in <code>PoppyDB</code> (v6.1); no replica set simulation within a single <code>InMemoryDriver</code> instance.</li>
 </ul>
 <h2 id="v61-improvements">V6.1 Improvements<a class="headerlink" href="#v61-improvements" title="Permanent link">&para;</a></h2>
 <h3 id="change-stream-enhancements">Change Stream Enhancements<a class="headerlink" href="#change-stream-enhancements" title="Permanent link">&para;</a></h3>

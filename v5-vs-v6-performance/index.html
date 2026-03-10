@@ -803,14 +803,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../morphium-server/" class="md-nav__link">
+      <a href="../poppydb/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -1576,15 +1576,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#morphiumserver-for-testing" class="md-nav__link">
+  <a href="#poppydb-for-testing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MorphiumServer for Testing
+        PoppyDB for Testing
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="MorphiumServer for Testing">
+    <nav class="md-nav" aria-label="PoppyDB for Testing">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1965,15 +1965,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#morphiumserver-for-testing" class="md-nav__link">
+  <a href="#poppydb-for-testing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MorphiumServer for Testing
+        PoppyDB for Testing
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="MorphiumServer for Testing">
+    <nav class="md-nav" aria-label="PoppyDB for Testing">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2156,7 +2156,7 @@
 <td>1x</td>
 </tr>
 <tr>
-<td><strong>MorphiumServer</strong></td>
+<td><strong>PoppyDB</strong></td>
 <td>223 msgs/sec</td>
 <td>4.47 ms</td>
 <td><strong>2.5x faster</strong></td>
@@ -2170,7 +2170,7 @@
 </tbody>
 </table>
 <blockquote>
-<p><strong>Key insight:</strong> MorphiumServer is 2.5x faster than real MongoDB for messaging tests!</p>
+<p><strong>Key insight:</strong> PoppyDB is 2.5x faster than real MongoDB for messaging tests!</p>
 </blockquote>
 <h3 id="in-query-indexed-vs-non-indexed">$in Query: Indexed vs Non-Indexed<a class="headerlink" href="#in-query-indexed-vs-non-indexed" title="Permanent link">&para;</a></h3>
 <table>
@@ -2224,8 +2224,8 @@
 </ul>
 <p><strong>Result:</strong> Better throughput with optimized settings.</p>
 <hr />
-<h2 id="morphiumserver-for-testing">MorphiumServer for Testing<a class="headerlink" href="#morphiumserver-for-testing" title="Permanent link">&para;</a></h2>
-<p>MorphiumServer provides a MongoDB-compatible server backed by InMemoryDriver:</p>
+<h2 id="poppydb-for-testing">PoppyDB for Testing<a class="headerlink" href="#poppydb-for-testing" title="Permanent link">&para;</a></h2>
+<p>PoppyDB provides a MongoDB-compatible server backed by InMemoryDriver:</p>
 <table>
 <thead>
 <tr>
@@ -2254,7 +2254,7 @@
 </table>
 <h3 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Start server</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>mvn<span class="w"> </span>exec:java<span class="w"> </span>-Dexec.mainClass<span class="o">=</span><span class="s2">&quot;de.caluga.morphium.server.MorphiumServerCLI&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>mvn<span class="w"> </span>exec:java<span class="w"> </span>-Dexec.mainClass<span class="o">=</span><span class="s2">&quot;de.caluga.morphium.server.PoppyDBCLI&quot;</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>-Dexec.args<span class="o">=</span><span class="s2">&quot;-p 17017&quot;</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Connect Morphium</span>
@@ -2279,7 +2279,7 @@
 </tr>
 <tr>
 <td>Integration tests</td>
-<td>MorphiumServer (realistic + fast)</td>
+<td>PoppyDB (realistic + fast)</td>
 </tr>
 <tr>
 <td>Load testing</td>
@@ -2287,7 +2287,7 @@
 </tr>
 <tr>
 <td>CI/CD pipelines</td>
-<td>MorphiumServer (no dependencies)</td>
+<td>PoppyDB (no dependencies)</td>
 </tr>
 </tbody>
 </table>
@@ -2346,7 +2346,7 @@
 <li>[ ] Update <code>Messaging</code> → <code>SingleCollectionMessaging</code></li>
 <li>[ ] Review messaging settings for optimal performance</li>
 <li>[ ] Enable SSL/TLS for production (new in v6!)</li>
-<li>[ ] Consider MorphiumServer for tests</li>
+<li>[ ] Consider PoppyDB for tests</li>
 </ul>
 <p>See <a href="../howtos/migration-v5-to-v6/">Migration Guide v5→v6</a> for details.</p>
 <hr />

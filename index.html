@@ -944,14 +944,14 @@
   
   
     <li class="md-nav__item">
-      <a href="morphium-server/" class="md-nav__link">
+      <a href="poppydb/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -1912,11 +1912,11 @@
 - <strong><a href="developer-testing-guide/">Developer Testing Guide</a></strong> - How to run and write tests, MultiDriverTestBase, runtests.sh
 - <strong><a href="test-runner/">Test Runner</a></strong> - Quick reference for the <code>runtests.sh</code> script
 - <strong><a href="howtos/inmemory-driver/">InMemory Driver</a></strong> - Embedded in-memory driver for unit tests (no MongoDB installation required!)
-- <strong><a href="morphium-server/">MorphiumServer</a></strong> - Standalone MongoDB-compatible server that speaks the wire protocol
+- <strong><a href="poppydb/">PoppyDB</a></strong> - Standalone MongoDB-compatible server that speaks the wire protocol (formerly MorphiumServer)
   - Perfect for CI/CD pipelines, integration testing, and microservices development
   - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
   - Supports <strong>Replica Sets</strong> (experimental) and <strong>Persistence (Snapshots)</strong>
-  - Run with: <code>java -jar target/morphium-6.1.1-server-cli.jar --port 27017</code></p>
+  - Run with: <code>java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017</code></p>
 <h2 id="production-deployment">Production Deployment<a class="headerlink" href="#production-deployment" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="production-deployment-guide/">Production Deployment Guide</a></strong> - Complete guide for deploying Morphium in production environments</li>
@@ -1946,7 +1946,7 @@
 - Object mapping and configuration: see the <a href="developer-guide/">Developer Guide</a>
 - Caching: see <a href="howtos/caching-examples/">Caching Examples</a> and <a href="howtos/cache-patterns/">Cache Patterns</a>
 - Messaging: see <a href="messaging/">Messaging</a>
-- Testing without MongoDB: see <a href="howtos/inmemory-driver/">InMemory Driver</a>, <a href="morphium-server/">MorphiumServer</a>, and <a href="howtos/migration-v5-to-v6/">Migration v5 → v6</a></p>
+- Testing without MongoDB: see <a href="howtos/inmemory-driver/">InMemory Driver</a>, <a href="poppydb/">PoppyDB</a>, and <a href="howtos/migration-v5-to-v6/">Migration v5 → v6</a></p>
 <h3 id="our-own-driver-since-50">Our own driver (since 5.0)<a class="headerlink" href="#our-own-driver-since-50" title="Permanent link">&para;</a></h3>
 <p>With Morphium 5.0 we implemented our own MongoDB driver. The official driver includes object mapping, which interfered with Morphium’s mapping system, and we also experienced some failover issues. Building our own wire‑protocol driver gave us full control over mapping, retry/failover behavior, and performance characteristics.</p>
 <p>Benefits

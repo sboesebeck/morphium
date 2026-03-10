@@ -12,7 +12,7 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/morphium-server/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/poppydb/">
       
       
         <link rel="prev" href="../inmemory-driver/">
@@ -29,7 +29,7 @@
     
     
       
-        <title>MorphiumServer - Morphium Documentation</title>
+        <title>PoppyDB - Morphium Documentation</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#morphiumserver-standalone-mongodb-compatible-server" class="md-skip">
+        <a href="#poppydb-standalone-mongodb-compatible-server" class="md-skip">
           Skip to content
         </a>
       
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              MorphiumServer
+              PoppyDB
             
           </span>
         </div>
@@ -822,7 +822,7 @@
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -840,7 +840,7 @@
   <span class="md-ellipsis">
     
   
-    MorphiumServer
+    PoppyDB
   
 
     
@@ -1328,10 +1328,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#comparison-morphiumserver-vs-inmemory-driver" class="md-nav__link">
+  <a href="#comparison-poppydb-vs-inmemory-driver" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Comparison: MorphiumServer vs InMemory Driver
+        Comparison: PoppyDB vs InMemory Driver
       
     </span>
   </a>
@@ -2629,10 +2629,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#comparison-morphiumserver-vs-inmemory-driver" class="md-nav__link">
+  <a href="#comparison-poppydb-vs-inmemory-driver" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Comparison: MorphiumServer vs InMemory Driver
+        Comparison: PoppyDB vs InMemory Driver
       
     </span>
   </a>
@@ -2670,9 +2670,9 @@
   
 
 
-<h1 id="morphiumserver-standalone-mongodb-compatible-server">MorphiumServer: Standalone MongoDB-Compatible Server<a class="headerlink" href="#morphiumserver-standalone-mongodb-compatible-server" title="Permanent link">&para;</a></h1>
-<p>MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with <strong>Morphium 6.1</strong>, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true <strong>drop-in replacement</strong> for MongoDB during development and testing.</p>
-<p><strong>Important:</strong> MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.</p>
+<h1 id="poppydb-standalone-mongodb-compatible-server">PoppyDB: Standalone MongoDB-Compatible Server<a class="headerlink" href="#poppydb-standalone-mongodb-compatible-server" title="Permanent link">&para;</a></h1>
+<p>PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with <strong>Morphium 6.1</strong>, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true <strong>drop-in replacement</strong> for MongoDB during development and testing.</p>
+<p><strong>Important:</strong> PoppyDB can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.</p>
 <h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
 <ul>
 <li>✅ <strong>MongoDB Wire Protocol Compatible</strong> - Works with any MongoDB client library</li>
@@ -2685,26 +2685,26 @@
 </ul>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="running-from-command-line">Running from Command Line<a class="headerlink" href="#running-from-command-line" title="Permanent link">&para;</a></h3>
-<p>After building the project, you can run the server directly using the <code>server-cli</code> JAR.</p>
+<p>After building the project, you can run the server directly using the PoppyDB CLI JAR.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Build the project first if you haven&#39;t</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>mvn<span class="w"> </span>clean<span class="w"> </span>package<span class="w"> </span>-DskipTests
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>mvn<span class="w"> </span>clean<span class="w"> </span>package<span class="w"> </span>-pl<span class="w"> </span>poppydb<span class="w"> </span>-am<span class="w"> </span>-Dmaven.test.skip<span class="o">=</span><span class="nb">true</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Run MorphiumServer with default settings (port 17017)</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Run PoppyDB with default settings (port 17017)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Run on a different port</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span></code></pre></div>
 <h3 id="running-programmatically">Running Programmatically<a class="headerlink" href="#running-programmatically" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.server.MorphiumServer</span><span class="p">;</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.poppydb.PoppyDB</span><span class="p">;</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">MyApp</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">Exception</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">        </span><span class="c1">// Start embedded MongoDB-compatible server</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="n">server</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;MorphiumServer running on port 27017&quot;</span><span class="p">);</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;PoppyDB running on port 27017&quot;</span><span class="p">);</span>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">        </span><span class="c1">// Keep running</span>
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -2715,7 +2715,7 @@
 </span></code></pre></div>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <h3 id="command-line-arguments">Command Line Arguments<a class="headerlink" href="#command-line-arguments" title="Permanent link">&para;</a></h3>
-<p>You can configure the MorphiumServer using the following command-line arguments:</p>
+<p>You can configure the PoppyDB using the following command-line arguments:</p>
 <table>
 <thead>
 <tr>
@@ -2793,10 +2793,10 @@
 </tbody>
 </table>
 <p>Example:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span>-b<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--rs-name<span class="w"> </span>my-rs<span class="w"> </span>--rs-seed<span class="w"> </span>host1:27017,host2:27018
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span>-b<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--rs-name<span class="w"> </span>my-rs<span class="w"> </span>--rs-seed<span class="w"> </span>host1:27017,host2:27018
 </span></code></pre></div></p>
 <h3 id="replica-set-behavior-experimental">Replica Set Behavior (experimental)<a class="headerlink" href="#replica-set-behavior-experimental" title="Permanent link">&para;</a></h3>
-<p>MorphiumServer now performs a lightweight initial sync whenever you start an additional member with the same <code>--rs-name</code> / <code>--rs-seed</code>:</p>
+<p>PoppyDB now performs a lightweight initial sync whenever you start an additional member with the same <code>--rs-name</code> / <code>--rs-seed</code>:</p>
 <ul>
 <li>The first node that starts without detecting peers becomes primary immediately.</li>
 <li>Any later node that can reach an existing peer demotes itself to secondary, runs an initial sync from the detected primary (or highest-priority reachable host), and only participates in elections after the sync finishes.</li>
@@ -2810,7 +2810,7 @@
 </ol>
 <h3 id="programmatic-replica-set-configuration">Programmatic Replica Set Configuration<a class="headerlink" href="#programmatic-replica-set-configuration" title="Permanent link">&para;</a></h3>
 <p>You can configure a replica set programmatically using the <code>configureReplicaSet()</code> method:</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">primary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">primary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1">// Configure as a 2-node replica set with host priorities</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kd">var</span><span class="w"> </span><span class="n">hosts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">List</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="s">&quot;localhost:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:27018&quot;</span><span class="p">);</span>
@@ -2820,12 +2820,12 @@
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">primary</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
 </span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1">// Start secondary later</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">secondary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27018</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">secondary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27018</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="n">secondary</span><span class="p">.</span><span class="na">configureReplicaSet</span><span class="p">(</span><span class="s">&quot;myReplicaSet&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">hosts</span><span class="p">,</span><span class="w"> </span><span class="n">priorities</span><span class="p">);</span>
 </span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="n">secondary</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
 </span></code></pre></div>
 <p><strong>Write Concern Behavior with Partial Replica Sets:</strong></p>
-<p>When using entities with <code>@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)</code> or explicit write concerns with <code>w &gt; 1</code>, MorphiumServer handles the case where not all secondaries are available:</p>
+<p>When using entities with <code>@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)</code> or explicit write concerns with <code>w &gt; 1</code>, PoppyDB handles the case where not all secondaries are available:</p>
 <ul>
 <li>If no secondaries have connected yet, the server returns a <code>writeConcernError</code> after a brief grace period (100ms) instead of waiting for the full <code>wtimeout</code></li>
 <li>This allows you to store documents on the primary before starting secondary nodes</li>
@@ -2836,27 +2836,27 @@
 2. Store initial test data
 3. Start secondary nodes and verify data replication</p>
 <h3 id="persistence-periodic-snapshots">Persistence (Periodic Snapshots)<a class="headerlink" href="#persistence-periodic-snapshots" title="Permanent link">&para;</a></h3>
-<p>MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.</p>
+<p>PoppyDB can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.</p>
 <p><strong>How it works:</strong>
 - On startup: If dump files exist in the configured directory, they are automatically restored.
 - During runtime: If <code>--dump-interval</code> is set, databases are dumped periodically.
 - On shutdown: A final dump is performed to capture all changes.</p>
 <p><strong>Quick Start with Persistence:</strong></p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Start with persistence - dumps every 5 minutes</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--dump-dir<span class="w"> </span>/var/morphium/data<span class="w"> </span>--dump-interval<span class="w"> </span><span class="m">300</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># Start with persistence - dump only on shutdown</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span>--dump-dir<span class="w"> </span>/var/morphium/data
 </span></code></pre></div>
 <p><strong>Manual Snapshots:</strong>
 You can trigger a manual dump at any time using the <code>dumpNow()</code> method programmatically (see below).</p>
 <p><strong>Programmatic Configuration:</strong>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.server.MorphiumServer</span><span class="p">;</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.poppydb.PoppyDB</span><span class="p">;</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">java.io.File</span><span class="p">;</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1">// Configure persistence</span>
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">server</span><span class="p">.</span><span class="na">setDumpDirectory</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">File</span><span class="p">(</span><span class="s">&quot;/var/morphium/data&quot;</span><span class="p">));</span>
@@ -2883,7 +2883,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 - Data between dump intervals may be lost on crash
 - Suitable for development/testing, not production</p>
 <h3 id="ssltls-configuration">SSL/TLS Configuration<a class="headerlink" href="#ssltls-configuration" title="Permanent link">&para;</a></h3>
-<p>MorphiumServer supports SSL/TLS encrypted connections for secure communication.</p>
+<p>PoppyDB supports SSL/TLS encrypted connections for secure communication.</p>
 <p><strong>Quick Start with SSL:</strong></p>
 <ol>
 <li>
@@ -2895,7 +2895,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </li>
 <li>
 <p>Start the server with SSL enabled:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--ssl<span class="w"> </span>--sslKeystore<span class="w"> </span>server.jks<span class="w"> </span>--sslKeystorePassword<span class="w"> </span>changeit
 </span></code></pre></div></p>
 </li>
@@ -2912,10 +2912,10 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </li>
 </ol>
 <p><strong>Programmatic SSL Configuration:</strong>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.server.MorphiumServer</span><span class="p">;</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.poppydb.PoppyDB</span><span class="p">;</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.driver.wire.SslHelper</span><span class="p">;</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27018</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27018</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
 </span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1">// Load keystore and enable SSL</span>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">SSLContext</span><span class="w"> </span><span class="n">sslContext</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SslHelper</span><span class="p">.</span><span class="na">createServerSslContext</span><span class="p">(</span>
@@ -2930,19 +2930,19 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <div class="language-dockerfile highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">FROM</span><span class="w"> </span><span class="s">openjdk:21-slim</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">COPY</span><span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>/app/morphium-server.jar
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">COPY</span><span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>/app/poppydb.jar
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="k">COPY</span><span class="w"> </span>server.jks<span class="w"> </span>/app/server.jks
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
 </span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="k">EXPOSE</span><span class="w"> </span><span class="s">27018</span>
 </span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="k">CMD</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;java&quot;</span>,<span class="w"> </span><span class="s2">&quot;-jar&quot;</span>,<span class="w"> </span><span class="s2">&quot;/app/morphium-server.jar&quot;</span>,<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="k">CMD</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;java&quot;</span>,<span class="w"> </span><span class="s2">&quot;-jar&quot;</span>,<span class="w"> </span><span class="s2">&quot;/app/poppydb.jar&quot;</span>,<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">     </span><span class="s2">&quot;--port&quot;</span>,<span class="w"> </span><span class="s2">&quot;27018&quot;</span>,<span class="w"> </span><span class="s2">&quot;--host&quot;</span>,<span class="w"> </span><span class="s2">&quot;0.0.0.0&quot;</span>,<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">     </span><span class="s2">&quot;--ssl&quot;</span>,<span class="w"> </span><span class="s2">&quot;--sslKeystore&quot;</span>,<span class="w"> </span><span class="s2">&quot;/app/server.jks&quot;</span>,<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">     </span><span class="s2">&quot;--sslKeystorePassword&quot;</span>,<span class="w"> </span><span class="s2">&quot;changeit&quot;</span><span class="o">]</span>
 </span></code></pre></div></p>
 <h3 id="constructor-options">Constructor Options<a class="headerlink" href="#constructor-options" title="Permanent link">&para;</a></h3>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1">// Full constructor</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span>
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">port</span><span class="p">,</span><span class="w">           </span><span class="c1">// Server port</span>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="n">String</span><span class="w"> </span><span class="n">host</span><span class="p">,</span><span class="w">        </span><span class="c1">// Bind address</span>
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">maxThreads</span><span class="p">,</span><span class="w">     </span><span class="c1">// Maximum threads</span>
@@ -2950,7 +2950,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="p">);</span>
 </span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
 </span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="c1">// Default constructor (port 17017, localhost, 100/10 threads)</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">();</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">();</span>
 </span></code></pre></div>
 <h2 id="connecting-clients">Connecting Clients<a class="headerlink" href="#connecting-clients" title="Permanent link">&para;</a></h2>
 <h3 id="java-morphium">Java (Morphium)<a class="headerlink" href="#java-morphium" title="Permanent link">&para;</a></h3>
@@ -3029,11 +3029,11 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v3</span>
 </span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
 </span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Build Morphium</span>
-</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mvn clean package -DskipTests</span>
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mvn clean package -pl poppydb -am -Dmaven.test.skip=true</span>
 </span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>
-</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Start MorphiumServer</span>
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Start PoppyDB</span>
 </span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
-</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="w">          </span><span class="no">java -jar target/morphium-6.1.1-server-cli.jar \</span>
+</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="w">          </span><span class="no">java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar \</span>
 </span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="w">               </span><span class="no">--port 27017 --host 0.0.0.0 &amp;</span>
 </span><span id="__span-17-15"><a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="w">          </span><span class="no">sleep 2</span>
 </span><span id="__span-17-16"><a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>
@@ -3045,7 +3045,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <h3 id="2-integration-testing-multi-language">2. Integration Testing (Multi-Language)<a class="headerlink" href="#2-integration-testing-multi-language" title="Permanent link">&para;</a></h3>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nd">@BeforeAll</span>
 </span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">startServer</span><span class="p">()</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">Exception</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">    </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">    </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span><span class="n">server</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
 </span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">    </span><span class="n">Thread</span><span class="p">.</span><span class="na">sleep</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span><span class="w"> </span><span class="c1">// Wait for server to be ready</span>
 </span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="p">}</span>
@@ -3076,8 +3076,8 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </span><span id="__span-18-31"><a id="__codelineno-18-31" name="__codelineno-18-31" href="#__codelineno-18-31"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="3-microservices-development">3. Microservices Development<a class="headerlink" href="#3-microservices-development" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Terminal 1: Start MorphiumServer</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Terminal 1: Start PoppyDB</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
 </span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1"># Terminal 2: Start Node.js service</span>
 </span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="nv">MONGO_URL</span><span class="o">=</span>mongodb://localhost:27017<span class="w"> </span>npm<span class="w"> </span>start
@@ -3094,11 +3094,11 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
 </span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
 </span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="c"># Copy the executable server JAR</span>
-</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="k">COPY</span><span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>/app/morphium-server.jar
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="k">COPY</span><span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>/app/poppydb.jar
 </span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>
 </span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="k">EXPOSE</span><span class="w"> </span><span class="s">27017</span>
 </span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
-</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="k">CMD</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;java&quot;</span>,<span class="w"> </span><span class="s2">&quot;-jar&quot;</span>,<span class="w"> </span><span class="s2">&quot;/app/morphium-server.jar&quot;</span>,<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="k">CMD</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;java&quot;</span>,<span class="w"> </span><span class="s2">&quot;-jar&quot;</span>,<span class="w"> </span><span class="s2">&quot;/app/poppydb.jar&quot;</span>,<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">     </span><span class="s2">&quot;--port&quot;</span>,<span class="w"> </span><span class="s2">&quot;27017&quot;</span>,<span class="w"> </span><span class="s2">&quot;--host&quot;</span>,<span class="w"> </span><span class="s2">&quot;0.0.0.0&quot;</span><span class="o">]</span>
 </span></code></pre></div></p>
 <p><strong>Docker Compose:</strong>
@@ -3120,8 +3120,8 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </span><span id="__span-21-16"><a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MONGO_URL=mongodb://morphium-db:27017/appdb</span>
 </span></code></pre></div></p>
 <p><strong>Build and Run:</strong>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>morphium-server<span class="w"> </span>.
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>docker<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span>:27017<span class="w"> </span>morphium-server
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>poppydb<span class="w"> </span>.
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>docker<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span>:27017<span class="w"> </span>poppydb
 </span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
 </span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1"># Or use docker-compose</span>
 </span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>docker-compose<span class="w"> </span>up
@@ -3131,7 +3131,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <thead>
 <tr>
 <th>Metric</th>
-<th>MorphiumServer</th>
+<th>PoppyDB</th>
 <th>MongoDB</th>
 </tr>
 </thead>
@@ -3170,7 +3170,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </table>
 <h2 id="monitoring">Monitoring<a class="headerlink" href="#monitoring" title="Permanent link">&para;</a></h2>
 <h3 id="built-in-status-monitoring">Built-in Status Monitoring<a class="headerlink" href="#built-in-status-monitoring" title="Permanent link">&para;</a></h3>
-<p><strong>All Morphium messaging instances automatically include status monitoring</strong> via the <code>morphium_status</code> topic. This works with MorphiumServer and any Morphium messaging setup.</p>
+<p><strong>All Morphium messaging instances automatically include status monitoring</strong> via the <code>morphium_status</code> topic. This works with PoppyDB and any Morphium messaging setup.</p>
 <p>Quick example:
 <div class="language-java highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">sender</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
 </span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="n">sender</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
@@ -3198,7 +3198,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 - Enable/disable controls</p>
 <p>See the <strong><a href="../messaging/#built-in-status-monitoring">Messaging - Built-in Status Monitoring</a></strong> section.</p>
 <h3 id="connection-count">Connection Count<a class="headerlink" href="#connection-count" title="Permanent link">&para;</a></h3>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="n">server</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
 </span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
 </span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1">// Get active connections</span>
@@ -3208,16 +3208,16 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Debug logging with Logback</span>
 </span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>java<span class="w"> </span>-Dlogback.configurationFile<span class="o">=</span>logback.xml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">     </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">     </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">     </span>--port<span class="w"> </span><span class="m">27017</span>
 </span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
 </span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="c1"># Simple logger</span>
 </span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>java<span class="w"> </span>-Dorg.slf4j.simpleLogger.defaultLogLevel<span class="o">=</span>debug<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">     </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">     </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">     </span>--port<span class="w"> </span><span class="m">27017</span>
 </span></code></pre></div>
 <h2 id="supported-admin-commands">Supported Admin Commands<a class="headerlink" href="#supported-admin-commands" title="Permanent link">&para;</a></h2>
-<p>MorphiumServer implements the following MongoDB admin commands:</p>
+<p>PoppyDB implements the following MongoDB admin commands:</p>
 <table>
 <thead>
 <tr>
@@ -3269,14 +3269,14 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </tbody>
 </table>
 <h3 id="standalone-server-behavior">Standalone Server Behavior<a class="headerlink" href="#standalone-server-behavior" title="Permanent link">&para;</a></h3>
-<p>When running MorphiumServer as a standalone server (without replica set configuration):</p>
+<p>When running PoppyDB as a standalone server (without replica set configuration):</p>
 <ul>
 <li>The server always reports itself as primary (<code>isWritablePrimary: true</code>)</li>
 <li><code>replSetStepDown</code> commands are acknowledged but the server immediately becomes primary again</li>
 <li>This ensures compatibility with clients and tests that issue replica set commands</li>
 </ul>
 <h3 id="change-stream-support">Change Stream Support<a class="headerlink" href="#change-stream-support" title="Permanent link">&para;</a></h3>
-<p>MorphiumServer fully supports change streams for real-time notifications:</p>
+<p>PoppyDB fully supports change streams for real-time notifications:</p>
 <ul>
 <li><strong>Collection-level watches</strong>: Watch changes on a specific collection</li>
 <li><strong>Database-level watches</strong>: Watch all collections in a database</li>
@@ -3332,40 +3332,39 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <h2 id="building-from-source">Building from Source<a class="headerlink" href="#building-from-source" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/sboesebeck/morphium.git
 </span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="nb">cd</span><span class="w"> </span>morphium
-</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>mvn<span class="w"> </span>clean<span class="w"> </span>package<span class="w"> </span>-DskipTests
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>mvn<span class="w"> </span>clean<span class="w"> </span>package<span class="w"> </span>-pl<span class="w"> </span>poppydb<span class="w"> </span>-am<span class="w"> </span>-Dmaven.test.skip<span class="o">=</span><span class="nb">true</span>
 </span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>
-</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># This creates two important artifacts in target/:</span>
-</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># 1. morphium-X.Y.Z.jar (the standard library)</span>
-</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="c1"># 2. morphium-X.Y.Z-server-cli.jar (the executable server)</span>
-</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>
-</span><span id="__span-27-9"><a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="c1"># Run the server:</span>
-</span><span id="__span-27-10"><a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a>java<span class="w"> </span>-jar<span class="w"> </span>target/morphium-6.1.1-server-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># This creates the executable PoppyDB CLI JAR:</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># poppydb/target/poppydb-X.Y.Z-cli.jar</span>
+</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>
+</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="c1"># Run the server:</span>
+</span><span id="__span-27-9"><a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span></code></pre></div>
 <h2 id="maven-dependency">Maven Dependency<a class="headerlink" href="#maven-dependency" title="Permanent link">&para;</a></h2>
 <div class="language-xml highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nt">&lt;dependency&gt;</span>
 </span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">    </span><span class="nt">&lt;groupId&gt;</span>de.caluga<span class="nt">&lt;/groupId&gt;</span>
-</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">    </span><span class="nt">&lt;artifactId&gt;</span>morphium<span class="nt">&lt;/artifactId&gt;</span>
-</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">    </span><span class="nt">&lt;version&gt;</span>6.1.1<span class="nt">&lt;/version&gt;</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">    </span><span class="nt">&lt;artifactId&gt;</span>poppydb<span class="nt">&lt;/artifactId&gt;</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">    </span><span class="nt">&lt;version&gt;</span>6.2.0<span class="nt">&lt;/version&gt;</span>
 </span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="nt">&lt;/dependency&gt;</span>
 </span></code></pre></div>
 <p>Then start programmatically:
 <div class="language-java highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">Exception</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">    </span><span class="c1">// Option 1: Call main from the CLI class</span>
-</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">    </span><span class="n">de</span><span class="p">.</span><span class="na">caluga</span><span class="p">.</span><span class="na">morphium</span><span class="p">.</span><span class="na">server</span><span class="p">.</span><span class="na">MorphiumServerCLI</span><span class="p">.</span><span class="na">main</span><span class="p">(</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">    </span><span class="n">de</span><span class="p">.</span><span class="na">caluga</span><span class="p">.</span><span class="na">poppydb</span><span class="p">.</span><span class="na">PoppyDBCLI</span><span class="p">.</span><span class="na">main</span><span class="p">(</span>
 </span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">        </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="o">[]</span><span class="p">{</span><span class="s">&quot;--port&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;--host&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span><span class="p">}</span>
 </span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">    </span><span class="p">);</span>
 </span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>
 </span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="w">    </span><span class="c1">// Option 2: Create instance directly</span>
-</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="w">    </span><span class="n">MorphiumServer</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumServer</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="w">    </span><span class="n">PoppyDB</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
 </span><span id="__span-29-9"><a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w">    </span><span class="n">server</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
 </span><span id="__span-29-10"><a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="p">}</span>
 </span></code></pre></div></p>
-<h2 id="comparison-morphiumserver-vs-inmemory-driver">Comparison: MorphiumServer vs InMemory Driver<a class="headerlink" href="#comparison-morphiumserver-vs-inmemory-driver" title="Permanent link">&para;</a></h2>
+<h2 id="comparison-poppydb-vs-inmemory-driver">Comparison: PoppyDB vs InMemory Driver<a class="headerlink" href="#comparison-poppydb-vs-inmemory-driver" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Feature</th>
-<th>MorphiumServer</th>
+<th>PoppyDB</th>
 <th>InMemory Driver</th>
 </tr>
 </thead>
@@ -3404,11 +3403,11 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </table>
 <p><strong>When to use each:</strong>
 - <strong>InMemory Driver</strong>: Java unit tests, embedded apps
-- <strong>MorphiumServer</strong>: Integration tests, CI/CD, multi-language services</p>
+- <strong>PoppyDB (server)</strong>: Integration tests, CI/CD, multi-language services</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../howtos/inmemory-driver/">InMemory Driver</a> - Embedded driver for unit tests</li>
-<li><a href="../messaging/">Messaging</a> - Messaging with MorphiumServer</li>
+<li><a href="../messaging/">Messaging</a> - Messaging with Morphium / PoppyDB</li>
 <li><a href="../configuration-reference/">Configuration Reference</a> - All configuration options</li>
 <li><a href="../architecture-overview/">Architecture Overview</a> - How it works internally</li>
 </ul>
