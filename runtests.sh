@@ -208,7 +208,7 @@ function aggregate_slot_logs() {
 	return 0
 }
 
-source "$(dirname "$0")/scripts/morphium_server.sh"
+source "$(dirname "$0")/scripts/poppydb.sh"
 
 nodel=0
 skip=0

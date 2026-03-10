@@ -5,7 +5,7 @@ NODES=1
 COMPILE=true
 
 COMMMAND=$1
-TMPDIR=/tmp/morphiumServer
+TMPDIR=/tmp/poppydb
 
 ONLYNODE=0
 
@@ -80,19 +80,19 @@ if [ ! -e $TMPDIR ]; then
   mkdir $TMPDIR
 fi
 if $COMPILE; then
-  mvn -DskipTests clean package || exit 1
-  mv target/*server-cli.jar $TMPDIR/mserver.jar
+  mvn -Dmaven.test.skip=true -Dmaven.javadoc.skip=true package -pl poppydb -am || exit 1
+  mv poppydb/target/*-cli.jar $TMPDIR/poppydb.jar
 else
-  if [ ! -e $TMPDIR/mserver.jar ]; then
-    echo "No morphiumserver installation found"
+  if [ ! -e $TMPDIR/poppydb.jar ]; then
+    echo "No PoppyDB installation found"
     exit 1
   fi
 fi
 cd $TMPDIR
 
 if [ $NODES -eq 1 ]; then
-  echo "Starting single node morphiumServer"
-  java -Xmx8G -jar $TMPDIR/mserver.jar -p $BASEPORT >$TMPDIR/mserver-1.log 2>&1 &
+  echo "Starting single node PoppyDB"
+  java -Xmx8G -jar $TMPDIR/poppydb.jar -p $BASEPORT >$TMPDIR/poppydb-1.log 2>&1 &
   echo "$!" >$TMPDIR/node1.pid
 else
 
@@ -113,9 +113,9 @@ else
   p=$BASEPORT
   for n in $(seq $NODES); do
     if [ $ONLYNODE -eq 0 ] || [ $ONLYNODE -eq $n ]; then
-      echo "Starting node $n morphiumServer on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
+      echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
 
-      java -Xmx8G -jar $TMPDIR/mserver.jar -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" >$TMPDIR/mserver-$n.log 2>&1 &
+      java -Xmx8G -jar $TMPDIR/poppydb.jar -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" >$TMPDIR/poppydb-$n.log 2>&1 &
       echo "$!" >$TMPDIR/node-$n.pid
     fi
     let p=p+1
