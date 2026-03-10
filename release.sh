@@ -558,15 +558,15 @@ log_info "Next development: $next_snapshot"
 
 # Align POM versions to release if needed
 current_version=$(grep '<version>' pom.xml | head -n1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
-expected_snapshot="${release_version%.*}.$((${release_version##*.}))-SNAPSHOT"
 
 if [ "$current_version" != "${release_version}-SNAPSHOT" ]; then
-	log_warn "POM version ($current_version) doesn't match expected ${release_version}-SNAPSHOT"
-	log_info "Setting all modules to ${release_version}-SNAPSHOT for release:prepare..."
+	log_info "POM version is $current_version, setting to ${release_version}-SNAPSHOT..."
 	mvn versions:set -DnewVersion="${release_version}-SNAPSHOT" -DgenerateBackupPoms=false -q
 	git add pom.xml morphium-core/pom.xml poppydb/pom.xml
 	git commit -m "Set version to ${release_version}-SNAPSHOT for release" -q
-	log_success "POM versions aligned"
+	log_success "POM versions aligned to ${release_version}-SNAPSHOT"
+else
+	log_success "POM version: $current_version"
 fi
 
 # Verify multi-module structure
