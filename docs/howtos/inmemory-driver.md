@@ -1,8 +1,8 @@
-# InMemory Driver & MorphiumServer
+# InMemory Driver & PoppyDB
 
 > **This page has been split into two focused documents:**
 > - **[InMemory Driver](../inmemory-driver.md)** - For embedded in-memory driver usage (unit tests, embedded applications)
-> - **[MorphiumServer](../morphium-server.md)** - For standalone MongoDB-compatible server (CI/CD, microservices, integration testing)
+> - **[PoppyDB](../poppydb.md)** - For standalone MongoDB-compatible server (CI/CD, microservices, integration testing)
 
 ## Quick Links
 
@@ -12,7 +12,7 @@ If you want to run Morphium **without MongoDB** for unit tests or embedded appli
 
 ### For Standalone Server
 If you want to run a **MongoDB-compatible server** that other applications can connect to:
-- 👉 **[MorphiumServer Documentation](../morphium-server.md)**
+- 👉 **[PoppyDB Documentation](../poppydb.md)**
 
 ## At a Glance
 
@@ -22,11 +22,11 @@ If you want to run a **MongoDB-compatible server** that other applications can c
 - Perfect for unit tests
 - Use with: `cfg.driverSettings().setDriverName("InMemDriver")`
 
-**MorphiumServer:**
+**PoppyDB:**
 - Standalone network server
 - MongoDB wire protocol compatible
 - Any MongoDB client can connect
-- Run with: `java -jar target/morphium-6.1.1-server-cli.jar --port 27017`
+- Run with: `java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017`
 
 ### Core Operations
 - ✅ **CRUD Operations**: insert, find, update, delete, upsert
@@ -65,7 +65,7 @@ If you want to run a **MongoDB-compatible server** that other applications can c
 ### Transactions
 - ✅ **Basic Transactions**: start, commit, abort (single-instance)
 - ❌ **Multi-document ACID**: Limited to single instance
-- ⚠️ **Replica Sets**: Experimental support in `MorphiumServer` (v6.1); no replica set simulation within a single `InMemoryDriver` instance.
+- ⚠️ **Replica Sets**: Experimental support in `PoppyDB` (v6.1); no replica set simulation within a single `InMemoryDriver` instance.
 
 ## V6.1 Improvements
 

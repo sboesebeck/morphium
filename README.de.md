@@ -327,7 +327,7 @@ java -jar target/morphium-6.1.1-server-cli.jar --rs-name my-rs --rs-seed host1:1
 - Keine Sharding-Unterstützung
 - Einige erweiterte Aggregation-Operatoren und Joins fehlen noch (siehe `docs/howtos/inmemory-driver.md`)
 
-Weitere Details zu Persistenz und Replica Sets finden Sie in `docs/morphium-server.md`.
+Weitere Details zu Persistenz und Replica Sets finden Sie in `docs/poppydb.md`.
 
 ## 🚀 Production Use Cases
 

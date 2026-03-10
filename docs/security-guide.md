@@ -86,9 +86,9 @@ SSLContext mtlsCtx = SslHelper.createSslContext(
 SSLContext testCtx = SslHelper.createTrustAllSslContext();
 ```
 
-### MorphiumServer SSL Configuration
+### PoppyDB SSL Configuration
 
-MorphiumServer can accept SSL/TLS encrypted connections:
+PoppyDB (formerly MorphiumServer) can accept SSL/TLS encrypted connections:
 
 **Command Line:**
 ```bash
@@ -98,16 +98,16 @@ keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
   -dname "CN=localhost"
 
 # Start server with SSL
-java -jar morphium-server.jar -p 27018 \
+java -jar poppydb-cli.jar -p 27018 \
   --ssl --sslKeystore server.jks --sslKeystorePassword changeit
 ```
 
 **Programmatic:**
 ```java
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 import de.caluga.morphium.driver.wire.SslHelper;
 
-MorphiumServer server = new MorphiumServer(27018, "localhost", 100, 10);
+PoppyDB server = new PoppyDB(27018, "localhost", 100, 10);
 
 // Configure SSL
 SSLContext sslContext = SslHelper.createServerSslContext(

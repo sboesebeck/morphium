@@ -8,10 +8,10 @@ This guide explains how to run and write tests for Morphium. It covers the test 
 # Fast local testing with InMemoryDriver (no MongoDB needed)
 ./runtests.sh --driver inmem --restart
 
-# Test against MorphiumServer (single node - recommended for most testing)
+# Test against PoppyDB (single node - recommended for most testing)
 ./runtests.sh --morphium-server --driver pooled --restart
 
-# Test against MorphiumServer replica set (for replication testing)
+# Test against PoppyDB replica set (for replication testing)
 ./runtests.sh --morphium-server-replicaset --driver pooled --restart
 
 # Run specific test class
@@ -26,7 +26,7 @@ mvn test -Dmorphium.test.driver=inmem -Dtest=BasicFunctionalityTest
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        runtests.sh                               │
-│  (orchestrates test runs, manages MorphiumServer, collects stats)│
+│  (orchestrates test runs, manages PoppyDB, collects stats)      │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -50,7 +50,7 @@ mvn test -Dmorphium.test.driver=inmem -Dtest=BasicFunctionalityTest
               │               │               │
               ▼               ▼               ▼
         ┌──────────┐   ┌─────────────────────────────┐
-        │In-Memory │   │  MongoDB / MorphiumServer   │
+        │In-Memory │   │  MongoDB / PoppyDB          │
         │ Storage  │   │                             │
         └──────────┘   └─────────────────────────────┘
 ```
@@ -171,9 +171,9 @@ The `runtests.sh` script provides a convenient wrapper around Maven with additio
 
 Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache`, `admin`, `performance`, `encryption`, `jms`, `geo`, `util`, `external`
 
-#### MorphiumServer Options
+#### PoppyDB Options
 ```bash
---morphium-server              # Start single-node MorphiumServer (recommended)
+--morphium-server              # Start single-node PoppyDB (recommended)
 --morphium-server-replicaset   # Start 3-node replica set (ports 27017-27019)
 ```
 
@@ -199,7 +199,7 @@ Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache
 # Fast development cycle - InMemory only
 ./runtests.sh --driver inmem --test MyNewTest --restart
 
-# Full test against MorphiumServer single node
+# Full test against PoppyDB single node
 ./runtests.sh --morphium-server --driver pooled --restart
 
 # Parallel testing for speed
@@ -220,7 +220,7 @@ Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache
 
 - **Sequential runs**: `test.log/<TestClass>.log`
 - **Parallel runs**: `test.log/slot_<N>/<TestClass>.log`
-- **MorphiumServer logs**: `.morphiumserver-local/logs/morphiumserver_<port>.log`
+- **PoppyDB logs**: `.poppydb-local/logs/poppydb_<port>.log`
 - **Failed tests summary**: `failed.txt`
 
 ## Best Practices
@@ -257,7 +257,7 @@ TestUtils.waitForConditionToBecomeTrue(5000, "Data not stored",
 
 ### 4. Handle Replica Set Timing
 
-When testing against replica sets (MorphiumServer or MongoDB), data replication takes time:
+When testing against replica sets (PoppyDB or MongoDB), data replication takes time:
 
 ```java
 // Allow time for replication (increase timeout for replica sets)
@@ -301,7 +301,7 @@ morphium.dropCollection(MyClass.class);
 ### Test Hangs
 
 1. Check for infinite loops in wait conditions
-2. Verify MorphiumServer is running (if using `--morphium-server`)
+2. Verify PoppyDB is running (if using `--morphium-server`)
 3. Check connection timeouts in logs
 
 ### Flaky Tests with Replica Sets
@@ -351,4 +351,4 @@ mvn test -Dgroups=core,messaging -DexcludedGroups=performance
 
 - [Test Runner Reference](./test-runner.md) - Additional `runtests.sh` details
 - [InMemory Driver](./inmemory-driver.md) - InMemoryDriver specifics
-- [MorphiumServer](./morphium-server.md) - MorphiumServer documentation
+- [PoppyDB](./poppydb.md) - PoppyDB (formerly MorphiumServer) documentation

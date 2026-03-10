@@ -19,7 +19,7 @@ Run the full suite against an external replica set:
 
 Notes:
 - Use `--restart` to wipe `test.log/` and start fresh.
-- Use `--exclude-tags server` to skip MorphiumServer-specific tests when you only want MongoDB.
+- Use `--exclude-tags server` to skip PoppyDB-specific tests when you only want MongoDB.
 - Use `--exclude-tags inmemory` if you want to avoid in-memory-only suites.
 
 ### InMemoryDriver (fast local)
@@ -36,7 +36,7 @@ Notes:
 
 ## Local Cluster (localhost)
 
-If you have a replica set running locally on `localhost:27017,localhost:27018,localhost:27019` (MongoDB or MorphiumServer), use:
+If you have a replica set running locally on `localhost:27017,localhost:27018,localhost:27019` (MongoDB or PoppyDB), use:
 
 ```bash
 ./runtests.sh --morphiumserver-local --parallel 2 --restart
@@ -46,7 +46,7 @@ This mode sets:
 - `--driver pooled`
 - `--uri mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests`
 
-The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start MorphiumServer:
+The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start PoppyDB:
 
 ```bash
 ./runtests.sh --morphiumserver-local --start-morphiumserver-local --parallel 2 --restart
@@ -58,9 +58,9 @@ To keep the locally started cluster running after the test run:
 ./runtests.sh --morphiumserver-local --start-morphiumserver-local --keep-morphiumserver-local --parallel 2 --restart
 ```
 
-When auto-start is used, MorphiumServer logs are written to `.morphiumserver-local/logs/`.
+When auto-start is used, PoppyDB logs are written to `.poppydb-local/logs/`.
 
-Note: `--start-morphiumserver-local` is idempotent. If something is already listening (MongoDB or another MorphiumServer), the runner will just use it.
+Note: `--start-morphiumserver-local` is idempotent. If something is already listening (MongoDB or another PoppyDB), the runner will just use it.
 `--allow-existing-localhost-rs` is deprecated and has no effect.
 
 If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
@@ -116,6 +116,6 @@ Open `http://testrunner.fritz.box:8080/` in your browser.
 The test orchestration runs three phases sequentially:
 1. InMemDriver (fast, no external deps)
 2. MongoDB Replica Set (mongo1 + mongo2)
-3. MorphiumServer Replica Set (local, 3 nodes)
+3. PoppyDB Replica Set (local, 3 nodes)
 
 Claude Code analyzes failures and generates a detailed HTML report.

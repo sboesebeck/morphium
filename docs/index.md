@@ -25,11 +25,11 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
 - **[Developer Testing Guide](./developer-testing-guide.md)** - How to run and write tests, MultiDriverTestBase, runtests.sh
 - **[Test Runner](./test-runner.md)** - Quick reference for the `runtests.sh` script
 - **[InMemory Driver](./howtos/inmemory-driver.md)** - Embedded in-memory driver for unit tests (no MongoDB installation required!)
-- **[MorphiumServer](./morphium-server.md)** - Standalone MongoDB-compatible server that speaks the wire protocol
+- **[PoppyDB](./poppydb.md)** - Standalone MongoDB-compatible server that speaks the wire protocol (formerly MorphiumServer)
   - Perfect for CI/CD pipelines, integration testing, and microservices development
   - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
   - Supports **Replica Sets** (experimental) and **Persistence (Snapshots)**
-  - Run with: `java -jar target/morphium-6.1.1-server-cli.jar --port 27017`
+  - Run with: `java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017`
 
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
@@ -62,7 +62,7 @@ Learn more
 - Object mapping and configuration: see the [Developer Guide](./developer-guide.md)
 - Caching: see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md)
 - Messaging: see [Messaging](./messaging.md)
-- Testing without MongoDB: see [InMemory Driver](./howtos/inmemory-driver.md), [MorphiumServer](./morphium-server.md), and [Migration v5 → v6](./howtos/migration-v5-to-v6.md)
+- Testing without MongoDB: see [InMemory Driver](./howtos/inmemory-driver.md), [PoppyDB](./poppydb.md), and [Migration v5 → v6](./howtos/migration-v5-to-v6.md)
 
 ### Our own driver (since 5.0)
 

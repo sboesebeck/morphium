@@ -72,7 +72,7 @@ nav:
   - Testing & Development:
     - Test Runner: test-runner.md
     - InMemory Driver: inmemory-driver.md
-    - MorphiumServer: morphium-server.md
+    - PoppyDB: poppydb.md
     - Quick Reference: howtos/inmemory-driver.md
   - How-To Guides:
     - Migration v5→v6: howtos/migration-v5-to-v6.md

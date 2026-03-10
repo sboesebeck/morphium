@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [6.2.0]
 
+### Breaking Changes (server only)
+
+#### MorphiumServer extracted into separate module and renamed to PoppyDB
+- **Module**: `de.caluga:poppydb` (was part of `de.caluga:morphium`)
+- **Package**: `de.caluga.poppydb` (was `de.caluga.morphium.server`)
+- **CLI JAR**: `poppydb-<version>-cli.jar` (was `morphium-<version>-server-cli.jar`)
+- **Main classes**: `PoppyDB` / `PoppyDBCLI` (were `MorphiumServer` / `MorphiumServerCLI`)
+- Morphium core library (`de.caluga:morphium`) is unaffected
+- The Netty handler classes moved to `de.caluga.poppydb.netty` (was `de.caluga.morphium.server.netty`)
+- Election classes moved to `de.caluga.poppydb.election` (was `de.caluga.morphium.server.election`)
+
 ### Added
 
 #### @Reference cascade features and cycle detection

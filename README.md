@@ -92,12 +92,13 @@ See `docs/howtos/optimistic-locking.md` for the full guide.
 
 ## 🚀 What’s New in v6.1
 
-### MorphiumServer – The "Drop-in" Replacement
-Morphium 6.1 transforms **MorphiumServer** into a true drop-in replacement for MongoDB in development and testing:
+### PoppyDB (formerly MorphiumServer) – The "Drop-in" Replacement
+Morphium 6.2 extracts the server into its own module `de.caluga:poppydb` and renames it to **PoppyDB**:
 - ✅ **Full Wire Protocol Support**: Use any standard MongoDB client (mongosh, Compass, etc.)
-- ✅ **CLI Tooling**: Dedicated `morphium-server-cli` for easy deployment
+- ✅ **CLI Tooling**: Dedicated `poppydb-<version>-cli.jar` for easy deployment
 - ✅ **Replica Set Emulation**: Test multi-node cluster behavior without real MongoDB
 - ✅ **Persistence**: Snapshot support to preserve in-memory data across restarts
+- ✅ **Messaging Optimization**: PoppyDB-specific optimizations for messaging workloads
 
 ## 🚀 What’s New in v6.0
 
@@ -305,7 +306,7 @@ Tests are parameterized to run against multiple drivers. Use `--driver` to selec
 # Against external MongoDB with pooled driver only
 ./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver pooled
 
-# Against MorphiumServer (auto-starts local server)
+# Against PoppyDB (auto-starts local server)
 ./runtests.sh --morphium-server --driver pooled
 ```
 
@@ -317,7 +318,7 @@ Tests are parameterized to run against multiple drivers. Use `--driver` to selec
 # 2. Real MongoDB tests
 ./runtests.sh --uri mongodb://your-mongodb/testdb --driver all
 
-# 3. MorphiumServer tests
+# 3. PoppyDB tests
 ./runtests.sh --morphium-server --driver pooled
 ```
 
@@ -342,7 +343,7 @@ Run `./runtests.sh --help` to see every option.
 3. `src/test/resources/morphium-test.properties`
 4. Defaults (localhost:27017)
 
-## 🔧 MorphiumServer & InMemoryDriver
+## 🔧 PoppyDB & InMemoryDriver
 
 ### InMemoryDriver – MongoDB-free testing
 
@@ -373,54 +374,59 @@ mvn test -Dmorphium.driver=inmem -Dtest="CacheTests"
 
 See `docs/howtos/inmemory-driver.md` for feature coverage and limitations.
 
-### MorphiumServer – Standalone MongoDB replacement
+### PoppyDB – Standalone MongoDB replacement
 
-MorphiumServer runs the Morphium wire-protocol driver in a separate process, allowing it to act as a lightweight, in-memory MongoDB replacement.
+PoppyDB (formerly MorphiumServer) runs the Morphium wire-protocol driver in a separate process, allowing it to act as a lightweight, in-memory MongoDB replacement.
+
+**Maven dependency** (server module):
+```xml
+<dependency>
+  <groupId>de.caluga</groupId>
+  <artifactId>poppydb</artifactId>
+  <version>6.2.0</version>
+</dependency>
+```
 
 **Building the Server**
 
-First, build the project using Maven. This will generate the executable JAR in the `target/` directory.
-
 ```bash
-mvn clean package -DskipTests
+mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 ```
 
-This creates `target/morphium-6.1.1-server-cli.jar` (where 6.1.1 is the current version).
+This creates `poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar`.
 
 **Running the Server**
 
-You can run the server directly from the command line:
-
 ```bash
 # Start the server on the default port (17017)
-java -jar target/morphium-6.1.1-server-cli.jar
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
 
 # Start on a different port
-java -jar target/morphium-6.1.1-server-cli.jar --port 8080
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 8080
 
 # Start with persistence (snapshots)
-java -jar target/morphium-6.1.1-server-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Support (Experimental)**
 
-MorphiumServer supports basic replica set emulation. Start multiple instances with the same replica set name and seed list:
+PoppyDB supports basic replica set emulation. Start multiple instances with the same replica set name and seed list:
 
 ```bash
-java -jar target/morphium-6.1.1-server-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use cases**
 - Local development without installing MongoDB
 - CI environments
 - Embedded database for desktop applications
-- Smoke-testing MongoDB tooling (mongosh, Compass, mongodump, …)
+- Smoke-testing MongoDB tooling (mongosh, Compass, mongodump, ...)
 
 **Current limitations**
 - No sharding support
 - Some advanced aggregation operators and joins still missing
 
-See `docs/morphium-server.md` for more details on persistence and replica sets.
+See `docs/poppydb.md` for more details on persistence and replica sets.
 
 ## 🚀 Production Use Cases
 

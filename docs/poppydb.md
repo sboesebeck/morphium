@@ -1,8 +1,8 @@
-# MorphiumServer: Standalone MongoDB-Compatible Server
+# PoppyDB: Standalone MongoDB-Compatible Server
 
-MorphiumServer is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with **Morphium 6.1**, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true **drop-in replacement** for MongoDB during development and testing.
+PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with **Morphium 6.1**, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true **drop-in replacement** for MongoDB during development and testing.
 
-**Important:** MorphiumServer can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
+**Important:** PoppyDB can be run as a standalone application from a dedicated executable JAR, or used programmatically as part of a Java application.
 
 ## Key Features
 
@@ -18,31 +18,31 @@ MorphiumServer is a standalone MongoDB wire protocol-compatible server built on 
 
 ### Running from Command Line
 
-After building the project, you can run the server directly using the `server-cli` JAR.
+After building the project, you can run the server directly using the PoppyDB CLI JAR.
 
 ```bash
 # Build the project first if you haven't
-mvn clean package -DskipTests
+mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 
-# Run MorphiumServer with default settings (port 17017)
-java -jar target/morphium-6.1.1-server-cli.jar
+# Run PoppyDB with default settings (port 17017)
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
 
 # Run on a different port
-java -jar target/morphium-6.1.1-server-cli.jar --port 27017
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017
 ```
 
 ### Running Programmatically
 
 ```java
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 
 public class MyApp {
     public static void main(String[] args) throws Exception {
         // Start embedded MongoDB-compatible server
-        MorphiumServer server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
+        PoppyDB server = new PoppyDB(27017, "0.0.0.0", 100, 10);
         server.start();
 
-        System.out.println("MorphiumServer running on port 27017");
+        System.out.println("PoppyDB running on port 27017");
 
         // Keep running
         while (true) {
@@ -55,7 +55,7 @@ public class MyApp {
 ## Configuration
 
 ### Command Line Arguments
-You can configure the MorphiumServer using the following command-line arguments:
+You can configure the PoppyDB using the following command-line arguments:
 
 | Argument | Description | Default |
 |---|---|---|
@@ -75,12 +75,12 @@ You can configure the MorphiumServer using the following command-line arguments:
 
 Example:
 ```bash
-java -jar target/morphium-6.1.1-server-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
 ### Replica Set Behavior (experimental)
 
-MorphiumServer now performs a lightweight initial sync whenever you start an additional member with the same `--rs-name` / `--rs-seed`:
+PoppyDB now performs a lightweight initial sync whenever you start an additional member with the same `--rs-name` / `--rs-seed`:
 
 - The first node that starts without detecting peers becomes primary immediately.
 - Any later node that can reach an existing peer demotes itself to secondary, runs an initial sync from the detected primary (or highest-priority reachable host), and only participates in elections after the sync finishes.
@@ -97,7 +97,7 @@ Practical tips:
 You can configure a replica set programmatically using the `configureReplicaSet()` method:
 
 ```java
-MorphiumServer primary = new MorphiumServer(27017, "localhost", 100, 10);
+PoppyDB primary = new PoppyDB(27017, "localhost", 100, 10);
 
 // Configure as a 2-node replica set with host priorities
 var hosts = List.of("localhost:27017", "localhost:27018");
@@ -107,14 +107,14 @@ primary.configureReplicaSet("myReplicaSet", hosts, priorities);
 primary.start();
 
 // Start secondary later
-MorphiumServer secondary = new MorphiumServer(27018, "localhost", 100, 10);
+PoppyDB secondary = new PoppyDB(27018, "localhost", 100, 10);
 secondary.configureReplicaSet("myReplicaSet", hosts, priorities);
 secondary.start();
 ```
 
 **Write Concern Behavior with Partial Replica Sets:**
 
-When using entities with `@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)` or explicit write concerns with `w > 1`, MorphiumServer handles the case where not all secondaries are available:
+When using entities with `@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)` or explicit write concerns with `w > 1`, PoppyDB handles the case where not all secondaries are available:
 
 - If no secondaries have connected yet, the server returns a `writeConcernError` after a brief grace period (100ms) instead of waiting for the full `wtimeout`
 - This allows you to store documents on the primary before starting secondary nodes
@@ -127,7 +127,7 @@ This is particularly useful for testing scenarios where you want to:
 
 ### Persistence (Periodic Snapshots)
 
-MorphiumServer can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.
+PoppyDB can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.
 
 **How it works:**
 - On startup: If dump files exist in the configured directory, they are automatically restored.
@@ -138,11 +138,11 @@ MorphiumServer can periodically dump all databases to disk and restore them on s
 
 ```bash
 # Start with persistence - dumps every 5 minutes
-java -jar target/morphium-6.1.1-server-cli.jar -p 27017 \
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27017 \
   --dump-dir /var/morphium/data --dump-interval 300
 
 # Start with persistence - dump only on shutdown
-java -jar target/morphium-6.1.1-server-cli.jar -p 27017 \
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27017 \
   --dump-dir /var/morphium/data
 ```
 
@@ -151,10 +151,10 @@ You can trigger a manual dump at any time using the `dumpNow()` method programma
 
 **Programmatic Configuration:**
 ```java
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 import java.io.File;
 
-MorphiumServer server = new MorphiumServer(27017, "localhost", 100, 10);
+PoppyDB server = new PoppyDB(27017, "localhost", 100, 10);
 
 // Configure persistence
 server.setDumpDirectory(new File("/var/morphium/data"));
@@ -185,7 +185,7 @@ server.dumpNow();
 
 ### SSL/TLS Configuration
 
-MorphiumServer supports SSL/TLS encrypted connections for secure communication.
+PoppyDB supports SSL/TLS encrypted connections for secure communication.
 
 **Quick Start with SSL:**
 
@@ -198,7 +198,7 @@ keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
 
 2. Start the server with SSL enabled:
 ```bash
-java -jar target/morphium-6.1.1-server-cli.jar -p 27018 \
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27018 \
   --ssl --sslKeystore server.jks --sslKeystorePassword changeit
 ```
 
@@ -215,10 +215,10 @@ mongosh "mongodb://localhost:27018" --tls --tlsCAFile server-cert.pem
 
 **Programmatic SSL Configuration:**
 ```java
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 import de.caluga.morphium.driver.wire.SslHelper;
 
-MorphiumServer server = new MorphiumServer(27018, "localhost", 100, 10);
+PoppyDB server = new PoppyDB(27018, "localhost", 100, 10);
 
 // Load keystore and enable SSL
 SSLContext sslContext = SslHelper.createServerSslContext(
@@ -235,12 +235,12 @@ server.start();
 FROM openjdk:21-slim
 WORKDIR /app
 
-COPY target/morphium-6.1.1-server-cli.jar /app/morphium-server.jar
+COPY poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar /app/poppydb.jar
 COPY server.jks /app/server.jks
 
 EXPOSE 27018
 
-CMD ["java", "-jar", "/app/morphium-server.jar", \
+CMD ["java", "-jar", "/app/poppydb.jar", \
      "--port", "27018", "--host", "0.0.0.0", \
      "--ssl", "--sslKeystore", "/app/server.jks", \
      "--sslKeystorePassword", "changeit"]
@@ -250,7 +250,7 @@ CMD ["java", "-jar", "/app/morphium-server.jar", \
 
 ```java
 // Full constructor
-MorphiumServer server = new MorphiumServer(
+PoppyDB server = new PoppyDB(
     int port,           // Server port
     String host,        // Bind address
     int maxThreads,     // Maximum threads
@@ -258,7 +258,7 @@ MorphiumServer server = new MorphiumServer(
 );
 
 // Default constructor (port 17017, localhost, 100/10 threads)
-MorphiumServer server = new MorphiumServer();
+PoppyDB server = new PoppyDB();
 ```
 
 ## Connecting Clients
@@ -357,11 +357,11 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Build Morphium
-        run: mvn clean package -DskipTests
+        run: mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 
-      - name: Start MorphiumServer
+      - name: Start PoppyDB
         run: |
-          java -jar target/morphium-6.1.1-server-cli.jar \
+          java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar \
                --port 27017 --host 0.0.0.0 &
           sleep 2
 
@@ -376,7 +376,7 @@ jobs:
 ```java
 @BeforeAll
 static void startServer() throws Exception {
-    server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
+    server = new PoppyDB(27017, "0.0.0.0", 100, 10);
     server.start();
     Thread.sleep(500); // Wait for server to be ready
 }
@@ -410,8 +410,8 @@ static void stopServer() {
 ### 3. Microservices Development
 
 ```bash
-# Terminal 1: Start MorphiumServer
-java -jar target/morphium-6.1.1-server-cli.jar --port 27017
+# Terminal 1: Start PoppyDB
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017
 
 # Terminal 2: Start Node.js service
 MONGO_URL=mongodb://localhost:27017 npm start
@@ -431,11 +431,11 @@ FROM openjdk:21-slim
 WORKDIR /app
 
 # Copy the executable server JAR
-COPY target/morphium-6.1.1-server-cli.jar /app/morphium-server.jar
+COPY poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar /app/poppydb.jar
 
 EXPOSE 27017
 
-CMD ["java", "-jar", "/app/morphium-server.jar", \
+CMD ["java", "-jar", "/app/poppydb.jar", \
      "--port", "27017", "--host", "0.0.0.0"]
 ```
 
@@ -461,8 +461,8 @@ services:
 
 **Build and Run:**
 ```bash
-docker build -t morphium-server .
-docker run -p 27017:27017 morphium-server
+docker build -t poppydb .
+docker run -p 27017:27017 poppydb
 
 # Or use docker-compose
 docker-compose up
@@ -470,7 +470,7 @@ docker-compose up
 
 ## Performance
 
-| Metric | MorphiumServer | MongoDB |
+| Metric | PoppyDB | MongoDB |
 |--------|---------------|---------|
 | Startup Time | ~100-500ms | ~2-5 seconds |
 | Memory (baseline) | ~50-100MB | ~500MB-1GB |
@@ -483,7 +483,7 @@ docker-compose up
 
 ### Built-in Status Monitoring
 
-**All Morphium messaging instances automatically include status monitoring** via the `morphium_status` topic. This works with MorphiumServer and any Morphium messaging setup.
+**All Morphium messaging instances automatically include status monitoring** via the `morphium_status` topic. This works with PoppyDB and any Morphium messaging setup.
 
 Quick example:
 ```java
@@ -518,7 +518,7 @@ See the **[Messaging - Built-in Status Monitoring](./messaging.md#built-in-statu
 ### Connection Count
 
 ```java
-MorphiumServer server = new MorphiumServer(27017, "localhost", 100, 10);
+PoppyDB server = new PoppyDB(27017, "localhost", 100, 10);
 server.start();
 
 // Get active connections
@@ -531,18 +531,18 @@ System.out.println("Active connections: " + connections);
 ```bash
 # Debug logging with Logback
 java -Dlogback.configurationFile=logback.xml \
-     -jar target/morphium-6.1.1-server-cli.jar \
+     -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar \
      --port 27017
 
 # Simple logger
 java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
-     -jar target/morphium-6.1.1-server-cli.jar \
+     -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar \
      --port 27017
 ```
 
 ## Supported Admin Commands
 
-MorphiumServer implements the following MongoDB admin commands:
+PoppyDB implements the following MongoDB admin commands:
 
 | Command | Description |
 |---------|-------------|
@@ -559,7 +559,7 @@ MorphiumServer implements the following MongoDB admin commands:
 
 ### Standalone Server Behavior
 
-When running MorphiumServer as a standalone server (without replica set configuration):
+When running PoppyDB as a standalone server (without replica set configuration):
 
 - The server always reports itself as primary (`isWritablePrimary: true`)
 - `replSetStepDown` commands are acknowledged but the server immediately becomes primary again
@@ -567,7 +567,7 @@ When running MorphiumServer as a standalone server (without replica set configur
 
 ### Change Stream Support
 
-MorphiumServer fully supports change streams for real-time notifications:
+PoppyDB fully supports change streams for real-time notifications:
 
 - **Collection-level watches**: Watch changes on a specific collection
 - **Database-level watches**: Watch all collections in a database
@@ -627,14 +627,13 @@ db.watch().on('change', console.log);
 ```bash
 git clone https://github.com/sboesebeck/morphium.git
 cd morphium
-mvn clean package -DskipTests
+mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 
-# This creates two important artifacts in target/:
-# 1. morphium-X.Y.Z.jar (the standard library)
-# 2. morphium-X.Y.Z-server-cli.jar (the executable server)
+# This creates the executable PoppyDB CLI JAR:
+# poppydb/target/poppydb-X.Y.Z-cli.jar
 
 # Run the server:
-java -jar target/morphium-6.1.1-server-cli.jar --port 27017
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017
 ```
 
 ## Maven Dependency
@@ -642,8 +641,8 @@ java -jar target/morphium-6.1.1-server-cli.jar --port 27017
 ```xml
 <dependency>
     <groupId>de.caluga</groupId>
-    <artifactId>morphium</artifactId>
-    <version>6.1.1</version>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
 </dependency>
 ```
 
@@ -651,19 +650,19 @@ Then start programmatically:
 ```java
 public static void main(String[] args) throws Exception {
     // Option 1: Call main from the CLI class
-    de.caluga.morphium.server.MorphiumServerCLI.main(
+    de.caluga.poppydb.PoppyDBCLI.main(
         new String[]{"--port", "27017", "--host", "0.0.0.0"}
     );
 
     // Option 2: Create instance directly
-    MorphiumServer server = new MorphiumServer(27017, "0.0.0.0", 100, 10);
+    PoppyDB server = new PoppyDB(27017, "0.0.0.0", 100, 10);
     server.start();
 }
 ```
 
-## Comparison: MorphiumServer vs InMemory Driver
+## Comparison: PoppyDB vs InMemory Driver
 
-| Feature | MorphiumServer | InMemory Driver |
+| Feature | PoppyDB | InMemory Driver |
 |---------|---------------|-----------------|
 | **Network Access** | Yes (wire protocol) | No (embedded) |
 | **Multi-Language** | Yes | No (Java only) |
@@ -674,11 +673,11 @@ public static void main(String[] args) throws Exception {
 
 **When to use each:**
 - **InMemory Driver**: Java unit tests, embedded apps
-- **MorphiumServer**: Integration tests, CI/CD, multi-language services
+- **PoppyDB (server)**: Integration tests, CI/CD, multi-language services
 
 ## See Also
 
 - [InMemory Driver](./howtos/inmemory-driver.md) - Embedded driver for unit tests
-- [Messaging](./messaging.md) - Messaging with MorphiumServer
+- [Messaging](./messaging.md) - Messaging with Morphium / PoppyDB
 - [Configuration Reference](./configuration-reference.md) - All configuration options
 - [Architecture Overview](./architecture-overview.md) - How it works internally
