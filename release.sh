@@ -23,6 +23,7 @@ set -eo pipefail
 #   --dry-run          Validate everything but don't actually release
 #   --auto-publish     Automatically publish to Maven Central after validation
 #   --deploy-docs      Deploy documentation to gh-pages after release
+#   --rollback         Roll back the last release (renames tag, resets branches)
 #   --help             Show this help message
 #
 # Prerequisites:
@@ -43,6 +44,7 @@ RUN_TESTS=false
 DRY_RUN=false
 AUTO_PUBLISH=false
 DEPLOY_DOCS=false
+ROLLBACK=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -63,6 +65,10 @@ while [[ $# -gt 0 ]]; do
 		DEPLOY_DOCS=true
 		shift
 		;;
+	--rollback)
+		ROLLBACK=true
+		shift
+		;;
 	--help)
 		sed -n '4,30p' "$0" | sed 's/^# //' | sed 's/^#//'
 		exit 0
@@ -74,6 +80,112 @@ while [[ $# -gt 0 ]]; do
 		;;
 	esac
 done
+
+# -----------------------------------------------------------------------------
+# Rollback handler (runs before anything else if --rollback)
+# -----------------------------------------------------------------------------
+
+do_rollback() {
+	log_step "Rolling back last release"
+
+	# Find the latest v* tag (excluding -rolled-back tags)
+	local last_tag
+	last_tag=$(git tag -l 'v*' --sort=-v:refname | grep -v '\-rolled-back$' | head -n1)
+
+	if [ -z "$last_tag" ]; then
+		log_error "No release tag found to roll back"
+		exit 1
+	fi
+
+	# Check if already rolled back
+	if git tag -l "${last_tag}-rolled-back" | grep -q .; then
+		log_error "Tag ${last_tag} was already rolled back (${last_tag}-rolled-back exists)"
+		exit 1
+	fi
+
+	local tag_version="${last_tag#v}"
+	log_info "Found release tag: $last_tag (version $tag_version)"
+
+	# Show what will happen
+	echo ""
+	echo "This will:"
+	echo "  1. Rename tag $last_tag → ${last_tag}-rolled-back (local + remote)"
+	echo "  2. Reset master to before the release merge"
+	echo "  3. Reset develop version back to ${tag_version}-SNAPSHOT"
+	echo ""
+
+	if ! confirm "Proceed with rollback?" "n"; then
+		echo "Rollback cancelled"
+		exit 0
+	fi
+
+	# Step 1: Rename the tag (create rolled-back, delete original)
+	log_info "Renaming tag ${last_tag} → ${last_tag}-rolled-back..."
+	git tag "${last_tag}-rolled-back" "$last_tag"
+	git tag -d "$last_tag"
+	git push origin "${last_tag}-rolled-back" 2>/dev/null || true
+	git push --delete origin "$last_tag" 2>/dev/null || true
+	log_success "Tag renamed"
+
+	# Step 2: Reset master to before the release merge
+	log_info "Resetting master..."
+	git checkout master
+	git pull origin master --no-edit || true
+
+	# Find the commit before the release merge
+	local master_head
+	master_head=$(git rev-parse HEAD)
+	local tag_commit
+	tag_commit=$(git rev-parse "${last_tag}-rolled-back")
+
+	if [ "$master_head" = "$tag_commit" ] || git merge-base --is-ancestor "$tag_commit" HEAD 2>/dev/null; then
+		# master contains this tag - reset to parent of merge
+		local pre_merge
+		pre_merge=$(git log --oneline --first-parent --format="%H" | while read -r sha; do
+			if ! git merge-base --is-ancestor "$tag_commit" "$sha" 2>/dev/null; then
+				echo "$sha"
+				break
+			fi
+		done)
+
+		if [ -n "$pre_merge" ]; then
+			git reset --hard "$pre_merge"
+			git push --force-with-lease origin master
+			log_success "Master reset to before release merge"
+		else
+			log_warn "Could not determine pre-merge commit on master"
+		fi
+	else
+		log_info "Master does not contain this tag - nothing to reset"
+	fi
+
+	# Step 3: Reset develop version
+	log_info "Resetting develop version to ${tag_version}-SNAPSHOT..."
+	git checkout develop
+	git pull origin develop --no-edit || true
+
+	mvn versions:set -DnewVersion="${tag_version}-SNAPSHOT" -DgenerateBackupPoms=false -q
+	git add pom.xml morphium-core/pom.xml poppydb/pom.xml
+	git commit -m "Rollback: reset version to ${tag_version}-SNAPSHOT (rolled back ${last_tag})"
+	git push origin develop
+	log_success "Develop version reset to ${tag_version}-SNAPSHOT"
+
+	# Summary
+	log_step "Rollback complete"
+	echo ""
+	echo "  Rolled back: $last_tag → ${last_tag}-rolled-back"
+	echo "  Master: reset to pre-release state"
+	echo "  Develop: ${tag_version}-SNAPSHOT"
+	echo ""
+	echo "  Don't forget to delete the Sonatype deployment if it was uploaded:"
+	echo "    https://central.sonatype.com/publishing/deployments"
+	echo ""
+	exit 0
+}
+
+if [ "$ROLLBACK" = true ]; then
+	do_rollback
+fi
 
 # -----------------------------------------------------------------------------
 # Helper functions
@@ -371,6 +483,15 @@ fi
 # -----------------------------------------------------------------------------
 
 log_step "Preparing release with Maven"
+
+# Clean up rolled-back tag from previous attempt if present
+rolled_back_tag="v${release_version}-rolled-back"
+if git tag -l "$rolled_back_tag" | grep -q .; then
+	log_info "Cleaning up rolled-back tag: $rolled_back_tag"
+	git tag -d "$rolled_back_tag" 2>/dev/null || true
+	git push --delete origin "$rolled_back_tag" 2>/dev/null || true
+	log_success "Removed $rolled_back_tag"
+fi
 
 # Create log directory
 mkdir -p logs
