@@ -19,8 +19,11 @@ set -eo pipefail
 #   ./release.sh [OPTIONS]
 #
 # Options:
+#   --patch            Patch release: 6.1.9 → 6.1.10 (default)
+#   --minor            Minor release: 6.1.9 → 6.2.0
+#   --major            Major release: 6.1.9 → 7.0.0
 #   --run-tests        Run tests before release (default: skip)
-#   --dry-run          Validate everything but don't actually release
+#   --dry-run          Build & bundle everything but don't upload or tag
 #   --auto-publish     Automatically publish to Maven Central after validation
 #   --deploy-docs      Deploy documentation to gh-pages after release
 #   --rollback         Roll back the last release (renames tag, resets branches)
@@ -42,6 +45,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default options
+BUMP_TYPE=patch
 RUN_TESTS=false
 DRY_RUN=false
 AUTO_PUBLISH=false
@@ -52,6 +56,18 @@ RESET=false
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
 	case $1 in
+	--patch)
+		BUMP_TYPE=patch
+		shift
+		;;
+	--minor)
+		BUMP_TYPE=minor
+		shift
+		;;
+	--major)
+		BUMP_TYPE=major
+		shift
+		;;
 	--run-tests)
 		RUN_TESTS=true
 		shift
@@ -77,7 +93,7 @@ while [[ $# -gt 0 ]]; do
 		shift
 		;;
 	--help)
-		sed -n '4,30p' "$0" | sed 's/^# //' | sed 's/^#//'
+		sed -n '4,32p' "$0" | sed 's/^# //' | sed 's/^#//'
 		exit 0
 		;;
 	*)
@@ -515,18 +531,43 @@ if [ "$java_version" -lt 21 ]; then
 fi
 log_success "Java version: $(java -version 2>&1 | head -n1)"
 
-# Get current version from parent POM
-current_version=$(grep '<version>' pom.xml | head -n1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
-log_info "Current version: $current_version"
+# Determine versions from last release tag
+last_tag=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -v '\-rolled-back$' | head -n1)
 
-if [[ ! "$current_version" == *"-SNAPSHOT"* ]]; then
-	log_error "Current version ($current_version) is not a SNAPSHOT version"
-	echo "Release process expects a SNAPSHOT version to release"
+if [ -z "$last_tag" ]; then
+	log_error "No previous release tag found (expected v*.*.* format)"
 	exit 1
 fi
 
-release_version="${current_version%-SNAPSHOT}"
-log_info "Release version will be: $release_version"
+last_version="${last_tag#v}"
+IFS='.' read -r v_major v_minor v_patch <<< "$last_version"
+
+case "$BUMP_TYPE" in
+	patch) release_version="${v_major}.${v_minor}.$((v_patch + 1))" ;;
+	minor) release_version="${v_major}.$((v_minor + 1)).0" ;;
+	major) release_version="$((v_major + 1)).0.0" ;;
+esac
+
+# Next SNAPSHOT after release
+IFS='.' read -r r_major r_minor r_patch <<< "$release_version"
+next_snapshot="${r_major}.${r_minor}.$((r_patch + 1))-SNAPSHOT"
+
+log_info "Last release: $last_tag"
+log_info "Release version: $release_version (--${BUMP_TYPE})"
+log_info "Next development: $next_snapshot"
+
+# Align POM versions to release if needed
+current_version=$(grep '<version>' pom.xml | head -n1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+expected_snapshot="${release_version%.*}.$((${release_version##*.}))-SNAPSHOT"
+
+if [ "$current_version" != "${release_version}-SNAPSHOT" ]; then
+	log_warn "POM version ($current_version) doesn't match expected ${release_version}-SNAPSHOT"
+	log_info "Setting all modules to ${release_version}-SNAPSHOT for release:prepare..."
+	mvn versions:set -DnewVersion="${release_version}-SNAPSHOT" -DgenerateBackupPoms=false -q
+	git add pom.xml morphium-core/pom.xml poppydb/pom.xml
+	git commit -m "Set version to ${release_version}-SNAPSHOT for release" -q
+	log_success "POM versions aligned"
+fi
 
 # Verify multi-module structure
 for module_dir in morphium-core poppydb; do
@@ -633,11 +674,12 @@ fi
 log_step "Release confirmation"
 echo ""
 echo "About to release:"
-echo "  Version: $release_version"
+echo "  Last release: $last_tag"
+echo "  Release version: $release_version (--${BUMP_TYPE})"
+echo "  Next development: $next_snapshot"
 echo "  Modules: morphium-parent, morphium, poppydb"
 echo "  Branch: $branch"
 echo "  Auto-publish: $AUTO_PUBLISH"
-echo "  Single combined Sonatype bundle"
 echo ""
 
 if ! confirm "Proceed with release?" "n"; then
@@ -674,7 +716,12 @@ mvn clean compile -q || {
 
 # Run release:prepare — creates tag, bumps to next SNAPSHOT, pushes both commits
 log_info "Running mvn release:prepare..."
-mvn release:clean release:prepare 2>&1 | tee -a "$RELEASE_LOG"
+log_info "  Release: $release_version → Next: $next_snapshot"
+mvn release:clean release:prepare \
+	-DreleaseVersion="$release_version" \
+	-DdevelopmentVersion="$next_snapshot" \
+	-Dtag="v${release_version}" \
+	2>&1 | tee -a "$RELEASE_LOG"
 
 # Extract version and tag from release.properties
 if [ ! -f release.properties ]; then
