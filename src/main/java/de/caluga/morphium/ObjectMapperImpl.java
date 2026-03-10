@@ -223,6 +223,17 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         customMappers.remove(cls);
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    public Object marshallIfCustomMapped(Object value) {
+        if (value == null) return null;
+        MorphiumTypeMapper mapper = customMappers.get(value.getClass());
+        if (mapper != null) {
+            return mapper.marshall(value);
+        }
+        return value;
+    }
+
     public NameProvider getNameProviderForClass(Class<?> cls) {
         Entity e = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
 
