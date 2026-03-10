@@ -1,9 +1,9 @@
-package de.caluga.test.morphium.server.election;
+package de.caluga.test.poppydb.election;
 
-import de.caluga.morphium.server.MorphiumServer;
-import de.caluga.morphium.server.election.ElectionConfig;
-import de.caluga.morphium.server.election.ElectionManager;
-import de.caluga.morphium.server.election.ElectionState;
+import de.caluga.poppydb.PoppyDB;
+import de.caluga.poppydb.election.ElectionConfig;
+import de.caluga.poppydb.election.ElectionManager;
+import de.caluga.poppydb.election.ElectionState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -19,18 +19,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests for multi-node election.
- * Starts multiple MorphiumServer instances and tests leader election.
+ * Starts multiple PoppyDB instances and tests leader election.
  */
 public class MultiNodeElectionTest {
 
     private static final Logger log = LoggerFactory.getLogger(MultiNodeElectionTest.class);
 
-    private List<MorphiumServer> servers = new ArrayList<>();
+    private List<PoppyDB> servers = new ArrayList<>();
 
     @AfterEach
     void cleanup() {
         log.info("Cleaning up {} servers", servers.size());
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             try {
                 server.shutdown();
             } catch (Exception e) {
@@ -51,7 +51,7 @@ public class MultiNodeElectionTest {
                 .setElectionTimeoutMinMs(100)
                 .setElectionTimeoutMaxMs(200);
 
-        MorphiumServer server = new MorphiumServer(27100, "localhost", 100, 60);
+        PoppyDB server = new PoppyDB(27100, "localhost", 100, 60);
         server.configureReplicaSet("rs0", hosts, null, true, config);
         servers.add(server);
 
@@ -82,13 +82,13 @@ public class MultiNodeElectionTest {
         // Create and start servers
         for (int i = 0; i < 3; i++) {
             int port = 27100 + i;
-            MorphiumServer server = new MorphiumServer(port, "localhost", 100, 60);
+            PoppyDB server = new PoppyDB(port, "localhost", 100, 60);
             server.configureReplicaSet("rs0", hosts, null, true, config);
             servers.add(server);
         }
 
         // Start all servers
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             server.start();
         }
 
@@ -100,7 +100,7 @@ public class MultiNodeElectionTest {
         int followerCount = 0;
         String leaderAddress = null;
 
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null) {
                 if (em.getState() == ElectionState.LEADER) {
@@ -119,7 +119,7 @@ public class MultiNodeElectionTest {
         assertNotNull(leaderAddress);
 
         // Verify all servers agree on who the leader is
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.FOLLOWER) {
                 assertEquals(leaderAddress, em.getCurrentLeader(),
@@ -128,7 +128,7 @@ public class MultiNodeElectionTest {
         }
 
         // Verify primary flags are consistent with election state
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null) {
                 boolean isLeader = em.getState() == ElectionState.LEADER;
@@ -152,12 +152,12 @@ public class MultiNodeElectionTest {
         // Create and start servers
         for (int i = 0; i < 3; i++) {
             int port = 27100 + i;
-            MorphiumServer server = new MorphiumServer(port, "localhost", 100, 60);
+            PoppyDB server = new PoppyDB(port, "localhost", 100, 60);
             server.configureReplicaSet("rs0", hosts, null, true, config);
             servers.add(server);
         }
 
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             server.start();
         }
 
@@ -165,8 +165,8 @@ public class MultiNodeElectionTest {
         Thread.sleep(2000);
 
         // Find the current leader
-        MorphiumServer leader = null;
-        for (MorphiumServer server : servers) {
+        PoppyDB leader = null;
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.LEADER) {
                 leader = server;
@@ -188,7 +188,7 @@ public class MultiNodeElectionTest {
         // Count leaders among remaining servers
         int newLeaderCount = 0;
         String newLeaderAddress = null;
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.LEADER) {
                 newLeaderCount++;
@@ -213,7 +213,7 @@ public class MultiNodeElectionTest {
                 .setHeartbeatIntervalMs(50);
 
         // Start only one server (can't get majority of 3)
-        MorphiumServer server = new MorphiumServer(27100, "localhost", 100, 60);
+        PoppyDB server = new PoppyDB(27100, "localhost", 100, 60);
         server.configureReplicaSet("rs0", hosts, null, true, config);
         servers.add(server);
 
@@ -250,12 +250,12 @@ public class MultiNodeElectionTest {
         // Create and start servers
         for (int i = 0; i < 3; i++) {
             int port = 27100 + i;
-            MorphiumServer server = new MorphiumServer(port, "localhost", 100, 60);
+            PoppyDB server = new PoppyDB(port, "localhost", 100, 60);
             server.configureReplicaSet("rs0", hosts, null, true, config);
             servers.add(server);
         }
 
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             server.start();
         }
 
@@ -263,8 +263,8 @@ public class MultiNodeElectionTest {
         Thread.sleep(2000);
 
         // Find the current leader
-        MorphiumServer leader = null;
-        for (MorphiumServer server : servers) {
+        PoppyDB leader = null;
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.LEADER) {
                 leader = server;
@@ -291,7 +291,7 @@ public class MultiNodeElectionTest {
         // Count leaders among all servers
         int leaderCount = 0;
         String newLeaderAddress = null;
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.LEADER) {
                 leaderCount++;
@@ -321,12 +321,12 @@ public class MultiNodeElectionTest {
         // Create and start servers
         for (int i = 0; i < 3; i++) {
             int port = 27100 + i;
-            MorphiumServer server = new MorphiumServer(port, "localhost", 100, 60);
+            PoppyDB server = new PoppyDB(port, "localhost", 100, 60);
             server.configureReplicaSet("rs0", hosts, null, true, config);
             servers.add(server);
         }
 
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             server.start();
         }
 
@@ -334,8 +334,8 @@ public class MultiNodeElectionTest {
         Thread.sleep(2000);
 
         // Find the current leader and freeze the other two nodes
-        MorphiumServer leader = null;
-        for (MorphiumServer server : servers) {
+        PoppyDB leader = null;
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.LEADER) {
                 leader = server;
@@ -358,7 +358,7 @@ public class MultiNodeElectionTest {
 
         // No new leader should be elected because remaining nodes are frozen
         int leaderCount = 0;
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.LEADER) {
                 leaderCount++;
@@ -368,7 +368,7 @@ public class MultiNodeElectionTest {
         assertEquals(0, leaderCount, "No new leader should be elected while nodes are frozen");
 
         // Unfreeze nodes and wait for election
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null) {
                 em.unfreeze();
@@ -381,7 +381,7 @@ public class MultiNodeElectionTest {
 
         // Now we should have a new leader
         leaderCount = 0;
-        for (MorphiumServer server : servers) {
+        for (PoppyDB server : servers) {
             ElectionManager em = server.getElectionManager();
             if (em != null && em.getState() == ElectionState.LEADER) {
                 leaderCount++;

@@ -1,6 +1,6 @@
-package de.caluga.test.morphium.server.election;
+package de.caluga.test.poppydb.election;
 
-import de.caluga.morphium.server.election.*;
+import de.caluga.poppydb.election.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.base;
+package de.caluga.test.poppydb;
 
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,13 +32,13 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 @Tag("server")
-@Disabled("Disabled by default - runs local MorphiumServer which is flaky with parallel tests. Run manually or with --include-tags server")
-public class MorphiumServerTest {
-    private Logger log = LoggerFactory.getLogger(MorphiumServerTest.class);
+@Disabled("Disabled by default - runs local PoppyDB which is flaky with parallel tests. Run manually or with --include-tags server")
+public class PoppyDBTest {
+    private Logger log = LoggerFactory.getLogger(PoppyDBTest.class);
     private static final AtomicInteger PORT = new AtomicInteger(18000);
 
     private int nextPort() {
@@ -54,7 +54,7 @@ public class MorphiumServerTest {
     @Test
     public void messagingPerformanceTest()throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 220, 20);
+        var srv = new PoppyDB(port, "localhost", 220, 20);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().addHostToSeed("localhost:" + port);
@@ -113,7 +113,7 @@ public class MorphiumServerTest {
     @Test
     public void singleConnectToServerTest()throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 1);
+        var srv = new PoppyDB(port, "localhost", 20, 1);
         startServer(srv, port);
         SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
         drv.setHostSeed("localhost:" + port);
@@ -138,7 +138,7 @@ public class MorphiumServerTest {
     @Test
     public void testConnectionPool() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 10, 1);
+        var srv = new PoppyDB(port, "localhost", 10, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().setHostSeed("localhost:" + port);
@@ -192,7 +192,7 @@ public class MorphiumServerTest {
     @Test
     public void testServerMessaging() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 100, 1);
+        var srv = new PoppyDB(port, "localhost", 100, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().setHostSeed("localhost:" + port);
@@ -232,7 +232,7 @@ public class MorphiumServerTest {
     @Test
     public void testServerMessagingMoreThanOne() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 100, 1);
+        var srv = new PoppyDB(port, "localhost", 100, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().setHostSeed("localhost:" + port);
@@ -282,7 +282,7 @@ public class MorphiumServerTest {
     @Test
     public void testServer() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 100, 1);
+        var srv = new PoppyDB(port, "localhost", 100, 1);
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().setHostSeed("localhost:" + port);
@@ -325,7 +325,7 @@ public class MorphiumServerTest {
     @Test
     public void multithreaddedMessagingTest() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 100, 60);  // 60 second idle timeout
+        var srv = new PoppyDB(port, "localhost", 100, 60);  // 60 second idle timeout
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().setHostSeed("localhost:" + port);
@@ -410,7 +410,7 @@ public class MorphiumServerTest {
     @Test
     public void multithreaddedMessaging() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 100, 60);  // 60 second idle timeout
+        var srv = new PoppyDB(port, "localhost", 100, 60);  // 60 second idle timeout
         startServer(srv, port);
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().setHostSeed("localhost:" + port);
@@ -482,7 +482,7 @@ public class MorphiumServerTest {
 
     // @Test
     // public void mutlithreaddedMessagingPerformanceTest() throws Exception {
-    //     var srv = new MorphiumServer(17017, "localhost", 100, 1);
+    //     var srv = new PoppyDB(17017, "localhost", 100, 1);
     //     srv.start();
     //     MorphiumConfig cfg = new MorphiumConfig();
     //     cfg.setHostSeed("localhost:17017");
@@ -557,8 +557,8 @@ public class MorphiumServerTest {
     public void priorityBasedPrimarySelection() throws Exception {
         int port1 = nextPort();
         int port2 = nextPort();
-        MorphiumServer s1 = new MorphiumServer(port1, "localhost", 10, 1);
-        MorphiumServer s2 = new MorphiumServer(port2, "localhost", 10, 1);
+        PoppyDB s1 = new PoppyDB(port1, "localhost", 10, 1);
+        PoppyDB s2 = new PoppyDB(port2, "localhost", 10, 1);
         var hosts = List.of("localhost:" + port1, "localhost:" + port2);
         var prio = Map.of("localhost:" + port1, 200, "localhost:" + port2, 100);
         s1.configureReplicaSet("rsTest", hosts, prio);
@@ -572,11 +572,11 @@ public class MorphiumServerTest {
         s2.shutdown();
     }
 
-    // Test removed - stepDown functionality no longer exists in simplified MorphiumServer
+    // Test removed - stepDown functionality no longer exists in simplified PoppyDB
     // @Test
     // public void stepDownPromotesNextPriority() throws Exception { ... }
 
-    private void startServer(MorphiumServer srv, int port) throws Exception {
+    private void startServer(PoppyDB srv, int port) throws Exception {
         srv.start();
         long deadline = System.currentTimeMillis() + 10_000;
         while (true) {
@@ -598,7 +598,7 @@ public class MorphiumServerTest {
         int port2 = nextPort();
 
         // Start primary server
-        MorphiumServer primary = new MorphiumServer(port1, "localhost", 10, 1);
+        PoppyDB primary = new PoppyDB(port1, "localhost", 10, 1);
         var hosts = List.of("localhost:" + port1, "localhost:" + port2);
         var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
         primary.configureReplicaSet("rsDataTest", hosts, prio);
@@ -625,7 +625,7 @@ public class MorphiumServerTest {
         assertEquals(10, primaryCount, "Primary should have 10 documents");
 
         // Now start secondary server
-        MorphiumServer secondary = new MorphiumServer(port2, "localhost", 10, 1);
+        PoppyDB secondary = new PoppyDB(port2, "localhost", 10, 1);
         secondary.configureReplicaSet("rsDataTest", hosts, prio);
         startServer(secondary, port2);
 
@@ -666,8 +666,8 @@ public class MorphiumServerTest {
         int port2 = nextPort();
 
         // Start both servers
-        MorphiumServer primary = new MorphiumServer(port1, "localhost", 10, 1);
-        MorphiumServer secondary = new MorphiumServer(port2, "localhost", 10, 1);
+        PoppyDB primary = new PoppyDB(port1, "localhost", 10, 1);
+        PoppyDB secondary = new PoppyDB(port2, "localhost", 10, 1);
         var hosts = List.of("localhost:" + port1, "localhost:" + port2);
         var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
         primary.configureReplicaSet("rsOngoing", hosts, prio);
@@ -721,9 +721,9 @@ public class MorphiumServerTest {
         int port1 = nextPort();
         int port2 = nextPort();
         int port3 = nextPort();
-        MorphiumServer primary = new MorphiumServer(port1, "localhost", 10, 1);
-        MorphiumServer secondary = new MorphiumServer(port2, "localhost", 10, 1);
-        MorphiumServer lateJoiner = new MorphiumServer(port3, "localhost", 10, 1);
+        PoppyDB primary = new PoppyDB(port1, "localhost", 10, 1);
+        PoppyDB secondary = new PoppyDB(port2, "localhost", 10, 1);
+        PoppyDB lateJoiner = new PoppyDB(port3, "localhost", 10, 1);
         var hosts = List.of("localhost:" + port1, "localhost:" + port2, "localhost:" + port3);
         var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 200, "localhost:" + port3, 100);
         primary.configureReplicaSet("rsLateJoin", hosts, prio);

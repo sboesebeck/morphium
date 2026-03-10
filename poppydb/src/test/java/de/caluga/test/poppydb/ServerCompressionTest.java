@@ -1,4 +1,4 @@
-package de.caluga.test.morphium.server;
+package de.caluga.test.poppydb;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,11 +21,11 @@ import de.caluga.morphium.MorphiumConfig.CompressionType;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 /**
- * Tests for compression (SNAPPY, ZLIB) between morphium client and MorphiumServer.
+ * Tests for compression (SNAPPY, ZLIB) between morphium client and PoppyDB.
  * Verifies that compressed wire protocol messages are correctly handled end-to-end.
  */
 @Tag("server")
@@ -40,7 +40,7 @@ public class ServerCompressionTest {
         }
     }
 
-    private void startServer(MorphiumServer srv, int port) throws Exception {
+    private void startServer(PoppyDB srv, int port) throws Exception {
         srv.start();
         long deadline = System.currentTimeMillis() + 10_000;
         while (true) {
@@ -63,7 +63,7 @@ public class ServerCompressionTest {
     @Test
     public void testClientSnappyServerNoop() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60);
+        var srv = new PoppyDB(port, "localhost", 20, 60);
         startServer(srv, port);
 
         try {
@@ -106,7 +106,7 @@ public class ServerCompressionTest {
     @Test
     public void testClientNoopServerSnappy() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
+        var srv = new PoppyDB(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
         startServer(srv, port);
 
         try {
@@ -147,7 +147,7 @@ public class ServerCompressionTest {
     @Test
     public void testBothSnappy() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
+        var srv = new PoppyDB(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
         startServer(srv, port);
 
         try {
@@ -216,7 +216,7 @@ public class ServerCompressionTest {
     @Test
     public void testBothZlib() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_ZLIB);
+        var srv = new PoppyDB(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_ZLIB);
         startServer(srv, port);
 
         try {
@@ -256,7 +256,7 @@ public class ServerCompressionTest {
     @Test
     public void testClientSnappyServerZlib() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_ZLIB);
+        var srv = new PoppyDB(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_ZLIB);
         startServer(srv, port);
 
         try {
@@ -292,7 +292,7 @@ public class ServerCompressionTest {
     @Test
     public void testDriverLevelSnappy() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60);
+        var srv = new PoppyDB(port, "localhost", 20, 60);
         startServer(srv, port);
 
         try {
@@ -333,7 +333,7 @@ public class ServerCompressionTest {
     @Test
     public void testHelloResponseAdvertisesCompression() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
+        var srv = new PoppyDB(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
         startServer(srv, port);
 
         try {
@@ -376,7 +376,7 @@ public class ServerCompressionTest {
     @Test
     public void testConcurrentSnappyConnections() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 100, 60, OpCompressed.COMPRESSOR_SNAPPY);
+        var srv = new PoppyDB(port, "localhost", 100, 60, OpCompressed.COMPRESSOR_SNAPPY);
         startServer(srv, port);
 
         try {
@@ -437,7 +437,7 @@ public class ServerCompressionTest {
     @Test
     public void testLargeDocumentSnappy() throws Exception {
         int port = nextPort();
-        var srv = new MorphiumServer(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
+        var srv = new PoppyDB(port, "localhost", 20, 60, OpCompressed.COMPRESSOR_SNAPPY);
         startServer(srv, port);
 
         try {

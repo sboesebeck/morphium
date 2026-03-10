@@ -1,4 +1,4 @@
-package de.caluga.test;
+package de.caluga.test.poppydb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -34,7 +34,7 @@ import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -44,9 +44,9 @@ public class FailoverTests {
     private Logger log = LoggerFactory.getLogger(FailoverTests.class);
     @Test
     public void pooledDriverPrimaryChangeTest() throws Exception {
-        MorphiumServer srv1 = new MorphiumServer(16016, "127.0.0.1", 1000, 10);
-        MorphiumServer srv2 = new MorphiumServer(16017, "127.0.0.1", 1000, 10);
-        MorphiumServer srv3 = new MorphiumServer(16018, "127.0.0.1", 1000, 10);
+        PoppyDB srv1 = new PoppyDB(16016, "127.0.0.1", 1000, 10);
+        PoppyDB srv2 = new PoppyDB(16017, "127.0.0.1", 1000, 10);
+        PoppyDB srv3 = new PoppyDB(16018, "127.0.0.1", 1000, 10);
         var servers = List.of(srv1, srv2, srv3);
         try {
             for (var srv : servers) {
@@ -58,7 +58,7 @@ public class FailoverTests {
             }
 
             log.info("Waiting for initial primary");
-            AtomicReference<MorphiumServer> primary = new AtomicReference<>();
+            AtomicReference<PoppyDB> primary = new AtomicReference<>();
             TestUtils.waitForConditionToBecomeTrue(15000, "No primary elected", () -> {
                 for (var srv : servers) {
                     if (srv.isPrimary()) {
@@ -110,7 +110,7 @@ public class FailoverTests {
             primary.get().shutdown(); //forcing failover
 
             log.info("Waiting for new primary to be elected");
-            AtomicReference<MorphiumServer> newPrimary = new AtomicReference<>();
+            AtomicReference<PoppyDB> newPrimary = new AtomicReference<>();
             var remainingServers = servers.stream().filter(s -> s != primary.get()).toList();
             TestUtils.waitForConditionToBecomeTrue(15000, "No new primary elected after failover", () -> {
                 for (var srv : remainingServers) {
