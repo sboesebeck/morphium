@@ -376,13 +376,13 @@ function _pdb_ensure_cluster() {
   done <<<"$hostports"
 
   if [ "$all_ok" -eq 1 ]; then
-    if [ "${startMorphiumserverLocal:-0}" -eq 1 ] && [ "${poppydbLocalStarted:-${morphiumserverLocalStarted:-0}}" -ne 1 ]; then
+    if [ "${startPoppydbLocal:-${startMorphiumserverLocal:-0}}" -eq 1 ] && [ "${poppydbLocalStarted:-${morphiumserverLocalStarted:-0}}" -ne 1 ]; then
       echo -e "${YL}Warning:${CL} Local cluster already listening for ${GN}${uri_in}${CL} - not auto-starting PoppyDB."
     fi
     return 0
   fi
 
-  if [ "${startMorphiumserverLocal:-0}" -eq 1 ]; then
+  if [ "${startPoppydbLocal:-${startMorphiumserverLocal:-0}}" -eq 1 ]; then
     _pdb_start_cluster "$uri_in" "rs0" || return 1
     return 0
   fi
@@ -391,8 +391,8 @@ function _pdb_ensure_cluster() {
   echo -e "  ${GN}${uri_in}${CL}"
   echo -e ""
   echo -e "Start it first (MongoDB or PoppyDB), or to auto-start PoppyDB use:"
-  echo -e "  ${BL}./runtests.sh --morphium-server ...${CL}  (single node, recommended)"
-  echo -e "  ${BL}./runtests.sh --morphium-server-replicaset ...${CL}  (3-node replica set)"
+  echo -e "  ${BL}./runtests.sh --poppydb ...${CL}  (single node, recommended)"
+  echo -e "  ${BL}./runtests.sh --poppydb-replicaset ...${CL}  (3-node replica set)"
   echo -e ""
   echo -e "Tip: check ports and PoppyDB logs under ${GN}${poppydbLocalPidDir:-${morphiumserverLocalPidDir:-.poppydb-local}}/logs/${CL}"
   exit 1
