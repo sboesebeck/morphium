@@ -234,7 +234,7 @@ do_rollback() {
 
 	# Find the latest v* tag (excluding -rolled-back tags)
 	local last_tag
-	last_tag=$(git tag -l 'v*' --sort=-v:refname | grep -v '\-rolled-back$' | head -n1)
+	last_tag=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -v '\-rolled-back$' | head -n1)
 
 	if [ -z "$last_tag" ]; then
 		log_error "No release tag found to roll back"
