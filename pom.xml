@@ -140,7 +140,7 @@
             <autoVersionSubmodules>true</autoVersionSubmodules>
             <releaseProfiles>release-sign-artifacts</releaseProfiles>
             <preparationGoals>clean install -DskipTests</preparationGoals>
-            <arguments>-Dmaven.javadoc.skip=false -Dmaven.test.skip=true</arguments>
+            <arguments>-Dmaven.javadoc.skip=false -DskipTests</arguments>
           </configuration>
         </plugin>
       </plugins>
