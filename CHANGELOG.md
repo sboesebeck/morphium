@@ -67,7 +67,7 @@ public class Order {
 }
 ```
 - Works with `store()`, `set()`, and bulk operations
-- Supported by PooledDriver, InMemoryDriver, and MorphiumServer
+- Supported by PooledDriver, InMemoryDriver, and PoppyDB
 - `VersionMismatchException` propagates cleanly without being wrapped in retry logic
 
 #### MONGODB-X509 client-certificate authentication

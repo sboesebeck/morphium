@@ -103,7 +103,7 @@ PoppyDB provides a MongoDB-compatible server backed by InMemoryDriver:
 
 ```bash
 # Start server
-mvn exec:java -Dexec.mainClass="de.caluga.morphium.server.PoppyDBCLI" \
+mvn exec:java -Dexec.mainClass="de.caluga.poppydb.PoppyDBCLI" \
     -Dexec.args="-p 17017"
 
 # Connect Morphium

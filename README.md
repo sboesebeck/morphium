@@ -90,7 +90,7 @@ try {
 
 See `docs/howtos/optimistic-locking.md` for the full guide.
 
-## 🚀 What’s New in v6.1
+## 🚀 What’s New in v6.2
 
 ### PoppyDB (formerly MorphiumServer) – The "Drop-in" Replacement
 Morphium 6.2 extracts the server into its own module `de.caluga:poppydb` and renames it to **PoppyDB**:

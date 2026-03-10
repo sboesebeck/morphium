@@ -49,10 +49,10 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 - Production-Deployment: `docs/production-deployment-guide.md`
 - Monitoring & Troubleshooting: `docs/monitoring-metrics-guide.md`
 
-## 🚀 Neu in Version 6.1
+## 🚀 Neu in Version 6.2
 
 ### PoppyDB – Der "Drop-in"-Ersatz
-Morphium 6.1 macht **PoppyDB** (ehemals MorphiumServer) zu einem echten "Drop-in"-Ersatz für MongoDB in Entwicklungs- und Testumgebungen:
+Morphium 6.2 macht **PoppyDB** (ehemals MorphiumServer) zu einem echten "Drop-in"-Ersatz für MongoDB in Entwicklungs- und Testumgebungen:
 - ✅ **Volle Wire-Protocol-Unterstützung**: Verwendung jedes Standard-MongoDB-Clients (mongosh, Compass, etc.)
 - ✅ **CLI-Tooling**: Eigener `poppydb-cli` für einfache Bereitstellung
 - ✅ **Replica-Set-Emulation**: Testen von Multi-Node-Cluster-Verhalten ohne echtes MongoDB
