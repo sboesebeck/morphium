@@ -24,6 +24,8 @@ set -eo pipefail
 #   --auto-publish     Automatically publish to Maven Central after validation
 #   --deploy-docs      Deploy documentation to gh-pages after release
 #   --rollback         Roll back the last release (renames tag, resets branches)
+#   --reset            Emergency reset: clean up release leftovers, align all
+#                      module versions to develop, remove dangling tags
 #   --help             Show this help message
 #
 # Prerequisites:
@@ -45,6 +47,7 @@ DRY_RUN=false
 AUTO_PUBLISH=false
 DEPLOY_DOCS=false
 ROLLBACK=false
+RESET=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -67,6 +70,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--rollback)
 		ROLLBACK=true
+		shift
+		;;
+	--reset)
+		RESET=true
 		shift
 		;;
 	--help)
@@ -337,6 +344,105 @@ do_rollback() {
 
 if [ "$ROLLBACK" = true ]; then
 	do_rollback
+fi
+
+# -----------------------------------------------------------------------------
+# Reset handler — emergency cleanup for broken state
+# -----------------------------------------------------------------------------
+
+do_reset() {
+	log_step "Emergency reset — cleaning up release state"
+
+	local branch
+	branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+	log_info "Current branch: $branch"
+
+	# 1. Clean up release leftovers
+	log_info "Removing release leftovers..."
+	rm -f release.properties pom.xml.releaseBackup 2>/dev/null || true
+	rm -f morphium-core/pom.xml.releaseBackup poppydb/pom.xml.releaseBackup 2>/dev/null || true
+	mvn release:clean -q 2>/dev/null || true
+	log_success "Release leftovers cleaned"
+
+	# 2. Detect expected version from develop branch
+	local develop_version
+	develop_version=$(git show develop:pom.xml 2>/dev/null | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+
+	if [ -z "$develop_version" ]; then
+		log_error "Cannot determine version from develop branch"
+		exit 1
+	fi
+
+	log_info "Develop branch version: $develop_version"
+
+	# 3. Check current module versions
+	local parent_ver core_ver poppy_ver
+	parent_ver=$(grep '<version>' pom.xml | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+	core_ver=$(grep '<version>' morphium-core/pom.xml | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+	poppy_ver=$(grep '<version>' poppydb/pom.xml | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+
+	log_info "Current versions: parent=$parent_ver core=$core_ver poppydb=$poppy_ver"
+
+	if [ "$parent_ver" != "$develop_version" ] || [ "$core_ver" != "$develop_version" ] || [ "$poppy_ver" != "$develop_version" ]; then
+		log_warn "Versions are out of sync — resetting all to $develop_version"
+		mvn versions:set -DnewVersion="$develop_version" -DgenerateBackupPoms=false -q
+		rm -f pom.xml.versionsBackup morphium-core/pom.xml.versionsBackup poppydb/pom.xml.versionsBackup 2>/dev/null || true
+		log_success "All modules set to $develop_version"
+	else
+		log_success "All module versions already aligned at $develop_version"
+	fi
+
+	# 4. Find and report dangling tags (released versions without matching SNAPSHOT)
+	local snap_base="${develop_version%-SNAPSHOT}"
+	local dangling_tag
+	dangling_tag=$(git tag -l "v${snap_base}" 2>/dev/null)
+	local rolled_back_tag
+	rolled_back_tag=$(git tag -l "v${snap_base}-rolled-back" 2>/dev/null)
+
+	if [ -n "$dangling_tag" ]; then
+		log_warn "Found tag $dangling_tag for current SNAPSHOT version"
+		if confirm "Delete tag $dangling_tag (local + remote)?"; then
+			git tag -d "$dangling_tag" 2>/dev/null || true
+			git push --delete origin "$dangling_tag" 2>/dev/null || true
+			log_success "Deleted tag $dangling_tag"
+		fi
+	fi
+
+	if [ -n "$rolled_back_tag" ]; then
+		log_warn "Found rolled-back tag $rolled_back_tag"
+		if confirm "Delete tag $rolled_back_tag (local + remote)?"; then
+			git tag -d "$rolled_back_tag" 2>/dev/null || true
+			git push --delete origin "$rolled_back_tag" 2>/dev/null || true
+			log_success "Deleted tag $rolled_back_tag"
+		fi
+	fi
+
+	# 5. Check for uncommitted version changes
+	if ! git diff --quiet -- '*/pom.xml' pom.xml 2>/dev/null; then
+		log_info "POM files were modified:"
+		git diff --stat -- '*/pom.xml' pom.xml
+		echo ""
+		if confirm "Stage and commit the version fixes?"; then
+			git add pom.xml morphium-core/pom.xml poppydb/pom.xml
+			git commit -m "Reset: align all module versions to $develop_version"
+			log_success "Version fix committed"
+		fi
+	fi
+
+	# 6. Summary
+	log_step "Reset complete"
+	echo ""
+	echo "  All modules: $develop_version"
+	echo "  Branch: $(git symbolic-ref --short HEAD)"
+	echo "  Release leftovers: cleaned"
+	echo ""
+	echo "  You can now try the release again."
+	echo ""
+	exit 0
+}
+
+if [ "$RESET" = true ]; then
+	do_reset
 fi
 
 # -----------------------------------------------------------------------------
