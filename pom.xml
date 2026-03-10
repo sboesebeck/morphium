@@ -21,7 +21,7 @@
     <url>https://github.com/sboesebeck/morphium</url>
     <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
     <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-    <tag>v6.1.9</tag>
+    <tag>v6.2.0</tag>
   </scm>
   <developers>
     <developer>
@@ -139,7 +139,8 @@
             <tagNameFormat>v@{project.version}</tagNameFormat>
             <autoVersionSubmodules>true</autoVersionSubmodules>
             <releaseProfiles>release-sign-artifacts</releaseProfiles>
-            <arguments>-Dmaven.javadoc.skip=false -Dmaven.test.skipTests=true -Dmaven.test.skip=true</arguments>
+            <preparationGoals>clean install -DskipTests</preparationGoals>
+            <arguments>-Dmaven.javadoc.skip=false -Dmaven.test.skip=true</arguments>
           </configuration>
         </plugin>
       </plugins>
