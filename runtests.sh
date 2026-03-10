@@ -920,6 +920,8 @@ else
 	testMethods3=$(safe_grep_count '@MethodSource\("getMorphiumInstances"\)' "$p" "$filesList")
 	testMethods2=$(safe_grep_count '@MethodSource\("getMorphiumInstancesNo.*"\)' "$p" "$filesList")
 	testMethods1=$(safe_grep_count '@MethodSource\("getMorphiumInstances.*Only"\)' "$p" "$filesList")
+	# Base count = number of @Test/@ParameterizedTest annotations (each runs once per driver)
+	echo "$testMethods" > "$TEST_TMP_DIR/testMethodsBase"
 	((testMethods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
 	echo "$testMethods" > "$TEST_TMP_DIR/testMethods"
 fi
