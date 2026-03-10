@@ -112,9 +112,9 @@ function cleanup_test_databases() {
 
 function quitting() {
 
-	# Stop a locally started MorphiumServer cluster (if any) before tearing down logs/state.
-	if type _ms_local_cleanup >/dev/null 2>&1; then
-		_ms_local_cleanup
+	# Stop a locally started PoppyDB cluster (if any) before tearing down logs/state.
+	if type _pdb_cleanup >/dev/null 2>&1; then
+		_pdb_cleanup
 	fi
 
 	# Clean up test databases on abort (only morphium_test* databases)
@@ -234,14 +234,14 @@ useExternal=0
 rerunfailed=0
 explicitRestart=0
 showStats=0
-morphiumserverLocalMode=0
-startMorphiumserverLocal=0
-morphiumserverSingleNode=0
-morphiumserverLocalStarted=0
-morphiumserverLocalPidDir=".morphiumserver-local"
-# Connection management for MorphiumServer (auto-calculated from --parallel if not set)
-morphiumserverMaxConnections=""
-morphiumserverSocketTimeout=""
+poppydbLocalMode=0
+startPoppydbLocal=0
+poppydbSingleNode=0
+poppydbLocalStarted=0
+poppydbLocalPidDir=".poppydb-local"
+# Connection management for PoppyDB (auto-calculated from --parallel if not set)
+poppydbMaxConnections=""
+poppydbSocketTimeout=""
 testname=""    # Stores the class pattern from --test
 methodname="." # Stores the method pattern from --test (defaults to all methods)
 
@@ -271,13 +271,12 @@ while [ "q$1" != "q" ]; do
 		echo -e "${BL}--authdb$CL ${GN}DATABASE$CL - authentication DB"
 		echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal profile)"
 		echo -e "                     ${YL}NOTE:${CL} This option is for tests that require a real MongoDB instance."
-		echo -e "${BL}--morphium-server$CL    - start single MorphiumServer on localhost:17017"
-		echo -e "${BL}--morphium-server-replicaset$CL - start 3-node MorphiumServer replica set (17017-17019)"
+		echo -e "${BL}--poppydb$CL              - start single PoppyDB on localhost:17017"
+		echo -e "${BL}--poppydb-replicaset$CL   - start 3-node PoppyDB replica set (17017-17019)"
 		echo -e "                     ${YL}NOTE:${CL} Replica set mode has limited data sync - prefer single node for testing"
-		echo -e "${BL}--morphiumserver-local | --localhost-rs$CL - (deprecated) alias for --morphium-server-replicaset"
 		echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
-		echo -e "${BL}--max-connections$CL ${GN}N$CL - MorphiumServer max connections (default: auto from --parallel)"
-		echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - MorphiumServer socket timeout in seconds (default: 30)"
+		echo -e "${BL}--max-connections$CL ${GN}N$CL - PoppyDB max connections (default: auto from --parallel)"
+		echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - PoppyDB socket timeout in seconds (default: 30)"
 		echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
 		echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
 		echo -e "${BL}--test$CL ${GN}PATTERN$CL - Specify a pattern to run only matching test classes or methods (e.g., 'CacheTests', 'CacheTests#testCacheEntry')"
@@ -302,8 +301,8 @@ while [ "q$1" != "q" ]; do
 		echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
 		echo -e "  ${BL}./runtests.sh --driver all${CL}                   # Run tests with all available drivers"
 		echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
-		echo -e "  ${BL}./runtests.sh --morphium-server${CL}             # Single-node MorphiumServer (recommended)"
-		echo -e "  ${BL}./runtests.sh --morphium-server-replicaset${CL}  # 3-node MorphiumServer replica set"
+		echo -e "  ${BL}./runtests.sh --poppydb${CL}                      # Single-node PoppyDB (recommended)"
+		echo -e "  ${BL}./runtests.sh --poppydb-replicaset${CL}          # 3-node PoppyDB replica set"
 		echo
 		echo -e "${YL}Parallel Examples:${CL}"
 		echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
@@ -383,17 +382,17 @@ while [ "q$1" != "q" ]; do
 		fi
 	elif [ "q$1" == "q--max-connections" ]; then
 		shift
-		morphiumserverMaxConnections=$1
+		poppydbMaxConnections=$1
 		shift
-		if ! [[ "$morphiumserverMaxConnections" =~ ^[0-9]+$ ]] || [ "$morphiumserverMaxConnections" -lt 10 ]; then
+		if ! [[ "$poppydbMaxConnections" =~ ^[0-9]+$ ]] || [ "$poppydbMaxConnections" -lt 10 ]; then
 			echo -e "${RD}Error: --max-connections must be a number >= 10${CL}"
 			exit 1
 		fi
 	elif [ "q$1" == "q--socket-timeout" ]; then
 		shift
-		morphiumserverSocketTimeout=$1
+		poppydbSocketTimeout=$1
 		shift
-		if ! [[ "$morphiumserverSocketTimeout" =~ ^[0-9]+$ ]] || [ "$morphiumserverSocketTimeout" -lt 5 ]; then
+		if ! [[ "$poppydbSocketTimeout" =~ ^[0-9]+$ ]] || [ "$poppydbSocketTimeout" -lt 5 ]; then
 			echo -e "${RD}Error: --socket-timeout must be a number >= 5 (seconds)${CL}"
 			exit 1
 		fi
@@ -408,10 +407,10 @@ while [ "q$1" != "q" ]; do
 	elif [ "q$1" == "q--external" ]; then
 		useExternal=1
 		shift
-	elif [ "q$1" == "q--morphium-server" ]; then
-		# Single-node MorphiumServer on localhost:17017 (recommended for testing)
-		startMorphiumserverLocal=1
-		morphiumserverSingleNode=1
+	elif [ "q$1" == "q--poppydb" ]; then
+		# Single-node PoppyDB on localhost:17017 (recommended for testing)
+		startPoppydbLocal=1
+		poppydbSingleNode=1
 		useExternal=1
 		if [ -z "$uri" ]; then
 			uri="mongodb://localhost:17017/morphium_tests"
@@ -420,11 +419,11 @@ while [ "q$1" != "q" ]; do
 			driver="pooled"
 		fi
 		shift
-	elif [ "q$1" == "q--morphium-server-replicaset" ] || [ "q$1" == "q--start-morphiumserver-local" ]; then
-		# 3-node MorphiumServer replica set on 17017-27019
+	elif [ "q$1" == "q--poppydb-replicaset" ]; then
+		# 3-node PoppyDB replica set on 17017-17019
 		# Note: Each node has isolated InMemoryDriver - limited data sync between nodes
-		startMorphiumserverLocal=1
-		morphiumserverSingleNode=0
+		startPoppydbLocal=1
+		poppydbSingleNode=0
 		useExternal=1
 		if [ -z "$uri" ]; then
 			uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
@@ -433,11 +432,24 @@ while [ "q$1" != "q" ]; do
 			driver="pooled"
 		fi
 		shift
-	elif [ "q$1" == "q--localhost-rs" ] || [ "q$1" == "q--morphiumserver-local" ]; then
-		# Deprecated aliases for --morphium-server-replicaset
-		echo -e "${YL}Warning:${CL} $1 is deprecated, use --morphium-server or --morphium-server-replicaset instead"
-		startMorphiumserverLocal=1
-		morphiumserverSingleNode=0
+	elif [ "q$1" == "q--morphium-server" ]; then
+		# Deprecated alias for --poppydb
+		echo -e "${YL}Warning:${CL} --morphium-server is deprecated, use --poppydb instead"
+		startPoppydbLocal=1
+		poppydbSingleNode=1
+		useExternal=1
+		if [ -z "$uri" ]; then
+			uri="mongodb://localhost:17017/morphium_tests"
+		fi
+		if [ -z "$driver" ]; then
+			driver="pooled"
+		fi
+		shift
+	elif [ "q$1" == "q--morphium-server-replicaset" ] || [ "q$1" == "q--start-morphiumserver-local" ] || [ "q$1" == "q--localhost-rs" ] || [ "q$1" == "q--morphiumserver-local" ]; then
+		# Deprecated aliases for --poppydb-replicaset
+		echo -e "${YL}Warning:${CL} $1 is deprecated, use --poppydb-replicaset instead"
+		startPoppydbLocal=1
+		poppydbSingleNode=0
 		useExternal=1
 		if [ -z "$uri" ]; then
 			uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
@@ -571,26 +583,26 @@ if [ "$driver" == "inmem" ]; then
 	echo -e "${BL}Info:${CL} InMemory driver selected - automatically excluding 'external' tagged tests"
 fi
 
-# If requested, ensure a local MorphiumServer cluster is reachable (and optionally start it).
-if [ "$startMorphiumserverLocal" -eq 1 ]; then
+# If requested, ensure a local PoppyDB cluster is reachable (and optionally start it).
+if [ "$startPoppydbLocal" -eq 1 ]; then
 	useExternal=1
 fi
 
-if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$uri" ]; then
+if [ "$startPoppydbLocal" -eq 1 ] && [ -z "$uri" ]; then
 	uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
 fi
 
-if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$driver" ]; then
+if [ "$startPoppydbLocal" -eq 1 ] && [ -z "$driver" ]; then
 	driver="pooled"
 fi
 
-if [ "$morphiumserverLocalMode" -eq 1 ] || [ "$startMorphiumserverLocal" -eq 1 ]; then
-	_ms_local_ensure_cluster "$uri"
+if [ "$poppydbLocalMode" -eq 1 ] || [ "$startPoppydbLocal" -eq 1 ]; then
+	_pdb_ensure_cluster "$uri"
 fi
 
-# Auto-exclude failover tests when using MorphiumServer
-# (MorphiumServer doesn't support StepDownCommand for failover testing)
-if [ "$startMorphiumserverLocal" -eq 1 ]; then
+# Auto-exclude failover tests when using PoppyDB
+# (PoppyDB doesn't support StepDownCommand for failover testing)
+if [ "$startPoppydbLocal" -eq 1 ]; then
 	if [ -z "$excludeTags" ]; then
 		excludeTags="failover"
 	else
@@ -598,7 +610,7 @@ if [ "$startMorphiumserverLocal" -eq 1 ]; then
 			excludeTags="$excludeTags,failover"
 		fi
 	fi
-	echo -e "${BL}Info:${CL} MorphiumServer selected - automatically excluding 'failover' tagged tests"
+	echo -e "${BL}Info:${CL} PoppyDB selected - automatically excluding 'failover' tagged tests"
 fi
 
 # Handle --rerunfailed option early to bypass interactive prompts
@@ -720,7 +732,7 @@ fi
 # trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
-trap _ms_local_cleanup EXIT
+trap _pdb_cleanup EXIT
 
 # After argument parsing, ensure p and m are set correctly based on testname and methodname
 if [ -n "$testname" ]; then
@@ -956,10 +968,10 @@ if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=tru
 if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
 
 # Increase connection pool for parallel tests
-# MorphiumServer uses NIO so can handle many connections efficiently
+# PoppyDB uses NIO so can handle many connections efficiently
 # AsyncOperationTest alone uses 1134+ connections, messaging tests need many more for parallel ops
 if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
-	if [ "$startMorphiumserverLocal" -eq 1 ]; then
+	if [ "$startPoppydbLocal" -eq 1 ]; then
 		pool_size=$((2000 + parallel * 500)) # Base 2000 + 500 per parallel slot (matches server side)
 	else
 		# For real MongoDB with replica set, need more connections since all writes go to primary
