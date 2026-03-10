@@ -441,13 +441,66 @@ fi
 # -----------------------------------------------------------------------------
 
 if [ "$DRY_RUN" = true ]; then
+	log_step "Dry run: building and creating bundle (no tag, no upload)"
+
+	version="$release_version"
+
+	# Build everything
+	log_info "Building all modules..."
+	mvn clean package verify -DskipTests -Dmaven.javadoc.failOnError=false || {
+		log_error "Package failed"
+		exit 1
+	}
+	log_success "All modules built"
+
+	# Create bundle (same as real release)
+	BUNDLE_DIR="$(pwd)/target/bundle-staging"
+	mkdir -p "$BUNDLE_DIR"
+
+	log_info "Adding morphium-parent..."
+	parent_repo="${BUNDLE_DIR}/de/caluga/morphium-parent/${version}"
+	mkdir -p "$parent_repo"
+	cp pom.xml "${parent_repo}/morphium-parent-${version}.pom"
+	sign_file "${parent_repo}/morphium-parent-${version}.pom"
+	checksum_file "${parent_repo}/morphium-parent-${version}.pom"
+
+	log_info "Adding morphium..."
+	morphium_repo="${BUNDLE_DIR}/de/caluga/morphium/${version}"
+	mkdir -p "$morphium_repo"
+	cp morphium-core/pom.xml "${morphium_repo}/morphium-${version}.pom"
+	cp morphium-core/target/morphium-${version}-SNAPSHOT.jar "${morphium_repo}/morphium-${version}.jar" 2>/dev/null \
+		|| cp morphium-core/target/morphium-${version}.jar "${morphium_repo}/" 2>/dev/null || true
+	cp morphium-core/target/morphium-${version}-SNAPSHOT-sources.jar "${morphium_repo}/morphium-${version}-sources.jar" 2>/dev/null \
+		|| cp morphium-core/target/morphium-${version}-sources.jar "${morphium_repo}/" 2>/dev/null || true
+	cp morphium-core/target/morphium-${version}-SNAPSHOT-javadoc.jar "${morphium_repo}/morphium-${version}-javadoc.jar" 2>/dev/null \
+		|| cp morphium-core/target/morphium-${version}-javadoc.jar "${morphium_repo}/" 2>/dev/null || true
+
+	log_info "Adding poppydb..."
+	poppydb_repo="${BUNDLE_DIR}/de/caluga/poppydb/${version}"
+	mkdir -p "$poppydb_repo"
+	cp poppydb/pom.xml "${poppydb_repo}/poppydb-${version}.pom"
+	cp poppydb/target/poppydb-${version}-SNAPSHOT.jar "${poppydb_repo}/poppydb-${version}.jar" 2>/dev/null \
+		|| cp poppydb/target/poppydb-${version}.jar "${poppydb_repo}/" 2>/dev/null || true
+	cp poppydb/target/poppydb-${version}-SNAPSHOT-sources.jar "${poppydb_repo}/poppydb-${version}-sources.jar" 2>/dev/null \
+		|| cp poppydb/target/poppydb-${version}-sources.jar "${poppydb_repo}/" 2>/dev/null || true
+	cp poppydb/target/poppydb-${version}-SNAPSHOT-javadoc.jar "${poppydb_repo}/poppydb-${version}-javadoc.jar" 2>/dev/null \
+		|| cp poppydb/target/poppydb-${version}-javadoc.jar "${poppydb_repo}/" 2>/dev/null || true
+	cp poppydb/target/poppydb-${version}-SNAPSHOT-cli.jar "${poppydb_repo}/poppydb-${version}-cli.jar" 2>/dev/null \
+		|| cp poppydb/target/poppydb-${version}-cli.jar "${poppydb_repo}/" 2>/dev/null || true
+
+	bundle_file="target/bundle-${version}.jar"
+	(cd "$BUNDLE_DIR" && zip -q -r "$(pwd)/../bundle-${version}.jar" de/)
+
 	log_step "Dry run complete"
 	echo ""
 	echo "Would release version: $release_version"
 	echo "  Modules: morphium-parent, morphium, poppydb"
 	echo "  From branch: $branch"
-	echo "  Auto-publish: $AUTO_PUBLISH"
-	echo "  Single combined Sonatype bundle"
+	echo ""
+	echo "Bundle contents:"
+	(cd "$BUNDLE_DIR" && find de/ -type f | sort)
+	echo ""
+	echo "Bundle size: $(du -h "$bundle_file" | cut -f1)"
 	echo ""
 	echo "Run without --dry-run to perform actual release"
 	exit 0
