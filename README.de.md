@@ -17,7 +17,7 @@ Morphium ist eine umfassende Datenschicht-Lösung für MongoDB mit:
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## 🎯 Warum Morphium?
-
+ 
 **Einzigartig:** Morphium bietet **verteiltes Messaging ohne zusätzliche Infrastruktur**. Wenn Sie bereits MongoDB nutzen, haben Sie alles was Sie brauchen – kein RabbitMQ, Kafka oder ActiveMQ erforderlich.
 
 ### Schnellvergleich
