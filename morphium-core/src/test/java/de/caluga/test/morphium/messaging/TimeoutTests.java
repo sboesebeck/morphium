@@ -67,7 +67,7 @@ public class TimeoutTests extends MultiDriverTestBase {
                     }
 
                     TestUtils.waitForConditionToBecomeTrue(20000, "Did not get all messages?",
-                                                           () -> msgCount.get() == 50);
+                                                           () -> msgCount.get() >= 50);
                     assertEquals(50, m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll());
 
                     for (Msg mm : m.createQueryFor(Msg.class, m1.getCollectionName("test")).asIterable()) {

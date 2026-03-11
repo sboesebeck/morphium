@@ -24,10 +24,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag("messaging")
 public class AnsweringBasicTests extends MultiDriverTestBase {
-    public boolean gotMessage1 = false;
-    public boolean gotMessage2 = false;
-    public boolean gotMessage3 = false;
-    public boolean error = false;
+    public volatile boolean gotMessage1 = false;
+    public volatile boolean gotMessage2 = false;
+    public volatile boolean gotMessage3 = false;
+    public volatile boolean error = false;
     public MorphiumId lastMsgId;
 
     @ParameterizedTest

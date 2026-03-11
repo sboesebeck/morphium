@@ -41,10 +41,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Tag("cache")
 @Tag("slow")  // May be flaky under high parallel load - uses caching with timing-sensitive operations
 public class CacheSyncTest extends MultiDriverTestBase {
-    private boolean preSendClear = false;
-    private boolean postSendClear = false;
-    private boolean preClear = false;
-    private boolean postclear = false;
+    private volatile boolean preSendClear = false;
+    private volatile boolean postSendClear = false;
+    private volatile boolean preClear = false;
+    private volatile boolean postclear = false;
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
