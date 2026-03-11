@@ -1,0 +1,123 @@
+# Test Runner (`runtests.sh`)
+
+Morphium ships with a repository-local test runner script `./runtests.sh` that makes it easier to:
+
+- run the suite with different drivers (`pooled`, `single`, `inmem`)
+- run against a real MongoDB via `--uri`
+- run in parallel (`--parallel N`) with per-slot database isolation
+- rerun only failing tests (`--rerunfailed`)
+
+## Common Commands
+
+### Real MongoDB (pooled driver)
+
+Run the full suite against an external replica set:
+
+```bash
+./runtests.sh --driver pooled --uri mongodb://mongo1.example,mongo2.example/morphium_tests --exclude-tags server,inmemory --parallel 2 --restart
+```
+
+Notes:
+- Use `--restart` to wipe `test.log/` and start fresh.
+- Use `--exclude-tags server` to skip PoppyDB-specific tests when you only want MongoDB.
+- Use `--exclude-tags inmemory` if you want to avoid in-memory-only suites.
+
+### InMemoryDriver (fast local)
+
+```bash
+./runtests.sh --driver inmem --parallel 4 --restart
+```
+
+### Rerun only failed tests
+
+```bash
+./runtests.sh --rerunfailed --parallel 2
+```
+
+## Local Cluster (localhost)
+
+If you have a replica set running locally on `localhost:27017,localhost:27018,localhost:27019` (MongoDB or PoppyDB), use:
+
+```bash
+./runtests.sh --poppydb --parallel 2 --restart
+```
+
+This mode sets:
+- `--driver pooled`
+- `--uri mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests`
+
+The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start PoppyDB:
+
+```bash
+./runtests.sh --poppydb --start-poppydb-local --parallel 2 --restart
+```
+
+To keep the locally started cluster running after the test run:
+
+```bash
+./runtests.sh --poppydb --start-poppydb-local --keep-poppydb-local --parallel 2 --restart
+```
+
+Note: The old flags `--morphiumserver-local`, `--start-morphiumserver-local`, and `--keep-morphiumserver-local` are deprecated aliases and still work for backward compatibility.
+
+When auto-start is used, PoppyDB logs are written to `.poppydb-local/logs/`.
+
+Note: `--start-poppydb-local` is idempotent. If something is already listening (MongoDB or another PoppyDB), the runner will just use it.
+`--allow-existing-localhost-rs` is deprecated and has no effect.
+
+If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
+
+```bash
+./runtests.sh --poppydb --exclude-tags server --parallel 2 --restart
+```
+
+## Debugging Failures
+
+- Aggregated logs are written to `test.log/<fully.qualified.Test>.log`.
+- Slot logs are written to `test.log/slot_<N>/` during parallel runs.
+- Use `./runtests.sh --stats` for a live overview (slots running, failures, progress).
+
+## Parallel Execution Details
+
+With `--parallel N`, the runner assigns each slot its own database prefix via `-Dmorphium.database=morphium_test_<slot>`.
+This prevents different JVMs from dropping or overwriting each other’s data during heavy parallel suites.
+
+If you run tests manually with Maven, it’s recommended to set an explicit DB as well:
+
+```bash
+mvn -Pexternal -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://... -Dmorphium.database=morphium_test_manual test
+```
+
+## Headless VM Testing
+
+For running the full test matrix on a dedicated VM (e.g., Proxmox):
+
+### Setup
+
+1. Create Ubuntu 24.04 VM (4 CPU, 8 GB RAM minimum)
+2. Run provisioning: `sudo bash ci/setup-testvm.sh`
+3. Set API key: edit `/home/morphium-test/.claude_env`
+4. Update git remote if needed
+
+### Deploy scripts
+
+```bash
+./ci/deploy-to-vm.sh testrunner.fritz.box
+```
+
+### Run tests
+
+```bash
+ssh morphium-test@testrunner.fritz.box "~/run-morphium-tests.sh"
+```
+
+### View results
+
+Open `http://testrunner.fritz.box:8080/` in your browser.
+
+The test orchestration runs three phases sequentially:
+1. InMemDriver (fast, no external deps)
+2. MongoDB Replica Set (mongo1 + mongo2)
+3. PoppyDB Replica Set (local, 3 nodes)
+
+Claude Code analyzes failures and generates a detailed HTML report.
