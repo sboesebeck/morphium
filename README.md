@@ -439,7 +439,6 @@ Organizations run Morphium in production for:
 ## 🤝 Community & Contribution
 
 ### Stay in touch
-- **Slack**: [Team Morphium](https://join.slack.com/t/team-morphium/shared_invite/enQtMjgwODMzMzEzMTU5LTA1MjdmZmM5YTM3NjRmZTE2ZGE4NDllYTA0NTUzYjU2MzkxZTJhODlmZGQ2MThjMGY0NmRkMWE1NDE2YmQxYjI)
 - **Blog**: https://caluga.de
 - **GitHub**: [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
 - **Issues**: Report bugs or request features on GitHub
