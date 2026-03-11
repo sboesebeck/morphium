@@ -34,10 +34,10 @@
 | Backend | Throughput | Latency | vs MongoDB |
 |---------|------------|---------|------------|
 | **MongoDB** (3-node replica set) | 89 msgs/sec | 11.28 ms | 1x |
-| **MorphiumServer** | 223 msgs/sec | 4.47 ms | **2.5x faster** |
+| **PoppyDB** | 223 msgs/sec | 4.47 ms | **2.5x faster** |
 | **InMemory Driver** (direct) | 281 msgs/sec | 3.56 ms | **3.2x faster** |
 
-> **Key insight:** MorphiumServer is 2.5x faster than real MongoDB for messaging tests!
+> **Key insight:** PoppyDB is 2.5x faster than real MongoDB for messaging tests!
 
 ### $in Query: Indexed vs Non-Indexed
 
@@ -88,9 +88,9 @@ Both v5 and v6 use ChangeStream, but v6 has:
 
 ---
 
-## MorphiumServer for Testing
+## PoppyDB for Testing
 
-MorphiumServer provides a MongoDB-compatible server backed by InMemoryDriver:
+PoppyDB provides a MongoDB-compatible server backed by InMemoryDriver:
 
 | Feature | Benefit |
 |---------|---------|
@@ -103,7 +103,7 @@ MorphiumServer provides a MongoDB-compatible server backed by InMemoryDriver:
 
 ```bash
 # Start server
-mvn exec:java -Dexec.mainClass="de.caluga.morphium.server.MorphiumServerCLI" \
+mvn exec:java -Dexec.mainClass="de.caluga.poppydb.PoppyDBCLI" \
     -Dexec.args="-p 17017"
 
 # Connect Morphium
@@ -120,9 +120,9 @@ Morphium m = new Morphium(cfg);
 | Use Case | Recommendation |
 |----------|----------------|
 | Unit tests | InMemory Driver (fastest) |
-| Integration tests | MorphiumServer (realistic + fast) |
+| Integration tests | PoppyDB (realistic + fast) |
 | Load testing | Real MongoDB (production-like) |
-| CI/CD pipelines | MorphiumServer (no dependencies) |
+| CI/CD pipelines | PoppyDB (no dependencies) |
 
 ### InMemory Driver Limitations
 
@@ -162,7 +162,7 @@ Upgrading from v5.1.x to v6.x:
 - [ ] Update `Messaging` → `SingleCollectionMessaging`
 - [ ] Review messaging settings for optimal performance
 - [ ] Enable SSL/TLS for production (new in v6!)
-- [ ] Consider MorphiumServer for tests
+- [ ] Consider PoppyDB for tests
 
 See [Migration Guide v5→v6](./howtos/migration-v5-to-v6.md) for details.
 

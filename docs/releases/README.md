@@ -18,14 +18,45 @@ This directory contains detailed release notes for each Morphium version.
 - **Quick notes**: Users need fast migration info without technical details
 - **No clutter**: Root directory stays clean with just one changelog file
 
+## Release Process
+
+Releases are managed via `release.sh` in the project root:
+
+```bash
+# Patch release (default): 6.1.9 → 6.1.10
+./release.sh
+
+# Minor release: 6.1.9 → 6.2.0
+./release.sh --minor
+
+# Major release: 6.1.9 → 7.0.0
+./release.sh --major
+
+# Test the release process without uploading
+./release.sh --minor --dry-run
+
+# Roll back a failed release
+./release.sh --rollback
+
+# Fix broken state after aborted release
+./release.sh --reset
+```
+
+The script handles version calculation (from last git tag), Maven release:prepare,
+artifact signing, Sonatype upload, and git operations (tag, merge to master).
+
+**Multi-module:** The release creates a single Sonatype bundle containing
+morphium-parent, morphium (core), and poppydb.
+
 ## For Future Releases
 
 When creating a new release:
 
-1. Add entry to root `CHANGELOG.md` (concise)
-2. Create `docs/releases/CHANGELOG-X.Y.Z.md` (detailed)
-3. Create `docs/releases/RELEASE-NOTES-X.Y.Z.md` (user-facing)
-4. Update this README with the new release
+1. Run `./release.sh --minor` (or `--patch`/`--major`)
+2. Add entry to root `CHANGELOG.md` (concise)
+3. Create `docs/releases/CHANGELOG-X.Y.Z.md` (detailed)
+4. Create `docs/releases/RELEASE-NOTES-X.Y.Z.md` (user-facing)
+5. Update this README with the new release
 
 ## Available Releases
 

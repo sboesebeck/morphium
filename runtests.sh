@@ -10,6 +10,11 @@ CL='\033[0m'
 PID=$$
 TEST_TMP_DIR="/tmp/morphium-runtests-$PID" # Unique temp directory for this run (outside target/ so mvn clean doesn't delete it)
 
+# Multi-module layout: tests live in morphium-core
+TEST_MODULE="morphium-core"
+TEST_SRC="$TEST_MODULE/src/test/java"
+SUREFIRE_REPORTS="$TEST_MODULE/$SUREFIRE_REPORTS"
+
 cd $(dirname $0)
 # Ensure the temp directory exists
 mkdir -p "$TEST_TMP_DIR"
@@ -51,7 +56,7 @@ function createFileList() {
 	rg -l "@Test" . | grep ".java" >$filesList
 	rg -l "@ParameterizedTest" . | grep ".java" >>$filesList
 
-	sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
+	sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/[a-z\-]*\.src\.test\.java\.//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
 	local tmp_file_list="$TEST_TMP_DIR/files_list_temp_$PID.tmp"
 	sort -u "$filesList" | grep "$p" >"$tmp_file_list" && mv -f "$tmp_file_list" "$filesList"
 	rg -A2 "^ *@Disabled" . | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
@@ -107,9 +112,9 @@ function cleanup_test_databases() {
 
 function quitting() {
 
-	# Stop a locally started MorphiumServer cluster (if any) before tearing down logs/state.
-	if type _ms_local_cleanup >/dev/null 2>&1; then
-		_ms_local_cleanup
+	# Stop a locally started PoppyDB cluster (if any) before tearing down logs/state.
+	if type _pdb_cleanup >/dev/null 2>&1; then
+		_pdb_cleanup
 	fi
 
 	# Clean up test databases on abort (only morphium_test* databases)
@@ -208,7 +213,7 @@ function aggregate_slot_logs() {
 	return 0
 }
 
-source "$(dirname "$0")/scripts/morphium_server.sh"
+source "$(dirname "$0")/scripts/poppydb.sh"
 
 nodel=0
 skip=0
@@ -229,14 +234,14 @@ useExternal=0
 rerunfailed=0
 explicitRestart=0
 showStats=0
-morphiumserverLocalMode=0
-startMorphiumserverLocal=0
-morphiumserverSingleNode=0
-morphiumserverLocalStarted=0
-morphiumserverLocalPidDir=".morphiumserver-local"
-# Connection management for MorphiumServer (auto-calculated from --parallel if not set)
-morphiumserverMaxConnections=""
-morphiumserverSocketTimeout=""
+poppydbLocalMode=0
+startPoppydbLocal=0
+poppydbSingleNode=0
+poppydbLocalStarted=0
+poppydbLocalPidDir=".poppydb-local"
+# Connection management for PoppyDB (auto-calculated from --parallel if not set)
+poppydbMaxConnections=""
+poppydbSocketTimeout=""
 testname=""    # Stores the class pattern from --test
 methodname="." # Stores the method pattern from --test (defaults to all methods)
 
@@ -266,13 +271,12 @@ while [ "q$1" != "q" ]; do
 		echo -e "${BL}--authdb$CL ${GN}DATABASE$CL - authentication DB"
 		echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal profile)"
 		echo -e "                     ${YL}NOTE:${CL} This option is for tests that require a real MongoDB instance."
-		echo -e "${BL}--morphium-server$CL    - start single MorphiumServer on localhost:17017"
-		echo -e "${BL}--morphium-server-replicaset$CL - start 3-node MorphiumServer replica set (17017-17019)"
+		echo -e "${BL}--poppydb$CL              - start single PoppyDB on localhost:17017"
+		echo -e "${BL}--poppydb-replicaset$CL   - start 3-node PoppyDB replica set (17017-17019)"
 		echo -e "                     ${YL}NOTE:${CL} Replica set mode has limited data sync - prefer single node for testing"
-		echo -e "${BL}--morphiumserver-local | --localhost-rs$CL - (deprecated) alias for --morphium-server-replicaset"
 		echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
-		echo -e "${BL}--max-connections$CL ${GN}N$CL - MorphiumServer max connections (default: auto from --parallel)"
-		echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - MorphiumServer socket timeout in seconds (default: 30)"
+		echo -e "${BL}--max-connections$CL ${GN}N$CL - PoppyDB max connections (default: auto from --parallel)"
+		echo -e "${BL}--socket-timeout$CL ${GN}N$CL  - PoppyDB socket timeout in seconds (default: 30)"
 		echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
 		echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
 		echo -e "${BL}--test$CL ${GN}PATTERN$CL - Specify a pattern to run only matching test classes or methods (e.g., 'CacheTests', 'CacheTests#testCacheEntry')"
@@ -297,8 +301,8 @@ while [ "q$1" != "q" ]; do
 		echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
 		echo -e "  ${BL}./runtests.sh --driver all${CL}                   # Run tests with all available drivers"
 		echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
-		echo -e "  ${BL}./runtests.sh --morphium-server${CL}             # Single-node MorphiumServer (recommended)"
-		echo -e "  ${BL}./runtests.sh --morphium-server-replicaset${CL}  # 3-node MorphiumServer replica set"
+		echo -e "  ${BL}./runtests.sh --poppydb${CL}                      # Single-node PoppyDB (recommended)"
+		echo -e "  ${BL}./runtests.sh --poppydb-replicaset${CL}          # 3-node PoppyDB replica set"
 		echo
 		echo -e "${YL}Parallel Examples:${CL}"
 		echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
@@ -378,17 +382,17 @@ while [ "q$1" != "q" ]; do
 		fi
 	elif [ "q$1" == "q--max-connections" ]; then
 		shift
-		morphiumserverMaxConnections=$1
+		poppydbMaxConnections=$1
 		shift
-		if ! [[ "$morphiumserverMaxConnections" =~ ^[0-9]+$ ]] || [ "$morphiumserverMaxConnections" -lt 10 ]; then
+		if ! [[ "$poppydbMaxConnections" =~ ^[0-9]+$ ]] || [ "$poppydbMaxConnections" -lt 10 ]; then
 			echo -e "${RD}Error: --max-connections must be a number >= 10${CL}"
 			exit 1
 		fi
 	elif [ "q$1" == "q--socket-timeout" ]; then
 		shift
-		morphiumserverSocketTimeout=$1
+		poppydbSocketTimeout=$1
 		shift
-		if ! [[ "$morphiumserverSocketTimeout" =~ ^[0-9]+$ ]] || [ "$morphiumserverSocketTimeout" -lt 5 ]; then
+		if ! [[ "$poppydbSocketTimeout" =~ ^[0-9]+$ ]] || [ "$poppydbSocketTimeout" -lt 5 ]; then
 			echo -e "${RD}Error: --socket-timeout must be a number >= 5 (seconds)${CL}"
 			exit 1
 		fi
@@ -403,10 +407,10 @@ while [ "q$1" != "q" ]; do
 	elif [ "q$1" == "q--external" ]; then
 		useExternal=1
 		shift
-	elif [ "q$1" == "q--morphium-server" ]; then
-		# Single-node MorphiumServer on localhost:17017 (recommended for testing)
-		startMorphiumserverLocal=1
-		morphiumserverSingleNode=1
+	elif [ "q$1" == "q--poppydb" ]; then
+		# Single-node PoppyDB on localhost:17017 (recommended for testing)
+		startPoppydbLocal=1
+		poppydbSingleNode=1
 		useExternal=1
 		if [ -z "$uri" ]; then
 			uri="mongodb://localhost:17017/morphium_tests"
@@ -415,11 +419,11 @@ while [ "q$1" != "q" ]; do
 			driver="pooled"
 		fi
 		shift
-	elif [ "q$1" == "q--morphium-server-replicaset" ] || [ "q$1" == "q--start-morphiumserver-local" ]; then
-		# 3-node MorphiumServer replica set on 17017-27019
+	elif [ "q$1" == "q--poppydb-replicaset" ]; then
+		# 3-node PoppyDB replica set on 17017-17019
 		# Note: Each node has isolated InMemoryDriver - limited data sync between nodes
-		startMorphiumserverLocal=1
-		morphiumserverSingleNode=0
+		startPoppydbLocal=1
+		poppydbSingleNode=0
 		useExternal=1
 		if [ -z "$uri" ]; then
 			uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
@@ -428,11 +432,24 @@ while [ "q$1" != "q" ]; do
 			driver="pooled"
 		fi
 		shift
-	elif [ "q$1" == "q--localhost-rs" ] || [ "q$1" == "q--morphiumserver-local" ]; then
-		# Deprecated aliases for --morphium-server-replicaset
-		echo -e "${YL}Warning:${CL} $1 is deprecated, use --morphium-server or --morphium-server-replicaset instead"
-		startMorphiumserverLocal=1
-		morphiumserverSingleNode=0
+	elif [ "q$1" == "q--morphium-server" ]; then
+		# Deprecated alias for --poppydb
+		echo -e "${YL}Warning:${CL} --morphium-server is deprecated, use --poppydb instead"
+		startPoppydbLocal=1
+		poppydbSingleNode=1
+		useExternal=1
+		if [ -z "$uri" ]; then
+			uri="mongodb://localhost:17017/morphium_tests"
+		fi
+		if [ -z "$driver" ]; then
+			driver="pooled"
+		fi
+		shift
+	elif [ "q$1" == "q--morphium-server-replicaset" ] || [ "q$1" == "q--start-morphiumserver-local" ] || [ "q$1" == "q--localhost-rs" ] || [ "q$1" == "q--morphiumserver-local" ]; then
+		# Deprecated aliases for --poppydb-replicaset
+		echo -e "${YL}Warning:${CL} $1 is deprecated, use --poppydb-replicaset instead"
+		startPoppydbLocal=1
+		poppydbSingleNode=0
 		useExternal=1
 		if [ -z "$uri" ]; then
 			uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
@@ -566,26 +583,26 @@ if [ "$driver" == "inmem" ]; then
 	echo -e "${BL}Info:${CL} InMemory driver selected - automatically excluding 'external' tagged tests"
 fi
 
-# If requested, ensure a local MorphiumServer cluster is reachable (and optionally start it).
-if [ "$startMorphiumserverLocal" -eq 1 ]; then
+# If requested, ensure a local PoppyDB cluster is reachable (and optionally start it).
+if [ "$startPoppydbLocal" -eq 1 ]; then
 	useExternal=1
 fi
 
-if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$uri" ]; then
+if [ "$startPoppydbLocal" -eq 1 ] && [ -z "$uri" ]; then
 	uri="mongodb://localhost:17017,localhost:17018,localhost:17019/morphium_tests"
 fi
 
-if [ "$startMorphiumserverLocal" -eq 1 ] && [ -z "$driver" ]; then
+if [ "$startPoppydbLocal" -eq 1 ] && [ -z "$driver" ]; then
 	driver="pooled"
 fi
 
-if [ "$morphiumserverLocalMode" -eq 1 ] || [ "$startMorphiumserverLocal" -eq 1 ]; then
-	_ms_local_ensure_cluster "$uri"
+if [ "$poppydbLocalMode" -eq 1 ] || [ "$startPoppydbLocal" -eq 1 ]; then
+	_pdb_ensure_cluster "$uri"
 fi
 
-# Auto-exclude failover tests when using MorphiumServer
-# (MorphiumServer doesn't support StepDownCommand for failover testing)
-if [ "$startMorphiumserverLocal" -eq 1 ]; then
+# Auto-exclude failover tests when using PoppyDB
+# (PoppyDB doesn't support StepDownCommand for failover testing)
+if [ "$startPoppydbLocal" -eq 1 ]; then
 	if [ -z "$excludeTags" ]; then
 		excludeTags="failover"
 	else
@@ -593,7 +610,7 @@ if [ "$startMorphiumserverLocal" -eq 1 ]; then
 			excludeTags="$excludeTags,failover"
 		fi
 	fi
-	echo -e "${BL}Info:${CL} MorphiumServer selected - automatically excluding 'failover' tagged tests"
+	echo -e "${BL}Info:${CL} PoppyDB selected - automatically excluding 'failover' tagged tests"
 fi
 
 # Handle --rerunfailed option early to bypass interactive prompts
@@ -671,7 +688,7 @@ if [ "$rerunfailed" -eq 1 ]; then
 	while IFS= read -r cls; do
 		# Convert class name to file path
 		file_path=$(echo "$cls" | sed 's/\./\//g')
-		file_path="src/test/java/${file_path}.java"
+		file_path="$TEST_SRC/${file_path}.java"
 		if [ -f "$file_path" ]; then
 			echo "$file_path" >>$filesList
 		fi
@@ -715,7 +732,7 @@ fi
 # trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
-trap _ms_local_cleanup EXIT
+trap _pdb_cleanup EXIT
 
 # After argument parsing, ensure p and m are set correctly based on testname and methodname
 if [ -n "$testname" ]; then
@@ -740,84 +757,84 @@ if [ -n "$includeTags" ]; then
 	tmpTagged="$TEST_TMP_DIR/tmp_tag_files_$PID.txt"
 	: >"$tmpTagged"
 	# 1) Collect files explicitly annotated with any requested tag
-	rg -l "@Tag\\(\\\"($tagPattern)\\\"\\)|@Tags\\(.*($tagPattern).*\\)" src/test/java >>$tmpTagged || true
+	rg -l "@Tag\\(\\\"($tagPattern)\\\"\\)|@Tags\\(.*($tagPattern).*\\)" $TEST_SRC >>$tmpTagged || true
 	# 2) Directory-based helpers to map common tags to suites (backup for missing annotations)
 	IFS=',' read -r -a tagArr <<<"$includeTags"
 	for tg in "${tagArr[@]}"; do
 		case "$tg" in
 		core)
 			# Find core functionality tests (primarily in suite/base)
-			find src/test/java/de/caluga/test/mongo/suite/base -name "*Test*.java" -type f >>$tmpTagged || true
+			find $TEST_SRC/de/caluga/test/mongo/suite/base -name "*Test*.java" -type f >>$tmpTagged || true
 			;;
 		messaging)
 			# Messaging tests in multiple locations
-			if [ -d src/test/java/de/caluga/test/morphium/messaging ]; then
-				find src/test/java/de/caluga/test/morphium/messaging -name "*.java" >>$tmpTagged
+			if [ -d $TEST_SRC/de/caluga/test/morphium/messaging ]; then
+				find $TEST_SRC/de/caluga/test/morphium/messaging -name "*.java" >>$tmpTagged
 			fi
-			if [ -d src/test/java/de/caluga/test/mongo/suite/ncmessaging ]; then
-				find src/test/java/de/caluga/test/mongo/suite/ncmessaging -name "*.java" >>$tmpTagged
+			if [ -d $TEST_SRC/de/caluga/test/mongo/suite/ncmessaging ]; then
+				find $TEST_SRC/de/caluga/test/mongo/suite/ncmessaging -name "*.java" >>$tmpTagged
 			fi
 			;;
 		driver)
 			# Driver layer tests
-			if [ -d src/test/java/de/caluga/test/morphium/driver ]; then
-				find src/test/java/de/caluga/test/morphium/driver -name "*.java" >>$tmpTagged
+			if [ -d $TEST_SRC/de/caluga/test/morphium/driver ]; then
+				find $TEST_SRC/de/caluga/test/morphium/driver -name "*.java" >>$tmpTagged
 			fi
-			find src/test/java -name "*DriverTest*.java" -o -name "*ConnectionTest*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*DriverTest*.java" -o -name "*ConnectionTest*.java" >>$tmpTagged || true
 			;;
 		inmemory)
 			# InMemory driver specific tests
-			if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
-				find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpTagged
+			if [ -d $TEST_SRC/de/caluga/test/mongo/suite/inmem ]; then
+				find $TEST_SRC/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpTagged
 			fi
-			find src/test/java -name "*InMem*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*InMem*.java" >>$tmpTagged || true
 			;;
 		aggregation)
 			# Aggregation pipeline tests
-			if [ -d src/test/java/de/caluga/test/mongo/suite/aggregationStages ]; then
-				find src/test/java/de/caluga/test/mongo/suite/aggregationStages -name "*.java" >>$tmpTagged
+			if [ -d $TEST_SRC/de/caluga/test/mongo/suite/aggregationStages ]; then
+				find $TEST_SRC/de/caluga/test/mongo/suite/aggregationStages -name "*.java" >>$tmpTagged
 			fi
-			find src/test/java -name "*Aggregation*.java" -o -name "*MapReduce*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Aggregation*.java" -o -name "*MapReduce*.java" >>$tmpTagged || true
 			;;
 		cache)
 			# Caching functionality tests
-			find src/test/java -name "*Cache*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Cache*.java" >>$tmpTagged || true
 			;;
 		admin)
 			# Administrative and infrastructure tests
-			find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpTagged || true
-			find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpTagged || true
 			;;
 		performance)
 			# Performance and bulk operation tests
-			find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpTagged || true
-			find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpTagged || true
 			;;
 		encryption)
 			# Encryption and security tests
-			if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
-				find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpTagged
+			if [ -d $TEST_SRC/de/caluga/test/mongo/suite/encrypt ]; then
+				find $TEST_SRC/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpTagged
 			fi
 			;;
 		jms)
 			# JMS integration tests
-			if [ -d src/test/java/de/caluga/test/mongo/suite/jms ]; then
-				find src/test/java/de/caluga/test/mongo/suite/jms -name "*.java" >>$tmpTagged
+			if [ -d $TEST_SRC/de/caluga/test/mongo/suite/jms ]; then
+				find $TEST_SRC/de/caluga/test/mongo/suite/jms -name "*.java" >>$tmpTagged
 			fi
 			;;
 		geo)
 			# Geospatial functionality tests
-			find src/test/java -name "*Geo*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Geo*.java" >>$tmpTagged || true
 			;;
 		util)
 			# Utility and helper tests
-			find src/test/java -name "*Collator*.java" -o -name "*ObjectMapper*.java" >>$tmpTagged || true
-			find src/test/java/de/caluga/test/objectmapping -name "*.java" >>$tmpTagged || true
-			find src/test/java/de/caluga/test/morphium/query -name "*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Collator*.java" -o -name "*ObjectMapper*.java" >>$tmpTagged || true
+			find $TEST_SRC/de/caluga/test/objectmapping -name "*.java" >>$tmpTagged || true
+			find $TEST_SRC/de/caluga/test/morphium/query -name "*.java" >>$tmpTagged || true
 			;;
 		external)
 			# External MongoDB connection tests (failover, etc.)
-			find src/test/java -name "*Failover*.java" >>$tmpTagged || true
+			find $TEST_SRC -name "*Failover*.java" >>$tmpTagged || true
 			;;
 		esac
 	done
@@ -827,7 +844,7 @@ if [ -n "$includeTags" ]; then
 		grep -F -f "$tmpTagged" "$filesList" >"$TEST_TMP_DIR/files_temp_filter_$PID.tmp" || true
 		mv "$TEST_TMP_DIR/files_temp_filter_$PID.tmp" "$filesList"
 		# Rebuild class list from filtered files
-		sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
+		sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/[a-z\-]*\.src\.test\.java\.//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
 	fi
 	rm -f "$tmpTagged"
 fi
@@ -840,33 +857,33 @@ if [ "q$testname" = "q" ]; then
 		tmpExcluded="$TEST_TMP_DIR/tmp_exclude_files_$PID.txt"
 		: >"$tmpExcluded"
 		# 1) Collect files explicitly annotated with any excluded tag
-		rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" src/test/java >>$tmpExcluded || true
+		rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" $TEST_SRC >>$tmpExcluded || true
 		# 2) Directory-based patterns for excluded tags
 		IFS=',' read -r -a excludeArr <<<"$excludeTags"
 		for tg in "${excludeArr[@]}"; do
 			case "$tg" in
 			performance)
-				find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpExcluded || true
-				find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpExcluded || true
+				find $TEST_SRC -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpExcluded || true
+				find $TEST_SRC -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpExcluded || true
 				;;
 			admin)
-				find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpExcluded || true
-				find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpExcluded || true
+				find $TEST_SRC -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpExcluded || true
+				find $TEST_SRC -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpExcluded || true
 				;;
 			encryption)
-				if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
-					find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpExcluded
+				if [ -d $TEST_SRC/de/caluga/test/mongo/suite/encrypt ]; then
+					find $TEST_SRC/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpExcluded
 				fi
 				;;
 			inmemory)
-				if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
-					find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpExcluded
+				if [ -d $TEST_SRC/de/caluga/test/mongo/suite/inmem ]; then
+					find $TEST_SRC/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpExcluded
 				fi
-				find src/test/java -name "*InMem*.java" >>$tmpExcluded || true
+				find $TEST_SRC -name "*InMem*.java" >>$tmpExcluded || true
 				;;
 			external)
 				# External MongoDB connection tests (excluded by default)
-				find src/test/java -name "*Failover*.java" >>$tmpExcluded || true
+				find $TEST_SRC -name "*Failover*.java" >>$tmpExcluded || true
 				;;
 			esac
 		done
@@ -877,7 +894,7 @@ if [ "q$testname" = "q" ]; then
 			mv "$TEST_TMP_DIR/files_temp_filter_exclude_$PID.tmp" "$filesList"
 			# Rebuild class list from filtered files (but NOT for --rerunfailed which already has classList set)
 			if [ "$rerunfailed" -ne 1 ]; then
-				sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
+				sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/[a-z\-]*\.src\.test\.java\.//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
 			fi
 		fi
 		rm -f "$tmpExcluded"
@@ -920,7 +937,10 @@ else
 	testMethods3=$(safe_grep_count '@MethodSource\("getMorphiumInstances"\)' "$p" "$filesList")
 	testMethods2=$(safe_grep_count '@MethodSource\("getMorphiumInstancesNo.*"\)' "$p" "$filesList")
 	testMethods1=$(safe_grep_count '@MethodSource\("getMorphiumInstances.*Only"\)' "$p" "$filesList")
+	# Base count = number of @Test/@ParameterizedTest annotations (each runs once per driver)
+	echo "$testMethods" > "$TEST_TMP_DIR/testMethodsBase"
 	((testMethods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
+	echo "$testMethods" > "$TEST_TMP_DIR/testMethods"
 fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
@@ -932,7 +952,7 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 fi
 if [ "$nodel" -eq 0 ]; then
 	echo -e "${BL}Info:${CL} Cleaning up - mvn clean..."
-	mvn clean >/dev/null
+	mvn clean -pl $TEST_MODULE >/dev/null
 fi
 echo -e "${BL}Info:${CL} Compiling..."
 MVN_PROPS=""
@@ -948,10 +968,10 @@ if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=tru
 if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
 
 # Increase connection pool for parallel tests
-# MorphiumServer uses NIO so can handle many connections efficiently
+# PoppyDB uses NIO so can handle many connections efficiently
 # AsyncOperationTest alone uses 1134+ connections, messaging tests need many more for parallel ops
 if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
-	if [ "$startMorphiumserverLocal" -eq 1 ]; then
+	if [ "$startPoppydbLocal" -eq 1 ]; then
 		pool_size=$((2000 + parallel * 500)) # Base 2000 + 500 per parallel slot (matches server side)
 	else
 		# For real MongoDB with replica set, need more connections since all writes go to primary
@@ -962,7 +982,7 @@ if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
 	echo -e "${BL}Info:${CL} Increased client pool to ${pool_size} connections for ${parallel} parallel slots"
 fi
 
-mvn $MVN_PROPS compile test-compile >/dev/null || {
+mvn $MVN_PROPS compile test-compile -pl $TEST_MODULE -am >/dev/null || {
 	echo -e "${RD}Error:${CL} Compilation failed!"
 	exit 1
 }
@@ -1108,7 +1128,7 @@ function monitor_class_progress() {
 	fi
 
 	local progress_file="test.log/slot_${slot_id}/progress"
-	local report_file="target/surefire-reports/TEST-${test_class}.xml"
+	local report_file="$SUREFIRE_REPORTS/TEST-${test_class}.xml"
 	local last_reported=-1
 
 	while kill -0 "$mvn_pid" 2>/dev/null; do
@@ -1136,10 +1156,10 @@ function monitor_class_progress() {
 function run_test_slot() {
 	local slot_id=$1
 	local test_chunk_file=$2
-	local slot_mvn_props="$TEST_MVN_PROPS -Dmorphium.database=morphium_test_$slot_id -DtempDir=surefire_slot_$slot_id -DreportsDirectory=target/surefire-reports-$slot_id"
+	local slot_mvn_props="$TEST_MVN_PROPS -Dmorphium.database=morphium_test_$slot_id -DtempDir=surefire_slot_$slot_id -DreportsDirectory=$SUREFIRE_REPORTS-$slot_id"
 
 	mkdir -p "test.log/slot_$slot_id"
-	mkdir -p "target/surefire_slot_$slot_id"
+	mkdir -p "$TEST_MODULE/target/surefire_slot_$slot_id"
 
 	# Calculate actual test methods for this slot's test classes (consistent with serial mode)
 	local total_test_classes=$(wc -l <"$test_chunk_file" | tr -d ' ')
@@ -1185,17 +1205,17 @@ function run_test_slot() {
 		echo "RUNNING:$test_class:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
 
 		# Remove previous Surefire XML to avoid reading stale progress
-		local xml_report="target/surefire-reports/TEST-$test_class.xml"
+		local xml_report="$SUREFIRE_REPORTS/TEST-$test_class.xml"
 		rm -f "$xml_report"
 
 		local mvn_pid monitor_pid
 		if [ "$test_method" == "." ]; then
 			echo "Slot $slot_id: Running $test_class ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-			mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
+			mvn -pl $TEST_MODULE -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
 			mvn_pid=$!
 		else
 			echo "Slot $slot_id: Running $test_class#$test_method ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-			mvn -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
+			mvn -pl $TEST_MODULE -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
 			mvn_pid=$!
 		fi
 
@@ -1568,11 +1588,11 @@ else
 			if [ "$test_method" == "." ]; then
 				echo "Running Tests in $test_class" >"test.log/$test_class.log"
 				# Same rationale as in parallel slots: call surefire directly to keep runs isolated from build output churn.
-				mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
+				mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
 				echo $! >$testPid
 			else
 				echo "Running $test_method in $test_class" >"test.log/$test_class.log"
-				mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
+				mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
 				echo $! >$testPid
 			fi
 			while true; do
@@ -1749,9 +1769,9 @@ else
 					fi
 					echo "Retrying $retry_t"
 					if [ "$m" == "." ]; then
-						mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
+						mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
 					else
-						mvn -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
+						mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
 					fi
 				done
 

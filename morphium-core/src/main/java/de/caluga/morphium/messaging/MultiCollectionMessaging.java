@@ -1,0 +1,2072 @@
+
+package de.caluga.morphium.messaging;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
+
+import org.apache.commons.lang3.SystemUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.annotations.Messaging;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.async.AsyncCallbackAdapter;
+import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.config.MessagingSettings;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.messaging.SingleCollectionMessaging.AsyncMessageCallback;
+import de.caluga.morphium.messaging.SingleCollectionMessaging.MessageTimeoutException;
+import de.caluga.morphium.messaging.SingleCollectionMessaging.SystemShutdownException;
+import de.caluga.morphium.query.Query;
+
+/**
+ * MessageQueueing implementation with additional features:
+ * - using a collection for each message name - reducing load on clients with
+ * minimal overhead on MongoDB-Side
+ * - adding capability for streaming data. Usually as an answer, but could also
+ * be as "just as is"
+ */
+@Messaging(name = "MultiCollectionMessaging", description = "Advanced multi-collection messaging implementation")
+public class MultiCollectionMessaging implements MorphiumMessaging {
+    public final static String NAME = "MultiCollectionMessaging";
+    private Logger log = LoggerFactory.getLogger(MultiCollectionMessaging.class);
+    private Morphium morphium;
+    private MessagingSettings effectiveSettings;
+    private ThreadPoolExecutor threadPool;
+    private Set<MorphiumId> processingMessages = ConcurrentHashMap.newKeySet();
+    // Track recently completed messages with their completion timestamp
+    // This prevents race conditions where a poll query built before processedBy update
+    // returns a message that was just processed, but processingMessages no longer contains it
+    private Map<MorphiumId, Long> recentlyCompletedMessages = new ConcurrentHashMap<>();
+    // How long to keep message IDs in recentlyCompletedMessages (ms)
+    private static final long RECENTLY_COMPLETED_RETENTION_MS = 10000;
+
+    // Tracking map for broadcast messages - prevents duplicate delivery to same instance.
+    // Unlike processingMessages which is removed after processing, this is only removed on retry or cleanup.
+    // Maps message ID to timestamp when it was processed for TTL-based cleanup.
+    private final Map<MorphiumId, Long> locallyProcessedBroadcastIds = new ConcurrentHashMap<>();
+    // How long to keep broadcast IDs tracked (30 minutes default - should exceed any realistic message TTL)
+    private static final long BROADCAST_TRACKING_RETENTION_MS = 30 * 60 * 1000;
+
+    private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
+    private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
+
+    private enum MType {
+        listener, monitor,
+    }
+
+    private Map<String, List<Map<MType, Object>>> monitorsByTopic = new ConcurrentHashMap<>();
+    private AtomicBoolean running = new AtomicBoolean(false);
+    private Map<String, String> lockCollectionNames = new ConcurrentHashMap<>();
+    private static List<MultiCollectionMessaging> allMessagings = new CopyOnWriteArrayList<>();
+    private Set<String> pausedTopics = ConcurrentHashMap.newKeySet();
+    private StatusInfoListener statusInfoListener = new StatusInfoListener();
+    private String hostname = null;
+    private String senderId;
+
+    private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
+    private final AtomicInteger fallbackPollCounter = new AtomicInteger(0);
+    // track when a topic was paused, to report elapsed pause time on unpause
+    private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
+    // Fallback poll runs every FALLBACK_POLL_INTERVAL_MS instead of every pause cycle
+    private static final long FALLBACK_POLL_INTERVAL_MS = 5000; // 5 seconds
+    private volatile long lastFallbackPollTime = 0;
+
+    private ScheduledThreadPoolExecutor decouplePool;
+    private MessagingRegistry networkRegistry;
+
+    // Ready signaling for tests - latch is counted down when change streams are fully initialized
+    private final CountDownLatch readyLatch = new CountDownLatch(1);
+    private volatile boolean ready = false;
+
+    // Shared database-level lock monitor - one per MCM instance instead of one per topic.
+    // Watches ALL lock collections for delete events and triggers poll for the affected topic.
+    private volatile ChangeStreamMonitor sharedLockMonitor;
+    // Reverse mapping: lock collection name → topic name, for routing lock-delete events
+    private final Map<String, String> lockCollectionToTopic = new ConcurrentHashMap<>();
+
+    private class CallbackRequest {
+        Msg theMessage;
+        AsyncMessageCallback callback;
+        long ttl;
+        long timestamp;
+    }
+
+    private AsyncOperationCallback aCallback = new AsyncOperationCallback<Msg>() {
+
+        @Override
+        public void onOperationError(AsyncOperationType type, Query q,
+                                     long duration, String error, Throwable t, Msg entity, Object... param) {
+            log.error("Could not store {}", error, t);
+        }
+
+        @Override
+        public void onOperationSucceeded(AsyncOperationType type, Query<Msg> q,
+                                         long duration, List<Msg> result, Msg entity,
+                                         Object... param) {
+
+        }
+    };
+    private ChangeStreamMonitor directMessagesMonitor;
+
+    public MultiCollectionMessaging() {
+        hostname = System.getenv("HOSTNAME");
+
+        if (hostname == null) {
+            try {
+                hostname = InetAddress.getLocalHost().getHostName();
+            } catch (UnknownHostException ignored) {
+            }
+        }
+
+        if (hostname == null) {
+            hostname = "unknown host";
+        }
+
+        decouplePool = new ScheduledThreadPoolExecutor(1, Thread.ofPlatform().name("decouple_thr-", 0).factory());
+        allMessagings.add(this);
+
+    }
+
+    public List<MorphiumMessaging> getAlternativeMessagings() {
+        return new ArrayList<>(allMessagings);
+    }
+
+    public String getDMCollectionName() {
+        return getDMCollectionName(getSenderId());
+    }
+
+    @Override
+    public String getDMCollectionName(String sender) {
+        return "dm_" + morphium.getARHelper().createCamelCase(sender, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void start() {
+        running.set(true);
+        decouplePool.scheduleWithFixedDelay(() -> {
+            // Process poll triggers - handle DMs and regular topics.
+            // Regular topics are triggered by the shared lock monitor (lock deleted → re-poll for exclusive msgs)
+            // or by pollAndProcess itself when more messages are available.
+            for (var name : pollTrigger.keySet()) {
+                if (pollTrigger.get(name).get() != 0) {
+                    if (name.equals("dm_all")) {
+                        pollAndProcessAllDms();
+                    } else if (name.startsWith("dm_")) {
+                        pollAndProcessDms(name.substring(3));
+                    } else {
+                        pollAndProcess(name);
+                    }
+                    pollTrigger.get(name).set(0);
+                }
+            }
+            // Safety-net fallback polling when change streams are enabled.
+            // Primary message delivery is via change streams; lock releases trigger targeted re-polls
+            // via the shared lock monitor. This fallback only catches edge cases (network glitches, etc.).
+            if (isUseChangeStream() && running.get() && (fallbackPollCounter.incrementAndGet() % 500 == 0)) {
+                // log.debug("Running fallback poll for {} topics", monitorsByTopic.size());
+                for (var topicName : monitorsByTopic.keySet()) {
+                    try {
+                        pollAndProcess(topicName);
+                    } catch (Exception e) {
+                        log.debug("Error in fallback poll for topic {}", topicName, e);
+                    }
+                }
+            }
+            Map<MorphiumId, CallbackRequest> cp = new HashMap<>(waitingForCallbacks); // copy to avoid concurrent
+            // Modification in loop
+            for (var entry : cp.entrySet()) {
+                if (System.currentTimeMillis() - entry.getValue().timestamp > entry.getValue().ttl) {
+                    // callback timed out
+                    decouplePool.schedule(() -> {
+                        waitingForCallbacks.remove(entry.getKey());
+                    }, 1000, TimeUnit.MILLISECONDS);
+                }
+            }
+
+            // Cleanup recently completed messages that have expired
+            long cleanupTime = System.currentTimeMillis();
+            recentlyCompletedMessages.entrySet().removeIf(entry ->
+                                     cleanupTime - entry.getValue() > RECENTLY_COMPLETED_RETENTION_MS);
+
+            // Cleanup old broadcast tracking entries to prevent unbounded memory growth
+            locallyProcessedBroadcastIds.entrySet().removeIf(entry ->
+                                        cleanupTime - entry.getValue() > BROADCAST_TRACKING_RETENTION_MS);
+
+        }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS);
+
+        String dmCollectionName = getDMCollectionName();
+        morphium.ensureIndicesFor(Msg.class, dmCollectionName);
+
+        if (isUseChangeStream()) {
+            // Use change stream for DM collection
+            List<Map<String, Object>> pipeline = List
+                                                 .of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
+            directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
+                morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
+            directMessagesMonitor.addListener((evt) -> {
+                // Skip processing if not running - but always return true to keep listener registered
+                if (!running.get()) {
+                    return true;
+                }
+                // All messages coming in here are for me!
+                Map<String, Object> doc = evt.getFullDocument();
+                Msg msg = morphium.getMapper().deserialize(Msg.class, doc);
+                if (msg.isAnswer()) {
+                    // Answer handling
+                    handleAnswer(msg);
+                } else {
+                    if (pausedTopics.contains(msg.getTopic())) {
+                        return true;
+
+                    }
+                    if (monitorsByTopic.containsKey(msg.getTopic())) {
+                        // For broadcast messages, use permanent tracking to prevent duplicate delivery
+                        if (!msg.isExclusive()) {
+                            if (locallyProcessedBroadcastIds.putIfAbsent(msg.getMsgId(), System.currentTimeMillis()) != null) {
+                                return true;  // Already processed this broadcast
+                            }
+                        }
+
+                        // Use atomic add operation - if already present, skip processing
+                        // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
+                        // is still being processed by another thread that added it to processingMessages
+                        if (!processingMessages.add(msg.getMsgId())) {
+                            return true;
+                        }
+
+                        // Count how many listeners we're queueing for this message
+                        var listeners = monitorsByTopic.get(msg.getTopic());
+                        int listenerCount = (int) listeners.stream().filter(map -> map.get(MType.listener) != null).count();
+
+                        // Use atomic counter to track when all listeners have finished
+                        var remainingListeners = new java.util.concurrent.atomic.AtomicInteger(listenerCount);
+
+                        for (var map : listeners) {
+                            MessageListener l = (MessageListener) map.get(MType.listener);
+                            if (l == null)
+                                continue;
+
+                            queueOrRun(() -> {
+                                try {
+                                    if (l.markAsProcessedBeforeExec()) {
+                                        updateProcessedBy(msg);
+                                    }
+                                    try {
+                                        var ret = l.onMessage(MultiCollectionMessaging.this, msg);
+                                        if (!running.get())
+                                            return;
+                                        if (ret == null && effectiveSettings.isAutoAnswer()) {
+                                            ret = new Msg(msg.getTopic(), "received", "");
+                                        }
+                                        if (ret != null) {
+                                            ret.setRecipient(msg.getSender());
+                                            ret.setInAnswerTo(msg.getMsgId());
+                                            queueMessage(ret);
+                                        }
+                                    } catch (Exception e) {
+                                        log.error("Error processinig message");
+                                    }
+
+                                    var deleted = false;
+                                    if (msg.isDeleteAfterProcessing()) {
+                                        if (msg.getDeleteAfterProcessingTime() == 0) {
+                                            morphium.remove(msg, dmCollectionName);
+                                            deleted = true;
+                                        } else {
+                                            msg.setDeleteAt(
+                                                            new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
+                                            msg.addProcessedId(getSenderId());
+                                            morphium.updateUsingFields(msg, dmCollectionName, new AsyncCallbackAdapter(),
+                                                                       Msg.Fields.deleteAt, Msg.Fields.processedBy);
+                                        }
+                                    }
+                                    if (!deleted && !l.markAsProcessedBeforeExec()) {
+                                        updateProcessedBy(msg);
+                                    }
+                                } finally {
+                                    // CRITICAL: Only remove from processingMessages when ALL listeners have finished
+                                    // This prevents race condition where message is re-processed while listeners are still running
+                                    if (remainingListeners.decrementAndGet() == 0) {
+                                        // Move to recentlyCompletedMessages before removing from processingMessages
+                                        recentlyCompletedMessages.put(msg.getMsgId(), System.currentTimeMillis());
+                                        processingMessages.remove(msg.getMsgId());
+                                    }
+                                }
+                            });
+                        }
+                    } else {
+                        log.warn("incoming direct message for topic {} - no listener registered", msg.getTopic());
+                        morphium.remove(msg, dmCollectionName);
+                    }
+                }
+                return true;  // Always keep listener registered - cleanup happens in terminate()
+            });
+            directMessagesMonitor.start();
+            pollAndProcess();
+        } else {
+            // Use polling for both topic messages and DMs
+            log.info("Start polling as changestreams are disabled");
+            decouplePool.scheduleWithFixedDelay(() -> {
+                try {
+                    pollAndProcess();
+                    pollAndProcessAllDms();
+                } catch (Throwable e) {
+                    log.info("Error in polling thread", e);
+                }
+            }, 1000, getPause(), TimeUnit.MILLISECONDS);
+        }
+        // Signal that messaging is now ready (direct messages change stream is initialized)
+        ready = true;
+        readyLatch.countDown();
+        log.info("MultiCollectionMessaging {} is now ready", senderId);
+    }
+
+    @Override
+    public void enableStatusInfoListener() {
+        effectiveSettings.setMessagingStatusInfoListenerEnabled(true);
+        addListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+    }
+
+    @Override
+    public void disableStatusInfoListener() {
+        effectiveSettings.setMessagingStatusInfoListenerEnabled(false);
+        removeListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+    }
+
+    @Override
+    public String getStatusInfoListenerName() {
+        return effectiveSettings.getMessagingStatusInfoListenerName();
+    }
+
+    @Override
+    public void setStatusInfoListenerName(String statusInfoListenerName) {
+        effectiveSettings.setMessagingStatusInfoListenerName(statusInfoListenerName);
+    }
+
+    @Override
+    public int getProcessingCount() {
+        return threadPool.getActiveCount();
+    }
+
+    @Override
+    public int getInProgressCount() {
+        return getProcessingCount();
+    }
+
+    @Override
+    public int waitingForAnswersCount() {
+        return waitingForAnswers.size();
+    }
+
+    @Override
+    public int waitingForAnswersTotalCount() {
+        int cnt = 0;
+
+        for (Queue l : waitingForAnswers.values()) {
+            cnt = cnt + l.size();
+        }
+
+        return cnt;
+    }
+
+    @Override
+    public boolean isStatusInfoListenerEnabled() {
+        return effectiveSettings.isMessagingStatusInfoListenerEnabled();
+    }
+
+    @Override
+    public void setStatusInfoListenerEnabled(boolean statusInfoListenerEnabled) {
+        if (statusInfoListenerEnabled) {
+            // avoid duplication
+            if (!monitorsByTopic.containsKey(effectiveSettings.getMessagingStatusInfoListenerName())
+                    || !monitorsByTopic.get(effectiveSettings.getMessagingStatusInfoListenerName())
+                    .contains(statusInfoListener)) {
+                addListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+            }
+        } else {
+            removeListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+        }
+    }
+
+    @Override
+    public Map<String, List<String>> getListenerNames() {
+        Map<String, List<String>> ret = new HashMap<>();
+        for (var e : monitorsByTopic.entrySet()) {
+            List<String> lst = new ArrayList<>();
+            for (Map<MType, Object> l : e.getValue()) {
+                MessageListener listener = (MessageListener) l.get(MType.listener);
+                lst.add(listener.getClass().getName());
+            }
+            ret.put(e.getKey(), lst);
+        }
+        return ret;
+    }
+
+    @Override
+    public Map<String, Long> getThreadPoolStats() {
+        if (threadPool == null)
+            return Map.of();
+
+        String prefix = "messaging.threadpool.";
+        return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize()))
+               .add(prefix + "task_count", threadPool.getTaskCount())
+               .add(prefix + "core_size", (long) threadPool.getCorePoolSize())
+               .add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+               .add(prefix + "pool_size", (long) threadPool.getPoolSize())
+               .add(prefix + "active_count", (long) threadPool.getActiveCount())
+               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+    }
+
+    @Override
+    public long getPendingMessagesCount() {
+        long sum = 0;
+        for (var msgName : monitorsByTopic.keySet()) {
+            Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+            q1.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+            sum += q1.countAll();
+        }
+        return sum;
+    }
+
+    @Override
+    public void removeMessage(Msg m) {
+        morphium.delete(m, getCollectionName(m));
+    }
+
+    @Override
+    public int getAsyncMessagesPending() {
+        return waitingForCallbacks.size();
+    }
+
+    @Override
+    public void pauseTopicProcessing(String name) {
+        pausedTopics.add(name);
+        pausedAt.putIfAbsent(name, System.currentTimeMillis());
+    }
+
+    @Override
+    public List<String> getPausedTopics() {
+        return new ArrayList<String>(pausedTopics);
+    }
+
+    @Override
+    public Long unpauseTopicProcessing(String name) {
+        pausedTopics.remove(name);
+        Long started = pausedAt.remove(name);
+        decouplePool.execute(() -> {
+            if (!isUseChangeStream()) {
+                pollAndProcess(name);
+            }
+            pollAndProcessDms(name);
+        });
+        if (started == null)
+            return 0L;
+        return System.currentTimeMillis() - started;
+    }
+
+    @Override
+    public String getCollectionName() {
+        return effectiveSettings.getMessageQueueName();
+    }
+
+    @Override
+    public String getCollectionName(Msg m) {
+        return getCollectionName(m.getTopic());
+    }
+
+    @Override
+    public String getCollectionName(String n) {
+        return (getCollectionName() + "_" + n).replaceAll("[\\s\\-/]", "").replaceAll("\\.", "_");
+    }
+
+    private MsgLock getLock(Msg m) {
+        return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName(m.getTopic()));
+    }
+
+    @Override
+    public String getLockCollectionName() {
+        if (lockCollectionNames.get(".") == null) {
+            lockCollectionNames.put(".", getCollectionName() + "_lck");
+        }
+
+        return lockCollectionNames.get(".");
+    }
+
+    @Override
+    public String getLockCollectionName(Msg m) {
+        return getLockCollectionName(m.getTopic());
+    }
+
+    @Override
+    public String getLockCollectionName(String name) {
+        if (lockCollectionNames.get(name) == null) {
+            String v = getLockCollectionName() + "_" + name;
+            v = v.replaceAll("[\\s\\-/]", "").replaceAll("\\.", "_");
+            lockCollectionNames.put (name, v);
+        }
+        return lockCollectionNames.get(name);
+    }
+
+    private boolean lockMessage(Msg m, String lockId) {
+        return lockMessage(m, lockId, null);
+    }
+
+    // private boolean lockMessage(MorphiumId id, String msgName, String lockId) {
+    // MsgLock lck = new MsgLock(id);
+    // lck.setLockId(lockId);
+    // lck.setDeleteAt(new Date(System.currentTimeMillis() + 600000));
+    // InsertMongoCommand cmd = null;
+
+    // try {
+    // cmd = new InsertMongoCommand(
+    // morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
+    // cmd.setColl(getLockCollectionName(msgName)).setDb(morphium.getDatabase())
+    // .setDocuments(List.of(morphium.getMapper().serialize(lck)));
+    // cmd.execute();
+    // return true;
+    // } catch (Exception e) {
+    // return false;
+    // } finally {
+    // if (cmd != null) {
+    // cmd.releaseConnection();
+    // }
+    // }
+    // }
+
+    public boolean lockMessage(Msg m, String lockId, Date delAt) {
+        MsgLock lck = new MsgLock(m);
+        lck.setLockId(lockId);
+
+        if (delAt != null) {
+            lck.setDeleteAt(delAt);
+        } else if (m.isTimingOut() && m.getTtl() > 0) {
+            // Message has TTL → lock expires after TTL * 2
+            lck.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl() * 2));
+        } else {
+            // Message has no timeout → lock should also not expire quickly
+            // Use 7 days as fallback to prevent stuck locks if job crashes
+            lck.setDeleteAt(new Date(System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000L));
+        }
+
+        InsertMongoCommand cmd = null;
+
+        try {
+            cmd = new InsertMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
+            cmd.setColl(getLockCollectionName(m)).setDb(morphium.getDatabase())
+               .setDocuments(List.of(morphium.getMapper().serialize(lck)));
+            cmd.execute();
+            return true;
+        } catch (Exception e) {
+            log.info("LOCK: Failed to lock message {} in {}: {}", m.getMsgId(), getLockCollectionName(m), e.getMessage());
+            return false;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
+
+    private void handleAnswer(Msg m) {
+        if (networkRegistry != null && m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName())) {
+            networkRegistry.updateFrom(m);
+            return;
+        }
+
+        final Queue<Msg> answersForMessage = waitingForAnswers.get(m.getInAnswerTo());
+
+        if (null != answersForMessage) {
+            // we're expecting this message!
+            updateProcessedBy(m);
+
+            if (!answersForMessage.contains(m)) {
+                answersForMessage.add(m);
+            }
+
+            checkDeleteAfterProcessing(m);
+            return;
+        }
+
+        if (pausedTopics.contains(m.getTopic()))
+            return;
+        final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
+        final Msg theMessage = m;
+
+        if (cbr != null) {
+            AsyncMessageCallback cb = cbr.callback;
+            Runnable cbRunnable = () -> {
+                cb.incomingMessage(theMessage);
+                waitingForCallbacks.remove(m.getInAnswerTo());
+            };
+            queueOrRun(cbRunnable);
+        } else {
+            // an answer, but no one is waiting for it
+            processMessage(theMessage);
+        }
+    }
+
+    private void processMessage(Msg m) {
+        processMessage(m, false);
+    }
+
+    /**
+     * Process a message with all registered listeners for its topic.
+     * @param m the message to process
+     * @param alreadyTracked if true, the message is already in processingMessages (caller did atomic add)
+     */
+    @SuppressWarnings("unchecked")
+    private void processMessage(Msg m, boolean alreadyTracked) {
+        if (!monitorsByTopic.containsKey(m.getTopic())) {
+            // log.error("I {} Got a message I do not have a listener configured for: {}!",
+            // getSenderId(), m.getName());
+            if (alreadyTracked) {
+                processingMessages.remove(m.getMsgId());
+            }
+            return; // cannot process message, as there is no listener? HOW?
+        }
+
+        // Check if recently completed - prevents race condition where poll query was built
+        // before processedBy was updated, but message was just processed
+        if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
+            if (alreadyTracked) {
+                processingMessages.remove(m.getMsgId());
+            }
+            return;  // Skip - recently processed
+        }
+
+        // For broadcast messages, use permanent tracking to prevent duplicate delivery
+        if (!m.isExclusive()) {
+            if (locallyProcessedBroadcastIds.putIfAbsent(m.getMsgId(), System.currentTimeMillis()) != null) {
+                if (alreadyTracked) {
+                    processingMessages.remove(m.getMsgId());
+                }
+                return;  // Already processed this broadcast
+            }
+        }
+
+        // Use atomic add operation - if already present, skip processing
+        // CRITICAL: Check BEFORE looping through listeners, not inside loop
+        // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
+        // is still being processed by another thread that added it to processingMessages
+        // Skip this check if caller already added to processingMessages (alreadyTracked=true)
+        if (!alreadyTracked && !processingMessages.add(m.getMsgId())) {
+            return;
+        }
+
+        // Count how many listeners we're queueing for this message
+        var listeners = (List<Map<MType, Object>>) monitorsByTopic.get(m.getTopic());
+        int listenerCount = (int) listeners.stream().filter(e -> e.get(MType.listener) != null).count();
+
+        if (m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName())) {
+            log.info("Status topic message {} (answer={}) seen by {} listeners on {}", m.getMsgId(), m.isAnswer(), listenerCount, getSenderId());
+        }
+
+        // Use atomic counter to track when all listeners have finished
+        var remainingListeners = new java.util.concurrent.atomic.AtomicInteger(listenerCount);
+
+        for (var e : listeners) {
+            var l = (MessageListener) e.get(MType.listener);
+            if (l == null)
+                continue;
+
+            Runnable r = () -> {
+                Msg current = m; // morphium.reread(m, getCollectionName(m));
+                try {
+                    if (current == null) {
+                        log.info("Reread failed");
+                        return;
+                    }
+
+                    if (current.getProcessedBy().contains(getSenderId())) {
+                        // Don't unlock here - let lock timeout naturally
+                        return;
+                    }
+
+                    if (pausedTopics.contains(current.getTopic()))
+                        return;
+
+                    if (l.markAsProcessedBeforeExec()) {
+                        updateProcessedBy(current);
+                    }
+                    var ret = l.onMessage(this, current);
+                    if (!running.get())
+                        return;
+                    if (effectiveSettings.isAutoAnswer() && ret == null) {
+                        ret = new Msg(current.getTopic(), "received", "");
+
+                    }
+                    if (!checkDeleteAfterProcessing(current) && !l.markAsProcessedBeforeExec()) {
+                        updateProcessedBy(current);
+                    }
+
+                    if (ret != null) {
+                        ret.setSender(getSenderId());
+                        ret.setRecipient(current.getSender());
+                        ret.setInAnswerTo(current.getMsgId());
+                        sendMessage(ret);
+                    }
+                    // Delete lock after successful exclusive message processing
+                    // This is safe because processed_by has already been updated,
+                    // so even if another instance reads the message, they'll see our ID
+                    if (current.isExclusive()) {
+                        unlock(current);
+                    }
+                } catch (MessageRejectedException mre) {
+                    log.warn("Message rejected");
+                    // Allow retry for rejected broadcasts
+                    if (!current.isExclusive()) {
+                        locallyProcessedBroadcastIds.remove(current.getMsgId());
+                    }
+                    updateProcessedBy(current);
+                    unlock(current);
+                } catch (Throwable err) {
+                    log.error("Error during message processing", err);
+                    unlock(current);
+                } finally {
+                    // CRITICAL: Only remove from processingMessages when ALL listeners have finished
+                    // This prevents race condition where message is re-processed while listeners are still running
+                    if (remainingListeners.decrementAndGet() == 0) {
+                        // Move to recentlyCompletedMessages before removing from processingMessages
+                        // This prevents race condition where a poll query built before processedBy update
+                        // returns this message after we remove it from processingMessages
+                        recentlyCompletedMessages.put(m.getMsgId(), System.currentTimeMillis());
+                        processingMessages.remove(m.getMsgId());
+                    }
+                }
+            };
+            queueOrRun(r);
+
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void pollAndProcessDms(String name) {
+        // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
+        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f("processed_by.0").notExists() // not processed
+                .f(Msg.Fields.topic).nin(getPausedTopics())
+                .f(Msg.Fields.topic).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
+        int window = getWindowSize();
+        q.limit(window + 1);
+        int seen = 0;
+        boolean more = false;
+        for (Msg m : q.asIterable(window + 1)) {
+            if (seen >= window) {
+                more = true;
+                break;
+            }
+            for (var e : (List<Map<MType, Object>>) monitorsByTopic.get(m.getTopic())) {
+                // var l = (MessageListener) e.get(MType.listener);
+                queueOrRun(() -> {
+                    if (m.isAnswer()) {
+                        handleAnswer(m);
+                    } else {
+                        processMessage(m);
+                    }
+                });
+            }
+            seen++;
+        }
+        if (more) {
+            pollTrigger.putIfAbsent("dm_" + name, new AtomicInteger(0));
+            pollTrigger.get("dm_" + name).incrementAndGet();
+        }
+    }
+
+    /**
+     * Poll and process all direct messages (used when change streams are disabled).
+     * Unlike pollAndProcessDms which filters by topic, this processes all DMs for this recipient.
+     */
+    private void pollAndProcessAllDms() {
+        if (!running.get())
+            return;
+
+        String dmCollectionName = getDMCollectionName();
+        // Query for unprocessed messages in DM collection
+        // Exclude messages already being processed or recently completed
+        var q = morphium.createQueryFor(Msg.class, dmCollectionName)
+                .f("processed_by.0").notExists() // not processed
+                .f(Msg.Fields.msgId).nin(new ArrayList<>(processingMessages));
+
+        int window = getWindowSize();
+        q.limit(window + 1);
+        q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
+
+        int seen = 0;
+        boolean more = false;
+
+        for (Msg m : q.asIterable(window + 1)) {
+            if (seen >= window) {
+                more = true;
+                break;
+            }
+
+            // Skip paused topics
+            if (pausedTopics.contains(m.getTopic())) {
+                continue;
+            }
+
+            // Skip if recently completed (prevents duplicate processing due to query timing)
+            if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
+                continue;
+            }
+
+            // Skip if already being processed (check without adding)
+            if (processingMessages.contains(m.getMsgId())) {
+                continue;
+            }
+
+            log.debug("DM polling found message {} (answer={})", m.getMsgId(), m.isAnswer());
+
+            // Let handleAnswer/processMessage manage their own processingMessages tracking
+            queueOrRun(() -> {
+                if (m.isAnswer()) {
+                    handleAnswer(m);
+                } else if (monitorsByTopic.containsKey(m.getTopic())) {
+                    processMessage(m);
+                } else {
+                    log.warn("incoming direct message for topic {} - no listener registered", m.getTopic());
+                    morphium.remove(m, dmCollectionName);
+                }
+            });
+            seen++;
+        }
+
+        // Trigger more polling if there are additional messages
+        if (more) {
+            pollTrigger.putIfAbsent("dm_all", new AtomicInteger(0));
+            pollTrigger.get("dm_all").incrementAndGet();
+        }
+    }
+
+    private void pollAndProcess(String msgName) {
+        if (!running.get())
+            return;
+        // log.debug("PollAndProcess for topic {} - processingMessages: {}", msgName, processingMessages.size());
+        // Use more efficient query patterns
+        List<MorphiumId> processingIds = new ArrayList<>(processingMessages);
+
+        Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+        q1.f(Msg.Fields.exclusive).eq(true) // exclusive message
+          .f("processed_by.0").notExists() // not processed yet (more efficient than eq(null))
+          .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
+        if (!processingIds.isEmpty()) {
+            q1.f(Msg.Fields.msgId).nin(processingIds); // not processed by me
+        }
+
+        Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+        q2.f(Msg.Fields.exclusive).eq(false) // non-exclusive message
+          // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
+          .f("processed_by").ne(getSenderId()) // not processed by me
+          .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
+        if (!processingIds.isEmpty()) {
+            q2.f(Msg.Fields.msgId).nin(processingIds); // not processing already
+        }
+
+        Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+        q.sort(Msg.Fields.priority);
+        q.or(q1, q2);
+        int window = getWindowSize();
+        q.limit(window + 1);
+        if (!running.get())
+            return;
+        int seen = 0;
+        boolean more = false;
+        for (Msg m : q.asIterable(window + 1)) {
+            if (seen >= window) {
+                more = true;
+                break;
+            }
+            if (m.isTimingOut() && System.currentTimeMillis() - m.getTimestamp() > m.getTtl()) {
+                log.debug("deleting outdated message");
+                morphium.delete(m);
+                continue;
+            }
+            if (pausedTopics.contains(m.getTopic())) {
+                // paused
+                continue;
+            }
+            // Check answers
+            if (m.isAnswer()) {
+                handleAnswer(m);
+            } else {
+                // happens if pausing is enabled during processing!
+                if (pausedTopics.contains(m.getTopic())) {
+                    continue;
+                }
+                if (m.getRecipients() != null && !m.getRecipients().isEmpty()
+                        && !m.getRecipients().contains(getSenderId())) {
+                    // message not for me
+                    log.warn("Got direct message not for me? Recipients: {}", m.getRecipients());
+                    continue;
+                }
+
+                // Check if recently completed - prevents race condition where poll query was built
+                // before processedBy was updated, but message was just processed
+                if (recentlyCompletedMessages.containsKey(m.getMsgId())) {
+                    continue;  // Skip - recently processed
+                }
+
+                // For broadcast messages, check permanent tracking
+                if (!m.isExclusive() && locallyProcessedBroadcastIds.containsKey(m.getMsgId())) {
+                    continue;  // Already processed this broadcast
+                }
+
+                // Use atomic add to claim the message for processing BEFORE locking
+                // This prevents race condition with change stream listener
+                if (!processingMessages.add(m.getMsgId())) {
+                    continue;  // Skip - already being processed by CSM or another poll
+                }
+
+                if (m.isExclusive()) {
+                    if (!lockMessage(m, getSenderId())) {
+                        processingMessages.remove(m.getMsgId());  // Release claim if lock fails
+                        continue;
+                    }
+                    // Messages can be queued/seen before the exclusive lock exists. If another instance already
+                    // processed and unlocked, a stale queued message could otherwise be processed again.
+                    // Re-fetch to ensure processed_by state is current.
+                    // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
+                    Msg fresh = null;
+                    try {
+                        var freshQuery = morphium.createQueryFor(Msg.class)
+                                         .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                         .f("_id").eq(m.getMsgId());
+                        freshQuery.setCollectionName(getStorageCollectionNameForMessage(m));
+                        fresh = freshQuery.get();
+                    } catch (Exception ignored) {
+                    }
+
+                    if (fresh == null) {
+                        unlock(m);
+                        processingMessages.remove(m.getMsgId());
+                        continue;
+                    }
+
+                    if (fresh.getProcessedBy() != null && !fresh.getProcessedBy().isEmpty()) {
+                        unlock(fresh);
+                        processingMessages.remove(m.getMsgId());
+                        continue;
+                    }
+
+                    m = fresh;
+                }
+                processMessage(m, true);  // true = already tracked in processingMessages
+            }
+            seen++;
+        }
+        if (more) {
+            pollTrigger.putIfAbsent(msgName, new AtomicInteger(0));
+            pollTrigger.get(msgName).incrementAndGet();
+        }
+
+    }
+
+    private boolean checkDeleteAfterProcessing(Msg message) {
+        String collName = getStorageCollectionNameForMessage(message);
+        if (message.isDeleteAfterProcessing()) {
+            if (message.getDeleteAfterProcessingTime() == 0) {
+                morphium.delete(message, collName);
+                // unlock(message);
+                return true;
+            } else {
+                message.setDeleteAt(new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
+                String deleteAtField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.deleteAt.name());
+                morphium.setInEntity(message, collName, deleteAtField,
+                                     new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()), false, null);
+
+                // MongoDB TTL cleanup is not instantaneous (monitor runs periodically); schedule best-effort cleanup.
+                long deleteDelay = Math.max(0, message.getDeleteAfterProcessingTime()) + TimeUnit.SECONDS.toMillis(1);
+                if (decouplePool != null) {
+                    decouplePool.schedule(() -> {
+                        if (!running.get() || morphium == null || morphium.getDriver() == null) {
+                            return;
+                        }
+
+                        try {
+                            morphium.createQueryFor(Msg.class, collName)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(message.getMsgId())
+                                    .remove();
+                        } catch (Exception ignored) {
+                        }
+                    }, deleteDelay, TimeUnit.MILLISECONDS);
+                }
+
+                if (message.isExclusive()) {
+                    morphium.createQueryFor(MsgLock.class, getLockCollectionName(message)).f("_id")
+                            .eq(message.getMsgId())
+                            .set(MsgLock.Fields.deleteAt,
+                                 new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
+
+                    if (decouplePool != null) {
+                        decouplePool.schedule(() -> {
+                            if (!running.get() || morphium == null || morphium.getDriver() == null) {
+                                return;
+                            }
+
+                            try {
+                                morphium.createQueryFor(MsgLock.class, getLockCollectionName(message))
+                                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                        .f("_id").eq(message.getMsgId())
+                                        .remove();
+                            } catch (Exception ignored) {
+                            }
+                        }, deleteDelay, TimeUnit.MILLISECONDS);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private void queueOrRun(Runnable r) {
+        if (effectiveSettings.isMessagingMultithreadded()) {
+            try {
+                threadPool.execute(r);
+            } catch (Throwable t) {
+                // If thread pool execution fails (e.g., executor shutdown),
+                // run synchronously to ensure cleanup (processingMessages removal) happens
+                log.warn("Thread pool execution failed, running synchronously: {}", t.getMessage());
+                try {
+                    synchronized (this) {
+                        r.run();
+                    }
+                } catch (Throwable inner) {
+                    log.error("Error running task synchronously after thread pool failure", inner);
+                }
+            }
+        } else {
+            synchronized (this) {
+                r.run();
+            }
+        }
+    }
+
+    private void pollAndProcess() {
+        for (String name : monitorsByTopic.keySet()) {
+            pollAndProcess(name);
+        }
+    }
+
+    private String getStorageCollectionNameForMessage(Msg msg) {
+        if (msg == null) {
+            return null;
+        }
+
+        if (msg.getRecipients() != null && !msg.getRecipients().isEmpty()) {
+            return getDMCollectionName(getSenderId());
+        }
+
+        return getCollectionName(msg);
+    }
+
+    private void updateProcessedBy(Msg msg) {
+        if (msg == null) {
+            return;
+        }
+
+        String id = getSenderId();
+        if (id == null) {
+            return;
+        }
+
+        if (msg.getProcessedBy().contains(id)) {
+            return;
+        }
+
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
+        String collName = getStorageCollectionNameForMessage(msg);
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, collName);
+        idq.f("_id").eq(queryId);
+        Map<String, Object> qobj = idq.toQueryObject();
+        Map<String, Object> set = Doc.of("processed_by", id);
+        Map<String, Object> update = Doc.of("$addToSet", set);
+        UpdateMongoCommand cmd = null;
+
+        try {
+            cmd = new UpdateMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd.setColl(collName).setDb(morphium.getDatabase());
+            cmd.addUpdate(qobj, update, null, false, false, null, null, null);
+            if (!running.get())
+                return; // this happens during tests mainly
+            Map<String, Object> ret = cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+
+            Object nModified = ret.get("nModified");
+            boolean modified = nModified instanceof Number && ((Number) nModified).intValue() > 0;
+
+            if (!modified) {
+                // Could be already updated by another thread; re-read to be sure.
+                if (morphium.reread(msg, collName) == null) {
+                    return;
+                }
+                if (!msg.getProcessedBy().contains(id)) {
+                    log.warn("{}: Could not update processed_by in msg {}", id, msg.getMsgId());
+                }
+                return;
+            }
+
+            msg.getProcessedBy().add(id);
+        } catch (MorphiumDriverException e) {
+            log.error("Error updating processed by - this might lead to duplicate execution!", e);
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
+
+    @Override
+    public void addListenerForTopic(String n, MessageListener l) {
+        // Start monitor first, then do DB calls while cursor is establishing
+        var monitors = createTopicMonitorsLight(n, l);
+        var cm = (ChangeStreamMonitor) monitors.get(MType.monitor);
+        cm.startAsync();
+        // DB calls (ensureIndices, registerTopic) happen while cursor connects
+        try {
+            morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
+        } catch (Exception e) {
+            log.warn("Could not ensure indices for {}: {} - will retry later", getCollectionName(n), e.getMessage());
+        }
+        registerTopicWithPoppyDB(n);
+        // Wait for cursor to be ready (returns immediately if already established)
+        cm.awaitReady(10, TimeUnit.SECONDS);
+        pollAndProcess(n);
+    }
+
+    @Override
+    public void addListenersForTopics(Map<String, MessageListener> listeners) {
+        if (listeners.isEmpty()) return;
+        if (listeners.size() == 1) {
+            var entry = listeners.entrySet().iterator().next();
+            addListenerForTopic(entry.getKey(), entry.getValue());
+            return;
+        }
+
+        log.info("Batch-registering {} topic listeners in parallel", listeners.size());
+        long startTime = System.currentTimeMillis();
+
+        // Phase 1: Create all monitors WITHOUT DB calls (no ensureIndices, no registerTopic).
+        Map<String, Map<MType, Object>> allMonitors = new LinkedHashMap<>();
+        for (var entry : listeners.entrySet()) {
+            allMonitors.put(entry.getKey(), createTopicMonitorsLight(entry.getKey(), entry.getValue()));
+        }
+        log.info("Phase 1: Created {} monitor pairs in {}ms", allMonitors.size(), System.currentTimeMillis() - startTime);
+
+        // Phase 2: Start ALL message monitors async (no waiting per monitor).
+        // Lock monitors are omitted to halve connection count - fallback polling handles lock releases.
+        List<ChangeStreamMonitor> allCsm = new ArrayList<>();
+        for (var entry : allMonitors.values()) {
+            var cm = (ChangeStreamMonitor) entry.get(MType.monitor);
+            cm.startAsync();
+            allCsm.add(cm);
+        }
+        log.info("Phase 2: Started {} monitors in {}ms", allCsm.size(), System.currentTimeMillis() - startTime);
+
+        // Phase 3: Register topics with PoppyDB and poll for existing messages.
+        // Done in a background thread to not block startup - monitors are already receiving
+        // new messages via change streams.
+        final var topicNames = new ArrayList<>(allMonitors.keySet());
+        Thread.ofPlatform().name("mcm-batch-init").start(() -> {
+            // Wait for all monitors to establish their change stream cursors
+            // (returns immediately per monitor once cursor is ready, max 10s timeout)
+            for (var csm : allCsm) {
+                csm.awaitReady(10, TimeUnit.SECONDS);
+            }
+            log.info("Phase 3: Registering {} topics with PoppyDB and polling", topicNames.size());
+            for (var topicName : topicNames) {
+                registerTopicWithPoppyDB(topicName);
+            }
+            for (var topicName : topicNames) {
+                try {
+                    pollAndProcess(topicName);
+                } catch (Exception e) {
+                    log.debug("Initial poll for {} failed: {}", topicName, e.getMessage());
+                }
+            }
+            log.info("Phase 3: Background init completed in {}ms", System.currentTimeMillis() - startTime);
+        });
+
+        log.info("Batch registration of {} topics completed in {}ms (background init pending)", listeners.size(),
+            System.currentTimeMillis() - startTime);
+    }
+
+    /**
+     * Create monitors for a topic without starting them. Handles index creation,
+     * PoppyDB registration, and monitor setup.
+     */
+    private Map<MType, Object> createTopicMonitors(String n, MessageListener l) {
+        var monitors = createTopicMonitorsLight(n, l);
+        try {
+            morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
+        } catch (Exception e) {
+            log.warn("Could not ensure indices for {}: {} - will retry later", getCollectionName(n), e.getMessage());
+        }
+        registerTopicWithPoppyDB(n);
+        return monitors;
+    }
+
+    /**
+     * Create monitors for a topic without starting them and WITHOUT DB calls.
+     * Used by batch registration to avoid connection pool exhaustion.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<MType, Object> createTopicMonitorsLight(String n, MessageListener l) {
+        Map<String, Object> match = new LinkedHashMap<>();
+        Map<String, Object> in = new LinkedHashMap<>();
+        // Accept "insert" (new messages) and "lock_released" (PoppyDB pushes this when
+        // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
+        in.put("$in", Arrays.asList("insert", "lock_released"));
+        match.put("operationType", in);
+        var pipeline = new ArrayList<Map<String, Object>>();
+        pipeline.add(UtilsMap.of("$match", match));
+        ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), false,
+            effectiveSettings.getMessagingPollPause(),
+            pipeline);
+        cm.addListener((evt) -> {
+            // CRITICAL: Always return true to keep the listener registered
+            if (!running.get()) {
+                return true;
+            }
+
+            // PoppyDB sends "lock_released" when a lock is deleted on the lock collection.
+            // Trigger a re-poll so exclusive messages can be picked up by another subscriber.
+            if ("lock_released".equals(evt.getOperationType())) {
+                log.debug("CSM: Lock released event for topic {}, triggering re-poll", n);
+                pollTrigger.putIfAbsent(n, new AtomicInteger(0));
+                pollTrigger.get(n).incrementAndGet();
+                return true;
+            }
+
+            // Normal insert event - process the message
+            Map<String, Object> map = evt.getFullDocument();
+
+            if (map == null) {
+                log.warn("CSM: Change stream event has null fullDocument - skipping");
+                return true;
+            }
+
+            if (pausedTopics.contains(map.get(Msg.Fields.topic.name()))) {
+                log.info("CSM: Topic {} paused", map.get("name"));
+                // paused
+                return true;
+            }
+
+            Msg doc = morphium.getMapper().deserialize(Msg.class, map);
+            if (doc.getSender().equals(getSenderId())) {
+                log.info("CSM: Message from self, skipping. sender={} getSenderId={}", doc.getSender(), getSenderId());
+                return true;
+            }
+
+            // Check if recently completed - prevents race condition where fallback poll
+            // or change stream delivers a message that was just processed
+            if (recentlyCompletedMessages.containsKey(doc.getMsgId())) {
+                log.info("CSM: Message {} recently completed, skipping", doc.getMsgId());
+                return true;
+            }
+
+            // For broadcast messages, use permanent tracking to prevent duplicate delivery
+            if (!doc.isExclusive()) {
+                if (locallyProcessedBroadcastIds.putIfAbsent(doc.getMsgId(), System.currentTimeMillis()) != null) {
+                    log.info("CSM: Broadcast {} already processed, skipping", doc.getMsgId());
+                    return true;  // Already processed this broadcast
+                }
+            }
+
+            // Use atomic add operation - if already present, skip processing
+            // CRITICAL: This must happen BEFORE queueing the Runnable to prevent duplicates
+            // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
+            // is still being processed by another thread that added it to processingMessages
+            if (!processingMessages.add(doc.getMsgId())) {
+                log.info("CSM: could not add {} to processingMessages - already processing", doc.getMsgId());
+                return true;
+            }
+            log.info("CSM: Queueing message {} for processing", doc.getMsgId());
+
+            Runnable r = () -> {
+                try {
+                    log.info("CSM-PROC: Starting processing of message {}", doc.getMsgId());
+                    // Message already added to processingMessages above
+                    // Ensure removal happens in ALL code paths via outer finally block
+                    Msg current = doc;
+                    if (doc.isExclusive()) {
+                        // Check if already processed before attempting to lock
+                        if (doc.getProcessedBy() != null && !doc.getProcessedBy().isEmpty()) {
+                            log.info("CSM-PROC: Message {} already has processedBy, skipping", doc.getMsgId());
+                            return;
+                        }
+                        log.info("CSM-PROC: Attempting to lock message {}", doc.getMsgId());
+                        if (!lockMessage(doc, getSenderId())) {
+                            log.info("CSM-PROC: Failed to lock message {}, skipping", doc.getMsgId());
+                            return;
+                        }
+                        log.info("CSM-PROC: Locked message {}", doc.getMsgId());
+                        // Messages can be queued/seen before the exclusive lock exists. If another instance already
+                        // processed and unlocked, a stale queued message could otherwise be processed again.
+                        // Re-fetch to ensure processed_by state is current.
+                        // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
+                        try {
+                            var q = morphium.createQueryFor(Msg.class)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                                    .f("_id").eq(doc.getMsgId());
+                            q.setCollectionName(getStorageCollectionNameForMessage(doc));
+                            current = q.get();
+                        } catch (Exception ignored) {
+                            current = null;
+                        }
+                        if (current == null) {
+                            unlock(doc);
+                            return;
+                        }
+                        if (current.getProcessedBy() != null && !current.getProcessedBy().isEmpty()) {
+                            unlock(current);
+                            return;
+                        }
+                    }
+                    if (current == null) {
+                        log.info("Reread failed");
+                        return;
+                    }
+
+                    try {
+                        if (l.markAsProcessedBeforeExec()) {
+                            updateProcessedBy(current);
+                        }
+                        var ret = l.onMessage(this, current);
+                        if (!running.get())
+                            return;
+                        if (ret == null && effectiveSettings.isAutoAnswer()) {
+                            ret = new Msg(current.getTopic(), "received", "");
+                        }
+                        var deleted = false;
+                        if (current.isDeleteAfterProcessing()) {
+                            deleted = checkDeleteAfterProcessing(current);
+                        }
+                        if (!deleted && !l.markAsProcessedBeforeExec()) {
+                            updateProcessedBy(current);
+                        }
+                        if (ret != null) {
+                            // send answer
+                            ret.setInAnswerTo(current.getMsgId());
+                            ret.setRecipients(List.of(current.getSender()));
+                            sendMessage(ret);
+                        }
+                        // Delete lock after successful exclusive message processing
+                        // This is safe because processed_by has already been updated,
+                        // so even if another instance reads the message, they'll see our ID
+                        if (current.isExclusive()) {
+                            unlock(current);
+                        }
+                    } catch (MessageRejectedException mre) {
+                        // Allow retry for rejected broadcasts
+                        if (!current.isExclusive()) {
+                            locallyProcessedBroadcastIds.remove(current.getMsgId());
+                        }
+                        unlock(current);
+                        log.warn("Message rejected", mre);
+                    } catch (Exception e) {
+                        unlock(current);
+                        log.error("Error processing message", e);
+                    }
+                } catch (Exception e) {
+                    log.error("Error during change event processing", e);
+                } finally {
+                    // CRITICAL: Remove from processingMessages in ALL code paths
+                    // This must be in the outer finally to catch early returns
+                    // Move to recentlyCompletedMessages before removing to prevent race conditions
+                    recentlyCompletedMessages.put(doc.getMsgId(), System.currentTimeMillis());
+                    processingMessages.remove(doc.getMsgId());
+                }
+            };
+            queueOrRun(r);
+            return true;  // Always keep listener registered - cleanup happens in terminate()
+        });
+        // For standard MongoDB: use shared DB-level lock monitor (1 connection for all lock collections).
+        // For PoppyDB: no lock monitor needed - server pushes "lock_released" events
+        // directly to the message change stream (0 extra connections).
+        if (!morphium.getDriver().isPoppyDB()) {
+            lockCollectionToTopic.put(getLockCollectionName(n), n);
+            ensureSharedLockMonitor();
+        }
+        monitorsByTopic.putIfAbsent(n, new ArrayList<>());
+        monitorsByTopic.get(n).add(Map.of(MType.monitor, cm, MType.listener, l));
+        return Map.of(MType.monitor, cm, MType.listener, l);
+    }
+
+    /**
+     * Starts a single database-level change stream monitor that watches ALL lock collections
+     * for DELETE events. When a lock is deleted (exclusive message released), it triggers
+     * a targeted re-poll for the affected topic via pollTrigger.
+     * Uses 1 connection instead of N (one per topic).
+     */
+    private synchronized void ensureSharedLockMonitor() {
+        if (sharedLockMonitor != null) return;
+
+        // DB-level change stream: collectionName=null → watches entire database
+        // Filter for delete operations only (lock releases)
+        var pipeline = List.<Map<String, Object>>of(
+            Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))
+        );
+        sharedLockMonitor = new ChangeStreamMonitor(morphium, pipeline);
+        sharedLockMonitor.addListener((evt) -> {
+            if (!running.get()) return true;
+
+            String evtCollection = evt.getCollectionName();
+            if (evtCollection == null) return true;
+
+            // Look up which topic this lock collection belongs to
+            String topicName = lockCollectionToTopic.get(evtCollection);
+            if (topicName == null) return true; // not a lock collection we care about
+
+            // Trigger a re-poll for this topic so exclusive messages can be picked up
+            log.debug("Lock released in {}, triggering re-poll for topic {}", evtCollection, topicName);
+            pollTrigger.putIfAbsent(topicName, new AtomicInteger(0));
+            pollTrigger.get(topicName).incrementAndGet();
+
+            return true;
+        });
+        sharedLockMonitor.startAsync();
+        log.info("Started shared DB-level lock monitor (1 connection for all lock collections)");
+    }
+
+    private void unlock(Msg msg) {
+        if (msg.isExclusive()) {
+            morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName(msg)).f("_id")
+                    .eq(msg.getMsgId()).delete();
+        } // no need to release lock, if message was not locked
+    }
+
+    @Override
+    public void removeListenerForTopic(String topic, MessageListener l) {
+        int idx = -1;
+
+        for (var cm : monitorsByTopic.get(topic)) {
+            idx++;
+
+            if (cm.get(MType.listener) == l) {
+                break;
+            }
+        }
+
+        if (idx >= 0) {
+            var entry = monitorsByTopic.get(topic).get(idx);
+            ((ChangeStreamMonitor) entry.get(MType.monitor)).terminate();
+            monitorsByTopic.get(topic).remove(idx);
+        }
+        if (monitorsByTopic.get(topic).isEmpty()) {
+            monitorsByTopic.remove(topic);
+            lockCollectionToTopic.remove(getLockCollectionName(topic));
+        }
+    }
+
+    @Override
+    public String getSenderId() {
+        return senderId;
+    }
+
+    @Override
+    public MorphiumMessaging setSenderId(String id) {
+        senderId = id;
+        return this;
+    }
+
+    @Override
+    public int getPause() {
+        return effectiveSettings.getMessagingPollPause();
+    }
+
+    @Override
+    public MorphiumMessaging setPause(int pause) {
+        effectiveSettings.setMessagingPollPause(pause);
+        return this;
+    }
+
+    /**
+     * Register a topic's messaging collection with PoppyDB for optimizations.
+     * Only effective when connected to a PoppyDB instance.
+     */
+    private void registerTopicWithPoppyDB(String topicName) {
+        try {
+            if (morphium.getDriver().isPoppyDB()) {
+                String collection = getCollectionName(topicName);
+                String lockCollection = getLockCollectionName(topicName);
+                log.info("Registering messaging topic with PoppyDB: {}", collection);
+                Map<String, Object> cmdData = Doc.of(
+                        "lockCollection", lockCollection,
+                        "senderId", getSenderId()
+                                              );
+                List<Map<String, Object>> result = morphium.runCommand(
+                        "registerMessagingCollection", collection, cmdData);
+                if (result != null && !result.isEmpty() && Boolean.TRUE.equals(result.get(0).get("registered"))) {
+                    log.debug("Registered topic {} with PoppyDB", topicName);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not register topic {} with PoppyDB: {}", topicName, e.getMessage());
+        }
+    }
+
+    /**
+     * Unregister all messaging subscriptions from PoppyDB.
+     */
+    private void unregisterFromPoppyDB() {
+        try {
+            if (morphium.getDriver().isPoppyDB()) {
+                // Unregister all topics
+                for (String topicName : monitorsByTopic.keySet()) {
+                    String collection = getCollectionName(topicName);
+                    Map<String, Object> cmdData = Doc.of("senderId", getSenderId());
+                    morphium.runCommand("unregisterMessagingSubscriber", collection, cmdData);
+                }
+                log.debug("Unregistered messaging subscriber {} from PoppyDB", getSenderId());
+            }
+        } catch (Exception e) {
+            log.debug("Could not unregister from PoppyDB: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    @Override
+    public boolean isReady() {
+        return ready;
+    }
+
+    @Override
+    public boolean waitForReady(long timeout, TimeUnit unit) throws InterruptedException {
+        return readyLatch.await(timeout, unit);
+    }
+
+    @Override
+    public void close() {
+        terminate();
+    }
+
+    @Override
+    public void terminate() {
+        running.set(false);
+        // Unregister from PoppyDB before terminating
+        unregisterFromPoppyDB();
+        if (networkRegistry != null) {
+            networkRegistry.terminate();
+        }
+        for (var e : monitorsByTopic.entrySet()) {
+            for (var m : e.getValue()) {
+                ((ChangeStreamMonitor) m.get(MType.monitor)).terminate();
+            }
+        }
+        if (sharedLockMonitor != null) {
+            sharedLockMonitor.terminate();
+            sharedLockMonitor = null;
+        }
+        if (directMessagesMonitor != null)
+            directMessagesMonitor.terminate();
+        if (threadPool != null)
+            threadPool.shutdownNow();
+        if (decouplePool != null)
+            decouplePool.shutdownNow();
+        if (monitorsByTopic != null)
+            monitorsByTopic.clear();
+        if (waitingForAnswers != null)
+            waitingForAnswers.clear();
+        if (waitingForCallbacks != null)
+            waitingForCallbacks.clear();
+        locallyProcessedBroadcastIds.clear();
+        if (allMessagings != null)
+            allMessagings.remove(this);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void persistMessage(Msg m, boolean async) {
+        // Don't send messages if messaging has been terminated
+        if (!running.get()) {
+            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+            return;
+        }
+        if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
+            long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, effectiveSettings.getMessagingRegistryUpdateInterval()));
+            if (effectiveSettings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                }
+                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                    String msg = "No active listeners for topic '" + m.getTopic() + "'";
+                    if (effectiveSettings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                        log.warn(msg);
+                    } else {
+                        throw new MessageRejectedException(msg);
+                    }
+                }
+            }
+            if (effectiveSettings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
+                for (String r : m.getRecipients()) {
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+                    }
+                    if (!networkRegistry.isParticipantActive(r)) {
+                        String msg = "Recipient '" + r + "' is not active";
+                        if (effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
+                            log.warn(msg);
+                        } else {
+                            throw new MessageRejectedException(msg);
+                        }
+                    }
+                }
+            }
+        }
+
+        m.setSenderHost(hostname);
+        m.setSender(getSenderId());
+        if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
+            try {
+                if (async) {
+                    morphium.store(m, getCollectionName(m), aCallback);
+                } else {
+                    morphium.store(m, getCollectionName(m), null);
+                }
+                scheduleTimeoutDeletionIfNeeded(m, getCollectionName(m));
+            } catch (RuntimeException e) {
+                if (networkRegistry != null
+                        && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
+                        && m.getRecipients() != null
+                        && !m.getRecipients().isEmpty()) {
+                    MessageRejectedException mre = new MessageRejectedException("Recipient '" + m.getRecipients().get(0) + "' is not active");
+                    mre.initCause(e);
+                    throw mre;
+                }
+                throw e;
+            }
+
+        } else {
+            for (String rec : m.getRecipients()) {
+                try {
+                    if (async) {
+                        morphium.store(m, getDMCollectionName(rec), aCallback);
+                    } else {
+                        morphium.store(m, getDMCollectionName(rec), null);
+                    }
+                    scheduleTimeoutDeletionIfNeeded(m, getDMCollectionName(rec));
+                } catch (RuntimeException e) {
+                    if (networkRegistry != null
+                            && effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW) {
+                        MessageRejectedException mre = new MessageRejectedException("Recipient '" + rec + "' is not active");
+                        mre.initCause(e);
+                        throw mre;
+                    }
+                    throw e;
+                }
+
+            }
+        }
+
+    }
+
+    private void scheduleTimeoutDeletionIfNeeded(Msg msg, String collectionName) {
+        if (msg == null || !running.get() || decouplePool == null || morphium == null || morphium.getDriver() == null) {
+            return;
+        }
+
+        if (!msg.isTimingOut() || msg.getTtl() <= 0 || msg.getMsgId() == null) {
+            return;
+        }
+
+        long delay = msg.getTtl();
+
+        try {
+            Date deleteAt = msg.getDeleteAt();
+            if (deleteAt != null) {
+                delay = Math.max(0, deleteAt.getTime() - System.currentTimeMillis());
+            }
+        } catch (Exception ignored) {
+        }
+
+        long effectiveDelay = delay + TimeUnit.SECONDS.toMillis(1);
+
+        decouplePool.schedule(() -> {
+            if (!running.get() || morphium == null || morphium.getDriver() == null) {
+                return;
+            }
+
+            try {
+                morphium.createQueryFor(Msg.class, collectionName)
+                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                        .f("_id").eq(msg.getMsgId())
+                        .remove();
+            } catch (Exception ignored) {
+            }
+        }, effectiveDelay, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void queueMessage(Msg m) {
+        persistMessage(m, true);
+    }
+
+    @Override
+    public void sendMessage(Msg m) {
+        persistMessage(m, false);
+    }
+
+    @Override
+    public long getNumberOfMessages() {
+        long total = 0;
+        // Sum pending per-topic messages this node could process
+        try {
+            for (var msgName : monitorsByTopic.keySet()) {
+                Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+                // pending = not processed by anyone (exclusive) or not processed by me
+                // (broadcast)
+                q1.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+                total += q1.countAll();
+            }
+
+            // Include direct messages for this node in its DM collection
+            Query<Msg> qdm = morphium.createQueryFor(Msg.class, getDMCollectionName());
+            qdm.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+            total += qdm.countAll();
+        } catch (Exception e) {
+            log.warn("Error calculating number of messages", e);
+        }
+        return total;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void sendMessageToSelf(Msg m) {
+
+        m.setSender("self");
+        m.setRecipient(getSenderId());
+        morphium.store(m, getDMCollectionName(), null);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void queueMessagetoSelf(Msg m) {
+
+        m.setSender("self");
+        m.setRecipient(getSenderId());
+        morphium.store(m, getDMCollectionName(), aCallback);
+    }
+
+    @Override
+    public boolean isAutoAnswer() {
+        return effectiveSettings.isAutoAnswer();
+    }
+
+    @Override
+    public MorphiumMessaging setAutoAnswer(boolean autoAnswer) {
+        effectiveSettings.setAutoAnswer(autoAnswer);
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
+        if (!running.get()) {
+            throw new SystemShutdownException("Messaging shutting down - abort sending!");
+        }
+
+        if (theMessage.getMsgId() == null)
+            theMessage.setMsgId(new MorphiumId());
+
+        final MorphiumId requestMsgId = theMessage.getMsgId();
+        final LinkedBlockingDeque<Msg> blockingQueue = new LinkedBlockingDeque<>();
+        waitingForAnswers.put(requestMsgId, blockingQueue);
+
+        try {
+            sendMessage(theMessage);
+            T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
+
+            if (null == firstAnswer && throwExceptionOnTimeout) {
+                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/"
+                                                  + requestMsgId + " in time (" + timeoutInMs + "ms)");
+            }
+
+            return firstAnswer;
+        } catch (InterruptedException e) {
+            log.error("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId
+                      + " interrupted.", e);
+        } finally {
+            waitingForAnswers.remove(requestMsgId);
+        }
+
+        return null;
+    }
+
+    @Override
+    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
+        return sendAndAwaitAnswers(theMessage, numberOfAnswers, timeout, false);
+    }
+
+    @Override
+    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout,
+            boolean throwExceptionOnTimeout) {
+        MorphiumId requestMsgId = theMessage.getMsgId();
+
+        if (requestMsgId == null) {
+            theMessage.setMsgId(new MorphiumId());
+            requestMsgId = theMessage.getMsgId();
+        }
+
+        final Queue<Msg> answerList = new LinkedBlockingDeque<>();
+        waitingForAnswers.put(requestMsgId, answerList);
+        sendMessage(theMessage);
+        long start = System.currentTimeMillis();
+        List<T> returnValue = null;
+
+        try {
+            while (running.get()) {
+                if (answerList.size() > 0) {
+                    if (numberOfAnswers > 0 && answerList.size() >= numberOfAnswers) {
+                        break;
+                    }
+
+                    // time up - return all answers that were received
+                }
+
+                // Did not receive any message in time
+                if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
+                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic()
+                                                      + "/" + requestMsgId + "in time (" + timeout + ")");
+                }
+
+                if (System.currentTimeMillis() - start > timeout) {
+                    break;
+                }
+
+                if (!running.get()) {
+                    throw new SystemShutdownException("Messaging shutting down - abort waiting!");
+                }
+
+                LockSupport.parkNanos(
+                                TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
+                // Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
+            }
+        } finally {
+            @SuppressWarnings("unchecked")
+            List<T> answers = new ArrayList(waitingForAnswers.remove(requestMsgId));
+            if (numberOfAnswers > 0 && answers.size() > numberOfAnswers) {
+                returnValue = new ArrayList<>(answers.subList(0, numberOfAnswers));
+            } else {
+                returnValue = answers;
+            }
+        }
+
+        return returnValue;
+    }
+
+    @Override
+    public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs) {
+        return sendAndAwaitFirstAnswer(theMessage, timeoutInMs, true);
+    }
+
+    /**
+     * Sends a message asynchronously and sends all incoming answers via callback.
+     * If sent message is exclusive, only one answer will be processed, otherwise
+     * all incoming answers up to timeout
+     * will be processed.
+     *
+     * @param theMessage to be sent
+     * @param timoutInMs milliseconds to wait until listener is removed
+     * @param cb - the message callback
+     */
+    @Override
+    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs,
+            SingleCollectionMessaging.AsyncMessageCallback cb) {
+        if (!running.get()) {
+            throw new SystemShutdownException("Messaging shutting down - abort sending!");
+        }
+
+        if (theMessage.getMsgId() == null)
+            theMessage.setMsgId(new MorphiumId());
+
+        final MorphiumId requestMsgId = theMessage.getMsgId();
+        final CallbackRequest cbr = new CallbackRequest();
+        cbr.timestamp = System.currentTimeMillis();
+        cbr.theMessage = theMessage;
+        cbr.callback = cb;
+        cbr.ttl = timeoutInMs;
+        waitingForCallbacks.put(requestMsgId, cbr);
+        sendMessage(theMessage);
+        decouplePool.schedule(() -> {
+            waitingForCallbacks.remove(requestMsgId);
+        }, timeoutInMs, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public boolean isProcessMultiple() {
+        return effectiveSettings.isProcessMultiple();
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public MorphiumMessaging setProcessMultiple(boolean processMultiple) {
+        effectiveSettings.setProcessMultiple(processMultiple);
+        return this;
+    }
+
+    @Override
+    public String getQueueName() {
+        return effectiveSettings.getMessageQueueName();
+    }
+
+    @Override
+    public MorphiumMessaging setQueueName(String queueName) {
+        effectiveSettings.setMessageQueueName(queueName);
+        return this;
+    }
+
+    @Override
+    public boolean isMultithreadded() {
+        return effectiveSettings.isMessagingMultithreadded();
+    }
+
+    @Override
+    public MorphiumMessaging setMultithreadded(boolean multithreadded) {
+        effectiveSettings.setMessagingMultithreadded(multithreadded);
+        return this;
+    }
+
+    @Override
+    public int getWindowSize() {
+        return effectiveSettings.getMessagingWindowSize();
+    }
+
+    @Override
+    public MorphiumMessaging setWindowSize(int windowSize) {
+        effectiveSettings.setMessagingWindowSize(windowSize);
+        return this;
+    }
+
+    @Override
+    public boolean isUseChangeStream() {
+        return morphium.getConfig().clusterSettings().isReplicaset() && effectiveSettings.isUseChangeStream();
+    }
+
+    @Override
+    public int getRunningTasks() {
+        return threadPool.getActiveCount();
+    }
+
+    @Override
+    public Morphium getMorphium() {
+        return morphium;
+    }
+
+    @Override
+    public MorphiumMessaging setPolling(boolean doPolling) {
+        effectiveSettings.setUseChangeStream(!doPolling);
+        return this;
+    }
+
+    @Override
+    public MorphiumMessaging setUseChangeStream(boolean useChangeStream) {
+        effectiveSettings.setUseChangeStream(useChangeStream);
+        return this;
+    }
+
+    @Override
+    public void init(Morphium m) {
+        init(m, m.getConfig().messagingSettings());
+    }
+
+    @Override
+    public void init(Morphium m, MessagingSettings overrides) {
+        morphium = m;
+
+        if (overrides == m.getConfig().messagingSettings()) {
+            // create copy of settings, if same as morphiums
+            effectiveSettings = m.getConfig().createCopy().messagingSettings();
+        } else {
+            effectiveSettings = overrides;
+        }
+
+        if (effectiveSettings.getMessagingStatusInfoListenerName() == null) {
+            effectiveSettings.setMessagingStatusInfoListenerName("morphium.status_info");
+        }
+
+        if (effectiveSettings.getSenderId() == null) {
+            setSenderId(UUID.randomUUID().toString());
+        } else {
+            setSenderId(effectiveSettings.getSenderId());
+        }
+        int coreSize = effectiveSettings.getThreadPoolMessagingCoreSize();
+        int maxSize = effectiveSettings.getThreadPoolMessagingMaxSize();
+        if (coreSize <= 0) {
+            coreSize = Math.max(1, maxSize);
+        }
+        threadPool = new ThreadPoolExecutor(
+                        coreSize,
+                        maxSize,
+                        effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
+                        TimeUnit.MILLISECONDS,
+                        new LinkedBlockingQueue<>(),
+                        Thread.ofPlatform().name("msg-thr-", 0).factory());
+        threadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+
+            @Override
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                Thread.onSpinWait(); // CPU-friendly busy wait hint
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS
+                                      .toNanos(morphium.getConfig().driverSettings().getIdleSleepTime())); // log.debug(String.format("Active
+                //Recursion!!!
+                executor.execute(r);
+
+            }
+
+        });
+
+        if (effectiveSettings.isMessagingStatusInfoListenerEnabled()) {
+            log.info("Enabling status info listener on topic {}", getStatusInfoListenerName());
+            addListenerForTopic(getStatusInfoListenerName(), statusInfoListener);
+        } else {
+            log.info("Status info listener disabled via settings");
+        }
+
+        if (effectiveSettings.isMessagingRegistryEnabled()) {
+            networkRegistry = new MessagingRegistry(this);
+        }
+    }
+
+}

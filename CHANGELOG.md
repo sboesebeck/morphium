@@ -7,139 +7,134 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [6.2.0]
 
-### Added
-
-#### @Reference cascade features and cycle detection
-- **`@Reference(cascadeDelete = true)`** — Referenced entities are automatically deleted when the parent entity is deleted. Supports single references, collections, and maps. Cycle-safe via identity-based tracking.
-- **`@Reference(orphanRemoval = true)`** — Referenced entities that are no longer referenced after an update are automatically deleted. Works by comparing old and new reference IDs before/after store.
-- **Cycle detection in `ObjectMapperImpl.serialize()`** — Circular `@Reference` chains (A→B→A) are detected during serialization. Objects with IDs return a minimal `{_id: ...}` document; objects without IDs throw `IllegalStateException` with a clear error message.
-- New `CascadeHelper` utility class encapsulating all cascade logic with `ThreadLocal`-based cycle detection.
-- Comprehensive documentation: `docs/howtos/references-and-relationships.md`
-
 ### Breaking Changes
 
-#### MorphiumDriverException is now unchecked (extends RuntimeException)
-`MorphiumDriverException` now extends `RuntimeException` instead of `Exception`, aligning with the MongoDB Java driver (`MongoException`), JPA, jOOQ, and Spring Data conventions.
+#### PoppyDB: Server extracted into separate module (renamed from MorphiumServer)
+The server component has been extracted into its own Maven module and renamed to **PoppyDB**.
+
+**Why?** The server pulled in dependencies (Netty, etc.) that 90% of Morphium users don't need — most projects just use the core library to talk to MongoDB. By extracting PoppyDB into a separate module, `de.caluga:morphium` stays lean. Beyond testing, PoppyDB is a fully functional MongoDB-compatible server — particularly useful as a **messaging backend**, providing a lightweight messaging solution without requiring a full MongoDB deployment. Add it as a test dependency or use it standalone:
+
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+This also makes standalone deployment and testing of PoppyDB much simpler.
 
 **What changed:**
-- 40+ redundant `catch (MorphiumDriverException e) { throw new RuntimeException(e); }` blocks removed across 13 source files
-- `MorphiumDriverException` now propagates naturally through the call stack with its original type preserved
-- Subclasses `MorphiumDriverNetworkException` and `FunctionNotSupportedException` inherit the change
+- **Module**: `de.caluga:poppydb` (was part of `de.caluga:morphium`)
+- **Package**: `de.caluga.poppydb` (was `de.caluga.morphium.server`)
+- **CLI JAR**: `poppydb-<version>-cli.jar` (was `morphium-<version>-server-cli.jar`)
+- **Main classes**: `PoppyDB` / `PoppyDBCLI` (were `MorphiumServer` / `MorphiumServerCLI`)
+- Netty handlers → `de.caluga.poppydb.netty`, election → `de.caluga.poppydb.election`
+- Morphium core library (`de.caluga:morphium`) is **unaffected**
+- Wire protocol backward compatible: server sends both `poppyDB: true` and `morphiumServer: true` in hello response
+
+#### Multi-module Maven structure
+The project is now a multi-module build:
+- `morphium-parent` — parent POM (`de.caluga:morphium-parent`)
+- `morphium-core` — the core library, artifactId stays `de.caluga:morphium`
+- `poppydb` — the server (`de.caluga:poppydb`)
+
+Dependency coordinates for the core library are unchanged: `de.caluga:morphium:6.2.0`
+
+#### MorphiumDriverException is now unchecked (extends RuntimeException)
+Aligns with MongoDB Java driver (`MongoException`), JPA, jOOQ, and Spring Data conventions.
 
 **Migration:**
-- Existing `catch (MorphiumDriverException e)` blocks continue to work — no changes needed
-- Multi-catch like `catch (RuntimeException | MorphiumDriverException e)` must be simplified to `catch (RuntimeException e)` (compiler will flag this)
-- **Important:** Code that inspects `getCause()` for wrapped exceptions must be updated:
-  ```java
-  // BEFORE (no longer works — getCause() won't return MorphiumDriverException)
-  catch (RuntimeException e) {
-      if (e.getCause() instanceof MorphiumDriverException mde) { ... }
-  }
+- `catch (MorphiumDriverException e)` blocks continue to work — no changes needed
+- `catch (RuntimeException | MorphiumDriverException e)` must be simplified to `catch (RuntimeException e)`
+- Code inspecting `getCause()` for wrapped exceptions must catch `MorphiumDriverException` directly
 
-  // AFTER (catch directly)
-  catch (MorphiumDriverException e) {
-      handleDbError(e);
-  }
-  ```
+#### Entity instantiation: `ReflectionFactory` → `Unsafe.allocateInstance()`
+Replaced `sun.reflect.ReflectionFactory` (progressively hidden since JDK 17) with `sun.misc.Unsafe.allocateInstance()` for creating entity instances without no-arg constructors. This matches what Spring, Jackson, Gson, and Hibernate use. Best practice: add a no-arg constructor to `@Entity` classes.
 
 ### Added
 
-#### `@Version` annotation — Optimistic Locking
-Full optimistic locking support via a new `@Version` annotation on `Long` fields. On insert, the version is initialized to `1`; on update, Morphium automatically adds a version-match filter and increments the version atomically. A `VersionMismatchException` is thrown if the document was modified concurrently.
-
-```java
-@Entity
-public class Order {
-    @Id private MorphiumId id;
-    @Version private Long version;
-    private String status;
-}
-```
-- Works with `store()`, `set()`, and bulk operations
-- Supported by PooledDriver, InMemoryDriver, and MorphiumServer
-- `VersionMismatchException` propagates cleanly without being wrapped in retry logic
-
-#### MONGODB-X509 client-certificate authentication
-Added support for X.509 client-certificate authentication against MongoDB:
-- New `authMechanism` setting in `MorphiumConfig` (set to `"MONGODB-X509"`)
-- Certificate subject is sent as the username in the `authenticate` command
-- Integrates with the existing SSL/TLS configuration
-
-#### MongoDB Atlas `mongodb+srv://` URL support
-Morphium can now connect to MongoDB Atlas using standard `mongodb+srv://` connection strings:
-- DNS SRV records are resolved automatically during `initializeAndConnect()`
-- Pure-Java DNS resolver (no JNDI dependency) — compatible with Quarkus, GraalVM native image
-- TCP fallback for truncated DNS responses, DNS compression pointer support
-- TLS is automatically enabled for SRV connections
-
-**Note:** `authSource` and `replicaSet` from the SRV TXT record are not yet resolved automatically and must be configured separately.
+#### `@Reference` cascade features and cycle detection
+- **`cascadeDelete = true`** — Referenced entities are automatically deleted when the parent is deleted. Supports single references, collections, and maps.
+- **`orphanRemoval = true`** — References removed from a collection after update are automatically deleted.
+- **Cycle detection** — Circular `@Reference` chains (A→B→A) are detected during serialization and deserialization. Objects with IDs return `{_id: ...}`; objects without IDs throw `IllegalStateException`.
+- New `CascadeHelper` utility with `ThreadLocal`-based cycle detection.
+- Documentation: `docs/howtos/references-and-relationships.md`
 
 #### `@AutoSequence` annotation — zero-boilerplate sequence assignment
-New field-level annotation that automatically assigns sequence numbers from a MongoDB-backed `SequenceGenerator` when storing entities:
-
 ```java
 @Entity
 public class ImportRecord {
     @Id private MorphiumId id;
-
     @AutoSequence(name = "import_number", startValue = 1000, inc = 1)
     private Long importNumber;
 }
 ```
-
 - Supported field types: `long`, `Long`, `int`, `Integer`, `String`
 - Explicit values are never overwritten — only `null` (or `0` for primitives) triggers assignment
-- Multiple `@AutoSequence` fields per entity, each with independent counters
-- **Batch optimization:** `storeList()` allocates all sequence numbers in a single round-trip via `getNextBatch()` instead of one call per document
+- **Batch optimization:** `storeList()` allocates all sequence numbers in a single round-trip via `SequenceGenerator.getNextBatch()`
 
-#### `SequenceGenerator.getNextBatch(int)`
-New method for bulk sequence allocation that reduces MongoDB round-trips from O(5N) to O(5) regardless of batch size:
+#### Automatic CosmosDB backend detection
+- `BackendType` enum (`MONGODB`, `COSMOSDB`, `POPPY_DB`, `UNKNOWN`) in the driver layer
+- Auto-detected from `hello` handshake response (CosmosDB: `msg` field, PoppyDB: `poppyDB` field)
+- `morphium.isCosmosDB()` / `driver.isPoppyDB()` for application-level checks
+- Supports Azure sovereign cloud domains
 
-```java
-SequenceGenerator gen = new SequenceGenerator(morphium, "orderNo", 1, 1);
-long[] ids = gen.getNextBatch(1000); // single lock + single $inc
-```
+#### `@CreationTime` / `@LastChange` enhancements
+- **`LocalDateTime` support** as a fourth field type (alongside `long`, `Date`, `String`)
+- **Field-only usage** — class-level `@CreationTime` annotation is no longer required; the field annotation alone is sufficient
+- **Preset values preserved** — explicitly set `@CreationTime` values are no longer overwritten on insert
 
-Fully interoperable with existing `getNextValue()` — both share the same lock and sequence document.
+#### `resetThreadLocalOverrides()`
+New method to clean up all per-thread boolean overrides (`disableAutoValuesForThread()`, `disableReadCacheForThread()`, etc.) in a single call. Prevents state leaking between requests in thread-pool and virtual-thread environments.
 
-#### Configurable `LocalDateTimeMapper` storage format
-The `LocalDateTimeMapper` now supports switching between MongoDB `Date` (epoch millis) and ISO-8601 string storage via a new configuration option, enabling better interoperability with external tools and human-readable date storage.
+#### `@Version` annotation — Optimistic Locking
+Full optimistic locking via `@Version` on `Long` fields. On insert, version is initialized to `1`; on update, a version-match filter is added and the version incremented atomically. `VersionMismatchException` on concurrent modification.
+
+#### Other additions
+- **MONGODB-X509** client-certificate authentication
+- **`mongodb+srv://`** connection string support for MongoDB Atlas (pure-Java DNS, no JNDI)
+- **Configurable `LocalDateTimeMapper`** storage format (Date vs. ISO-8601 string)
+- **`SequenceGenerator.getNextBatch(int)`** for bulk sequence allocation in a single round-trip
 
 ### Fixed
 
+#### Index and capped collection checks
+- `setAutoIndexAndCappedCreationOnWrite()` now also sets `CappedCheck` (previously only `IndexCheck`)
+- Missing indices no longer reported for collections that don't exist yet
+- WriteConcern on standalone MongoDB: queries `driver.isReplicaSet()` instead of config flag; gracefully downgrades w>1 to w:1
+
+#### Enum deserialization in collections and maps
+String values from MongoDB in `Map<String, SomeEnum>` or `List<SomeEnum>` were not converted back to their enum type. Added explicit `Enum.valueOf()` handling in `ObjectMapperImpl`.
+
+#### Custom TypeMappers ignored in queries
+Custom `MorphiumTypeMapper` implementations were not consulted when resolving field values in `MongoFieldImpl`. Queries now call `ObjectMapperImpl.marshallIfNecessary()` during value resolution.
+
 #### Concurrent double-write in `BufferedMorphiumWriterImpl.flush()`
-`flush()` used `opLog.get()` which returned a live reference to the operation list. Concurrent flush calls (e.g., Quarkus virtual thread + housekeeping thread) would both snapshot and write the same entries, causing `E11000 duplicate key` errors. Fixed by using `opLog.remove()` for atomic ownership transfer — the same pattern already used by `runIt()`.
+`flush()` used `opLog.get()` which returned a live reference. Concurrent calls would write the same entries, causing `E11000 duplicate key` errors. Fixed via `opLog.remove()` for atomic ownership transfer.
 
 #### Quarkus / OSGi ClassLoader compatibility
-All 14 `Class.forName()` call sites across 9 source files now use a centralized `AnnotationAndReflectionHelper.classForName()` helper that prefers the thread context ClassLoader. This fixes `ClassNotFoundException` in Quarkus dev mode, OSGi containers, and JBoss, where application classes are loaded by a child ClassLoader invisible to the library's own ClassLoader.
-
-#### `@Version` hardening
-- Version initialized to `1L` in `insert()` path (was `null`)
-- InMemoryDriver uses `$and` filter for version checks
-- `VersionMismatchException` propagates without being wrapped in retry logic
-- Hardened `@Version` handling in `MorphiumWriterImpl` for edge cases
-
-#### BufferedWriter: immediate execution for non-buffered entities
-When an entity had no `@WriteBuffer` annotation (buffer size = 0), writes were silently accumulated in the internal `opLog` and never flushed reliably. Now executes immediately via `BulkRequestContext`, matching user expectations.
-
-#### BufferedWriter: `setIdIfNull` improvements
-- Added support for `UUID` (via `UUID.randomUUID()`) and `org.bson.types.ObjectId` (via `new ObjectId()`) as auto-generated ID types
-- Restored `RuntimeException` for unsupported ID types (e.g., `Date`, `Long`) to prevent silent creation of unreadable documents
-
-#### Sequence `@WriteSafety` for standalone MongoDB
-Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The previous setting caused errors and log spam on standalone MongoDB instances without a replica set. Sequence correctness is guaranteed by the lock-based protocol, not by write concern propagation.
+All `Class.forName()` call sites now use a centralized helper preferring the thread context ClassLoader. Fixes `ClassNotFoundException` in Quarkus dev mode, OSGi, and JBoss.
 
 #### Other fixes
-- Fixed NPE in writer operations
-- Added warning when no update results are received from MongoDB
-- Fixed `BsonEncoder` `java.time` type support
-- Fixed `@Version` behavior with pre-set IDs
+- `@Version` hardening: initialized to `1L` on insert, `$and` filter in InMemoryDriver
+- BufferedWriter: immediate execution for non-buffered entities (buffer size = 0)
+- BufferedWriter: `setIdIfNull` support for `UUID` and `ObjectId` ID types
+- Sequence `@WriteSafety`: changed to `BASIC` for standalone MongoDB compatibility
+- `BsonEncoder` `java.time` type support
+- InMemoryDriver: no-op handler for X509 auth command
+- Multi-collection messaging bootstrapping speedup
 
 ### Code Quality
-- Resolved all source compilation warnings (deprecation + unchecked) across the codebase
-- Resolved all test compilation warnings
-- Replaced deprecated `MorphiumConfig` API calls (`setDriverName`, `setRetriesOnNetworkError`) with new sub-object API
-- Fixed misleading Java Records support claim in READMEs
+- Resolved all source and test compilation warnings
+- Replaced deprecated `MorphiumConfig` API calls with new sub-object API
+- `CascadeHelper` uses `@CascadeAware` marker annotation instead of `ConcurrentHashMap` caches
+
+### Tests
+- Increased timeouts for flaky messaging, changestream, and `LastAccessTest` tests
+- Comprehensive failover tests for PoppyDB replica sets
+- InMemory backend detection tests
 
 ### Dependencies
 | Dependency | Previous | Updated |
@@ -196,17 +191,17 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 
 ### Added
 
-#### MorphiumServer Enhancements
-- **Replica set support**: MorphiumServer now supports replica set configuration with automatic primary election and failover
-- **Server CLI**: New standalone `morphium-server-cli.jar` for running MorphiumServer from command line with `--help` option
-- **Replication**: Data replication between MorphiumServer instances in a replica set
-- **Custom election protocol**: Implemented Raft-inspired election system for MorphiumServer replica sets with:
+#### PoppyDB Enhancements
+- **Replica set support**: PoppyDB now supports replica set configuration with automatic primary election and failover
+- **Server CLI**: New standalone `poppydb-cli.jar` for running PoppyDB from command line with `--help` option
+- **Replication**: Data replication between PoppyDB instances in a replica set
+- **Custom election protocol**: Implemented Raft-inspired election system for PoppyDB replica sets with:
   - Configurable election priorities per node
   - Heartbeat-based leader detection
   - Automatic leader election on primary failure
   - Vote request/response protocol for consensus
 - **Netty-based wire protocol handler**: New `MongoCommandHandler` using Netty for improved performance and connection handling
-- **Messaging optimization**: MorphiumServer-specific optimizations for messaging workloads
+- **Messaging optimization**: PoppyDB-specific optimizations for messaging workloads
 
 #### Messaging
 - **Topic Registry / Network Registry**: New `NetworkRegistry` implementation for discovering messaging topics across the network
@@ -226,12 +221,12 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 - **Host class**: New `Host` class for improved readability in connection pool management
 - **Shared connection pools**: Connection pool sharing between Morphium instances
 
-#### MorphiumServer
-- **SSL/TLS support**: MorphiumServer can now accept SSL/TLS encrypted connections
+#### PoppyDB
+- **SSL/TLS support**: PoppyDB can now accept SSL/TLS encrypted connections
   - `server.setSslEnabled(true)` to enable SSL
   - `server.setSslContext(sslContext)` for custom SSL configuration
   - Automatic TLS 1.2/1.3 protocol selection
-- **Periodic snapshots/persistence**: MorphiumServer can now dump databases to disk and restore on startup
+- **Periodic snapshots/persistence**: PoppyDB can now dump databases to disk and restore on startup
   - `--dump-dir <path>` CLI option to enable persistence
   - `--dump-interval <seconds>` for periodic dumps during runtime
   - Automatic restore from dump files on startup
@@ -246,9 +241,9 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 - **InMemoryDriver change stream race condition**: Fixed race condition in change stream handling (line 633-646)
 - **Flaky IteratorTest.concurrentAccessTest**: Fixed race condition where multiple threads sharing a single iterator would call `hasNext()` and `next()` non-atomically, causing incorrect element counts (e.g., 29130 instead of 25000). The test now properly synchronizes the hasNext+next critical section
 - **Parallel test database isolation**: Fixed race condition in MultiDriverTestBase where database cleanup would drop ALL databases matching the prefix pattern, including databases from other parallel tests that were still running. Now each test only drops its own database, preventing "expected X but was 0" failures in parallel execution
-- **MorphiumServer listDatabases**: Added explicit handler for `listDatabases` command in MorphiumServer. Previously this command returned null when forwarded through GenericCommand, causing NullPointerException in tests that call `morphium.listDatabases()`
-- **MorphiumServer stepDown for standalone servers**: Standalone MorphiumServer instances (no replica set configured) now immediately become primary again after receiving a `replSetStepDown` command. Previously, stepDown would leave the server in secondary state with no way to recover, causing "no primary" errors for subsequent operations
-- **InMemoryDriver database-level change streams via MorphiumServer**: Fixed change stream event delivery for database-level watches registered through MorphiumServer. When a client creates a database-level watch via the wire protocol, MongoDB convention sets collection to "1". The InMemoryDriver now correctly delivers events to subscribers registered under the `db.1` namespace key
+- **PoppyDB listDatabases**: Added explicit handler for `listDatabases` command in PoppyDB. Previously this command returned null when forwarded through GenericCommand, causing NullPointerException in tests that call `morphium.listDatabases()`
+- **PoppyDB stepDown for standalone servers**: Standalone PoppyDB instances (no replica set configured) now immediately become primary again after receiving a `replSetStepDown` command. Previously, stepDown would leave the server in secondary state with no way to recover, causing "no primary" errors for subsequent operations
+- **InMemoryDriver database-level change streams via PoppyDB**: Fixed change stream event delivery for database-level watches registered through PoppyDB. When a client creates a database-level watch via the wire protocol, MongoDB convention sets collection to "1". The InMemoryDriver now correctly delivers events to subscribers registered under the `db.1` namespace key
 - **Message sending to self**: Fixed broken message sending when sender equals recipient
 - **Deadlocks**: Fixed multiple deadlock scenarios in messaging and server components
 - **Robust shutdown**: Improved shutdown handling across components
@@ -257,40 +252,40 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 - **Pooled driver updates**: Updates now apply proper `writeConcern` consistently and single-document updates honor sort
 - **Buffered writer bulk inserts**: Fixed a race where mutating a list after `storeList/insert(list)` could flush as "0 operations" and/or cause duplicate inserts
 - **Change stream lifecycle**: `ChangeStreamMonitor` no longer misses early events as easily and terminates reliably (stops blocking watches on shutdown)
-- **MorphiumServer dropDatabase handling**: Added "dropdatabase" to WRITE_COMMANDS set so database drops are properly forwarded to primary instead of being rejected by secondaries
+- **PoppyDB dropDatabase handling**: Added "dropdatabase" to WRITE_COMMANDS set so database drops are properly forwarded to primary instead of being rejected by secondaries
 - **Test database cleanup**: Fixed `MultiDriverTestBase` to clean databases for ALL morphium instances (both PooledDriver and InMemoryDriver), not just the first one. Previously only one storage backend was cleaned, causing test isolation failures
 - **GenericCommand key ordering**: Changed `cmdData` from `HashMap` to `LinkedHashMap` in `GenericCommand.fromMap()` to preserve key ordering, which is critical for MongoDB wire protocol where the command name must be the first key
 - **Test configuration default hosts**: Changed `TestConfig` to default to single host (localhost:27017) instead of 3-host replica set for simpler test setup. Multi-node replica sets can still be configured via `morphium.hostSeed` property
-- **MorphiumServer getMore for regular query cursors**: Fixed `getMore` command to forward regular query cursors to InMemoryDriver instead of only handling change stream cursors. Previously, iterators would hang infinitely when fetching additional batches because non-change-stream cursors were returning empty batches with non-zero cursor IDs
-- **MorphiumServer replica set replication**: Extended change stream replication to handle `drop`, `dropDatabase`, `replace`, and `rename` operations. Previously only `insert`, `update`, and `delete` were replicated, causing collection drops and document replacements to not sync to secondaries
-- **MorphiumServer collection metadata forwarding**: Added forwarding of `listCollections` command to primary when running as secondary. This ensures `isCapped()` checks return correct results for capped collections created on primary
+- **PoppyDB getMore for regular query cursors**: Fixed `getMore` command to forward regular query cursors to InMemoryDriver instead of only handling change stream cursors. Previously, iterators would hang infinitely when fetching additional batches because non-change-stream cursors were returning empty batches with non-zero cursor IDs
+- **PoppyDB replica set replication**: Extended change stream replication to handle `drop`, `dropDatabase`, `replace`, and `rename` operations. Previously only `insert`, `update`, and `delete` were replicated, causing collection drops and document replacements to not sync to secondaries
+- **PoppyDB collection metadata forwarding**: Added forwarding of `listCollections` command to primary when running as secondary. This ensures `isCapped()` checks return correct results for capped collections created on primary
 - **InMemoryDriver listCollections capped status**: Fixed `listCollections` response to include `capped`, `size`, and `max` options for capped collections. Previously the options field was always empty, causing `isCapped()` to return false even for capped collections
-- **MorphiumServer capped collection replication**: Added initial and periodic sync of capped collection metadata from primary to secondaries. Capped collections created on primary are now properly registered on secondaries, ensuring capped behavior is enforced during replication
-- **InMemory backend detection for tests**: Added `isInMemoryBackend()` method to MorphiumDriver interface and `inMemoryBackend` field to hello response from MorphiumServer. Tests that need to skip unsupported features (like Collation) can now correctly detect when connected to MorphiumServer with InMemory backend, not just when using InMemoryDriver directly
-- **MorphiumServer changestream event delivery via wire protocol**: Fixed changestream events not being delivered to clients connecting via the wire protocol. Watch cursors are now properly created with callbacks, events are queued via `LinkedBlockingQueue`, and `getMore` requests correctly return queued events to clients. This enables reliable messaging when using MorphiumServer as a messaging hub
-- **MorphiumServer killCursors command handler**: Added missing `killCursors` command handler to MorphiumServer. Without this, watch cursors were never cleaned up when clients disconnected, causing virtual threads to accumulate and eventually block new watch thread creation. The fix properly removes cursors from `watchCursors` and `tailableCursors` maps
+- **PoppyDB capped collection replication**: Added initial and periodic sync of capped collection metadata from primary to secondaries. Capped collections created on primary are now properly registered on secondaries, ensuring capped behavior is enforced during replication
+- **InMemory backend detection for tests**: Added `isInMemoryBackend()` method to MorphiumDriver interface and `inMemoryBackend` field to hello response from PoppyDB. Tests that need to skip unsupported features (like Collation) can now correctly detect when connected to PoppyDB with InMemory backend, not just when using InMemoryDriver directly
+- **PoppyDB changestream event delivery via wire protocol**: Fixed changestream events not being delivered to clients connecting via the wire protocol. Watch cursors are now properly created with callbacks, events are queued via `LinkedBlockingQueue`, and `getMore` requests correctly return queued events to clients. This enables reliable messaging when using PoppyDB as a messaging hub
+- **PoppyDB killCursors command handler**: Added missing `killCursors` command handler to PoppyDB. Without this, watch cursors were never cleaned up when clients disconnected, causing virtual threads to accumulate and eventually block new watch thread creation. The fix properly removes cursors from `watchCursors` and `tailableCursors` maps
 - **InMemoryDriver watch thread cleanup**: Modified `watchInternal()` to periodically check `callback.isContinued()` after each wait timeout (max 5 seconds). This ensures watch threads properly terminate when cursors are killed, preventing resource exhaustion when many clients connect/disconnect
 - **PooledDriver connection leak**: Fixed connection leak in `releaseConnection()` where connections were removed from `inUse` set but not returned to the pool when the connection's host was no longer in the valid hosts set. Connections are now properly closed instead of being leaked
-- **InMemoryDriver serverMode premature shutdown**: Fixed InMemoryDriver to not clear data or shut down when `serverMode=true` and `close()` is called. MorphiumServer instances now properly maintain their data when client Morphium instances disconnect
+- **InMemoryDriver serverMode premature shutdown**: Fixed InMemoryDriver to not clear data or shut down when `serverMode=true` and `close()` is called. PoppyDB instances now properly maintain their data when client Morphium instances disconnect
 - **SingleMongoConnection watch loop termination**: Fixed watch loop to check `isContinued()` after each individual event instead of only after processing the entire batch. This ensures watches terminate immediately when the callback returns false, matching InMemoryDriver behavior
-- **ChangeStreamMonitor reconnection loop on shutdown**: Fixed ChangeStreamMonitor to stop gracefully when receiving "No such host" errors instead of endlessly retrying. Also added driver connectivity check before attempting to get connections. This prevents resource exhaustion when MorphiumServer instances are shut down
+- **ChangeStreamMonitor reconnection loop on shutdown**: Fixed ChangeStreamMonitor to stop gracefully when receiving "No such host" errors instead of endlessly retrying. Also added driver connectivity check before attempting to get connections. This prevents resource exhaustion when PoppyDB instances are shut down
 - **PooledDriver parallel connection creation**: Changed connection creation from sequential to parallel (up to 10 virtual threads) to handle burst scenarios where many connections are needed simultaneously. This prevents connection timeouts when many async operations are queued at once
-- **MorphiumServer write concern handling with partial replica sets**: Fixed write concern handling when configuring a replica set programmatically before all secondaries are started. Previously, writes with `w > 1` would block for the full `wtimeout` (10 seconds) waiting for non-existent secondaries, causing client-side timeouts. The `ReplicationCoordinator` now fails fast (100ms grace period) when no secondaries have registered, returning a proper `writeConcernError` response instead of timing out. This enables tests to store documents on a primary before starting secondary nodes
+- **PoppyDB write concern handling with partial replica sets**: Fixed write concern handling when configuring a replica set programmatically before all secondaries are started. Previously, writes with `w > 1` would block for the full `wtimeout` (10 seconds) waiting for non-existent secondaries, causing client-side timeouts. The `ReplicationCoordinator` now fails fast (100ms grace period) when no secondaries have registered, returning a proper `writeConcernError` response instead of timing out. This enables tests to store documents on a primary before starting secondary nodes
 - **Replication staleness detection**: Added staleness detection mechanism to ReplicationManager that detects when a secondary's change stream watch connection has gone stale (no response for 30+ seconds). When detected, the connection is forcibly closed and a new one is established. This prevents secondaries from falling behind when connections silently break
 - **SingleMongoConnection socket timeout limit**: Modified `readNextMessage()` to limit consecutive socket timeout retries to 100 (approximately 10 seconds with 100ms timeout). After reaching this limit, it returns null to allow the calling code to check `isContinued()` and handle connection issues. Previously, the method would retry indefinitely, causing watch loops to never detect broken connections
 - **Connection pool issues**: Fixed multiple connection pool problems including proper connection release, leak prevention, and handling of stale connections
 - **Messaging stability**: Fixed various messaging issues including connection handling, message processing, and proper cleanup on shutdown
-- **Server status on startup**: Fixed MorphiumServer status reporting during initial startup phase
+- **Server status on startup**: Fixed PoppyDB status reporting during initial startup phase
 - **NPE fixes**: Fixed null pointer exceptions in various components during edge cases
 - **Election priorities**: Fixed election priority handling to ensure highest-priority node becomes primary
 - **Read preference on secondary**: Fixed read preference checks when operating on secondary nodes
 - **Flaky CollationTest timing**: Added wait conditions for collation queries to handle replica set replication delay. Previously, tests would fail intermittently because collation queries were executed before data was fully replicated
 - **Flaky ExclusiveMessageBasicTests timing**: Increased timing tolerance from 30s to 35s to account for timing variance in message processing
 - **Flaky LastAccessTest assertions**: Added better error messages for debugging timing-related assertion failures
-- **CacheTests write buffer timeout**: Increased write buffer flush timeout from 3s to 10s to handle MorphiumServer latency
+- **CacheTests write buffer timeout**: Increased write buffer flush timeout from 3s to 10s to handle PoppyDB latency
 
 ### Added (Tests)
-- **Failover tests for MorphiumServer replica sets**: Added comprehensive failover tests (`FailoverTest.java`) that verify:
+- **Failover tests for PoppyDB replica sets**: Added comprehensive failover tests (`FailoverTest.java`) that verify:
   - Primary election based on configured priorities
   - Automatic failover when primary is terminated
   - Write operations succeed after failover
@@ -315,14 +310,14 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
   # All drivers against external MongoDB
   ./runtests.sh --uri mongodb://host1,host2/db --driver all
 
-  # Against MorphiumServer (run separately from MongoDB tests)
-  ./runtests.sh --morphium-server --driver pooled
+  # Against PoppyDB (run separately from MongoDB tests)
+  ./runtests.sh --poppydb --driver pooled
   ```
 
 - **Multi-backend testing workflow**: To test against all backends:
   1. `./runtests.sh --driver inmem` - InMemory driver (fast, no dependencies)
   2. `./runtests.sh --uri mongodb://... --driver all` - Real MongoDB with all drivers
-  3. `./runtests.sh --morphium-server --driver pooled` - MorphiumServer
+  3. `./runtests.sh --poppydb --driver pooled` - PoppyDB
 
 - **External test tagging**: Added `@Tag("external")` to driver tests that require a real MongoDB connection (PooledDriverTest, PooledDriverConnectionsTests, SharedConnectionPoolTest). Fixed pom.xml to use correct `<excludedGroups>` parameter instead of invalid `<excludeTags>` for Maven Surefire plugin JUnit 5 tag filtering
 
@@ -331,7 +326,7 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
   - Better temporary file management and cleanup
   - Improved parallel test execution and slot management
   - Enhanced failure reporting and log management
-  - Support for different test backends via `--driver`, `--uri`, and `--morphium-server` options
+  - Support for different test backends via `--driver`, `--uri`, and `--poppydb` options
   - Memory settings optimization for test execution
 
 ### Changed
@@ -368,7 +363,7 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 
 - **Stats performance**: Improved performance for driver statistics collection
 
-#### MorphiumServer Optimizations
+#### PoppyDB Optimizations
 - **Buffered I/O**: Added 64KB buffered streams for socket read/write operations
 - **ZLIB decompression buffer**: Increased from 100 bytes to 8KB with pre-sized output buffer
 - **Reduced redundant serialization**: Avoid calling `bytes()` multiple times in logging paths
@@ -430,8 +425,8 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 - **@Id field handling**: Fields annotated with `@Id` are NEVER stored when null
   - Ensures MongoDB can auto-generate unique `_id` values
   - Prevents E11000 duplicate key errors from null `_id` values
-- `runtests.sh`: Added local MorphiumServer cluster convenience mode (`--morphiumserver-local`) with optional auto-start (`--start-morphiumserver-local`)
-  - Auto-start logs now go to `.morphiumserver-local/logs/`
+- `runtests.sh`: Added local PoppyDB cluster convenience mode (`--poppydb-local`) with optional auto-start (`--start-poppydb-local`)
+  - Auto-start logs now go to `.poppydb-local/logs/`
   - Auto-start is idempotent and keeps a locally started cluster running by default
 
 ### Fixed
@@ -439,8 +434,8 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 - Better timeout detection in watch operations
 - Multi-collection messaging error handling and lock release
 - Connection management in message rejection handler
-- MorphiumServer: fix replica set startup to avoid ending up with no primary
-- MorphiumServer: support `aggregate` command over the wire (enables aggregation stage tests against MorphiumServer)
+- PoppyDB: fix replica set startup to avoid ending up with no primary
+- PoppyDB: support `aggregate` command over the wire (enables aggregation stage tests against PoppyDB)
 - **Bulk operations now return proper operation counts**: `runBulk()` now returns statistics including `num_inserted`, `num_matched`, `num_modified`, `num_deleted`, `num_upserts`, and `upsertedIds`
 
 ### Performance
@@ -448,8 +443,8 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 
 ### Known Issues
 
-#### Messaging with MorphiumServer Replicaset
-- **ExclusiveMessageTests#exclusivityTest**: This test is flaky when running with multiple Morphium instances connecting to a MorphiumServer replicaset. The test sometimes passes and sometimes times out due to slower message processing compared to real MongoDB. Change stream events ARE being delivered correctly, but processing throughput with MorphiumServer is lower than with real MongoDB, causing occasional timeouts with the default test timeout.
+#### Messaging with PoppyDB Replicaset
+- **ExclusiveMessageTests#exclusivityTest**: This test is flaky when running with multiple Morphium instances connecting to a PoppyDB replicaset. The test sometimes passes and sometimes times out due to slower message processing compared to real MongoDB. Change stream events ARE being delivered correctly, but processing throughput with PoppyDB is lower than with real MongoDB, causing occasional timeouts with the default test timeout.
   - Workaround: Increase test timeout or use InMemoryDriver directly for messaging tests, or use a real MongoDB replicaset
   - Status: Performance issue, not a correctness issue
 
@@ -463,7 +458,7 @@ Changed `Sequence` entity from `WAIT_FOR_SLAVE` to `BASIC` write safety. The pre
 |---------|-----------|--------|--------|---------|
 | InMemory Driver | 1046 | 929 | 0 | 105 |
 | MongoDB (Replicaset) | 1046 | 933 | 0 | 105 |
-| MorphiumServer (Replicaset) | 1024 | 1024 | 0 | 92 |
+| PoppyDB (Replicaset) | 1024 | 1024 | 0 | 92 |
 
 ## [6.0.0] - 2024-XX-XX
 

@@ -8,7 +8,7 @@ The InMemoryDriver provides a fully in-memory MongoDB-compatible database that r
 - **Embedded Applications**: Ship with a built-in database
 - **Microservices**: Lightweight in-process data storage
 
-> **Note**: For running MorphiumServer as a standalone MongoDB-compatible server, see [MorphiumServer](./morphium-server.md).
+> **Note**: For running PoppyDB as a standalone MongoDB-compatible server, see [PoppyDB](./poppydb.md).
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ mvn test -Dmorphium.driver=inmem
 - ✅ **Full Document Support**: Access complete document in change events
 - ✅ **Database-scoped Sharing**: Optional driver sharing for multiple Morphium instances (opt-in)
 - ✅ **Database-level Watches**: Watch all collections in a database (v6.1.0)
-- ✅ **MorphiumServer Integration**: Full change stream support via wire protocol (v6.1.0)
+- ✅ **PoppyDB Integration**: Full change stream support via wire protocol (v6.1.0)
 
 ### Messaging System (v6.1)
 - ✅ **StandardMessaging**: Single-collection messaging with change streams
@@ -73,11 +73,11 @@ mvn test -Dmorphium.driver=inmem
 ### Transactions
 - ✅ **Basic Transactions**: start, commit, abort (single-instance)
 - ❌ **Multi-document ACID**: Limited to single instance
-- ⚠️ **Replica Sets**: Experimental support in `MorphiumServer` (v6.1); no replica set simulation within a single `InMemoryDriver` instance.
+- ⚠️ **Replica Sets**: Experimental support in `PoppyDB` (v6.1); no replica set simulation within a single `InMemoryDriver` instance.
 
 ## V6.1 Improvements
 
-Morphium 6.1 introduced the features that make MorphiumServer a true **drop-in replacement** for MongoDB:
+Morphium 6.1 introduced the features that make PoppyDB a true **drop-in replacement** for MongoDB:
 
 ### Change Stream Enhancements
 The v6.1 release significantly improved change stream reliability and feature parity:
@@ -530,7 +530,7 @@ See **[Messaging - Built-in Status Monitoring](./messaging.md#built-in-status-mo
 
 ## See Also
 
-- [MorphiumServer](./morphium-server.md) - Standalone MongoDB-compatible server
+- [PoppyDB](./poppydb.md) - Standalone MongoDB-compatible server
 - [Messaging](./messaging.md) - Messaging patterns with InMemory driver
 - [Migration v5 to v6](./howtos/migration-v5-to-v6.md) - Upgrading to latest InMemory driver features
 - [Configuration Reference](./configuration-reference.md) - Complete configuration options

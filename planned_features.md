@@ -5,12 +5,12 @@
 | Feature | Status | Notes |
 |---------|--------|-------|
 | InMemoryDriver Index Refactoring | ⏳ Not Started | TreeMap indexes, range query optimization |
-| MorphiumServer Netty Architecture | ✅ Done | Full Netty-based NIO implementation |
+| PoppyDB Netty Architecture | ✅ Done | Full Netty-based NIO implementation |
 | InMemoryDriver Cursor Synchronization | ✅ Done | ConcurrentHashMap replaces global mutex |
-| MorphiumServer SSL/TLS | ✅ Done | Full SSL/TLS support via Netty |
-| MorphiumServer Authentication | ⏳ Not Started | SCRAM-SHA-256 server-side needed |
+| PoppyDB SSL/TLS | ✅ Done | Full SSL/TLS support via Netty |
+| PoppyDB Authentication | ⏳ Not Started | SCRAM-SHA-256 server-side needed |
 | InMemoryDriver Text Index | ✅ Done | Full MongoDB-compatible $text query support |
-| MorphiumServer Election/Failover | ✅ Mostly Done | Phases 1-3, 5-6 complete; Phase 4, 7 partial |
+| PoppyDB Election/Failover | ✅ Mostly Done | Phases 1-3, 5-6 complete; Phase 4, 7 partial |
 
 ---
 
@@ -53,7 +53,7 @@
 
 ---
 
-## MorphiumServer Architecture Improvements ✅ MOSTLY DONE
+## PoppyDB Architecture Improvements ✅ MOSTLY DONE
 
 **Current limitations:** ~~The server uses blocking I/O with one thread per connection, which limits scalability under high connection counts.~~ Now uses Netty-based non-blocking I/O.
 
@@ -70,7 +70,7 @@
 - ~~Well-tested, production-ready solution~~
 - ~~Easier to maintain than raw NIO~~
 
-**Implementation:** See `src/main/java/de/caluga/morphium/server/netty/` package:
+**Implementation:** See `poppydb/src/main/java/de/caluga/poppydb/netty/` package:
 - `MongoCommandHandler.java` - handles all MongoDB wire protocol commands
 - `MongoWireProtocolDecoder.java` - decodes incoming wire protocol messages
 - `MongoWireProtocolEncoder.java` - encodes outgoing wire protocol messages
@@ -92,7 +92,7 @@
 - Reduces GC pressure under high throughput
 
 **Files to modify:**
-- `src/main/java/de/caluga/morphium/server/MorphiumServer.java`
+- `poppydb/src/main/java/de/caluga/poppydb/PoppyDB.java`
   - `incoming()` method - main connection handler
   - Heartbeat and replication logic
 - `src/main/java/de/caluga/morphium/driver/wireprotocol/*.java`
@@ -127,9 +127,9 @@ This provides thread-safe cursor operations without global contention. The `Conc
 
 ---
 
-## MorphiumServer SSL/TLS Support ✅ DONE
+## PoppyDB SSL/TLS Support ✅ DONE
 
-**~~Current limitation:~~ RESOLVED:** ~~MorphiumServer only supports unencrypted connections, making it unsuitable for production environments where data in transit must be protected.~~ SSL/TLS is now implemented.
+**~~Current limitation:~~ RESOLVED:** ~~PoppyDB only supports unencrypted connections, making it unsuitable for production environments where data in transit must be protected.~~ SSL/TLS is now implemented.
 
 **Proposed improvements:**
 
@@ -138,7 +138,7 @@ This provides thread-safe cursor operations without global contention. The `Conc
 - ~~Configurable via server settings (enabled/disabled, port)~~
 - ~~Support for both self-signed and CA-signed certificates~~
 
-**Implementation:** See `MorphiumServer.java` - `setSslEnabled()`, `setSslContext()` methods.
+**Implementation:** See `PoppyDB.java` - `setSslEnabled()`, `setSslContext()` methods.
 
 ### 2. Certificate configuration
 - **Keystore support**: Load server certificate and private key from JKS/PKCS12 keystore
@@ -156,7 +156,7 @@ This provides thread-safe cursor operations without global contention. The `Conc
 
 **Configuration example:**
 ```java
-MorphiumServerConfig config = new MorphiumServerConfig();
+PoppyDBConfig config = new PoppyDBConfig();
 config.setSslEnabled(true);
 config.setSslPort(27018);
 config.setKeystorePath("/path/to/keystore.jks");
@@ -165,21 +165,21 @@ config.setTlsMinVersion("TLSv1.2");
 ```
 
 **Files to modify:**
-- `src/main/java/de/caluga/morphium/server/MorphiumServer.java`
+- `poppydb/src/main/java/de/caluga/poppydb/PoppyDB.java`
   - Socket creation in `incoming()` method
   - New SSL context initialization
-- `src/main/java/de/caluga/morphium/server/MorphiumServerConfig.java`
+- `poppydb/src/main/java/de/caluga/poppydb/PoppyDBConfig.java`
   - SSL configuration properties
 
 **Estimated effort:** Medium - SSL/TLS APIs are well-documented, main work is configuration and testing.
 
 ---
 
-## MorphiumServer Authentication ⏳ NOT IMPLEMENTED
+## PoppyDB Authentication ⏳ NOT IMPLEMENTED
 
-**Current limitation:** MorphiumServer accepts all connections without authentication, making it unsuitable for multi-tenant or security-sensitive deployments.
+**Current limitation:** PoppyDB accepts all connections without authentication, making it unsuitable for multi-tenant or security-sensitive deployments.
 
-> **Note:** SCRAM-SHA-256 authentication is implemented client-side in Morphium for connecting to MongoDB, but server-side authentication in MorphiumServer is not yet implemented.
+> **Note:** SCRAM-SHA-256 authentication is implemented client-side in Morphium for connecting to MongoDB, but server-side authentication in PoppyDB is not yet implemented.
 
 **Proposed improvements:**
 
@@ -189,7 +189,7 @@ config.setTlsMinVersion("TLSv1.2");
 - Compatible with standard MongoDB drivers
 
 ### 2. User management
-- Store users in a system collection (`morphium_server.users`)
+- Store users in a system collection (`poppydb.users`)
 - Support for creating, updating, deleting users
 - Password hashing with bcrypt or PBKDF2
 
@@ -211,7 +211,7 @@ config.setTlsMinVersion("TLSv1.2");
 
 **Configuration example:**
 ```java
-MorphiumServerConfig config = new MorphiumServerConfig();
+PoppyDBConfig config = new PoppyDBConfig();
 config.setAuthenticationEnabled(true);
 config.setAuthMechanism("SCRAM-SHA-256");
 config.setAdminUser("admin");
@@ -219,16 +219,16 @@ config.setAdminPassword("secure_password");
 ```
 
 **Files to modify:**
-- `src/main/java/de/caluga/morphium/server/MorphiumServer.java`
+- `poppydb/src/main/java/de/caluga/poppydb/PoppyDB.java`
   - Command interception for auth check
   - Authentication command handlers
-- `src/main/java/de/caluga/morphium/server/MorphiumServerConfig.java`
+- `poppydb/src/main/java/de/caluga/poppydb/PoppyDBConfig.java`
   - Authentication configuration
 - New files:
-  - `src/main/java/de/caluga/morphium/server/auth/AuthenticationManager.java`
-  - `src/main/java/de/caluga/morphium/server/auth/ScramSha256Authenticator.java`
-  - `src/main/java/de/caluga/morphium/server/auth/User.java`
-  - `src/main/java/de/caluga/morphium/server/auth/Role.java`
+  - `poppydb/src/main/java/de/caluga/poppydb/auth/AuthenticationManager.java`
+  - `poppydb/src/main/java/de/caluga/poppydb/auth/ScramSha256Authenticator.java`
+  - `poppydb/src/main/java/de/caluga/poppydb/auth/User.java`
+  - `poppydb/src/main/java/de/caluga/poppydb/auth/Role.java`
 
 **Estimated effort:** High - SCRAM-SHA-256 implementation is complex, RBAC requires careful design.
 
@@ -328,13 +328,13 @@ db.collection.createIndex(
 
 ---
 
-## MorphiumServer Automatic Election and Failover ✅ MOSTLY DONE
+## PoppyDB Automatic Election and Failover ✅ MOSTLY DONE
 
-**~~Current limitation:~~ RESOLVED:** ~~MorphiumServer replicaset uses static primary assignment at startup. When the primary goes down, secondaries cannot take over - all writes fail until the original primary is restarted.~~ Automatic election is now implemented.
+**~~Current limitation:~~ RESOLVED:** ~~PoppyDB replicaset uses static primary assignment at startup. When the primary goes down, secondaries cannot take over - all writes fail until the original primary is restarted.~~ Automatic election is now implemented.
 
 **Goal:** ~~Enable automatic leader election so that when the primary fails, a secondary can be promoted to primary automatically, enabling rolling updates and uninterrupted service.~~ **ACHIEVED**
 
-**Implementation:** See `src/main/java/de/caluga/morphium/server/election/` package:
+**Implementation:** See `poppydb/src/main/java/de/caluga/poppydb/election/` package:
 - `ElectionManager.java` - Core election logic and state machine
 - `ElectionState.java` - FOLLOWER, CANDIDATE, LEADER states
 - `VoteRequest.java` / `VoteResponse.java` - Vote protocol messages
@@ -376,7 +376,7 @@ db.collection.createIndex(
 
 #### 1.1 Create ElectionState enum and NodeRole management
 
-**File:** `src/main/java/de/caluga/morphium/server/election/ElectionState.java`
+**File:** `poppydb/src/main/java/de/caluga/poppydb/election/ElectionState.java`
 
 ```java
 public enum ElectionState {
@@ -396,7 +396,7 @@ public enum ElectionState {
 
 #### 1.2 Create ElectionManager class
 
-**File:** `src/main/java/de/caluga/morphium/server/election/ElectionManager.java`
+**File:** `poppydb/src/main/java/de/caluga/poppydb/election/ElectionManager.java`
 
 **Core responsibilities:**
 - Manage election state machine
@@ -405,7 +405,7 @@ public enum ElectionState {
 - Coordinate with ReplicationCoordinator
 
 **Tasks:**
-- [x] Create `ElectionManager` class with constructor taking MorphiumServer reference
+- [x] Create `ElectionManager` class with constructor taking PoppyDB reference
 - [x] Add configuration: `electionTimeoutMin` (default 150ms), `electionTimeoutMax` (default 300ms)
 - [x] Add configuration: `heartbeatInterval` (default 50ms) - leader sends heartbeats at this rate
 - [x] Add `electionTimer` - randomized timeout that triggers election if no heartbeat received
@@ -501,7 +501,7 @@ public enum ElectionState {
 
 #### 3.1 Dynamic primary flag management
 
-**File:** `src/main/java/de/caluga/morphium/server/MorphiumServer.java`
+**File:** `poppydb/src/main/java/de/caluga/poppydb/PoppyDB.java`
 
 **Current code (static):**
 ```java
@@ -542,7 +542,7 @@ public void setPrimary(boolean isPrimary) {
 
 #### 3.2 Write rejection on non-primary
 
-**File:** `src/main/java/de/caluga/morphium/server/netty/MongoCommandHandler.java`
+**File:** `poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java`
 
 **Tasks:**
 - [x] Add write check in `handleInsert()`, `handleUpdate()`, `handleDelete()`
@@ -594,7 +594,7 @@ public void setPrimary(boolean isPrimary) {
 
 #### 5.1 Implement replSetStepDown command
 
-**File:** `src/main/java/de/caluga/morphium/server/netty/MongoCommandHandler.java`
+**File:** `poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java`
 
 **Tasks:**
 - [x] Handle `replSetStepDown` command:
@@ -772,19 +772,19 @@ Phase 7 ────────────────────────
 
 | File | Purpose |
 |------|---------|
-| `src/main/java/de/caluga/morphium/server/election/ElectionState.java` | Enum for FOLLOWER, CANDIDATE, LEADER |
-| `src/main/java/de/caluga/morphium/server/election/ElectionManager.java` | Core election logic and state machine |
-| `src/main/java/de/caluga/morphium/server/election/VoteRequest.java` | Vote request message |
-| `src/main/java/de/caluga/morphium/server/election/VoteResponse.java` | Vote response message |
-| `src/main/java/de/caluga/morphium/server/election/AppendEntriesRequest.java` | Heartbeat/replication message |
-| `src/main/java/de/caluga/morphium/server/election/AppendEntriesResponse.java` | Heartbeat response |
-| `src/main/java/de/caluga/morphium/server/election/ElectionConfig.java` | Configuration for timeouts, intervals |
+| `poppydb/src/main/java/de/caluga/poppydb/election/ElectionState.java` | Enum for FOLLOWER, CANDIDATE, LEADER |
+| `poppydb/src/main/java/de/caluga/poppydb/election/ElectionManager.java` | Core election logic and state machine |
+| `poppydb/src/main/java/de/caluga/poppydb/election/VoteRequest.java` | Vote request message |
+| `poppydb/src/main/java/de/caluga/poppydb/election/VoteResponse.java` | Vote response message |
+| `poppydb/src/main/java/de/caluga/poppydb/election/AppendEntriesRequest.java` | Heartbeat/replication message |
+| `poppydb/src/main/java/de/caluga/poppydb/election/AppendEntriesResponse.java` | Heartbeat response |
+| `poppydb/src/main/java/de/caluga/poppydb/election/ElectionConfig.java` | Configuration for timeouts, intervals |
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `MorphiumServer.java` | Add ElectionManager, dynamic primary, state callbacks |
+| `PoppyDB.java` | Add ElectionManager, dynamic primary, state callbacks |
 | `MongoCommandHandler.java` | Handle election commands, write rejection, primary discovery |
 | `ReplicationManager.java` | Support dynamic leader changes, catch-up replication |
 | `ReplicationCoordinator.java` | Integration with election term tracking |

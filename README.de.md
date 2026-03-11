@@ -49,12 +49,30 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 - Production-Deployment: `docs/production-deployment-guide.md`
 - Monitoring & Troubleshooting: `docs/monitoring-metrics-guide.md`
 
-## 🚀 Neu in Version 6.1
+## 🚀 Neu in Version 6.2
 
-### MorphiumServer – Der "Drop-in"-Ersatz
-Morphium 6.1 macht den **MorphiumServer** zu einem echten "Drop-in"-Ersatz für MongoDB in Entwicklungs- und Testumgebungen:
+### PoppyDB – Leichtgewichtiger MongoDB-kompatibler Server
+Morphium 6.2 extrahiert den Server in ein eigenes Maven-Modul `de.caluga:poppydb` und benennt ihn von MorphiumServer in **PoppyDB** um.
+
+**Warum?** Der Server hat Dependencies (Netty etc.) mitgebracht, die 90% der Morphium-Nutzer nicht brauchen. Jetzt bleibt `de.caluga:morphium` schlank — PoppyDB wird nur eingebunden, wenn man es tatsächlich braucht.
+
+PoppyDB ist nicht nur zum Testen da — es ist ein voll funktionsfähiger MongoDB-kompatibler Server, der sich besonders als **Messaging-Backend** eignet. Morphiums eingebautes Messaging-System funktioniert direkt mit PoppyDB, was eine leichtgewichtige Messaging-Lösung ohne MongoDB-Infrastruktur ermöglicht.
+
+Für **Tests** als Test-Dependency einbinden:
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+Für **produktiven Einsatz** (z.B. als Messaging-Hub) als reguläre Dependency nutzen oder standalone via CLI-Jar betreiben.
+
 - ✅ **Volle Wire-Protocol-Unterstützung**: Verwendung jedes Standard-MongoDB-Clients (mongosh, Compass, etc.)
-- ✅ **CLI-Tooling**: Eigener `morphium-server-cli` für einfache Bereitstellung
+- ✅ **Messaging-Backend**: Morphium-Messaging ohne MongoDB-Deployment betreiben
+- ✅ **CLI-Tooling**: Eigener `poppydb-cli.jar` für Standalone-Deployment
 - ✅ **Replica-Set-Emulation**: Testen von Multi-Node-Cluster-Verhalten ohne echtes MongoDB
 - ✅ **Persistenz**: Snapshot-Unterstützung zur Bewahrung von In-Memory-Daten über Neustarts hinweg
 
@@ -265,7 +283,7 @@ Weitere Optionen zeigt `./runtests.sh --help`.
 3. `src/test/resources/morphium-test.properties`
 4. Defaults (localhost:27017)
 
-## 🔧 MorphiumServer & InMemoryDriver
+## 🔧 PoppyDB & InMemoryDriver
 
 ### InMemoryDriver - Testing ohne MongoDB
 
@@ -294,27 +312,27 @@ Der InMemoryDriver bietet eine weitgehend kompatible MongoDB-Simulation im Speic
 mvn test -Dmorphium.driver=inmem -Dtest="CacheTests"
 ```
 
-### MorphiumServer - Standalone MongoDB-Ersatz
+### PoppyDB - Standalone MongoDB-Ersatz
 
-MorphiumServer ist ein eigenständiger Prozess, der das MongoDB Wire Protocol implementiert:
+PoppyDB (ehemals MorphiumServer) ist ein eigenständiger Prozess, der das MongoDB Wire Protocol implementiert:
 
 ```bash
 # Server starten
-java -jar target/morphium-6.1.1-server-cli.jar
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
 
 # Clients verbinden (z.B. MongoDB Compass, mongosh)
 mongosh mongodb://localhost:27017
 
 # Start mit Persistenz (Snapshots)
-java -jar target/morphium-6.1.1-server-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Unterstützung (experimentell)**
 
-MorphiumServer unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
+PoppyDB unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
 
 ```bash
-java -jar target/morphium-6.1.1-server-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use Cases:**
@@ -327,7 +345,7 @@ java -jar target/morphium-6.1.1-server-cli.jar --rs-name my-rs --rs-seed host1:1
 - Keine Sharding-Unterstützung
 - Einige erweiterte Aggregation-Operatoren und Joins fehlen noch (siehe `docs/howtos/inmemory-driver.md`)
 
-Weitere Details zu Persistenz und Replica Sets finden Sie in `docs/morphium-server.md`.
+Weitere Details zu Persistenz und Replica Sets finden Sie in `docs/poppydb.md`.
 
 ## 🚀 Production Use Cases
 
