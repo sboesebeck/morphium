@@ -454,13 +454,15 @@ We appreciate pull requests! Areas where help is especially welcome:
 
 **How to contribute**
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+2. Create a feature branch **from `develop`** (`git checkout -b feature/AmazingFeature develop`)
 3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
 4. Push the branch (`git push origin feature/AmazingFeature`)
-5. Open a pull request
+5. Open a pull request **against `develop`** (not `master`)
+
+**Important:** `master` is only updated during releases. All PRs must target `develop`.
 
 **Tips**
-- Respect test tags (`@Tag("inmemory")`, `@Tag("external")`)
+- Respect test tags (`@Tag("inmemory")`, `@Tag("poppydb")`)
 - Run `./runtests.sh --tags core` before submitting
 - Update documentation when you change APIs
 
