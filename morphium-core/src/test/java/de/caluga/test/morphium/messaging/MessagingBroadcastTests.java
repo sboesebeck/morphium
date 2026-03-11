@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Tag;
 @Tag("messaging")
 public class MessagingBroadcastTests extends MultiDriverTestBase {
 
-    private boolean gotMessage1, gotMessage2, gotMessage3, gotMessage4, error;
+    private volatile boolean gotMessage1, gotMessage2, gotMessage3, gotMessage4, error;
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void broadcastTest(Morphium morphium) throws Exception {

@@ -41,10 +41,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Tag("messaging")
 @Tag("slow")  // Timing-sensitive messaging tests - may be flaky under high parallel load
 public class ExclusiveMessageTests extends MultiDriverTestBase {
-    private boolean gotMessage1 = false;
-    private boolean gotMessage2 = false;
-    private boolean gotMessage3 = false;
-    private boolean gotMessage4 = false;
+    private volatile boolean gotMessage1 = false;
+    private volatile boolean gotMessage2 = false;
+    private volatile boolean gotMessage3 = false;
+    private volatile boolean gotMessage4 = false;
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")

@@ -29,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
 public class BulkInsertTest extends MultiDriverTestBase {
-    private boolean asyncSuccess = true;
-    private boolean asyncCall = false;
+    private volatile boolean asyncSuccess = true;
+    private volatile boolean asyncCall = false;
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

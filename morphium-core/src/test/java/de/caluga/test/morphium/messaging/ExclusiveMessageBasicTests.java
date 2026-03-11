@@ -28,9 +28,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Tag("messaging")
 @Tag("slow")
 public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
-    private boolean gotMessage1 = false;
-    private boolean gotMessage2 = false;
-    private boolean gotMessage3 = false;
+    private volatile boolean gotMessage1 = false;
+    private volatile boolean gotMessage2 = false;
+    private volatile boolean gotMessage3 = false;
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")

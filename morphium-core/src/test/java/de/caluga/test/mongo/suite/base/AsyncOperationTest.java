@@ -36,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
 public class AsyncOperationTest extends MultiDriverTestBase {
-    private boolean asyncCall = false;
-    private boolean callback;
+    private volatile boolean asyncCall = false;
+    private volatile boolean callback;
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
