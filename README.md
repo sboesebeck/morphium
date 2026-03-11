@@ -1,4 +1,4 @@
-# Morphium 6.1.1
+# Morphium 6.2.0
 
 **Feature-rich MongoDB ODM and messaging framework for Java 21+**
 
@@ -50,72 +50,54 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 
 ## 🚀 What’s New in v6.2
 
+### Multi-Module Maven Build
+Morphium is now a multi-module project: `morphium-parent` (BOM), `morphium` (core library), and `poppydb` (server). The core library `de.caluga:morphium` no longer drags in server dependencies (Netty, etc.) — 90% leaner for users who just need the ODM.
+
+### PoppyDB – Standalone MongoDB-Compatible Server
+The former MorphiumServer is now an independent module `de.caluga:poppydb`. It implements the MongoDB Wire Protocol as an in-memory server with Replica Set emulation, Change Streams, Aggregation Pipeline, and snapshot-based persistence.
+
+PoppyDB and Morphium Messaging are **optimized for each other** — both sides recognize the counterpart and adapt their behavior, resulting in lower latency and less overhead than with a real MongoDB as messaging backend.
+
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope> <!-- or remove scope for production use -->
+</dependency>
+```
+
+- ✅ **Full Wire Protocol**: Any MongoDB client can connect (mongosh, Compass, PyMongo, ...)
+- ✅ **Messaging Backend**: Run Morphium messaging without MongoDB — optimized for low-latency
+- ✅ **CLI Tooling**: `poppydb-6.2.0-cli.jar` for standalone deployment
+- ✅ **Replica Set Emulation**: Test cluster behavior without real MongoDB
+- ✅ **Snapshot Persistence**: `--dump-dir` / `--dump-interval` to preserve data across restarts
+
 ### MorphiumDriverException is now unchecked
-`MorphiumDriverException` extends `RuntimeException` instead of `Exception` — consistent with the MongoDB Java driver and all major Java persistence frameworks. This eliminates 40+ boilerplate `catch-wrap-rethrow` blocks and lets callers catch database errors directly by type. See [CHANGELOG](CHANGELOG.md) for migration details.
+`MorphiumDriverException` extends `RuntimeException` — consistent with the MongoDB Java driver. Eliminates 40+ boilerplate `catch-wrap-rethrow` blocks.
+
+### @Reference Cascade Delete/Store
+`@Reference` now supports `cascadeDelete` and `cascadeStore` for automatic lifecycle management of referenced entities.
+
+### @AutoSequence
+Annotation-driven auto-increment sequences — no manual counter management needed.
+
+### @CreationTime Improvements
+Works correctly with `store()` and `storeList()`, supports `@CreationTime` on `Date`, `long`, and `String` fields.
+
+### CosmosDB Auto-Detection
+Morphium detects Azure CosmosDB connections and automatically adjusts behavior for compatibility.
+
+See [CHANGELOG](CHANGELOG.md) for full details.
 
 ## 🚀 What’s New in v6.1.x
 
 ### MONGODB-X509 Client-Certificate Authentication
 - Connect to MongoDB instances that require mutual TLS / x.509 client certificates
 - Configure via `AuthSettings.setAuthMechanism("MONGODB-X509")` together with the existing `SslHelper` mTLS setup
-- Useful for zero-password deployments in Kubernetes / cloud environments where identity is expressed by a certificate
 
 ### `@Version` – Optimistic Locking
-Prevents lost updates in concurrent environments without requiring pessimistic database locks:
-
-```java
-@Entity
-public class Order {
-    @Id private MorphiumId id;
-
-    @Version
-    private long version;   // automatically set to 1 on first store, incremented on each update
-
-    private String status;
-}
-```
-
-```java
-// First store: version → 1
-morphium.store(order);
-
-// Concurrent modification detected:
-// → throws VersionMismatchException if another thread/process already incremented the version
-try {
-    morphium.store(order);
-} catch (VersionMismatchException e) {
-    // reload and retry
-}
-```
-
-See `docs/howtos/optimistic-locking.md` for the full guide.
-
-## 🚀 What’s New in v6.2
-
-### PoppyDB – Lightweight MongoDB-Compatible Server
-Morphium 6.2 extracts the server into its own module `de.caluga:poppydb` and renames it from MorphiumServer to **PoppyDB**.
-
-**Why the split?** The server brought in dependencies (Netty, etc.) that most Morphium users don't need — if you're just using the core library to talk to MongoDB, you don't want the extra baggage. Now `de.caluga:morphium` stays lean, and you only pull in PoppyDB when you actually need it.
-
-PoppyDB is not just for testing — it's a fully functional MongoDB-compatible server that's particularly useful as a **messaging backend**. Morphium's built-in messaging system works out of the box with PoppyDB, giving you a lightweight, zero-infrastructure messaging solution without requiring a full MongoDB deployment.
-
-For **testing**, add it as a test dependency:
-```xml
-<dependency>
-    <groupId>de.caluga</groupId>
-    <artifactId>poppydb</artifactId>
-    <version>6.2.0</version>
-    <scope>test</scope>
-</dependency>
-```
-
-For **production use** (e.g., as a messaging hub), use it as a regular dependency or run it standalone via the CLI jar.
-
-- ✅ **Full Wire Protocol Support**: Use any standard MongoDB client (mongosh, Compass, etc.)
-- ✅ **Messaging Backend**: Run Morphium messaging without a MongoDB deployment
-- ✅ **CLI Tooling**: Dedicated `poppydb-<version>-cli.jar` for standalone deployment
-- ✅ **Replica Set Emulation**: Test multi-node cluster behavior without real MongoDB
-- ✅ **Persistence**: Snapshot support to preserve in-memory data across restarts
+Prevents lost updates in concurrent environments without requiring pessimistic database locks. See `docs/howtos/optimistic-locking.md` for the full guide.
 
 ## 🚀 What’s New in v6.0
 
@@ -161,7 +143,7 @@ Maven dependencies:
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>[6.1.1,)</version>
+  <version>[6.2.0,)</version>
 </dependency>
 <dependency>
   <groupId>org.mongodb</groupId>
@@ -180,7 +162,7 @@ Migrating from v5? → `docs/howtos/migration-v5-to-v6.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.1.1</version>
+  <version>6.2.0</version>
 </dependency>
 ```
 
@@ -410,19 +392,19 @@ PoppyDB (formerly MorphiumServer) runs the Morphium wire-protocol driver in a se
 mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 ```
 
-This creates `poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar`.
+This creates `poppydb/target/poppydb-6.2.0-cli.jar`.
 
 **Running the Server**
 
 ```bash
 # Start the server on the default port (17017)
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
+java -jar poppydb/target/poppydb-6.2.0-cli.jar
 
 # Start on a different port
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 8080
+java -jar poppydb/target/poppydb-6.2.0-cli.jar --port 8080
 
 # Start with persistence (snapshots)
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.2.0-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Support (Experimental)**
@@ -430,7 +412,7 @@ java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --dump-dir ./data --dump
 PoppyDB supports basic replica set emulation. Start multiple instances with the same replica set name and seed list:
 
 ```bash
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.2.0-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use cases**
@@ -488,7 +470,7 @@ Apache License 2.0 – see [LICENSE](LICENSE) for details.
 
 ## 🙏 Thanks
 
-Thanks to every contributor who helped ship Morphium 6.1.1 and to the MongoDB community for continuous feedback.
+Thanks to every contributor who helped ship Morphium 6.2.0 and to the MongoDB community for continuous feedback.
 
 ---
 
@@ -496,6 +478,6 @@ Thanks to every contributor who helped ship Morphium 6.1.1 and to the MongoDB co
 
 **Planning an upgrade?** Follow the [migration guide](docs/howtos/migration-v5-to-v6.md).
 
-Enjoy Morphium 6.1.1! 🚀
+Enjoy Morphium 6.2.0! 🚀
 
 *Stephan Bösebeck & the Morphium team*
