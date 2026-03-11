@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Disabled("Failover functionality removed - PoppyDB now uses simplified primary election")
 @Tag("failover")
-@Tag("morphiumserver")
+@Tag("poppydb")
 public class FailoverTest {
     // Tests removed - failover functionality no longer exists
 }
