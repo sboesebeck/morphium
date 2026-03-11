@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
     
     
       
@@ -1651,6 +1651,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#release-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release Process
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#for-future-releases" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1724,9 +1735,34 @@
 <li><strong>Quick notes</strong>: Users need fast migration info without technical details</li>
 <li><strong>No clutter</strong>: Root directory stays clean with just one changelog file</li>
 </ul>
+<h2 id="release-process">Release Process<a class="headerlink" href="#release-process" title="Permanent link">&para;</a></h2>
+<p>Releases are managed via <code>release.sh</code> in the project root:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Patch release (default): 6.1.9 → 6.1.10</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./release.sh
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Minor release: 6.1.9 → 6.2.0</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>./release.sh<span class="w"> </span>--minor
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Major release: 6.1.9 → 7.0.0</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>./release.sh<span class="w"> </span>--major
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Test the release process without uploading</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>./release.sh<span class="w"> </span>--minor<span class="w"> </span>--dry-run
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Roll back a failed release</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>./release.sh<span class="w"> </span>--rollback
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># Fix broken state after aborted release</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>./release.sh<span class="w"> </span>--reset
+</span></code></pre></div>
+<p>The script handles version calculation (from last git tag), Maven release:prepare,
+artifact signing, Sonatype upload, and git operations (tag, merge to master).</p>
+<p><strong>Multi-module:</strong> The release creates a single Sonatype bundle containing
+morphium-parent, morphium (core), and poppydb.</p>
 <h2 id="for-future-releases">For Future Releases<a class="headerlink" href="#for-future-releases" title="Permanent link">&para;</a></h2>
 <p>When creating a new release:</p>
 <ol>
+<li>Run <code>./release.sh --minor</code> (or <code>--patch</code>/<code>--major</code>)</li>
 <li>Add entry to root <code>CHANGELOG.md</code> (concise)</li>
 <li>Create <code>docs/releases/CHANGELOG-X.Y.Z.md</code> (detailed)</li>
 <li>Create <code>docs/releases/RELEASE-NOTES-X.Y.Z.md</code> (user-facing)</li>
