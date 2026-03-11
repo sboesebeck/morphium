@@ -240,7 +240,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     count.incrementAndGet();
                     log.info("count: " + count.get());
 
-                    if (count.get() == 50) {
+                    if (count.get() >= 50) {
                         run.set(false);
                         return false;
                     }
