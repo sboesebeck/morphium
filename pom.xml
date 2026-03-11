@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
   <artifactId>morphium-parent</artifactId>
-  <version>6.1.10-SNAPSHOT</version>
+  <version>6.2.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Morphium Parent</name>
   <url>http://caluga.de</url>
