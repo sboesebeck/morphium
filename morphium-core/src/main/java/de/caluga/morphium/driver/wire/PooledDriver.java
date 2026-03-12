@@ -158,7 +158,11 @@ public class PooledDriver extends DriverBase {
             hosts.put(normalizedHost, new Host(getHost(host), getPortFromHost(host)));
         }
 
-        setReplicaSet(getHostSeed().size() > 1);
+        setReplicaSet(getHostSeed().size() > 1 || (replSet != null && !replSet.isEmpty()));
+
+        if (replSet != null && !replSet.isEmpty()) {
+            setReplicaSetName(replSet);
+        }
 
         // Proactively establish at least one connection per seed to discover primary immediately.
         // Relying solely on the async heartbeat can lead to races where early operations (e.g. exists/listCollections
@@ -177,7 +181,7 @@ public class PooledDriver extends DriverBase {
         startHeartbeat();
 
         // Wait (briefly) for primary discovery on replica sets.
-        if (isReplicaSet() && getHostSeed().size() > 1) {
+        if (isReplicaSet()) {
             long start = System.currentTimeMillis();
             long timeout = getServerSelectionTimeout();
             if (timeout <= 0) timeout = 1000;
