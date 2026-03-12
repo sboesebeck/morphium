@@ -13,7 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1452,6 +1456,41 @@ public class Query<T> implements Cloneable {
         it.setWindowSize(windowSize);
         it.setQuery(this);
         return it;
+    }
+
+    /**
+     * Returns a {@link Stream} backed by a MongoDB cursor. The stream is lazy —
+     * elements are fetched on demand, not loaded into memory all at once.
+     *
+     * <p><b>Important:</b> The returned stream holds a cursor/connection resource.
+     * Always use it in a try-with-resources block to ensure cleanup:</p>
+     * <pre>{@code
+     * try (Stream<T> s = query.stream()) {
+     *     s.filter(u -> u.getAge() > 18).forEach(System.out::println);
+     * }
+     * }</pre>
+     *
+     * @return a closeable Stream backed by the query cursor
+     */
+    public Stream<T> stream() {
+        QueryIterator<T> it = asIterable();
+        Spliterator<T> spliterator = Spliterators.spliteratorUnknownSize(
+            it, Spliterator.ORDERED | Spliterator.NONNULL);
+        return StreamSupport.stream(spliterator, false).onClose(it::close);
+    }
+
+    /**
+     * Returns a {@link Stream} backed by a MongoDB cursor with the given batch size.
+     *
+     * @param batchSize number of documents fetched per cursor round-trip
+     * @return a closeable Stream backed by the query cursor
+     * @see #stream()
+     */
+    public Stream<T> stream(int batchSize) {
+        QueryIterator<T> it = asIterable(batchSize);
+        Spliterator<T> spliterator = Spliterators.spliteratorUnknownSize(
+            it, Spliterator.ORDERED | Spliterator.NONNULL);
+        return StreamSupport.stream(spliterator, false).onClose(it::close);
     }
 
     // public QueryIterator<T> asIterable(QueryIterator<T> ret) {
