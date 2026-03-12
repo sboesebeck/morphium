@@ -118,6 +118,91 @@ body {
     opacity: 0.8;
 }
 
+/* Sidebar Search */
+.sidebar-search {
+    padding: 0.6rem 1rem;
+    position: relative;
+}
+
+.sidebar-search input {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 1.8rem;
+    background: var(--sidebar-hover);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.sidebar-search input::placeholder {
+    color: rgba(255,255,255,0.35);
+}
+
+.sidebar-search input:focus {
+    border-color: var(--accent);
+    background: rgba(255,255,255,0.08);
+}
+
+.sidebar-search .search-icon {
+    position: absolute;
+    left: 1.55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.sidebar-search .search-clear {
+    position: absolute;
+    right: 1.55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 0.2rem;
+    line-height: 1;
+    display: none;
+}
+
+.sidebar-search .search-clear:hover {
+    color: #fff;
+}
+
+.sidebar-search.has-query .search-clear {
+    display: block;
+}
+
+/* Nav link visibility during search */
+.sidebar nav a.search-hidden {
+    display: none;
+}
+
+.sidebar nav .nav-section.search-hidden {
+    display: none;
+}
+
+.sidebar nav a.search-match {
+    background: rgba(9, 132, 227, 0.08);
+}
+
+.nav-no-results {
+    padding: 1rem 1.2rem;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.35);
+    font-style: italic;
+    display: none;
+}
+
+.nav-no-results.visible {
+    display: block;
+}
+
 .sidebar nav {
     padding: 0.5rem 0;
     flex: 1;
@@ -1348,4 +1433,272 @@ table tr:hover td {
     .tabs {
         flex-wrap: wrap;
     }
+}
+
+/* ===========================================
+   Hero Section (Landing Page)
+   =========================================== */
+.hero {
+    text-align: center;
+    padding: 3rem 2rem 2.5rem;
+    border-bottom: 2px solid var(--header-border);
+    margin-bottom: 2.5rem;
+}
+
+.hero h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem;
+    color: var(--text);
+}
+
+.hero .tagline {
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    margin: 0 0 0.3rem;
+}
+
+.hero .sub-tagline {
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    margin: 0 0 1.25rem;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.hero .version-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    background: var(--tag-bg);
+    color: var(--tag-color);
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+}
+
+/* ===========================================
+   Value Propositions Strip
+   =========================================== */
+.value-props {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.value-prop {
+    text-align: center;
+    padding: 1.25rem;
+}
+
+.value-prop .value-prop-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent);
+}
+
+.value-prop h3 {
+    font-size: 0.95rem;
+    margin: 0 0 0.3rem;
+    color: var(--text);
+}
+
+.value-prop p {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .value-props { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ===========================================
+   Capability / Challenge Sections (Learn Tabs)
+   =========================================== */
+.capability-section {
+    background: var(--blockquote-bg);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.capability-section h2 {
+    font-size: 1.05rem;
+    margin: 0 0 0.5rem;
+    color: var(--accent);
+}
+
+.capability-section p {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.7;
+}
+
+.challenge-section {
+    background: var(--hover-bg);
+    border-left: 4px solid var(--warning);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.challenge-section h2 {
+    font-size: 0.95rem;
+    margin: 0 0 0.4rem;
+    color: var(--warning);
+}
+
+.challenge-section p {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+/* ===========================================
+   "Under the Hood" Component (Demo Tabs)
+   =========================================== */
+.under-the-hood {
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1rem 0 1.5rem;
+}
+
+.under-the-hood-header {
+    padding: 0.5rem 1rem;
+    background: rgba(255,255,255,0.05);
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: #e0e0e0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.under-the-hood-body {
+    padding: 0.75rem 1rem;
+}
+
+.under-the-hood-step {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+}
+
+.under-the-hood-step + .under-the-hood-step {
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.step-label {
+    font-weight: 600;
+    min-width: 7rem;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    color: var(--accent-light);
+    flex-shrink: 0;
+}
+
+.under-the-hood-step code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    color: #e0e0e0;
+    background: none;
+    padding: 0;
+    word-break: break-all;
+}
+
+/* ===========================================
+   Feature Groups (Landing Page)
+   =========================================== */
+.feature-group {
+    margin-bottom: 2.5rem;
+}
+
+.feature-group-header {
+    margin-bottom: 1rem;
+}
+
+.feature-group-header h2 {
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.25rem;
+    color: var(--text);
+}
+
+.feature-group-header p {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* ===========================================
+   CSS Icon System (replaces emojis)
+   =========================================== */
+.nav-icon-css {
+    display: inline-block;
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.7;
+}
+
+.sidebar nav a:hover .nav-icon-css,
+.sidebar nav a.active .nav-icon-css {
+    opacity: 1;
+}
+
+/* Monochrome SVG icons — files in /images/icons/ */
+.icon-home    { background-image: url("/images/icons/home.svg"); }
+.icon-data    { background-image: url("/images/icons/data.svg"); }
+.icon-blog    { background-image: url("/images/icons/blog.svg"); }
+.icon-poly    { background-image: url("/images/icons/poly.svg"); }
+.icon-query   { background-image: url("/images/icons/query.svg"); }
+.icon-jakarta { background-image: url("/images/icons/jakarta.svg"); }
+.icon-chart   { background-image: url("/images/icons/chart.svg"); }
+.icon-import  { background-image: url("/images/icons/import.svg"); }
+.icon-geo     { background-image: url("/images/icons/geo.svg"); }
+.icon-msg     { background-image: url("/images/icons/msg.svg"); }
+.icon-tx      { background-image: url("/images/icons/tx.svg"); }
+.icon-audit   { background-image: url("/images/icons/audit.svg"); }
+.icon-health  { background-image: url("/images/icons/health.svg"); }
+.icon-docs    { background-image: url("/images/icons/docs.svg"); }
+
+/* ===========================================
+   Navigation Hints
+   =========================================== */
+.nav-hint {
+    display: block;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.3);
+    font-weight: 400;
+    line-height: 1.3;
+    margin-top: 0.1rem;
+}
+
+/* ===========================================
+   Typography Refinements
+   =========================================== */
+.sidebar-header h2 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.page-header h1,
+.hero h1,
+.feature-group-header h2 {
+    letter-spacing: -0.01em;
 }

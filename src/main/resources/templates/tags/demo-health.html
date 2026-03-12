@@ -1,9 +1,12 @@
 <!-- Demo Tab: Health Checks -->
 
 <div class="demo-context">
-    Live health check status and driver pool statistics. These values are read directly from
-    Morphium's driver API &mdash; the same data used by the MicroProfile Health probes.
+    This demo displays live health check status and driver pool statistics read directly from Morphium's
+    driver API &mdash; the same data the auto-registered MicroProfile Health probes report to Kubernetes.
+    Liveness, readiness and startup probes are provided by the Quarkus extension with zero configuration.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

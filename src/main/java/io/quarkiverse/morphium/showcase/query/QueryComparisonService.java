@@ -23,8 +23,8 @@ import java.util.Map;
  *   <li>{@code xxxJakartaData()} — Jakarta Data repository method</li>
  * </ul>
  *
- * <p>For operations that only Morphium supports, only the Morphium method exists
- * (marked with "Morphium-only" in the JavaDoc).</p>
+ * <p>Operations like {@code distinct()} are available through both approaches:
+ * the Morphium Query API and {@code MorphiumRepository.distinct()}.</p>
  */
 @ApplicationScoped
 public class QueryComparisonService {
@@ -183,14 +183,19 @@ public class QueryComparisonService {
         return repository.topActiveEarners(dept, minSalary);
     }
 
-    // ========== Morphium-only: Distinct ==========
+    // ========== Distinct ==========
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public List<String> distinctDepartmentsMorphium() {
-        // Jakarta Data 1.0 has no distinct() support
         List result = morphium.createQueryFor(Employee.class)
                 .distinct(Employee.Fields.department);
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> distinctDepartmentsJakartaData() {
+        // MorphiumRepository.distinct() — the escape hatch for distinct queries
+        return (List<String>) (List<?>) repository.distinct(Employee.Fields.department);
     }
 
     // ========== Morphium-only: Atomic Update ($inc) ==========

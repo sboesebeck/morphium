@@ -1,10 +1,13 @@
 <!-- Demo Tab: Query Builder -->
 
 <div class="demo-context">
-    Build interactive queries against the <code>employees</code> collection: filter by department, salary range,
-    name pattern (regex), and active status. Paginate results with server-side sort/skip/limit. All actions use
-    HTMX &mdash; no page reloads.
+    This demo builds queries interactively against an <code>employees</code> collection using Morphium's
+    fluent <code>Query&lt;T&gt;</code> API. Each filter (department, salary range, regex, active status)
+    maps to a MongoDB query operator. Pagination uses server-side <code>sort()</code>, <code>skip()</code>
+    and <code>limit()</code> &mdash; only the requested page is fetched from the database.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>
@@ -103,6 +106,45 @@
                 Seed Sample Data
             </button>
         </div>
+    </div>
+</div>
+
+<!-- Stream API Demo -->
+<div class="card-grid">
+    <div class="card">
+        <h3>Stream API</h3>
+        <p style="margin-bottom:1rem">
+            Use <code>Query.stream()</code> to process query results as a Java <code>Stream&lt;T&gt;</code>.
+            Filters and mappings run lazily over the MongoDB cursor.
+        </p>
+        <form hx-post="/query/stream" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Department</label>
+                    <select name="streamDepartment">
+                        {#for dept in departments}
+                        <option value="{dept}" {#if dept == streamDepartment}selected{/if}>{dept}</option>
+                        {/for}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Min Salary</label>
+                    <input type="number" name="streamMinSalary" step="1000" placeholder="0" value="{streamMinSalary.orEmpty}">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Stream &amp; Filter</button>
+        </form>
+
+        {#if streamResults}
+        <div style="margin-top:1rem">
+            <h4>High Earners <span class="tag tag-blue">{streamResults.size} found</span></h4>
+            <div class="feature-tags-grid">
+                {#for name in streamResults}
+                <span class="tag tag-green">{name}</span>
+                {/for}
+            </div>
+        </div>
+        {/if}
     </div>
 </div>
 

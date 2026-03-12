@@ -1,10 +1,13 @@
 <!-- Demo Tab: Polymorphism -->
 
 <div class="demo-context">
-    Explore polymorphic persistence: add Cars and Trucks to a shared <code>vehicles</code> collection,
-    then query for all Vehicle types. Morphium automatically deserializes each document into its correct
-    Java subtype using the <code>class_name</code> discriminator. All actions use HTMX &mdash; no page reloads.
+    This demo stores Cars and Trucks in a shared <code>vehicles</code> collection. Morphium writes a
+    <code>class_name</code> discriminator with each document and deserializes to the correct Java subtype
+    automatically. Querying for <code>Vehicle.class</code> returns a mixed list of Cars and Trucks &mdash;
+    no manual type switching required.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

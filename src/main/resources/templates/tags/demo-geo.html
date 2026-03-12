@@ -1,10 +1,13 @@
 <!-- Demo Tab: Store Locator (Geo) -->
 
 <div class="demo-context">
-    Manage store locations with geospatial coordinates: add stores with <code>[longitude, latitude]</code>
-    coordinates, search for nearby stores within a radius, and explore the <code>stores</code> collection.
-    All actions use HTMX &mdash; no page reloads.
+    This demo uses Morphium's geospatial query support. Stores are persisted with
+    <code>[longitude, latitude]</code> coordinates indexed via <code>@Index("2dsphere:location")</code>.
+    The "Find Nearby" query translates to a MongoDB <code>$near</code> operator with
+    <code>$maxDistance</code> in meters &mdash; Morphium builds this from the fluent Query API.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

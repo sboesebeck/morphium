@@ -1,18 +1,20 @@
 <!-- Learn Tab: Jakarta Data Integration -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The quarkus-morphium extension now supports <strong>Jakarta Data 1.0</strong> &mdash;
-        the standard specification for declarative data access in Java. Instead of building queries
-        imperatively with <code>morphium.createQueryFor()</code>, you define a <code>@Repository</code>
-        interface with method signatures, and the extension generates the implementation at
-        <strong>Quarkus build time</strong> using Gizmo bytecode generation.</p>
-        <p>This page shows each operation in two ways: the <strong>traditional Morphium API</strong>
-        (imperative) and the <strong>Jakarta Data repository</strong> (declarative). Both produce
-        identical results &mdash; the Demo tab lets you verify this interactively.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Jakarta Data 1.0 support: define a <code>@Repository</code> interface with query methods, and
+    the Quarkus extension generates the implementation at build time. Method-name derivation,
+    <code>@Find</code>/<code>@By</code> annotations, JDQL queries and full <code>MorphiumRepository</code>
+    escape hatch for when you need the raw Morphium API.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Most MongoDB ODMs do not support Jakarta Data. Developers who want declarative repositories
+    with MongoDB are usually stuck writing manual implementations or switching to a JPA-like
+    abstraction that doesn't fit document databases.</p>
 </div>
 
 <!-- Section 2: Jakarta Data Features -->

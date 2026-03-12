@@ -80,16 +80,21 @@ public class MessagingResource {
                 .data("count", messagingService.count())
                 .data("selectedTopic", topic)
                 .data("successMessage", null)
-                .data("errorMessage", null);
+                .data("errorMessage", null)
+                .data("lastOperation", null)
+                .data("lastMongoCommand", null);
     }
 
-    private TemplateInstance demoData(String success, String error) {
+    private TemplateInstance demoData(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         return demoMessaging.data("messages", messagingService.findAll())
                 .data("topics", messagingService.getTopics())
                 .data("count", messagingService.count())
                 .data("selectedTopic", null)
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -107,7 +112,8 @@ public class MessagingResource {
             @FormParam("text") String text,
             @Context HttpHeaders headers) {
         messagingService.send(sender, recipient, topic, text);
-        if (isHtmx(headers)) return Response.ok(demoData("Message sent.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Message sent.", null,
+                "morphium.store(chatMessage)", "db.chat_messages.insertOne({...})")).build();
         return Response.seeOther(URI.create("/messaging")).build();
     }
 
@@ -116,7 +122,8 @@ public class MessagingResource {
     @Produces(MediaType.TEXT_HTML)
     public Response markAsRead(@PathParam("id") String id, @Context HttpHeaders headers) {
         messagingService.markAsRead(id);
-        if (isHtmx(headers)) return Response.ok(demoData("Message marked as read.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Message marked as read.", null,
+                "query.set(\"read\", true)", "db.chat_messages.updateOne({_id: ...}, {$set: {read: true}})")).build();
         return Response.seeOther(URI.create("/messaging")).build();
     }
 
@@ -126,7 +133,8 @@ public class MessagingResource {
     public Response seed(@Context HttpHeaders headers) {
         messagingService.deleteAll();
         messagingService.seedData();
-        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null,
+                "morphium.storeList(messages)", "db.chat_messages.insertMany([...])")).build();
         return Response.seeOther(URI.create("/messaging")).build();
     }
 }

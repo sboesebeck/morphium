@@ -73,15 +73,18 @@ public class BlogResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
         blogService.seedData();
-        return demoData(null, null);
+        return demoData(null, null, null, null);
     }
 
-    private TemplateInstance demoData(String success, String error) {
+    private TemplateInstance demoData(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         return demoBlog.data("posts", blogService.findAllPosts())
                 .data("authors", blogService.findAllAuthors())
                 .data("count", blogService.findAllPosts().size())
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -98,7 +101,8 @@ public class BlogResource {
             @FormParam("bio") String bio,
             @Context HttpHeaders headers) {
         blogService.createAuthor(name, name, email, bio);
-        if (isHtmx(headers)) return Response.ok(demoData("Author '" + name + "' created.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Author '" + name + "' created.", null,
+                "morphium.store(author)", "db.authors.insertOne({...})")).build();
         return Response.seeOther(URI.create("/blog")).build();
     }
 
@@ -116,7 +120,8 @@ public class BlogResource {
                 ? Arrays.asList(tagsStr.split(",\\s*"))
                 : List.of();
         blogService.createPost(title, content, authorId, tags);
-        if (isHtmx(headers)) return Response.ok(demoData("Post '" + title + "' created.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Post '" + title + "' created.", null,
+                "morphium.store(blogPost)", "db.blog_posts.insertOne({...})")).build();
         return Response.seeOther(URI.create("/blog")).build();
     }
 
@@ -131,9 +136,11 @@ public class BlogResource {
             @Context HttpHeaders headers) {
         try {
             blogService.updatePost(id, title, content);
-            if (isHtmx(headers)) return Response.ok(demoData("Post updated (version incremented).", null)).build();
+            if (isHtmx(headers)) return Response.ok(demoData("Post updated (version incremented).", null,
+                    "morphium.store(blogPost)", "db.blog_posts.replaceOne({_id: ..., version: N}, {...})")).build();
         } catch (Exception e) {
-            if (isHtmx(headers)) return Response.ok(demoData(null, "Update failed: " + e.getMessage())).build();
+            if (isHtmx(headers)) return Response.ok(demoData(null, "Update failed: " + e.getMessage(),
+                    "morphium.store(blogPost)", "db.blog_posts.replaceOne({_id: ..., version: N}, {...})")).build();
         }
         return Response.seeOther(URI.create("/blog")).build();
     }
@@ -148,7 +155,8 @@ public class BlogResource {
             @FormParam("text") String text,
             @Context HttpHeaders headers) {
         blogService.addComment(id, author, text);
-        if (isHtmx(headers)) return Response.ok(demoData("Comment added.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Comment added.", null,
+                "morphium.push(post, \"comments\", comment)", "db.blog_posts.updateOne({_id: ...}, {$push: {comments: {...}}})")).build();
         return Response.seeOther(URI.create("/blog")).build();
     }
 
@@ -157,7 +165,8 @@ public class BlogResource {
     @Produces(MediaType.TEXT_HTML)
     public Response publishPost(@PathParam("id") String id, @Context HttpHeaders headers) {
         blogService.publishPost(id);
-        if (isHtmx(headers)) return Response.ok(demoData("Post published.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Post published.", null,
+                "morphium.store(blogPost)", "db.blog_posts.replaceOne({_id: ..., version: N}, {...})")).build();
         return Response.seeOther(URI.create("/blog")).build();
     }
 
@@ -166,7 +175,8 @@ public class BlogResource {
     @Produces(MediaType.TEXT_HTML)
     public Response deletePost(@PathParam("id") String id, @Context HttpHeaders headers) {
         blogService.deletePost(id);
-        if (isHtmx(headers)) return Response.ok(demoData("Post deleted.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Post deleted.", null,
+                "morphium.delete(blogPost)", "db.blog_posts.deleteOne({_id: ...})")).build();
         return Response.seeOther(URI.create("/blog")).build();
     }
 
@@ -175,7 +185,8 @@ public class BlogResource {
     @Produces(MediaType.TEXT_HTML)
     public Response seed(@Context HttpHeaders headers) {
         blogService.resetData();
-        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null,
+                "morphium.storeList(blogPosts)", "db.blog_posts.insertMany([...])")).build();
         return Response.seeOther(URI.create("/blog")).build();
     }
 }

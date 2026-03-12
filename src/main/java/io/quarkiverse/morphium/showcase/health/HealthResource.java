@@ -117,7 +117,9 @@ public class HealthResource {
                 .data("readinessStatus", readinessStatus)
                 .data("startupStatus", startupStatus)
                 .data("successMessage", null)
-                .data("errorMessage", null);
+                .data("errorMessage", null)
+                .data("lastOperation", null)
+                .data("lastMongoCommand", null);
     }
 
     private static long toLong(Map<DriverStatsKey, Double> stats, DriverStatsKey key) {

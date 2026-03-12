@@ -72,14 +72,17 @@ public class GeoResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
         geoService.seedData();
-        return demoData(null, null);
+        return demoData(null, null, null, null);
     }
 
-    private TemplateInstance demoData(String success, String error) {
+    private TemplateInstance demoData(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         return demoGeo.data("stores", geoService.findAll())
                 .data("count", geoService.count())
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -104,7 +107,8 @@ public class GeoResource {
                 ? Arrays.asList(servicesStr.split(",\\s*"))
                 : List.of();
         geoService.create(name, address, city, country, lng, lat, phone, services);
-        if (isHtmx(headers)) return Response.ok(demoData("Store '" + name + "' added.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Store '" + name + "' added.", null,
+                "morphium.store(store)", "db.stores.insertOne({...})")).build();
         return Response.seeOther(URI.create("/geo")).build();
     }
 
@@ -122,7 +126,9 @@ public class GeoResource {
             return Response.ok(demoGeo.data("stores", stores)
                     .data("count", geoService.count())
                     .data("successMessage", "Found " + stores.size() + " stores nearby.")
-                    .data("errorMessage", null)).build();
+                    .data("errorMessage", null)
+                    .data("lastOperation", "query.f(\"location\").near(lng, lat, maxDist)")
+                    .data("lastMongoCommand", "db.stores.find({location: {$near: ...}})")).build();
         }
         return Response.ok(geo.data("active", "geo")
                 .data("stores", stores)
@@ -135,7 +141,8 @@ public class GeoResource {
     @Produces(MediaType.TEXT_HTML)
     public Response deleteStore(@PathParam("id") String id, @Context HttpHeaders headers) {
         geoService.delete(id);
-        if (isHtmx(headers)) return Response.ok(demoData("Store deleted.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Store deleted.", null,
+                "morphium.delete(store)", "db.stores.deleteOne({_id: ...})")).build();
         return Response.seeOther(URI.create("/geo")).build();
     }
 
@@ -145,7 +152,8 @@ public class GeoResource {
     public Response seed(@Context HttpHeaders headers) {
         geoService.deleteAll();
         geoService.seedData();
-        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null,
+                "morphium.storeList(stores)", "db.stores.insertMany([...])")).build();
         return Response.seeOther(URI.create("/geo")).build();
     }
 }

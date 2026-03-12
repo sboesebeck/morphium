@@ -77,7 +77,7 @@ public class JakartaDataResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
         seedIfEmpty();
-        return buildDemoData(null, null);
+        return buildDemoData(null, null, null, null);
     }
 
     @POST
@@ -90,7 +90,8 @@ public class JakartaDataResource {
         seedIfEmpty();
 
         Map<String, Object> result = executeComparison(operation);
-        TemplateInstance ti = buildDemoData(null, null)
+        TemplateInstance ti = buildDemoData(null, null,
+                "repository.findAll() / morphium.createQueryFor(...).asList()", "db.products.find({})")
                 .data("comparisonResult", result)
                 .data("selectedOperation", operation);
 
@@ -104,15 +105,19 @@ public class JakartaDataResource {
     public Response seed(@Context HttpHeaders headers) {
         morphium.dropCollection(Employee.class);
         seedIfEmpty();
-        if (isHtmx(headers)) return Response.ok(buildDemoData("Sample data re-seeded.", null)).build();
+        if (isHtmx(headers)) return Response.ok(buildDemoData("Sample data re-seeded.", null,
+                "morphium.storeList(products)", "db.products.insertMany([...])")).build();
         return Response.seeOther(URI.create("/jakarta-data")).build();
     }
 
-    private TemplateInstance buildDemoData(String success, String error) {
+    private TemplateInstance buildDemoData(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         return demoJakartaData.data("successMessage", success)
                 .data("errorMessage", error)
                 .data("comparisonResult", null)
-                .data("selectedOperation", null);
+                .data("selectedOperation", null)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private void seedIfEmpty() {

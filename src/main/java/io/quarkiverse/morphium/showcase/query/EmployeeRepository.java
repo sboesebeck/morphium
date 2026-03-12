@@ -1,12 +1,12 @@
 package io.quarkiverse.morphium.showcase.query;
 
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.quarkus.data.MorphiumRepository;
 import io.quarkiverse.morphium.showcase.query.entity.Employee;
 import jakarta.data.Limit;
 import jakarta.data.Order;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
-import jakarta.data.repository.BasicRepository;
 import jakarta.data.repository.Find;
 import jakarta.data.repository.OrderBy;
 import jakarta.data.repository.Param;
@@ -41,16 +41,16 @@ import java.util.List;
  *   <li>{@code @Cache} / {@code @WriteBuffer} — read cache and write batching</li>
  * </ul>
  *
- * <h3>Requires direct Morphium API</h3>
+ * <h3>MorphiumRepository escape hatch</h3>
  * <ul>
- *   <li>{@code query.distinct("department")} — no distinct support in Jakarta Data 1.0</li>
- *   <li>{@code morphium.inc(query, "salary", amount)} — atomic field updates</li>
- *   <li>{@code query.set("position", newValue)} — partial field updates via $set</li>
- *   <li>Aggregation pipeline ($group, $project, $unwind)</li>
+ *   <li>{@code repository.distinct("department")} — distinct values via MorphiumRepository</li>
+ *   <li>{@code repository.morphium().inc(query, "salary", amount)} — atomic field updates</li>
+ *   <li>{@code repository.query().f("position").eq(val)} — typed Morphium Query</li>
+ *   <li>Aggregation pipeline ($group, $project, $unwind) via {@code repository.morphium()}</li>
  * </ul>
  */
 @Repository
-public interface EmployeeRepository extends BasicRepository<Employee, MorphiumId> {
+public interface EmployeeRepository extends MorphiumRepository<Employee, MorphiumId> {
 
     // ---- Equality ----
     /** Morphium: {@code .f("department").eq(dept).asList()} */

@@ -1,15 +1,20 @@
 <!-- Learn Tab: Data Importer -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Data Importer demonstrates a bulk import pipeline using Morphium's advanced write features:
-        <code>@WriteBuffer</code> for client-side write batching, <code>@AutoSequence</code> for
-        MongoDB-backed atomic sequence numbers, <code>storeList()</code> for high-throughput bulk inserts,
-        and server-side array and field manipulation with <code>push</code>, <code>pull</code>,
-        <code>set</code>, and <code>unset</code>.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p><code>storeList()</code>, cursor-based iteration and the <code>@WriteBuffer</code> handle
+    high-volume data ingestion efficiently. Morphium batches writes automatically, manages memory
+    through configurable buffer sizes, and provides sequences for generating unique IDs across
+    distributed instances.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Bulk operations in MongoDB require careful batching to avoid memory exhaustion and connection
+    timeouts. Without write buffering, each insert is a separate round-trip. Without cursor-based
+    iteration, reading large collections loads everything into memory.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

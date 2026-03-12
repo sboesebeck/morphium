@@ -23,6 +23,7 @@ import jakarta.inject.Inject;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Service demonstrating the full breadth of Morphium's Query API for MongoDB.
@@ -343,6 +344,36 @@ public class QueryShowcaseService {
                 .skip(page * size)
                 .limit(size)
                 .asList();
+    }
+
+    /**
+     * Demonstrates the {@code stream()} API for lazy, cursor-backed functional processing.
+     *
+     * <p><b>stream()</b> returns a {@link Stream} backed by the MongoDB cursor. Elements
+     * are fetched on demand — the entire result set is never loaded into memory. This is
+     * analogous to JPA's {@code query.getResultStream()}.</p>
+     *
+     * <p><b>Important:</b> The stream holds a cursor resource and must be used in a
+     * try-with-resources block to ensure proper cleanup.</p>
+     *
+     * <p>This example filters employees with salary above a threshold in a specific department,
+     * extracts their names, and returns them sorted. The MongoDB query fetches all department
+     * employees via cursor; the salary filter and name extraction happen in-JVM via the
+     * Stream pipeline.</p>
+     *
+     * @param department the department to filter by (server-side)
+     * @param minSalary  minimum salary threshold (applied client-side in the stream pipeline)
+     * @return list of "firstName lastName" strings for matching employees
+     */
+    public List<String> streamHighEarnerNames(String department, double minSalary) {
+        try (Stream<Employee> s = morphium.createQueryFor(Employee.class)
+                .f(Employee.Fields.department).eq(department)
+                .sort(Map.of(Employee.Fields.lastName, 1))
+                .stream()) {
+            return s.filter(e -> e.getSalary() >= minSalary)
+                    .map(e -> e.getFirstName() + " " + e.getLastName())
+                    .toList();
+        }
     }
 
     /**

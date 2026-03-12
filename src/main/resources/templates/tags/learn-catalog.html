@@ -1,15 +1,19 @@
 <!-- Learn Tab: Product Catalog -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Product Catalog demonstrates Morphium's core CRUD operations: how Java objects
-        are mapped to MongoDB documents, how indexes accelerate queries, and how the built-in
-        LRU cache reduces database round-trips. You will see how <code>@Entity</code> maps a class
-        to a collection, how <code>@Embedded</code> stores related objects as sub-documents, and how
-        Morphium's fluent query API builds type-safe MongoDB queries.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium maps Java objects to MongoDB documents with annotations. <code>@Entity</code>, <code>@Id</code>,
+    <code>@Cache</code>, <code>@Index</code> &mdash; four annotations turn a POJO into a cached, indexed document.
+    Embedded sub-documents, field name mapping and write safety are all declarative.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Traditional ODMs require XML mapping files or manual codec registries. The MongoDB Java driver
+    gives you raw BSON documents with no type safety. Morphium eliminates both problems with a
+    pure-annotation approach that works at the field level.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

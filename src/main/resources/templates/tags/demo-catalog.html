@@ -1,9 +1,13 @@
 <!-- Demo Tab: Product Catalog -->
 
 <div class="demo-context">
-    Test the Morphium CRUD API: create products with embedded categories, search by regex,
-    filter by price range, and observe cache behavior. All actions use HTMX &mdash; no page reloads.
+    This demo uses Morphium's <code>store()</code>, <code>createQueryFor()</code>, and <code>delete()</code>
+    API to manage a product catalog. Every operation below triggers a real Morphium call &mdash; the same
+    API you'd use with a production MongoDB. Embedded categories are stored as sub-documents via
+    <code>@Embedded</code>, and the LRU cache (<code>@Cache</code>) reduces round-trips automatically.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

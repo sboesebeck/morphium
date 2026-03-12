@@ -1,17 +1,19 @@
 <!-- Learn Tab: Polymorphism -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Polymorphism page demonstrates Morphium's inheritance mapping: a <code>Vehicle</code> hierarchy
-        where <code>Car</code> and <code>Truck</code> subclasses are stored in a <strong>single shared MongoDB
-        collection</strong>. When you query for <code>Vehicle.class</code>, Morphium automatically returns a
-        mixed list of <code>Car</code> and <code>Truck</code> instances &mdash; true polymorphic deserialization.
-        Each document carries a <code>class_name</code> discriminator field so Morphium knows which Java class
-        to instantiate. You will also see how a custom <code>MorphiumTypeMapper&lt;Money&gt;</code> teaches
-        Morphium to serialize/deserialize arbitrary value objects.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium handles Java type hierarchies transparently. A type discriminator (<code>class_name</code>
+    or custom <code>typeId</code>) is stored with each document, and Morphium deserializes to the correct
+    subclass automatically. Custom <code>TypeMapper</code> implementations give full control over
+    discriminator values.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Polymorphic document storage typically requires custom deserializers, manual type registration and
+    careful handling of schema evolution. Most ODMs either don't support it or make it painful.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

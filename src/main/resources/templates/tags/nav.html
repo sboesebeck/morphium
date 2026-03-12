@@ -1,58 +1,95 @@
 <aside class="sidebar">
     <div class="sidebar-header">
-        <h2>Quarkus Morphium Showcase</h2>
-        <span class="version">Quarkus + Morphium ORM</span>
+        <h2>Morphium</h2>
+        <span class="version">Product Showcase</span>
+    </div>
+    <div class="sidebar-search">
+        <input type="text" id="nav-search" placeholder="Search features, annotations..."
+               autocomplete="off" spellcheck="false">
+        <span class="search-icon">&#128269;</span>
+        <button class="search-clear" id="nav-search-clear" aria-label="Clear search">&times;</button>
     </div>
     <nav>
-        <a href="/" class="{#if active == 'home'}active{/if}">
-            <span class="nav-icon">&#127968;</span> Home
+        <a href="/" class="{#if active == 'home'}active{/if}"
+           data-keywords="home overview start welcome morphium showcase">
+            <span class="nav-icon-css icon-home"></span>
+            <span>Home</span>
         </a>
 
-        <div class="nav-section">Core Features</div>
-        <a href="/catalog" class="{#if active == 'catalog'}active{/if}">
-            <span class="nav-icon">&#128230;</span> Product Catalog
+        <div class="nav-section">Data Access</div>
+        <a href="/catalog" class="{#if active == 'catalog'}active{/if}"
+           data-keywords="@Entity @Cache @Index @Embedded @Id @Property CRUD store delete createQueryFor storeList LRU caching field mapping embedded documents indexing products categories regex price range query annotation">
+            <span class="nav-icon-css icon-data"></span>
+            <span>Product Catalog<span class="nav-hint">@Entity, @Cache, @Index</span></span>
         </a>
-        <a href="/blog" class="{#if active == 'blog'}active{/if}">
-            <span class="nav-icon">&#128221;</span> Blog System
+        <a href="/blog" class="{#if active == 'blog'}active{/if}"
+           data-keywords="@Version @Reference @CreationTime @LastChange @PreStore @PostStore @PostLoad lifecycle callbacks versioning optimistic locking references timestamps comments publishing annotation">
+            <span class="nav-icon-css icon-blog"></span>
+            <span>Blog System<span class="nav-hint">@Version, @Reference, Lifecycle</span></span>
         </a>
-        <a href="/analytics" class="{#if active == 'analytics'}active{/if}">
-            <span class="nav-icon">&#128200;</span> Sales Analytics
+        <a href="/polymorphism" class="{#if active == 'polymorphism'}active{/if}"
+           data-keywords="TypeMapper type hierarchy inheritance discriminator class_name Vehicle Car Truck subtype deserialization abstract polymorphic">
+            <span class="nav-icon-css icon-poly"></span>
+            <span>Polymorphism<span class="nav-hint">Type Hierarchies, TypeMapper</span></span>
         </a>
-
-        <div class="nav-section">Extended Features</div>
-        <a href="/geo" class="{#if active == 'geo'}active{/if}">
-            <span class="nav-icon">&#127758;</span> Store Locator
+        <a href="/query" class="{#if active == 'query'}active{/if}"
+           data-keywords="Query API fluent operators pagination sort skip limit stream regex $gte $lte $in $ne projection text search filter where field">
+            <span class="nav-icon-css icon-query"></span>
+            <span>Advanced Query<span class="nav-hint">Operators, Pagination, Stream</span></span>
         </a>
-        <a href="/messaging" class="{#if active == 'messaging'}active{/if}">
-            <span class="nav-icon">&#128172;</span> Messaging
-        </a>
-        <a href="/bank" class="{#if active == 'bank'}active{/if}">
-            <span class="nav-icon">&#127974;</span> Bank / Wallet
-        </a>
-        <a href="/audit" class="{#if active == 'audit'}active{/if}">
-            <span class="nav-icon">&#128203;</span> Audit Log
-        </a>
-
-        <div class="nav-section">Jakarta Data</div>
-        <a href="/jakarta-data" class="{#if active == 'jakarta-data'}active{/if}">
-            <span class="nav-icon">&#128218;</span> Jakarta Data
+        <a href="/jakarta-data" class="{#if active == 'jakarta-data'}active{/if}"
+           data-keywords="@Repository JDQL @Query @Find @OrderBy @By @Delete @Insert @Save BasicRepository CrudRepository MorphiumRepository distinct query derivation build-time generation @StaticMetamodel annotation Jakarta Data">
+            <span class="nav-icon-css icon-jakarta"></span>
+            <span>Jakarta Data<span class="nav-hint">@Repository, JDQL</span></span>
         </a>
 
-        <div class="nav-section">Documentation</div>
-        <a href="/docs" class="{#if active == 'docs'}active{/if}">
-            <span class="nav-icon">&#128214;</span> Docs Hub
+        <div class="nav-section">Processing</div>
+        <a href="/analytics" class="{#if active == 'analytics'}active{/if}"
+           data-keywords="Aggregation pipeline $group $match $sort $project $lookup $bucket $unwind $count revenue analytics MapReduce stage">
+            <span class="nav-icon-css icon-chart"></span>
+            <span>Sales Analytics<span class="nav-hint">Aggregation Pipelines</span></span>
+        </a>
+        <a href="/importer" class="{#if active == 'importer'}active{/if}"
+           data-keywords="storeList batch bulk write buffer cursor iterator sequence inc dec push pull array operations high-volume import">
+            <span class="nav-icon-css icon-import"></span>
+            <span>Bulk Import<span class="nav-hint">Batch Ops, Write Buffers</span></span>
+        </a>
+        <a href="/geo" class="{#if active == 'geo'}active{/if}"
+           data-keywords="Geospatial 2dsphere $near $geoWithin GeoJSON coordinates latitude longitude location distance geo spatial">
+            <span class="nav-icon-css icon-geo"></span>
+            <span>Store Locator<span class="nav-hint">Geospatial Queries</span></span>
         </a>
 
-        <div class="nav-section">Advanced</div>
-        <a href="/importer" class="{#if active == 'importer'}active{/if}">
-            <span class="nav-icon">&#128229;</span> Bulk Import
+        <div class="nav-section">Platform</div>
+        <a href="/messaging" class="{#if active == 'messaging'}active{/if}"
+           data-keywords="Messaging message queue MQ topic broadcast exclusive SSE server-sent events MorphiumMessaging Msg publish subscribe listener">
+            <span class="nav-icon-css icon-msg"></span>
+            <span>Messaging<span class="nav-hint">MongoDB-backed MQ</span></span>
         </a>
-        <a href="/polymorphism" class="{#if active == 'polymorphism'}active{/if}">
-            <span class="nav-icon">&#129516;</span> Polymorphism
+        <a href="/bank" class="{#if active == 'bank'}active{/if}"
+           data-keywords="@MorphiumTransactional transaction session atomic inc dec transfer rollback commit beginTransaction commitTransaction @Version optimistic locking annotation">
+            <span class="nav-icon-css icon-tx"></span>
+            <span>Transactions<span class="nav-hint">@MorphiumTransactional</span></span>
         </a>
-        <a href="/query" class="{#if active == 'query'}active{/if}">
-            <span class="nav-icon">&#128269;</span> Query Builder
+        <a href="/audit" class="{#if active == 'audit'}active{/if}"
+           data-keywords="Capped capped collection tailable cursor @Capped lifecycle callbacks @PreStore @PostStore change stream audit trail logging annotation">
+            <span class="nav-icon-css icon-audit"></span>
+            <span>Audit Log<span class="nav-hint">Capped Collections</span></span>
         </a>
+        <a href="/health" class="{#if active == 'health'}active{/if}"
+           data-keywords="MicroProfile Health liveness readiness startup probe health check Kubernetes driver connection pool DriverStats monitoring">
+            <span class="nav-icon-css icon-health"></span>
+            <span>Health Checks<span class="nav-hint">MicroProfile Health</span></span>
+        </a>
+
+        <div class="nav-section">Resources</div>
+        <a href="/docs" class="{#if active == 'docs'}active{/if}"
+           data-keywords="documentation docs guide API reference how-to configuration migration tutorial">
+            <span class="nav-icon-css icon-docs"></span>
+            <span>Documentation Hub</span>
+        </a>
+
+        <div class="nav-no-results" id="nav-no-results">No matching features found.</div>
     </nav>
     <div class="theme-toggle">
         <button onclick="toggleTheme()" aria-label="Toggle color theme">

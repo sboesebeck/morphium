@@ -1,9 +1,13 @@
 <!-- Demo Tab: Audit Log -->
 
 <div class="demo-context">
-    Audit logging with a capped collection. Oldest entries are automatically evicted when the collection
-    reaches its size or document count limit. All actions use HTMX &mdash; no page reloads.
+    This demo writes audit entries to a <code>@Capped</code> collection. MongoDB automatically evicts
+    the oldest entries when the collection reaches its size or document count limit. Lifecycle callbacks
+    (<code>@PreStore</code>) enrich entries before they are written. The same mechanism supports
+    tailable cursors for realtime streaming.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

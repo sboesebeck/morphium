@@ -1,18 +1,20 @@
 <!-- Learn Tab: Sales Analytics -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Sales Analytics page demonstrates Morphium's <strong>Aggregation Pipeline</strong> API &mdash;
-        the MongoDB equivalent of SQL's GROUP BY, HAVING, and ORDER BY. Instead of writing raw BSON
-        documents, you build a type-safe pipeline with <code>Aggregator&lt;T, R&gt;</code>. Each stage
-        (<code>$project</code>, <code>$group</code>, <code>$sort</code>, <code>$limit</code>,
-        <code>$bucket</code>) transforms the document stream, and the final <code>aggregate()</code> call
-        executes the pipeline on the server. The fluent <code>group()</code> builder chains accumulators
-        like <code>.sum()</code>, <code>.avg()</code>, and <code>.end()</code>, keeping aggregation code
-        readable and refactor-safe.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium's Aggregation Pipeline API builds complex analytics with a fluent, type-safe builder
+    instead of raw BSON documents. <code>Aggregator&lt;T, R&gt;</code> chains stages like <code>$group</code>,
+    <code>$project</code>, <code>$sort</code>, <code>$bucket</code> and <code>$limit</code> &mdash; keeping
+    aggregation code readable, refactor-safe and compile-time checked.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Aggregation pipelines with the raw MongoDB driver mean deeply nested Map structures that are
+    hard to read, impossible to refactor and invisible to the compiler. A typo in a field name
+    silently produces wrong results.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

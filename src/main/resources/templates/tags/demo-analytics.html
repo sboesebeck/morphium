@@ -1,9 +1,13 @@
 <!-- Demo Tab: Sales Analytics -->
 
 <div class="demo-context">
-    Explore MongoDB aggregation results. Data is pre-computed from SalesRecord documents using
-    <code>$project</code>, <code>$group</code>, <code>$sort</code>, and <code>$limit</code> pipeline stages.
+    This demo runs Morphium's aggregation pipeline API against SalesRecord documents. Each table below
+    is the result of a separate pipeline: <code>$group</code> aggregates by region/product/month,
+    <code>$sort</code> orders by revenue, and <code>$limit</code> caps the output. The same fluent
+    <code>Aggregator&lt;T, R&gt;</code> API you see in the Learn tab produces these results.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

@@ -1,15 +1,20 @@
 <!-- Learn Tab: Messaging -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Messaging page demonstrates a chat system built with a custom <code>ChatMessage</code> entity
-        stored in MongoDB via Morphium. You will see how topic-based filtering narrows query results,
-        how <code>query.set()</code> performs targeted field-level updates (marking a message as read)
-        without rewriting the entire document, and how <code>@CreationTime</code> automatically timestamps
-        new messages on first store.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium includes a MongoDB-backed message queue out of the box. No Kafka, no RabbitMQ, no extra
+    infrastructure. <code>Messaging</code> supports topics, exclusive messages, broadcast, priorities and
+    time-to-live &mdash; all stored in MongoDB with change-stream-based delivery for near-realtime
+    processing.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Inter-service messaging normally requires a separate broker (Kafka, RabbitMQ, ActiveMQ) with its
+    own deployment, configuration and operational overhead. If you already run MongoDB, Morphium gives
+    you messaging without adding another moving part.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

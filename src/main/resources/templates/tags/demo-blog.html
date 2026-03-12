@@ -1,11 +1,14 @@
 <!-- Demo Tab: Blog -->
 
 <div class="demo-context">
-    Explore Morphium's advanced features: create authors (stored via <code>@Reference</code>),
-    write blog posts with <code>@Version</code> optimistic locking, add <code>@Embedded</code> comments,
-    and observe automatic timestamps (<code>@CreationTime</code>, <code>@LastChange</code>).
-    All actions use HTMX &mdash; no page reloads.
+    This demo shows Morphium's document lifecycle features in action. Authors are stored in a separate
+    collection and linked via <code>@Reference</code>. Blog posts use <code>@Version</code> for optimistic
+    locking &mdash; every save bumps the version counter. Comments are <code>@Embedded</code> sub-documents
+    added via <code>morphium.push()</code>. Timestamps (<code>@CreationTime</code>, <code>@LastChange</code>)
+    are managed automatically by Morphium.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>
@@ -98,8 +101,8 @@
             {#if post.createdAt}
             <span><strong>Created:</strong> {post.createdAt}</span>
             {/if}
-            {#if post.lastChange}
-            <span><strong>Last Change:</strong> {post.lastChange}</span>
+            {#if post.lastChanged}
+            <span><strong>Last Change:</strong> {post.lastChanged}</span>
             {/if}
         </div>
 
@@ -120,8 +123,8 @@
                 {#for comment in post.comments}
                 <li>
                     <strong>{comment.author}</strong>: {comment.text}
-                    {#if comment.commentedAt}
-                    <span style="font-size: 0.8rem; color: var(--text-secondary);"> &mdash; {comment.commentedAt}</span>
+                    {#if comment.createdAt}
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);"> &mdash; {comment.createdAt}</span>
                     {/if}
                 </li>
                 {/for}
@@ -134,7 +137,7 @@
         <!-- Action Buttons -->
         <div class="demo-actions">
             <!-- Add Comment (inline form) -->
-            <form hx-post="/blog/posts/{post.id}/comments" hx-target="#tab-content" hx-swap="innerHTML"
+            <form hx-post="/blog/posts/{post.id}/comment" hx-target="#tab-content" hx-swap="innerHTML"
                   style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <input type="text" name="author" placeholder="Your name" required style="width: 8rem;">
                 <input type="text" name="text" placeholder="Comment text" required style="width: 14rem;">

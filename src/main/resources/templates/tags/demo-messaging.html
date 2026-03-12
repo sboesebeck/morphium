@@ -1,9 +1,13 @@
 <!-- Demo Tab: Messaging -->
 
 <div class="demo-context">
-    Chat messaging system using a custom ChatMessage entity. Send messages, filter by topic,
-    and mark messages as read using Morphium's <code>query.set()</code> for targeted field updates. All actions use HTMX &mdash; no page reloads.
+    This demo uses a custom ChatMessage entity persisted via Morphium. Messages are stored in MongoDB,
+    filtered by topic using <code>createQueryFor()</code>, and updated in-place with <code>query.set()</code>
+    for targeted field changes (e.g. marking as read). This is <em>not</em> Morphium's built-in
+    Messaging system &mdash; it demonstrates the general-purpose query and update API.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

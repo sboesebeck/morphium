@@ -1,10 +1,13 @@
 <!-- Demo Tab: Bank / Wallet -->
 
 <div class="demo-context">
-    Test transactional transfers, atomic deposits/withdrawals, and optimistic locking.
-    All operations use HTMX &mdash; no page reloads. Transfers are wrapped in
-    <code>@MorphiumTransactional</code>.
+    This demo exercises Morphium's transaction support. Transfers between wallets are wrapped in
+    <code>@MorphiumTransactional</code> (CDI interceptor). Deposits and withdrawals use atomic
+    <code>inc()</code>/<code>dec()</code> operations. The <code>@Version</code> field on each wallet
+    provides optimistic locking &mdash; concurrent modifications are detected and rejected.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if transferResult}
 <div class="alert {#if transferResult.success}alert-success{#else}alert-error{/if}">

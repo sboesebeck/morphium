@@ -72,16 +72,19 @@ public class BankResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
         bankService.seedData();
-        return demoData(null, null, null);
+        return demoData(null, null, null, null, null);
     }
 
-    private TemplateInstance demoData(String success, String error, Object transferResult) {
+    private TemplateInstance demoData(String success, String error, Object transferResult,
+            String lastOperation, String lastMongoCommand) {
         return demoBank.data("accounts", bankService.findAllAccounts())
                 .data("transfers", bankService.findAllTransfers())
                 .data("accountCount", bankService.countAccounts())
                 .data("transferResult", transferResult)
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -100,7 +103,8 @@ public class BankResource {
             @Context HttpHeaders headers) {
         bankService.createAccount(accountNumber, ownerName, balance,
                 currency != null && !currency.isBlank() ? currency : "EUR");
-        if (isHtmx(headers)) return Response.ok(demoData("Account created.", null, null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Account created.", null, null,
+                "morphium.store(wallet)", "db.wallets.insertOne({...})")).build();
         return Response.seeOther(URI.create("/bank")).build();
     }
 
@@ -117,7 +121,8 @@ public class BankResource {
         var result = bankService.transfer(from, to, amount, description);
         if (isHtmx(headers)) {
             String msg = result.success() ? null : null;
-            return Response.ok(demoData(null, null, result)).build();
+            return Response.ok(demoData(null, null, result,
+                    "@MorphiumTransactional: inc/dec", "startTransaction \u2192 updateOne \u00d7 2 \u2192 commitTransaction")).build();
         }
         return Response.ok(bank.data("active", "bank").data("docLinks", DOC_LINKS)).build();
     }
@@ -131,7 +136,8 @@ public class BankResource {
             @FormParam("amount") double amount,
             @Context HttpHeaders headers) {
         bankService.deposit(accountNumber, amount);
-        if (isHtmx(headers)) return Response.ok(demoData("Deposited " + amount + ".", null, null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Deposited " + amount + ".", null, null,
+                "morphium.inc(query, \"balance\", amount)", "db.wallets.updateOne({_id: ...}, {$inc: {balance: N}})")).build();
         return Response.seeOther(URI.create("/bank")).build();
     }
 
@@ -145,9 +151,11 @@ public class BankResource {
             @Context HttpHeaders headers) {
         try {
             bankService.withdraw(accountNumber, amount);
-            if (isHtmx(headers)) return Response.ok(demoData("Withdrawn " + amount + ".", null, null)).build();
+            if (isHtmx(headers)) return Response.ok(demoData("Withdrawn " + amount + ".", null, null,
+                    "morphium.inc(query, \"balance\", amount)", "db.wallets.updateOne({_id: ...}, {$inc: {balance: N}})")).build();
         } catch (IllegalArgumentException e) {
-            if (isHtmx(headers)) return Response.ok(demoData(null, e.getMessage(), null)).build();
+            if (isHtmx(headers)) return Response.ok(demoData(null, e.getMessage(), null,
+                    "morphium.inc(query, \"balance\", amount)", "db.wallets.updateOne({_id: ...}, {$inc: {balance: N}})")).build();
         }
         return Response.seeOther(URI.create("/bank")).build();
     }
@@ -158,7 +166,8 @@ public class BankResource {
     public Response seed(@Context HttpHeaders headers) {
         bankService.deleteAll();
         bankService.seedData();
-        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null, null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null, null,
+                "morphium.storeList(wallets)", "db.wallets.insertMany([...])")).build();
         return Response.seeOther(URI.create("/bank")).build();
     }
 }

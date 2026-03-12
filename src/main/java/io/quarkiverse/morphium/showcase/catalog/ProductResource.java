@@ -103,23 +103,31 @@ public class ProductResource {
                 .data("count", productService.count())
                 .data("searchQuery", null)
                 .data("successMessage", null)
-                .data("errorMessage", null);
+                .data("errorMessage", null)
+                .data("lastOperation", null)
+                .data("lastMongoCommand", null);
     }
 
-    private TemplateInstance demoTabWithMessage(String successMessage, String errorMessage) {
+    private TemplateInstance demoTabWithMessage(String successMessage, String errorMessage,
+            String lastOperation, String lastMongoCommand) {
         return demoCatalog.data("products", productService.findAll())
                 .data("count", productService.count())
                 .data("searchQuery", null)
                 .data("successMessage", successMessage)
-                .data("errorMessage", errorMessage);
+                .data("errorMessage", errorMessage)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
-    private TemplateInstance demoTabWithProducts(List<Product> products, String searchQuery) {
+    private TemplateInstance demoTabWithProducts(List<Product> products, String searchQuery,
+            String lastOperation, String lastMongoCommand) {
         return demoCatalog.data("products", products)
                 .data("count", productService.count())
                 .data("searchQuery", searchQuery)
                 .data("successMessage", null)
-                .data("errorMessage", null);
+                .data("errorMessage", null)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmxRequest(HttpHeaders headers) {
@@ -149,7 +157,8 @@ public class ProductResource {
                 : List.of();
         productService.create(name, description, price, stock, categoryName, categoryDesc, tags);
         if (isHtmxRequest(headers)) {
-            return Response.ok(demoTabWithMessage("Product '" + name + "' created successfully.", null)).build();
+            return Response.ok(demoTabWithMessage("Product '" + name + "' created successfully.", null,
+                    "morphium.store(product)", "db.products.insertOne({...})")).build();
         }
         return Response.seeOther(URI.create("/catalog")).build();
     }
@@ -165,7 +174,8 @@ public class ProductResource {
     public Response deleteProduct(@PathParam("id") String id, @Context HttpHeaders headers) {
         productService.delete(id);
         if (isHtmxRequest(headers)) {
-            return Response.ok(demoTabWithMessage("Product deleted.", null)).build();
+            return Response.ok(demoTabWithMessage("Product deleted.", null,
+                    "morphium.delete(product)", "db.products.deleteOne({_id: ...})")).build();
         }
         return Response.seeOther(URI.create("/catalog")).build();
     }
@@ -184,7 +194,9 @@ public class ProductResource {
                 ? productService.searchByName(query)
                 : productService.findAll();
         if (isHtmxRequest(headers)) {
-            return Response.ok(demoTabWithProducts(results, query)).build();
+            return Response.ok(demoTabWithProducts(results, query,
+                    "query.f(\"name\").matches(\"(?i)" + query + "\")",
+                    "db.products.find({name: {$regex: ...}})")).build();
         }
         return Response.ok(catalog.data("active", "catalog").data("docLinks", DOC_LINKS)).build();
     }
@@ -204,7 +216,9 @@ public class ProductResource {
             @Context HttpHeaders headers) {
         List<Product> results = productService.findByPriceRange(min, max);
         if (isHtmxRequest(headers)) {
-            return Response.ok(demoTabWithProducts(results, null)).build();
+            return Response.ok(demoTabWithProducts(results, null,
+                    "query.f(\"price\").gte(" + min + ").f(\"price\").lte(" + max + ")",
+                    "db.products.find({price: {$gte: " + min + ", $lte: " + max + "}})")).build();
         }
         return Response.ok(catalog.data("active", "catalog").data("docLinks", DOC_LINKS)).build();
     }
@@ -220,7 +234,8 @@ public class ProductResource {
     public Response clearCache(@Context HttpHeaders headers) {
         productService.clearCache();
         if (isHtmxRequest(headers)) {
-            return Response.ok(demoTabWithMessage("Cache cleared for Product entity.", null)).build();
+            return Response.ok(demoTabWithMessage("Cache cleared for Product entity.", null,
+                    "morphium.getCache().clearCachefor(Product.class)", null)).build();
         }
         return Response.seeOther(URI.create("/catalog")).build();
     }
@@ -234,7 +249,8 @@ public class ProductResource {
     public Response deleteAll(@Context HttpHeaders headers) {
         productService.deleteAll();
         if (isHtmxRequest(headers)) {
-            return Response.ok(demoTabWithMessage("All products deleted.", null)).build();
+            return Response.ok(demoTabWithMessage("All products deleted.", null,
+                    "morphium.dropCollection(Product.class)", "db.products.drop()")).build();
         }
         return Response.seeOther(URI.create("/catalog")).build();
     }
@@ -251,7 +267,8 @@ public class ProductResource {
         productService.deleteAll();
         productService.seedData();
         if (isHtmxRequest(headers)) {
-            return Response.ok(demoTabWithMessage("Sample data re-seeded.", null)).build();
+            return Response.ok(demoTabWithMessage("Sample data re-seeded.", null,
+                    "morphium.storeList(products)", "db.products.insertMany([...])")).build();
         }
         return Response.seeOther(URI.create("/catalog")).build();
     }

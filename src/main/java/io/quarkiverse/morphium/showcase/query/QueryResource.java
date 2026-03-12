@@ -73,10 +73,11 @@ public class QueryResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
         queryShowcaseService.seedData();
-        return demoAll(null, null);
+        return demoAll(null, null, null, null);
     }
 
-    private TemplateInstance demoAll(String success, String error) {
+    private TemplateInstance demoAll(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         return demoQuery.data("employees", queryShowcaseService.findAll())
                 .data("departments", queryShowcaseService.distinctDepartments())
                 .data("count", queryShowcaseService.count())
@@ -92,8 +93,13 @@ public class QueryResource {
                 .data("resultCount", null)
                 .data("sortField", null)
                 .data("sortDir", null)
+                .data("streamResults", null)
+                .data("streamDepartment", null)
+                .data("streamMinSalary", null)
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -137,7 +143,10 @@ public class QueryResource {
                 .data("resultCount", results.size())
                 .data("currentPage", null).data("pageSize", null).data("totalPages", null)
                 .data("sortField", null).data("sortDir", null)
-                .data("successMessage", null).data("errorMessage", null);
+                .data("streamResults", null).data("streamDepartment", null).data("streamMinSalary", null)
+                .data("successMessage", null).data("errorMessage", null)
+                .data("lastOperation", "query.f(...).gte(...).sort(...).limit(...).asList()")
+                .data("lastMongoCommand", "db.employees.find({...}).sort({...}).limit(N)");
 
         if (isHtmx(headers)) return Response.ok(ti).build();
         return Response.ok(query.data("active", "query").data("docLinks", DOC_LINKS)).build();
@@ -167,7 +176,42 @@ public class QueryResource {
                 .data("filterDepartment", null).data("filterMinSalary", null)
                 .data("filterMaxSalary", null).data("filterNamePattern", null)
                 .data("filterActive", null)
-                .data("successMessage", null).data("errorMessage", null);
+                .data("streamResults", null).data("streamDepartment", null).data("streamMinSalary", null)
+                .data("successMessage", null).data("errorMessage", null)
+                .data("lastOperation", "query.f(...).gte(...).sort(...).limit(...).asList()")
+                .data("lastMongoCommand", "db.employees.find({...}).sort({...}).limit(N)");
+
+        if (isHtmx(headers)) return Response.ok(ti).build();
+        return Response.ok(query.data("active", "query").data("docLinks", DOC_LINKS)).build();
+    }
+
+    @POST
+    @Path("/stream")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.TEXT_HTML)
+    public Response streamDemo(
+            @FormParam("streamDepartment") String department,
+            @FormParam("streamMinSalary") @DefaultValue("0") double minSalary,
+            @Context HttpHeaders headers) {
+
+        if (department == null || department.isBlank()) department = "Engineering";
+        List<String> names = queryShowcaseService.streamHighEarnerNames(department, minSalary);
+
+        TemplateInstance ti = demoQuery.data("employees", queryShowcaseService.findAll())
+                .data("departments", queryShowcaseService.distinctDepartments())
+                .data("count", queryShowcaseService.count())
+                .data("totalCount", queryShowcaseService.count())
+                .data("streamResults", names)
+                .data("streamDepartment", department)
+                .data("streamMinSalary", minSalary)
+                .data("currentPage", null).data("pageSize", null).data("totalPages", null)
+                .data("filterDepartment", null).data("filterMinSalary", null)
+                .data("filterMaxSalary", null).data("filterNamePattern", null)
+                .data("filterActive", null).data("resultCount", null)
+                .data("sortField", null).data("sortDir", null)
+                .data("successMessage", null).data("errorMessage", null)
+                .data("lastOperation", "query.f(...).gte(...).sort(...).limit(...).asList()")
+                .data("lastMongoCommand", "db.employees.find({...}).sort({...}).limit(N)");
 
         if (isHtmx(headers)) return Response.ok(ti).build();
         return Response.ok(query.data("active", "query").data("docLinks", DOC_LINKS)).build();
@@ -177,7 +221,8 @@ public class QueryResource {
     @Path("/seed")
     public Response seed(@Context HttpHeaders headers) {
         queryShowcaseService.seedData();
-        if (isHtmx(headers)) return Response.ok(demoAll("Sample data re-seeded.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoAll("Sample data re-seeded.", null,
+                "morphium.storeList(employees)", "db.employees.insertMany([...])")).build();
         return Response.seeOther(URI.create("/query")).build();
     }
 }

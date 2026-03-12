@@ -78,10 +78,11 @@ public class PolymorphismResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
         seedIfEmpty();
-        return demoData(null, null);
+        return demoData(null, null, null, null);
     }
 
-    private TemplateInstance demoData(String success, String error) {
+    private TemplateInstance demoData(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         List<Vehicle> allVehicles = morphium.createQueryFor(Vehicle.class)
                 .sort(Map.of(Vehicle.Fields.manufacturer, 1))
                 .asList();
@@ -93,7 +94,9 @@ public class PolymorphismResource {
                 .data("trucks", trucks)
                 .data("totalCount", allVehicles.size())
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -121,7 +124,8 @@ public class PolymorphismResource {
         car.setFuelType(fuelType);
         car.setConvertible(convertible);
         morphium.store(car);
-        if (isHtmx(headers)) return Response.ok(demoData("Car added.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Car added.", null,
+                "morphium.store(car)", "db.vehicles.insertOne({..., class_name: \"Car\"})")).build();
         return Response.seeOther(URI.create("/polymorphism")).build();
     }
 
@@ -146,7 +150,8 @@ public class PolymorphismResource {
         truck.setAxles(axles);
         truck.setHasTowbar(hasTowbar);
         morphium.store(truck);
-        if (isHtmx(headers)) return Response.ok(demoData("Truck added.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Truck added.", null,
+                "morphium.store(truck)", "db.vehicles.insertOne({..., class_name: \"Truck\"})")).build();
         return Response.seeOther(URI.create("/polymorphism")).build();
     }
 
@@ -157,7 +162,8 @@ public class PolymorphismResource {
                 .f(Vehicle.Fields.id).eq(new MorphiumId(id))
                 .get();
         if (vehicle != null) morphium.delete(vehicle);
-        if (isHtmx(headers)) return Response.ok(demoData("Vehicle deleted.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Vehicle deleted.", null,
+                "morphium.delete(vehicle)", "db.vehicles.deleteOne({_id: ...})")).build();
         return Response.seeOther(URI.create("/polymorphism")).build();
     }
 
@@ -166,7 +172,8 @@ public class PolymorphismResource {
     public Response seed(@Context HttpHeaders headers) {
         morphium.dropCollection(Vehicle.class);
         seedVehicles();
-        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null,
+                "morphium.storeList(vehicles)", "db.vehicles.insertMany([...])")).build();
         return Response.seeOther(URI.create("/polymorphism")).build();
     }
 

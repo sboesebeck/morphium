@@ -1,19 +1,20 @@
 <!-- Learn Tab: Bank / Wallet -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Bank / Wallet page demonstrates <strong>transactional operations</strong> with Morphium.
-        Transfers between accounts use <code>@MorphiumTransactional</code>, a CDI interceptor that wraps
-        the method in a MongoDB multi-document transaction (start &rarr; commit / abort). Individual
-        deposits and withdrawals use Morphium's <code>inc()</code> and <code>dec()</code> methods &mdash;
-        atomic server-side operations that modify a field without reading the document first.
-        The <code>@Version</code> annotation enables <strong>optimistic locking</strong>: every
-        <code>store()</code> increments the version, and a concurrent update with a stale version
-        throws an exception instead of silently overwriting. Transfers are recorded as denormalized
-        <code>Transfer</code> audit-log documents.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium's <code>@MorphiumTransactional</code> CDI interceptor wraps MongoDB multi-document
+    transactions in a single annotation. Combined with atomic <code>inc()</code>/<code>dec()</code>
+    operations and <code>@Version</code>-based optimistic locking, it covers the full spectrum from
+    simple atomic updates to complex cross-collection transactions.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>MongoDB transactions require explicit session management, careful error handling and manual
+    commit/abort logic. Without a framework, transaction boundaries spread across the codebase
+    and are easy to get wrong.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

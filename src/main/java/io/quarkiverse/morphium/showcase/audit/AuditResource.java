@@ -75,10 +75,11 @@ public class AuditResource {
     @Path("/tab/demo")
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
-        return demoData(null, null);
+        return demoData(null, null, null, null);
     }
 
-    private TemplateInstance demoData(String success, String error) {
+    private TemplateInstance demoData(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         List<AuditEntry> entries = morphium.createQueryFor(AuditEntry.class)
                 .sort(Map.of(AuditEntry.Fields.timestamp, -1))
                 .limit(50)
@@ -87,7 +88,9 @@ public class AuditResource {
         return demoAudit.data("entries", entries)
                 .data("count", count)
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -105,7 +108,8 @@ public class AuditResource {
             @FormParam("details") String details,
             @Context HttpHeaders headers) {
         auditListener.log(entityType, entityId, action, details, "web-user");
-        if (isHtmx(headers)) return Response.ok(demoData("Audit entry logged.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("Audit entry logged.", null,
+                "morphium.store(auditEntry)", "db.audit_log.insertOne({...})")).build();
         return Response.seeOther(URI.create("/audit")).build();
     }
 
@@ -125,7 +129,8 @@ public class AuditResource {
             String det = action + " operation on " + entityType + " #" + entityId + " by " + user;
             auditListener.log(entityType, entityId, action, det, user);
         }
-        if (isHtmx(headers)) return Response.ok(demoData("20 sample entries generated.", null)).build();
+        if (isHtmx(headers)) return Response.ok(demoData("20 sample entries generated.", null,
+                "morphium.storeList(entries)", "db.audit_log.insertMany([...])")).build();
         return Response.seeOther(URI.create("/audit")).build();
     }
 }

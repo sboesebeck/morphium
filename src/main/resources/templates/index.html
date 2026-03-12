@@ -1,151 +1,204 @@
 {#include base title="Home" active="home"}
 {#content}
-<div class="page-header">
-    <h1>Morphium ORM Showcase</h1>
-    <p>Interactive demo of all Morphium features with Quarkus, Qute templates and HTMX</p>
+<div class="hero">
+    <h1>Morphium</h1>
+    <p class="tagline">A Java ODM for MongoDB that does more than mapping.</p>
+    <p class="sub-tagline">Object mapping. Built-in messaging. In-memory testing. One dependency.</p>
+    <div class="hero-actions">
+        <a href="/catalog" class="btn btn-primary">Explore Features</a>
+        <a href="/docs" class="btn btn-outline">Read the Docs</a>
+    </div>
+    <span class="version-badge">v6.2.0 &middot; Quarkus Extension</span>
 </div>
 
-<div class="card-grid">
-    <a href="/catalog" class="feature-card">
-        <div class="feature-icon">&#128230;</div>
-        <h3>Product Catalog</h3>
-        <p>CRUD operations, indexing, embedded documents, caching, write buffers and field mapping.</p>
-        <div class="tags">
-            <span class="tag tag-blue">@Entity</span>
-            <span class="tag tag-blue">@Index</span>
-            <span class="tag tag-blue">@Embedded</span>
-            <span class="tag tag-green">@Cache</span>
-            <span class="tag tag-orange">@WriteBuffer</span>
-        </div>
-    </a>
+<div class="value-props">
+    <div class="value-prop">
+        <div class="value-prop-icon">&#9881;</div>
+        <h3>Zero-Config ODM</h3>
+        <p>Annotate POJOs, get persistence. @Entity, @Id, @Index &mdash; no XML, no codec registries.</p>
+    </div>
+    <div class="value-prop">
+        <div class="value-prop-icon">&#9993;</div>
+        <h3>Built-in Messaging</h3>
+        <p>MongoDB-backed message queue. No Kafka, no RabbitMQ, no extra infrastructure.</p>
+    </div>
+    <div class="value-prop">
+        <div class="value-prop-icon">&#9889;</div>
+        <h3>In-Memory Testing</h3>
+        <p>Full MongoDB emulation in-process. Tests in milliseconds, no Docker required.</p>
+    </div>
+    <div class="value-prop">
+        <div class="value-prop-icon">&#9744;</div>
+        <h3>Jakarta Data Ready</h3>
+        <p>Declarative @Repository interfaces with build-time query generation.</p>
+    </div>
+</div>
 
-    <a href="/blog" class="feature-card">
-        <div class="feature-icon">&#128221;</div>
-        <h3>Blog System</h3>
-        <p>Versioning, references, lifecycle callbacks, automatic timestamps and container types.</p>
-        <div class="tags">
-            <span class="tag tag-blue">@Version</span>
-            <span class="tag tag-blue">@Reference</span>
-            <span class="tag tag-green">@CreationTime</span>
-            <span class="tag tag-orange">@Lifecycle</span>
-        </div>
-    </a>
+<!-- Data Access & Persistence -->
+<div class="feature-group">
+    <div class="feature-group-header">
+        <h2>Data Access &amp; Persistence</h2>
+        <p>Map Java objects to MongoDB documents with annotations, caching, versioning and type-safe queries.</p>
+    </div>
+    <div class="card-grid">
+        <a href="/catalog" class="feature-card">
+            <h3>Product Catalog</h3>
+            <p>Core CRUD operations, embedded documents, indexing, LRU caching and field mapping.</p>
+            <div class="tags">
+                <span class="tag tag-blue">@Entity</span>
+                <span class="tag tag-blue">@Index</span>
+                <span class="tag tag-green">@Embedded</span>
+                <span class="tag tag-green">@Cache</span>
+            </div>
+        </a>
 
-    <a href="/analytics" class="feature-card">
-        <div class="feature-icon">&#128200;</div>
-        <h3>Sales Analytics</h3>
-        <p>Aggregation pipelines with group, match, sort, project, unwind, lookup and bucket stages.</p>
-        <div class="tags">
-            <span class="tag tag-purple">Aggregation</span>
-            <span class="tag tag-purple">$group</span>
-            <span class="tag tag-purple">$lookup</span>
-            <span class="tag tag-purple">Expr</span>
-        </div>
-    </a>
+        <a href="/blog" class="feature-card">
+            <h3>Blog System</h3>
+            <p>Versioning, cross-collection references, lifecycle callbacks and automatic timestamps.</p>
+            <div class="tags">
+                <span class="tag tag-blue">@Version</span>
+                <span class="tag tag-orange">@Reference</span>
+                <span class="tag tag-green">@CreationTime</span>
+                <span class="tag tag-orange">@Lifecycle</span>
+            </div>
+        </a>
 
-    <a href="/geo" class="feature-card">
-        <div class="feature-icon">&#127758;</div>
-        <h3>Store Locator</h3>
-        <p>Geospatial queries with 2dsphere indexes, near and geoWithin operations.</p>
-        <div class="tags">
-            <span class="tag tag-green">GeoJSON</span>
-            <span class="tag tag-green">$near</span>
-            <span class="tag tag-green">$geoWithin</span>
-        </div>
-    </a>
+        <a href="/polymorphism" class="feature-card">
+            <h3>Polymorphism</h3>
+            <p>Java type hierarchies with automatic type discriminators and custom type mappers.</p>
+            <div class="tags">
+                <span class="tag tag-purple">typeId</span>
+                <span class="tag tag-purple">TypeMapper</span>
+                <span class="tag tag-purple">Inheritance</span>
+            </div>
+        </a>
 
-    <a href="/messaging" class="feature-card">
-        <div class="feature-icon">&#128172;</div>
-        <h3>Chat / Messaging</h3>
-        <p>Morphium's built-in messaging system with topics, exclusive messages and live updates via SSE.</p>
-        <div class="tags">
-            <span class="tag tag-orange">Messaging</span>
-            <span class="tag tag-orange">Topics</span>
-            <span class="tag tag-orange">SSE</span>
-            <span class="tag tag-orange">ChangeStream</span>
-        </div>
-    </a>
+        <a href="/query" class="feature-card">
+            <h3>Advanced Query</h3>
+            <p>Fluent query builder with every MongoDB operator, pagination, projections and text search.</p>
+            <div class="tags">
+                <span class="tag tag-blue">Query API</span>
+                <span class="tag tag-blue">Regex</span>
+                <span class="tag tag-blue">Projection</span>
+            </div>
+        </a>
 
-    <a href="/bank" class="feature-card">
-        <div class="feature-icon">&#127974;</div>
-        <h3>Bank / Wallet</h3>
-        <p>Transactions with @MorphiumTransactional, atomic inc/dec operations and version-based locking.</p>
-        <div class="tags">
-            <span class="tag tag-blue">@MorphiumTransactional</span>
-            <span class="tag tag-blue">inc/dec</span>
-            <span class="tag tag-blue">@Version</span>
-        </div>
-    </a>
+        <a href="/jakarta-data" class="feature-card">
+            <h3>Jakarta Data 1.0</h3>
+            <p>Declarative @Repository interfaces with query derivation, JDQL and MorphiumRepository escape hatch.</p>
+            <div class="tags">
+                <span class="tag tag-purple">@Repository</span>
+                <span class="tag tag-purple">JDQL</span>
+                <span class="tag tag-purple">@StaticMetamodel</span>
+            </div>
+        </a>
+    </div>
+</div>
 
-    <a href="/audit" class="feature-card">
-        <div class="feature-icon">&#128203;</div>
-        <h3>Audit Log</h3>
-        <p>Capped collections, tailable cursors and lifecycle callbacks for automatic logging.</p>
-        <div class="tags">
-            <span class="tag tag-green">@Capped</span>
-            <span class="tag tag-green">Tailable</span>
-            <span class="tag tag-green">@Lifecycle</span>
-        </div>
-    </a>
+<!-- Processing & Analytics -->
+<div class="feature-group">
+    <div class="feature-group-header">
+        <h2>Processing &amp; Analytics</h2>
+        <p>Aggregation pipelines, bulk operations and geospatial queries for data processing at scale.</p>
+    </div>
+    <div class="card-grid">
+        <a href="/analytics" class="feature-card">
+            <h3>Sales Analytics</h3>
+            <p>Type-safe aggregation pipelines with group, project, sort, bucket and lookup stages.</p>
+            <div class="tags">
+                <span class="tag tag-purple">Aggregation</span>
+                <span class="tag tag-purple">$group</span>
+                <span class="tag tag-purple">$lookup</span>
+            </div>
+        </a>
 
-    <a href="/importer" class="feature-card">
-        <div class="feature-icon">&#128229;</div>
-        <h3>Bulk Import</h3>
-        <p>Batch operations, write buffers, cursor-based iteration, sequences and array operations.</p>
-        <div class="tags">
-            <span class="tag tag-orange">storeList</span>
-            <span class="tag tag-orange">Iterator</span>
-            <span class="tag tag-orange">Sequence</span>
-            <span class="tag tag-orange">push/pull</span>
-        </div>
-    </a>
+        <a href="/importer" class="feature-card">
+            <h3>Bulk Import</h3>
+            <p>Batch operations, write buffers, cursor-based iteration, sequences and array operations.</p>
+            <div class="tags">
+                <span class="tag tag-orange">storeList</span>
+                <span class="tag tag-orange">Iterator</span>
+                <span class="tag tag-orange">Sequence</span>
+            </div>
+        </a>
 
-    <a href="/polymorphism" class="feature-card">
-        <div class="feature-icon">&#129516;</div>
-        <h3>Polymorphism</h3>
-        <p>Type hierarchies with typeId, polymorphic embedded objects and custom type mappers.</p>
-        <div class="tags">
-            <span class="tag tag-purple">typeId</span>
-            <span class="tag tag-purple">TypeMapper</span>
-            <span class="tag tag-purple">Inheritance</span>
-        </div>
-    </a>
+        <a href="/geo" class="feature-card">
+            <h3>Store Locator</h3>
+            <p>Geospatial queries with 2dsphere indexes, $near and $geoWithin operations.</p>
+            <div class="tags">
+                <span class="tag tag-green">GeoJSON</span>
+                <span class="tag tag-green">$near</span>
+                <span class="tag tag-green">$geoWithin</span>
+            </div>
+        </a>
+    </div>
+</div>
 
-    <a href="/query" class="feature-card">
-        <div class="feature-icon">&#128269;</div>
-        <h3>Advanced Query</h3>
-        <p>Interactive query builder with all filter operators, sorting, pagination, projections and text search.</p>
-        <div class="tags">
-            <span class="tag tag-blue">Query API</span>
-            <span class="tag tag-blue">Regex</span>
-            <span class="tag tag-blue">Text Search</span>
-            <span class="tag tag-blue">Projection</span>
-        </div>
-    </a>
+<!-- Platform & Operations -->
+<div class="feature-group">
+    <div class="feature-group-header">
+        <h2>Platform &amp; Operations</h2>
+        <p>Messaging, transactions, audit logging and health monitoring built into the framework.</p>
+    </div>
+    <div class="card-grid">
+        <a href="/messaging" class="feature-card">
+            <h3>Messaging</h3>
+            <p>MongoDB-backed message queue with topics, exclusive messages and live updates via SSE.</p>
+            <div class="tags">
+                <span class="tag tag-orange">Messaging</span>
+                <span class="tag tag-orange">Topics</span>
+                <span class="tag tag-orange">SSE</span>
+            </div>
+        </a>
 
-    <a href="/jakarta-data" class="feature-card">
-        <div class="feature-icon">&#128218;</div>
-        <h3>Jakarta Data</h3>
-        <p>Declarative @Repository interfaces vs imperative Morphium API — side-by-side comparison with interactive demo.</p>
-        <div class="tags">
-            <span class="tag tag-purple">@Repository</span>
-            <span class="tag tag-purple">CrudRepository</span>
-            <span class="tag tag-purple">@Query JDQL</span>
-            <span class="tag tag-purple">@StaticMetamodel</span>
-        </div>
-    </a>
+        <a href="/bank" class="feature-card">
+            <h3>Transactions</h3>
+            <p>@MorphiumTransactional CDI interceptor, atomic inc/dec and version-based locking.</p>
+            <div class="tags">
+                <span class="tag tag-blue">@MorphiumTransactional</span>
+                <span class="tag tag-blue">inc/dec</span>
+                <span class="tag tag-blue">@Version</span>
+            </div>
+        </a>
 
-    <a href="/docs" class="feature-card">
-        <div class="feature-icon">&#128214;</div>
-        <h3>Documentation Hub</h3>
-        <p>Browse the full Morphium documentation: guides, API reference, how-tos and configuration.</p>
-        <div class="tags">
-            <span class="tag tag-green">Guides</span>
-            <span class="tag tag-green">API Reference</span>
-            <span class="tag tag-green">How-Tos</span>
-            <span class="tag tag-green">Configuration</span>
-        </div>
-    </a>
+        <a href="/audit" class="feature-card">
+            <h3>Audit Log</h3>
+            <p>Capped collections, tailable cursors and lifecycle callbacks for automatic logging.</p>
+            <div class="tags">
+                <span class="tag tag-green">@Capped</span>
+                <span class="tag tag-green">Tailable</span>
+                <span class="tag tag-green">@Lifecycle</span>
+            </div>
+        </a>
+
+        <a href="/health" class="feature-card">
+            <h3>Health Checks</h3>
+            <p>MicroProfile Health probes auto-registered by the Quarkus extension. Zero configuration.</p>
+            <div class="tags">
+                <span class="tag tag-green">Liveness</span>
+                <span class="tag tag-green">Readiness</span>
+                <span class="tag tag-green">Startup</span>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Documentation -->
+<div class="feature-group">
+    <div class="feature-group-header">
+        <h2>Resources</h2>
+    </div>
+    <div class="card-grid">
+        <a href="/docs" class="feature-card">
+            <h3>Documentation Hub</h3>
+            <p>Browse the full Morphium documentation: guides, API reference, how-tos and configuration.</p>
+            <div class="tags">
+                <span class="tag tag-green">Guides</span>
+                <span class="tag tag-green">API Reference</span>
+                <span class="tag tag-green">How-Tos</span>
+            </div>
+        </a>
+    </div>
 </div>
 {/content}
 {/include}

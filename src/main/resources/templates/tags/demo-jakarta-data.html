@@ -1,6 +1,14 @@
 <!-- Demo Tab: Jakarta Data — Interactive Comparison -->
 <div id="demo-jakarta-data">
 
+    <div class="demo-context">
+        This demo runs the same query through both the <strong>Morphium API</strong> and a
+        <strong>Jakarta Data @Repository</strong>. Results should be identical &mdash; the repository
+        delegates to Morphium under the hood. Select an operation and compare both approaches side by side.
+    </div>
+
+    {#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
+
     {#if successMessage}
     <div class="alert alert-success">{successMessage}</div>
     {/if}

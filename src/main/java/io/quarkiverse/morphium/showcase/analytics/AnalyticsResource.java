@@ -72,10 +72,12 @@ public class AnalyticsResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance demoTab() {
         analyticsService.seedData();
-        return demoData(null, null);
+        return demoData(null, null,
+                "aggregator.group(\"$region\").sum(...).end()", "db.sales_records.aggregate([{$group: ...}])");
     }
 
-    private TemplateInstance demoData(String success, String error) {
+    private TemplateInstance demoData(String success, String error,
+            String lastOperation, String lastMongoCommand) {
         return demoAnalytics
                 .data("salesByRegion", analyticsService.salesByRegion())
                 .data("salesByProduct", analyticsService.salesByProduct())
@@ -85,7 +87,9 @@ public class AnalyticsResource {
                 .data("distinctProducts", analyticsService.distinctProducts())
                 .data("totalRecords", analyticsService.totalRecords())
                 .data("successMessage", success)
-                .data("errorMessage", error);
+                .data("errorMessage", error)
+                .data("lastOperation", lastOperation)
+                .data("lastMongoCommand", lastMongoCommand);
     }
 
     @POST
@@ -94,7 +98,8 @@ public class AnalyticsResource {
     public Response seed(@Context HttpHeaders headers) {
         analyticsService.resetData();
         if (headers.getHeaderString("HX-Request") != null) {
-            return Response.ok(demoData("Sample data re-seeded.", null)).build();
+            return Response.ok(demoData("Sample data re-seeded.", null,
+                    "morphium.storeList(salesRecords)", "db.sales_records.insertMany([...])")).build();
         }
         return Response.seeOther(URI.create("/analytics")).build();
     }

@@ -1,15 +1,19 @@
 <!-- Learn Tab: Health Checks -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Health page demonstrates the automatic MicroProfile Health integration provided by the
-        <code>quarkus-morphium</code> extension. When <code>quarkus-smallrye-health</code> is on the classpath,
-        three health checks are registered automatically &mdash; liveness, readiness, and startup &mdash;
-        without writing any code. This page displays the underlying Morphium driver statistics that the
-        health checks evaluate.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>The Quarkus Morphium extension auto-registers MicroProfile Health probes &mdash; liveness, readiness
+    and startup &mdash; with zero configuration. The probes check MongoDB connectivity and report
+    driver details, replica set status and connection pool health.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Health checks for database connections typically require custom CDI beans with manual probe
+    implementations. The Quarkus extension handles this automatically, including proper status
+    reporting for Kubernetes orchestration.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

@@ -1,16 +1,20 @@
 <!-- Learn Tab: Store Locator (Geo) -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Store Locator demonstrates Morphium's geospatial data handling: storing locations as
-        GeoJSON-compatible <code>[longitude, latitude]</code> coordinate pairs, creating <strong>2dsphere
-        indexes</strong> for efficient spatial queries, and using MongoDB's <code>$near</code> and
-        <code>$geoWithin</code> operators to find stores near a given point. You will see how
-        <code>ensureIndicesFor()</code> creates indexes from annotations at application startup,
-        and how <code>double[]</code> arrays map directly to BSON arrays in MongoDB.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium supports 2dsphere indexes, <code>$near</code> queries and GeoJSON natively through
+    annotations and the fluent Query API. Store coordinates as <code>double[]</code> arrays, add
+    <code>@Index("2dsphere:location")</code>, and query by proximity or bounding geometry &mdash;
+    no manual index creation or coordinate conversion required.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Geospatial queries require specialized indexes, GeoJSON coordinate conventions (longitude first!)
+    and specific query operators. Getting the index type or coordinate order wrong produces empty results
+    with no error.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

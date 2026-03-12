@@ -1,9 +1,13 @@
 <!-- Demo Tab: Data Importer -->
 
 <div class="demo-context">
-    Bulk import pipeline with write buffering, atomic sequence numbers, and server-side array/field
-    manipulation. All actions use HTMX &mdash; no page reloads.
+    This demo exercises Morphium's bulk operations: <code>storeList()</code> for batch inserts,
+    <code>@WriteBuffer</code> for automatic write batching, sequences for generating unique IDs,
+    and <code>push()</code>/<code>pull()</code> for server-side array manipulation. Each operation
+    runs against a real Morphium instance with the in-memory driver.
 </div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
 
 {#if successMessage}
 <div class="alert alert-success">{successMessage}</div>

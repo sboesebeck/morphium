@@ -1,21 +1,21 @@
 <!-- Learn Tab: Blog -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Blog page showcases a realistic content-management scenario built on Morphium's advanced
-        mapping features. A <code>BlogPost</code> entity references an <code>Author</code> stored in a
-        separate collection via <code>@Reference</code> (eager or lazy), while <code>Comment</code> objects
-        are stored inline as <code>@Embedded</code> sub-documents. Optimistic locking is handled by
-        <code>@Version</code>, which automatically increments a version counter on every write and throws a
-        <code>VersionMismatchException</code> if two threads try to update the same revision.
-        Lifecycle hooks (<code>@PreStore</code>, <code>@PostLoad</code>) let the entity react to persistence
-        events, and automatic timestamps (<code>@CreationTime</code>, <code>@LastChange</code>,
-        <code>@LastAccess</code>) are maintained by Morphium without any application code. Finally,
-        <code>@Transient</code> fields demonstrate how to carry computed, non-persisted state that is
-        re-hydrated after load via <code>@PostLoad</code>.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium manages document lifecycle automatically. <code>@Version</code> prevents concurrent overwrites
+    with optimistic locking. <code>@Reference</code> links documents across collections (eager or lazy).
+    <code>@CreationTime</code>, <code>@LastChange</code> and <code>@LastAccess</code> maintain timestamps
+    without application code. Lifecycle callbacks (<code>@PreStore</code>, <code>@PostLoad</code>) let entities
+    react to persistence events.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Versioning, cross-collection references and automatic timestamps typically require custom interceptors
+    or event listeners with significant boilerplate. Morphium handles all of this declaratively through
+    annotations on the entity class.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

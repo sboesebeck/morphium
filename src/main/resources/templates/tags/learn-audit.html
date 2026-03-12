@@ -1,14 +1,20 @@
 <!-- Learn Tab: Audit Log -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Audit Log demonstrates Morphium's <code>@Capped</code> annotation for creating fixed-size
-        collections that automatically evict the oldest entries when full. You will see how a capped
-        collection works as a FIFO buffer for audit logging, how <code>@CreationTime</code> timestamps
-        entries automatically, and how tailable cursors can stream new entries in real time.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Capped collections + tailable cursors + lifecycle callbacks = automatic audit trails that stream
+    in realtime. <code>@Capped</code> limits collection size, <code>@PreStore</code>/<code>@PostRemove</code>
+    callbacks capture every change, and tailable cursors deliver new entries as they arrive &mdash; no
+    polling required.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Audit logging typically requires a separate event bus or manually inserted log entries in every
+    write path. Capped collections with tailable cursors are powerful but require understanding MongoDB's
+    specific constraints around them.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

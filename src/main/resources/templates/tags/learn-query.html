@@ -1,19 +1,19 @@
 <!-- Learn Tab: Query Builder -->
 
-<!-- Section 1: What does this page show? -->
-<div class="learn-section">
-    <h2>What This Page Demonstrates</h2>
-    <div class="learn-intro">
-        <p>The Query Builder page is an interactive showcase of Morphium's full Query API. You can
-        build queries using all common MongoDB operators &mdash; <code>eq</code>, <code>ne</code>,
-        <code>gt</code>, <code>lt</code>, <code>gte</code>, <code>lte</code>, <code>in</code>,
-        <code>nin</code>, <code>matches</code> (regex), and <code>exists</code> &mdash; combined with
-        server-side <code>sort</code>, <code>skip</code>, <code>limit</code> for pagination, plus
-        <code>countAll</code> and <code>distinct</code> aggregation. The <code>Employee</code> entity
-        also demonstrates advanced Morphium annotations: <code>@Aliases</code> for schema evolution,
-        <code>@Transient</code> for computed fields, <code>@IgnoreNullFromDB</code> for safe null handling,
-        and <code>@Lifecycle</code> / <code>@PostLoad</code> for lifecycle callbacks.</p>
-    </div>
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Morphium's fluent <code>Query&lt;T&gt;</code> API covers every MongoDB query operator &mdash; from
+    basic comparisons and regex to text search, array operators and projections &mdash; with type-safe
+    field references. Pagination, sorting and cursor-based iteration are built in.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Most ODMs are either too raw (error-prone string-based queries) or too abstract (limiting what
+    you can express). Morphium's Query API gives you the full power of MongoDB's query language
+    with compile-time field safety.</p>
 </div>
 
 <!-- Section 2: Morphium Features with Tooltips -->

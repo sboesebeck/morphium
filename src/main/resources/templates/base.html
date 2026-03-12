@@ -46,6 +46,73 @@
     </script>
     <link rel="stylesheet" href="/css/showcase.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var input = document.getElementById('nav-search');
+      var clearBtn = document.getElementById('nav-search-clear');
+      var noResults = document.getElementById('nav-no-results');
+      if (!input) return;
+
+      var searchBox = input.parentElement;
+
+      function doSearch() {
+        var q = input.value.trim().toLowerCase();
+        searchBox.classList.toggle('has-query', q.length > 0);
+
+        var links = document.querySelectorAll('.sidebar nav a[data-keywords]');
+        var sections = document.querySelectorAll('.sidebar nav .nav-section');
+        var anyVisible = false;
+
+        links.forEach(function(link) {
+          if (!q) {
+            link.classList.remove('search-hidden', 'search-match');
+            return;
+          }
+          var text = (link.textContent + ' ' + (link.getAttribute('data-keywords') || '')).toLowerCase();
+          var match = q.split(/\s+/).every(function(term) { return text.indexOf(term) !== -1; });
+          link.classList.toggle('search-hidden', !match);
+          link.classList.toggle('search-match', match);
+          if (match) anyVisible = true;
+        });
+
+        // Hide section headers if all their links are hidden
+        sections.forEach(function(sec) {
+          if (!q) { sec.classList.remove('search-hidden'); return; }
+          var next = sec.nextElementSibling;
+          var hasVisible = false;
+          while (next && !next.classList.contains('nav-section') && next.id !== 'nav-no-results') {
+            if (next.tagName === 'A' && !next.classList.contains('search-hidden')) hasVisible = true;
+            next = next.nextElementSibling;
+          }
+          sec.classList.toggle('search-hidden', !hasVisible);
+        });
+
+        if (noResults) noResults.classList.toggle('visible', q && !anyVisible);
+      }
+
+      input.addEventListener('input', doSearch);
+      clearBtn.addEventListener('click', function() {
+        input.value = '';
+        doSearch();
+        input.focus();
+      });
+
+      // Keyboard shortcut: / to focus search
+      document.addEventListener('keydown', function(e) {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT'
+            && document.activeElement.tagName !== 'TEXTAREA'
+            && document.activeElement.tagName !== 'SELECT') {
+          e.preventDefault();
+          input.focus();
+        }
+        if (e.key === 'Escape' && document.activeElement === input) {
+          input.value = '';
+          doSearch();
+          input.blur();
+        }
+      });
+    });
+    </script>
 </head>
 <body>
     {#include tags/nav active=active /}
