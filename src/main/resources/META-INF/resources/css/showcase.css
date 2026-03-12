@@ -118,6 +118,19 @@ body {
     opacity: 0.8;
 }
 
+.sidebar-versions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-top: 0.35rem;
+}
+
+.sidebar-versions span {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.45);
+    font-family: monospace;
+}
+
 /* Sidebar Search */
 .sidebar-search {
     padding: 0.6rem 1rem;

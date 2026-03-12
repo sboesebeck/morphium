@@ -5,9 +5,11 @@
 [![Quarkus](https://img.shields.io/badge/Quarkus-3.32.1-blue)](https://quarkus.io)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange)](https://adoptium.net)
 [![Jakarta Data](https://img.shields.io/badge/Jakarta%20Data-1.0-green)](https://jakarta.ee/specifications/data/1.0/)
+[![Live Demo](https://img.shields.io/badge/demo-morphium.kopp--cloud.de-blueviolet)](https://morphium.kopp-cloud.de)
 
-> **Note:** This showcase is built on the [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) fork
-> (currently **6.2.0-SNAPSHOT**) via the [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) extension.
+> **[Live Demo: morphium.kopp-cloud.de](https://morphium.kopp-cloud.de)**
+>
+> Built with **Morphium 6.2.1-SNAPSHOT** and **quarkus-morphium Extension 1.0.1-SNAPSHOT**.
 > Fork improvements are being contributed back to the upstream [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
 > project via pull requests and are progressively merged.
 
@@ -239,6 +241,7 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 ## Related Projects
 
+- **[Live Demo](https://morphium.kopp-cloud.de)** -- try the showcase online
 - [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) -- Quarkus extension for Morphium (with Jakarta Data 1.0)
 - [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) -- fork of Morphium used by this showcase
 - [sboesebeck/morphium](https://github.com/sboesebeck/morphium) -- upstream Morphium ORM
