@@ -115,4 +115,27 @@ public class QueryStreamTest extends MultiDriverTestBase {
             assertEquals(10, counters.size());
         }
     }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    void streamCloseWithoutConsuming(Morphium morphium) {
+        createTestData(morphium, 10);
+
+        // Creating and immediately closing a stream must not throw
+        try (Stream<UncachedObject> s = morphium.createQueryFor(UncachedObject.class).stream()) {
+            // intentionally not consuming
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    void streamDoubleClose(Morphium morphium) {
+        createTestData(morphium, 5);
+
+        Stream<UncachedObject> s = morphium.createQueryFor(UncachedObject.class).stream();
+        // Consume fully, then close twice — must not throw
+        long count = s.count();
+        assertEquals(5, count);
+        s.close();
+    }
 }
