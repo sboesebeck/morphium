@@ -155,7 +155,9 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
 
     @Override
     public void close() {
-        getMongoCursor().close();
+        if (cursor != null) {
+            cursor.close();
+        }
     }
 
     @Override
