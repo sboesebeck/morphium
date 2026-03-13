@@ -31,72 +31,77 @@ public class AutoVariableTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void disableAutoVariablesThreadded(Morphium morphium) throws Exception  {
-        //side Thread
+        // Capture errors from side thread
+        final Throwable[] threadError = {null};
         Thread t = new Thread() {
             public void run() {
-                morphium.disableAutoValuesForThread();
-                CTimeTest ct = new CTimeTest();
-                ct.value = "should not work";
-                morphium.store(ct);
-                assert(ct.created == null);
-                assert(ct.timestamp == 0);
-                morphium.reread(ct);
-                assert(ct.created == null);
-                assert(ct.timestamp == 0);
-                LCTest lc = new LCTest();
-                lc.value = "a test";
-                morphium.store(lc);
-                assert(lc.lastChange == 0);
-                assert(lc.lastChangeDate == null);
-                assert(lc.lastChangeString == null);
-                lc.value = "updated";
-                morphium.store(lc);
-                assert(lc.lastChange == 0);
-                assert(lc.lastChangeDate == null);
-                assert(lc.lastChangeString == null);
-                morphium.setInEntity(lc, "value", "set", false, null);
+                try {
+                    morphium.disableAutoValuesForThread();
+                    CTimeTest ct = new CTimeTest();
+                    ct.value = "should not work";
+                    morphium.store(ct);
+                    assert(ct.created == null);
+                    assert(ct.timestamp == 0);
+                    morphium.reread(ct);
+                    assert(ct.created == null);
+                    assert(ct.timestamp == 0);
+                    LCTest lc = new LCTest();
+                    lc.value = "a test";
+                    morphium.store(lc);
+                    assert(lc.lastChange == 0);
+                    assert(lc.lastChangeDate == null);
+                    assert(lc.lastChangeString == null);
+                    lc.value = "updated";
+                    morphium.store(lc);
+                    assert(lc.lastChange == 0);
+                    assert(lc.lastChangeDate == null);
+                    assert(lc.lastChangeString == null);
+                    morphium.setInEntity(lc, "value", "set", false, null);
 
-                TestUtils.waitForConditionToBecomeTrue(2000, "SetInEntity not persisted",
-                    () -> {
-                        try {
-                            var obj = morphium.findById(LCTest.class, lc.morphiumId);
-                            return obj != null && "set".equals(obj.value);
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    });
+                    TestUtils.waitForConditionToBecomeTrue(2000, "SetInEntity not persisted",
+                        () -> {
+                            try {
+                                var obj = morphium.findById(LCTest.class, lc.morphiumId);
+                                return obj != null && "set".equals(obj.value);
+                            } catch (Exception e) {
+                                return false;
+                            }
+                        });
 
-                morphium.reread(lc);
-                assert(lc.lastChange == 0);
-                assert(lc.lastChangeDate == null);
-                assert(lc.lastChangeString == null);
-                assert(lc.value.equals("set"));
-                morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId).set("value", "set");
+                    morphium.reread(lc);
+                    assert(lc.lastChange == 0);
+                    assert(lc.lastChangeDate == null);
+                    assert(lc.lastChangeString == null);
+                    assert(lc.value.equals("set"));
+                    morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId).set("value", "set");
 
-                TestUtils.waitForConditionToBecomeTrue(2000, "Query set not persisted",
-                    () -> {
-                        try {
-                            var obj = morphium.findById(LCTest.class, lc.morphiumId);
-                            return obj != null && "set".equals(obj.value);
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    });
+                    TestUtils.waitForConditionToBecomeTrue(2000, "Query set not persisted",
+                        () -> {
+                            try {
+                                var obj = morphium.findById(LCTest.class, lc.morphiumId);
+                                return obj != null && "set".equals(obj.value);
+                            } catch (Exception e) {
+                                return false;
+                            }
+                        });
 
-                morphium.reread(lc);
-                assert(lc.lastChange == 0);
-                assert(lc.lastChangeDate == null);
-                assert(lc.lastChangeString == null);
-                LATest la = new LATest();
-                la.value = "last access";
-                morphium.store(la);
+                    morphium.reread(lc);
+                    assert(lc.lastChange == 0);
+                    assert(lc.lastChangeDate == null);
+                    assert(lc.lastChangeString == null);
+                    LATest la = new LATest();
+                    la.value = "last access";
+                    morphium.store(la);
 
-                final MorphiumId laId = la.morphiumId;
-                TestUtils.waitForConditionToBecomeTrue(2000, "LATest not persisted",
-                    () -> morphium.findById(LATest.class, laId) != null);
+                    final MorphiumId laId = la.morphiumId;
+                    TestUtils.waitForConditionToBecomeTrue(2000, "LATest not persisted",
+                        () -> morphium.findById(LATest.class, laId) != null);
 
-                la = morphium.findById(LATest.class, la.morphiumId);
-                assert(la.lastAccess == 0);
+                    la = morphium.findById(LATest.class, la.morphiumId);
+                    assert(la.lastAccess == 0);
+                } catch (Throwable ex) {
+                    threadError[0] = ex;
+                }
             }
         };
         t.start();
@@ -173,51 +178,57 @@ public class AutoVariableTest extends MultiDriverTestBase {
         while (t.isAlive()) {
             Thread.yield();
         }
+        if (threadError[0] != null) {
+            throw new AssertionError("Side thread failed: " + threadError[0].getMessage(), threadError[0]);
+        }
     }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void disableAutoValues(Morphium morphium) throws Exception  {
         morphium.getConfig().objectMappingSettings().disableAutoValues();
-        CTimeTest ct = new CTimeTest();
-        ct.value = "should not work";
-        morphium.store(ct);
-        assert(ct.created == null);
-        assert(ct.timestamp == 0);
-        morphium.reread(ct);
-        assert(ct.created == null);
-        assert(ct.timestamp == 0);
-        LCTest lc = new LCTest();
-        lc.value = "a test";
-        morphium.store(lc);
-        assert(lc.lastChange == 0);
-        assert(lc.lastChangeDate == null);
-        assert(lc.lastChangeString == null);
-        lc.value = "updated";
-        morphium.store(lc);
-        assert(lc.lastChange == 0);
-        assert(lc.lastChangeDate == null);
-        assert(lc.lastChangeString == null);
-        morphium.setInEntity(lc, "value", "set", false, null);
-        morphium.reread(lc);
-        assert(lc.lastChange == 0);
-        assert(lc.lastChangeDate == null);
-        assert(lc.lastChangeString == null);
-        assert(lc.value.equals("set"));
-        morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId).set("value", "set");
-        morphium.reread(lc);
-        assert(lc.lastChange == 0);
-        assert(lc.lastChangeDate == null);
-        assert(lc.lastChangeString == null);
-        LATest la = new LATest();
-        la.value = "last access";
-        morphium.store(la);
-        final MorphiumId laId2 = la.morphiumId;
-        TestUtils.waitForConditionToBecomeTrue(2000, "LATest not persisted",
-            () -> morphium.findById(LATest.class, laId2) != null);
-        la = morphium.findById(LATest.class, la.morphiumId);
-        assert(la.lastAccess == 0);
-        morphium.getConfig().objectMappingSettings().enableAutoValues();
+        try {
+            CTimeTest ct = new CTimeTest();
+            ct.value = "should not work";
+            morphium.store(ct);
+            assert(ct.created == null);
+            assert(ct.timestamp == 0);
+            morphium.reread(ct);
+            assert(ct.created == null);
+            assert(ct.timestamp == 0);
+            LCTest lc = new LCTest();
+            lc.value = "a test";
+            morphium.store(lc);
+            assert(lc.lastChange == 0);
+            assert(lc.lastChangeDate == null);
+            assert(lc.lastChangeString == null);
+            lc.value = "updated";
+            morphium.store(lc);
+            assert(lc.lastChange == 0);
+            assert(lc.lastChangeDate == null);
+            assert(lc.lastChangeString == null);
+            morphium.setInEntity(lc, "value", "set", false, null);
+            morphium.reread(lc);
+            assert(lc.lastChange == 0);
+            assert(lc.lastChangeDate == null);
+            assert(lc.lastChangeString == null);
+            assert(lc.value.equals("set"));
+            morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId).set("value", "set");
+            morphium.reread(lc);
+            assert(lc.lastChange == 0);
+            assert(lc.lastChangeDate == null);
+            assert(lc.lastChangeString == null);
+            LATest la = new LATest();
+            la.value = "last access";
+            morphium.store(la);
+            final MorphiumId laId2 = la.morphiumId;
+            TestUtils.waitForConditionToBecomeTrue(2000, "LATest not persisted",
+                () -> morphium.findById(LATest.class, laId2) != null);
+            la = morphium.findById(LATest.class, la.morphiumId);
+            assert(la.lastAccess == 0);
+        } finally {
+            morphium.getConfig().objectMappingSettings().enableAutoValues();
+        }
     }
 
     @ParameterizedTest
@@ -370,7 +381,9 @@ public class AutoVariableTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testCTNonOjbectId(Morphium morphium) throws Exception  {
+        boolean wasCheckForNew = morphium.getConfig().objectMappingSettings().isCheckForNew();
         morphium.getConfig().objectMappingSettings().setCheckForNew(true);
+        try {
         morphium.dropCollection(CTimeTestStringId.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, CTimeTestStringId.class);
         //        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CTimeTestStringId.class))) {
@@ -423,12 +436,16 @@ public class AutoVariableTest extends MultiDriverTestBase {
         }
 
         morphium.storeList(lst);
-        Thread.sleep(150);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Bulk storeList not persisted",
+            () -> morphium.createQueryFor(CTimeTestStringId.class).countAll() >= 100);
 
         for (CTimeTestStringId ct : q.q().asIterable()) {
             assert(ct.timestamp != 0);
             assertNotNull(ct.created);
             ;
+        }
+        } finally {
+            morphium.getConfig().objectMappingSettings().setCheckForNew(wasCheckForNew);
         }
     }
 

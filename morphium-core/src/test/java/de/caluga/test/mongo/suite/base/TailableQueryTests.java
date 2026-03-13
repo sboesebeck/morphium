@@ -34,7 +34,7 @@ public class TailableQueryTests extends MultiDriverTestBase {
         var orig = m.getConfig().collectionCheckSettings().getCappedCheck();
         m.getConfig().collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
 
-        try (m) {
+        try {
             Morphium m2 = m;
 
             if (m.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
@@ -74,7 +74,7 @@ public class TailableQueryTests extends MultiDriverTestBase {
             if (m.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
                 m2.close();
             }
-
+        } finally {
             m.getConfig().collectionCheckSettings().setCappedCheck(orig);
         }
     }

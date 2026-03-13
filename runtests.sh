@@ -53,13 +53,13 @@ function safe_grep_count() {
 }
 
 function createFileList() {
-	rg -l "@Test" . | grep ".java" >$filesList
-	rg -l "@ParameterizedTest" . | grep ".java" >>$filesList
+	rg -l "@Test" "$TEST_SRC" | grep ".java" >$filesList
+	rg -l "@ParameterizedTest" "$TEST_SRC" | grep ".java" >>$filesList
 
 	sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/[a-z\-]*\.src\.test\.java\.//g' | sed -e 's/.java$//' | sed -e 's/^\.*//' >$classList
 	local tmp_file_list="$TEST_TMP_DIR/files_list_temp_$PID.tmp"
 	sort -u "$filesList" | grep "$p" >"$tmp_file_list" && mv -f "$tmp_file_list" "$filesList"
-	rg -A2 "^ *@Disabled" . | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
+	rg -A2 "^ *@Disabled" "$TEST_SRC" | grep -B2 "public class" | grep : | cut -f1 -d: >"$disabledList"
 	local tmp_filtered_list="$TEST_TMP_DIR/filtered_list_temp_$PID.tmp"
 	# Initialize empty file in case no matches
 	: >"$tmp_filtered_list"

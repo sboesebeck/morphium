@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 
@@ -36,13 +37,13 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag("inmemory")
 public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
     long start;
-    long count;
+    final AtomicLong count = new AtomicLong(0);
 
     @Test
     public void changeStreamDatabaseTest() throws Exception {
         morphium.dropCollection(ComplexObject.class);
         morphium.dropCollection(UncachedObject.class);
-        count = 0;
+        count.set(0);
         final boolean[] run = {true};
 
         // Use ChangeStreamMonitor with awaitReady() instead of Thread.sleep(5000)
@@ -50,7 +51,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         dbMonitor.addListener(evt -> {
             if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
-            count++;
+            count.incrementAndGet();
             log.info("Returning " + run[0]);
             log.info("===========");
             return run[0];
@@ -63,16 +64,16 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             o.setEinText("Text");
             morphium.store(o);
             log.info("waiting for some time!");
-            TestUtils.waitForConditionToBecomeTrue(60000, "Expected 2 change events but got " + count,
-                () -> count == 2);
+            TestUtils.waitForConditionToBecomeTrue(60000, "Expected 2 change events",
+                () -> count.get() == 2);
             run[0] = false;
             morphium.createQueryFor(UncachedObject.class).f("counter").eq(123).set("counter", 7777);
-            TestUtils.waitForConditionToBecomeTrue(60000, "Expected 3 change events but got " + count,
-                () -> count == 3); //the listener needs to be called to return false ;-)
+            TestUtils.waitForConditionToBecomeTrue(60000, "Expected 3 change events",
+                () -> count.get() == 3); //the listener needs to be called to return false ;-)
             morphium.store(new UncachedObject("test", 123)); //to have the monitor stop
-            assert(3 == count) : "Count wrong " + count + "!=3";
+            assert(3 == count.get()) : "Count wrong " + count.get() + "!=3";
             morphium.store(new UncachedObject("test again", 124));
-            assert(3 == count) : "Count wrong " + count + "!=3";  //monitor should have stopped by now
+            assert(3 == count.get()) : "Count wrong " + count.get() + "!=3";  //monitor should have stopped by now
         } finally {
             dbMonitor.terminate();
         }
