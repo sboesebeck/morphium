@@ -10,9 +10,9 @@ set -e
 #   ./deploy_docs.sh
 #
 # This script:
-#   1. Checks out master branch
+#   1. Fetches latest develop branch
 #   2. Switches to gh-pages branch
-#   3. Copies docs/, README.md, README.de.md from master
+#   3. Copies docs/, README.md, README.de.md from develop
 #   4. Creates index.md from README.md for GitHub Pages
 #   5. Commits and pushes to gh-pages
 #   6. Returns to the original branch
@@ -35,24 +35,24 @@ if ! git diff-index --quiet HEAD --; then
 	exit 1
 fi
 
-# Ensure we have latest master
-echo "Fetching latest from master..."
-git fetch origin master
+# Ensure we have latest develop
+echo "Fetching latest from develop..."
+git fetch origin develop
 
 # Switch to gh-pages
 echo "Switching to gh-pages branch..."
 git checkout gh-pages
 git pull origin gh-pages
 
-# Copy docs from master
-echo "Copying documentation from master..."
-git checkout origin/master -- docs/ README.md README.de.md
+# Copy docs from develop
+echo "Copying documentation from develop..."
+git checkout origin/develop -- docs/ README.md README.de.md mkdocs.yml
 
 # Create index.md from README.md for GitHub Pages
 cp README.md index.md
 
 # Stage changes
-git add docs/ README.md README.de.md index.md
+git add docs/ README.md README.de.md mkdocs.yml index.md
 
 # Check if there are changes to commit
 if git diff --cached --quiet; then
