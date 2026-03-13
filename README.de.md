@@ -1,4 +1,4 @@
-# Morphium 6.1.1
+# Morphium 6.2.0
 
 **Feature-reiches MongoDB ODM und Messaging-Framework für Java 21+**
 
@@ -39,6 +39,7 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 ### Schnellzugriff
 - **[Dokumentenportal](docs/index.md)** – Einstieg in sämtliche Guides
 - **[Überblick](docs/overview.md)** – Kernkonzepte, Quickstart, Kompatibilität
+- **[Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md)** – Migrationsleitfaden für 6.2.0
 - **[Migration v5→v6](docs/howtos/migration-v5-to-v6.md)** – Schritt-für-Schritt-Anleitung
 - **[InMemory Driver Guide](docs/howtos/inmemory-driver.md)** – Features, Einschränkungen, Tests
 
@@ -51,30 +52,88 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 
 ## 🚀 Neu in Version 6.2
 
-### PoppyDB – Leichtgewichtiger MongoDB-kompatibler Server
-Morphium 6.2 extrahiert den Server in ein eigenes Maven-Modul `de.caluga:poppydb` und benennt ihn von MorphiumServer in **PoppyDB** um.
+### Multi-Module Maven Build
+Morphium ist jetzt ein Multi-Module-Projekt: `morphium-parent` (BOM), `morphium` (Core-Bibliothek) und `poppydb` (Server). Die Core-Bibliothek `de.caluga:morphium` enthält keine Server-Abhängigkeiten (Netty etc.) mehr — ca. 90% schlanker für Nutzer, die nur das ODM benötigen.
 
-**Warum?** Der Server hat Dependencies (Netty etc.) mitgebracht, die 90% der Morphium-Nutzer nicht brauchen. Jetzt bleibt `de.caluga:morphium` schlank — PoppyDB wird nur eingebunden, wenn man es tatsächlich braucht.
+### PoppyDB – Standalone MongoDB-kompatibler Server
+Der ehemalige MorphiumServer ist jetzt ein eigenständiges Modul `de.caluga:poppydb`. Er implementiert das MongoDB Wire Protocol als In-Memory-Server mit Replica-Set-Emulation, Change Streams, Aggregation Pipeline und Snapshot-basierter Persistenz.
 
-PoppyDB ist nicht nur zum Testen da — es ist ein voll funktionsfähiger MongoDB-kompatibler Server, der sich besonders als **Messaging-Backend** eignet. Morphiums eingebautes Messaging-System funktioniert direkt mit PoppyDB, was eine leichtgewichtige Messaging-Lösung ohne MongoDB-Infrastruktur ermöglicht.
+PoppyDB und Morphium Messaging sind **aufeinander optimiert** — beide Seiten erkennen das Gegenüber und passen ihr Verhalten an. Das Ergebnis: niedrigere Latenz und weniger Overhead als mit einer echten MongoDB als Messaging-Backend.
 
-Für **Tests** als Test-Dependency einbinden:
 ```xml
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
     <version>6.2.0</version>
-    <scope>test</scope>
+    <scope>test</scope> <!-- oder scope entfernen für produktiven Einsatz -->
 </dependency>
 ```
 
-Für **produktiven Einsatz** (z.B. als Messaging-Hub) als reguläre Dependency nutzen oder standalone via CLI-Jar betreiben.
+- ✅ **Volle Wire-Protocol-Unterstützung**: Jeder MongoDB-Client kann sich verbinden (mongosh, Compass, PyMongo, ...)
+- ✅ **Messaging-Backend**: Morphium-Messaging ohne MongoDB betreiben — optimiert für niedrige Latenz
+- ✅ **CLI-Tooling**: `poppydb-6.2.0-cli.jar` für Standalone-Deployment
+- ✅ **Replica-Set-Emulation**: Cluster-Verhalten testen ohne echtes MongoDB
+- ✅ **Snapshot-Persistenz**: `--dump-dir` / `--dump-interval` zum Sichern der Daten über Neustarts
 
-- ✅ **Volle Wire-Protocol-Unterstützung**: Verwendung jedes Standard-MongoDB-Clients (mongosh, Compass, etc.)
-- ✅ **Messaging-Backend**: Morphium-Messaging ohne MongoDB-Deployment betreiben
-- ✅ **CLI-Tooling**: Eigener `poppydb-cli.jar` für Standalone-Deployment
-- ✅ **Replica-Set-Emulation**: Testen von Multi-Node-Cluster-Verhalten ohne echtes MongoDB
-- ✅ **Persistenz**: Snapshot-Unterstützung zur Bewahrung von In-Memory-Daten über Neustarts hinweg
+### MorphiumDriverException ist jetzt unchecked
+`MorphiumDriverException` erbt von `RuntimeException` — konsistent mit dem MongoDB Java Driver. Eliminiert 40+ Boilerplate `catch-wrap-rethrow`-Blöcke.
+
+### @Reference Cascade Delete/Store
+`@Reference` unterstützt jetzt `cascadeDelete` und `cascadeStore` für automatisches Lifecycle-Management referenzierter Entities.
+
+### @AutoSequence
+Annotations-basierte Auto-Increment-Sequenzen — kein manuelles Counter-Management mehr nötig.
+
+### @CreationTime Verbesserungen
+Funktioniert korrekt mit `store()` und `storeList()`, unterstützt `@CreationTime` auf `Date`-, `long`- und `String`-Feldern. Field-Level-Annotation genügt, Class-Level ist nicht mehr erforderlich.
+
+### CosmosDB Auto-Erkennung
+Morphium erkennt Azure CosmosDB-Verbindungen und passt sein Verhalten automatisch an.
+
+Siehe [CHANGELOG](CHANGELOG.md) für alle Details.
+
+## Upgrade von 6.1.x auf 6.2.0
+
+Die wichtigsten Änderungen beim Upgrade:
+
+### Breaking: MorphiumDriverException ist jetzt unchecked
+
+```java
+// Multi-catch vereinfachen (MorphiumDriverException IST jetzt ein RuntimeException)
+// Vorher:
+catch (RuntimeException | MorphiumDriverException e) { ... }
+// Nachher:
+catch (RuntimeException e) { ... }
+
+// throws-Deklaration kann entfernt werden (kompiliert aber weiterhin)
+// Vorher:
+public void doStuff() throws MorphiumDriverException { ... }
+// Nachher:
+public void doStuff() { ... }
+```
+
+### Breaking: MorphiumServer → PoppyDB
+
+| | 6.1.x | 6.2.0 |
+|---|---|---|
+| Maven-Artifact | in `morphium` enthalten | separat: `de.caluga:poppydb:6.2.0` |
+| Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
+| Hauptklasse | `MorphiumServer` | `PoppyDB` |
+| CLI-JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
+| Test-Tag | `@Tag("morphiumserver")` | `@Tag("poppydb")` |
+
+Wire-Protokoll-Kompatibilität ist gewahrt — PoppyDB antwortet im Hello-Handshake sowohl auf `poppyDB` als auch `morphiumServer`.
+
+### Migrations-Checkliste
+
+1. **`catch (RuntimeException | MorphiumDriverException`** suchen → zu `catch (RuntimeException` vereinfachen
+2. **`import de.caluga.morphium.server`** suchen → durch `import de.caluga.poppydb` ersetzen
+3. **`MorphiumServer`** suchen → in `PoppyDB` umbenennen
+4. **`@Tag("morphiumserver")`** suchen → in `@Tag("poppydb")` umbenennen
+5. **`poppydb`-Dependency** hinzufügen falls der Embedded Server genutzt wird
+6. **CLI-Skripte** aktualisieren — JAR-Name ist jetzt `poppydb-*-cli.jar`
+
+Detaillierte Anleitung: **[Migration v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md)**
 
 ## 🚀 Neu in Version 6.0
 
@@ -106,17 +165,17 @@ Für **produktiven Einsatz** (z.B. als Messaging-Hub) als reguläre Dependency n
 - Migration-Guide von 5.x
 - Architektur-Details und Best Practices
 
-## Anforderungen & Abhaengigkeiten
+## Anforderungen & Abhängigkeiten
 - Java 21 oder neuer
-- MongoDB 5.0+ fuer produktive Deployments
+- MongoDB 5.0+ für produktive Deployments
 - Maven
 
-Maven-Abhaengigkeiten:
+Maven-Abhängigkeiten:
 ```xml
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>[6.1.1,)</version>
+  <version>[6.2.0,)</version>
 </dependency>
 <dependency>
   <groupId>org.mongodb</groupId>
@@ -126,6 +185,7 @@ Maven-Abhaengigkeiten:
 ```
 
 Migration von v5? → `docs/howtos/migration-v5-to-v6.md`
+Upgrade von v6.1? → `docs/howtos/migration-v6_1-to-v6_2.md`
 
 ## ⚡ Quick Start
 
@@ -135,7 +195,7 @@ Migration von v5? → `docs/howtos/migration-v5-to-v6.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.1.1</version>
+  <version>6.2.0</version>
 </dependency>
 ```
 
@@ -375,13 +435,15 @@ Beiträge sind herzlich willkommen! Bereiche wo wir Hilfe brauchen:
 
 **So tragen Sie bei:**
 1. Fork das Repository
-2. Erstellen Sie einen Feature-Branch (`git checkout -b feature/AmazingFeature`)
+2. Erstellen Sie einen Feature-Branch **von `develop`** (`git checkout -b feature/AmazingFeature develop`)
 3. Commit Ihre Änderungen (`git commit -m 'Add AmazingFeature'`)
 4. Push zum Branch (`git push origin feature/AmazingFeature`)
-5. Öffnen Sie einen Pull Request
+5. Öffnen Sie einen Pull Request **gegen `develop`** (nicht `master`)
+
+**Wichtig:** `master` wird nur bei Releases aktualisiert. Alle PRs müssen `develop` als Ziel haben.
 
 **Hinweise:**
-- Beachten Sie die Test-Tags (`@Tag("inmemory")`, `@Tag("external")`)
+- Beachten Sie die Test-Tags (`@Tag("inmemory")`, `@Tag("poppydb")`)
 - Führen Sie `./runtests.sh --tags core` vor dem Commit aus
 - Aktualisieren Sie die Dokumentation bei API-Änderungen
 
@@ -397,8 +459,8 @@ Vielen Dank an alle Contributors die diese Release möglich gemacht haben, und a
 
 **Fragen?** Öffnen Sie ein Issue auf [GitHub](https://github.com/sboesebeck/morphium/issues) oder schauen Sie in unsere [Dokumentation](docs/index.md).
 
-**Upgrade geplant?** Siehe [Migration Guide](docs/howtos/migration-v5-to-v6.md) für Schritt-für-Schritt-Anleitung.
+**Upgrade geplant?** Siehe [Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md) oder [Migration v5→v6](docs/howtos/migration-v5-to-v6.md).
 
-Viel Erfolg mit Morphium 6.1.1! 🚀
+Viel Erfolg mit Morphium 6.2.0! 🚀
 
 *Stephan Bösebeck & das Morphium-Team*

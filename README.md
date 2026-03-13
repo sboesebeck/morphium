@@ -36,6 +36,7 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 ### Quick access
 - **[Documentation hub](docs/index.md)** – entry point for all guides
 - **[Overview](docs/overview.md)** – core concepts, quick start, compatibility
+- **[Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md)** – migration checklist for 6.2.0
 - **[Migration v5→v6](docs/howtos/migration-v5-to-v6.md)** – step-by-step upgrade guide
 - **[InMemory Driver Guide](docs/howtos/inmemory-driver.md)** – capabilities, caveats, testing tips
 - **[Optimistic Locking (`@Version`)](docs/howtos/optimistic-locking.md)** – prevent lost updates with `@Version`
@@ -89,6 +90,84 @@ Works correctly with `store()` and `storeList()`, supports `@CreationTime` on `D
 Morphium detects Azure CosmosDB connections and automatically adjusts behavior for compatibility.
 
 See [CHANGELOG](CHANGELOG.md) for full details.
+
+## Upgrading from 6.1.x to 6.2.0
+
+### Breaking: MorphiumDriverException is now unchecked
+
+`MorphiumDriverException` extends `RuntimeException` instead of `Exception`. This eliminates boilerplate `catch-wrap-rethrow` blocks but requires attention in existing code:
+
+```java
+// Multi-catch — simplify (MorphiumDriverException IS a RuntimeException now)
+// Before:
+catch (RuntimeException | MorphiumDriverException e) { ... }
+// After:
+catch (RuntimeException e) { ... }
+
+// throws declarations — can be removed (but still compile if left in)
+// Before:
+public void doStuff() throws MorphiumDriverException { ... }
+// After:
+public void doStuff() { ... }
+
+// Standalone catch — works unchanged
+catch (MorphiumDriverException e) { ... }  // still compiles
+```
+
+### Breaking: MorphiumServer → PoppyDB
+
+The embedded MongoDB-compatible server was extracted to its own module and renamed:
+
+| | 6.1.x | 6.2.0 |
+|---|---|---|
+| Maven artifact | included in `morphium` | separate: `de.caluga:poppydb:6.2.0` |
+| Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
+| Main class | `MorphiumServer` | `PoppyDB` |
+| CLI JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
+| Test tag | `@Tag("morphiumserver")` | `@Tag("poppydb")` |
+
+If you use PoppyDB in tests, add the dependency:
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+Wire-protocol compatibility is preserved — PoppyDB responds to both `poppyDB` and `morphiumServer` in the hello handshake.
+
+### Deprecated: Direct config setters → sub-objects
+
+`MorphiumConfig` now organizes settings into typed sub-objects. The old setters still work but are `@Deprecated`:
+
+```java
+// 6.1.x style (deprecated but functional)
+cfg.setDatabase("mydb");
+cfg.addHostToSeed("localhost", 27017);
+
+// 6.2.0 style (preferred)
+cfg.connectionSettings().setDatabase("mydb");
+cfg.clusterSettings().addHostToSeed("localhost", 27017);
+cfg.driverSettings().setDriverName("PooledDriver");
+```
+
+Available sub-objects: `connectionSettings()`, `clusterSettings()`, `driverSettings()`, `messagingSettings()`, `cacheSettings()`, `authSettings()`, `threadPoolSettings()`, `objectMappingSettings()`, `writerSettings()`.
+
+### New: Multi-Module Maven Structure
+
+The `morphium` core artifact no longer bundles server dependencies (Netty, etc.). If you only use Morphium as ODM, your dependency tree is ~90% leaner — no changes to your pom needed.
+
+### Migration checklist
+
+1. **Search for `catch (RuntimeException | MorphiumDriverException`** — simplify to `catch (RuntimeException`
+2. **Search for `import de.caluga.morphium.server`** — replace with `import de.caluga.poppydb`
+3. **Search for `MorphiumServer`** — rename to `PoppyDB`
+4. **Search for `@Tag("morphiumserver")`** — rename to `@Tag("poppydb")`
+5. **Add `poppydb` dependency** if you use the embedded server in tests
+6. **Optional:** migrate direct config setters to sub-object style
+7. **Optional:** adopt new features (`@Reference(cascadeDelete)`, `@AutoSequence`, `@Version`)
 
 ## 🚀 What’s New in v6.1.x
 
