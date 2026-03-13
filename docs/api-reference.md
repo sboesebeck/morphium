@@ -182,6 +182,28 @@ public void get(AsyncOperationCallback<T> callback)
 public MorphiumIterator<T> asIterable()
 public MorphiumIterator<T> asIterable(int windowSize)
 public MorphiumIterator<T> asIterable(int windowSize, int prefetch)
+
+// Stream API for functional processing (cursor-backed, lazy)
+public Stream<T> stream()
+public Stream<T> stream(int batchSize)
+```
+
+**Stream API (since 6.2.1):**
+
+`stream()` returns a `Stream<T>` backed by the MongoDB cursor — elements are fetched lazily, not loaded into memory all at once. Always use in try-with-resources to ensure cursor cleanup:
+
+```java
+try (Stream<User> s = morphium.createQueryFor(User.class)
+        .f("age").gte(18)
+        .sort("lastName")
+        .stream()) {
+    List<String> names = s.map(User::getLastName).toList();
+}
+
+// With explicit batch size (documents per cursor round-trip)
+try (Stream<User> s = query.stream(500)) {
+    long count = s.filter(u -> u.isActive()).count();
+}
 ```
 
 **Logical Operators:**

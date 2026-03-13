@@ -13,7 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1452,6 +1456,46 @@ public class Query<T> implements Cloneable {
         it.setWindowSize(windowSize);
         it.setQuery(this);
         return it;
+    }
+
+    /**
+     * Returns a {@link Stream} backed by a MongoDB cursor. The stream is lazy —
+     * elements are fetched on demand, not loaded into memory all at once.
+     *
+     * <p><b>Warning — resource leak!</b> The returned stream holds an open MongoDB
+     * cursor and driver connection. Java streams do <em>not</em> auto-close after
+     * terminal operations. You <b>must</b> use try-with-resources:</p>
+     * <pre>{@code
+     * try (Stream<T> s = query.stream()) {
+     *     s.filter(u -> u.getAge() > 18).forEach(System.out::println);
+     * }
+     * }</pre>
+     * <p>Without try-with-resources the cursor stays open until the server-side
+     * timeout (default 10 minutes), consuming a connection slot.</p>
+     *
+     * @return a closeable Stream backed by the query cursor
+     */
+    public Stream<T> stream() {
+        QueryIterator<T> it = asIterable();
+        Spliterator<T> spliterator = Spliterators.spliteratorUnknownSize(
+            it, Spliterator.ORDERED);
+        return StreamSupport.stream(spliterator, false).onClose(it::close);
+    }
+
+    /**
+     * Returns a {@link Stream} backed by a MongoDB cursor with the given batch size.
+     *
+     * <p><b>Warning:</b> Must be used with try-with-resources — see {@link #stream()}.</p>
+     *
+     * @param batchSize number of documents fetched per cursor round-trip
+     * @return a closeable Stream backed by the query cursor
+     * @see #stream()
+     */
+    public Stream<T> stream(int batchSize) {
+        QueryIterator<T> it = asIterable(batchSize);
+        Spliterator<T> spliterator = Spliterators.spliteratorUnknownSize(
+            it, Spliterator.ORDERED);
+        return StreamSupport.stream(spliterator, false).onClose(it::close);
     }
 
     // public QueryIterator<T> asIterable(QueryIterator<T> ret) {
