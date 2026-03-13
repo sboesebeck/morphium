@@ -1946,7 +1946,8 @@
 - Object mapping and configuration: see the <a href="developer-guide/">Developer Guide</a>
 - Caching: see <a href="howtos/caching-examples/">Caching Examples</a> and <a href="howtos/cache-patterns/">Cache Patterns</a>
 - Messaging: see <a href="messaging/">Messaging</a>
-- Testing without MongoDB: see <a href="howtos/inmemory-driver/">InMemory Driver</a>, <a href="poppydb/">PoppyDB</a>, and <a href="howtos/migration-v5-to-v6/">Migration v5 → v6</a></p>
+- Testing without MongoDB: see <a href="howtos/inmemory-driver/">InMemory Driver</a>, <a href="poppydb/">PoppyDB</a>
+- Upgrading: <a href="howtos/migration-v6_1-to-v6_2/">v6.1 → v6.2</a> | <a href="howtos/migration-v5-to-v6/">v5 → v6</a></p>
 <h3 id="our-own-driver-since-50">Our own driver (since 5.0)<a class="headerlink" href="#our-own-driver-since-50" title="Permanent link">&para;</a></h3>
 <p>With Morphium 5.0 we implemented our own MongoDB driver. The official driver includes object mapping, which interfered with Morphium’s mapping system, and we also experienced some failover issues. Building our own wire‑protocol driver gave us full control over mapping, retry/failover behavior, and performance characteristics.</p>
 <p>Benefits
