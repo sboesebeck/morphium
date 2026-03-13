@@ -1,0 +1,563 @@
+# Morphium 6.2.0
+
+**Feature-rich MongoDB ODM and messaging framework for Java 21+**
+
+Available languages: English and [Deutsch](README.de.md)
+
+- 🗄️ **High-performance object mapping** with annotation-driven configuration
+- 📨 **Integrated message queue** backed by MongoDB (no extra infrastructure)
+- ⚡ **Multi-level caching** with cluster-wide invalidation
+- 🔌 **Custom MongoDB wire-protocol driver** tuned for Morphium
+- 🧪 **In-memory driver** for fast tests (no MongoDB required)
+- 🎯 **JMS API (experimental)** for standards-based messaging
+- 🚀 **Java 21** with virtual threads for optimal concurrency
+
+[![Maven Central](https://img.shields.io/maven-central/v/de.caluga/morphium.svg)](https://search.maven.org/artifact/de.caluga/morphium)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+## 🎯 Why Morphium?
+
+Morphium is the only Java ODM that ships a message queue living inside MongoDB. If you already run MongoDB, you can power persistence, messaging, caching, and change streams with a single component.
+
+| Feature | Morphium | Spring Data + RabbitMQ | Kafka |
+|---------|----------|------------------------|-------|
+| Infrastructure | MongoDB only | MongoDB + RabbitMQ | MongoDB + Kafka |
+| Setup complexity | ⭐ Very low | ⭐⭐⭐ Medium | ⭐⭐⭐⭐⭐ High |
+| Message persistence | Built in | Optional | Built in |
+| Message priority | ✅ Yes | ✅ Yes | ❌ No |
+| Distributed locks | ✅ Yes | ❌ No | ❌ No |
+| Throughput (internal tests) | ~8K msg/s | 10K–50K msg/s | 100K+ msg/s |
+| Operations | ⭐ Very easy | ⭐⭐ Medium | ⭐⭐⭐⭐ Complex |
+
+_* Numbers are indicative and depend heavily on hardware and workload._
+
+## 📚 Documentation
+
+### Quick access
+- **[Documentation hub](docs/index.md)** – entry point for all guides
+- **[Overview](docs/overview.md)** – core concepts, quick start, compatibility
+- **[Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md)** – migration checklist for 6.2.0
+- **[Migration v5→v6](docs/howtos/migration-v5-to-v6.md)** – step-by-step upgrade guide
+- **[InMemory Driver Guide](docs/howtos/inmemory-driver.md)** – capabilities, caveats, testing tips
+- **[Optimistic Locking (`@Version`)](docs/howtos/optimistic-locking.md)** – prevent lost updates with `@Version`
+- **[SSL/TLS & MONGODB-X509](docs/ssl-tls.md)** – encrypted connections and certificate-based authentication
+
+### More resources
+- Aggregation examples: `docs/howtos/aggregation-examples.md`
+- Messaging implementations: `docs/howtos/messaging-implementations.md`
+- Performance guide: `docs/performance-scalability-guide.md`
+- Production deployment: `docs/production-deployment-guide.md`
+- Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
+
+## 🚀 What’s New in v6.2
+
+### Multi-Module Maven Build
+Morphium is now a multi-module project: `morphium-parent` (BOM), `morphium` (core library), and `poppydb` (server). The core library `de.caluga:morphium` no longer drags in server dependencies (Netty, etc.) — 90% leaner for users who just need the ODM.
+
+### PoppyDB – Standalone MongoDB-Compatible Server
+The former MorphiumServer is now an independent module `de.caluga:poppydb`. It implements the MongoDB Wire Protocol as an in-memory server with Replica Set emulation, Change Streams, Aggregation Pipeline, and snapshot-based persistence.
+
+PoppyDB and Morphium Messaging are **optimized for each other** — both sides recognize the counterpart and adapt their behavior, resulting in lower latency and less overhead than with a real MongoDB as messaging backend.
+
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope> <!-- or remove scope for production use -->
+</dependency>
+```
+
+- ✅ **Full Wire Protocol**: Any MongoDB client can connect (mongosh, Compass, PyMongo, ...)
+- ✅ **Messaging Backend**: Run Morphium messaging without MongoDB — optimized for low-latency
+- ✅ **CLI Tooling**: `poppydb-6.2.0-cli.jar` for standalone deployment
+- ✅ **Replica Set Emulation**: Test cluster behavior without real MongoDB
+- ✅ **Snapshot Persistence**: `--dump-dir` / `--dump-interval` to preserve data across restarts
+
+### MorphiumDriverException is now unchecked
+`MorphiumDriverException` extends `RuntimeException` — consistent with the MongoDB Java driver. Eliminates 40+ boilerplate `catch-wrap-rethrow` blocks.
+
+### @Reference Cascade Delete/Store
+`@Reference` now supports `cascadeDelete` and `cascadeStore` for automatic lifecycle management of referenced entities.
+
+### @AutoSequence
+Annotation-driven auto-increment sequences — no manual counter management needed.
+
+### @CreationTime Improvements
+Works correctly with `store()` and `storeList()`, supports `@CreationTime` on `Date`, `long`, and `String` fields.
+
+### CosmosDB Auto-Detection
+Morphium detects Azure CosmosDB connections and automatically adjusts behavior for compatibility.
+
+See [CHANGELOG](CHANGELOG.md) for full details.
+
+## Upgrading from 6.1.x to 6.2.0
+
+### Breaking: MorphiumDriverException is now unchecked
+
+`MorphiumDriverException` extends `RuntimeException` instead of `Exception`. This eliminates boilerplate `catch-wrap-rethrow` blocks but requires attention in existing code:
+
+```java
+// Multi-catch — simplify (MorphiumDriverException IS a RuntimeException now)
+// Before:
+catch (RuntimeException | MorphiumDriverException e) { ... }
+// After:
+catch (RuntimeException e) { ... }
+
+// throws declarations — can be removed (but still compile if left in)
+// Before:
+public void doStuff() throws MorphiumDriverException { ... }
+// After:
+public void doStuff() { ... }
+
+// Standalone catch — works unchanged
+catch (MorphiumDriverException e) { ... }  // still compiles
+```
+
+### Breaking: MorphiumServer → PoppyDB
+
+The embedded MongoDB-compatible server was extracted to its own module and renamed:
+
+| | 6.1.x | 6.2.0 |
+|---|---|---|
+| Maven artifact | included in `morphium` | separate: `de.caluga:poppydb:6.2.0` |
+| Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
+| Main class | `MorphiumServer` | `PoppyDB` |
+| CLI JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
+| Test tag | `@Tag("morphiumserver")` | `@Tag("poppydb")` |
+
+If you use PoppyDB in tests, add the dependency:
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+Wire-protocol compatibility is preserved — PoppyDB responds to both `poppyDB` and `morphiumServer` in the hello handshake.
+
+### Deprecated: Direct config setters → sub-objects
+
+`MorphiumConfig` now organizes settings into typed sub-objects. The old setters still work but are `@Deprecated`:
+
+```java
+// 6.1.x style (deprecated but functional)
+cfg.setDatabase("mydb");
+cfg.addHostToSeed("localhost", 27017);
+
+// 6.2.0 style (preferred)
+cfg.connectionSettings().setDatabase("mydb");
+cfg.clusterSettings().addHostToSeed("localhost", 27017);
+cfg.driverSettings().setDriverName("PooledDriver");
+```
+
+Available sub-objects: `connectionSettings()`, `clusterSettings()`, `driverSettings()`, `messagingSettings()`, `cacheSettings()`, `authSettings()`, `threadPoolSettings()`, `objectMappingSettings()`, `writerSettings()`.
+
+### New: Multi-Module Maven Structure
+
+The `morphium` core artifact no longer bundles server dependencies (Netty, etc.). If you only use Morphium as ODM, your dependency tree is ~90% leaner — no changes to your pom needed.
+
+### Migration checklist
+
+1. **Search for `catch (RuntimeException | MorphiumDriverException`** — simplify to `catch (RuntimeException`
+2. **Search for `import de.caluga.morphium.server`** — replace with `import de.caluga.poppydb`
+3. **Search for `MorphiumServer`** — rename to `PoppyDB`
+4. **Search for `@Tag("morphiumserver")`** — rename to `@Tag("poppydb")`
+5. **Add `poppydb` dependency** if you use the embedded server in tests
+6. **Optional:** migrate direct config setters to sub-object style
+7. **Optional:** adopt new features (`@Reference(cascadeDelete)`, `@AutoSequence`, `@Version`)
+
+## 🚀 What’s New in v6.1.x
+
+### MONGODB-X509 Client-Certificate Authentication
+- Connect to MongoDB instances that require mutual TLS / x.509 client certificates
+- Configure via `AuthSettings.setAuthMechanism("MONGODB-X509")` together with the existing `SslHelper` mTLS setup
+
+### `@Version` – Optimistic Locking
+Prevents lost updates in concurrent environments without requiring pessimistic database locks. See `docs/howtos/optimistic-locking.md` for the full guide.
+
+## 🚀 What’s New in v6.0
+
+### Java 21 & Modern Language Features
+- **Virtual threads** for high-throughput messaging and change streams
+- **Pattern matching** across driver and mapping layers
+- **Records**: Not yet supported as `@Entity` or `@Embedded` types (see [#116](https://github.com/sboesebeck/morphium/issues/116))
+- **Sealed class support** for cleaner domain models
+
+### Driver & Connectivity
+- **SSL/TLS Support**: Secure connections to MongoDB instances (added in v6.0)
+- **Virtual threads** in the driver for optimal concurrency
+
+### Messaging Improvements
+- **Fewer duplicates** thanks to refined message processing
+- **Virtual-thread integration** for smoother concurrency
+- **Higher throughput** confirmed in internal benchmarking
+- **Distributed locking** for coordinated multi-instance deployments
+
+### In-Memory Driver Enhancements
+- **No MongoDB required** for unit tests or CI pipelines
+- **Significantly faster test cycles** in pure in-memory mode
+- **~93% MongoDB feature coverage** including advanced operations
+- **Full aggregation pipeline** with `$lookup`, `$graphLookup`, `$bucket`, `$mergeObjects`
+- **MapReduce support** with JavaScript engine integration
+- **Array operators** including `$pop`, `$push`, `$pull`, `$addToSet`
+- **Change streams & transactions** available for integration testing
+- **Drop-in replacement** for most development and testing scenarios
+
+### Documentation Overhaul
+- Complete rewrite of the guide set
+- Practical examples and end-to-end use cases
+- Dedicated migration playbook from 5.x to 6.x
+- Architecture insights and best practices
+
+## ✅ Requirements
+- Java 21 or newer
+- MongoDB 5.0+ for production deployments
+- Maven
+
+Maven dependencies:
+```xml
+<dependency>
+  <groupId>de.caluga</groupId>
+  <artifactId>morphium</artifactId>
+  <version>[6.2.0,)</version>
+</dependency>
+<dependency>
+  <groupId>org.mongodb</groupId>
+  <artifactId>bson</artifactId>
+  <version>4.7.1</version>
+</dependency>
+```
+
+Migrating from v5? → `docs/howtos/migration-v5-to-v6.md`
+
+## ⚡ Quick Start
+
+### Maven dependency
+
+```xml
+<dependency>
+  <groupId>de.caluga</groupId>
+  <artifactId>morphium</artifactId>
+  <version>6.2.0</version>
+</dependency>
+```
+
+### Object mapping example
+
+```java
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.driver.MorphiumId;
+import java.time.LocalDateTime;
+import java.util.List;
+
+// Entity definition
+@Entity
+public class User {
+    @Id
+    private MorphiumId id;
+    private String name;
+    private String email;
+    private LocalDateTime createdAt;
+    // getters/setters
+}
+
+// Configuration
+MorphiumConfig cfg = new MorphiumConfig();
+cfg.connectionSettings().setDatabase("myapp");
+cfg.clusterSettings().addHostToSeed("localhost", 27017);
+cfg.driverSettings().setDriverName("PooledDriver");
+
+Morphium morphium = new Morphium(cfg);
+
+// Store entity
+User user = new User();
+user.setName("John Doe");
+user.setEmail("john@example.com");
+user.setCreatedAt(LocalDateTime.now());
+morphium.store(user);
+
+// Query
+List<User> users = morphium.createQueryFor(User.class)
+    .f("email").matches(".*@example.com")
+    .sort("createdAt")
+    .asList();
+```
+
+### Messaging example
+
+```java
+import de.caluga.morphium.messaging.MorphiumMessaging;
+import de.caluga.morphium.messaging.Msg;
+
+// Messaging setup
+MorphiumMessaging messaging = morphium.createMessaging();
+messaging.setSenderId("my-app");
+messaging.start();
+
+// Send a message
+Msg message = new Msg("orderQueue", "Process Order", "Order #12345");
+message.setPriority(5);
+message.setTtl(300000); // 5 minutes
+messaging.sendMessage(message);
+
+// Receive messages
+messaging.addListenerForTopic("orderQueue", (m, msg) -> {
+    // process order ...
+    return null; // no reply
+});
+```
+
+### Properties & environment configuration
+
+```bash
+# Environment variables
+export MONGODB_URI='mongodb://user:pass@localhost:27017/app?replicaSet=rs0'
+export MORPHIUM_DRIVER=inmem
+
+# System properties
+mvn -Dmorphium.uri='mongodb://localhost/mydb' test
+
+# Properties file (morphium.properties)
+morphium.hosts=mongo1.example.com:27017,mongo2.example.com:27017
+morphium.database=myapp
+morphium.replicaSet=myReplicaSet
+```
+
+## 🧪 Tests & Test Runner
+
+### Maven
+```bash
+# All tests
+mvn test
+
+# Full build with checks
+mvn clean verify
+
+# Tagged test selection
+mvn test -Dgroups="core,messaging"
+
+# Run against a real MongoDB instance
+mvn test -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://localhost/testdb
+```
+
+### `./runtests.sh` helper
+```bash
+# Default: in-memory driver (fast, no MongoDB required)
+./runtests.sh
+
+# Run tagged suites
+./runtests.sh --tags core,messaging
+
+# Parallel runs
+./runtests.sh --parallel 8 --tags core
+
+# Retry only failed methods
+./runtests.sh --rerunfailed
+./runtests.sh --rerunfailed --retry 3
+
+# Single test class
+./runtests.sh CacheTests
+
+# Statistics
+./runtests.sh --stats
+./getFailedTests.sh  # list failed methods
+```
+
+Run `./runtests.sh --help` to see every option.
+
+### Multi-Backend Testing
+
+Tests are parameterized to run against multiple drivers. Use `--driver` to select:
+
+```bash
+# InMemory only (fastest, default)
+./runtests.sh --driver inmem
+
+# Against external MongoDB with all drivers (pooled + single + inmem)
+./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver all
+
+# Against external MongoDB with pooled driver only
+./runtests.sh --uri mongodb://mongo1,mongo2/testdb --driver pooled
+
+# Against PoppyDB (auto-starts local server)
+./runtests.sh --poppydb --driver pooled  # --morphium-server is a deprecated alias
+```
+
+**Complete test coverage** requires running against all backends:
+```bash
+# 1. Fast in-memory tests
+./runtests.sh --driver inmem
+
+# 2. Real MongoDB tests
+./runtests.sh --uri mongodb://your-mongodb/testdb --driver all
+
+# 3. PoppyDB tests
+./runtests.sh --poppydb --driver pooled  # --morphium-server is a deprecated alias
+```
+
+**New in v6.1**
+- ✅ **Unified test base**: All tests now use `MultiDriverTestBase` with parameterized drivers
+- ✅ **Driver selection**: Each test declares which drivers it supports via `@MethodSource`
+- ✅ **Parallel safe**: Tests isolated per parallel slot with unique databases
+
+**New in v6.0**
+- ✅ **Method-level reruns**: `--rerunfailed` only re-executes failing methods
+- ✅ **No more hangs**: known deadlocks resolved
+- ✅ **Faster iteration**: noticeably quicker partial retries
+- ✅ **Better filtering**: class-name filters now reliable
+
+Run `./runtests.sh --help` to see every option.
+
+### Test configuration precedence
+
+`TestConfig` consolidates all test settings. Priority order:
+1. System properties (`-Dmorphium.*`)
+2. Environment variables (`MORPHIUM_*`, `MONGODB_URI`)
+3. `src/test/resources/morphium-test.properties`
+4. Defaults (localhost:27017)
+
+## 🔧 PoppyDB & InMemoryDriver
+
+### InMemoryDriver – MongoDB-free testing
+
+The in-memory driver provides a largely MongoDB-compatible data store fully in memory:
+
+**Features**
+- ✅ Full CRUD operations
+- ✅ Rich query operator coverage
+- ✅ Aggregation stages such as `$match`, `$group`, `$project`
+- ✅ Single-instance transactions
+- ✅ Basic change streams
+- ✅ JavaScript `$where` support
+
+**Performance**
+- Significantly faster than external MongoDB for tests
+- No network latency
+- No disk I/O
+- Ideal for CI/CD pipelines
+
+**Usage**
+```bash
+# All tests with the in-memory driver
+./runtests.sh --driver inmem
+
+# Specific tests
+mvn test -Dmorphium.driver=inmem -Dtest="CacheTests"
+```
+
+See `docs/howtos/inmemory-driver.md` for feature coverage and limitations.
+
+### PoppyDB – Standalone MongoDB replacement
+
+PoppyDB (formerly MorphiumServer) runs the Morphium wire-protocol driver in a separate process, allowing it to act as a lightweight, in-memory MongoDB replacement.
+
+**Maven dependency** (server module):
+```xml
+<dependency>
+  <groupId>de.caluga</groupId>
+  <artifactId>poppydb</artifactId>
+  <version>6.2.0</version>
+</dependency>
+```
+
+**Building the Server**
+
+```bash
+mvn clean package -pl poppydb -am -Dmaven.test.skip=true
+```
+
+This creates `poppydb/target/poppydb-6.2.0-cli.jar`.
+
+**Running the Server**
+
+```bash
+# Start the server on the default port (17017)
+java -jar poppydb/target/poppydb-6.2.0-cli.jar
+
+# Start on a different port
+java -jar poppydb/target/poppydb-6.2.0-cli.jar --port 8080
+
+# Start with persistence (snapshots)
+java -jar poppydb/target/poppydb-6.2.0-cli.jar --dump-dir ./data --dump-interval 300
+```
+
+**Replica Set Support (Experimental)**
+
+PoppyDB supports basic replica set emulation. Start multiple instances with the same replica set name and seed list:
+
+```bash
+java -jar poppydb/target/poppydb-6.2.0-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+```
+
+**Use cases**
+- Local development without installing MongoDB
+- CI environments
+- Embedded database for desktop applications
+- Smoke-testing MongoDB tooling (mongosh, Compass, mongodump, ...)
+
+**Current limitations**
+- No sharding support
+- Some advanced aggregation operators and joins still missing
+
+See `docs/poppydb.md` for more details on persistence and replica sets.
+
+## 🚀 Production Use Cases
+
+Organizations run Morphium in production for:
+- **E-commerce**: order processing with guaranteed delivery
+- **Financial services**: coordinating transactions across microservices
+- **Healthcare**: patient-data workflows with strict compliance
+- **IoT platforms**: device state synchronization and command distribution
+- **Content management**: document workflows and event notifications
+
+## 🤝 Community & Contribution
+
+### Stay in touch
+- **Blog**: https://caluga.de
+- **GitHub**: [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
+- **Issues**: Report bugs or request features on GitHub
+
+### Contributing
+
+We appreciate pull requests! Areas where help is especially welcome:
+- **InMemoryDriver**: expanding MongoDB feature coverage
+- **Documentation**: tutorials, examples, translations
+- **Performance**: profiling and benchmarks
+- **Tests**: broader scenarios and regression coverage
+
+**How to contribute**
+1. Fork the repository
+2. Create a feature branch **from `develop`** (`git checkout -b feature/AmazingFeature develop`)
+3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
+4. Push the branch (`git push origin feature/AmazingFeature`)
+5. Open a pull request **against `develop`** (not `master`)
+
+**Important:** `master` is only updated during releases. All PRs must target `develop`.
+
+**Tips**
+- Respect test tags (`@Tag("inmemory")`, `@Tag("poppydb")`)
+- Run `./runtests.sh --tags core` before submitting
+- Update documentation when you change APIs
+
+## 📜 License
+
+Apache License 2.0 – see [LICENSE](LICENSE) for details.
+
+## 🙏 Thanks
+
+Thanks to every contributor who helped ship Morphium 6.2.0 and to the MongoDB community for continuous feedback.
+
+---
+
+**Questions?** Open an issue on [GitHub](https://github.com/sboesebeck/morphium/issues) or browse the [documentation](docs/index.md).
+
+**Planning an upgrade?** Follow the [migration guide](docs/howtos/migration-v5-to-v6.md).
+
+Enjoy Morphium 6.2.0! 🚀
+
+*Stephan Bösebeck & the Morphium team*
