@@ -1627,15 +1627,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             });
 
-            // Start watch asynchronously but wait for subscription to be registered
-            // to avoid race conditions where events could be missed
+            // Start watch asynchronously - the watch callback will add results
+            // to commandResults queue when data arrives. Do NOT add an empty
+            // immediate response, otherwise Query.tail() busy-loops with
+            // GetMore → empty → GetMore and misses actual watch events.
             watchAsync(watchCmd);
-
-            // Return empty response immediately - actual data will come via the watch callback
-            Map<String, Object> response = prepareResult();
-            response.put("cursor",
-                         Doc.of("nextBatch", new ArrayList<>(), "ns", db + "." + coll, "id", cursorId));
-            addResultAndQueue(ret, response);
             return ret;
         }
 
