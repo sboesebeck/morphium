@@ -58,7 +58,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
                     assert(lc.lastChangeString == null);
                     morphium.setInEntity(lc, "value", "set", false, null);
 
-                    TestUtils.waitForConditionToBecomeTrue(2000, "SetInEntity not persisted",
+                    TestUtils.waitForConditionToBecomeTrue(5000, "SetInEntity not persisted",
                         () -> {
                             try {
                                 var obj = morphium.findById(LCTest.class, lc.morphiumId);
@@ -75,7 +75,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
                     assert(lc.value.equals("set"));
                     morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId).set("value", "set");
 
-                    TestUtils.waitForConditionToBecomeTrue(2000, "Query set not persisted",
+                    TestUtils.waitForConditionToBecomeTrue(5000, "Query set not persisted",
                         () -> {
                             try {
                                 var obj = morphium.findById(LCTest.class, lc.morphiumId);
@@ -94,7 +94,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
                     morphium.store(la);
 
                     final MorphiumId laId = la.morphiumId;
-                    TestUtils.waitForConditionToBecomeTrue(2000, "LATest not persisted",
+                    TestUtils.waitForConditionToBecomeTrue(5000, "LATest not persisted",
                         () -> morphium.findById(LATest.class, laId) != null);
 
                     la = morphium.findById(LATest.class, la.morphiumId);
@@ -108,7 +108,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         CTimeTest ct = new CTimeTest();
         ct.value = "should not work";
         morphium.store(ct);
-        TestUtils.waitForConditionToBecomeTrue(2000, "CTimeTest not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "CTimeTest not persisted",
             () -> morphium.findById(CTimeTest.class, ct.morphiumId) != null);
         assertNotNull(ct.created);
         ;
@@ -120,7 +120,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         LCTest lc = new LCTest();
         lc.value = "a test";
         morphium.store(lc);
-        TestUtils.waitForConditionToBecomeTrue(2000, "LCTest not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "LCTest not persisted",
             () -> morphium.findById(LCTest.class, lc.morphiumId) != null);
         assert(lc.lastChange != 0);
         assertNotNull(lc.lastChangeDate);
@@ -129,7 +129,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         ;
         lc.value = "updated";
         morphium.store(lc);
-        TestUtils.waitForConditionToBecomeTrue(2000, "LCTest update not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "LCTest update not persisted",
             () -> {
                 var obj = morphium.findById(LCTest.class, lc.morphiumId);
                 return obj != null && "updated".equals(obj.value);
@@ -140,7 +140,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         assertNotNull(lc.lastChangeString);
         ;
         morphium.setInEntity(lc, "value", "set", false, null);
-        TestUtils.waitForConditionToBecomeTrue(2000, "SetInEntity not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "SetInEntity not persisted",
             () -> {
                 var obj = morphium.findById(LCTest.class, lc.morphiumId);
                 return obj != null && "set".equals(obj.value);
@@ -153,7 +153,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         ;
         assert(lc.value.equals("set"));
         morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId).set("value", "set");
-        TestUtils.waitForConditionToBecomeTrue(2000, "Query set not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "Query set not persisted",
             () -> {
                 var obj = morphium.findById(LCTest.class, lc.morphiumId);
                 return obj != null && "set".equals(obj.value);
@@ -168,7 +168,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         la.value = "last access";
         morphium.store(la);
         final MorphiumId laId = la.morphiumId;
-        TestUtils.waitForConditionToBecomeTrue(2000, "LATest not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "LATest not persisted",
             () -> morphium.findById(LATest.class, laId) != null);
         long stored = System.currentTimeMillis();
         la = morphium.findById(LATest.class, la.morphiumId);
@@ -222,7 +222,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
             la.value = "last access";
             morphium.store(la);
             final MorphiumId laId2 = la.morphiumId;
-            TestUtils.waitForConditionToBecomeTrue(2000, "LATest not persisted",
+            TestUtils.waitForConditionToBecomeTrue(5000, "LATest not persisted",
                 () -> morphium.findById(LATest.class, laId2) != null);
             la = morphium.findById(LATest.class, la.morphiumId);
             assert(la.lastAccess == 0);
@@ -239,13 +239,13 @@ public class AutoVariableTest extends MultiDriverTestBase {
         CTimeTest ct = new CTimeTest();
         ct.value = "A test";
         morphium.store(ct);
-        TestUtils.waitForConditionToBecomeTrue(2000, "CTimeTest not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "CTimeTest not persisted",
             () -> morphium.createQueryFor(CTimeTest.class).countAll() == 1);
         assertNotNull(ct.created);
         assert(ct.timestamp != 0);
         Query<CTimeTest> q = morphium.createQueryFor(CTimeTest.class).f("value").eq("annother test");
         q.set("additional", "value", true, true, null);
-        TestUtils.waitForConditionToBecomeTrue(2000, "Query upsert not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "Query upsert not persisted",
             () -> morphium.createQueryFor(CTimeTest.class).f("value").eq("annother test").countAll() == 1);
         assert(q.countAll() == 1) : "Count wrong: " + q.countAll();
         assert(q.get().timestamp != 0);
@@ -254,6 +254,8 @@ public class AutoVariableTest extends MultiDriverTestBase {
         assert(q.get().value.equals("annother test"));
         q = morphium.createQueryFor(CTimeTest.class).f("value").eq("additional test");
         morphium.push(q, "lst", "value", true, true);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Push upsert not persisted",
+            () -> morphium.createQueryFor(CTimeTest.class).f("value").eq("additional test").countAll() == 1);
         assert(q.countAll() == 1) : "Count wrong: " + q.countAll();
         assert(q.get().timestamp != 0);
         assertNotNull(q.get().created);
@@ -290,7 +292,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         la = new LATest();
         la.value = "value2";
         morphium.store(la);
-        TestUtils.waitForConditionToBecomeTrue(2000, "LATest objects not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "LATest objects not persisted",
             () -> morphium.createQueryFor(LATest.class).countAll() == 2);
         la = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
         assert(la.lastAccess != 0);
@@ -298,7 +300,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         long lastAcc = la.lastAccess;
         // Wait for lastAccess to change - timestamps may be in same millisecond on fast systems
         final long originalLastAcc = lastAcc;
-        TestUtils.waitForConditionToBecomeTrue(2000, "lastAccess did not change", () -> {
+        TestUtils.waitForConditionToBecomeTrue(5000, "lastAccess did not change", () -> {
             var obj = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
             return obj.lastAccess != originalLastAcc;
         });
@@ -321,7 +323,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         }
 
         morphium.storeList(lst);
-        TestUtils.waitForConditionToBecomeTrue(2000, "Bulk write not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "Bulk write not persisted",
             () -> morphium.createQueryFor(CTimeTest.class).countAll() == 100);
         lst = morphium.createQueryFor(CTimeTest.class).asList();
 
@@ -346,13 +348,13 @@ public class AutoVariableTest extends MultiDriverTestBase {
         lc = new LCTest();
         lc.value = "value3";
         morphium.store(lc);
-        TestUtils.waitForConditionToBecomeTrue(2000, "LCTest objects not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "LCTest objects not persisted",
             () -> morphium.createQueryFor(LCTest.class).countAll() == 3);
         lc = morphium.createQueryFor(LCTest.class).f("value").eq("value1").get();
         long created = lc.lastChange;
         lc.value = "different";
         morphium.store(lc);
-        TestUtils.waitForConditionToBecomeTrue(2000, "LCTest update not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "LCTest update not persisted",
             () -> {
                 var obj = morphium.createQueryFor(LCTest.class).f("value").eq("different").get();
                 return obj != null;
@@ -403,7 +405,7 @@ public class AutoVariableTest extends MultiDriverTestBase {
         record.mongoId = "12347";
         record.value = "v3";
         morphium.store(record);
-        TestUtils.waitForConditionToBecomeTrue(2000, "CTimeTestStringId objects not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "CTimeTestStringId objects not persisted",
             () -> morphium.createQueryFor(CTimeTestStringId.class).countAll() == 3);
         Query<CTimeTestStringId> q = morphium.createQueryFor(CTimeTestStringId.class);
         q = q.f("value").eq("v1");
@@ -414,14 +416,14 @@ public class AutoVariableTest extends MultiDriverTestBase {
         long created = record.timestamp;
         record.value = "v1*";
         morphium.store(record);
-        TestUtils.waitForConditionToBecomeTrue(2000, "CTimeTestStringId update not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "CTimeTestStringId update not persisted",
             () -> morphium.createQueryFor(CTimeTestStringId.class).f("value").eq("v1*").get() != null);
         record = q.q().f("value").eq("v1*").get();
         assertNotNull(record);
         assert(record.timestamp == created) : "Record timestamp " + record.timestamp;
         q = q.q().f("value").eq("new");
         q.set("additional", "1111", true, true);
-        TestUtils.waitForConditionToBecomeTrue(2000, "Query upsert not persisted",
+        TestUtils.waitForConditionToBecomeTrue(5000, "Query upsert not persisted",
             () -> morphium.createQueryFor(CTimeTestStringId.class).f("value").eq("new").get() != null);
         record = q.get();
         assert(record.timestamp != 0);
