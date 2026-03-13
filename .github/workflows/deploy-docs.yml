@@ -3,8 +3,7 @@ name: Deploy Documentation
 on:
   push:
     branches:
-      - master
-      - develop  # Also deploy from develop for testing
+      - develop
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
