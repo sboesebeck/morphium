@@ -1063,8 +1063,8 @@ public class PooledDriver extends DriverBase {
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
         try {
-            if (getHostSeed().size() == 1 || !isReplicaSet()) {
-                // no replicaset
+            if (!isReplicaSet()) {
+                // standalone — no ReadPreference / transaction routing needed
                 if (primaryNode == null) {
                     return borrowConnection(getHostSeed().get(0));
                 }
@@ -1229,7 +1229,7 @@ public class PooledDriver extends DriverBase {
             }
 
             // If not a replicaset, there is no "primary" concept - use seed host.
-            if (!isReplicaSet() || getHostSeed().size() <= 1) {
+            if (!isReplicaSet()) {
                 if (getHostSeed().isEmpty()) {
                     throw new MorphiumDriverException("No host seed configured");
                 }
