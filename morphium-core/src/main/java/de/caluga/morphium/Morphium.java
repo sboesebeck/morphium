@@ -1936,8 +1936,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         Field f = getARHelper().getField(type, ctf);
 
                         // Don't overwrite a manually set creation time
+                        // For primitive types (long, int), f.get() returns boxed default (0L, 0)
+                        // which is not null — treat zero as "not set"
                         Object existing = f.get(o);
-                        if (existing != null) {
+                        if (existing != null
+                                && !(existing instanceof Number && ((Number) existing).longValue() == 0)) {
                             continue;
                         }
 

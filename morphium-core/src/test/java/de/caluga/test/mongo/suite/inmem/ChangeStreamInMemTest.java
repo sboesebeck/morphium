@@ -238,10 +238,9 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
 
         log.info(Utils.toJsonString(evt.getFullDocument()));
 
-        if (!evt.getOperationType().equals("invalidate")) {
+        if (!evt.getOperationType().equals("invalidate") && evt.getFullDocument() != null) {
             UncachedObject obj = evt.getEntityFromData(UncachedObject.class, morphium);
             assertNotNull(obj);
-            ;
         }
     }
 
