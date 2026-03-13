@@ -75,6 +75,7 @@ nav:
     - PoppyDB: poppydb.md
     - Quick Reference: howtos/inmemory-driver.md
   - How-To Guides:
+    - Upgrade v6.1→v6.2: howtos/migration-v6_1-to-v6_2.md
     - Migration v5→v6: howtos/migration-v5-to-v6.md
     - Aggregation Examples: howtos/aggregation-examples.md
     - Caching Examples: howtos/caching-examples.md
