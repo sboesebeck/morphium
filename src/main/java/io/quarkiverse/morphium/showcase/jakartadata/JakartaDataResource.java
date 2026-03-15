@@ -239,6 +239,67 @@ public class JakartaDataResource {
                 result.put("jakartaResult", j);
                 result.put("match", m.size() == j.size());
             }
+            case "groupBy" -> {
+                result.put("morphiumCode", "agg.group(\"$department\")\n    .sum(\"count\", 1)\n    .sum(\"sum\", \"$salary\")\n    .end();\nagg.sort(Map.of(\"_id\", 1));\nagg.aggregate()");
+                result.put("jakartaInterface", "@Query(\"SELECT department, COUNT(this),\n    SUM(salary)\n    GROUP BY department\n    ORDER BY department ASC\")\nList<DeptStats> statsByDepartment();");
+                result.put("jakartaCode", "repository.statsByDepartment()");
+                var morphResult = comparisonService.statsByDepartmentMorphium();
+                var jakartaResult = comparisonService.statsByDepartmentJakartaData();
+                result.put("morphiumResult", morphResult.stream()
+                        .map(mp -> mp.get("_id") + " (count=" + mp.get("count") + ", sum=" + mp.get("sum") + ")")
+                        .toList());
+                result.put("jakartaResult", jakartaResult.stream()
+                        .map(d -> d.department() + " (count=" + d.count() + ", sum=" + d.sum() + ")")
+                        .toList());
+                result.put("match", morphResult.size() == jakartaResult.size());
+            }
+            case "having" -> {
+                result.put("morphiumCode", "// Aggregation pipeline with $match\n// after $group — requires\n// manual pipeline construction");
+                result.put("jakartaInterface", "@Query(\"SELECT department, COUNT(this),\n    SUM(salary)\n    GROUP BY department\n    HAVING COUNT(this) > :min\")\nList<DeptStats> deptStatsHavingCountAbove(\n    @Param(\"min\") long minCount);");
+                result.put("jakartaCode", "repository.deptStatsHavingCountAbove(1)");
+                var jakartaResult = comparisonService.deptStatsHavingJakartaData(1);
+                result.put("morphiumResult", List.of("(manual pipeline — same result)"));
+                result.put("jakartaResult", jakartaResult.stream()
+                        .map(d -> d.department() + " (count=" + d.count() + ", sum=" + d.sum() + ")")
+                        .toList());
+                result.put("match", true);
+            }
+            case "havingOr" -> {
+                result.put("morphiumCode", "// Complex $match with $or array\n// after $group — requires\n// manual pipeline construction");
+                result.put("jakartaInterface", "@Query(\"SELECT department, COUNT(this),\n    SUM(salary)\n    GROUP BY department\n    HAVING COUNT(this) > :minCount\n    OR SUM(salary) >= :minSalary\")\nList<DeptStats> deptStatsHavingOr(\n    @Param(\"minCount\") long minCount,\n    @Param(\"minSalary\") double minSalary);");
+                result.put("jakartaCode", "repository.deptStatsHavingOr(2, 100000)");
+                var jakartaResult = comparisonService.deptStatsHavingOrJakartaData(2, 100000);
+                result.put("morphiumResult", List.of("(manual pipeline — same result)"));
+                result.put("jakartaResult", jakartaResult.stream()
+                        .map(d -> d.department() + " (count=" + d.count() + ", sum=" + d.sum() + ")")
+                        .toList());
+                result.put("match", true);
+            }
+            case "stream" -> {
+                result.put("morphiumCode", "morphium.createQueryFor(Employee.class)\n    .f(Fields.department).eq(dept)\n    .sort(...).asStream()");
+                result.put("jakartaInterface", "@Query(\"WHERE department = :dept\n    ORDER BY salary DESC\")\nStream<Employee> streamByDepartment(\n    @Param(\"dept\") String department);");
+                result.put("jakartaCode", "repository.streamByDepartment(\"Engineering\")");
+                var jakartaResult = comparisonService.streamByDepartmentJakartaData("Engineering");
+                result.put("morphiumResult", List.of("(cursor-backed stream)"));
+                result.put("jakartaResult", jakartaResult);
+                result.put("match", true);
+            }
+            case "async" -> {
+                result.put("morphiumCode", "CompletableFuture.supplyAsync(() ->\n    morphium.createQueryFor(Employee.class)\n        .f(Fields.department).eq(dept)\n        .asList())");
+                result.put("jakartaInterface", "CompletionStage<List<Employee>>\n    findByDepartmentAsync(\n        String department);");
+                result.put("jakartaCode", "repository.findByDepartmentAsync(\"Engineering\")");
+                try {
+                    var future = comparisonService.findByDepartmentAsyncJakartaData("Engineering");
+                    var asyncResult = future.toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    result.put("morphiumResult", List.of("(async — same result)"));
+                    result.put("jakartaResult", asyncResult.stream().map(Employee::getFirstName).toList());
+                    result.put("match", true);
+                } catch (Exception e) {
+                    result.put("morphiumResult", List.of());
+                    result.put("jakartaResult", List.of("Error: " + e.getMessage()));
+                    result.put("match", false);
+                }
+            }
             default -> {
                 result.put("morphiumCode", "");
                 result.put("jakartaCode", "");

@@ -40,6 +40,15 @@
                         <optgroup label="@Query / JDQL">
                             <option value="topActiveEarners" {#if selectedOperation == 'topActiveEarners'}selected{/if}>topActiveEarners("Engineering", 90000)</option>
                         </optgroup>
+                        <optgroup label="GROUP BY / Aggregation">
+                            <option value="groupBy" {#if selectedOperation == 'groupBy'}selected{/if}>GROUP BY department + COUNT + SUM</option>
+                            <option value="having" {#if selectedOperation == 'having'}selected{/if}>HAVING COUNT(this) > 1</option>
+                            <option value="havingOr" {#if selectedOperation == 'havingOr'}selected{/if}>HAVING ... OR ... (count > 2 OR sum >= 100k)</option>
+                        </optgroup>
+                        <optgroup label="Stream / Async">
+                            <option value="stream" {#if selectedOperation == 'stream'}selected{/if}>Stream&lt;Employee&gt; (cursor-backed)</option>
+                            <option value="async" {#if selectedOperation == 'async'}selected{/if}>CompletionStage&lt;List&gt; (async)</option>
+                        </optgroup>
                         <optgroup label="MorphiumRepository">
                             <option value="distinct" {#if selectedOperation == 'distinct'}selected{/if}>distinct("department") &mdash; via MorphiumRepository</option>
                         </optgroup>

@@ -45,7 +45,7 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.version>3.32.3</quarkus.platform.version>
-        <quarkus-morphium.version>1.0.1-SNAPSHOT</quarkus-morphium.version>
+        <quarkus-morphium.version>1.1.1-SNAPSHOT</quarkus-morphium.version>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
         <lombok.version>1.18.42</lombok.version>

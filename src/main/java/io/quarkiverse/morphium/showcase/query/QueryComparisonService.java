@@ -12,6 +12,9 @@ import jakarta.inject.Inject;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionStage;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Side-by-side comparison service: executes the same queries using both Morphium API
@@ -214,5 +217,48 @@ public class QueryComparisonService {
         morphium.createQueryFor(Employee.class)
                 .f(Employee.Fields.department).eq(dept)
                 .set(Employee.Fields.position, newPosition, false, true, null);
+    }
+
+    // ========== GROUP BY + Aggregation ==========
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public List<Map<String, Object>> statsByDepartmentMorphium() {
+        var agg = morphium.createAggregator(Employee.class, Map.class);
+        agg.group("$department")
+                .sum("count", 1)
+                .sum("sum", "$salary")
+                .end();
+        agg.sort(Map.of("_id", 1));
+        return (List<Map<String, Object>>) (List<?>) agg.aggregate();
+    }
+
+    public List<EmployeeRepository.DeptStats> statsByDepartmentJakartaData() {
+        return repository.statsByDepartment();
+    }
+
+    // ========== HAVING ==========
+
+    public List<EmployeeRepository.DeptStats> deptStatsHavingJakartaData(long minCount) {
+        return repository.deptStatsHavingCountAbove(minCount);
+    }
+
+    // ========== HAVING OR ==========
+
+    public List<EmployeeRepository.DeptStats> deptStatsHavingOrJakartaData(long minCount, double minSalary) {
+        return repository.deptStatsHavingOr(minCount, minSalary);
+    }
+
+    // ========== Stream ==========
+
+    public List<String> streamByDepartmentJakartaData(String dept) {
+        try (Stream<Employee> stream = repository.streamByDepartment(dept)) {
+            return stream.map(e -> e.getFirstName() + " " + e.getLastName()).collect(Collectors.toList());
+        }
+    }
+
+    // ========== Async ==========
+
+    public CompletionStage<List<Employee>> findByDepartmentAsyncJakartaData(String dept) {
+        return repository.findByDepartmentAsync(dept);
     }
 }

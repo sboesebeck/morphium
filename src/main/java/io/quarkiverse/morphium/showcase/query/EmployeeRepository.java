@@ -15,6 +15,8 @@ import jakarta.data.repository.Repository;
 import jakarta.data.repository.By;
 
 import java.util.List;
+import java.util.concurrent.CompletionStage;
+import java.util.stream.Stream;
 
 /**
  * Jakarta Data repository for {@link Employee} — comprehensive query operator comparison.
@@ -119,4 +121,33 @@ public interface EmployeeRepository extends MorphiumRepository<Employee, Morphiu
     /** Count active employees in a department */
     @Query("WHERE department = :dept AND active = true")
     long countActiveInDepartment(@Param("dept") String department);
+
+    // ---- GROUP BY + Aggregation ----
+
+    /** Headcount and total salary per department */
+    @Query("SELECT department, COUNT(this), SUM(salary) GROUP BY department ORDER BY department ASC")
+    List<DeptStats> statsByDepartment();
+
+    /** Only departments with headcount above a threshold */
+    @Query("SELECT department, COUNT(this), SUM(salary) GROUP BY department HAVING COUNT(this) > :min ORDER BY department ASC")
+    List<DeptStats> deptStatsHavingCountAbove(@Param("min") long minCount);
+
+    /** Departments where headcount OR total salary exceed thresholds */
+    @Query("SELECT department, COUNT(this), SUM(salary) GROUP BY department HAVING COUNT(this) > :minCount OR SUM(salary) >= :minSalary")
+    List<DeptStats> deptStatsHavingOr(@Param("minCount") long minCount, @Param("minSalary") double minSalary);
+
+    // ---- Stream ----
+
+    /** Cursor-backed lazy stream for memory-efficient processing */
+    @Query("WHERE department = :dept ORDER BY salary DESC")
+    Stream<Employee> streamByDepartment(@Param("dept") String department);
+
+    // ---- Async ----
+
+    /** Non-blocking query returning a CompletionStage */
+    CompletionStage<List<Employee>> findByDepartmentAsync(String department);
+
+    // ---- Record return types for GROUP BY ----
+
+    record DeptStats(String department, long count, double sum) {}
 }

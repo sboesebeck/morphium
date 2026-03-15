@@ -9,7 +9,7 @@
 
 > **[Live Demo: morphium.kopp-cloud.de](https://morphium.kopp-cloud.de)**
 >
-> Built with **Morphium 6.2.1-SNAPSHOT** and **quarkus-morphium Extension 1.0.1-SNAPSHOT**.
+> Built with **Morphium 6.2.1-SNAPSHOT** and **quarkus-morphium Extension 1.1.1-SNAPSHOT**.
 > Fork improvements are being contributed back to the upstream [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
 > project via pull requests and are progressively merged.
 
@@ -98,11 +98,24 @@ to demonstrate the Jakarta Data equivalent for each Morphium operator:
 | `.f("email").eq(e).countAll() > 0` | `existsByEmail(e)` |
 | `.sort(Map.of("salary", -1)).limit(2)` | `@Find @OrderBy("salary" DESC) ... Limit.of(2)` |
 | `.f("dept").eq(d).f("salary").gte(m)` | `@Query("WHERE department = :d AND salary >= :m")` |
+| `agg.group("$dept").sum("count",1).end()` | `@Query("SELECT dept, COUNT(this) GROUP BY dept")` |
+| pipeline + `$match` after `$group` | `HAVING COUNT(this) > :min OR SUM(salary) >= :x` |
+| `CompletableFuture.supplyAsync(...)` | `CompletionStage<List<Employee>> findByDeptAsync(dept)` |
+| `query.f(...).sort(...).asStream()` | `Stream<Employee> streamByDepartment(dept)` |
 
 ### Interactive Comparison (Jakarta Data Page)
 
 The `/jakarta-data` page lets you run queries through **both** the Morphium API and Jakarta Data
-side by side, showing the code and results for each approach.
+side by side, showing the code and results for each approach. Includes demonstrations of:
+
+- **Query Derivation** -- findBy, countBy, existsBy, Between, Like, True/False
+- **@Find / @OrderBy** -- explicit field binding with Limit
+- **@Query (JDQL)** -- WHERE, ORDER BY, GROUP BY, HAVING, aggregates
+- **GROUP BY + Aggregation** -- COUNT, SUM with Record return types
+- **HAVING (AND/OR)** -- filter aggregated results with flexible combinators
+- **Stream** -- cursor-backed lazy loading for memory-efficient processing
+- **Async** -- `CompletionStage<T>` for non-blocking repository methods
+- **MorphiumRepository** -- distinct() escape hatch
 
 ### Morphium ORM features work transparently
 
@@ -115,12 +128,13 @@ repository calls because the generated implementation delegates to `morphium.sto
 
 | Use Jakarta Data / MorphiumRepository for | Use Morphium API for |
 |---|---|
-| Standard CRUD (save, findById, delete) | Aggregation pipelines ($group, $project) |
-| Simple to medium queries (findBy, countBy) | Atomic field operations (inc, push, pull) |
-| Paginated results (Page, PageRequest) | Bulk updates ($set, $unset) |
-| JDQL queries (WHERE, ORDER BY, LIKE) | Change streams, messaging |
-| Distinct queries (via `MorphiumRepository`) | Geospatial queries ($near, $geoWithin) |
-| Testable interfaces (easy to mock) | Complex aggregation pipelines |
+| Standard CRUD (save, findById, delete) | Complex aggregation pipelines ($project, $unwind) |
+| Queries (findBy, countBy, @Query JDQL) | Atomic field operations (inc, push, pull) |
+| GROUP BY + HAVING aggregation | Bulk updates ($set, $unset) |
+| Paginated results (Page, CursoredPage) | Change streams, messaging |
+| Stream / async queries | Geospatial queries ($near, $geoWithin) |
+| Distinct queries (via `MorphiumRepository`) | Multi-stage aggregation pipelines |
+| Testable interfaces (easy to mock) | Map-reduce operations |
 
 Both approaches work together. Use `MorphiumRepository` for the best of both worlds --
 standard Jakarta Data CRUD plus `morphium()` and `query()` as the escape hatch.
@@ -144,6 +158,8 @@ standard Jakarta Data CRUD plus `morphium()` and `query()` as the escape hatch.
 ### Jakarta Data
 - **Jakarta Data** -- Interactive side-by-side comparison of Morphium API vs `@Repository`
 - **Query Builder** -- Fluent query API vs query derivation vs JDQL
+- **GROUP BY + HAVING** -- JDQL aggregation with Record return types, AND/OR combinators
+- **Stream + Async** -- Cursor-backed `Stream<T>` and `CompletionStage<T>` demos
 
 ### Advanced
 - **Bulk Import** -- `SequenceGenerator`, batch inserts, cursor-based iteration
