@@ -86,34 +86,61 @@ public class RegexTests extends MorphiumInMemTestBase {
         q.f(UncachedObject.Fields.strValue).not().matches("VALUE.*");
 
         Map<String, Object> queryObj = q.toQueryObject();
-        // Expected: {str_value: {$regex: {$not: "VALUE.*"}}}
+        // Expected: {str_value: {$not: {$regex: "VALUE.*"}}}
         assert (queryObj.containsKey("str_value")) : "Query should contain str_value field";
         Map<String, Object> fieldExpr = (Map<String, Object>) queryObj.get("str_value");
-        assert (fieldExpr.containsKey("$regex")) : "Should contain $regex operator";
-        Object regexValue = fieldExpr.get("$regex");
-        // The $not wraps the regex value
-        assert (regexValue instanceof Map) : "$regex value should be a Map with $not, got: " + regexValue.getClass();
-        Map<String, Object> notExpr = (Map<String, Object>) regexValue;
-        assert (notExpr.containsKey("$not")) : "Should contain $not inside $regex";
-        assertEquals("VALUE.*", notExpr.get("$not"));
+        assert (fieldExpr.containsKey("$not")) : "Should contain $not operator, got: " + fieldExpr.keySet();
+        Object notValue = fieldExpr.get("$not");
+        assert (notValue instanceof Map) : "$not value should be a Map with operators";
+        Map<String, Object> innerExpr = (Map<String, Object>) notValue;
+        assert (innerExpr.containsKey("$regex")) : "Should contain $regex inside $not";
+        assertEquals("VALUE.*", innerExpr.get("$regex"));
     }
 
     @Test
     @SuppressWarnings("unchecked")
     public void fluentNotGtQueryStructureTest() {
-        // Verify not() with gt produces {field: {$gt: {$not: value}}}
+        // Verify not() with gt produces {field: {$not: {$gt: value}}}
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.f(UncachedObject.Fields.counter).not().gt(5);
 
         Map<String, Object> queryObj = q.toQueryObject();
         assert (queryObj.containsKey("counter")) : "Query should contain counter field";
         Map<String, Object> fieldExpr = (Map<String, Object>) queryObj.get("counter");
-        assert (fieldExpr.containsKey("$gt")) : "Should contain $gt operator";
-        Object gtValue = fieldExpr.get("$gt");
-        assert (gtValue instanceof Map) : "$gt value should be a Map with $not";
-        Map<String, Object> notExpr = (Map<String, Object>) gtValue;
-        assert (notExpr.containsKey("$not")) : "Should contain $not inside $gt";
-        assertEquals(5, notExpr.get("$not"));
+        assert (fieldExpr.containsKey("$not")) : "Should contain $not operator";
+        Object notValue = fieldExpr.get("$not");
+        assert (notValue instanceof Map) : "$not value should be a Map with operators";
+        Map<String, Object> innerExpr = (Map<String, Object>) notValue;
+        assert (innerExpr.containsKey("$gt")) : "Should contain $gt inside $not";
+        assertEquals(5, innerExpr.get("$gt"));
+    }
+
+    @Test
+    public void fluentNotMatchesExecutionTest() throws Exception {
+        createTestData();
+        // not().matches("VALUE.*") should return entries NOT starting with uppercase VALUE
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        long matchCount = q.f(UncachedObject.Fields.strValue).matches("VALUE.*").countAll();
+        assertEquals(50, matchCount);
+
+        q = morphium.createQueryFor(UncachedObject.class);
+        long notMatchCount = q.f(UncachedObject.Fields.strValue).not().matches("VALUE.*").countAll();
+        assertEquals(50, notMatchCount, "NOT matching uppercase should return lowercase entries");
+    }
+
+    @Test
+    public void fluentNotGtExecutionTest() throws Exception {
+        for (int i = 1; i <= 10; i++) {
+            morphium.store(new UncachedObject("item", i));
+        }
+
+        // not().gt(5) → counter <= 5
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        List<UncachedObject> result = q.f(UncachedObject.Fields.counter).not().gt(5).asList();
+        assertEquals(5, result.size());
+        for (UncachedObject o : result) {
+            assert (o.getCounter() <= 5) : "Counter should be <= 5 but was " + o.getCounter();
+        }
     }
 
     public void createTestData() {
