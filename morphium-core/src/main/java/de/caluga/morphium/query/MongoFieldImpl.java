@@ -39,9 +39,9 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     @Override
-    public Query<T> not() {
+    public MongoField<T> not() {
         not = true;
-        return query;
+        return this;
     }
 
     public MongoFieldImpl(Query<T> q, MorphiumObjectMapper map) {
