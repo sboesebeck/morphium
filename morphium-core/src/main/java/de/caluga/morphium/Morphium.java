@@ -39,7 +39,7 @@ import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cglib.proxy.Enhancer;
+import net.sf.cglib.proxy.Enhancer;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;

@@ -10,8 +10,8 @@ import de.caluga.test.mongo.suite.data.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.cglib.proxy.Enhancer;
-import org.springframework.cglib.proxy.FixedValue;
+import net.sf.cglib.proxy.Enhancer;
+import net.sf.cglib.proxy.FixedValue;
 import java.lang.reflect.Field;
 import java.util.*;
 
