@@ -1166,7 +1166,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                         res.get(id).putIfAbsent(fld, oVal);
 
                                         //noinspection unchecked
-                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
+                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
                                             res.get(id).put(fld, oVal);
                                         }
                                     }
@@ -1179,7 +1179,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                         res.get(id).putIfAbsent(fld, oVal);
 
                                         //noinspection unchecked
-                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
+                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
                                             res.get(id).put(fld, oVal);
                                         }
                                     }

@@ -664,4 +664,65 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         log.info("$sortByCount test completed successfully");
     }
 
+    @Test
+    public void inMemAggregationGlobalMinMaxAvgSumTest() throws Exception {
+        // Store values 100, 200, 300, 400, 500
+        for (int i = 1; i <= 5; i++) {
+            UncachedObject u = new UncachedObject("all", i * 100);
+            morphium.store(u);
+        }
+
+        // Global aggregation: _id = null
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.group((String) null)
+                .sum("total", "$counter")
+                .avg("average", "$counter")
+                .min("minimum", "$counter")
+                .max("maximum", "$counter")
+                .sum("count", 1)
+                .end();
+        List<Map<String, Object>> lst = agg.aggregateMap();
+
+        assertEquals(1, lst.size(), "Global aggregation should return exactly one result");
+        Map<String, Object> result = lst.get(0);
+
+        assertEquals(1500.0, ((Number) result.get("total")).doubleValue(), 0.01, "SUM should be 1500");
+        assertEquals(300.0, ((Number) result.get("average")).doubleValue(), 0.01, "AVG should be 300");
+        assertEquals(100, ((Number) result.get("minimum")).intValue(), "MIN should be 100");
+        assertEquals(500, ((Number) result.get("maximum")).intValue(), "MAX should be 500");
+        assertEquals(5.0, ((Number) result.get("count")).doubleValue(), 0.01, "COUNT should be 5");
+    }
+
+    @Test
+    public void inMemAggregationMatchThenGlobalGroupTest() throws Exception {
+        // Store 10 items: 5 "OPEN" (100..500) and 5 "CLOSED" (600..1000)
+        for (int i = 1; i <= 5; i++) {
+            UncachedObject u = new UncachedObject("OPEN", i * 100);
+            morphium.store(u);
+        }
+        for (int i = 6; i <= 10; i++) {
+            UncachedObject u = new UncachedObject("CLOSED", i * 100);
+            morphium.store(u);
+        }
+
+        // $match + global $group
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.match(morphium.createQueryFor(UncachedObject.class).f("str_value").eq("OPEN"));
+        agg.group((String) null)
+                .sum("total", "$counter")
+                .min("minimum", "$counter")
+                .max("maximum", "$counter")
+                .sum("count", 1)
+                .end();
+        List<Map<String, Object>> lst = agg.aggregateMap();
+
+        assertEquals(1, lst.size());
+        Map<String, Object> result = lst.get(0);
+
+        assertEquals(1500.0, ((Number) result.get("total")).doubleValue(), 0.01, "SUM of OPEN should be 1500");
+        assertEquals(100, ((Number) result.get("minimum")).intValue(), "MIN of OPEN should be 100");
+        assertEquals(500, ((Number) result.get("maximum")).intValue(), "MAX of OPEN should be 500");
+        assertEquals(5.0, ((Number) result.get("count")).doubleValue(), 0.01, "COUNT of OPEN should be 5");
+    }
+
 }
