@@ -189,14 +189,18 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     private void add(String op, Object value) {
         fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
-        FilterExpression child = new FilterExpression();
-        child.setField(op);
         if (not) {
-            child.setValue(UtilsMap.of("$not", value));
+            // {field: {$not: {$op: value}}} — $not wraps the operator, not the value
+            FilterExpression notChild = new FilterExpression();
+            notChild.setField("$not");
+            notChild.setValue(UtilsMap.of(op, value));
+            fe.addChild(notChild);
         } else {
+            FilterExpression child = new FilterExpression();
+            child.setField(op);
             child.setValue(value);
+            fe.addChild(child);
         }
-        fe.addChild(child);
 
         query.addChild(fe);
     }

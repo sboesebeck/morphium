@@ -702,7 +702,11 @@ public class QueryHelper {
                                 return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
 
                             case "$not":
-                                return !(matchesQuery((Map) commandMap.get(commandKey), toCheck, collation));
+                                // $not on field level: {field: {$not: {$regex: ...}}}
+                                // Wrap the $not content back into a field query so matchesQuery
+                                // can apply it against the correct field value.
+                                Map<String, Object> notInner = (Map<String, Object>) commandMap.get(commandKey);
+                                return !(matchesQuery(Map.of(keyQuery, notInner), toCheck, collation));
 
                             case "$regex":
                             case "$regularExpression":

@@ -951,8 +951,11 @@ public abstract class Expr {
         return new OpExpr("cond", Arrays.asList(condition, caseTrue, caseFalse)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("cond not implemented yet,sorry");
-                return null;
+                Object condResult = eval(condition, context);
+                boolean isTrue = condResult != null
+                        && !Boolean.FALSE.equals(condResult)
+                        && !Integer.valueOf(0).equals(condResult);
+                return isTrue ? eval(caseTrue, context) : eval(caseFalse, context);
             }
         };
     }

@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 
 @Tag("inmemory")
@@ -49,5 +50,31 @@ public class RawQueryTests extends MorphiumInMemTestBase {
 
         lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).matches(Pattern.compile(".*value.*", Pattern.CASE_INSENSITIVE)).asList();
         assertEquals(3, lst.size());
+    }
+
+    @Test
+    public void notRegexQueryTest() throws Exception {
+        morphium.store(new UncachedObject("OPEN_order", 1));
+        morphium.store(new UncachedObject("OPEN_other", 2));
+        morphium.store(new UncachedObject("CLOSED_order", 3));
+        morphium.store(new UncachedObject("CANCELLED", 4));
+
+        // NOT LIKE "OPEN.*" → should exclude the two OPEN entries, returning 2
+        var query = morphium.createQueryFor(UncachedObject.class);
+        var field = query.f(UncachedObject.Fields.strValue);
+        field.not();
+        field.matches(Pattern.compile("OPEN.*"));
+        List<UncachedObject> lst = query.asList();
+        assertEquals(2, lst.size(), "NOT regex should exclude matching docs");
+
+        // Verify the query document structure: {str_value: {$not: {$regex: "OPEN.*"}}}
+        Map<String, Object> queryObj = query.toQueryObject();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fieldExpr = (Map<String, Object>) queryObj.get("str_value");
+        assertNotNull(fieldExpr, "Field expression should not be null");
+        assertNotNull(fieldExpr.get("$not"), "$not operator should be present");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> notExpr = (Map<String, Object>) fieldExpr.get("$not");
+        assertNotNull(notExpr.get("$regex"), "$regex should be inside $not");
     }
 }
