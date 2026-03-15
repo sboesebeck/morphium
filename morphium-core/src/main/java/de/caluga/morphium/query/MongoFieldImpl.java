@@ -33,15 +33,16 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     private boolean not = false;
 
     private FilterExpression fe;
+    private FilterExpression notChild;
 
 
     public MongoFieldImpl() {
     }
 
     @Override
-    public Query<T> not() {
+    public MongoField<T> not() {
         not = true;
-        return query;
+        return this;
     }
 
     public MongoFieldImpl(Query<T> q, MorphiumObjectMapper map) {
@@ -187,16 +188,25 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
 
+    @SuppressWarnings("unchecked")
     private void add(String op, Object value) {
         fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
-        FilterExpression child = new FilterExpression();
-        child.setField(op);
         if (not) {
-            child.setValue(UtilsMap.of("$not", value));
+            // Accumulate all operators inside a single $not expression:
+            // {field: {$not: {$regex: "...", $options: "i"}}}
+            if (notChild == null) {
+                notChild = new FilterExpression();
+                notChild.setField("$not");
+                notChild.setValue(new java.util.HashMap<String, Object>());
+                fe.addChild(notChild);
+            }
+            ((java.util.Map<String, Object>) notChild.getValue()).put(op, value);
         } else {
+            FilterExpression child = new FilterExpression();
+            child.setField(op);
             child.setValue(value);
+            fe.addChild(child);
         }
-        fe.addChild(child);
 
         query.addChild(fe);
     }

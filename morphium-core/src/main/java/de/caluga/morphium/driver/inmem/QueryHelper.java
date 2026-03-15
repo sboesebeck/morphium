@@ -701,8 +701,13 @@ public class QueryHelper {
                                 Object ev = e.evaluate(toCheck);
                                 return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
 
-                            case "$not":
-                                return !(matchesQuery((Map) commandMap.get(commandKey), toCheck, collation));
+                            case "$not": {
+                                // Wrap the inner expression back with the field name:
+                                // {$not: {$regex: "..."}} → evaluate {fieldName: {$regex: "..."}} and negate
+                                Map<String, Object> notQuery = new LinkedHashMap<>();
+                                notQuery.put(keyQuery, commandMap.get(commandKey));
+                                return !matchesQuery(notQuery, toCheck, collation);
+                            }
 
                             case "$regex":
                             case "$regularExpression":
