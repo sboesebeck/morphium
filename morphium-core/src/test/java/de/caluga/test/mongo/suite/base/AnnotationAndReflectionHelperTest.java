@@ -1,17 +1,15 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.MorphiumProxyMarker;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.*;
-// import net.sf.cglib.proxy.Enhancer;
-// import net.sf.cglib.proxy.FixedValue;
+import net.bytebuddy.ByteBuddy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.cglib.proxy.Enhancer;
-import org.springframework.cglib.proxy.FixedValue;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -296,10 +294,18 @@ public class AnnotationAndReflectionHelperTest {
         public int something;
     }
 
+    private static final Class<?> PROXY_CLASS = new ByteBuddy()
+            .subclass(UncachedObject.class)
+            .implement(MorphiumProxyMarker.class)
+            .make()
+            .load(UncachedObject.class.getClassLoader())
+            .getLoaded();
+
     private UncachedObject newProxy() {
-        Enhancer enhancer = new Enhancer();
-        enhancer.setSuperclass(UncachedObject.class);
-        enhancer.setCallback((FixedValue) () -> "proxy");
-        return (UncachedObject) enhancer.create();
+        try {
+            return (UncachedObject) PROXY_CLASS.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.MorphiumProxyMarker;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
@@ -104,7 +105,7 @@ public class ReferenceTest extends MultiDriverTestBase {
         assert(rcRead.getCo().getId().equals(rc.getCo().getId())) : "Co's id's different";
         assert(rcRead.getLazyUc().getMorphiumId().equals(rc.getLazyUc().getMorphiumId())) : "lazy refs Ids differ";
         assert(rcRead.getLst().size() == rc.getLst().size()) : "Size of lists differ?";
-        assert(rcRead.getLzyLst().get(0).getClass().getName().contains("$EnhancerByCGLIB$")) : "List not lazy?";
+        assert(rcRead.getLzyLst().get(0) instanceof MorphiumProxyMarker) : "List not lazy?";
         assert(rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()) : "Counter different?!?";
         q = morphium.createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
         rcRead = q.get();

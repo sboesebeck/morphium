@@ -58,7 +58,7 @@
           <artifactId>maven-surefire-plugin</artifactId>
           <version>3.0.0</version>
           <configuration>
-            <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
+            <argLine>${argLine}</argLine>
             <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
             <groups>${test.includeTags}</groups>
             <excludedGroups>${test.excludeTags}</excludedGroups>
@@ -215,9 +215,9 @@
         <scope>test</scope>
       </dependency>
       <dependency>
-        <groupId>org.springframework</groupId>
-        <artifactId>spring-core</artifactId>
-        <version>5.3.39</version>
+        <groupId>net.bytebuddy</groupId>
+        <artifactId>byte-buddy</artifactId>
+        <version>1.15.11</version>
         <scope>compile</scope>
       </dependency>
       <dependency>
