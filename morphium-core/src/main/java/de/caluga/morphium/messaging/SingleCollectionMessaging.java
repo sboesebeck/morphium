@@ -57,7 +57,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private String statusInfoListenerName = "morphium.status_info";
     private boolean statusInfoListenerEnabled = true;
     private Morphium morphium;
-    private boolean running = true;
+    private volatile boolean running = true;
     private int pause = 100;
 
     private String id;

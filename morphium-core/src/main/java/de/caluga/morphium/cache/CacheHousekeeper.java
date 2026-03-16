@@ -24,7 +24,7 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
     @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Map<Class<?>, Integer> validTimeForClass;
     private int gcTimeout = 5000;
-    private boolean running = true;
+    private volatile boolean running = true;
     @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Logger log = LoggerFactory.getLogger(CacheHousekeeper.class);
     private AnnotationAndReflectionHelper annotationHelper;

@@ -48,7 +48,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     private Morphium morphium;
     private MorphiumWriter directWriter;
     private Thread housekeeping;
-    private boolean running = true;
+    private volatile boolean running = true;
     private boolean orderedExecution = false;
 
     public BufferedMorphiumWriterImpl() {

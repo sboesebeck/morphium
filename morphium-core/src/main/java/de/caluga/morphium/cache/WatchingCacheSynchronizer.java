@@ -11,7 +11,7 @@ import java.util.Set;
 @SuppressWarnings("EmptyMethod")
 public class WatchingCacheSynchronizer extends AbstractCacheSynchronizer<WatchingCacheSyncListener> implements ChangeStreamListener {
 
-    private boolean running = true;
+    private volatile boolean running = true;
     private final ChangeStreamMonitor monitor;
 
     public WatchingCacheSynchronizer(Morphium m) {
