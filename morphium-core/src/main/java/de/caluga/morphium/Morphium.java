@@ -40,6 +40,7 @@ import io.github.classgraph.ScanResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.InvocationHandlerAdapter;
 import net.bytebuddy.matcher.ElementMatchers;
 
@@ -120,6 +121,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private static java.util.List<Morphium> instances = new java.util.concurrent.CopyOnWriteArrayList<>();
     private static AtomicInteger maxInstances = new AtomicInteger();
     // Map to track InMemoryDriver instances by database name for sharing within a test scope
+    private static final ConcurrentHashMap<Class<?>, Class<?>> proxyClassCache = new ConcurrentHashMap<>();
+    private static final String PROXY_HANDLER_FIELD = "morphiumHandler";
     private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> inMemoryDriversByDatabase = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> inMemoryDriverRefCounts = new java.util.concurrent.ConcurrentHashMap<>();
     // Map to track shared connection pool drivers by hosts+database key
@@ -2935,17 +2938,25 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return aggregator;
     }
 
+    @SuppressWarnings("unchecked")
     public <T> T createLazyLoadedEntity(Class <? extends T > cls, Object id, String collectionName) {
         try {
-            Class<?> proxyClass = new ByteBuddy()
-                    .subclass(cls)
-                    .implement(Serializable.class, MorphiumProxyMarker.class)
-                    .method(ElementMatchers.any())
-                    .intercept(InvocationHandlerAdapter.of(new LazyDeReferencingProxy(this, cls, id, collectionName)))
-                    .make()
-                    .load(cls.getClassLoader())
-                    .getLoaded();
-            return (T) proxyClass.getDeclaredConstructor().newInstance();
+            Class<?> proxyClass = proxyClassCache.computeIfAbsent(cls, c ->
+                    new ByteBuddy()
+                            .subclass(c)
+                            .implement(Serializable.class, MorphiumProxyMarker.class)
+                            .defineField(PROXY_HANDLER_FIELD, java.lang.reflect.InvocationHandler.class)
+                            .method(ElementMatchers.any())
+                            .intercept(InvocationHandlerAdapter.toField(PROXY_HANDLER_FIELD))
+                            .make()
+                            .load(c.getClassLoader(), ClassLoadingStrategy.Default.INJECTION)
+                            .getLoaded()
+            );
+            Object proxy = proxyClass.getDeclaredConstructor().newInstance();
+            java.lang.reflect.Field handlerField = proxyClass.getDeclaredField(PROXY_HANDLER_FIELD);
+            handlerField.setAccessible(true);
+            handlerField.set(proxy, new LazyDeReferencingProxy(this, cls, id, collectionName));
+            return (T) proxy;
         } catch (Exception e) {
             throw new RuntimeException("Failed to create lazy-loading proxy for " + cls.getName(), e);
         }
