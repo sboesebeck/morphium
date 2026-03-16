@@ -1,15 +1,13 @@
 package de.caluga.morphium;
 
-// import net.sf.cglib.proxy.MethodInterceptor;
-// import net.sf.cglib.proxy.MethodProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cglib.proxy.MethodInterceptor;
-import org.springframework.cglib.proxy.MethodProxy;
+
 import java.io.Serializable;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 
-public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializable {
+public class LazyDeReferencingProxy<T> implements InvocationHandler, Serializable {
     private static final long serialVersionUID = 3777709000906217075L;
     private static final Logger log = LoggerFactory.getLogger(LazyDeReferencingProxy.class);
     private final transient Morphium morphium;
@@ -40,8 +38,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
     }
 
     @Override
-    public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-        //        log.error("MEthod trigger "+method.getName());
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         if (method.getName().equals("getClass")) {
             return cls;
         }
@@ -49,7 +46,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
             return cls;
         }
         if (method.getName().equals("finalize")) {
-            return methodProxy.invokeSuper(o, objects);
+            return null;
         }
         if (method.getName().equals("__getPureDeref")) {
             return deReferenced;
@@ -61,10 +58,22 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
         }
         if (deReferenced != null) {
             method.setAccessible(true);
-            return method.invoke(deReferenced, objects);
+            return method.invoke(deReferenced, args);
         }
-        return methodProxy.invokeSuper(o, objects);
+        return getDefaultValue(method.getReturnType());
+    }
 
+    private Object getDefaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == double.class) return 0.0d;
+        if (type == float.class) return 0.0f;
+        if (type == short.class) return (short) 0;
+        if (type == byte.class) return (byte) 0;
+        if (type == char.class) return '\0';
+        return null;
     }
 
     private void dereference() {

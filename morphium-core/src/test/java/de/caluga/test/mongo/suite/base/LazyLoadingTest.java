@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.MorphiumProxyMarker;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Entity;
@@ -123,7 +124,7 @@ public class LazyLoadingTest extends MultiDriverTestBase {
 
         assertNotNull(lzRead, "Not found????");
         log.info("LZRead: " + lzRead.getClass().getName());
-        assert (!lzRead.getClass().getName().contains("$EnhancerByCGLIB$")) : "Lazy loader in Root-Object?";
+        assert (!(lzRead instanceof MorphiumProxyMarker)) : "Lazy loader in Root-Object?";
         Double rd = morphium.getStatistics().get(StatisticKeys.READS.name());
         if (rd == null) {
             rd = 0.0;
@@ -132,7 +133,7 @@ public class LazyLoadingTest extends MultiDriverTestBase {
 
         int cnt = lzRead.getLazyUncached().getCounter();
         log.info("uncached: " + lzRead.getLazyUncached().getClass().getName());
-        assert (lzRead.getLazyUncached().getClass().getName().contains("$EnhancerByCGLIB$")) : "Not lazy loader?";
+        assert (lzRead.getLazyUncached() instanceof MorphiumProxyMarker) : "Not lazy loader?";
 
         assert (cnt == o.getCounter()) : "Counter not equal";
         double rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
@@ -153,7 +154,7 @@ public class LazyLoadingTest extends MultiDriverTestBase {
 
         assert (lzRead.getLazyLst().size() == lz.getLazyLst().size()) : "List sizes differ?!?!";
         for (UncachedObject uc : lzRead.getLazyLst()) {
-            assert (uc.getClass().getName().contains("$EnhancerByCGLIB$")) : "Lazy list not lazy?";
+            assert (uc instanceof MorphiumProxyMarker) : "Lazy list not lazy?";
 
         }
 

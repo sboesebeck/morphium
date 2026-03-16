@@ -39,7 +39,9 @@ import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cglib.proxy.Enhancer;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.implementation.InvocationHandlerAdapter;
+import net.bytebuddy.matcher.ElementMatchers;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -1504,9 +1506,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * @return the dereferenced object
      */
     public <T> T deReference(T obj) {
-        if (obj instanceof LazyDeReferencingProxy) {
+        if (obj instanceof MorphiumProxyMarker) {
             // noinspection unchecked
-            obj = ((LazyDeReferencingProxy<T>) obj).__getDeref();
+            obj = (T) ((MorphiumProxyMarker) obj).__getDeref();
         }
 
         List<Field> flds = getARHelper().getAllFields(obj.getClass());
@@ -1518,7 +1520,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             if (r != null && r.lazyLoading()) {
                 try {
                     @SuppressWarnings("rawtypes")
-                    LazyDeReferencingProxy v = (LazyDeReferencingProxy) fld.get(obj);
+                    MorphiumProxyMarker v = (MorphiumProxyMarker) fld.get(obj);
                     Object value = v.__getDeref();
                     fld.set(obj, value);
                 } catch (IllegalAccessException e) {
@@ -2934,7 +2936,19 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> T createLazyLoadedEntity(Class <? extends T > cls, Object id, String collectionName) {
-        return (T) Enhancer.create(cls, new Class[] {Serializable.class}, new LazyDeReferencingProxy(this, cls, id, collectionName));
+        try {
+            Class<?> proxyClass = new ByteBuddy()
+                    .subclass(cls)
+                    .implement(Serializable.class, MorphiumProxyMarker.class)
+                    .method(ElementMatchers.any())
+                    .intercept(InvocationHandlerAdapter.of(new LazyDeReferencingProxy(this, cls, id, collectionName)))
+                    .make()
+                    .load(cls.getClassLoader())
+                    .getLoaded();
+            return (T) proxyClass.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create lazy-loading proxy for " + cls.getName(), e);
+        }
     }
 
     public int getWriteBufferCount() {

@@ -1007,15 +1007,11 @@ public class AnnotationAndReflectionHelper {
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
     public <T> T getRealObject(T o) {
         if (isProxy(o.getClass())) {
-            //not stored or Proxy?
             try {
-                Field f1 = o.getClass().getDeclaredField("CGLIB$CALLBACK_0");
-                f1.setAccessible(true);
-                Object delegate = f1.get(o);
-                Method m = delegate.getClass().getMethod("__getDeref");
-                o = (T) m.invoke(delegate);
+                o = (T) ((MorphiumProxyMarker) o).__getDeref();
             } catch (Exception e) {
                 logger.error("Exception: ", e);
             }
@@ -1162,11 +1158,7 @@ public class AnnotationAndReflectionHelper {
 
         if (isProxy(on.getClass())) {
             try {
-                Field f1 = on.getClass().getDeclaredField("CGLIB$CALLBACK_0");
-                f1.setAccessible(true);
-                Object delegate = f1.get(on);
-                Method m = delegate.getClass().getMethod("__getPureDeref");
-                on = m.invoke(delegate);
+                on = ((MorphiumProxyMarker) on).__getPureDeref();
 
                 if (on == null) {
                     return;
@@ -1255,12 +1247,16 @@ public class AnnotationAndReflectionHelper {
     private <T> boolean isProxy(Class <? extends T > aClass) {
         if (aClass == null) { return false; }
 
-        return aClass.getName().contains("$$EnhancerByCGLIB$$");
+        return MorphiumProxyMarker.class.isAssignableFrom(aClass);
     }
 
     private <T> Class<?> realClassOf(Class <? extends T > superClass) {
+        if (MorphiumProxyMarker.class.isAssignableFrom(superClass)) {
+            return superClass.getSuperclass();
+        }
         try {
-            return classForName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
+            String name = superClass.getName();
+            return classForName(name.substring(0, name.indexOf("$$")));
         } catch (ClassNotFoundException e) {
             throw AnnotationAndReflectionException.of(e);
         }

@@ -102,8 +102,8 @@
       <artifactId>figlet4s-java</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-core</artifactId>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy</artifactId>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>

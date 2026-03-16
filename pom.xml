@@ -215,9 +215,9 @@
         <scope>test</scope>
       </dependency>
       <dependency>
-        <groupId>org.springframework</groupId>
-        <artifactId>spring-core</artifactId>
-        <version>5.3.39</version>
+        <groupId>net.bytebuddy</groupId>
+        <artifactId>byte-buddy</artifactId>
+        <version>1.15.11</version>
         <scope>compile</scope>
       </dependency>
       <dependency>
