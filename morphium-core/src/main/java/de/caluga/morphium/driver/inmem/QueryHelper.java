@@ -126,6 +126,7 @@ public class QueryHelper {
         }
 
         // Special handling for map field queries and array index queries
+        Set<String> consumedKeys = new HashSet<>();
         for (String key : query.keySet()) {
             if (query.get(key) instanceof Map) {
                 Map<String, Object> queryMap = (Map<String, Object>) query.get(key);
@@ -144,7 +145,7 @@ public class QueryHelper {
                     }
 
                     if (allMatched) {
-                        return true;
+                        consumedKeys.add(key);
                     }
                 } else if (toCheck.get(key) instanceof List) {
                     // Query has Map but document has List - this could be array index access
@@ -214,7 +215,7 @@ public class QueryHelper {
                     }
 
                     if (allMatched) {
-                        return true;
+                        consumedKeys.add(key);
                     }
                 }
             }
@@ -244,6 +245,10 @@ public class QueryHelper {
         boolean ret = false;
 
         for (String keyQuery : query.keySet()) {
+            if (consumedKeys.contains(keyQuery)) {
+                ret = true;
+                continue;
+            }
             switch (keyQuery) {
                 case "$and": {
                         // list of field queries
@@ -340,6 +345,28 @@ public class QueryHelper {
                         throw new IllegalArgumentException("unknown top level operator: " + keyQuery);
                     }
 
+                    if (!matchesFieldCondition(keyQuery, query, toCheck, collation)) {
+                        return false;
+                    }
+                    ret = true;
+                    continue;
+            }
+        }
+
+        return ret;
+    }
+
+    /**
+     * Evaluates a single field condition within a query document.
+     * Extracted from matchesQuery so that multi-field queries correctly AND
+     * all field conditions (previously, early returns in this block would
+     * short-circuit the outer loop, skipping remaining fields).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static boolean matchesFieldCondition(String keyQuery,
+                                                  Map<String, Object> query,
+                                                  Map<String, Object> toCheck,
+                                                  Map<String, Object> collation) {
                     // field check
                     if (query.get(keyQuery) instanceof Map) {
                         // probably a query operand
@@ -370,8 +397,7 @@ public class QueryHelper {
                                 }
                             }
 
-                            ret = true;
-                            continue;
+                            return true;
                         }
                         var it = commandMap.keySet().iterator();
                         String commandKey = it.next();
@@ -694,7 +720,7 @@ public class QueryHelper {
                                 }
 
                             case "$comment":
-                                continue;
+                                return true;
 
                             case "$expr":
                                 Expr e = (Expr) commandMap.get(commandKey);
@@ -851,8 +877,7 @@ public class QueryHelper {
                                     return false;
                                 }
 
-                                ret = true;
-                                continue;
+                                return true;
 
                             case "$nearSphere":
                             case "$near":
@@ -1140,6 +1165,8 @@ public class QueryHelper {
 
                                 return commandMap.equals(toCheck);
                         }
+                        // Fallthrough from break cases ($options, $jsonSchema, $geoWithin)
+                        return true;
                     } else {
                         if (keyQuery.contains(".")) {
                             String[] path = keyQuery.split("\\.");
@@ -1230,10 +1257,6 @@ public class QueryHelper {
                         }
                         return toCheck.get(keyQuery) != null && toCheck.get(keyQuery).equals(query.get(keyQuery));
                     }
-            }
-        }
-
-        return ret;
     }
 
     private static boolean matchesJsonSchema(Map<String, Object> schema, Map<String, Object> document) {
