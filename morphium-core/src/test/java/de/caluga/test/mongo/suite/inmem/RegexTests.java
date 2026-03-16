@@ -8,6 +8,9 @@ import org.junit.jupiter.api.Tag;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 @Tag("inmemory")
 public class RegexTests extends MorphiumInMemTestBase {
 
@@ -15,11 +18,11 @@ public class RegexTests extends MorphiumInMemTestBase {
     public void simpleRegexTests() throws Exception {
         createTestData();
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.f(UncachedObject.Fields.strValue).matches("VALUE.*").countAll() == 50);
+        assertEquals(50, q.f(UncachedObject.Fields.strValue).matches("VALUE.*").countAll());
         List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches("9$").asList();
-        assert (lst.size() > 1);
+        assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
-            assert (o.getStrValue().endsWith("9"));
+            assertTrue(o.getStrValue().endsWith("9"));
         }
 
     }
@@ -28,11 +31,11 @@ public class RegexTests extends MorphiumInMemTestBase {
     public void patternRegexTest() throws Exception {
         createTestData();
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("VALUE.*")).countAll() == 50);
+        assertEquals(50, q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("VALUE.*")).countAll());
         List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches(Pattern.compile("9$")).asList();
-        assert (lst.size() > 1);
+        assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
-            assert (o.getStrValue().endsWith("9"));
+            assertTrue(o.getStrValue().endsWith("9"));
         }
 
     }
@@ -41,11 +44,11 @@ public class RegexTests extends MorphiumInMemTestBase {
     public void regexOptionTest() throws Exception {
         createTestData();
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.f(UncachedObject.Fields.strValue).matches("value 9$", "i").countAll() == 1);
+        assertEquals(1, q.f(UncachedObject.Fields.strValue).matches("value 9$", "i").countAll());
         List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches("value .*9$", "i").asList();
-        assert (lst.size() > 1);
+        assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
-            assert (o.getStrValue().endsWith("9"));
+            assertTrue(o.getStrValue().endsWith("9"));
         }
 
     }
@@ -54,11 +57,11 @@ public class RegexTests extends MorphiumInMemTestBase {
     public void patternOptionTest() throws Exception {
         createTestData();
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("value 9$", Pattern.CASE_INSENSITIVE)).countAll() == 1);
+        assertEquals(1, q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("value 9$", Pattern.CASE_INSENSITIVE)).countAll());
         List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches(Pattern.compile("value .*9$", Pattern.CASE_INSENSITIVE)).asList();
-        assert (lst.size() > 1);
+        assertTrue(lst.size() > 1);
         for (UncachedObject o : lst) {
-            assert (o.getStrValue().endsWith("9"));
+            assertTrue(o.getStrValue().endsWith("9"));
         }
 
     }
@@ -67,9 +70,9 @@ public class RegexTests extends MorphiumInMemTestBase {
     public void startEndTest() throws Exception {
         createTestData();
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("^value [12]3$", Pattern.CASE_INSENSITIVE)).countAll() == 2);
+        assertEquals(2, q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("^value [12]3$", Pattern.CASE_INSENSITIVE)).countAll());
         q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.f(UncachedObject.Fields.strValue).matches("^value [12]3$", "i").countAll() == 2);
+        assertEquals(2, q.f(UncachedObject.Fields.strValue).matches("^value [12]3$", "i").countAll());
     }
 
 

@@ -39,9 +39,9 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     @Override
-    public Query<T> not() {
+    public MongoField<T> not() {
         not = true;
-        return query;
+        return this;
     }
 
     public MongoFieldImpl(Query<T> q, MorphiumObjectMapper map) {
@@ -177,13 +177,18 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     private void addSimple(Object val) {
+        fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
         if (not) {
-            fe.setValue(UtilsMap.of("$not", val));
+            // not().eq(val) -> {field: {$ne: val}}
+            FilterExpression child = new FilterExpression();
+            child.setField("$ne");
+            child.setValue(val);
+            fe.addChild(child);
         } else {
             fe.setValue(val);
         }
-        fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
         query.addChild(fe);
+        not = false;
     }
 
 
@@ -203,6 +208,29 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         }
 
         query.addChild(fe);
+        not = false;
+    }
+
+    private void addNotExpression(Map<String, Object> operators) {
+        fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
+        FilterExpression notChild = new FilterExpression();
+        notChild.setField("$not");
+        notChild.setValue(operators);
+        fe.addChild(notChild);
+        query.addChild(fe);
+        not = false;
+    }
+
+    private String buildPatternOptions(Pattern p) {
+        if (p.flags() == 0) return "";
+        String options = "";
+        if ((p.flags() & Pattern.CASE_INSENSITIVE) != 0) {
+            options += "i";
+        }
+        if ((p.flags() & Pattern.MULTILINE) != 0) {
+            options += "m";
+        }
+        return options;
     }
 
     private void add(List<FilterExpression> expressionList) {
@@ -273,37 +301,40 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
-    @SuppressWarnings("CommentedOutCode")
     @Override
     public Query<T> matches(Pattern p) {
-        //addSimple(p);
-//            fe.setValue(p);
-//
-//        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
-//        query.addChild(fe);
-        add("$regex", p.toString());
-        if (p.flags() != 0) {
-            String options = "";
-            if ((p.flags() | Pattern.CASE_INSENSITIVE) != 0) {
-                options = options + "i";
-            } else if ((p.flags() | Pattern.MULTILINE) != 0) {
-                options = options + "m";
-            }
+        String options = buildPatternOptions(p);
+        if (not) {
+            Map<String, Object> ops = new LinkedHashMap<>();
+            ops.put("$regex", p.toString());
             if (!options.isEmpty()) {
-                add("$options", options);
+                ops.put("$options", options);
             }
+            addNotExpression(ops);
+            return query;
+        }
+        add("$regex", p.toString());
+        if (!options.isEmpty()) {
+            add("$options", options);
         }
         return query;
     }
 
     @Override
     public Query<T> matches(String ptrn, String options) {
+        if (not) {
+            Map<String, Object> ops = new LinkedHashMap<>();
+            ops.put("$regex", ptrn);
+            if (options != null && !options.isEmpty()) {
+                ops.put("$options", options);
+            }
+            addNotExpression(ops);
+            return query;
+        }
         add("$regex", ptrn);
-
         if (options != null && !options.isEmpty()) {
             add("$options", options);
         }
-
         return query;
     }
 
