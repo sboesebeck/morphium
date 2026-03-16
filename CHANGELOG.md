@@ -42,6 +42,16 @@ The project is now a multi-module build:
 
 Dependency coordinates for the core library are unchanged: `de.caluga:morphium:6.2.0`
 
+#### `MongoField.not()` return type changed from `Query<T>` to `MongoField<T>`
+The `not()` method now returns `MongoField<T>` instead of `Query<T>`, enabling fluent chaining:
+
+```java
+// now compiles and works correctly
+query.f("field").not().eq("val");
+```
+
+**Migration:** Any code that captured the return value of `not()` as a `Query<T>` must be updated to `MongoField<T>`. In practice `not()` was always intended to be chained with an operator (`.eq()`, `.gt()`, etc.), so no valid use of the old return type exists.
+
 #### MorphiumDriverException is now unchecked (extends RuntimeException)
 Aligns with MongoDB Java driver (`MongoException`), JPA, jOOQ, and Spring Data conventions.
 

@@ -14,7 +14,6 @@ import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.LinkedHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -189,6 +188,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
             fe.setValue(val);
         }
         query.addChild(fe);
+        not = false;
     }
 
 
@@ -208,6 +208,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         }
 
         query.addChild(fe);
+        not = false;
     }
 
     private void addNotExpression(Map<String, Object> operators) {
@@ -217,6 +218,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         notChild.setValue(operators);
         fe.addChild(notChild);
         query.addChild(fe);
+        not = false;
     }
 
     private String buildPatternOptions(Pattern p) {
