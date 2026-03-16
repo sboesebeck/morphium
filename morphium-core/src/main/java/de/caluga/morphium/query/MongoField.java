@@ -94,7 +94,7 @@ public interface MongoField<T> {
 
     void setMapper(MorphiumObjectMapper mapper);
 
-    Query<T> not();
+    MongoField<T> not();
 
     String getFieldString();
 

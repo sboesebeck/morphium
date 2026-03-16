@@ -26,7 +26,7 @@ public class RawQueryTests extends MorphiumInMemTestBase {
 
         Map<String, Object> rawQuery = UtilsMap.of("str_value", "no value");
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).rawQuery(rawQuery).asList();
-        assert (lst.size() == 1);
+        assertEquals(1, lst.size());
     }
 
     @Test
