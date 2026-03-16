@@ -382,10 +382,104 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     public void geoNearTests() throws Exception {
         GeoSearchTests.Place p = new GeoSearchTests.Place();
         p.setPosition(Arrays.asList(-73.9667,40.78));
-        var ret=QueryHelper.matchesQuery(Doc.of("position",Doc.of("$near",Doc.of("$geometry",Doc.of("type","Point","coordinates",Arrays.asList(-73.9966,40.77)))),
-          "$minDistance",1000,"$maxDistance",2000),
+        var ret=QueryHelper.matchesQuery(Doc.of("position",Doc.of("$near",Doc.of(
+          "$geometry",Doc.of("type","Point","coordinates",Arrays.asList(-73.9966,40.77)),
+          "$minDistance",1.0,"$maxDistance",5.0))),
           morphium.getMapper().serialize(p), null);
         assertTrue(ret);
+    }
+
+    @Test
+    public void multiFieldMatchAndsAllConditions() {
+        // Regression test: multi-field $match must AND all conditions.
+        // Previously, matchesQuery returned true after the first field matched,
+        // ignoring remaining fields.
+        Map<String, Object> doc = Doc.of("count", 5, "total", 1500.0);
+        Map<String, Object> query = Doc.of(
+                "count", Doc.of("$gt", 2),
+                "total", Doc.of("$gte", 2000.0));
+        // count=5 > 2 (pass), but total=1500 < 2000 (fail) → overall: false
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void multiFieldMatchAllPass() {
+        Map<String, Object> doc = Doc.of("count", 5, "total", 2100.0);
+        Map<String, Object> query = Doc.of(
+                "count", Doc.of("$gt", 2),
+                "total", Doc.of("$gte", 2000.0));
+        // count=5 > 2 (pass), total=2100 >= 2000 (pass) → overall: true
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void multiFieldMatchFirstFails() {
+        Map<String, Object> doc = Doc.of("count", 1, "total", 3000.0);
+        Map<String, Object> query = Doc.of(
+                "count", Doc.of("$gt", 2),
+                "total", Doc.of("$gte", 2000.0));
+        // count=1 <= 2 (fail) → short-circuit false
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void multiFieldMatchWithEqAndGt() {
+        Map<String, Object> doc = Doc.of("status", "OPEN", "amount", 500);
+        // {status: "OPEN", amount: {$gt: 100}} — mixed equality + operator
+        Map<String, Object> query = Doc.of(
+                "status", "OPEN",
+                "amount", Doc.of("$gt", 100));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        Map<String, Object> doc2 = Doc.of("status", "CLOSED", "amount", 500);
+        assertFalse(QueryHelper.matchesQuery(query, doc2, null));
+    }
+
+    @Test
+    public void mapFieldPlusOperatorBothPass() {
+        Map<String, Object> doc = Doc.of(
+                "metadata", Doc.of("type", "invoice", "region", "EU"),
+                "amount", 250);
+        Map<String, Object> query = Doc.of(
+                "metadata", Doc.of("type", "invoice"),
+                "amount", Doc.of("$gt", 100));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void mapFieldPassesButOperatorFails() {
+        // Regression: map match must not short-circuit; amount 50 is NOT > 100
+        Map<String, Object> doc = Doc.of(
+                "metadata", Doc.of("type", "invoice", "region", "EU"),
+                "amount", 50);
+        Map<String, Object> query = Doc.of(
+                "metadata", Doc.of("type", "invoice"),
+                "amount", Doc.of("$gt", 100));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null),
+                "Map match must not short-circuit; amount 50 is NOT > 100");
+    }
+
+    @Test
+    public void mapFieldFailsOperatorPasses() {
+        Map<String, Object> doc = Doc.of(
+                "metadata", Doc.of("type", "receipt"),
+                "amount", 250);
+        Map<String, Object> query = Doc.of(
+                "metadata", Doc.of("type", "invoice"),
+                "amount", Doc.of("$gt", 100));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void arrayIndexPlusOperatorCondition() {
+        Map<String, Object> doc = Doc.of(
+                "items", List.of(Doc.of("name", "Widget")),
+                "status", "DRAFT");
+        Map<String, Object> query = Doc.of(
+                "items", Doc.of("0", Doc.of("name", "Widget")),
+                "status", "PUBLISHED");
+        assertFalse(QueryHelper.matchesQuery(query, doc, null),
+                "Array index match must not short-circuit; status mismatch");
     }
 
 }
