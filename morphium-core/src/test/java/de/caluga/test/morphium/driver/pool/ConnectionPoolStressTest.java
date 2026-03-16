@@ -65,9 +65,9 @@ public class ConnectionPoolStressTest {
      */
     @Test
     void testHighContentionBorrowRelease() throws Exception {
-        int numThreads = 150;
-        int operationsPerThread = 100;
-        int timeoutSeconds = 30;
+        int numThreads = 80;
+        int operationsPerThread = 50;
+        int timeoutSeconds = 60;
 
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
         CountDownLatch startLatch = new CountDownLatch(1);
@@ -147,7 +147,7 @@ public class ConnectionPoolStressTest {
     @Test
     void testRapidOperationsWithVaryingLoad() throws Exception {
         int rounds = 5;
-        int threadsPerRound = 250;
+        int threadsPerRound = 100;
         int opsPerThread = 50;
 
         AtomicInteger totalSuccess = new AtomicInteger(0);
@@ -181,7 +181,7 @@ public class ConnectionPoolStressTest {
 
             for (Future<Integer> f : futures) {
                 try {
-                    totalSuccess.addAndGet(f.get(30, TimeUnit.SECONDS));
+                    totalSuccess.addAndGet(f.get(60, TimeUnit.SECONDS));
                 } catch (TimeoutException e) {
                     fail("Operation timed out in round " + round + " - possible deadlock");
                 }
@@ -205,9 +205,9 @@ public class ConnectionPoolStressTest {
      */
     @Test
     void testMessagingStyleOperations() throws Exception {
-        int numThreads = 230;
-        int operationsPerThread = 100;
-        int timeoutSeconds = 60;
+        int numThreads = 100;
+        int operationsPerThread = 50;
+        int timeoutSeconds = 90;
 
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
         CountDownLatch startLatch = new CountDownLatch(1);

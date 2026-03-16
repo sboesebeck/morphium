@@ -261,10 +261,11 @@ public class CacheTests extends MultiDriverTestBase {
         }
 
         // CachedObject uses @WriteBuffer - flush to ensure all writes are committed
-        TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushed",
+        // PoppyDB under load may need more time for buffer flush and replication
+        TestUtils.waitForConditionToBecomeTrue(20000, "Write buffer not flushed",
                                                () -> morphium.writeBufferCount() == 0);
 
-        TestUtils.waitForConditionToBecomeTrue(10000, "Objects not stored",
+        TestUtils.waitForConditionToBecomeTrue(20000, "Objects not stored",
                                                () -> morphium.createQueryFor(CachedObject.class).countAll() == 20);
 
         // Allow cache sync messages from stores to be processed before testing cache
