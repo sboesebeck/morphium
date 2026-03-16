@@ -45,12 +45,12 @@ public class SingleMongoConnection implements MongoConnection {
     // private Thread readerThread = null;
     // private Map<Integer, OpMsg> incoming = new HashMap<>();
     // private Map<Integer, Long> incomingTimes = new ConcurrentHashMap<>();
-    private boolean running = true;
+    private volatile boolean running = true;
 
     private Map<MorphiumDriver.DriverStatsKey, AtomicDecimal> stats;
     private String connectedTo;
     private int connectedToPort;
-    private boolean connected = false;
+    private volatile boolean connected = false;
     private MorphiumDriver driver;
 
     private String authDb = null;
@@ -427,6 +427,8 @@ public class SingleMongoConnection implements MongoConnection {
                     log.debug("socket timeout - retry ({}/{})", consecutiveTimeouts, maxConsecutiveTimeouts);
                     continue;
                 } else if (running) {
+                    log.warn("Connection error on {} (port {}), closing connection: {}",
+                            connectedTo, getSourcePort(), e.getMessage());
                     close();
                     throw new MorphiumDriverException("" + e.getMessage(), e);
                 }

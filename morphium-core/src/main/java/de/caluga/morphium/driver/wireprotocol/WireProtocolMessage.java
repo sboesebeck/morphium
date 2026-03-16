@@ -33,12 +33,15 @@ public abstract class WireProtocolMessage {
                 return null;
             }
 
-            //            log.info("NumRead: {}",numRead);
             while (numRead < 16) {
-                numRead += in.read(inBuffer, numRead, 16 - numRead);
+                int r = in.read(inBuffer, numRead, 16 - numRead);
+                if (r == -1) {
+                    log.warn("Connection closed while reading header (got {} of 16 bytes)", numRead);
+                    return null;
+                }
+                numRead += r;
             }
 
-            // log.info("Parsing... available: {}, read {}", in.available(), numRead);
             int size = WireProtocolMessage.readInt(inBuffer, 0);
             int offset = 4;
             int messageId = WireProtocolMessage.readInt(inBuffer, offset);
@@ -51,32 +54,48 @@ public abstract class WireProtocolMessage {
             OpCode c = OpCode.findByCode(opCode);
 
             if (c == null) {
-                throw new RuntimeException("Illegal opcode " + opCode);
+                log.error("Illegal opcode {} — header: size={}, messageId={}, responseTo={}. "
+                        + "Stream is likely corrupted (server closed connection or out-of-sync read).",
+                        opCode, size, messageId, responseTo);
+                throw new RuntimeException("Illegal opcode " + opCode
+                        + " (size=" + size + ", msgId=" + messageId + ", responseTo=" + responseTo + ")");
             }
 
             message = c.handler.getDeclaredConstructor().newInstance();
             message.setMessageId(messageId);
             message.setSize(size);
             message.setResponseTo(responseTo);
+
+            if (size - 16 <= 0) {
+                log.warn("Invalid message size {} (expected > 16), stream likely corrupted", size);
+                throw new MorphiumDriverNetworkException("Invalid message size: " + size, null);
+            }
+
             byte buf[] = new byte[size - 16];
             numRead = in.read(buf, 0, size - 16);
 
+            if (numRead == -1) {
+                log.warn("Connection closed while reading message body (expected {} bytes)", size - 16);
+                return null;
+            }
+
             while (numRead < size - 16) {
-                numRead += in.read(buf, numRead, size - 16 - numRead);
+                int r = in.read(buf, numRead, size - 16 - numRead);
+                if (r == -1) {
+                    log.warn("Connection closed while reading message body (got {} of {} bytes)",
+                            numRead, size - 16);
+                    return null;
+                }
+                numRead += r;
             }
 
             try {
-                //LoggerFactory.getLogger(WireProtocolMessage.class).info("Parsing incoming data: \n"+ Utils.getHex(buf));
                 message.parsePayload(buf, 0);
                 return message;
             } catch (Exception e) {
-                //log.error("Could not read");
                 throw new MorphiumDriverNetworkException("could not read from socket", e);
             }
 
-            // } catch (java.net.SocketException se) {
-            //     //probably closed - ignore
-            //     return null;
         } catch (java.net.SocketTimeoutException ste) {
             // Propagate timeout exceptions for connection management
             throw ste;
