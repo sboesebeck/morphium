@@ -44,8 +44,10 @@ public final class DnsSrvResolver {
         if (servers.isEmpty()) {
             throw new Exception("No DNS name-servers found on this host");
         }
+        log.info("Resolving SRV '{}' using {} DNS server(s)", srvName, servers.size());
         Exception lastEx = null;
         for (InetAddress dns : servers) {
+            log.debug("Querying DNS server {} for SRV '{}'", dns.getHostAddress(), srvName);
             try {
                 List<String[]> records = srvQuery(dns, srvName);
                 if (!records.isEmpty()) {
@@ -53,12 +55,16 @@ public final class DnsSrvResolver {
                     for (String[] hp : records) {
                         result.add(hp[0] + ":" + hp[1]);
                     }
+                    log.info("DNS server {} returned {} SRV record(s) for '{}'", dns.getHostAddress(), result.size(), srvName);
+                    for (String hostPort : result) {
+                        log.info("  SRV record: {}", hostPort);
+                    }
                     return result;
                 }
-                log.debug("DNS server {} returned no SRV records for '{}'", dns, srvName);
+                log.warn("DNS server {} returned no SRV records for '{}'", dns.getHostAddress(), srvName);
             } catch (Exception ex) {
                 lastEx = ex;
-                log.debug("DNS server {} failed for '{}': {}", dns, srvName, ex.getMessage());
+                log.warn("DNS server {} failed for '{}': {}", dns.getHostAddress(), srvName, ex.getMessage());
             }
         }
         if (lastEx != null) throw lastEx;
@@ -97,6 +103,11 @@ public final class DnsSrvResolver {
         try { servers.add(InetAddress.getByName("8.8.8.8")); } catch (Exception ignored) {}
         try { servers.add(InetAddress.getByName("1.1.1.1")); } catch (Exception ignored) {}
 
+        if (log.isDebugEnabled()) {
+            List<String> addrs = new ArrayList<>(servers.size());
+            for (InetAddress s : servers) addrs.add(s.getHostAddress());
+            log.debug("System DNS servers: {}", addrs);
+        }
         return servers;
     }
 
@@ -106,8 +117,11 @@ public final class DnsSrvResolver {
         byte[] response = dnsOverUdp(dns, query);
         // TC bit (byte 2, bit 1) set → response was truncated, retry over TCP
         if ((response[2] & 0x02) != 0) {
-            log.debug("DNS UDP response truncated, retrying over TCP");
+            log.info("DNS UDP response truncated ({} bytes), retrying over TCP for '{}'", response.length, srvName);
             response = dnsOverTcp(dns, query);
+        }
+        if (log.isTraceEnabled()) {
+            log.trace("DNS raw response ({} bytes): {}", response.length, bytesToHex(response));
         }
         return parseSrvRecords(response);
     }
@@ -187,6 +201,7 @@ public final class DnsSrvResolver {
 
         int qdCount = dnsShort(data, 4);
         int anCount = dnsShort(data, 6);
+        log.debug("DNS response: {} bytes, RCODE={}, questions={}, answers={}", data.length, rcode, qdCount, anCount);
         int offset  = 12;
 
         // Skip question section
@@ -201,13 +216,21 @@ public final class DnsSrvResolver {
             int rdLength = dnsShort(data, offset + 8); // TYPE(2)+CLASS(2)+TTL(4) = 8
             offset += 10;                              // past TYPE+CLASS+TTL+RDLENGTH
 
-            if (offset + rdLength > data.length) break; // malformed
+            if (offset + rdLength > data.length) {
+                log.warn("DNS response: malformed record at offset {}, rdLength={} exceeds data length {}", offset, rdLength, data.length);
+                break;
+            }
 
             if (type == 33 /* SRV */ && rdLength >= 7) {
+                int    priority = dnsShort(data, offset);
+                int    weight   = dnsShort(data, offset + 2);
                 int    port     = dnsShort(data, offset + 4);
                 int[]  nameOff  = {offset + 6};
                 String target   = dnsDecodeName(data, nameOff);
+                log.debug("  SRV answer[{}]: priority={}, weight={}, port={}, target='{}'", i, priority, weight, port, target);
                 results.add(new String[]{target, String.valueOf(port)});
+            } else {
+                log.debug("  DNS answer[{}]: type={}, rdLength={} (skipped, not SRV)", i, type, rdLength);
             }
             offset += rdLength;
         }
@@ -257,6 +280,15 @@ public final class DnsSrvResolver {
             if (sb.length() > 0) sb.append('.');
             sb.append(new String(data, off + 1, len, StandardCharsets.US_ASCII));
             off += 1 + len;
+        }
+        return sb.toString();
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 3);
+        for (int i = 0; i < bytes.length; i++) {
+            if (i > 0) sb.append(' ');
+            sb.append(String.format("%02x", bytes[i] & 0xFF));
         }
         return sb.toString();
     }
