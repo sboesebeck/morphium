@@ -537,6 +537,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         var cmd = new CommitTransactionCommand(connection).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false).setLsid(ctx.getLsid());
         cmd.execute();
         clearTransactionContext();
+        markTransactionCommitted();
     }
 
     @Override

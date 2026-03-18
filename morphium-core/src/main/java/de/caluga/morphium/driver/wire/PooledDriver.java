@@ -1093,6 +1093,13 @@ public class PooledDriver extends DriverBase {
                 type = ReadPreferenceType.PRIMARY;
             }
 
+            // Force PRIMARY reads shortly after a transaction commit to ensure
+            // read-your-writes consistency. On replica sets, secondaries may not
+            // have replicated the committed data yet.
+            if (type != ReadPreferenceType.PRIMARY && isInReadAfterWriteWindow()) {
+                type = ReadPreferenceType.PRIMARY;
+            }
+
             // Force PRIMARY reads for InMemory backend (PoppyDB) to ensure read-your-writes consistency
             // InMemory backend replication is eventually consistent, so NEAREST/SECONDARY reads may return stale data
             if (inMemoryBackend && type != ReadPreferenceType.PRIMARY) {
@@ -1616,6 +1623,7 @@ public class PooledDriver extends DriverBase {
             cmd.execute();
         } finally {
             clearTransactionContext();
+            markTransactionCommitted();
             releaseConnection(con);
         }
     }

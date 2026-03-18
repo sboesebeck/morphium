@@ -62,6 +62,21 @@ public abstract class DriverBase implements MorphiumDriver {
 
     private ThreadLocal<MorphiumTransactionContext> transactionContext = new ThreadLocal<>();
 
+    /**
+     * Tracks when the last transaction commit occurred on the current thread.
+     * Used by {@code getReadConnection()} to enforce PRIMARY reads for a brief
+     * window after a commit, ensuring read-your-writes consistency on replica sets.
+     */
+    private final ThreadLocal<Long> lastCommitTimestampMs = ThreadLocal.withInitial(() -> 0L);
+
+    /**
+     * Duration (in milliseconds) after a transaction commit during which reads
+     * are forced to the PRIMARY node. This avoids stale reads from secondaries
+     * that have not yet replicated the committed data.
+     * <p>Default: 5 000 ms (5 seconds).</p>
+     */
+    private long readAfterWriteWindowMs = 5000;
+
     private String authDb = null;
     private String user;
     private String password;
@@ -630,6 +645,31 @@ public abstract class DriverBase implements MorphiumDriver {
 
     protected void clearTransactionContext() {
         transactionContext.remove();
+    }
+
+    /**
+     * Records the current time as the moment of the last transaction commit
+     * on this thread. Called by driver implementations after a successful commit.
+     */
+    protected void markTransactionCommitted() {
+        lastCommitTimestampMs.set(System.currentTimeMillis());
+    }
+
+    /**
+     * Returns {@code true} if a transaction was committed on this thread
+     * within the {@link #readAfterWriteWindowMs} window.
+     */
+    public boolean isInReadAfterWriteWindow() {
+        long elapsed = System.currentTimeMillis() - lastCommitTimestampMs.get();
+        return elapsed >= 0 && elapsed < readAfterWriteWindowMs;
+    }
+
+    public long getReadAfterWriteWindowMs() {
+        return readAfterWriteWindowMs;
+    }
+
+    public void setReadAfterWriteWindowMs(long readAfterWriteWindowMs) {
+        this.readAfterWriteWindowMs = readAfterWriteWindowMs;
     }
 
     public abstract void watch(WatchCommand settings) throws MorphiumDriverException;
