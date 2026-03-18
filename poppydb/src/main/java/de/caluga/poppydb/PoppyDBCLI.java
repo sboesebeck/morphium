@@ -42,7 +42,7 @@ public class PoppyDBCLI {
 
         // Connection management configuration
         int maxConnections = 500;
-        int socketTimeoutSec = 60;
+        int socketTimeoutSec = 300;
 
         while (idx < args.length) {
             switch (args[idx]) {
@@ -281,7 +281,7 @@ public class PoppyDBCLI {
         System.out.println();
         System.out.println("Connection Management Options:");
         System.out.println("  --max-connections <num>    : Maximum concurrent connections (default: 500)");
-        System.out.println("  --socket-timeout <seconds> : Idle connection timeout in seconds (default: 60)");
+        System.out.println("  --socket-timeout <seconds> : Idle connection timeout in seconds (default: 300)");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();

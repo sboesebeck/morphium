@@ -111,7 +111,7 @@ public class PoppyDB {
     }
 
     public PoppyDB() {
-        this(17017, "localhost", 10000, 60, OpCompressed.COMPRESSOR_NOOP);
+        this(17017, "localhost", 10000, 300, OpCompressed.COMPRESSOR_NOOP);
     }
 
     /**

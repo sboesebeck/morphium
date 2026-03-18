@@ -853,8 +853,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         res.setConnectionId(1);
         res.setMaxWireVersion(17);
         res.setMinWireVersion(13);
-        res.setMaxMessageSizeBytes(100000);
-        res.setMaxBsonObjectSize(10000);
+        res.setMaxMessageSizeBytes(48 * 1024 * 1024); // 48MB, same as MongoDB
+        res.setMaxBsonObjectSize(16 * 1024 * 1024);  // 16MB, same as MongoDB
         res.setWritablePrimary(isPrimary);
         res.setSecondary(!isPrimary);
         res.setSetName(rsName);
