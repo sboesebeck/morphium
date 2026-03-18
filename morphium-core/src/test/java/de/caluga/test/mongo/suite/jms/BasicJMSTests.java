@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import java.util.concurrent.TimeUnit;
 
 @Tag("jms")
 @Tag("slow")  // May be flaky under high parallel load - uses messaging with multiple contexts
@@ -51,7 +52,7 @@ public class BasicJMSTests extends MultiDriverTestBase {
 
             }
         });
-        Thread.sleep(2000);  // Give more time for messaging to stabilize under parallel load
+        assertTrue(((Context) ctx2).getMessaging().waitForReady(30, TimeUnit.SECONDS), "consumer messaging not ready");
         pr1.send(dest, "A test");
         JMSTextMessage m = new JMSTextMessage();
         m.setText("test");
@@ -108,6 +109,7 @@ public class BasicJMSTests extends MultiDriverTestBase {
             log.info("Got incoming message");
             exchange.put("received", true);
         });
+        assertTrue(((Context) ctx2).getMessaging().waitForReady(30, TimeUnit.SECONDS), "consumer messaging not ready");
         receiverThread.start();
         senderThread.start();
         Thread.sleep(5000);
@@ -127,8 +129,10 @@ public class BasicJMSTests extends MultiDriverTestBase {
         MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSTopic("jmstopic_test"));
         m.start();
+        assertTrue(m.waitForReady(30, TimeUnit.SECONDS), "consumer messaging not ready");
         MorphiumMessaging m2 = morphium.createMessaging();
         Producer producer = new Producer(m2);
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "producer messaging not ready");
 
         producer.send(new JMSTopic("jmstopic_test"), "This is the body");
         Message msg = consumer.receive();
@@ -151,8 +155,10 @@ public class BasicJMSTests extends MultiDriverTestBase {
         MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSQueue());
         m.start();
+        assertTrue(m.waitForReady(30, TimeUnit.SECONDS), "consumer1 messaging not ready");
         MorphiumMessaging m2 = morphium.createMessaging();
         Producer producer = new Producer(m2);
+        assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "producer messaging not ready");
 
         MorphiumMessaging m3 = morphium.createMessaging();
         Consumer consumer2 = new Consumer(m3, new JMSQueue());

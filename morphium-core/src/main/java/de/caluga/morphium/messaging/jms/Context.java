@@ -69,6 +69,13 @@ public class Context implements javax.jms.JMSContext {
         messaging.start();
     }
 
+    /**
+     * Access the underlying messaging instance, e.g. for calling waitForReady().
+     */
+    public MorphiumMessaging getMessaging() {
+        return messaging;
+    }
+
     @Override
     public void stop() {
         messaging.terminate();

@@ -162,6 +162,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                                 return answer;
                             }
                         });
+                        // Give the messaging system time to start the change stream watch for the new topic
+                        Thread.sleep(500);
                         Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 10000);
                         assertNotNull(answer);
                         assertEquals("answer", answer.getTopic());
@@ -210,6 +212,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                         counts.put(msgId, 1);
                         return null;
                     });
+                    // Give the messaging system time to start change stream watches for the new topics
+                    Thread.sleep(500);
                     Msg msg = new Msg("testAnswering", "query", "value");
                     msg.setMsgId(msgId);
                     producer.sendMessage(msg);

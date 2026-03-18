@@ -108,7 +108,45 @@ Full optimistic locking via `@Version` on `Long` fields. On insert, version is i
 - **Configurable `LocalDateTimeMapper`** storage format (Date vs. ISO-8601 string)
 - **`SequenceGenerator.getNextBatch(int)`** for bulk sequence allocation in a single round-trip
 
+### Changed
+
+#### Lazy-loading proxies: spring-cglib → ByteBuddy
+Replaced `org.springframework:spring-core` (cglib) with `net.bytebuddy:byte-buddy` for lazy-loading proxy generation. ByteBuddy is actively maintained, has native Java 21 support, and requires no `--add-opens` JVM flags. Proxy classes are cached per entity type via `ConcurrentHashMap` to avoid Metaspace leaks. The new `MorphiumProxyMarker` interface replaces the fragile `$$EnhancerByCGLIB$$` string check for proxy detection.
+
+#### DNS SRV resolver logging
+`DnsSrvResolver` now logs SRV resolution at INFO (start/result), DEBUG (per-server queries), WARN (failures), and TRACE (raw hex dump) for diagnosing Atlas connectivity in containers.
+
 ### Fixed
+
+#### PoppyDB: wrong BSON limits caused write failures
+`maxBsonObjectSize` was reported as 10KB (should be 16MB) and `maxMessageSizeBytes` as 100KB (should be 48MB) in PoppyDB's hello response. The MongoDB driver uses these values to validate documents — the tiny limits caused BSON assertion errors and silent write failures under normal load.
+
+#### PoppyDB: idle timeout killed change stream connections
+Default idle connection timeout was 60 seconds. Change stream connections are idle by design between `getMore` polls — the short timeout killed them mid-wait, causing "Broken pipe" cascades. Increased to 300 seconds.
+
+#### PoppyDB: stale primary status after elections
+The `primary` boolean was a snapshot from connection init and became stale after replica set elections. Write-concern handling now uses the dynamic `isCurrentPrimary()` check via `ElectionManager`.
+
+#### PoppyDB: aggressive connection close on parse errors
+The wire protocol decoder closed the entire connection on unknown opcodes or payload parse errors. Now skips the malformed message (bytes are consumed so the stream stays in sync) and only closes on irrecoverable stream corruption or I/O errors. Prevents cascade failures where one bad message kills the connection.
+
+#### Wire protocol: EOF handling and stream corruption
+`WireProtocolMessage.parseFromStream()` could enter an infinite loop when `InputStream.read()` returned -1 (EOF) during header or body reads. Now returns null gracefully. Added message size validation and diagnostic logging (size, messageId, responseTo) on illegal opcodes.
+
+#### Thread visibility: volatile running flags
+`SingleMongoConnection`, `SingleCollectionMessaging`, `BufferedMorphiumWriterImpl`, `WatchingCacheSynchronizer`, and `CacheHousekeeper` used non-volatile `running` flags read by worker threads in while-loops. Without volatile, the JIT could cache the value and the worker thread would never see the stop signal. (`MultiCollectionMessaging` already used `AtomicBoolean`, `ChangeStreamMonitor` and `PooledDriver` already used volatile.)
+
+#### `@CreationTime` not set on primitive `long` fields
+`f.get(o)` on a primitive `long` field returns `Long(0)` (not null), so the "don't overwrite manually set" check always skipped setting the creation time. Now treats zero as "not set" for numeric types.
+
+#### `MongoField.not()` produced wrong BSON structure
+`not()` wrapped `$not` around the value instead of the operator, producing `{$regex: {$not: val}}` instead of the correct `{$not: {$regex: val}}`. Fixed operator grouping and `addSimple()` for `not().eq()`.
+
+#### `QueryHelper.matchesQuery` short-circuit on multi-field queries
+The for-loop over query keys returned on the first field match without checking remaining fields, breaking AND semantics. Also fixed the same short-circuit in the Map/array-index pre-loop.
+
+#### Auto-detect single-node replica sets
+When no RS name is configured but the server's hello response contains a `setName`, the driver now auto-upgrades to RS mode. Covers Docker/Testcontainers setups where the server runs as a single-node replica set.
 
 #### Index and capped collection checks
 - `setAutoIndexAndCappedCreationOnWrite()` now also sets `CappedCheck` (previously only `IndexCheck`)
@@ -154,6 +192,8 @@ All `Class.forName()` call sites now use a centralized helper preferring the thr
 | org.slf4j:slf4j-api | 2.0.0 | 2.0.17 |
 | ch.qos.logback:logback-core | 1.5.24 | 1.5.25 |
 | org.assertj:assertj-core | 3.23.1 | 3.27.7 |
+| org.springframework:spring-core | 5.3.39 | **removed** |
+| net.bytebuddy:byte-buddy | — | 1.15.11 |
 
 ## [6.1.8]
 

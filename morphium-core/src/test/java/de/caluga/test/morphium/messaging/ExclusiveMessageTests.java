@@ -642,7 +642,6 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                     r.setSenderId("r" + i);
                     r.setUseChangeStream(true);
                     recs.add(r);
-                    r.start();
 
                     r.addListenerForTopic("excl_name", (m, msg) -> {
                         counts.incrementAndGet();
@@ -667,6 +666,11 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         }
                         return null;
                     });
+                    r.start();
+                }
+                // Wait for all receivers to be ready before sending
+                for (MorphiumMessaging r : recs) {
+                    assertTrue(r.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
                 }
                 List<Map<String, Object>> pipeline = new ArrayList<>();
                 Map<String, Object> match = new LinkedHashMap<>();
