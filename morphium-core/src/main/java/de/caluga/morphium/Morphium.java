@@ -3090,6 +3090,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void commitTransaction() {
+        // Flush any buffered writes so they become part of the transaction
+        // before it is committed. Without this, entities annotated with
+        // @WriteBuffer could remain in the buffer and never be included
+        // in the transaction.
+        flush();
         getDriver().commitTransaction();
     }
 
