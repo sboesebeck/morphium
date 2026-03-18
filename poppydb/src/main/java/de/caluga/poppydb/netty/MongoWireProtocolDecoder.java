@@ -43,7 +43,8 @@ public class MongoWireProtocolDecoder extends ByteToMessageDecoder {
 
         // Validate message size
         if (messageSize < HEADER_SIZE || messageSize > MAX_MESSAGE_SIZE) {
-            log.error("Invalid message size: {}", messageSize);
+            log.error("Invalid message size: {} — closing connection (stream is corrupted)", messageSize);
+            // Stream is corrupted beyond recovery — we don't know where the next message starts
             ctx.close();
             return;
         }
@@ -61,18 +62,18 @@ public class MongoWireProtocolDecoder extends ByteToMessageDecoder {
         int responseTo = in.readIntLE();
         int opCode = in.readIntLE();
 
-        // Find the opcode handler
-        OpCode code = OpCode.findByCode(opCode);
-        if (code == null) {
-            log.error("Unknown opcode: {}", opCode);
-            ctx.close();
-            return;
-        }
-
-        // Read payload
+        // Read payload (always consume the bytes to keep the stream in sync)
         int payloadSize = messageSize - HEADER_SIZE;
         byte[] payload = new byte[payloadSize];
         in.readBytes(payload);
+
+        // Find the opcode handler
+        OpCode code = OpCode.findByCode(opCode);
+        if (code == null) {
+            log.error("Unknown opcode: {} (requestId={}, size={}) — skipping message", opCode, requestId, messageSize);
+            // Bytes already consumed above, stream stays in sync — don't close the connection
+            return;
+        }
 
         // Create message instance
         try {
@@ -85,14 +86,18 @@ public class MongoWireProtocolDecoder extends ByteToMessageDecoder {
             log.debug("Decoded {} message, id={}, size={}", code.name(), requestId, messageSize);
             out.add(message);
         } catch (Exception e) {
-            log.error("Failed to parse {} message: {}", code.name(), e.getMessage(), e);
-            ctx.close();
+            log.error("Failed to parse {} message (requestId={}, size={}): {} — skipping",
+                    code.name(), requestId, messageSize, e.getMessage());
+            // Bytes already consumed, stream stays in sync — don't close the connection
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Decoder error: {}", cause.getMessage());
-        ctx.close();
+        log.error("Decoder error on {}: {}", ctx.channel().remoteAddress(), cause.getMessage());
+        // Only close on fatal I/O errors, not on parse errors
+        if (cause instanceof java.io.IOException) {
+            ctx.close();
+        }
     }
 }

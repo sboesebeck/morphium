@@ -481,7 +481,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
 
             // Handle write concern for write commands on primary - ASYNC to not block Netty I/O
-            if (isWriteCommand && primary && replicationCoordinator != null) {
+            if (isWriteCommand && isCurrentPrimary() && replicationCoordinator != null) {
                 long writeSeq = driver.getChangeStreamSequence();
                 int w = getWriteConcernW(doc);
                 long wtimeout = getWriteConcernTimeout(doc);
