@@ -430,7 +430,15 @@ public class SingleMongoConnection implements MongoConnection {
                     log.warn("Connection error on {} (port {}), closing connection: {}",
                             connectedTo, getSourcePort(), e.getMessage());
                     close();
-                    throw new MorphiumDriverException("" + e.getMessage(), e);
+                    // Preserve MorphiumDriverNetworkException so NetworkCallHelper can retry
+                    if (e instanceof MorphiumDriverNetworkException) {
+                        throw (MorphiumDriverNetworkException) e;
+                    }
+                    // Check if the cause is a network exception (e.g. wrapped by RuntimeException)
+                    if (e.getCause() instanceof MorphiumDriverNetworkException) {
+                        throw (MorphiumDriverNetworkException) e.getCause();
+                    }
+                    throw new MorphiumDriverNetworkException("Connection error: " + e.getMessage(), e);
                 }
                 return null;
             }

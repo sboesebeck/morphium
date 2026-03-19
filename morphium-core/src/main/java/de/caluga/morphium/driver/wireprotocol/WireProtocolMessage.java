@@ -57,7 +57,7 @@ public abstract class WireProtocolMessage {
                 log.error("Illegal opcode {} — header: size={}, messageId={}, responseTo={}. "
                         + "Stream is likely corrupted (server closed connection or out-of-sync read).",
                         opCode, size, messageId, responseTo);
-                throw new RuntimeException("Illegal opcode " + opCode
+                throw new MorphiumDriverNetworkException("Illegal opcode " + opCode
                         + " (size=" + size + ", msgId=" + messageId + ", responseTo=" + responseTo + ")");
             }
 
@@ -99,8 +99,13 @@ public abstract class WireProtocolMessage {
         } catch (java.net.SocketTimeoutException ste) {
             // Propagate timeout exceptions for connection management
             throw ste;
+        } catch (java.net.SocketException se) {
+            throw se;
+        } catch (MorphiumDriverNetworkException ne) {
+            // Preserve the specific network exception type so callers can retry
+            throw ne;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new MorphiumDriverNetworkException("Error reading from stream", e);
         }
     }
 
