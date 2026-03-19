@@ -592,7 +592,18 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         if (reply.getFirstDoc().get("ok").equals(0.0)) {
-            throw new MorphiumDriverException((String) reply.getFirstDoc().get("errmsg"));
+            String errmsg = (String) reply.getFirstDoc().get("errmsg");
+            Object codeObj = reply.getFirstDoc().get("code");
+            int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
+
+            // Error 251 (NoSuchTransaction): close poisoned connection, throw retriable exception
+            if (code == 251) {
+                log.warn("Transient transaction error on connection (code 251) — closing connection: {}", errmsg);
+                close();
+                throw new MorphiumDriverNetworkException(errmsg);
+            }
+
+            throw new MorphiumDriverException(errmsg);
         }
 
         return reply.getFirstDoc();
@@ -831,7 +842,21 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         if (msg.getFirstDoc().containsKey("ok") && !msg.getFirstDoc().get("ok").equals(1.0)) {
-            throw new MorphiumDriverException("Error: " + msg.getFirstDoc().get("code") + " - " + msg.getFirstDoc().get("errmsg"));
+            Object codeObj = msg.getFirstDoc().get("code");
+            int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
+            String errmsg = "Error: " + codeObj + " - " + msg.getFirstDoc().get("errmsg");
+
+            // Error 251 (NoSuchTransaction): the server-side session on this connection
+            // has an aborted transaction (e.g. from a previous write conflict or timeout).
+            // Close the TCP connection to force server-side session cleanup, and throw a
+            // retriable network exception so callers can retry on a fresh connection.
+            if (code == 251) {
+                log.warn("Transient transaction error on connection (code 251) — closing connection: {}", errmsg);
+                close();
+                throw new MorphiumDriverNetworkException(errmsg);
+            }
+
+            throw new MorphiumDriverException(errmsg);
         }
     }
 
