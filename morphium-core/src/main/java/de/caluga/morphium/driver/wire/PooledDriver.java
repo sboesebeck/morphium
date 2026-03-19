@@ -1359,6 +1359,15 @@ public class PooledDriver extends DriverBase {
                 }
             }
 
+            // Don't return closed/broken connections to the pool — they would cause
+            // "Illegal opcode" errors for the next thread that borrows them.
+            if (!con.isConnected()) {
+                log.debug("Connection to {} already closed, not returning to pool", con.getConnectedTo());
+                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                markStatsDirty();
+                return;
+            }
+
             // Return connection to the pool it currently belongs to (may differ from borrowedFrom after failover)
             if (con.getConnectedTo() != null) {
                 Host h = hosts.get(con.getConnectedTo());
