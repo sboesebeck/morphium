@@ -6,7 +6,7 @@
 
     <groupId>io.quarkiverse.morphium</groupId>
     <artifactId>quarkus-morphium-showcase</artifactId>
-    <version>1.1.1</version>
+    <version>1.1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Quarkus Morphium Showcase</name>
@@ -45,7 +45,7 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.version>3.32.3</quarkus.platform.version>
-        <quarkus-morphium.version>1.1.1</quarkus-morphium.version>
+        <quarkus-morphium.version>1.1.2-SNAPSHOT</quarkus-morphium.version>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
         <lombok.version>1.18.42</lombok.version>
