@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
@@ -87,6 +88,18 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                     setConnection(drv.getPrimaryConnection(null));
                     // retrying
                     return execute();
+                } else if (e instanceof MorphiumDriverNetworkException && errMsg.contains("251")
+                    && attempts++ < maxAttempts) {
+                    // Error 251 (NoSuchTransaction): connection had a poisoned server-side session.
+                    // The connection was already closed by checkForError/readSingleAnswer.
+                    // Get a fresh connection and retry.
+                    log.warn("Transient transaction error (code 251) — retrying with new connection");
+                    try {
+                        drv.releaseConnection(getConnection());
+                    } catch (Exception ignore) {
+                    }
+                    setConnection(drv.getPrimaryConnection(null));
+                    continue;
                 } else if ((errMsg.contains("error: 215") || errMsg.contains("being dropped") || errMsg.contains("process of being dropped"))
                     && attempts++ < maxAttempts) {
                     // Transient on real MongoDB when DB/collection is being dropped concurrently.

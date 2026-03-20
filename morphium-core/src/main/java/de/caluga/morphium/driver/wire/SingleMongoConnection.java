@@ -430,7 +430,15 @@ public class SingleMongoConnection implements MongoConnection {
                     log.warn("Connection error on {} (port {}), closing connection: {}",
                             connectedTo, getSourcePort(), e.getMessage());
                     close();
-                    throw new MorphiumDriverException("" + e.getMessage(), e);
+                    // Preserve MorphiumDriverNetworkException so NetworkCallHelper can retry
+                    if (e instanceof MorphiumDriverNetworkException) {
+                        throw (MorphiumDriverNetworkException) e;
+                    }
+                    // Check if the cause is a network exception (e.g. wrapped by RuntimeException)
+                    if (e.getCause() instanceof MorphiumDriverNetworkException) {
+                        throw (MorphiumDriverNetworkException) e.getCause();
+                    }
+                    throw new MorphiumDriverNetworkException("Connection error: " + e.getMessage(), e);
                 }
                 return null;
             }
@@ -562,15 +570,18 @@ public class SingleMongoConnection implements MongoConnection {
             close();
             throw (e);
         } catch (Exception e) {
-            //                log.error("Error sending request", e);
             close();
-            //                try {
-            //                    Thread.sleep(1000);
-            //                } catch (InterruptedException ex) {
-            //                    //swallow
-            //                }
-            //                connect(driver, connectedTo, connectedToPort);
-            throw (new MorphiumDriverException("Error sending Request: ", e));
+            // Preserve MorphiumDriverNetworkException so NetworkCallHelper can retry
+            if (e instanceof MorphiumDriverNetworkException) {
+                throw (MorphiumDriverNetworkException) e;
+            }
+            if (e.getCause() instanceof MorphiumDriverNetworkException) {
+                throw (MorphiumDriverNetworkException) e.getCause();
+            }
+            if (e instanceof java.io.IOException) {
+                throw new MorphiumDriverNetworkException("Error sending Request: " + e.getMessage(), e);
+            }
+            throw new MorphiumDriverException("Error sending Request: ", e);
         }
     }
 
@@ -592,7 +603,22 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         if (reply.getFirstDoc().get("ok").equals(0.0)) {
-            throw new MorphiumDriverException((String) reply.getFirstDoc().get("errmsg"));
+            String errmsg = (String) reply.getFirstDoc().get("errmsg");
+            Object codeObj = reply.getFirstDoc().get("code");
+            int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
+            // Format consistently with checkForError(): "Error: <code> - <msg>"
+            // WriteMongoCommand detects transient errors via contains("251"),
+            // which only works with this format.
+            String formattedMsg = "Error: " + code + " - " + errmsg;
+
+            // Error 251 (NoSuchTransaction): close poisoned connection, throw retriable exception
+            if (code == 251) {
+                log.warn("Transient transaction error on connection (code 251) — closing connection: {}", errmsg);
+                close();
+                throw new MorphiumDriverNetworkException(formattedMsg);
+            }
+
+            throw new MorphiumDriverException(formattedMsg);
         }
 
         return reply.getFirstDoc();
@@ -831,7 +857,21 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         if (msg.getFirstDoc().containsKey("ok") && !msg.getFirstDoc().get("ok").equals(1.0)) {
-            throw new MorphiumDriverException("Error: " + msg.getFirstDoc().get("code") + " - " + msg.getFirstDoc().get("errmsg"));
+            Object codeObj = msg.getFirstDoc().get("code");
+            int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
+            String errmsg = "Error: " + codeObj + " - " + msg.getFirstDoc().get("errmsg");
+
+            // Error 251 (NoSuchTransaction): the server-side session on this connection
+            // has an aborted transaction (e.g. from a previous write conflict or timeout).
+            // Close the TCP connection to force server-side session cleanup, and throw a
+            // retriable network exception so callers can retry on a fresh connection.
+            if (code == 251) {
+                log.warn("Transient transaction error on connection (code 251) — closing connection: {}", errmsg);
+                close();
+                throw new MorphiumDriverNetworkException(errmsg);
+            }
+
+            throw new MorphiumDriverException(errmsg);
         }
     }
 

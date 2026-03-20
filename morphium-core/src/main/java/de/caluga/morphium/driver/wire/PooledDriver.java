@@ -638,45 +638,52 @@ public class PooledDriver extends DriverBase {
                                     long start = System.currentTimeMillis();
                                     HelloResult result;
 
-                                    if (container.getCon().isConnected()) {
-                                        result = container.getCon().getHelloResult(false);
+                                    if (!container.getCon().isConnected()) {
+                                        // Connection was closed — discard it and let createNewConnection
+                                        // (below) create a fresh one. Trying to reconnect a closed
+                                        // SingleMongoConnection causes "Socket is closed" errors because
+                                        // the old socket state leaks into the new connect() attempt.
+                                        try { container.getCon().close(); } catch (Exception ignored) {}
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                        markStatsDirty();
+                                        containerDisposed = true;
                                     } else {
-                                        result = container.getCon().connect(this, getHost(hst), getPortFromHost(hst));
-                                    }
+                                        result = container.getCon().getHelloResult(false);
 
-                                    long dur = System.currentTimeMillis() - start;
+                                        long dur = System.currentTimeMillis() - start;
 
-                                    PingStats newStats = host.getPingStats().updateWith(dur);
-                                    host.setPingStats(newStats);
-                                    host.resetFailures();
+                                        PingStats newStats = host.getPingStats().updateWith(dur);
+                                        host.setPingStats(newStats);
+                                        host.resetFailures();
 
-                                    // Use record patterns to update fastest host
-                                    updateFastestHost(hst, newStats);
-                                    // container.touch();
-                                    handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
+                                        // Use record patterns to update fastest host
+                                        updateFastestHost(hst, newStats);
+                                        // container.touch();
+                                        handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
 
-                                    if (hosts.containsKey(hst)
-                                            && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
-                                        // Use offer() with timeout to prevent lock convoy
-                                        try {
-                                            if (!host.getConnectionPool().offer(container, 100, TimeUnit.MILLISECONDS)) {
-                                                log.warn("Could not return connection to pool within timeout - closing");
+                                        if (hosts.containsKey(hst)
+                                                && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
+                                            // Use offer() with timeout to prevent lock convoy
+                                            try {
+                                                if (!host.getConnectionPool().offer(container, 100, TimeUnit.MILLISECONDS)) {
+                                                    log.warn("Could not return connection to pool within timeout - closing");
+                                                    try { container.getCon().close(); } catch (Exception ignored) {}
+                                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                                    markStatsDirty();
+                                                }
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
                                                 try { container.getCon().close(); } catch (Exception ignored) {}
                                                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                                 markStatsDirty();
                                             }
-                                        } catch (InterruptedException e) {
-                                            Thread.currentThread().interrupt();
-                                            try { container.getCon().close(); } catch (Exception ignored) {}
+                                        } else {
+                                            container.getCon().close();
                                             stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                             markStatsDirty();
                                         }
-                                    } else {
-                                        container.getCon().close();
-                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                        markStatsDirty();
+                                        containerDisposed = true;
                                     }
-                                    containerDisposed = true;
                                 } finally {
                                     host.decrementInternalInUseConnections();
                                     // If getHelloResult()/connect() threw an exception, the container
