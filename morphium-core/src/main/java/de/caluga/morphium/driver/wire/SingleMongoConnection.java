@@ -570,15 +570,18 @@ public class SingleMongoConnection implements MongoConnection {
             close();
             throw (e);
         } catch (Exception e) {
-            //                log.error("Error sending request", e);
             close();
-            //                try {
-            //                    Thread.sleep(1000);
-            //                } catch (InterruptedException ex) {
-            //                    //swallow
-            //                }
-            //                connect(driver, connectedTo, connectedToPort);
-            throw (new MorphiumDriverException("Error sending Request: ", e));
+            // Preserve MorphiumDriverNetworkException so NetworkCallHelper can retry
+            if (e instanceof MorphiumDriverNetworkException) {
+                throw (MorphiumDriverNetworkException) e;
+            }
+            if (e.getCause() instanceof MorphiumDriverNetworkException) {
+                throw (MorphiumDriverNetworkException) e.getCause();
+            }
+            if (e instanceof java.io.IOException) {
+                throw new MorphiumDriverNetworkException("Error sending Request: " + e.getMessage(), e);
+            }
+            throw new MorphiumDriverException("Error sending Request: ", e);
         }
     }
 
