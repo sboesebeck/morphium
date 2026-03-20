@@ -88,7 +88,8 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                     setConnection(drv.getPrimaryConnection(null));
                     // retrying
                     return execute();
-                } else if (e instanceof MorphiumDriverNetworkException && errMsg.contains("251")
+                } else if (e instanceof MorphiumDriverNetworkException
+                    && e.getMongoCode() instanceof Number mc && mc.intValue() == 251
                     && attempts++ < maxAttempts) {
                     // Error 251 (NoSuchTransaction): connection had a poisoned server-side session.
                     // The connection was already closed by checkForError/readSingleAnswer.
