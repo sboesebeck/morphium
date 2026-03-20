@@ -379,11 +379,16 @@ public class PooledDriver extends DriverBase {
         // Single-node replica sets (common in dev/test with Docker) have only one seed host
         // and no configured RS name, so connect() sets replicaSet=false. The hello response
         // from the server contains the actual setName — use it to upgrade to RS mode.
+        // Double-checked locking: handleHelloResult is called concurrently by heartbeat threads.
         if (!isReplicaSet() && hello.getSetName() != null && !hello.getSetName().isEmpty()) {
-            log.info("Auto-detected replica set '{}' from hello response (host: {})",
-                     hello.getSetName(), hostConnected);
-            setReplicaSet(true);
-            setReplicaSetName(hello.getSetName());
+            synchronized (primaryNodeLock) {
+                if (!isReplicaSet()) {
+                    log.info("Auto-detected replica set '{}' from hello response (host: {})",
+                             hello.getSetName(), hostConnected);
+                    setReplicaSet(true);
+                    setReplicaSetName(hello.getSetName());
+                }
+            }
         }
 
         // Keep track of server-advertised vs reachable names.

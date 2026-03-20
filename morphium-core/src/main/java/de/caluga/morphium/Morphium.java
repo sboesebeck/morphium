@@ -97,6 +97,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private final ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
     private final ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
     private final ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
+    private final ThreadLocal<Boolean> preTransactionWriteBufferState = new ThreadLocal<>();
     // private final List<ProfilingListener> profilingListeners;
     private final List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
     private MorphiumConfig config;
@@ -3050,6 +3051,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         enableReadCache.remove();
         disableWriteBuffer.remove();
         disableAsyncWrites.remove();
+        preTransactionWriteBufferState.remove();
     }
 
     public void queueTask(Runnable runnable) {
@@ -3078,6 +3080,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             log.warn("Transactions require a replica set. Current MongoDB is standalone. "
                     + "Transaction will likely fail.");
         }
+        // Save the current write-buffer state and disable buffering for this thread.
+        // The BufferedMorphiumWriter flushes on a background thread that does NOT
+        // participate in the transaction — buffered writes would bypass it entirely.
+        preTransactionWriteBufferState.set(disableWriteBuffer.get());
+        disableWriteBufferForThread();
         getDriver().startTransaction(false);
     }
 
@@ -3090,16 +3097,29 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void commitTransaction() {
-        // Flush any buffered writes so they become part of the transaction
-        // before it is committed. Without this, entities annotated with
-        // @WriteBuffer could remain in the buffer and never be included
-        // in the transaction.
-        flush();
-        getDriver().commitTransaction();
+        try {
+            getDriver().commitTransaction();
+        } finally {
+            restorePreTransactionWriteBufferState();
+        }
     }
 
     public void abortTransaction() {
-        getDriver().abortTransaction();
+        try {
+            getDriver().abortTransaction();
+        } finally {
+            restorePreTransactionWriteBufferState();
+        }
+    }
+
+    private void restorePreTransactionWriteBufferState() {
+        Boolean previous = preTransactionWriteBufferState.get();
+        preTransactionWriteBufferState.remove();
+        if (previous == null) {
+            disableWriteBuffer.remove();
+        } else {
+            disableWriteBuffer.set(previous);
+        }
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {

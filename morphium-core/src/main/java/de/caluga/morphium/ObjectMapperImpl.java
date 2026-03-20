@@ -800,17 +800,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return lst;
     }
 
-    private String getTypeId(Enum enumVal) {
-        Class<?> cls = enumVal.getClass();
-        Class<?> superclass = cls.getSuperclass();
-
-        if (superclass != null && superclass.isEnum()) {
-            return superclass.getName();
-        } else {
-            return cls.getName();
-        }
-    }
-
     private String getTypeId(Class cls, Entity e, Embedded emb) {
         if (e != null) {
             // Annotation can be on super class - for the correct type Id we must check only the annotation on used Sub-Class.
@@ -904,14 +893,65 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     public Object serializeEnum(Class<?> declaredClass, Enum val) {
-        if (declaredClass != null && Enum.class.isAssignableFrom(declaredClass)) {
-            return val.name();
-        } else {
-            Map<String, Object> obj = new HashMap<>();
-            obj.put("class_name", getTypeId(val));
-            obj.put("name", val.name());
-            return obj;
+        // Resolve anonymous enum subclasses (enum constants with body) to the declaring enum type
+        Class<?> enumType = declaredClass;
+        if (enumType != null && !enumType.isEnum()
+                && enumType.getSuperclass() != null
+                && enumType.getSuperclass().isEnum()) {
+            enumType = enumType.getSuperclass();
         }
+
+        if (enumType != null && enumType.isEnum()) {
+            // Typed field — store as plain String (the enum constant name).
+            // Deserialization knows the target type from the field declaration.
+            return val.name();
+        }
+
+        // Untyped field (declared as Object, List<Object>, Map<String,Object>):
+        // Embed class_name so the deserializer can reconstruct the enum.
+        return UtilsMap.of(
+                "class_name", annotationHelper.getTypeIdForClass(val.getDeclaringClass()),
+                "name", val.name());
+    }
+
+    /**
+     * Deserializes an enum value from MongoDB. Handles both storage formats:
+     * <ul>
+     *   <li>String: the enum constant name (normal case for typed fields)</li>
+     *   <li>Map with "name" key: polymorphic format from {@link #serializeEnum} when declared type was unknown</li>
+     * </ul>
+     *
+     * @param enumClass the target enum class
+     * @param valueFromDb the raw value from MongoDB (String, Map/Doc, or other)
+     * @param fieldName the field name for error messages (may be null for top-level deserialization)
+     * @return the deserialized enum constant
+     * @throws IllegalArgumentException if the value cannot be converted to the target enum
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Enum<?> deserializeEnumValue(Class<?> enumClass, Object valueFromDb, String fieldName) {
+        String enumName;
+
+        if (valueFromDb instanceof String s) {
+            enumName = s;
+        } else if (valueFromDb instanceof Map<?, ?> map) {
+            // Polymorphic format: {class_name: "...", name: "CONSTANT_NAME"}
+            Object nameVal = map.get("name");
+            if (nameVal == null) {
+                throw new IllegalArgumentException(
+                        "Cannot deserialize enum" + (fieldName != null ? " field '" + fieldName + "'" : "")
+                                + " of type " + enumClass.getSimpleName()
+                                + ": Map has no 'name' key. Keys: " + map.keySet());
+            }
+            enumName = nameVal.toString();
+        } else {
+            throw new IllegalArgumentException(
+                    "Cannot deserialize enum" + (fieldName != null ? " field '" + fieldName + "'" : "")
+                            + " of type " + enumClass.getSimpleName()
+                            + ": expected String or Map with 'name' key, but got "
+                            + valueFromDb.getClass().getSimpleName() + " = " + valueFromDb);
+        }
+
+        return Enum.valueOf((Class<? extends Enum>) enumClass, enumName);
     }
 
     @Override
@@ -976,14 +1016,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             if (cls.isEnum()) {
-                return (T) Enum.valueOf((Class <? extends Enum > ) cls, (String) objectMap.get("name"));
+                return (T) deserializeEnumValue(cls, objectMap, null);
             }
 
             {
                 Class<?> superclass = cls.getSuperclass();
 
                 if (superclass != null && superclass.isEnum()) {
-                    return (T) Enum.valueOf((Class <? extends Enum > ) superclass, (String) objectMap.get("name"));
+                    return (T) deserializeEnumValue(superclass, objectMap, null);
                 }
             }
 
@@ -1330,9 +1370,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     Class<?> superclass = fldType.getSuperclass();
 
                     if (fldType.isEnum()) {
-                        value = Enum.valueOf((Class <? extends Enum > ) fldType, (String) valueFromDb);
+                        value = deserializeEnumValue(fldType, valueFromDb, f);
                     } else if (superclass != null && superclass.isEnum()) {
-                        value = Enum.valueOf((Class <? extends Enum > ) superclass, (String) valueFromDb);
+                        value = deserializeEnumValue(superclass, valueFromDb, f);
                     } else if (valueFromDb instanceof ObjectId) {
                         if (fldType.equals(MorphiumId.class)) {
                             if (valueFromDb instanceof ObjectId) {
