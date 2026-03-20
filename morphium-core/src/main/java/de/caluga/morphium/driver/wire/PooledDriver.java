@@ -1626,13 +1626,17 @@ public class PooledDriver extends DriverBase {
         MorphiumTransactionContext ctx = getTransactionContext();
         MongoConnection con = getPrimaryConnection(null);
 
+        boolean committed = false;
         try {
             var cmd = new CommitTransactionCommand(con).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false)
             .setLsid(ctx.getLsid());
             cmd.execute();
+            committed = true;
         } finally {
             clearTransactionContext();
-            markTransactionCommitted();
+            if (committed) {
+                markTransactionCommitted();
+            }
             releaseConnection(con);
         }
     }

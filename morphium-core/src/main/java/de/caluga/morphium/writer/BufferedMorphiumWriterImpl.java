@@ -262,14 +262,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         }
                     }
 
-                    if (opLog.get(type) == null) {
-                        synchronized (opLog) {
-                            opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                        }
+                    // Re-check size and add atomically to prevent TOCTOU race:
+                    // without the lock, other threads could add entries between
+                    // the size check above and the add below, exceeding the limit.
+                    synchronized (opLog) {
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
+                        opLog.get(type).add(wb);
                     }
-
-                    // after waiting for space, add the entry to the buffer
-                    opLog.get(type).add(wb);
                     break;
 
                 case JUST_WARN:
@@ -296,7 +295,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             e.getToRun().queue(ctx);
                         }
 
-                        opLog.putIfAbsent(type, new ArrayList<>());
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         opLog.get(type).add(wb);
                     }
 
@@ -315,7 +314,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             opLog.get(type).remove(0);
                         }
 
-                        opLog.putIfAbsent(type, new ArrayList<>());
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         opLog.get(type).add(wb);
                     }
 
