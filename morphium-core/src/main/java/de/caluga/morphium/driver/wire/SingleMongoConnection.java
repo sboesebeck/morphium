@@ -603,15 +603,19 @@ public class SingleMongoConnection implements MongoConnection {
             String errmsg = (String) reply.getFirstDoc().get("errmsg");
             Object codeObj = reply.getFirstDoc().get("code");
             int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
+            // Format consistently with checkForError(): "Error: <code> - <msg>"
+            // WriteMongoCommand detects transient errors via contains("251"),
+            // which only works with this format.
+            String formattedMsg = "Error: " + code + " - " + errmsg;
 
             // Error 251 (NoSuchTransaction): close poisoned connection, throw retriable exception
             if (code == 251) {
                 log.warn("Transient transaction error on connection (code 251) — closing connection: {}", errmsg);
                 close();
-                throw new MorphiumDriverNetworkException(errmsg);
+                throw new MorphiumDriverNetworkException(formattedMsg);
             }
 
-            throw new MorphiumDriverException(errmsg);
+            throw new MorphiumDriverException(formattedMsg);
         }
 
         return reply.getFirstDoc();
