@@ -893,11 +893,25 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     public Object serializeEnum(Class<?> declaredClass, Enum val) {
-        // Always store as plain String — the enum constant name.
-        // Previously, the else-branch wrote a Map {class_name, name} for polymorphic
-        // fields (declared as Object). But that format could never be deserialized back
-        // correctly, so it was dead code that only caused ClassCastExceptions.
-        return val.name();
+        // Resolve anonymous enum subclasses (enum constants with body) to the declaring enum type
+        Class<?> enumType = declaredClass;
+        if (enumType != null && !enumType.isEnum()
+                && enumType.getSuperclass() != null
+                && enumType.getSuperclass().isEnum()) {
+            enumType = enumType.getSuperclass();
+        }
+
+        if (enumType != null && enumType.isEnum()) {
+            // Typed field — store as plain String (the enum constant name).
+            // Deserialization knows the target type from the field declaration.
+            return val.name();
+        }
+
+        // Untyped field (declared as Object, List<Object>, Map<String,Object>):
+        // Embed class_name so the deserializer can reconstruct the enum.
+        return UtilsMap.of(
+                "class_name", annotationHelper.getTypeIdForClass(val.getDeclaringClass()),
+                "name", val.name());
     }
 
     /**
