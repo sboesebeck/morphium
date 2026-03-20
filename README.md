@@ -5,30 +5,36 @@
 [![Quarkus](https://img.shields.io/badge/Quarkus-3.32.3-blue)](https://quarkus.io)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange)](https://adoptium.net)
 [![Jakarta Data](https://img.shields.io/badge/Jakarta%20Data-1.0-green)](https://jakarta.ee/specifications/data/1.0/)
-[![quarkus-morphium](https://img.shields.io/badge/quarkus--morphium-1.1.0-blue)](https://github.com/Bardioc1977/quarkus-morphium/releases/tag/v1.1.0)
+[![quarkus-morphium](https://img.shields.io/badge/quarkus--morphium-1.1.1-blue)](https://github.com/Bardioc1977/quarkus-morphium/releases/tag/v1.1.1)
 [![Live Demo](https://img.shields.io/badge/demo-morphium.kopp--cloud.de-blueviolet)](https://morphium.kopp-cloud.de)
 
 > **[Live Demo: morphium.kopp-cloud.de](https://morphium.kopp-cloud.de)**
 >
-> Built with **Morphium 6.2.1-SNAPSHOT** and **[quarkus-morphium Extension v1.1.0](https://github.com/Bardioc1977/quarkus-morphium/releases/tag/v1.1.0)**.
-> Fork improvements are being contributed back to the upstream [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
-> project via pull requests and are progressively merged.
+> Built with **Morphium 6.2.1** and **[quarkus-morphium Extension v1.1.1](https://github.com/Bardioc1977/quarkus-morphium/releases/tag/v1.1.1)**.
 
 An interactive demo application showcasing [Morphium](https://github.com/sboesebeck/morphium) ORM
 and **Jakarta Data 1.0** with [Quarkus](https://quarkus.io), [Qute](https://quarkus.io/guides/qute) templates
 and [HTMX](https://htmx.org).
 
-Built on the [quarkus-morphium v1.1.0](https://github.com/Bardioc1977/quarkus-morphium) extension.
+Built on the [quarkus-morphium v1.1.1](https://github.com/Bardioc1977/quarkus-morphium) extension.
 
-### New in v1.1.0
+### New in v1.1.1
 
-The showcase now demonstrates all features added in quarkus-morphium v1.1.0:
+- **Morphium 6.2.1** — built against upstream release (no fork SNAPSHOT required)
+- **JDQL `NOT BETWEEN` / `NOT (...)`** — extended query language support
+- **Optional health checks** — SmallRye Health no longer forced on consumers
+
+<details>
+<summary>New in v1.1.0</summary>
+
+The showcase demonstrates all features added in quarkus-morphium v1.1.0:
 
 - **GROUP BY + Aggregation** -- `SELECT department, COUNT(this), SUM(salary) GROUP BY department` with Java Record return types
 - **HAVING (AND/OR)** -- `HAVING COUNT(this) > :min OR SUM(salary) >= :threshold`
 - **Stream** -- cursor-backed `Stream<T>` for memory-efficient large result set processing
 - **Async** -- `CompletionStage<T>` for non-blocking repository queries
 - **Interactive demos** -- all new features runnable side-by-side on the `/jakarta-data` page
+</details>
 
 ---
 
@@ -220,7 +226,7 @@ docker compose down -v
 ### Local build
 
 ```bash
-# Set GitHub credentials for Maven (quarkus-morphium SNAPSHOT resolution)
+# Set GitHub credentials for Maven (quarkus-morphium resolution via GitHub Packages)
 export GITHUB_ACTOR=your-github-username
 export GITHUB_TOKEN=your-github-pat
 
