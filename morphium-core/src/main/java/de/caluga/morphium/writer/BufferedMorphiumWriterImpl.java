@@ -231,12 +231,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
             BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().connectionSettings().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
 
-            if (opLog.get(type) == null) {
-                synchronized (opLog) {
-                    opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                }
-            }
-
             switch (strategy) {
                 case WAIT:
                     long start = System.currentTimeMillis();
@@ -274,7 +268,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         }
                     }
 
-                    // fall-through was a bug — must add to buffer and break
+                    // after waiting for space, add the entry to the buffer
                     opLog.get(type).add(wb);
                     break;
 
