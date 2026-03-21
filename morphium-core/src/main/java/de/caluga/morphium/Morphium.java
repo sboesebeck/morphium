@@ -34,9 +34,7 @@ import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassInfoList;
-import io.github.classgraph.ScanResult;
+// ClassGraph access is fully encapsulated in ClassGraphHelper (no direct import needed)
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import net.bytebuddy.ByteBuddy;
@@ -305,33 +303,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 if (registeredMsg != null) {
                     messagingClass = registeredMsg;
                     log.info("Using Messaging {} (from registry)", msgImpl);
-                } else if (ClassGraphHelper.isAvailable()) {
+                } else {
                     // Fallback: ClassGraph scan for custom messaging implementations
-                    try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-                        .scan()) {
-                        ClassInfoList entities = scanResult.getClassesWithAnnotation(Messaging.class.getName());
-
-                        if (log.isDebugEnabled()) {
-                            log.debug("Found {} messaging implementations in classpath", entities.size());
-                        }
-
-                        for (String cn : entities.getNames()) {
-                            try {
-                                Class c = AnnotationAndReflectionHelper.classForName(cn);
-                                var ann = (Messaging)c.getAnnotation(Messaging.class);
-                                String name = ann.name();
-
-                                if (name.equals(msgImpl)) {
-                                    log.info("Using Messaging {}: {}", name, ann.description());
-                                    messagingClass = c;
-                                    break;
-                                }
-                            } catch (Exception e) {
-                                log.error("Error handling messaging implementation {}", cn, e);
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.error("Could not scan for Messaging implementations", e);
+                    @SuppressWarnings("unchecked")
+                    Class<? extends MorphiumMessaging> scanned =
+                            (Class<? extends MorphiumMessaging>) ClassGraphHelper.scanForMessagingImpl(msgImpl);
+                    if (scanned != null) {
+                        messagingClass = scanned;
                     }
                 }
                 if (messagingClass == null) {
@@ -363,41 +341,16 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 // Try registry first (no ClassGraph needed for built-in drivers)
                 Class<? extends MorphiumDriver> driverClass = DRIVER_REGISTRY.get(driverName);
 
-                if (driverClass == null && !ClassGraphHelper.isAvailable()) {
-                    log.warn("Configured driver '{}' not found in registry and ClassGraph is not available; "
-                             + "falling back to default driver", driverName);
-                }
-
-                if (driverClass == null && ClassGraphHelper.isAvailable()) {
+                if (driverClass == null) {
                     // Fallback: ClassGraph scan for custom drivers
-                    try (ScanResult scanResult = new ClassGraph().enableAllInfo().scan()) {
-                        ClassInfoList entities = scanResult.getClassesWithAnnotation(Driver.class.getName());
-
-                        if (log.isDebugEnabled()) {
-                            log.debug("Found " + entities.size() + " drivers in classpath");
-                        }
-
-                        for (String cn : entities.getNames()) {
-                            try {
-                                @SuppressWarnings("rawtypes")
-                                Class c = AnnotationAndReflectionHelper.classForName(cn);
-
-                                if (Modifier.isAbstract(c.getModifiers())) {
-                                    continue;
-                                }
-
-                                var driverAnnotation = (Driver)c.getAnnotation(Driver.class);
-
-                                if (driverAnnotation.name().equals(driverName)) {
-                                    driverClass = c;
-                                    break;
-                                }
-                            } catch (Throwable e) {
-                                log.error("Could not load driver " + driverName, e);
-                            }
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                    @SuppressWarnings("unchecked")
+                    Class<? extends MorphiumDriver> scanned =
+                            (Class<? extends MorphiumDriver>) ClassGraphHelper.scanForDriverImpl(driverName);
+                    if (scanned != null) {
+                        driverClass = scanned;
+                    } else if (!ClassGraphHelper.isAvailable()) {
+                        log.warn("Configured driver '{}' not found in registry and ClassGraph is not available; "
+                                 + "falling back to default driver", driverName);
                     }
                 }
 
@@ -3343,25 +3296,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             entitiesToCheck = EntityRegistry.getPreRegisteredEntities().stream()
                 .filter(cls -> annotationHelper.isAnnotationPresentInHierarchy(cls, Capped.class))
                 .toList();
-        } else if (ClassGraphHelper.isAvailable()) {
-            try (ScanResult scanResult = new ClassGraph().enableAnnotationInfo().enableClassInfo().scan()) {
-                ClassInfoList entities = scanResult.getClassesWithAnnotation(Capped.class.getName());
-                List<Class<?>> scanned = new ArrayList<>();
-                for (String cn : entities.getNames()) {
-                    try {
-                        if (cn.startsWith("sun.") || cn.startsWith("com.sun.") || cn.startsWith("org.assertj.") || cn.startsWith("javax.")) {
-                            continue;
-                        }
-                        scanned.add(AnnotationAndReflectionHelper.classForName(cn));
-                    } catch (Exception e) {
-                        log.error("error", e);
-                    }
-                }
-                entitiesToCheck = scanned;
-            }
         } else {
-            ClassGraphHelper.warnIfUnavailable();
-            return uncappedCollections;
+            entitiesToCheck = ClassGraphHelper.scanForAnnotatedClasses(Capped.class.getName());
+            if (entitiesToCheck.isEmpty()) {
+                ClassGraphHelper.warnIfUnavailable();
+                return uncappedCollections;
+            }
         }
 
         for (Class<?> entity : entitiesToCheck) {
@@ -3410,38 +3350,30 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             throw err;
         }
 
-        try (ScanResult scanResult = new ClassGraph()
-            .enableAnnotationInfo()
-            .enableClassInfo()
-            .scan()) {
-            ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
-            entities = entities.filter(filter);
-
-            for (String cn : entities.getNames()) {
-                try {
-                    if (cn.startsWith("sun.") || cn.startsWith("com.sun.") || cn.startsWith("org.assertj.") || cn.startsWith("javax.")) {
-                        continue;
-                    }
-
-                    Class<?> entity = AnnotationAndReflectionHelper.classForName(cn);
-
-                    if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
-                        continue;
-                    }
-
-                    if (exists(getDatabase(), getMapper().getCollectionName(entity))) {
-                        List<IndexDescription> missing = getMissingIndicesFor(entity);
-
-                        if (missing != null && !missing.isEmpty()) {
-                            missingIndicesByClass.put(entity, missing);
-                        }
-                    }
-                } catch (Throwable e) {
-                    handleCheckIndicesError(cn, e);
+        // Delegate scan to ClassGraphHelper; filter is passed as Object to keep ClassGraph types confined
+        List<String> classNames = ClassGraphHelper.scanForAnnotatedClassNamesFiltered(Entity.class.getName(), filter);
+        for (String cn : classNames) {
+            try {
+                if (cn.startsWith("sun.") || cn.startsWith("com.sun.") || cn.startsWith("org.assertj.") || cn.startsWith("javax.")) {
+                    continue;
                 }
+
+                Class<?> entity = AnnotationAndReflectionHelper.classForName(cn);
+
+                if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
+                    continue;
+                }
+
+                if (exists(getDatabase(), getMapper().getCollectionName(entity))) {
+                    List<IndexDescription> missing = getMissingIndicesFor(entity);
+
+                    if (missing != null && !missing.isEmpty()) {
+                        missingIndicesByClass.put(entity, missing);
+                    }
+                }
+            } catch (Throwable e) {
+                handleCheckIndicesError(cn, e);
             }
-        } catch (Exception e) {
-            log.error("error", e);
         }
         return missingIndicesByClass;
     }
@@ -3452,28 +3384,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         Collection<Class<?>> entitiesToCheck;
         if (EntityRegistry.hasPreRegisteredEntities()) {
             entitiesToCheck = new ArrayList<>(EntityRegistry.getPreRegisteredEntities());
-        } else if (ClassGraphHelper.isAvailable()) {
-            try (ScanResult scanResult = new ClassGraph()
-                .enableAnnotationInfo()
-                .enableClassInfo()
-                .scan()) {
-                ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
-                List<Class<?>> scanned = new ArrayList<>();
-                for (String cn : entities.getNames()) {
-                    try {
-                        if (cn.startsWith("sun.") || cn.startsWith("com.sun.") || cn.startsWith("org.assertj.") || cn.startsWith("javax.")) {
-                            continue;
-                        }
-                        scanned.add(AnnotationAndReflectionHelper.classForName(cn));
-                    } catch (Exception e) {
-                        log.error("Could not load class " + cn, e);
-                    }
-                }
-                entitiesToCheck = scanned;
-            }
         } else {
-            ClassGraphHelper.warnIfUnavailable();
-            return missingIndicesByClass;
+            entitiesToCheck = ClassGraphHelper.scanForAnnotatedClasses(Entity.class.getName());
+            if (entitiesToCheck.isEmpty()) {
+                ClassGraphHelper.warnIfUnavailable();
+                return missingIndicesByClass;
+            }
         }
 
         if (filter != null) {

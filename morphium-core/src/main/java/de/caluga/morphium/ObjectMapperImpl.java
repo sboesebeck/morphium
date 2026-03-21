@@ -9,10 +9,7 @@ import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.*;
 import de.caluga.morphium.query.geospatial.*;
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassGraphException;
-import io.github.classgraph.ClassInfoList;
-import io.github.classgraph.ScanResult;
+// ClassGraph access is fully encapsulated in ClassGraphHelper (no direct import needed)
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.bson.types.Binary;
@@ -148,29 +145,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             cachedClassByCollectionName = new ConcurrentHashMap<>(classByCollectionName);
             log.info("Using {} pre-registered entities for collection mapping", classByCollectionName.size());
         } else if (ClassGraphHelper.isAvailable()) {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            if (cl == null) {
-                cl = ObjectMapperImpl.class.getClassLoader();
-            }
-            try (ScanResult scanResult = new ClassGraph()
-                .enableAnnotationInfo()
-                .overrideClassLoaders(cl)
-                .scan()) {
-                ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
-                log.debug("Found " + entities.size() + " entities in classpath");
-
-                for (String cn : entities.getNames()) {
-                    try {
-                        Class c = AnnotationAndReflectionHelper.classForName(cn);
-                        classByCollectionName.put(getCollectionName(c), c);
-                    } catch (ClassNotFoundException e) {
-                        log.error("Could not get class / collection " + cn);
-                    }
-                }
-                cachedClassByCollectionName = new ConcurrentHashMap<>(classByCollectionName);
-            } catch (ClassGraphException e) {
-                //swallow
-            }
+            // Delegate to ClassGraphHelper which encapsulates all ClassGraph access
+            Map<String, Class<?>> scanned = ClassGraphHelper.scanEntityCollections(this::getCollectionName);
+            classByCollectionName.putAll(scanned);
+            cachedClassByCollectionName = new ConcurrentHashMap<>(classByCollectionName);
         } else {
             ClassGraphHelper.warnIfUnavailable();
         }
