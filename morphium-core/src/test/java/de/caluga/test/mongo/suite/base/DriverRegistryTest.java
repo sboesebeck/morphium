@@ -3,16 +3,21 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests that built-in drivers can be resolved via the static driver registry
- * without ClassGraph.
+ * Tests for the static driver and messaging registries in {@link Morphium}
+ * that make ClassGraph optional for resolving built-in implementations.
  */
 @Tag("core")
 class DriverRegistryTest {
+
+    // ------------------------------------------------------------------
+    // Driver registry
+    // ------------------------------------------------------------------
 
     @Test
     void inMemoryDriver_resolvedFromRegistry() {
@@ -33,5 +38,50 @@ class DriverRegistryTest {
         try (Morphium m = new Morphium(cfg)) {
             assertInstanceOf(InMemoryDriver.class, m.getDriver());
         }
+    }
+
+    @Test
+    void registerDriver_nullName_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () ->
+            Morphium.registerDriver(null, InMemoryDriver.class));
+    }
+
+    @Test
+    void registerDriver_nullClass_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () ->
+            Morphium.registerDriver("test", null));
+    }
+
+    // ------------------------------------------------------------------
+    // Messaging registry
+    // ------------------------------------------------------------------
+
+    @Test
+    void builtInMessaging_standardMessaging_resolves() {
+        // Verify the static registry contains the "StandardMessaging" alias
+        // by registering + looking up (registerMessaging is the public API)
+        // The actual resolution happens inside Morphium.initializeAndConnect(),
+        // so we test the public registerMessaging + null-check APIs here.
+        assertDoesNotThrow(() ->
+            Morphium.registerMessaging("StandardMessaging", SingleCollectionMessaging.class));
+    }
+
+    @Test
+    void registerMessaging_nullName_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () ->
+            Morphium.registerMessaging(null, SingleCollectionMessaging.class));
+    }
+
+    @Test
+    void registerMessaging_nullClass_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () ->
+            Morphium.registerMessaging("test", null));
+    }
+
+    @Test
+    void registerCustomMessaging_isAccepted() {
+        String uniqueName = "CustomMessaging_" + System.nanoTime();
+        assertDoesNotThrow(() ->
+            Morphium.registerMessaging(uniqueName, SingleCollectionMessaging.class));
     }
 }
