@@ -3380,8 +3380,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     /**
-     * @deprecated Use {@link #checkIndices(java.util.function.Predicate)} instead —
-     * the ClassInfoFilter parameter couples the API to ClassGraph, which is now optional.
+     * @deprecated Use {@link #checkIndices(java.util.function.Predicate)} instead.
+     * This method's signature references a ClassGraph type ({@code ClassInfoFilter}).
+     * While ClassGraph is now optional, calling this method when ClassGraph is absent
+     * will throw {@code NoClassDefFoundError}. The method is retained only for
+     * backward compatibility with existing callers that already depend on ClassGraph.
      */
     @Deprecated
     @SuppressWarnings("CommentedOutCode")

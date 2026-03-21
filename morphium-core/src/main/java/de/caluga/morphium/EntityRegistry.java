@@ -42,10 +42,17 @@ public final class EntityRegistry {
             if (cls == null) {
                 continue;
             }
-            entities.add(cls);
 
             Entity entityAnn = cls.getAnnotation(Entity.class);
             Embedded embeddedAnn = cls.getAnnotation(Embedded.class);
+
+            // Only register classes that are actually annotated with @Entity or @Embedded.
+            // Unannotated classes would disable ClassGraph scanning without providing mappings.
+            if (entityAnn == null && embeddedAnn == null) {
+                log.debug("Skipping unannotated class in pre-registration: {}", cls.getName());
+                continue;
+            }
+            entities.add(cls);
 
             String fqcn = cls.getName();
 

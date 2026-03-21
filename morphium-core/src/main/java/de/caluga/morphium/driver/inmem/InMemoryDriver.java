@@ -2307,39 +2307,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return;
             }
             running = true;
-        }
 
-        // Register all known MongoCommand subclasses (no ClassGraph needed)
-        for (Class<? extends MongoCommand> cls : KNOWN_COMMANDS) {
-            try {
-                if (Modifier.isAbstract(cls.getModifiers()) || cls.isInterface()) {
-                    continue;
-                }
-                if (cls.equals(GenericCommand.class)) {
-                    continue;
-                }
-
-                Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
-                declaredConstructor.setAccessible(true);
-                var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
-                commandsCache.put(mongoCommand.getCommandName(), cls);
-
-                // checking method
+            // Register all known MongoCommand subclasses (no ClassGraph needed)
+            for (Class<? extends MongoCommand> cls : KNOWN_COMMANDS) {
                 try {
-                    Method m = InMemoryDriver.class.getDeclaredMethod("runCommand", mongoCommand.getClass());
-                } catch (NoSuchMethodException e) {
-                    log.error("No runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
-                              + mongoCommand.getClass().getSimpleName());
-                } catch (SecurityException e) {
-                    log.error("runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
-                              + mongoCommand.getClass().getSimpleName() + " not accessible!");
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
+                    if (Modifier.isAbstract(cls.getModifiers()) || cls.isInterface()) {
+                        continue;
+                    }
+                    if (cls.equals(GenericCommand.class)) {
+                        continue;
+                    }
 
-        initialized.set(true);
+                    Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
+                    declaredConstructor.setAccessible(true);
+                    var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
+                    commandsCache.put(mongoCommand.getCommandName(), cls);
+
+                    // checking method
+                    try {
+                        Method m = InMemoryDriver.class.getDeclaredMethod("runCommand", mongoCommand.getClass());
+                    } catch (NoSuchMethodException e) {
+                        log.error("No runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
+                                  + mongoCommand.getClass().getSimpleName());
+                    } catch (SecurityException e) {
+                        log.error("runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
+                                  + mongoCommand.getClass().getSimpleName() + " not accessible!");
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            initialized.set(true);
+        }
 
         for (DriverStatsKey k : DriverStatsKey.values()) {
             stats.put(k, new AtomicDecimal(0));

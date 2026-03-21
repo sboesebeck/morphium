@@ -25,16 +25,13 @@ class DriverRegistryTest {
 
     @Test
     void registerCustomDriver_isUsable() {
-        // Register a custom driver name pointing to InMemoryDriver
-        Morphium.registerDriver("CustomTestDriver", InMemoryDriver.class);
-        try {
-            MorphiumConfig cfg = new MorphiumConfig("custom_driver_test_db", 10, 10_000, 1_000);
-            cfg.driverSettings().setDriverName("CustomTestDriver");
-            try (Morphium m = new Morphium(cfg)) {
-                assertInstanceOf(InMemoryDriver.class, m.getDriver());
-            }
-        } finally {
-            // No unregister API needed; ConcurrentHashMap entry is harmless
+        // Use a unique name to avoid cross-test coupling in the static registry
+        String uniqueName = "CustomTestDriver_" + System.nanoTime();
+        Morphium.registerDriver(uniqueName, InMemoryDriver.class);
+        MorphiumConfig cfg = new MorphiumConfig("custom_driver_test_db", 10, 10_000, 1_000);
+        cfg.driverSettings().setDriverName(uniqueName);
+        try (Morphium m = new Morphium(cfg)) {
+            assertInstanceOf(InMemoryDriver.class, m.getDriver());
         }
     }
 }
