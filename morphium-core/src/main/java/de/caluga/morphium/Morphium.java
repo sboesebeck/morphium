@@ -143,6 +143,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * without requiring ClassGraph on the classpath.
      */
     public static void registerDriver(String name, Class<? extends MorphiumDriver> driverClass) {
+        if (name == null || driverClass == null) {
+            throw new IllegalArgumentException("name and driverClass must not be null");
+        }
         DRIVER_REGISTRY.put(name, driverClass);
     }
 
@@ -158,6 +161,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * without requiring ClassGraph on the classpath.
      */
     public static void registerMessaging(String name, Class<? extends MorphiumMessaging> messagingClass) {
+        if (name == null || messagingClass == null) {
+            throw new IllegalArgumentException("name and messagingClass must not be null");
+        }
         MESSAGING_REGISTRY.put(name, messagingClass);
     }
 

@@ -2306,7 +2306,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (initialized.get() && running && exec != null && !exec.isShutdown()) {
                 return;
             }
-            initialized.set(true);
             running = true;
         }
 
@@ -2339,6 +2338,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 throw new RuntimeException(e);
             }
         }
+
+        initialized.set(true);
 
         for (DriverStatsKey k : DriverStatsKey.values()) {
             stats.put(k, new AtomicDecimal(0));

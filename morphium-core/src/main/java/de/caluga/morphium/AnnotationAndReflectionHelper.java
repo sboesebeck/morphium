@@ -84,10 +84,9 @@ public class AnnotationAndReflectionHelper {
     }
     private void init() {
         // Check for pre-registered entities first (framework integration path)
-        var preRegistered = EntityRegistry.getPreRegisteredTypeIds();
-        if (preRegistered != null) {
-            classNameByType.putAll(preRegistered);
-            logger.info("Using {} pre-registered entity type IDs", preRegistered.size());
+        if (EntityRegistry.hasPreRegisteredEntities()) {
+            classNameByType.putAll(EntityRegistry.getPreRegisteredTypeIds());
+            logger.info("Using {} pre-registered entity type IDs", EntityRegistry.getPreRegisteredTypeIds().size());
             return;
         }
 

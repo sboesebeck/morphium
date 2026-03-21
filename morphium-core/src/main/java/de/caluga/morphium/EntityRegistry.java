@@ -23,7 +23,6 @@ public final class EntityRegistry {
     private static final Logger log = LoggerFactory.getLogger(EntityRegistry.class);
 
     private static volatile Map<String, String> preRegisteredTypeIds;      // typeId → FQCN
-    private static volatile Map<String, Class<?>> preRegisteredCollections; // collName → Class
     private static volatile Set<Class<?>> preRegisteredEntities;           // all entity classes
 
     private EntityRegistry() {}
@@ -93,7 +92,6 @@ public final class EntityRegistry {
      */
     public static synchronized void clear() {
         preRegisteredTypeIds = null;
-        preRegisteredCollections = null;
         preRegisteredEntities = null;
     }
 

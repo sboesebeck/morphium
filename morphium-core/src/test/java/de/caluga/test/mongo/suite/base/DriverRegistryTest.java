@@ -2,10 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.driver.wire.PooledDriver;
-import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;

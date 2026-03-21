@@ -3,8 +3,7 @@ package de.caluga.morphium;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Package-private utility that centralises all ClassGraph access behind an availability check.
@@ -15,7 +14,7 @@ import java.util.List;
 final class ClassGraphHelper {
     private static final Logger log = LoggerFactory.getLogger(ClassGraphHelper.class);
     private static final boolean AVAILABLE;
-    private static volatile boolean warned = false;
+    private static final AtomicBoolean warned = new AtomicBoolean(false);
 
     static {
         boolean found;
@@ -35,8 +34,7 @@ final class ClassGraphHelper {
     }
 
     static void warnIfUnavailable() {
-        if (!AVAILABLE && !warned) {
-            warned = true;
+        if (!AVAILABLE && warned.compareAndSet(false, true)) {
             log.warn("ClassGraph not on classpath and no entities pre-registered. "
                 + "Runtime classpath scanning is disabled. "
                 + "Use EntityRegistry.preRegisterEntities() or add ClassGraph to the classpath.");
