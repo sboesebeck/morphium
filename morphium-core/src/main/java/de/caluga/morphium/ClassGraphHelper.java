@@ -72,6 +72,14 @@ final class ClassGraphHelper {
         }
     }
 
+    /**
+     * Resets the one-time warning flag so it can fire again after a hot-reload cycle.
+     * Called from the clear/reset chain (e.g. when {@code EntityRegistry.clear()} is invoked).
+     */
+    static void resetWarning() {
+        warned.set(false);
+    }
+
     // ------------------------------------------------------------------
     // Scan methods — all ClassGraph types are confined to this class
     // ------------------------------------------------------------------
@@ -101,10 +109,15 @@ final class ClassGraphHelper {
                     if (name.equals(Entity.class.getName()) || name.equals(Embedded.class.getName())) {
                         for (var param : ai.getParameterValues()) {
                             if (param.getName().equals("typeId")) {
-                                result.put(param.getValue().toString(), cn);
+                                String typeId = param.getValue().toString();
+                                // Skip default typeId "." — consistent with EntityRegistry behaviour
+                                if (!".".equals(typeId)) {
+                                    result.put(typeId, cn);
+                                }
                             }
-                            result.put(cn, cn);
                         }
+                        // FQCN→FQCN mapping: always add, outside the parameter loop
+                        result.put(cn, cn);
                     }
                 }
             }
@@ -220,7 +233,8 @@ final class ClassGraphHelper {
         if (!isAvailable()) return null;
 
         try (var scanResult = new io.github.classgraph.ClassGraph()
-                .enableAllInfo()
+                .enableAnnotationInfo()
+                .enableClassInfo()
                 .scan()) {
             var entities = scanResult.getClassesWithAnnotation(
                     de.caluga.morphium.annotations.Messaging.class.getName());
@@ -251,12 +265,12 @@ final class ClassGraphHelper {
      *
      * @return the driver class, or {@code null} if not found
      */
-    @SuppressWarnings("rawtypes")
     static Class<?> scanForDriverImpl(String driverName) {
         if (!isAvailable()) return null;
 
         try (var scanResult = new io.github.classgraph.ClassGraph()
-                .enableAllInfo()
+                .enableAnnotationInfo()
+                .enableClassInfo()
                 .scan()) {
             var entities = scanResult.getClassesWithAnnotation(
                     de.caluga.morphium.annotations.Driver.class.getName());
@@ -264,7 +278,7 @@ final class ClassGraphHelper {
 
             for (String cn : entities.getNames()) {
                 try {
-                    Class c = AnnotationAndReflectionHelper.classForName(cn);
+                    Class<?> c = AnnotationAndReflectionHelper.classForName(cn);
                     if (java.lang.reflect.Modifier.isAbstract(c.getModifiers())) {
                         continue;
                     }

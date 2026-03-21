@@ -133,8 +133,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         customMappers.put(LineString.class, new BsonGeoMapper());
 
         //initializing type IDs - use cached scan result if available
-        if (cachedClassByCollectionName != null) {
-            classByCollectionName.putAll(cachedClassByCollectionName);
+        // Snapshot volatile field into local variable to prevent TOCTOU race:
+        // another thread calling clearEntityCache() between null-check and putAll()
+        // would cause a NullPointerException.
+        Map<String, Class<?>> cachedSnapshot = cachedClassByCollectionName;
+        if (cachedSnapshot != null) {
+            classByCollectionName.putAll(cachedSnapshot);
             log.debug("Using cached classpath scan result with {} entities", classByCollectionName.size());
         } else if (EntityRegistry.hasPreRegisteredEntities()) {
             // Snapshot to local variable to avoid TOCTOU race with EntityRegistry.clear()

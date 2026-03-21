@@ -2,12 +2,12 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;
 import org.junit.jupiter.api.*;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,13 +27,8 @@ class InMemoryDriverCommandListTest {
 
     @Test
     void knownCommands_containsAllConcreteMongoCommands() throws Exception {
-        // Get the KNOWN_COMMANDS list via reflection
-        Class<?> inMemClass = Class.forName("de.caluga.morphium.driver.inmem.InMemoryDriver");
-        Field field = inMemClass.getDeclaredField("KNOWN_COMMANDS");
-        field.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<Class<? extends MongoCommand>> knownCommands = (List<Class<? extends MongoCommand>>) field.get(null);
-        Set<String> knownNames = knownCommands.stream()
+        // Get the KNOWN_COMMANDS list via public accessor
+        Set<String> knownNames = InMemoryDriver.getKnownCommands().stream()
             .map(Class::getName)
             .collect(Collectors.toSet());
 

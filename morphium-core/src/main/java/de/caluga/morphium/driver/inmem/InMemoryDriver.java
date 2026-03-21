@@ -176,6 +176,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         StoreMongoCommand.class
     );
 
+    /**
+     * Returns the unmodifiable list of known MongoCommand subclasses.
+     * Used by tests to verify completeness against a ClassGraph scan.
+     */
+    public static List<Class<? extends MongoCommand<?>>> getKnownCommands() {
+        return KNOWN_COMMANDS;
+    }
+
     @Override
     public int getLocalThreshold() {
         return 0;

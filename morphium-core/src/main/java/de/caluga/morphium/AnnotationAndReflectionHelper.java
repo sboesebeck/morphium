@@ -42,7 +42,7 @@ public class AnnotationAndReflectionHelper {
     private final Map < Class<?>, List<Field >> fieldListCache;
     private final ConcurrentHashMap < Class<?>, Map<Class<? extends Annotation >, Annotation >> annotationCache;
     private final Map < Class<?>, Map<String, String >> fieldNameCache;
-    private static ConcurrentHashMap<String, String> classNameByType;
+    private static volatile ConcurrentHashMap<String, String> classNameByType;
     private Map<String, Field> fieldCache;
     private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map < Class<? extends Annotation >, Method >> lifeCycleMethods;
@@ -65,8 +65,13 @@ public class AnnotationAndReflectionHelper {
         this.fieldNameCache = new ConcurrentHashMap<>();
 
         if (classNameByType == null) {
-            classNameByType = new ConcurrentHashMap<>();
-            init();
+            synchronized (AnnotationAndReflectionHelper.class) {
+                if (classNameByType == null) {
+                    ConcurrentHashMap<String, String> tmp = new ConcurrentHashMap<>();
+                    init(tmp);
+                    classNameByType = tmp; // volatile write AFTER population
+                }
+            }
         }
     }
 
@@ -82,12 +87,12 @@ public class AnnotationAndReflectionHelper {
     public void disableConvertCamelCase() {
         ccc = false;
     }
-    private void init() {
+    private void init(ConcurrentHashMap<String, String> target) {
         // Check for pre-registered entities first (framework integration path).
         // Snapshot into a local variable to avoid a TOCTOU race with EntityRegistry.clear().
         Map<String, String> preRegistered = EntityRegistry.getPreRegisteredTypeIds();
         if (!preRegistered.isEmpty()) {
-            classNameByType.putAll(preRegistered);
+            target.putAll(preRegistered);
             logger.info("Using {} pre-registered entity type IDs", preRegistered.size());
             return;
         }
@@ -100,7 +105,7 @@ public class AnnotationAndReflectionHelper {
 
         // Delegate to ClassGraphHelper which encapsulates all ClassGraph access
         Map<String, String> scanned = ClassGraphHelper.scanEntityTypeIds();
-        classNameByType.putAll(scanned);
+        target.putAll(scanned);
     }
 
     /**
@@ -147,8 +152,10 @@ public class AnnotationAndReflectionHelper {
     }
 
     public Class getClassForTypeId(String typeId) throws ClassNotFoundException {
-        if (classNameByType.containsKey(typeId)) {
-            return classForName(classNameByType.get(typeId));
+        // Snapshot volatile field to prevent TOCTOU race with clearTypeIdCache()
+        ConcurrentHashMap<String, String> snapshot = classNameByType;
+        if (snapshot != null && snapshot.containsKey(typeId)) {
+            return classForName(snapshot.get(typeId));
         }
 
         return classForName(typeId);

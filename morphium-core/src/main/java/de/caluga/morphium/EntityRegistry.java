@@ -116,6 +116,8 @@ public final class EntityRegistry {
     public static synchronized void clear() {
         preRegisteredTypeIds = null;
         preRegisteredEntities = null;
+        // Reset the ClassGraph warning flag so it can fire again after hot-reload
+        ClassGraphHelper.resetWarning();
     }
 
     /**
