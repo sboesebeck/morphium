@@ -16,9 +16,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link #isAvailable()} and, if it returns {@code false}, skip scanning (typically returning empty results).
  * {@link #warnIfUnavailable()} can be used to emit a one-time warning in that case.
  * <p>
- * All ClassGraph types are referenced only within this class. No other production class
- * imports ClassGraph directly, ensuring that ClassGraph can be absent from the classpath
+ * ClassGraph access is intended to be centralised within this helper so that other production
+ * classes need not import ClassGraph directly, allowing it to be absent from the classpath
  * without triggering {@code NoClassDefFoundError} at class-load time.
+ * <p>
+ * <b>Exception:</b> the deprecated {@code Morphium.checkIndices(ClassInfoFilter)} method
+ * still references a ClassGraph type in its signature for backward compatibility. That method
+ * will throw {@code NoClassDefFoundError} if called without ClassGraph on the classpath.
  */
 final class ClassGraphHelper {
     private static final Logger log = LoggerFactory.getLogger(ClassGraphHelper.class);
