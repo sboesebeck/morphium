@@ -94,6 +94,12 @@
             <version>${quarkus-morphium.version}</version>
         </dependency>
 
+        <!-- Health checks (optional in the extension since v1.1.1, opt-in explicitly) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
+
         <!-- Jakarta Data API for @Repository, @Query, @StaticMetamodel support -->
         <dependency>
             <groupId>jakarta.data</groupId>
