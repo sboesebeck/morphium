@@ -3389,8 +3389,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * @deprecated Use {@link #checkIndices(java.util.function.Predicate)} instead.
      * This method's signature references a ClassGraph type ({@code ClassInfoFilter}).
      * While ClassGraph is now optional, calling this method when ClassGraph is absent
-     * will throw {@code NoClassDefFoundError}. The method is retained only for
-     * backward compatibility with existing callers that already depend on ClassGraph.
+     * will throw {@code NoClassDefFoundError} at the call site (the JVM cannot resolve
+     * the parameter type). The method is retained only for backward compatibility with
+     * existing callers that already depend on ClassGraph.
      */
     @Deprecated
     @SuppressWarnings("CommentedOutCode")
@@ -3402,8 +3403,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         // When a ClassInfoFilter is provided, we must use ClassGraph for scanning
         Map < Class<?>, List<IndexDescription >> missingIndicesByClass = new HashMap<>();
         if (!ClassGraphHelper.isAvailable()) {
-            log.warn("checkIndices(ClassInfoFilter) called but ClassGraph is not available");
-            return missingIndicesByClass;
+            // ClassGraph is required for this overload — throw as documented
+            NoClassDefFoundError err = new NoClassDefFoundError("io.github.classgraph.ClassGraph");
+            log.error("checkIndices(ClassInfoFilter) called but ClassGraph is not available", err);
+            throw err;
         }
 
         try (ScanResult scanResult = new ClassGraph()

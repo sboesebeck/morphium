@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.Entity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -43,8 +44,10 @@ public final class EntityRegistry {
                 continue;
             }
 
-            Entity entityAnn = cls.getAnnotation(Entity.class);
-            Embedded embeddedAnn = cls.getAnnotation(Embedded.class);
+            // Use hierarchy-aware lookup to match AnnotationAndReflectionHelper behaviour.
+            // This ensures subclasses that inherit @Entity/@Embedded from a superclass are registered.
+            Entity entityAnn = findAnnotationInHierarchy(cls, Entity.class);
+            Embedded embeddedAnn = findAnnotationInHierarchy(cls, Embedded.class);
 
             // Only register classes that are actually annotated with @Entity or @Embedded.
             // Unannotated classes would disable ClassGraph scanning without providing mappings.
@@ -116,5 +119,37 @@ public final class EntityRegistry {
 
     static Set<Class<?>> getPreRegisteredEntities() {
         return preRegisteredEntities;
+    }
+
+    /**
+     * Walks the class hierarchy (superclasses and interfaces) looking for the given annotation.
+     * This mirrors the logic in {@link AnnotationAndReflectionHelper#getAnnotationFromHierarchy}
+     * without requiring an instance of that helper.
+     */
+    private static <T extends Annotation> T findAnnotationInHierarchy(Class<?> cls, Class<T> annotationClass) {
+        // Direct check first
+        T ann = cls.getAnnotation(annotationClass);
+        if (ann != null) return ann;
+
+        // Walk superclass chain
+        Class<?> tmp = cls.getSuperclass();
+        while (tmp != null && !tmp.equals(Object.class)) {
+            ann = tmp.getAnnotation(annotationClass);
+            if (ann != null) return ann;
+            tmp = tmp.getSuperclass();
+        }
+
+        // Check interfaces (breadth-first)
+        ArrayDeque<Class<?>> interfaces = new ArrayDeque<>();
+        Collections.addAll(interfaces, cls.getInterfaces());
+        while (!interfaces.isEmpty()) {
+            Class<?> iface = interfaces.pollFirst();
+            if (iface != null) {
+                ann = iface.getAnnotation(annotationClass);
+                if (ann != null) return ann;
+                Collections.addAll(interfaces, iface.getInterfaces());
+            }
+        }
+        return null;
     }
 }

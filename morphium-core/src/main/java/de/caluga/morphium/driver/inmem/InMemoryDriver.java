@@ -2337,48 +2337,52 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
+            // Initialize stats, default databases, executor, and event processor
+            // BEFORE setting initialized=true, so concurrent callers cannot observe
+            // a half-initialized driver via the double-checked locking above.
+            for (DriverStatsKey k : DriverStatsKey.values()) {
+                stats.put(k, new AtomicDecimal(0));
+            }
+
+            database.put("local", new ConcurrentHashMap<>());
+            database.put("admin", new ConcurrentHashMap<>());
+            database.put("test", new ConcurrentHashMap<>());
+
+            if (exec.isShutdown()) {
+                exec = new ScheduledThreadPoolExecutor(
+                                Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
+            }
+
+            // Start per-instance event processor for change streams
+            Runnable eventProcessor = () -> {
+                // Notification of watchers.
+                try {
+                    // Process all available events in this execution
+                    while (true) {
+                        Runnable r1 = eventQueue.poll();
+
+                        if (r1 == null)
+                            break; // Exit when queue is empty
+
+                        try {
+                            r1.run();
+                        } catch (Exception e) {
+                            // swallow
+                        }
+                    }
+                } catch (Throwable e) {
+                    log.error("Error", e);
+                }
+            };
+
+            // Start event processor for this instance
+            exec.scheduleWithFixedDelay(eventProcessor, 100, 1, TimeUnit.MILLISECONDS);
+
+            scheduleExpire();
+
+            // Mark as fully initialized only after all setup is complete
             initialized.set(true);
         }
-
-        for (DriverStatsKey k : DriverStatsKey.values()) {
-            stats.put(k, new AtomicDecimal(0));
-        }
-
-        database.put("local", new ConcurrentHashMap<>());
-        database.put("admin", new ConcurrentHashMap<>());
-        database.put("test", new ConcurrentHashMap<>());
-
-        if (exec.isShutdown()) {
-            exec = new ScheduledThreadPoolExecutor(
-                            Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
-        }
-
-        // Start per-instance event processor for change streams
-        Runnable eventProcessor = () -> {
-            // Notification of watchers.
-            try {
-                // Process all available events in this execution
-                while (true) {
-                    Runnable r1 = eventQueue.poll();
-
-                    if (r1 == null)
-                        break; // Exit when queue is empty
-
-                    try {
-                        r1.run();
-                    } catch (Exception e) {
-                        // swallow
-                    }
-                }
-            } catch (Throwable e) {
-                log.error("Error", e);
-            }
-        };
-
-        // Start event processor for this instance
-        exec.scheduleWithFixedDelay(eventProcessor, 100, 1, TimeUnit.MILLISECONDS);
-
-        scheduleExpire();
     }
 
     private void scheduleExpire() {

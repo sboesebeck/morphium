@@ -8,8 +8,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Package-private utility that centralises all ClassGraph access behind an availability check.
  * <p>
- * When ClassGraph is not on the classpath (e.g. in a Quarkus native-image build),
- * all scan methods return empty results and log a one-time warning.
+ * When ClassGraph is not on the classpath (e.g. in a Quarkus native-image build), {@link #isAvailable()}
+ * will return {@code false}. Call sites that perform ClassGraph-based scans should guard those calls with
+ * {@link #isAvailable()} and, if it returns {@code false}, skip scanning (typically returning empty results).
+ * {@link #warnIfUnavailable()} can be used to emit a one-time warning in that case.
  */
 final class ClassGraphHelper {
     private static final Logger log = LoggerFactory.getLogger(ClassGraphHelper.class);
