@@ -136,8 +136,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     public final static String driverName = "InMemDriver";
 
-    @SuppressWarnings("rawtypes")
-    private static final List<Class<? extends MongoCommand>> KNOWN_COMMANDS = List.of(
+    private static final List<Class<? extends MongoCommand<?>>> KNOWN_COMMANDS = List.of(
         FindCommand.class,
         InsertMongoCommand.class,
         UpdateMongoCommand.class,
@@ -2309,7 +2308,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             running = true;
 
             // Register all known MongoCommand subclasses (no ClassGraph needed)
-            for (Class<? extends MongoCommand> cls : KNOWN_COMMANDS) {
+            for (Class<? extends MongoCommand<?>> cls : KNOWN_COMMANDS) {
                 try {
                     if (Modifier.isAbstract(cls.getModifiers()) || cls.isInterface()) {
                         continue;

@@ -153,6 +153,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private static final ConcurrentHashMap<String, Class<? extends MorphiumMessaging>> MESSAGING_REGISTRY = new ConcurrentHashMap<>();
     static {
         MESSAGING_REGISTRY.put("StandardMessaging", de.caluga.morphium.messaging.SingleCollectionMessaging.class);
+        MESSAGING_REGISTRY.put("SingleCollectionMessaging", de.caluga.morphium.messaging.SingleCollectionMessaging.class);
         MESSAGING_REGISTRY.put("MultiCollectionMessaging", de.caluga.morphium.messaging.MultiCollectionMessaging.class);
     }
 
@@ -361,6 +362,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 String driverName = getConfig().driverSettings().getDriverName();
                 // Try registry first (no ClassGraph needed for built-in drivers)
                 Class<? extends MorphiumDriver> driverClass = DRIVER_REGISTRY.get(driverName);
+
+                if (driverClass == null && !ClassGraphHelper.isAvailable()) {
+                    log.warn("Configured driver '{}' not found in registry and ClassGraph is not available; "
+                             + "falling back to default driver", driverName);
+                }
 
                 if (driverClass == null && ClassGraphHelper.isAvailable()) {
                     // Fallback: ClassGraph scan for custom drivers

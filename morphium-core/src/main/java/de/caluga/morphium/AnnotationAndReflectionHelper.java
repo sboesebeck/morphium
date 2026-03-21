@@ -135,8 +135,9 @@ public class AnnotationAndReflectionHelper {
     /**
      * Resets the static type-ID cache so that the next {@code AnnotationAndReflectionHelper}
      * instantiation re-initialises it (either from pre-registered entities or via ClassGraph).
+     * Must only be called when no Morphium instances are active (e.g. during hot-reload).
      */
-    public static void clearTypeIdCache() {
+    public static synchronized void clearTypeIdCache() {
         classNameByType = null;
     }
 

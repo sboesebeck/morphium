@@ -37,9 +37,10 @@ class InMemoryDriverCommandListTest {
             .map(Class::getName)
             .collect(Collectors.toSet());
 
-        // Scan classpath for all concrete MongoCommand subclasses
+        // Scan Morphium's command packages for all concrete MongoCommand subclasses
         Set<String> scannedNames = new HashSet<>();
         try (ScanResult scanResult = new ClassGraph()
+            .acceptPackages("de.caluga.morphium.driver.commands")
             .enableClassInfo()
             .scan()) {
             for (ClassInfo info : scanResult.getSubclasses(MongoCommand.class.getName())) {
