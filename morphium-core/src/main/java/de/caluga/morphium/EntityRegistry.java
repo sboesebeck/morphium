@@ -84,8 +84,15 @@ public final class EntityRegistry {
      * Useful when the framework only has class names (e.g. from Jandex index).
      */
     public static synchronized void preRegisterEntityNames(Collection<String> classNames) {
+        if (classNames == null) {
+            throw new IllegalArgumentException("classNames must not be null");
+        }
         List<Class<?>> classes = new ArrayList<>();
         for (String cn : classNames) {
+            if (cn == null) {
+                log.warn("Encountered null class name while pre-registering entity names – skipping");
+                continue;
+            }
             try {
                 classes.add(AnnotationAndReflectionHelper.classForName(cn));
             } catch (ClassNotFoundException e) {
@@ -112,17 +119,27 @@ public final class EntityRegistry {
     }
 
     /**
-     * Returns the pre-registered typeId→FQCN map, or {@code null} if nothing was registered.
+     * Returns the pre-registered typeId→FQCN map, or an empty map if nothing was registered.
+     * The returned map is unmodifiable.
      */
     public static Map<String, String> getPreRegisteredTypeIds() {
-        return preRegisteredTypeIds;
+        Map<String, String> snapshot = preRegisteredTypeIds;
+        if (snapshot == null || snapshot.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return Collections.unmodifiableMap(snapshot);
     }
 
     /**
-     * Returns the set of pre-registered entity classes, or {@code null} if nothing was registered.
+     * Returns the set of pre-registered entity classes, or an empty set if nothing was registered.
+     * The returned set is unmodifiable.
      */
     public static Set<Class<?>> getPreRegisteredEntities() {
-        return preRegisteredEntities;
+        Set<Class<?>> snapshot = preRegisteredEntities;
+        if (snapshot == null || snapshot.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return Collections.unmodifiableSet(snapshot);
     }
 
     /**

@@ -137,7 +137,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             classByCollectionName.putAll(cachedClassByCollectionName);
             log.debug("Using cached classpath scan result with {} entities", classByCollectionName.size());
         } else if (EntityRegistry.hasPreRegisteredEntities()) {
-            for (Class<?> cls : EntityRegistry.getPreRegisteredEntities()) {
+            // Snapshot to local variable to avoid TOCTOU race with EntityRegistry.clear()
+            Set<Class<?>> preRegistered = EntityRegistry.getPreRegisteredEntities();
+            for (Class<?> cls : preRegistered) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
                     classByCollectionName.put(getCollectionName(cls), cls);
                 }

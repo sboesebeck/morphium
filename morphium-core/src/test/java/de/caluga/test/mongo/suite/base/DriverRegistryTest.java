@@ -57,13 +57,15 @@ class DriverRegistryTest {
     // ------------------------------------------------------------------
 
     @Test
-    void builtInMessaging_standardMessaging_resolves() {
-        // Verify the static registry contains the "StandardMessaging" alias
-        // by registering + looking up (registerMessaging is the public API)
-        // The actual resolution happens inside Morphium.initializeAndConnect(),
-        // so we test the public registerMessaging + null-check APIs here.
-        assertDoesNotThrow(() ->
-            Morphium.registerMessaging("StandardMessaging", SingleCollectionMessaging.class));
+    void builtInMessaging_standardMessaging_resolves() throws Exception {
+        MorphiumConfig cfg = new MorphiumConfig("messaging_registry_test_db", 10, 10_000, 1_000);
+        cfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+        cfg.messagingSettings().setMessagingImplementation("StandardMessaging");
+        try (Morphium m = new Morphium(cfg)) {
+            var messaging = m.createMessaging();
+            assertInstanceOf(SingleCollectionMessaging.class, messaging);
+            messaging.terminate();
+        }
     }
 
     @Test
