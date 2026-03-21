@@ -38,7 +38,7 @@
         {/include}
 
         {#include tags/tooltip color="green" text="Pagination" compat="all"}
-        {#tip}Pass PageRequest and Order parameters to get paginated results back as Page&lt;T&gt; with totalElements, totalPages, hasNext etc. Import: jakarta.data.page.PageRequest, jakarta.data.page.Page{/tip}
+        {#tip}Pass PageRequest and Order parameters to get paginated results back as Page&lt;T&gt; with totalElements, totalPages, hasNext etc. CursoredPage&lt;T&gt; for keyset pagination. Import: jakarta.data.page.PageRequest, jakarta.data.page.Page{/tip}
         {/include}
 
         {#include tags/tooltip color="orange" text="@Find / @By / @OrderBy" compat="all"}
@@ -46,7 +46,23 @@
         {/include}
 
         {#include tags/tooltip color="orange" text="@Query (JDQL)" compat="all"}
-        {#tip}Jakarta Data Query Language &mdash; SQL-like syntax for complex queries. WHERE, AND, OR, LIKE, ORDER BY, BETWEEN. Parameters with :name syntax. Import: jakarta.data.repository.Query{/tip}
+        {#tip}Jakarta Data Query Language &mdash; SQL-like syntax for complex queries. WHERE, AND, OR, LIKE, ORDER BY, BETWEEN, GROUP BY, HAVING with aggregation functions. Parameters with :name syntax. Import: jakarta.data.repository.Query{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="GROUP BY + Aggregation" compat="all"}
+        {#tip}JDQL supports SELECT with GROUP BY and aggregate functions: COUNT(this), SUM(field), AVG(field), MIN(field), MAX(field). Results map to Java Records. Translates to MongoDB $group pipeline stage.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="HAVING (AND/OR)" compat="all"}
+        {#tip}Filter aggregated results with HAVING clause. Supports AND/OR combinators: HAVING COUNT(this) > :min OR SUM(salary) >= :threshold. Translates to MongoDB $match after $group.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="Stream&lt;T&gt;" compat="all"}
+        {#tip}Cursor-backed lazy Stream for memory-efficient large result set processing. Auto-closeable. Works with query derivation, @Find and @Query methods.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="CompletionStage&lt;T&gt;" compat="all"}
+        {#tip}Non-blocking async repository methods. Return CompletionStage&lt;T&gt; for any query. Executed on Morphium's async thread pool. Suffix method name with Async.{/tip}
         {/include}
 
         {#include tags/tooltip color="purple" text="@StaticMetamodel" compat="all"}
@@ -205,6 +221,89 @@
 <span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;pattern&quot;</span>) String pattern);</span>{/content}
     {/include}
 
+    <h3>GROUP BY + Aggregation (JDQL)</h3>
+    <p>JDQL supports <code>GROUP BY</code> with aggregate functions &mdash; no manual pipeline construction needed.
+    Results map directly to <strong>Java Records</strong>:</p>
+    {#include tags/code-block title="Aggregation via JDQL" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Record return type — fields match SELECT order</span></span>
+<span class="line"><span class="keyword">record</span> <span class="type">DeptStats</span>(String department, <span class="keyword">long</span> count, <span class="keyword">double</span> sum) &#123;&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Headcount + total salary per department</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;SELECT department, COUNT(this), SUM(salary)&quot;</span></span>
+<span class="line">     + <span class="string">&quot; GROUP BY department ORDER BY department ASC&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">DeptStats</span>&gt; statsByDepartment();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Equivalent Morphium aggregation pipeline:</span></span>
+<span class="line"><span class="keyword">var</span> agg = morphium.createAggregator(<span class="type">Employee</span>.<span class="keyword">class</span>, <span class="type">Map</span>.<span class="keyword">class</span>);</span>
+<span class="line">agg.group(<span class="string">&quot;$department&quot;</span>)</span>
+<span class="line">    .sum(<span class="string">&quot;count&quot;</span>, <span class="number">1</span>)</span>
+<span class="line">    .sum(<span class="string">&quot;sum&quot;</span>, <span class="string">&quot;$salary&quot;</span>)</span>
+<span class="line">    .end();</span>
+<span class="line">agg.sort(Map.of(<span class="string">&quot;_id&quot;</span>, <span class="number">1</span>));</span>
+<span class="line">agg.aggregate();</span>{/content}
+    {/include}
+    <p><strong>Supported aggregate functions:</strong> <code>COUNT(this)</code>, <code>COUNT(field)</code>,
+    <code>SUM(field)</code>, <code>AVG(field)</code>, <code>MIN(field)</code>, <code>MAX(field)</code>.
+    Multi-field GROUP BY is supported: <code>GROUP BY department, status</code>.</p>
+
+    <h3>HAVING Clause</h3>
+    <p>Filter aggregated results with <code>HAVING</code> &mdash; supports <strong>AND/OR</strong> combinators:</p>
+    {#include tags/code-block title="HAVING with AND/OR" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Only departments with &gt; 1 employee</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;SELECT department, COUNT(this), SUM(salary)&quot;</span></span>
+<span class="line">     + <span class="string">&quot; GROUP BY department&quot;</span></span>
+<span class="line">     + <span class="string">&quot; HAVING COUNT(this) &gt; :min&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">DeptStats</span>&gt; deptStatsHavingCountAbove(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;min&quot;</span>) <span class="keyword">long</span> minCount);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// OR combinator: large team OR high total salary</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;SELECT department, COUNT(this), SUM(salary)&quot;</span></span>
+<span class="line">     + <span class="string">&quot; GROUP BY department&quot;</span></span>
+<span class="line">     + <span class="string">&quot; HAVING COUNT(this) &gt; :minCount&quot;</span></span>
+<span class="line">     + <span class="string">&quot; OR SUM(salary) &gt;= :minSalary&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">DeptStats</span>&gt; deptStatsHavingOr(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;minCount&quot;</span>) <span class="keyword">long</span> minCount,</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;minSalary&quot;</span>) <span class="keyword">double</span> minSalary);</span>{/content}
+    {/include}
+    <p>Translates to a <code>$match</code> stage after <code>$group</code> in the MongoDB aggregation pipeline.
+    The extension handles the entire pipeline construction &mdash; you just write JDQL.</p>
+
+    <h3>Stream&lt;T&gt; &mdash; Memory-Efficient Processing</h3>
+    <p>Return <code>Stream&lt;T&gt;</code> from any query method for <strong>cursor-backed lazy loading</strong>.
+    Documents are fetched incrementally &mdash; ideal for large result sets that don't fit in memory:</p>
+    {#include tags/code-block title="Cursor-Backed Stream" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;WHERE department = :dept ORDER BY salary DESC&quot;</span>)</span>
+<span class="line"><span class="type">Stream</span>&lt;<span class="type">Employee</span>&gt; streamByDepartment(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;dept&quot;</span>) String department);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Usage — auto-closeable, processes one document at a time</span></span>
+<span class="line"><span class="keyword">try</span> (<span class="type">Stream</span>&lt;<span class="type">Employee</span>&gt; stream = repo.streamByDepartment(<span class="string">&quot;Engineering&quot;</span>)) &#123;</span>
+<span class="line">    stream.filter(e -&gt; e.getSalary() &gt; <span class="number">80000</span>)</span>
+<span class="line">          .map(<span class="type">Employee</span>::getFirstName)</span>
+<span class="line">          .forEach(<span class="type">System</span>.out::println);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <p>Works with query derivation, <code>@Find</code>, and <code>@Query</code> methods.
+    The stream delegates to Morphium's <code>Query.stream()</code> which uses a MongoDB cursor internally.</p>
+
+    <h3>CompletionStage&lt;T&gt; &mdash; Async Queries</h3>
+    <p>Return <code>CompletionStage&lt;T&gt;</code> for <strong>non-blocking repository queries</strong>.
+    The query executes on Morphium's async thread pool:</p>
+    {#include tags/code-block title="Async Repository Method" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Suffix method name with Async — return type is CompletionStage</span></span>
+<span class="line"><span class="type">CompletionStage</span>&lt;<span class="type">List</span>&lt;<span class="type">Employee</span>&gt;&gt; findByDepartmentAsync(</span>
+<span class="line">    String department);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Usage — compose with thenApply, thenAccept, etc.</span></span>
+<span class="line">repo.findByDepartmentAsync(<span class="string">&quot;Engineering&quot;</span>)</span>
+<span class="line">    .thenApply(employees -&gt; employees.stream()</span>
+<span class="line">        .map(<span class="type">Employee</span>::getFirstName)</span>
+<span class="line">        .toList())</span>
+<span class="line">    .thenAccept(names -&gt; <span class="type">System</span>.out.println(names));</span>{/content}
+    {/include}
+    <p>Async variants also work for <code>findById</code>, <code>save</code>, <code>insert</code>,
+    <code>update</code>, and <code>delete</code> operations on <code>MorphiumRepository</code>.</p>
+
     <h3>@StaticMetamodel</h3>
     {#include tags/code-block title="Generated Metamodel" lang="Java"}
     {#content}<span class="line"><span class="comment">// Generated at Quarkus build time (not in source code!)</span></span>
@@ -253,7 +352,7 @@
         <p>The following features require <code>MorphiumRepository.morphium()</code> or <code>@Inject Morphium</code>:</p>
         <ul class="prereq-list">
             <li><strong>Atomic updates (<code>$inc</code>, <code>$set</code>, <code>$push</code>, <code>$pull</code>)</strong> &mdash; field-level updates without loading the entity</li>
-            <li><strong>Aggregation pipelines</strong> &mdash; $group, $lookup, $unwind, $bucket</li>
+            <li><strong>Multi-stage aggregation</strong> &mdash; $lookup, $unwind, $bucket, $facet (simple GROUP BY + HAVING works through JDQL)</li>
             <li><strong>Change streams / Messaging</strong> &mdash; real-time event processing</li>
         </ul>
     </div>
@@ -282,15 +381,23 @@
                 </tr>
                 <tr>
                     <td>Pagination</td>
-                    <td><strong>Jakarta Data</strong> &mdash; Page&lt;T&gt; with total count in one call</td>
+                    <td><strong>Jakarta Data</strong> &mdash; Page&lt;T&gt; / CursoredPage&lt;T&gt; with total count in one call</td>
+                </tr>
+                <tr>
+                    <td>GROUP BY / aggregation (COUNT, SUM, AVG)</td>
+                    <td><strong>Jakarta Data @Query/JDQL</strong> &mdash; GROUP BY + HAVING with Record return types</td>
+                </tr>
+                <tr>
+                    <td>Stream / async queries</td>
+                    <td><strong>Jakarta Data</strong> &mdash; Stream&lt;T&gt; (cursor-backed) and CompletionStage&lt;T&gt;</td>
+                </tr>
+                <tr>
+                    <td>Complex aggregation ($lookup, $unwind, $bucket)</td>
+                    <td><strong>Morphium API</strong> &mdash; multi-stage pipelines beyond GROUP BY</td>
                 </tr>
                 <tr>
                     <td>Atomic field updates ($inc, $set)</td>
                     <td><strong>Morphium API</strong> &mdash; field-level updates without loading the entity</td>
-                </tr>
-                <tr>
-                    <td>Aggregation pipelines</td>
-                    <td><strong>Morphium API</strong> &mdash; $group, $lookup, $unwind etc.</td>
                 </tr>
                 <tr>
                     <td>@Version, @CreationTime, @PreStore, @Cache</td>
