@@ -111,13 +111,17 @@ public final class EntityRegistry {
         preRegisteredEntities = null;
     }
 
-    // Package-private getters for AnnotationAndReflectionHelper / ObjectMapperImpl
-
-    static Map<String, String> getPreRegisteredTypeIds() {
+    /**
+     * Returns the pre-registered typeId→FQCN map, or {@code null} if nothing was registered.
+     */
+    public static Map<String, String> getPreRegisteredTypeIds() {
         return preRegisteredTypeIds;
     }
 
-    static Set<Class<?>> getPreRegisteredEntities() {
+    /**
+     * Returns the set of pre-registered entity classes, or {@code null} if nothing was registered.
+     */
+    public static Set<Class<?>> getPreRegisteredEntities() {
         return preRegisteredEntities;
     }
 
