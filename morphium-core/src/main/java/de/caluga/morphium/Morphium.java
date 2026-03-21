@@ -3360,6 +3360,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 entitiesToCheck = scanned;
             }
         } else {
+            ClassGraphHelper.warnIfUnavailable();
             return uncappedCollections;
         }
 
@@ -3471,6 +3472,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 entitiesToCheck = scanned;
             }
         } else {
+            ClassGraphHelper.warnIfUnavailable();
             return missingIndicesByClass;
         }
 
