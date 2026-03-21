@@ -57,11 +57,11 @@
         {#tip}Filter aggregated results with HAVING clause. Supports AND/OR combinators: HAVING COUNT(this) > :min OR SUM(salary) >= :threshold. Translates to MongoDB $match after $group.{/tip}
         {/include}
 
-        {#include tags/tooltip color="orange" text="Stream&lt;T&gt;" compat="all"}
+        {#include tags/tooltip color="orange" text="Stream<T>" compat="all"}
         {#tip}Cursor-backed lazy Stream for memory-efficient large result set processing. Auto-closeable. Works with query derivation, @Find and @Query methods.{/tip}
         {/include}
 
-        {#include tags/tooltip color="orange" text="CompletionStage&lt;T&gt;" compat="all"}
+        {#include tags/tooltip color="orange" text="CompletionStage<T>" compat="all"}
         {#tip}Non-blocking async repository methods. Return CompletionStage&lt;T&gt; for any query. Executed on Morphium's async thread pool. Suffix method name with Async.{/tip}
         {/include}
 
