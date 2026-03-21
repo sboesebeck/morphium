@@ -17,12 +17,23 @@ final class ClassGraphHelper {
     private static final AtomicBoolean warned = new AtomicBoolean(false);
 
     static {
-        boolean found;
-        try {
-            Class.forName("io.github.classgraph.ClassGraph");
-            found = true;
-        } catch (ClassNotFoundException e) {
-            found = false;
+        boolean found = false;
+        // Try the thread context classloader first (important for Quarkus / isolated classloaders),
+        // then fall back to this class's defining classloader.
+        ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+        if (tccl != null) {
+            try {
+                Class.forName("io.github.classgraph.ClassGraph", false, tccl);
+                found = true;
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+        if (!found) {
+            try {
+                Class.forName("io.github.classgraph.ClassGraph", false, ClassGraphHelper.class.getClassLoader());
+                found = true;
+            } catch (ClassNotFoundException ignored) {
+            }
         }
         AVAILABLE = found;
     }

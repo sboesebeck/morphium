@@ -83,10 +83,12 @@ public class AnnotationAndReflectionHelper {
         ccc = false;
     }
     private void init() {
-        // Check for pre-registered entities first (framework integration path)
-        if (EntityRegistry.hasPreRegisteredEntities()) {
-            classNameByType.putAll(EntityRegistry.getPreRegisteredTypeIds());
-            logger.info("Using {} pre-registered entity type IDs", EntityRegistry.getPreRegisteredTypeIds().size());
+        // Check for pre-registered entities first (framework integration path).
+        // Snapshot into a local variable to avoid a TOCTOU race with EntityRegistry.clear().
+        Map<String, String> preRegistered = EntityRegistry.getPreRegisteredTypeIds();
+        if (preRegistered != null && !preRegistered.isEmpty()) {
+            classNameByType.putAll(preRegistered);
+            logger.info("Using {} pre-registered entity type IDs", preRegistered.size());
             return;
         }
 

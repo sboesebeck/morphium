@@ -32,10 +32,16 @@ public final class EntityRegistry {
      * Must be called before the first {@link Morphium} instance is created.
      */
     public static synchronized void preRegisterEntities(Collection<Class<?>> entityClasses) {
+        if (entityClasses == null) {
+            throw new IllegalArgumentException("entityClasses must not be null");
+        }
         Map<String, String> typeIds = new ConcurrentHashMap<>();
         Set<Class<?>> entities = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         for (Class<?> cls : entityClasses) {
+            if (cls == null) {
+                continue;
+            }
             entities.add(cls);
 
             Entity entityAnn = cls.getAnnotation(Entity.class);
