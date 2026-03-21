@@ -141,7 +141,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             log.debug("Using cached classpath scan result with {} entities", classByCollectionName.size());
         } else if (EntityRegistry.hasPreRegisteredEntities()) {
             for (Class<?> cls : EntityRegistry.getPreRegisteredEntities()) {
-                if (cls.isAnnotationPresent(Entity.class)) {
+                if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
                     classByCollectionName.put(getCollectionName(cls), cls);
                 }
             }

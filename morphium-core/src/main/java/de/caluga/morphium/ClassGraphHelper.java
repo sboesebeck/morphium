@@ -13,39 +13,46 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 final class ClassGraphHelper {
     private static final Logger log = LoggerFactory.getLogger(ClassGraphHelper.class);
-    private static final boolean AVAILABLE;
+    private static volatile boolean available;
     private static final AtomicBoolean warned = new AtomicBoolean(false);
 
     static {
-        boolean found = false;
+        available = checkClassGraphPresent();
+    }
+
+    private ClassGraphHelper() {}
+
+    static boolean isAvailable() {
+        if (available) {
+            return true;
+        }
+        // Re-check: the TCCL may have changed since the static initializer ran
+        // (e.g. Quarkus sets its classloader after the extension class is loaded).
+        available = checkClassGraphPresent();
+        return available;
+    }
+
+    private static boolean checkClassGraphPresent() {
         // Try the thread context classloader first (important for Quarkus / isolated classloaders),
         // then fall back to this class's defining classloader.
         ClassLoader tccl = Thread.currentThread().getContextClassLoader();
         if (tccl != null) {
             try {
                 Class.forName("io.github.classgraph.ClassGraph", false, tccl);
-                found = true;
+                return true;
             } catch (ClassNotFoundException ignored) {
             }
         }
-        if (!found) {
-            try {
-                Class.forName("io.github.classgraph.ClassGraph", false, ClassGraphHelper.class.getClassLoader());
-                found = true;
-            } catch (ClassNotFoundException ignored) {
-            }
+        try {
+            Class.forName("io.github.classgraph.ClassGraph", false, ClassGraphHelper.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException ignored) {
         }
-        AVAILABLE = found;
-    }
-
-    private ClassGraphHelper() {}
-
-    static boolean isAvailable() {
-        return AVAILABLE;
+        return false;
     }
 
     static void warnIfUnavailable() {
-        if (!AVAILABLE && warned.compareAndSet(false, true)) {
+        if (!isAvailable() && warned.compareAndSet(false, true)) {
             log.warn("ClassGraph not on classpath and no entities pre-registered. "
                 + "Runtime classpath scanning is disabled. "
                 + "Use EntityRegistry.preRegisterEntities() or add ClassGraph to the classpath.");
