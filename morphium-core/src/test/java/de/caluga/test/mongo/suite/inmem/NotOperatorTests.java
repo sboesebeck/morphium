@@ -139,11 +139,12 @@ public class NotOperatorTests extends MorphiumInMemTestBase {
         morphium.store(new UncachedObject("c", 3));
         morphium.store(new UncachedObject("d", 4));
 
+        // not().nin([1,2]) → {$not: {$nin: [1,2]}} → double negation → equivalent to $in([1,2])
         var field = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter);
         field.not();
         List<UncachedObject> results = field.nin(List.of(1, 2)).asList();
-        assertEquals(2, results.size(), "not().nin(1,2) should return counters 3 and 4");
-        assertTrue(results.stream().allMatch(o -> o.getCounter() >= 3));
+        assertEquals(2, results.size(), "not().nin(1,2) is double negation → should return counters 1 and 2");
+        assertTrue(results.stream().allMatch(o -> o.getCounter() <= 2));
     }
 
     // --- Fluent API test ---
