@@ -233,7 +233,7 @@ public class ClassForNameTest {
         Thread.currentThread().setContextClassLoader(tracking);
         try {
             // null filter = check all entities
-            assertDoesNotThrow(() -> morphium.checkIndices(null));
+            assertDoesNotThrow(() -> morphium.checkIndices((java.util.function.Predicate<Class<?>>) null));
             assertTrue(tracking.wasUsed(),
                     "checkIndices() must use the thread context classloader (AnnotationAndReflectionHelper.classForName)");
         } finally {
@@ -261,7 +261,7 @@ public class ClassForNameTest {
         // IndexedTestEntity has @Index annotations but its collection has never been created.
         // checkIndices must not return it as "having missing indices".
         Map<Class<?>, List<IndexDescription>> missing = morphium.checkIndices(
-                ci -> ci.getName().equals(IndexedTestEntity.class.getName()));
+                (Class<?> cls) -> cls.getName().equals(IndexedTestEntity.class.getName()));
 
         assertTrue(missing == null || !missing.containsKey(IndexedTestEntity.class),
                 "checkIndices must not report missing indices for a collection that does not exist yet");

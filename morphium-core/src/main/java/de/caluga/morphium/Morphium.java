@@ -129,6 +129,38 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     // Map to track shared connection pool drivers by hosts+database key
     private static final java.util.concurrent.ConcurrentHashMap<String, MorphiumDriver> sharedDriversByKey = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> sharedDriverRefCounts = new java.util.concurrent.ConcurrentHashMap<>();
+
+    // Static driver registry — avoids ClassGraph scan for built-in drivers
+    private static final ConcurrentHashMap<String, Class<? extends MorphiumDriver>> DRIVER_REGISTRY = new ConcurrentHashMap<>();
+    static {
+        DRIVER_REGISTRY.put(de.caluga.morphium.driver.wire.PooledDriver.driverName, de.caluga.morphium.driver.wire.PooledDriver.class);
+        DRIVER_REGISTRY.put(de.caluga.morphium.driver.wire.SingleMongoConnectDriver.driverName, de.caluga.morphium.driver.wire.SingleMongoConnectDriver.class);
+        DRIVER_REGISTRY.put(InMemoryDriver.driverName, InMemoryDriver.class);
+    }
+
+    /**
+     * Register a custom driver implementation so it can be looked up by name
+     * without requiring ClassGraph on the classpath.
+     */
+    public static void registerDriver(String name, Class<? extends MorphiumDriver> driverClass) {
+        DRIVER_REGISTRY.put(name, driverClass);
+    }
+
+    // Static messaging registry — avoids ClassGraph scan for built-in messaging implementations
+    private static final ConcurrentHashMap<String, Class<? extends MorphiumMessaging>> MESSAGING_REGISTRY = new ConcurrentHashMap<>();
+    static {
+        MESSAGING_REGISTRY.put("StandardMessaging", de.caluga.morphium.messaging.SingleCollectionMessaging.class);
+        MESSAGING_REGISTRY.put("MultiCollectionMessaging", de.caluga.morphium.messaging.MultiCollectionMessaging.class);
+    }
+
+    /**
+     * Register a custom messaging implementation so it can be looked up by name
+     * without requiring ClassGraph on the classpath.
+     */
+    public static void registerMessaging(String name, Class<? extends MorphiumMessaging> messagingClass) {
+        MESSAGING_REGISTRY.put(name, messagingClass);
+    }
+
     public Morphium() {
         // profilingListeners = new CopyOnWriteArrayList<>();
         instances.add(this);
@@ -260,35 +292,44 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 messagingClass = de.caluga.morphium.messaging.SingleCollectionMessaging.class;
                 log.info("Using Messaging SingleCollectionMessaging");
             } else {
-                try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-                    .scan()) {
-                    ClassInfoList entities = scanResult.getClassesWithAnnotation(Messaging.class.getName());
+                String msgImpl = config.messagingSettings().getMessagingImplementation();
+                // Try registry first (no ClassGraph needed for built-in implementations)
+                Class<? extends MorphiumMessaging> registeredMsg = MESSAGING_REGISTRY.get(msgImpl);
+                if (registeredMsg != null) {
+                    messagingClass = registeredMsg;
+                    log.info("Using Messaging {} (from registry)", msgImpl);
+                } else if (ClassGraphHelper.isAvailable()) {
+                    // Fallback: ClassGraph scan for custom messaging implementations
+                    try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
+                        .scan()) {
+                        ClassInfoList entities = scanResult.getClassesWithAnnotation(Messaging.class.getName());
 
-                    if (log.isDebugEnabled()) {
-                        log.debug("Found {} messaging implementations in classpath", entities.size());
-                    }
-
-                    for (String cn : entities.getNames()) {
-                        try {
-                            Class c = AnnotationAndReflectionHelper.classForName(cn);
-                            var ann = (Messaging)c.getAnnotation(Messaging.class);
-                            String name = ann.name();
-
-                            if (name.equals(config.messagingSettings().getMessagingImplementation())) {
-                                log.info("Using Messaging {}: {}", name, ann.description());
-                                messagingClass = c;
-                                break;
-                            }
-                        } catch (Exception e) {
-                            log.error("Error handling messaging implementation {}", cn, e);
+                        if (log.isDebugEnabled()) {
+                            log.debug("Found {} messaging implementations in classpath", entities.size());
                         }
+
+                        for (String cn : entities.getNames()) {
+                            try {
+                                Class c = AnnotationAndReflectionHelper.classForName(cn);
+                                var ann = (Messaging)c.getAnnotation(Messaging.class);
+                                String name = ann.name();
+
+                                if (name.equals(msgImpl)) {
+                                    log.info("Using Messaging {}: {}", name, ann.description());
+                                    messagingClass = c;
+                                    break;
+                                }
+                            } catch (Exception e) {
+                                log.error("Error handling messaging implementation {}", cn, e);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Could not scan for Messaging implementations", e);
                     }
-                    if (messagingClass == null) {
-                        log.error("Could not find messaging {}, using default", config.messagingSettings().getMessagingImplementation());
-                        messagingClass = de.caluga.morphium.messaging.SingleCollectionMessaging.class;
-                    }
-                } catch (Exception e) {
-                    log.error("Could not scan for Messaging implementations", e);
+                }
+                if (messagingClass == null) {
+                    log.error("Could not find messaging {}, using default", msgImpl);
+                    messagingClass = de.caluga.morphium.messaging.SingleCollectionMessaging.class;
                 }
             }
         }
@@ -311,94 +352,90 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 getConfig().driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
                 morphiumDriver = new SingleMongoConnectDriver();
             } else {
-                try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-                    .scan()) {
-                    ClassInfoList entities = scanResult.getClassesWithAnnotation(Driver.class.getName());
+                String driverName = getConfig().driverSettings().getDriverName();
+                // Try registry first (no ClassGraph needed for built-in drivers)
+                Class<? extends MorphiumDriver> driverClass = DRIVER_REGISTRY.get(driverName);
 
-                    if (log.isDebugEnabled()) {
-                        log.debug("Found " + entities.size() + " drivers in classpath");
-                    }
+                if (driverClass == null && ClassGraphHelper.isAvailable()) {
+                    // Fallback: ClassGraph scan for custom drivers
+                    try (ScanResult scanResult = new ClassGraph().enableAllInfo().scan()) {
+                        ClassInfoList entities = scanResult.getClassesWithAnnotation(Driver.class.getName());
 
-                    String driverName = getConfig().driverSettings().getDriverName();
-
-                    for (String cn : entities.getNames()) {
-                        try {
-                            @SuppressWarnings("rawtypes")
-                            Class c = AnnotationAndReflectionHelper.classForName(cn);
-
-                            if (Modifier.isAbstract(c.getModifiers())) {
-                                continue;
-                            }
-
-                            var driverAnnotation = (Driver)c.getAnnotation(Driver.class);
-
-                            if (driverAnnotation.name().equals(driverName)) {
-                                log.debug("Found driverName: {} - {} " + driverName, driverAnnotation.description());
-
-                                // Special handling for InMemoryDriver: optionally share instances within same database
-                                // This allows multiple Morphium instances in a test to share the same in-memory database
-                                // Different tests (different database names) get different driver instances
-                                // Enable sharing with driverSettings().setInMemorySharedDatabases(true) OR setSharedConnectionPool(true)
-                                // Both settings have the same effect for InMemoryDriver - they share driver instances by database name
-                                if (driverAnnotation.name().equals(InMemoryDriver.driverName) &&
-                                    (getConfig().driverSettings().isInMemorySharedDatabases() || getConfig().driverSettings().isSharedConnectionPool())) {
-                                    String dbName = getConfig().connectionSettings().getDatabase();
-                                    morphiumDriver = inMemoryDriversByDatabase.computeIfAbsent(dbName, k -> {
-                                        try {
-                                            MorphiumDriver newDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                                            log.info("Created new shared InMemoryDriver for database '{}' (driver hashcode: {})", dbName, System.identityHashCode(newDriver));
-                                            return newDriver;
-                                        } catch (Exception e) {
-                                            throw new RuntimeException("Failed to create InMemoryDriver", e);
-                                        }
-                                    });
-                                    // Increment reference count for this shared driver
-                                    inMemoryDriverRefCounts.computeIfAbsent(dbName, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
-                                    log.info("Using shared InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
-                                             dbName, System.identityHashCode(morphiumDriver), inMemoryDriverRefCounts.get(dbName).get());
-                                } else if (!driverAnnotation.name().equals(InMemoryDriver.driverName) && getConfig().driverSettings().isSharedConnectionPool()) {
-                                    // Shared connection pool for real drivers (not InMemory)
-                                    // Key is based on sorted hosts + database name
-                                    sharedDriverKey = buildSharedDriverKey();
-                                    morphiumDriver = sharedDriversByKey.computeIfAbsent(sharedDriverKey, k -> {
-                                        try {
-                                            MorphiumDriver newDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                                            log.info("Created new shared driver for key '{}' (driver hashcode: {})", sharedDriverKey, System.identityHashCode(newDriver));
-                                            return newDriver;
-                                        } catch (Exception e) {
-                                            throw new RuntimeException("Failed to create shared driver", e);
-                                        }
-                                    });
-                                    // Increment reference count for this shared driver
-                                    sharedDriverRefCounts.computeIfAbsent(sharedDriverKey, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
-                                    log.info("Using shared driver for key '{}' (driver hashcode: {}, refCount: {})",
-                                             sharedDriverKey, System.identityHashCode(morphiumDriver), sharedDriverRefCounts.get(sharedDriverKey).get());
-                                } else {
-                                    morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                                }
-                            }
-
-                            // var flds = annotationHelper.getAllFields(c);
-                            // for (var f : flds) {
-                            //     if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
-                            //         String dn = (String) f.get(c);
-                            //         log.debug("Found driverName: " + dn);
-                            //         if (dn.equals(getConfig().driverSettings().getDriverName())) {
-                            //             morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                            //         }
-                            //         break;
-                            //     }
-                            // }
-                        } catch (Throwable e) {
-                            log.error("Could not load driver " + getConfig().driverSettings().getDriverName(), e);
+                        if (log.isDebugEnabled()) {
+                            log.debug("Found " + entities.size() + " drivers in classpath");
                         }
-                    }
 
-                    if (morphiumDriver == null) {
-                        morphiumDriver = new SingleMongoConnectDriver(); // default
+                        for (String cn : entities.getNames()) {
+                            try {
+                                @SuppressWarnings("rawtypes")
+                                Class c = AnnotationAndReflectionHelper.classForName(cn);
+
+                                if (Modifier.isAbstract(c.getModifiers())) {
+                                    continue;
+                                }
+
+                                var driverAnnotation = (Driver)c.getAnnotation(Driver.class);
+
+                                if (driverAnnotation.name().equals(driverName)) {
+                                    driverClass = c;
+                                    break;
+                                }
+                            } catch (Throwable e) {
+                                log.error("Could not load driver " + driverName, e);
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
                     }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+                }
+
+                if (driverClass != null) {
+                    try {
+                        log.debug("Found driverName: {}", driverName);
+
+                        // Special handling for InMemoryDriver: optionally share instances within same database
+                        if (driverName.equals(InMemoryDriver.driverName) &&
+                            (getConfig().driverSettings().isInMemorySharedDatabases() || getConfig().driverSettings().isSharedConnectionPool())) {
+                            String dbName = getConfig().connectionSettings().getDatabase();
+                            final Class<? extends MorphiumDriver> dc = driverClass;
+                            morphiumDriver = inMemoryDriversByDatabase.computeIfAbsent(dbName, k -> {
+                                try {
+                                    MorphiumDriver newDriver = dc.getDeclaredConstructor().newInstance();
+                                    log.info("Created new shared InMemoryDriver for database '{}' (driver hashcode: {})", dbName, System.identityHashCode(newDriver));
+                                    return newDriver;
+                                } catch (Exception e) {
+                                    throw new RuntimeException("Failed to create InMemoryDriver", e);
+                                }
+                            });
+                            inMemoryDriverRefCounts.computeIfAbsent(dbName, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
+                            log.info("Using shared InMemoryDriver for database '{}' (driver hashcode: {}, refCount: {})",
+                                     dbName, System.identityHashCode(morphiumDriver), inMemoryDriverRefCounts.get(dbName).get());
+                        } else if (!driverName.equals(InMemoryDriver.driverName) && getConfig().driverSettings().isSharedConnectionPool()) {
+                            // Shared connection pool for real drivers (not InMemory)
+                            sharedDriverKey = buildSharedDriverKey();
+                            final Class<? extends MorphiumDriver> dc = driverClass;
+                            morphiumDriver = sharedDriversByKey.computeIfAbsent(sharedDriverKey, k -> {
+                                try {
+                                    MorphiumDriver newDriver = dc.getDeclaredConstructor().newInstance();
+                                    log.info("Created new shared driver for key '{}' (driver hashcode: {})", sharedDriverKey, System.identityHashCode(newDriver));
+                                    return newDriver;
+                                } catch (Exception e) {
+                                    throw new RuntimeException("Failed to create shared driver", e);
+                                }
+                            });
+                            sharedDriverRefCounts.computeIfAbsent(sharedDriverKey, k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
+                            log.info("Using shared driver for key '{}' (driver hashcode: {}, refCount: {})",
+                                     sharedDriverKey, System.identityHashCode(morphiumDriver), sharedDriverRefCounts.get(sharedDriverKey).get());
+                        } else {
+                            morphiumDriver = driverClass.getDeclaredConstructor().newInstance();
+                        }
+                    } catch (Throwable e) {
+                        log.error("Could not instantiate driver " + driverName, e);
+                    }
+                }
+
+                if (morphiumDriver == null) {
+                    morphiumDriver = new SingleMongoConnectDriver(); // default
                 }
             }
         }
@@ -575,7 +612,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (!getConfig().collectionCheckSettings().getIndexCheck().equals(IndexCheck.NO_CHECK) && (getConfig().collectionCheckSettings().getIndexCheck().equals(IndexCheck.CREATE_ON_STARTUP) ||
                 getConfig().collectionCheckSettings().getIndexCheck().equals(IndexCheck.WARN_ON_STARTUP))) {
-            Map < Class<?>, List<IndexDescription >> missing = checkIndices(classInfo->!classInfo.getPackageName().startsWith("de.caluga.morphium"));
+            Map < Class<?>, List<IndexDescription >> missing = checkIndices((Class<?> cls) -> !cls.getPackageName().startsWith("de.caluga.morphium"));
             if (missing != null && !missing.isEmpty()) {
                 for (Class<?> cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
@@ -3283,95 +3320,90 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * indices are missing or different
      */
     public Map < Class<?>, List<IndexDescription >> checkIndices() {
-        return checkIndices(null);
+        return checkIndices((java.util.function.Predicate<Class<?>>) null);
     }
 
     public Map < Class<?>, Map<String, Integer >> checkCapped() {
         Map < Class<?>, Map<String, Integer >> uncappedCollections = new HashMap<>();
 
-        try (ScanResult scanResult = new ClassGraph().enableAnnotationInfo().enableClassInfo().scan()) {
-            ClassInfoList entities = scanResult.getClassesWithAnnotation(Capped.class.getName());
-
-            for (String cn : entities.getNames()) {
-                // ClassInfo ci = scanResult.getClassInfo(cn);
-                try {
-                    if (cn.startsWith("sun.")) {
-                        continue;
-                    }
-
-                    if (cn.startsWith("com.sun.")) {
-                        continue;
-                    }
-
-                    if (cn.startsWith("org.assertj.")) {
-                        continue;
-                    }
-
-                    if (cn.startsWith("javax.")) {
-                        continue;
-                    }
-
-                    log.debug("Cap-Checking " + cn);
-                    Class<?> entity = AnnotationAndReflectionHelper.classForName(cn);
-
-                    if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
-                        continue;
-                    }
-
-                    if (annotationHelper.isAnnotationPresentInHierarchy(entity, Capped.class)) {
-                        if (!morphiumDriver.isCapped(getConfig().connectionSettings().getDatabase(), getMapper().getCollectionName(entity))) {
-                            Capped capped = annotationHelper.getAnnotationFromClass(entity, Capped.class);
-                            uncappedCollections.put(entity, UtilsMap.of("max", capped.maxEntries(), "size", capped.maxSize()));
+        Collection<Class<?>> entitiesToCheck;
+        if (EntityRegistry.hasPreRegisteredEntities()) {
+            entitiesToCheck = EntityRegistry.getPreRegisteredEntities().stream()
+                .filter(cls -> annotationHelper.isAnnotationPresentInHierarchy(cls, Capped.class))
+                .toList();
+        } else if (ClassGraphHelper.isAvailable()) {
+            try (ScanResult scanResult = new ClassGraph().enableAnnotationInfo().enableClassInfo().scan()) {
+                ClassInfoList entities = scanResult.getClassesWithAnnotation(Capped.class.getName());
+                List<Class<?>> scanned = new ArrayList<>();
+                for (String cn : entities.getNames()) {
+                    try {
+                        if (cn.startsWith("sun.") || cn.startsWith("com.sun.") || cn.startsWith("org.assertj.") || cn.startsWith("javax.")) {
+                            continue;
                         }
+                        scanned.add(AnnotationAndReflectionHelper.classForName(cn));
+                    } catch (Exception e) {
+                        log.error("error", e);
                     }
-                } catch (Exception e) {
-                    log.error("error", e);
                 }
+                entitiesToCheck = scanned;
+            }
+        } else {
+            return uncappedCollections;
+        }
+
+        for (Class<?> entity : entitiesToCheck) {
+            try {
+                if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
+                    continue;
+                }
+
+                log.debug("Cap-Checking " + entity.getName());
+
+                if (annotationHelper.isAnnotationPresentInHierarchy(entity, Capped.class)) {
+                    if (!morphiumDriver.isCapped(getConfig().connectionSettings().getDatabase(), getMapper().getCollectionName(entity))) {
+                        Capped capped = annotationHelper.getAnnotationFromClass(entity, Capped.class);
+                        uncappedCollections.put(entity, UtilsMap.of("max", capped.maxEntries(), "size", capped.maxSize()));
+                    }
+                }
+            } catch (Exception e) {
+                log.error("error", e);
             }
         }
+
         return uncappedCollections;
     }
 
+    /**
+     * @deprecated Use {@link #checkIndices(java.util.function.Predicate)} instead —
+     * the ClassInfoFilter parameter couples the API to ClassGraph, which is now optional.
+     */
+    @Deprecated
     @SuppressWarnings("CommentedOutCode")
-    public Map < Class<?>, List<IndexDescription >> checkIndices(ClassInfoList.ClassInfoFilter filter) {
+    public Map < Class<?>, List<IndexDescription >> checkIndices(io.github.classgraph.ClassInfoList.ClassInfoFilter filter) {
+        // Delegate to the new Predicate-based overload by wrapping the filter
+        if (filter == null) {
+            return checkIndices((java.util.function.Predicate<Class<?>>) null);
+        }
+        // When a ClassInfoFilter is provided, we must use ClassGraph for scanning
         Map < Class<?>, List<IndexDescription >> missingIndicesByClass = new HashMap<>();
+        if (!ClassGraphHelper.isAvailable()) {
+            log.warn("checkIndices(ClassInfoFilter) called but ClassGraph is not available");
+            return missingIndicesByClass;
+        }
 
-        // initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
-            // .verbose() // Enable verbose logging
             .enableAnnotationInfo()
-            // .enableFieldInfo()
-            .enableClassInfo()                         // Scan classes, methods, fields, annotations
+            .enableClassInfo()
             .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
-
-            if (filter != null) {
-                entities = entities.filter(filter);
-            }
+            entities = entities.filter(filter);
 
             for (String cn : entities.getNames()) {
-                // ClassInfo ci = scanResult.getClassInfo(cn);
                 try {
-                    // if (param.getName().equals("index"))
-                    // logger.info("Class " + cn + " Param " + param.getName() + " = " +
-                    // param.getValue());
-                    if (cn.startsWith("sun.")) {
+                    if (cn.startsWith("sun.") || cn.startsWith("com.sun.") || cn.startsWith("org.assertj.") || cn.startsWith("javax.")) {
                         continue;
                     }
 
-                    if (cn.startsWith("com.sun.")) {
-                        continue;
-                    }
-
-                    if (cn.startsWith("org.assertj.")) {
-                        continue;
-                    }
-
-                    if (cn.startsWith("javax.")) {
-                        continue;
-                    }
-
-                    // logger.info("Checking "+cn);
                     Class<?> entity = AnnotationAndReflectionHelper.classForName(cn);
 
                     if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
@@ -3385,35 +3417,88 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             missingIndicesByClass.put(entity, missing);
                         }
                     }
-                    // Collection does not exist yet: indices will be created on first write
-                    // (depending on IndexCheck/CappedCheck settings). No warning needed here.
                 } catch (Throwable e) {
-                    // Swallow most errors to keep startup lenient, but fail fast if the cluster has no primary.
-                    // Otherwise, startup can appear to "hang" for a very long time because each entity check
-                    // waits for server selection timeout before failing (and there can be lots of entities).
-                    Throwable t = e;
-                    while (t != null) {
-                        if (t instanceof de.caluga.morphium.driver.MorphiumDriverException) {
-                            String msg = t.getMessage();
-                            if (msg != null) {
-                                String m = msg.toLowerCase(java.util.Locale.ROOT);
-                                if (m.contains("no primary node") || m.contains("no primary") || m.contains("not connected yet")) {
-                                    throw new RuntimeException("Cannot check indices: no primary available", e);
-                                }
-                            }
-                        }
-                        t = t.getCause();
-                    }
-
-                    if (e.getMessage() == null || !e.getMessage().contains("Error: 26 - ns does not exist:")) {
-                        log.error("Could not check indices for " + cn, e);
-                    }
+                    handleCheckIndicesError(cn, e);
                 }
             }
         } catch (Exception e) {
             log.error("error", e);
         }
         return missingIndicesByClass;
+    }
+
+    public Map < Class<?>, List<IndexDescription >> checkIndices(java.util.function.Predicate<Class<?>> filter) {
+        Map < Class<?>, List<IndexDescription >> missingIndicesByClass = new HashMap<>();
+
+        Collection<Class<?>> entitiesToCheck;
+        if (EntityRegistry.hasPreRegisteredEntities()) {
+            entitiesToCheck = new ArrayList<>(EntityRegistry.getPreRegisteredEntities());
+        } else if (ClassGraphHelper.isAvailable()) {
+            try (ScanResult scanResult = new ClassGraph()
+                .enableAnnotationInfo()
+                .enableClassInfo()
+                .scan()) {
+                ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
+                List<Class<?>> scanned = new ArrayList<>();
+                for (String cn : entities.getNames()) {
+                    try {
+                        if (cn.startsWith("sun.") || cn.startsWith("com.sun.") || cn.startsWith("org.assertj.") || cn.startsWith("javax.")) {
+                            continue;
+                        }
+                        scanned.add(AnnotationAndReflectionHelper.classForName(cn));
+                    } catch (Exception e) {
+                        log.error("Could not load class " + cn, e);
+                    }
+                }
+                entitiesToCheck = scanned;
+            }
+        } else {
+            return missingIndicesByClass;
+        }
+
+        if (filter != null) {
+            entitiesToCheck = entitiesToCheck.stream().filter(filter).toList();
+        }
+
+        for (Class<?> entity : entitiesToCheck) {
+            try {
+                if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
+                    continue;
+                }
+
+                if (exists(getDatabase(), getMapper().getCollectionName(entity))) {
+                    List<IndexDescription> missing = getMissingIndicesFor(entity);
+
+                    if (missing != null && !missing.isEmpty()) {
+                        missingIndicesByClass.put(entity, missing);
+                    }
+                }
+            } catch (Throwable e) {
+                handleCheckIndicesError(entity.getName(), e);
+            }
+        }
+
+        return missingIndicesByClass;
+    }
+
+    private void handleCheckIndicesError(String cn, Throwable e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof de.caluga.morphium.driver.MorphiumDriverException) {
+                String msg = t.getMessage();
+                if (msg != null) {
+                    String m = msg.toLowerCase(java.util.Locale.ROOT);
+                    if (m.contains("no primary node") || m.contains("no primary") || m.contains("not connected yet")) {
+                        throw new RuntimeException("Cannot check indices: no primary available", e);
+                    }
+                }
+            }
+            t = t.getCause();
+        }
+
+        if (e.getMessage() == null || !e.getMessage().contains("Error: 26 - ns does not exist:")) {
+            log.error("Could not check indices for " + cn, e);
+        }
     }
 
     @Override

@@ -139,7 +139,15 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         if (cachedClassByCollectionName != null) {
             classByCollectionName.putAll(cachedClassByCollectionName);
             log.debug("Using cached classpath scan result with {} entities", classByCollectionName.size());
-        } else {
+        } else if (EntityRegistry.hasPreRegisteredEntities()) {
+            for (Class<?> cls : EntityRegistry.getPreRegisteredEntities()) {
+                if (cls.isAnnotationPresent(Entity.class)) {
+                    classByCollectionName.put(getCollectionName(cls), cls);
+                }
+            }
+            cachedClassByCollectionName = new ConcurrentHashMap<>(classByCollectionName);
+            log.info("Using {} pre-registered entities for collection mapping", classByCollectionName.size());
+        } else if (ClassGraphHelper.isAvailable()) {
             ClassLoader cl = Thread.currentThread().getContextClassLoader();
             if (cl == null) {
                 cl = ObjectMapperImpl.class.getClassLoader();
@@ -163,6 +171,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             } catch (ClassGraphException e) {
                 //swallow
             }
+        } else {
+            ClassGraphHelper.warnIfUnavailable();
         }
     }
 

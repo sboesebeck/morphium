@@ -83,6 +83,20 @@ public class AnnotationAndReflectionHelper {
         ccc = false;
     }
     private void init() {
+        // Check for pre-registered entities first (framework integration path)
+        var preRegistered = EntityRegistry.getPreRegisteredTypeIds();
+        if (preRegistered != null) {
+            classNameByType.putAll(preRegistered);
+            logger.info("Using {} pre-registered entity type IDs", preRegistered.size());
+            return;
+        }
+
+        // Fallback: ClassGraph scan (standalone mode)
+        if (!ClassGraphHelper.isAvailable()) {
+            ClassGraphHelper.warnIfUnavailable();
+            return;
+        }
+
         //initializing type IDs
         try (ScanResult scanResult =
                                     new ClassGraph()
@@ -115,6 +129,14 @@ public class AnnotationAndReflectionHelper {
                 }
             }
         }
+    }
+
+    /**
+     * Resets the static type-ID cache so that the next {@code AnnotationAndReflectionHelper}
+     * instantiation re-initialises it (either from pre-registered entities or via ClassGraph).
+     */
+    public static void clearTypeIdCache() {
+        classNameByType = null;
     }
 
     /**

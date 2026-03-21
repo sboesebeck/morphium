@@ -120,10 +120,6 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.ObjectMapperImpl;
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassInfo;
-import io.github.classgraph.ClassInfoList;
-import io.github.classgraph.ScanResult;
 
 /**
  * User: Stephan Bösebeck
@@ -139,6 +135,47 @@ import io.github.classgraph.ScanResult;
 public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     public final static String driverName = "InMemDriver";
+
+    @SuppressWarnings("rawtypes")
+    private static final List<Class<? extends MongoCommand>> KNOWN_COMMANDS = List.of(
+        FindCommand.class,
+        InsertMongoCommand.class,
+        UpdateMongoCommand.class,
+        DeleteMongoCommand.class,
+        AggregateMongoCommand.class,
+        CountMongoCommand.class,
+        DistinctMongoCommand.class,
+        CreateCommand.class,
+        DropMongoCommand.class,
+        FindAndModifyMongoCommand.class,
+        GetMoreMongoCommand.class,
+        KillCursorsCommand.class,
+        HelloCommand.class,
+        ListCollectionsCommand.class,
+        ListDatabasesCommand.class,
+        ListIndexesCommand.class,
+        CreateIndexesCommand.class,
+        DropIndexesCommand.class,
+        CollStatsCommand.class,
+        DbStatsCommand.class,
+        CurrentOpCommand.class,
+        DropDatabaseMongoCommand.class,
+        RenameCollectionCommand.class,
+        MapReduceCommand.class,
+        ExplainCommand.class,
+        WatchCommand.class,
+        ClearCollectionCommand.class,
+        AbortTransactionCommand.class,
+        CommitTransactionCommand.class,
+        StepDownCommand.class,
+        ShutdownCommand.class,
+        ReplicastStatusCommand.class,
+        CreateUserAdminCommand.class,
+        CreateRoleAdminCommand.class,
+        SaslAuthCommand.class,
+        X509AuthCommand.class,
+        StoreMongoCommand.class
+    );
 
     @Override
     public int getLocalThreshold() {
@@ -2273,50 +2310,33 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             running = true;
         }
 
-        try (ScanResult scanResult = new ClassGraph()
-            // .verbose() // Enable verbose logging
-            .enableAnnotationInfo()
-            // .enableAllInfo() // Scan classes, methods, fields, annotations
-            .scan()) {
-            ClassInfoList entities = scanResult.getSubclasses(MongoCommand.class.getName());
-
-            for (ClassInfo info : entities) {
-                try {
-                    String n = info.getName();
-                    Class cls = AnnotationAndReflectionHelper.classForName(n);
-
-                    if (Modifier.isAbstract(cls.getModifiers())) {
-                        continue;
-                    }
-
-                    if (cls.isInterface()) {
-                        continue;
-                    }
-
-                    // Skip GenericCommand - it's for dynamic/unknown commands and would cause
-                    // infinite recursion if registered with its default "not_set" command name
-                    if (cls.equals(GenericCommand.class)) {
-                        continue;
-                    }
-
-                    Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
-                    declaredConstructor.setAccessible(true);
-                    var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
-                    commandsCache.put(mongoCommand.getCommandName(), cls);
-
-                    // checking method
-                    try {
-                        Method m = InMemoryDriver.class.getDeclaredMethod("runCommand", mongoCommand.getClass());
-                    } catch (NoSuchMethodException e) {
-                        log.error("No runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
-                                  + mongoCommand.getClass().getSimpleName());
-                    } catch (SecurityException e) {
-                        log.error("runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
-                                  + mongoCommand.getClass().getSimpleName() + " not accessible!");
-                    }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+        // Register all known MongoCommand subclasses (no ClassGraph needed)
+        for (Class<? extends MongoCommand> cls : KNOWN_COMMANDS) {
+            try {
+                if (Modifier.isAbstract(cls.getModifiers()) || cls.isInterface()) {
+                    continue;
                 }
+                if (cls.equals(GenericCommand.class)) {
+                    continue;
+                }
+
+                Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
+                declaredConstructor.setAccessible(true);
+                var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
+                commandsCache.put(mongoCommand.getCommandName(), cls);
+
+                // checking method
+                try {
+                    Method m = InMemoryDriver.class.getDeclaredMethod("runCommand", mongoCommand.getClass());
+                } catch (NoSuchMethodException e) {
+                    log.error("No runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
+                              + mongoCommand.getClass().getSimpleName());
+                } catch (SecurityException e) {
+                    log.error("runcommand-Method for Command " + mongoCommand.getCommandName() + " / "
+                              + mongoCommand.getClass().getSimpleName() + " not accessible!");
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         }
 

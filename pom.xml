@@ -284,6 +284,7 @@
         <groupId>io.github.classgraph</groupId>
         <artifactId>classgraph</artifactId>
         <version>4.8.184</version>
+        <optional>true</optional>
       </dependency>
       <dependency>
         <groupId>org.assertj</groupId>
