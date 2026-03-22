@@ -42,7 +42,7 @@ public class AnnotationAndReflectionHelper {
     private final Map < Class<?>, List<Field >> fieldListCache;
     private final ConcurrentHashMap < Class<?>, Map<Class<? extends Annotation >, Annotation >> annotationCache;
     private final Map < Class<?>, Map<String, String >> fieldNameCache;
-    private static ConcurrentHashMap<String, String> classNameByType;
+    private static volatile ConcurrentHashMap<String, String> classNameByType;
     private Map<String, Field> fieldCache;
     private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map < Class<? extends Annotation >, Method >> lifeCycleMethods;
@@ -65,8 +65,13 @@ public class AnnotationAndReflectionHelper {
         this.fieldNameCache = new ConcurrentHashMap<>();
 
         if (classNameByType == null) {
-            classNameByType = new ConcurrentHashMap<>();
-            init();
+            synchronized (AnnotationAndReflectionHelper.class) {
+                if (classNameByType == null) {
+                    ConcurrentHashMap<String, String> tmp = new ConcurrentHashMap<>();
+                    init(tmp);
+                    classNameByType = tmp; // volatile write AFTER population
+                }
+            }
         }
     }
 
@@ -82,7 +87,7 @@ public class AnnotationAndReflectionHelper {
     public void disableConvertCamelCase() {
         ccc = false;
     }
-    private void init() {
+    private void init(ConcurrentHashMap<String, String> target) {
         //initializing type IDs
         try (ScanResult scanResult =
                                     new ClassGraph()
@@ -106,10 +111,10 @@ public class AnnotationAndReflectionHelper {
                         for (AnnotationParameterValue param : ai.getParameterValues()) {
                             //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
                             if (param.getName().equals("typeId")) {
-                                classNameByType.put(param.getValue().toString(), cn);
+                                target.put(param.getValue().toString(), cn);
                             }
 
-                            classNameByType.put(cn, cn);
+                            target.put(cn, cn);
                         }
                     }
                 }
