@@ -148,7 +148,11 @@ function quitting() {
 	rm -f "$runLock" "$disabledList"
 	rm -f "$filesList" "$classList"
 	rm -rf "$TEST_TMP_DIR" # Clean up the dedicated temp directory
-	exit
+	# Only exit from here when called as signal handler (SIGINT/SIGHUP).
+	# When called directly before exit, let the caller control the exit code.
+	if [ -n "$_QUITTING_FROM_SIGNAL" ]; then
+		exit 1
+	fi
 }
 
 source "$(dirname "$0")/scripts/stats.sh"
@@ -730,8 +734,8 @@ if [ "$explicitRestart" -eq 0 ] && [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	fi
 fi
 # trap quitting EXIT
-trap quitting SIGINT
-trap quitting SIGHUP
+trap '_QUITTING_FROM_SIGNAL=1; quitting' SIGINT
+trap '_QUITTING_FROM_SIGNAL=1; quitting' SIGHUP
 trap _pdb_cleanup EXIT
 
 # After argument parsing, ensure p and m are set correctly based on testname and methodname
