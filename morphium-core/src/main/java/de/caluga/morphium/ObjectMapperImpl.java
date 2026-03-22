@@ -89,11 +89,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final JSONParser jsonParser = new JSONParser();
 
     private final ArrayList < Class<?>> mongoTypes;
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
+    private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private final Map < Class<?>, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
     private final Map < String, Class<?>> classByCollectionName = new ConcurrentHashMap<>();
     private static volatile Map<String, Class<?>> cachedClassByCollectionName = null;
-    private Morphium morphium;
+    private volatile Morphium morphium;
 
     // Tracks objects currently being serialized to detect circular @Reference chains
     private static final ThreadLocal<Set<Object>> serializingObjects =
