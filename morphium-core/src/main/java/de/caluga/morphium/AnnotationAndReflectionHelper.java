@@ -43,6 +43,7 @@ public class AnnotationAndReflectionHelper {
     private final ConcurrentHashMap < Class<?>, Map<Class<? extends Annotation >, Annotation >> annotationCache;
     private final Map < Class<?>, Map<String, String >> fieldNameCache;
     private static volatile ConcurrentHashMap<String, String> classNameByType;
+    private static volatile Map<String, String> preRegisteredTypeIds;
     private Map<String, Field> fieldCache;
     private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map < Class<? extends Annotation >, Method >> lifeCycleMethods;
@@ -87,8 +88,37 @@ public class AnnotationAndReflectionHelper {
     public void disableConvertCamelCase() {
         ccc = false;
     }
+    /**
+     * Pre-register entity type IDs so that the ClassGraph classpath scan can be skipped.
+     * Framework integrations (Quarkus, Spring Boot) call this before creating any Morphium instance.
+     * If the map is non-empty when the first AnnotationAndReflectionHelper is created,
+     * the ClassGraph scan is skipped entirely.
+     *
+     * @param typeIds map of typeId (or FQCN) to fully-qualified class name
+     */
+    public static void registerTypeIds(Map<String, String> typeIds) {
+        preRegisteredTypeIds = typeIds;
+    }
+
+    /**
+     * Resets the static type-ID cache so that the next {@code AnnotationAndReflectionHelper}
+     * instantiation re-initialises it (either from pre-registered IDs or via ClassGraph).
+     * Useful for hot-reload scenarios (e.g. Quarkus dev mode).
+     */
+    public static synchronized void clearTypeIdCache() {
+        classNameByType = null;
+    }
+
     private void init(ConcurrentHashMap<String, String> target) {
-        //initializing type IDs
+        // If type IDs were pre-registered by a framework, use them and skip ClassGraph scan
+        Map<String, String> pre = preRegisteredTypeIds;
+        if (pre != null && !pre.isEmpty()) {
+            target.putAll(pre);
+            logger.info("Using {} pre-registered entity type IDs, skipping ClassGraph scan", pre.size());
+            return;
+        }
+
+        //initializing type IDs via ClassGraph classpath scan
         try (ScanResult scanResult =
                                     new ClassGraph()
             //                     .verbose()             // Enable verbose logging
