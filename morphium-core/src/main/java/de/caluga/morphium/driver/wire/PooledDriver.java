@@ -1373,10 +1373,18 @@ public class PooledDriver extends DriverBase {
 
             // Don't return closed/broken connections to the pool — they would cause
             // "Illegal opcode" errors for the next thread that borrows them.
+            // Instead, discard and signal ConnectionWaiter to create a replacement.
             if (!con.isConnected()) {
-                log.debug("Connection to {} already closed, not returning to pool", con.getConnectedTo());
+                log.debug("Connection to {} already closed, not returning to pool — signaling for replacement", con.getConnectedTo());
                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                 markStatsDirty();
+                // Wake ConnectionWaiter so it creates a replacement connection
+                waitCounterLock.lock();
+                try {
+                    waitCounterCondition.signalAll();
+                } finally {
+                    waitCounterLock.unlock();
+                }
                 return;
             }
 

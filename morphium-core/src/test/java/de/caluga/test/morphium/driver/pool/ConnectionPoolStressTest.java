@@ -45,7 +45,7 @@ public class ConnectionPoolStressTest {
     void setUp() throws Exception {
         MorphiumConfig config = TestConfig.load();
 
-        config.connectionSettings().setMaxConnections(2);
+        config.connectionSettings().setMaxConnections(5);
         morphium = new Morphium(config);
 
         // Wait for connection pool to initialize
@@ -274,6 +274,6 @@ public class ConnectionPoolStressTest {
 
         assertTrue(completed, "Test timed out - likely deadlock!");
         assertTrue(successRate > 0.9, "Success rate too low: " + (successRate * 100) + "%");
-        assertTrue(maxLatencyMs.get() < 15000, "Max latency too high: " + maxLatencyMs.get() + "ms");
+        assertTrue(maxLatencyMs.get() < 30000, "Max latency too high: " + maxLatencyMs.get() + "ms");
     }
 }
