@@ -185,8 +185,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                         MorphiumMessaging rec1 = morph.createMessaging();
                         rec1.setSenderId("rec" + i);
                         receivers.add(rec1);
-                        rec1.start();
-                        assertTrue(rec1.waitForReady(30, TimeUnit.SECONDS), "rec" + i + " not ready");
+                        // Register listener BEFORE start() so the topic watch is active from the beginning
                         rec1.addListenerForTopic("bcast", (msg, incoming) -> {
                             synchronized(receivedIds) {
                                 receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
@@ -205,10 +204,10 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             }
                             return null;
                         });
+                        rec1.start();
+                        assertTrue(rec1.waitForReady(30, TimeUnit.SECONDS), "rec" + i + " not ready");
                     }
 
-                    // Wait for topic listeners to be fully registered
-                    Thread.sleep(1000);
                     log.info("All receivers initialized, starting to send messages...");
 
                     int amount = 100;
@@ -223,7 +222,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     }
                     long start = System.currentTimeMillis();
                     long maxTotalTimeout = 600000; // Max 600 seconds total (for PoppyDB replicaset under parallel load)
-                    long idleTimeout = 90000; // 90 seconds after last message received (for CI VMs under load)
+                    long idleTimeout = 60000; // 60 seconds after last message received
                     long lastMessageTime = System.currentTimeMillis();
                     int lastTotalNum = 0;
 

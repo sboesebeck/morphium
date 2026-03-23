@@ -67,13 +67,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 MorphiumMessaging messagingElse = morph.createMessaging();
                 gotMessage1 = false;
                 gotMessage2 = false;
-                messaging1.start();
-                messaging2.start();
-                messagingElse.start();
-                // Wait for all messaging instances to be fully ready
-                assertTrue(messaging1.waitForReady(15, TimeUnit.SECONDS), "messaging1 not ready");
-                assertTrue(messaging2.waitForReady(15, TimeUnit.SECONDS), "messaging2 not ready");
-                assertTrue(messagingElse.waitForReady(15, TimeUnit.SECONDS), "messagingElse not ready");
+                // Register listeners BEFORE start() so topic watches are active from the beginning
                 messagingElse.addListenerForTopic("something else", (msg, m) -> {
                     log.info("incoming message??");
                     gotMessage1 = true;
@@ -92,8 +86,12 @@ public class AnsweringTests extends MultiDriverTestBase {
                     answer = m.createAnswerMsg();
                     return answer;
                 });
-                // Small delay for topic listeners to be fully registered
-                Thread.sleep(500);
+                messaging1.start();
+                messaging2.start();
+                messagingElse.start();
+                assertTrue(messaging1.waitForReady(15, TimeUnit.SECONDS), "messaging1 not ready");
+                assertTrue(messaging2.waitForReady(15, TimeUnit.SECONDS), "messaging2 not ready");
+                assertTrue(messagingElse.waitForReady(15, TimeUnit.SECONDS), "messagingElse not ready");
                 Msg msg = new Msg("not asdf", "will it stick", "uahh", 10000);
                 msg.setPriority(1);
                 messaging1.sendMessage(msg);
@@ -194,7 +192,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 for (int i = 0; i < 5; i++) {
                     MorphiumMessaging rec = morph.createMessaging();
                     rec.setSenderId("rec" + i);
-                    rec.start();
+                    // Register listener BEFORE start()
                     rec.addListenerForTopic("test", new MessageListener<Msg>() {
                         @Override
                         public Msg onMessage(MorphiumMessaging msg, Msg m) {
@@ -209,11 +207,12 @@ public class AnsweringTests extends MultiDriverTestBase {
                             return m.createAnswerMsg();
                         }
                     });
-
+                    rec.start();
                     msgs.add(rec);
                 }
-                // Let listeners settle / topic registrations propagate (especially on external replica sets)
-                Thread.sleep(5000);
+                for (MorphiumMessaging rec : msgs) {
+                    assertTrue(rec.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+                }
 
                 // Be more tolerant on external setups; first answer can take longer under load / replication lag
                 Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 60000, true), 60000, false);

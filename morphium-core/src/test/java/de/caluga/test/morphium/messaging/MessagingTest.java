@@ -63,14 +63,14 @@ public class MessagingTest extends MultiDriverTestBase {
 
             MorphiumMessaging receiver = m.createMessaging();
             receiver.setSenderId("receiver");
-            receiver.start();
-            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
-
             AtomicInteger received = new AtomicInteger(0);
+            // Register listener BEFORE start() so topic watch is active from the beginning
             receiver.addListenerForTopic("test", (msgs, msg) -> {
                 received.incrementAndGet();
                 return null;
             });
+            receiver.start();
+            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
 
             // Send a small bounded number of messages and assert we receive them.
             int toSend = 5;
@@ -98,16 +98,15 @@ public class MessagingTest extends MultiDriverTestBase {
             //Test Sending V5 and receiving V6
             //
             MorphiumMessaging receiver = morphium.createMessaging(cfg.messagingSettings());
-            receiver.start();
-            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
             AtomicBoolean received = new AtomicBoolean(false);
+            // Register listener BEFORE start() so topic watch is active from the beginning
             receiver.addListenerForTopic("test", (m, msg)-> {
                 OutputHelper.figletOutput(log, "Indcoming...");
                 received .set( true);
                 return msg.createAnswerMsg();
             });
-
-            Thread.sleep(1000); // Allow topic listener to register
+            receiver.start();
+            assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
             //simulating write of V5
             //
             var v5msg = Map.of("name", (Object)"test", "value", "test", "processed_by", new ArrayList<String>(), "sender", "v5", "sender_host", "self", "timestamp", System.currentTimeMillis(), "ttl", 30000, "delete_at", new Date(System.currentTimeMillis() + 30000), "priority", 100);
