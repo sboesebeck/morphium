@@ -63,7 +63,16 @@ public class HelloResult {
             try {
                 if (msg.containsKey(f.getName())) {
                     f.setAccessible(true);
-                    f.set(ret, msg.get(f.getName()));
+                    Object value = msg.get(f.getName());
+                    // Cosmos DB returns localTime as Long (epoch millis) instead of Date
+                    if (value instanceof Long && f.getType().equals(Date.class)) {
+                        value = new Date((Long) value);
+                    }
+                    // Cosmos DB may return saslSupportedMechs as a single String instead of List
+                    if (value instanceof String && f.getType().equals(List.class)) {
+                        value = List.of((String) value);
+                    }
+                    f.set(ret, value);
                 }
             } catch (Exception e) {
                 //something went wrong...
