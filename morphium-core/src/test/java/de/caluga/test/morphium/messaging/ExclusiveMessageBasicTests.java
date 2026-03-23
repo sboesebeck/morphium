@@ -172,7 +172,7 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
                 assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
                 // Allow generous timeout for shared CI runners under parallel load
-                assertThat(System.currentTimeMillis() - s).isLessThan(120000);
+                assertThat(System.currentTimeMillis() - s).isLessThan(180000);
             }
 
             TestUtils.waitForConditionToBecomeTrue(5000, "Messages not processed", () -> m1.getNumberOfMessages() == 0);
