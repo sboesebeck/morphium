@@ -259,13 +259,14 @@ public class SingleMongoConnection implements MongoConnection {
             // Standard SCRAM-SHA-1 / SCRAM-SHA-256 authentication
             SaslAuthCommand auth = new SaslAuthCommand(this);
 
-            if (hello.getSaslSupportedMechs() == null || hello.getSaslSupportedMechs().isEmpty()) {
-                throw new MorphiumDriverException("Authentication failed - no mechanisms offered!");
-            }
-
             auth.setUser(user).setDb(authDb).setPassword(password);
 
-            if (hello.getSaslSupportedMechs().contains("SCRAM-SHA-256")) {
+            if (hello.getSaslSupportedMechs() == null || hello.getSaslSupportedMechs().isEmpty()) {
+                // Cosmos DB does not return saslSupportedMechs in hello response —
+                // default to SCRAM-SHA-256 which is the standard mechanism.
+                log.warn("No SASL mechanisms offered by server — defaulting to SCRAM-SHA-256");
+                auth.setMechanism("SCRAM-SHA-256");
+            } else if (hello.getSaslSupportedMechs().contains("SCRAM-SHA-256")) {
                 auth.setMechanism("SCRAM-SHA-256");
             } else {
                 auth.setMechanism("SCRAM-SHA-1");
