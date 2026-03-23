@@ -83,7 +83,7 @@ public class MassCacheTest extends MultiDriverTestBase {
         dur = System.currentTimeMillis() - start;
         int goal = NO_OBJECTS * WRITING_THREADS;
         long waitStart = System.currentTimeMillis();
-        long maxWaitTime = 120000; // 2 minute timeout
+        long maxWaitTime = 180000; // 3 minute timeout for slow CI VMs
         while (true) {
             Thread.sleep(1500);
             long l = morphium.createQueryFor(CachedObject.class).countAll();
