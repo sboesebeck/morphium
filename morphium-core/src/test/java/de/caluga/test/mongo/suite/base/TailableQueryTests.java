@@ -66,6 +66,9 @@ public class TailableQueryTests extends MultiDriverTestBase {
                 assertTrue(found.get() >= 1);
             }).start();
             TestUtils.waitForConditionToBecomeTrue(10000, "no result coming in?", ()->found.get() == 2);
+            // Give the tailable cursor time to issue GetMore and register the watch
+            // for new events after processing the initial batch (Test 1, Test 2)
+            Thread.sleep(500);
             log.info("Storing 3...");
             m2.store(new CappedCol("Test 3 - quit", 3));
             log.info("Stored... waiting for event");
