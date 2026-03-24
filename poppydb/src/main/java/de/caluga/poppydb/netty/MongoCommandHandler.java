@@ -835,15 +835,23 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         res.setLocalTime(new Date());
         res.setOk(1.0);
 
+        // Derive "me" from the RS seed list entry matching our port, so that
+        // clients see a reachable hostname instead of the bind address (e.g. 0.0.0.0).
         String myAddress = host + ":" + port;
-        if (hosts == null || hosts.isEmpty()) {
-            res.setHosts(Arrays.asList(myAddress));
-        } else {
+        if (hosts != null && !hosts.isEmpty()) {
+            for (String seed : hosts) {
+                if (seed.endsWith(":" + port)) {
+                    myAddress = seed;
+                    break;
+                }
+            }
             List<String> allHosts = new ArrayList<>(hosts);
             if (!allHosts.contains(myAddress)) {
                 allHosts.add(0, myAddress);
             }
             res.setHosts(allHosts);
+        } else {
+            res.setHosts(Arrays.asList(myAddress));
         }
 
         // Use dynamic election state if available
@@ -896,18 +904,35 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         if (electionManager != null) {
             String leader = electionManager.getCurrentLeader();
             if (leader != null) {
-                return leader;
+                return resolveToSeedHost(leader);
             }
             // If this node is leader, return own address
             if (electionManager.isLeader()) {
-                return host + ":" + port;
+                return resolveToSeedHost(host + ":" + port);
             }
         }
         // Fall back to static configuration
         if (primary) {
-            return host + ":" + port;
+            return resolveToSeedHost(host + ":" + port);
         }
         return primaryHost;
+    }
+
+    /**
+     * Resolve an address like "0.0.0.0:17018" to the matching RS seed entry
+     * (e.g. "poppydb.fritz.box:17018") so clients see reachable hostnames.
+     */
+    private String resolveToSeedHost(String address) {
+        if (hosts == null || hosts.isEmpty() || address == null) {
+            return address;
+        }
+        String addrPort = address.contains(":") ? address.substring(address.lastIndexOf(':')) : ":" + port;
+        for (String seed : hosts) {
+            if (seed.endsWith(addrPort)) {
+                return seed;
+            }
+        }
+        return address;
     }
 
     private void sendResponse(ChannelHandlerContext ctx, int requestId, Map<String, Object> answer) {
