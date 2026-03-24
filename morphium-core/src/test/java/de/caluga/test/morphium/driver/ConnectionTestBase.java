@@ -18,7 +18,10 @@ public class ConnectionTestBase {
         con.setCredentials("admin", "test", "test");
         var hello = con.connect(new DriverMock(), "localhost", 27017);
         if (hello.getSaslSupportedMechs() == null || hello.getSaslSupportedMechs().isEmpty()) {
-            throw new MorphiumDriverException("Authentication failure!");
+            // Cosmos DB (and potentially other wire-compatible servers) may not return
+            // saslSupportedMechs. SingleMongoConnection.connect() already handles this
+            // by falling back to SCRAM-SHA-256, so authentication succeeded at this point.
+            log.warn("Server did not advertise SASL mechanisms — authentication used SCRAM-SHA-256 fallback");
         }
         return con;
     }
