@@ -35,8 +35,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(MongoCommandHandler.class);
 
-    // Dedicated executor for replication waits - don't block Netty I/O threads
-    private static final ExecutorService REPLICATION_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+    // Dedicated executor for command processing - don't block Netty I/O threads.
+    // Virtual threads allow high concurrency without thread pool sizing headaches.
+    private static final ExecutorService COMMAND_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     // Channel attributes for per-connection state
     private static final AttributeKey<MorphiumTransactionContext> TX_CONTEXT_KEY =
@@ -392,6 +393,13 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     @SuppressWarnings("unchecked")
     private void processDefaultCommandAsync(ChannelHandlerContext ctx, Map<String, Object> doc,
                                             String cmd, int requestId) {
+        // Offload ALL command processing to virtual threads to prevent blocking Netty I/O threads.
+        // Without this, parallel writes saturate the Netty worker pool and cause timeouts.
+        COMMAND_EXECUTOR.execute(() -> processCommand(ctx, doc, cmd, requestId));
+    }
+
+    private void processCommand(ChannelHandlerContext ctx, Map<String, Object> doc,
+                                String cmd, int requestId) {
         try {
             boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
 
@@ -490,7 +498,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                     // Wait for replication on a separate thread to not block Netty I/O
                     final Map<String, Object> finalAnswer = answer;
                     log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
-                    REPLICATION_EXECUTOR.execute(() -> {
+                    COMMAND_EXECUTOR.execute(() -> {
                         try {
                             boolean acknowledged = replicationCoordinator.waitForReplication(writeSeq, w, wtimeout);
                             if (!acknowledged) {
@@ -863,11 +871,19 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         res.setMinWireVersion(13);
         res.setMaxMessageSizeBytes(48 * 1024 * 1024); // 48MB, same as MongoDB
         res.setMaxBsonObjectSize(16 * 1024 * 1024);  // 16MB, same as MongoDB
-        res.setWritablePrimary(isPrimary);
-        res.setSecondary(!isPrimary);
-        res.setSetName(rsName);
-        res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
-        res.setMe(myAddress);
+        // In standalone mode (no RS name), behave like real MongoDB:
+        // don't set setName, hosts, or secondary — only writablePrimary
+        if (rsName != null && !rsName.isEmpty()) {
+            res.setWritablePrimary(isPrimary);
+            res.setSecondary(!isPrimary);
+            res.setSetName(rsName);
+            res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
+            res.setMe(myAddress);
+        } else {
+            res.setWritablePrimary(true);
+            res.setSecondary(false);
+            // No setName, no hosts — standalone mode like real MongoDB
+        }
         res.setLogicalSessionTimeoutMinutes(30);
         res.setMsg("PoppyDB V0.1ALPHA (Netty)");
 
