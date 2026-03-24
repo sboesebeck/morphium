@@ -510,8 +510,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                                 ));
                             }
                         } finally {
-                            // Send response back on the Netty event loop
-                            ctx.executor().execute(() -> sendResponse(ctx, requestId, finalAnswer));
+                            sendResponse(ctx, requestId, finalAnswer);
                         }
                     });
                     return; // Response will be sent asynchronously
@@ -961,7 +960,13 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         reply.setFirstDoc(answer);
 
         log.debug("Sending response for request {}: {}", requestId, answer.keySet());
-        ctx.writeAndFlush(reply);
+        // Always write from the Netty event loop thread for proper ordering and thread safety.
+        // Commands may run on virtual threads (COMMAND_EXECUTOR), so we must dispatch back.
+        if (ctx.channel().eventLoop().inEventLoop()) {
+            ctx.writeAndFlush(reply);
+        } else {
+            ctx.channel().eventLoop().execute(() -> ctx.writeAndFlush(reply));
+        }
     }
 
     private void sendError(ChannelHandlerContext ctx, int requestId, String message) {
