@@ -153,11 +153,23 @@ When no RS name is configured but the server's hello response contains a `setNam
 - Missing indices no longer reported for collections that don't exist yet
 - WriteConcern on standalone MongoDB: queries `driver.isReplicaSet()` instead of config flag; gracefully downgrades w>1 to w:1
 
-#### Enum deserialization in collections and maps
-String values from MongoDB in `Map<String, SomeEnum>` or `List<SomeEnum>` were not converted back to their enum type. Added explicit `Enum.valueOf()` handling in `ObjectMapperImpl`.
+#### Enum serialization/deserialization round-trip in untyped containers
+Enums stored in untyped containers (`Object`, `List<Object>`, `Map<String, Object>`) were serialized as `{class_name, name}` maps, but the deserialization path never routed back through enum handling — causing `ClassCastException` on read. New `deserializeEnumValue()` method handles both String and Map formats (backwards-compatible with existing data). Also fixed: enums in typed `Map<String, SomeEnum>` or `List<SomeEnum>` were not converted back to their enum type.
 
 #### Custom TypeMappers ignored in queries
 Custom `MorphiumTypeMapper` implementations were not consulted when resolving field values in `MongoFieldImpl`. Queries now call `ObjectMapperImpl.marshallIfNecessary()` during value resolution.
+
+#### WriteBuffer WAIT strategy lock starvation
+The entire `switch(strategy)` block was wrapped in `synchronized(opLog)` — the WAIT strategy slept while holding the lock, preventing the flush thread from ever draining the buffer. Also fixed: missing `break` after WAIT (fall-through to JUST_WARN caused double-add), off-by-one in buffer limit check (`> size` vs `>= size`), TOCTOU race in WAIT branch, and `WRITE_OLD`/`DEL_OLD` creating plain `ArrayList` instead of `Collections.synchronizedList()`.
+
+#### Transaction isolation with write buffer
+`commitTransaction()` called `flush()`, which drained the shared write buffer from ALL threads into the committing thread's transaction — breaking cross-thread isolation. Fix: `startTransaction()` now saves and disables the per-thread write buffer, `commitTransaction()`/`abortTransaction()` restore the previous state in `finally`. Also fixed: `PooledDriver.markTransactionCommitted()` was in the `finally` block, updating the read-routing timestamp even after a failed commit.
+
+#### Transient transaction error 251 (`NoSuchTransaction`) handling
+After MongoDB aborts a transaction, the TCP connection's server-side session retains the poisoned state. Subsequent operations on the same pooled connection receive error 251, which was thrown as non-retriable `MorphiumDriverException`. Fix: detect error 251, close the poisoned connection, throw `MorphiumDriverNetworkException` (retriable), and retry with a fresh connection. Also fixed: `WireProtocolMessage.parseFromStream()` and `SingleMongoConnection.sendQuery()`/`readNextMessage()` were wrapping `MorphiumDriverNetworkException` in `RuntimeException`/`MorphiumDriverException`, destroying the type information that `NetworkCallHelper` needs for retry decisions.
+
+#### RS auto-detect race condition
+Concurrent heartbeat threads could race on `setReplicaSet()`/`setReplicaSetName()` when auto-detecting a replica set from hello responses. Wrapped in double-checked locking with `synchronized(primaryNodeLock)`.
 
 #### Concurrent double-write in `BufferedMorphiumWriterImpl.flush()`
 `flush()` used `opLog.get()` which returned a live reference. Concurrent calls would write the same entries, causing `E11000 duplicate key` errors. Fixed via `opLog.remove()` for atomic ownership transfer.
