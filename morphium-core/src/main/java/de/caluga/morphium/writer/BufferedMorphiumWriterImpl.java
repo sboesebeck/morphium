@@ -272,7 +272,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     break;
 
                 case JUST_WARN:
-                    opLog.get(type).add(wb);
+                    synchronized (opLog) {
+                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
+                        opLog.get(type).add(wb);
+                    }
                     break;
 
                 case IGNORE_NEW:

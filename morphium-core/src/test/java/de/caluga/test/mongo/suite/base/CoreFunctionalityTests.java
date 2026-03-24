@@ -264,6 +264,8 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             // Test cached object update
             first.setValue("Updated Cached Value");
             morphium.store(first);
+            morphium.flush();
+            Thread.sleep(500); // allow cache to invalidate after buffer flush
 
             // Verify update
             CachedObject updated = morphium.createQueryFor(CachedObject.class)

@@ -50,11 +50,12 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         ChangeStreamMonitor dbMonitor = new ChangeStreamMonitor(morphium);
         dbMonitor.addListener(evt -> {
             if (evt.getOperationType().equals("drop")) return true;
+            if (!run[0]) return false; // don't count events after stop signal
             printevent(evt);
             count.incrementAndGet();
             log.info("Returning " + run[0]);
             log.info("===========");
-            return run[0];
+            return true;
         });
         dbMonitor.start(); // blocks until watch cursor is established
 
