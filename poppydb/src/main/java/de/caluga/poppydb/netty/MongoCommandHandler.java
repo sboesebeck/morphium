@@ -402,9 +402,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     @SuppressWarnings("unchecked")
     private void processDefaultCommandAsync(ChannelHandlerContext ctx, Map<String, Object> doc,
                                             String cmd, int requestId) {
-        // Offload ALL command processing to virtual threads to prevent blocking Netty I/O threads.
-        // Without this, parallel writes saturate the Netty worker pool and cause timeouts.
-        COMMAND_EXECUTOR.execute(() -> processCommand(ctx, doc, cmd, requestId));
+        // Only offload write commands — they hold the per-collection writeLock and can
+        // block Netty I/O threads under parallel load. Read commands are fast enough
+        // to run inline without the thread-switch overhead.
+        if (WRITE_COMMANDS.contains(cmd.toLowerCase())) {
+            COMMAND_EXECUTOR.execute(() -> processCommand(ctx, doc, cmd, requestId));
+        } else {
+            processCommand(ctx, doc, cmd, requestId);
+        }
     }
 
     private void processCommand(ChannelHandlerContext ctx, Map<String, Object> doc,
