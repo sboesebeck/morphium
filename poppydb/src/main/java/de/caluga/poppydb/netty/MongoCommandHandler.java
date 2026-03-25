@@ -35,9 +35,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(MongoCommandHandler.class);
 
-    // Dedicated executor for command processing - don't block Netty I/O threads.
-    // Virtual threads allow high concurrency without thread pool sizing headaches.
-    private static final ExecutorService COMMAND_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+    // Dedicated executor for command processing — offloads work from Netty I/O threads.
+    // Uses a fixed pool (not virtual threads) to bound memory: virtual threads caused OOM
+    // because hundreds accumulated waiting on InMemoryDriver's per-collection write lock.
+    // Pool size = 2x CPU cores provides enough parallelism without memory pressure.
+    private static final ExecutorService COMMAND_EXECUTOR = Executors.newFixedThreadPool(
+            Math.max(16, Runtime.getRuntime().availableProcessors() * 2),
+            r -> {
+                Thread t = new Thread(r);
+                t.setDaemon(true);
+                t.setName("PoppyDB-cmd-" + t.threadId());
+                return t;
+            });
 
     // Channel attributes for per-connection state
     private static final AttributeKey<MorphiumTransactionContext> TX_CONTEXT_KEY =
