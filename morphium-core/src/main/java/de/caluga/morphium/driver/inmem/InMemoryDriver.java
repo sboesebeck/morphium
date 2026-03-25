@@ -203,6 +203,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         addQueuedResult(res);
     }
     private final Map < String, Class <? extends MongoCommand>> commandsCache = new HashMap<>();
+    // Cache reflected Method and Constructor lookups to avoid per-call reflection overhead
+    private final Map<Class<?>, java.lang.reflect.Method> runCommandMethodCache = new ConcurrentHashMap<>();
+    private final Map<Class<?>, java.lang.reflect.Constructor<?>> constructorCache = new ConcurrentHashMap<>();
     private final AtomicInteger commandNumber = new AtomicInteger(0);
     private final AtomicInteger connectionId = new AtomicInteger(0);
     private final Map<DriverStatsKey, AtomicDecimal> stats = new ConcurrentHashMap<>();
@@ -929,9 +932,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         try {
-            Constructor declaredConstructor = commandClass.getDeclaredConstructor(MongoConnection.class);
-            declaredConstructor.setAccessible(true);
-            var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
+            // Use cached constructor and method lookups to avoid per-call reflection overhead
+            java.lang.reflect.Constructor<?> ctor = constructorCache.computeIfAbsent(commandClass, cls -> {
+                try {
+                    var c = cls.getDeclaredConstructor(MongoConnection.class);
+                    c.setAccessible(true);
+                    return c;
+                } catch (NoSuchMethodException e) {
+                    throw new RuntimeException("No constructor(MongoConnection) for " + cls.getSimpleName(), e);
+                }
+            });
+            var mongoCommand = (MongoCommand<MongoCommand>) ctor.newInstance(this);
             try {
                 mongoCommand.fromMap(cmdMap);
             } catch (Exception e) {
@@ -940,18 +951,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             try {
-                Method method = this.getClass().getDeclaredMethod("runCommand", commandClass);
+                java.lang.reflect.Method method = runCommandMethodCache.computeIfAbsent(commandClass, cls -> {
+                    try {
+                        return InMemoryDriver.this.getClass().getDeclaredMethod("runCommand", cls);
+                    } catch (NoSuchMethodException e) {
+                        throw new RuntimeException("No runCommand method for " + cls.getSimpleName(), e);
+                    }
+                });
                 var o = method.invoke(this, mongoCommand);
 
                 if (o instanceof Integer) {
                     return (int) o;
                 } else {
                     log.error("THIS CANNOT HAPPEN!");
-                    return 0; // executed, but did not return int?!?!?
+                    return 0;
                 }
-            } catch (NoSuchMethodException ex) {
-                log.error("No method for command " + commandClass.getSimpleName() + " - "
-                          + mongoCommand.getCommandName());
             } catch (java.lang.reflect.InvocationTargetException e) {
                 // Unwrap InvocationTargetException to get the actual cause
                 Throwable cause = e.getCause();
@@ -963,13 +977,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     throw new RuntimeException("Error executing command " + commandClass.getSimpleName(), e);
                 }
             }
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
-        int ret = commandNumber.incrementAndGet();
-        addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "could not execute command inMemory")));
-        return ret;
     }
 
     private int runCommand(StepDownCommand cmd) {
@@ -3709,7 +3721,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         List<Map<String, Object>> writeErrors;
-        List<Map<String, Object>> docSnapshots = new ArrayList<>();
         try {
             int errors = 0;
             objs = new ArrayList<>(objs);
@@ -3835,21 +3846,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 indexData.get("_id").get(buckedId).add(o);
             }
 
-            // Create deep copy snapshots of documents BEFORE releasing write lock
-            // This prevents race conditions where documents are modified before change
-            // stream events are built
-            for (Map<String, Object> o : objs) {
-                docSnapshots.add(deepCopyDoc(o));
-            }
         } finally {
             lock.writeLock().unlock();
         }
 
-        // Notify watchers AFTER releasing the write lock to prevent deadlocks
-        // Using snapshots ensures the change stream events reflect the state at insert
-        // time
-        for (Map<String, Object> snapshot : docSnapshots) {
-            notifyWatchers(db, collection, "insert", snapshot);
+        // Notify watchers AFTER releasing the write lock to prevent deadlocks.
+        // notifyWatchers -> buildChangeStreamEvent -> cloneAndNormalizeDocument
+        // already creates a deep copy, so no need to deep-copy here.
+        for (Map<String, Object> o : objs) {
+            notifyWatchers(db, collection, "insert", o);
         }
 
         return writeErrors;
@@ -3957,8 +3962,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             List<Map<String, Object>> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
             if (!srch.isEmpty()) {
-                Map<String, Object> previous = deepCopyDoc(srch.get(0));
-                getCollection(db, collection).remove(srch.get(0));
+                // Capture reference before removing; the object itself is not mutated,
+                // and cloneAndNormalizeDocument in notifyWatchers will deep-copy it
+                Map<String, Object> previous = srch.get(0);
+                getCollection(db, collection).remove(previous);
                 // enforce unique indexes before replacing
                 enforceUniqueOrThrow(db, collection, o);
                 upd++;
@@ -4668,11 +4675,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         obj.putAll(original);
                         throw ex;
                     }
-                    Map<String, Object> beforeImage = deepCopyDoc(original);
+                    // original is already a deepClone from line above, no need to
+                    // deep-copy again; notifyWatchers -> cloneAndNormalizeDocument
+                    // will create its own copy for the change stream event
                     Map<String, Object> updatedMap = computeUpdatedFields(original, obj);
                     List<String> removedList = computeRemovedFields(original, obj);
                     pendingNotifications.add(new PendingNotification(db, collection, "update", obj, updatedMap,
-                                             removedList, beforeImage));
+                                             removedList, original));
                 }
             }
             if (insert) {
