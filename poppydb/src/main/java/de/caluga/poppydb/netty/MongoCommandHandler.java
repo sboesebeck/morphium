@@ -402,18 +402,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     @SuppressWarnings("unchecked")
     private void processDefaultCommandAsync(ChannelHandlerContext ctx, Map<String, Object> doc,
                                             String cmd, int requestId) {
-        // Only offload write commands — they hold the per-collection writeLock and can
-        // block Netty I/O threads under parallel load. Read commands are fast enough
-        // to run inline without the thread-switch overhead.
-        if (WRITE_COMMANDS.contains(cmd.toLowerCase())) {
-            COMMAND_EXECUTOR.execute(() -> processCommand(ctx, doc, cmd, requestId));
-        } else {
-            processCommand(ctx, doc, cmd, requestId);
-        }
-    }
-
-    private void processCommand(ChannelHandlerContext ctx, Map<String, Object> doc,
-                                String cmd, int requestId) {
         try {
             boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
 
@@ -524,7 +512,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                                 ));
                             }
                         } finally {
-                            sendResponse(ctx, requestId, finalAnswer);
+                            // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
+                            ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
                         }
                     });
                     return; // Response will be sent asynchronously
@@ -974,13 +963,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         reply.setFirstDoc(answer);
 
         log.debug("Sending response for request {}: {}", requestId, answer.keySet());
-        // Always write from the Netty event loop thread for proper ordering and thread safety.
-        // Commands may run on virtual threads (COMMAND_EXECUTOR), so we must dispatch back.
-        if (ctx.channel().eventLoop().inEventLoop()) {
-            ctx.writeAndFlush(reply);
-        } else {
-            ctx.channel().eventLoop().execute(() -> ctx.writeAndFlush(reply));
-        }
+        ctx.writeAndFlush(reply);
     }
 
     private void sendError(ChannelHandlerContext ctx, int requestId, String message) {
