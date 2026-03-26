@@ -1332,7 +1332,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Handler error: {}", cause.getMessage());
+        log.error("Handler error: {}", cause.getMessage(), cause);
         ctx.close();
     }
 
@@ -1471,7 +1471,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         Map<String, Object> query = (Map<String, Object>) doc.get("query");
         if (query == null) query = Doc.of();
         long n = driver.count(db, coll, query, (de.caluga.morphium.Collation) null, null);
-        return Doc.of("ok", 1.0, "n", n);
+        // Return as int to match MongoDB wire protocol (CountMongoCommand.getCount casts to Integer)
+        return Doc.of("ok", 1.0, "n", (int) n);
     }
 
     @SuppressWarnings("unchecked")

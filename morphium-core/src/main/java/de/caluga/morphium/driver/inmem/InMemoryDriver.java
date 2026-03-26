@@ -5035,7 +5035,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return null;
         }
 
-        Map<String, Object> copy = new LinkedHashMap<>(source);
+        // Use deep copy to prevent shared mutable state between subscribers
+        Map<String, Object> copy = deepCopyDoc(source);
 
         if (copy.containsKey("_id")) {
             copy.put("_id", normalizeId(copy.get("_id")));

@@ -42,7 +42,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
     private Logger getLog() {
         if (log == null) {
-            log = getLog();
+            log = LoggerFactory.getLogger(this.getClass());
         }
         return log;
     }
