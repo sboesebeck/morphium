@@ -5262,7 +5262,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Fast-path: insert-only pipeline matching inserts
             if (insertOnlyMatchPipeline && "insert".equals(info.event.get("operationType"))) {
                 try {
-                    callback.incomingData(deepCopyDoc(info.event), System.currentTimeMillis() - info.createdAt);
+                    // The event is already an immutable snapshot from buildChangeStreamEvent().
+                    // No pipeline processing needed on this fast-path, so a shallow copy suffices
+                    // (callback only reads, and wire serialization creates its own copy).
+                    callback.incomingData(new HashMap<>(info.event), System.currentTimeMillis() - info.createdAt);
                     // Signal monitor to wake up watchInternal() thread immediately
                     monitor.signalAll();
                 } catch (Exception e) {
@@ -5280,7 +5283,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return;
             }
 
-            Map<String, Object> working = deepCopyDoc(info.event);
+            // Shallow copy: pipeline operations (adjustFullDocument, applyFullDocumentBeforeChange)
+            // only remove/add top-level keys. $match-only pipelines don't modify at all.
+            // The aggregator (for non-match stages) creates new maps internally.
+            // This avoids the expensive recursive deep copy of nested fullDocument/updateDescription.
+            Map<String, Object> working = new HashMap<>(info.event);
             adjustFullDocument(working);
 
             if (!applyFullDocumentBeforeChange(working)) {
