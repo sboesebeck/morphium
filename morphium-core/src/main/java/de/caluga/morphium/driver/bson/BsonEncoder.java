@@ -33,27 +33,24 @@ public class BsonEncoder {
     }
 
     public static byte[] encodeDocument(Map<String, Object> m, UUIDRepresentation representation) {
-        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        // Use a single encoder for all fields — avoids N allocations for N fields
+        BsonEncoder enc = new BsonEncoder();
+        enc.setUuidRepresentation(representation);
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            BsonEncoder enc = new BsonEncoder();
-            enc.setUuidRepresentation(representation);
             enc.encodeObject(e.getKey(), e.getValue());
-            try {
-                o.write(enc.getBytes());
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
         }
+        byte[] body = enc.getBytes();
 
-        ByteArrayOutputStream o2 = new ByteArrayOutputStream();
-        for (int i = 3; i >= 0; i--) o2.write((byte) ((o.size() + 4 + 1 >> ((7 - i) * 8)) & 0xff));
-        try {
-            o2.write(o.toByteArray());
-            o2.write(0x00);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return o2.toByteArray();
+        // Prepend 4-byte length (body + 4 bytes length + 1 byte terminator) + append terminator
+        byte[] result = new byte[body.length + 5];
+        int size = result.length;
+        result[0] = (byte) (size & 0xff);
+        result[1] = (byte) ((size >> 8) & 0xff);
+        result[2] = (byte) ((size >> 16) & 0xff);
+        result[3] = (byte) ((size >> 24) & 0xff);
+        System.arraycopy(body, 0, result, 4, body.length);
+        result[result.length - 1] = 0x00;
+        return result;
     }
 
     public UUIDRepresentation getUuidRepresentation() {
@@ -67,26 +64,18 @@ public class BsonEncoder {
 
     @SuppressWarnings("UnusedReturnValue")
     private BsonEncoder string(String s) {
-        try {
-            byte[] b = s.getBytes("UTF-8");
-            writeInt(b.length + 1);
-            writeBytes(b);
-            out.write((byte) 0);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        byte[] b = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        writeInt(b.length + 1);
+        writeBytes(b);
+        out.write((byte) 0);
         return this;
     }
 
     @SuppressWarnings("UnusedReturnValue")
     private BsonEncoder cString(String s) {
-        try {
-            byte[] b = s.getBytes("UTF-8");
-            writeBytes(b);
-            out.write((byte) 0);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        byte[] b = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        writeBytes(b);
+        out.write((byte) 0);
         return this;
     }
 
