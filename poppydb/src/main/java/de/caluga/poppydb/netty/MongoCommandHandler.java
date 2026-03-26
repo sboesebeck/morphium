@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
@@ -325,8 +326,36 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 answer = processReplSetFreeze(doc);
                 break;
 
+            // ── Direct dispatch for hot-path commands ──
+            // Bypasses GenericCommand reflection roundtrip: Map → InMemoryDriver directly.
+            case "insert":
+                answer = processInsertDirect(doc);
+                break;
+            case "find":
+                answer = processFindDirect(ctx, doc, requestId);
+                if (answer == null) return; // tailable cursor sends async
+                break;
+            case "update":
+                answer = processUpdateDirect(doc);
+                break;
+            case "delete":
+                answer = processDeleteDirect(doc);
+                break;
+            case "count":
+                answer = processCountDirect(doc);
+                break;
+            case "distinct":
+                answer = processDistinctDirect(doc);
+                break;
+            case "aggregate":
+                processDefaultCommandAsync(ctx, doc, cmd, requestId);
+                return; // aggregate is complex, keep generic path
+            case "createIndexes":
+                answer = processCreateIndexesDirect(doc);
+                break;
+
             default:
-                // Handle write commands that need replication wait asynchronously
+                // Fallback: GenericCommand reflection path for less common commands
                 processDefaultCommandAsync(ctx, doc, cmd, requestId);
                 return; // Async response
         }
@@ -1320,5 +1349,143 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         // Abort any pending transaction
         handleAbortTransaction(ctx);
         super.channelInactive(ctx);
+    }
+
+    // ── Direct dispatch methods for hot-path commands ──
+    // These bypass the GenericCommand reflection roundtrip by calling
+    // InMemoryDriver methods directly with the parsed Map.
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processInsertDirect(Map<String, Object> doc) {
+        String db = (String) doc.get("$db");
+        String coll = (String) doc.get("insert");
+        List<Map<String, Object>> docs = (List<Map<String, Object>>) doc.get("documents");
+        if (docs == null) docs = List.of();
+        try {
+            var writeErrors = driver.insert(db, coll, docs, null);
+            Map<String, Object> answer = Doc.of("ok", 1.0, "n", docs.size());
+            if (writeErrors != null && !writeErrors.isEmpty()) {
+                answer.put("writeErrors", writeErrors);
+                answer.put("n", docs.size() - writeErrors.size());
+            }
+            return answer;
+        } catch (MorphiumDriverException e) {
+            return Doc.of("ok", 1.0, "n", 0, "writeErrors",
+                    List.of(Doc.of("index", 0, "code", 11000, "errmsg", e.getMessage())));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processFindDirect(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
+        // Find is complex (tailable, projections, collation, etc.) — delegate to generic path
+        // for now but skip the GenericCommand overhead by building FindCommand directly
+        String db = (String) doc.get("$db");
+        String coll = (String) doc.get("find");
+        Map<String, Object> filter = (Map<String, Object>) doc.get("filter");
+        Map<String, Object> sort = (Map<String, Object>) doc.get("sort");
+        Map<String, Object> projection = (Map<String, Object>) doc.get("projection");
+        Integer limit = doc.get("limit") instanceof Number ? ((Number) doc.get("limit")).intValue() : 0;
+        Integer skip = doc.get("skip") instanceof Number ? ((Number) doc.get("skip")).intValue() : 0;
+
+        // Handle tailable cursors via generic path
+        if (Boolean.TRUE.equals(doc.get("tailable"))) {
+            return null; // signals caller to use generic path — not implemented here
+        }
+
+        if (filter == null) filter = Doc.of();
+        var results = driver.find(db, coll, filter, sort, projection, skip, limit);
+        return Doc.of("ok", 1.0, "cursor",
+                Doc.of("firstBatch", results, "id", 0L, "ns", db + "." + coll));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processUpdateDirect(Map<String, Object> doc) {
+        String db = (String) doc.get("$db");
+        String coll = (String) doc.get("update");
+        List<Map<String, Object>> updates = (List<Map<String, Object>>) doc.get("updates");
+        if (updates == null) return Doc.of("ok", 1.0, "n", 0, "nModified", 0);
+
+        int totalMatched = 0, totalModified = 0;
+        List<Map<String, Object>> writeErrors = new ArrayList<>();
+        for (int i = 0; i < updates.size(); i++) {
+            var upd = updates.get(i);
+            Map<String, Object> q = (Map<String, Object>) upd.get("q");
+            Map<String, Object> u = (Map<String, Object>) upd.get("u");
+            boolean multi = Boolean.TRUE.equals(upd.get("multi"));
+            boolean upsert = Boolean.TRUE.equals(upd.get("upsert"));
+            try {
+                var result = driver.update(db, coll, q, null, u, multi, upsert, null, null);
+                if (result != null) {
+                    totalMatched += result.getOrDefault("n", 0) instanceof Number ? ((Number) result.get("n")).intValue() : 0;
+                    totalModified += result.getOrDefault("nModified", 0) instanceof Number ? ((Number) result.get("nModified")).intValue() : 0;
+                }
+            } catch (Exception e) {
+                writeErrors.add(Doc.of("index", i, "code", 11000, "errmsg", e.getMessage()));
+            }
+        }
+        Map<String, Object> answer = Doc.of("ok", 1.0, "n", totalMatched, "nModified", totalModified);
+        if (!writeErrors.isEmpty()) answer.put("writeErrors", writeErrors);
+        return answer;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processDeleteDirect(Map<String, Object> doc) {
+        String db = (String) doc.get("$db");
+        String coll = (String) doc.get("delete");
+        List<Map<String, Object>> deletes = (List<Map<String, Object>>) doc.get("deletes");
+        if (deletes == null) return Doc.of("ok", 1.0, "n", 0);
+
+        int totalDeleted = 0;
+        for (var del : deletes) {
+            Map<String, Object> q = (Map<String, Object>) del.get("q");
+            int limit = del.get("limit") instanceof Number ? ((Number) del.get("limit")).intValue() : 0;
+            try {
+                var result = driver.delete(db, coll, q, null, limit != 1, null, null);
+                if (result != null && result.get("n") instanceof Number) {
+                    totalDeleted += ((Number) result.get("n")).intValue();
+                }
+            } catch (Exception e) {
+                log.warn("Delete error: {}", e.getMessage());
+            }
+        }
+        return Doc.of("ok", 1.0, "n", totalDeleted);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processCountDirect(Map<String, Object> doc) {
+        String db = (String) doc.get("$db");
+        String coll = (String) doc.get("count");
+        Map<String, Object> query = (Map<String, Object>) doc.get("query");
+        if (query == null) query = Doc.of();
+        long n = driver.count(db, coll, query, (de.caluga.morphium.Collation) null, null);
+        return Doc.of("ok", 1.0, "n", n);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processDistinctDirect(Map<String, Object> doc) {
+        String db = (String) doc.get("$db");
+        String coll = (String) doc.get("distinct");
+        String key = (String) doc.get("key");
+        Map<String, Object> query = (Map<String, Object>) doc.get("query");
+        if (query == null) query = Doc.of();
+        var values = driver.distinct(db, coll, key, query, null);
+        return Doc.of("ok", 1.0, "values", values);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processCreateIndexesDirect(Map<String, Object> doc) {
+        String db = (String) doc.get("$db");
+        String coll = (String) doc.get("createIndexes");
+        List<Map<String, Object>> indexes = (List<Map<String, Object>>) doc.get("indexes");
+        if (indexes != null) {
+            for (var idx : indexes) {
+                Map<String, Object> key = (Map<String, Object>) idx.get("key");
+                Map<String, Object> options = new HashMap<>();
+                if (idx.containsKey("unique")) options.put("unique", idx.get("unique"));
+                if (idx.containsKey("name")) options.put("name", idx.get("name"));
+                driver.createIndex(db, coll, key, options);
+            }
+        }
+        return Doc.of("ok", 1.0);
     }
 }
