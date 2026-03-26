@@ -4769,7 +4769,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
 
-        log.info("notifyWatchers: Dispatching event for {}.{}, op={}", db, collection, op);
+        log.debug("notifyWatchers: Dispatching event for {}.{}, op={}", db, collection, op);
         dispatchEvent(eventInfo);
     }
 

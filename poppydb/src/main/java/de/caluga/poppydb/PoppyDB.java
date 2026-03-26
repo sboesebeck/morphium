@@ -195,7 +195,7 @@ public class PoppyDB {
 
                         // Track the channel
                         allChannels.add(ch);
-                        log.info("New connection accepted (total: {})", allChannels.size());
+                        log.debug("New connection accepted (total: {})", allChannels.size());
                     }
                 });
 

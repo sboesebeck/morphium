@@ -15,12 +15,16 @@ import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("unchecked")
 public abstract class MongoCommand<T extends MongoCommand> {
     @Transient
     private static AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(false);
+    // Cached logger per concrete class — avoids getLog() per field in fromMap()
+    @Transient
+    private transient Logger log;
     private String $db;
     private String coll;
 
@@ -34,6 +38,13 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
     public MongoCommand(MongoConnection c) {
         connection = c;
+    }
+
+    private Logger getLog() {
+        if (log == null) {
+            log = getLog();
+        }
+        return log;
     }
 
     public void releaseConnection() {
@@ -108,7 +119,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
     public T fromMap(Map<String, Object> m) {
         setColl("" + m.get(getCommandName()));
-        LoggerFactory.getLogger(this.getClass()).debug("fromMap for {}: map keys = {}", this.getClass().getSimpleName(), m.keySet());
+        getLog().debug("fromMap for {}: map keys = {}", this.getClass().getSimpleName(), m.keySet());
 
         for (Field f : an.getAllFields(this.getClass())) {
             if (Modifier.isStatic(f.getModifiers())) {
@@ -159,16 +170,16 @@ public abstract class MongoCommand<T extends MongoCommand> {
                             } else if (v instanceof String) {
                                 f.set(this, UUID.fromString((String) v));
                             } else {
-                                LoggerFactory.getLogger(this.getClass()).warn(
+                                getLog().warn(
                                     "Unexpected type for UUID field {}: {}", n, v.getClass());
                             }
                         } else {
-                            LoggerFactory.getLogger(this.getClass()).debug("Setting field {} (type {}) to value of type {}",
+                            getLog().debug("Setting field {} (type {}) to value of type {}",
                                 n, f.getType().getSimpleName(), v.getClass().getSimpleName());
                             f.set(this, v);
                         }
                     } catch (ClassCastException | IllegalArgumentException cce) {
-                        LoggerFactory.getLogger(this.getClass()).error(
+                        getLog().error(
                             "Type mismatch setting field {} (type {}) with value {} (type {})",
                             n, f.getType().getName(), v, v.getClass().getName(), cce);
                         throw cce;
@@ -176,7 +187,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
                 }
             } catch (IllegalAccessException e) {
                 // e.printStackTrace();
-                LoggerFactory.getLogger(this.getClass()).error("Illegal access", e);
+                getLog().error("Illegal access", e);
             }
         }
 
@@ -225,7 +236,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
                     map.put(n, v);
             } catch (IllegalAccessException e) {
                 //e.printStackTrace();
-                LoggerFactory.getLogger(this.getClass()).error("Illegal access", e);
+                getLog().error("Illegal access", e);
             }
         }
 
