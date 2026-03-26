@@ -204,9 +204,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         Map<String, Object> doc = opMsg.getFirstDoc();
         int requestId = opMsg.getMessageId();
 
-        log.debug("Incoming {}", Utils.toJsonString(doc));
+        if (log.isDebugEnabled()) log.debug("Incoming {}", Utils.toJsonString(doc));
 
-        String cmd = doc.keySet().stream().findFirst().orElse("unknown");
+        String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
         log.debug("Handling command {}", cmd);
 
         Map<String, Object> answer;

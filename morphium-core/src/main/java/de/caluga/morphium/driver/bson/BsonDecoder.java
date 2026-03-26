@@ -44,7 +44,7 @@ public class BsonDecoder {
                 l++;
             }
 
-            name = new String(in, idx, l, "UTF-8");
+            name = new String(in, idx, l, StandardCharsets.UTF_8);
             idx += l + 1; //trailling 0
             Object value;
 
@@ -149,7 +149,7 @@ public class BsonDecoder {
                         l++;
                     }
 
-                    String pattern = new String(in, idx, l, "UTF-8");
+                    String pattern = new String(in, idx, l, StandardCharsets.UTF_8);
                     idx += l + 1;
                     l = 0;
 
@@ -157,7 +157,7 @@ public class BsonDecoder {
                         l++;
                     }
 
-                    String opts = new String(in, idx, l, "UTF-8");
+                    String opts = new String(in, idx, l, StandardCharsets.UTF_8);
                     idx += l + 1;
                     int flags = 0;
 
@@ -187,7 +187,7 @@ public class BsonDecoder {
                 case 0x0d:
                         //javascript
                         strlen = readInt(in, idx);
-                        String code = new String(in, idx + 4, strlen - 1, "UTF-8");
+                        String code = new String(in, idx + 4, strlen - 1, StandardCharsets.UTF_8);
                         value = new MongoJSScript(code);
                         idx += strlen + 4;
                         break;
@@ -196,7 +196,7 @@ public class BsonDecoder {
                             //javascript w/ scope
                             //first 4 bytes the whole length
                             strlen = readInt(in, idx + 4);
-                            code = new String(in, idx + 8, strlen - 1, "UTF-8");
+                            code = new String(in, idx + 8, strlen - 1, StandardCharsets.UTF_8);
                             Doc scope = Doc.of();
                             int doclen = decodeDocumentIn(scope, in, idx + 8 + strlen);
                             value = new MongoJSScript(code, scope);
