@@ -1355,6 +1355,19 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // These bypass the GenericCommand reflection roundtrip by calling
     // InMemoryDriver methods directly with the parsed Map.
 
+    // TODO: In-process LoopbackDriver shortcut
+    //
+    // PoppyDB and InMemoryDriver run in the same JVM. The current data path is:
+    //   Client → TCP → Netty decode → Map → InMemoryDriver.insert() → Map → Netty encode → TCP → Client
+    //
+    // A "LoopbackDriver" that implements MorphiumDriver but calls InMemoryDriver
+    // directly would skip TCP + Netty entirely, making PoppyDB usable as an
+    // embedded in-process database with zero network overhead.
+    //
+    // The wire protocol path (this class) would remain for external clients.
+    // The LoopbackDriver would be selected automatically when the Morphium instance
+    // is configured to use the same PoppyDB that runs in-process.
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> processInsertDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");

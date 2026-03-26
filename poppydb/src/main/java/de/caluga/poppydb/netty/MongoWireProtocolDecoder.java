@@ -64,8 +64,21 @@ public class MongoWireProtocolDecoder extends ByteToMessageDecoder {
 
         // Read payload (always consume the bytes to keep the stream in sync)
         int payloadSize = messageSize - HEADER_SIZE;
-        byte[] payload = new byte[payloadSize];
-        in.readBytes(payload);
+
+        // Zero-copy fast-path: if the ByteBuf is backed by a heap array, we can pass
+        // the backing array + offset directly to parsePayload() and avoid allocating
+        // a temporary byte[]. For direct/pooled buffers we fall back to the copy path.
+        byte[] payload;
+        int payloadOffset;
+        if (in.hasArray()) {
+            payload = in.array();
+            payloadOffset = in.arrayOffset() + in.readerIndex();
+            in.skipBytes(payloadSize);
+        } else {
+            payload = new byte[payloadSize];
+            in.readBytes(payload);
+            payloadOffset = 0;
+        }
 
         // Find the opcode handler
         OpCode code = OpCode.findByCode(opCode);
@@ -81,7 +94,7 @@ public class MongoWireProtocolDecoder extends ByteToMessageDecoder {
             message.setSize(messageSize);
             message.setMessageId(requestId);
             message.setResponseTo(responseTo);
-            message.parsePayload(payload, 0);
+            message.parsePayload(payload, payloadOffset);
 
             log.debug("Decoded {} message, id={}, size={}", code.name(), requestId, messageSize);
             out.add(message);

@@ -3851,8 +3851,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         // Notify watchers AFTER releasing the write lock to prevent deadlocks.
-        // notifyWatchers -> buildChangeStreamEvent -> cloneAndNormalizeDocument
-        // already creates a deep copy, so no need to deep-copy here.
+        // notifyWatchers -> buildChangeStreamEvent -> shallowCopyAndNormalizeDocument
+        // creates a shallow copy (sufficient because doc values are not mutated in-place).
         for (Map<String, Object> o : objs) {
             notifyWatchers(db, collection, "insert", o);
         }
@@ -3963,7 +3963,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<Map<String, Object>> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
             if (!srch.isEmpty()) {
                 // Capture reference before removing; the object itself is not mutated,
-                // and cloneAndNormalizeDocument in notifyWatchers will deep-copy it
+                // and shallowCopyAndNormalizeDocument in notifyWatchers will copy it
                 Map<String, Object> previous = srch.get(0);
                 getCollection(db, collection).remove(previous);
                 // enforce unique indexes before replacing
@@ -4676,8 +4676,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         throw ex;
                     }
                     // original is already a deepClone from line above, no need to
-                    // deep-copy again; notifyWatchers -> cloneAndNormalizeDocument
-                    // will create its own copy for the change stream event
+                    // deep-copy again; notifyWatchers -> shallowCopyAndNormalizeDocument
+                    // will create its own shallow copy for the change stream event
                     Map<String, Object> updatedMap = computeUpdatedFields(original, obj);
                     List<String> removedList = computeRemovedFields(original, obj);
                     pendingNotifications.add(new PendingNotification(db, collection, "update", obj, updatedMap,
@@ -4776,8 +4776,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @SuppressWarnings("unchecked")
     private ChangeStreamEventInfo buildChangeStreamEvent(String db, String collection, String op, Map doc,
             Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
-        Map<String, Object> newDocument = cloneAndNormalizeDocument((Map<String, Object>) doc);
-        Map<String, Object> previousDocument = cloneAndNormalizeDocument((Map<String, Object>) beforeDocument);
+        Map<String, Object> newDocument = shallowCopyAndNormalizeDocument((Map<String, Object>) doc);
+        Map<String, Object> previousDocument = shallowCopyAndNormalizeDocument((Map<String, Object>) beforeDocument);
 
         Map<String, Object> event = new LinkedHashMap<>();
         long token = changeStreamSequence.incrementAndGet();
@@ -5016,12 +5016,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return adminAllSubs != null && !adminAllSubs.isEmpty();
     }
 
-    private Map<String, Object> cloneAndNormalizeDocument(Map<String, Object> source) {
+    /**
+     * Creates a shallow copy of the document and normalizes the _id field.
+     * <p>
+     * A shallow copy is sufficient here because:
+     * 1. Primitive field values (String, Number, Boolean) are immutable.
+     * 2. The resulting event map is wrapped in Collections.unmodifiableMap() so
+     *    subscribers cannot modify it.
+     * 3. Each subscriber's deliver() creates its own working copy (new HashMap<>(event)).
+     * 4. Nested Maps/Lists in documents are not mutated in-place by InMemoryDriver —
+     *    updates replace the entire document in the collection.
+     * <p>
+     * This avoids the expensive recursive deepCopyDoc() that was previously called for
+     * every change stream event, even when no subscriber matches.
+     */
+    private Map<String, Object> shallowCopyAndNormalizeDocument(Map<String, Object> source) {
         if (source == null) {
             return null;
         }
 
-        Map<String, Object> copy = deepCopyDoc(source);
+        Map<String, Object> copy = new LinkedHashMap<>(source);
 
         if (copy.containsKey("_id")) {
             copy.put("_id", normalizeId(copy.get("_id")));
