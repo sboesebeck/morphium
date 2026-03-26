@@ -4874,9 +4874,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         };
 
-        {
-            // Always dispatch async to avoid blocking insert/update/delete threads.
-            // The delivery involves deepCopyDoc + subscriber iteration which is expensive.
+        if (serverMode) {
+            // In server mode (PoppyDB), deliver synchronously to maintain event ordering
+            // for replication and to provide backpressure — async dispatch caused OOM
+            // because events accumulated faster than they were consumed.
+            deliveryTask.run();
+        } else {
+            // In client mode, dispatch async to avoid blocking insert/update/delete threads
             try {
                 eventDispatcher.execute(deliveryTask);
             } catch (java.util.concurrent.RejectedExecutionException e) {
