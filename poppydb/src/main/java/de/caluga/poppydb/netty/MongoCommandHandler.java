@@ -23,6 +23,7 @@ import de.caluga.morphium.driver.wireprotocol.*;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,6 +59,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "insert", "update", "delete", "findandmodify",
             "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
     );
+
+    // Track cursors created by this channel so we can kill them on disconnect
+    private final Set<Long> channelCursors = ConcurrentHashMap.newKeySet();
 
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
@@ -387,6 +391,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         for (Long cursorId : cursorsToKill) {
             if (cursorManager.killCursor(cursorId)) {
                 killed.add(cursorId);
+                channelCursors.remove(cursorId);
             } else {
                 notFound.add(cursorId);
             }
@@ -648,6 +653,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         try {
             WatchCommand wcmd = new WatchCommand(driver).fromMap(doc);
             long cursorId = cursorManager.createWatchCursor(driver, wcmd);
+            channelCursors.add(cursorId);
 
             // Register as messaging cursor if this is a registered messaging collection
             if (messagingOptimizer != null &&
@@ -709,6 +715,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 log.info("Setting up tailable cursor {} for {}.{}", tailCursorId, db, coll);
                 // Register the driver's cursor with our cursor manager for notification handling
                 cursorManager.registerTailableCursor(tailCursorId, db, coll, filter);
+                channelCursors.add(tailCursorId);
             }
         }
     }
@@ -1301,7 +1308,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.debug("Channel inactive, cleaning up");
+        log.debug("Channel inactive, cleaning up ({} cursors to kill)", channelCursors.size());
+        // Kill all cursors owned by this channel to prevent thread/subscription leaks
+        for (Long cursorId : channelCursors) {
+            if (cursorManager.killCursor(cursorId)) {
+                log.debug("Killed orphaned cursor {} on channel disconnect", cursorId);
+            }
+        }
+        channelCursors.clear();
         // Abort any pending transaction
         handleAbortTransaction(ctx);
         super.channelInactive(ctx);
