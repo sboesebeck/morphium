@@ -340,8 +340,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         String collection = (String) doc.get("collection");
         String db = (String) doc.get("$db");
 
-        // Cap wait time for better responsiveness
-        int effectiveWaitMs = Math.min(maxTimeMs, 2000);
+        // Use the client's requested wait time directly — capping to 2000ms caused
+        // unnecessary empty round-trips that increased change stream event latency.
+        int effectiveWaitMs = maxTimeMs;
 
         if (cursorManager.hasCursor(cursorId)) {
             // Async getMore for watch/tailable cursors

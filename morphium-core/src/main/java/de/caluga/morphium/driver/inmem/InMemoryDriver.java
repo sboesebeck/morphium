@@ -4843,43 +4843,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
 
-        // Submit the ENTIRE dispatch to the eventDispatcher thread
-        // This ensures insert/update/delete threads NEVER block on event delivery
-        // The eventDispatcher then queues events to each subscription's executor
-        try {
-            eventDispatcher.execute(() -> {
-                log.trace("Dispatching event: db={}, coll={}, op={}", eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"));
+        // The actual delivery logic — extracted so it can run inline or async
+        Runnable deliveryTask = () -> {
+            log.trace("Dispatching event: db={}, coll={}, op={}", eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"));
 
-                // Deliver to database-level subscribers
-                var dbSubs = changeStreamSubscribers.get(eventInfo.db);
-                deliverToSubscribers(dbSubs, eventInfo);
+            // Deliver to database-level subscribers
+            var dbSubs = changeStreamSubscribers.get(eventInfo.db);
+            deliverToSubscribers(dbSubs, eventInfo);
 
-                // Deliver to database-level watches registered via PoppyDB (with collection="1")
-                // When aggregate with $changeStream comes through wire protocol, collection is set to "1" for db-level watches
-                var dbAllSubs = changeStreamSubscribers.get(eventInfo.db + ".1");
-                deliverToSubscribers(dbAllSubs, eventInfo);
+            // Deliver to database-level watches registered via PoppyDB (with collection="1")
+            // When aggregate with $changeStream comes through wire protocol, collection is set to "1" for db-level watches
+            var dbAllSubs = changeStreamSubscribers.get(eventInfo.db + ".1");
+            deliverToSubscribers(dbAllSubs, eventInfo);
 
-                // Deliver to collection-level subscribers
-                if (eventInfo.collection != null) {
-                    var collSubs = changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection);
-                    deliverToSubscribers(collSubs, eventInfo);
-                }
+            // Deliver to collection-level subscribers
+            if (eventInfo.collection != null) {
+                var collSubs = changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection);
+                deliverToSubscribers(collSubs, eventInfo);
+            }
 
-                // Deliver to cluster-wide subscribers
-                // These can be registered as "admin" (db only) or "admin.1" (when collection is "1" for all-db watch)
-                if (!"admin".equals(eventInfo.db)) {
-                    var adminSubs = changeStreamSubscribers.get("admin");
-                    // log.debug("Admin (cluster-wide) subscribers for 'admin': {}", adminSubs != null ? adminSubs.size() : 0);
-                    deliverToSubscribers(adminSubs, eventInfo);
+            // Deliver to cluster-wide subscribers
+            // These can be registered as "admin" (db only) or "admin.1" (when collection is "1" for all-db watch)
+            if (!"admin".equals(eventInfo.db)) {
+                var adminSubs = changeStreamSubscribers.get("admin");
+                deliverToSubscribers(adminSubs, eventInfo);
 
-                    // Also check for "admin.1" which is used when watching all databases
-                    var adminAllSubs = changeStreamSubscribers.get("admin.1");
-                    // log.debug("Admin (cluster-wide) subscribers for 'admin.1': {}", adminAllSubs != null ? adminAllSubs.size() : 0);
-                    deliverToSubscribers(adminAllSubs, eventInfo);
-                }
-            });
-        } catch (java.util.concurrent.RejectedExecutionException e) {
-            log.debug("InMemoryDriver executor rejected task (likely shutting down), skipping event dispatch");
+                // Also check for "admin.1" which is used when watching all databases
+                var adminAllSubs = changeStreamSubscribers.get("admin.1");
+                deliverToSubscribers(adminAllSubs, eventInfo);
+            }
+        };
+
+        if (serverMode) {
+            // In server mode (PoppyDB), deliver synchronously on the calling thread.
+            // The delivery is lightweight (queue + CompletableFuture.complete), and
+            // the async hop via eventDispatcher adds unnecessary latency for change
+            // stream event delivery to wire-protocol clients.
+            deliveryTask.run();
+        } else {
+            // In client mode, dispatch async to avoid blocking insert/update/delete threads
+            try {
+                eventDispatcher.execute(deliveryTask);
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                log.debug("InMemoryDriver executor rejected task (likely shutting down), skipping event dispatch");
+            }
         }
     }
 
