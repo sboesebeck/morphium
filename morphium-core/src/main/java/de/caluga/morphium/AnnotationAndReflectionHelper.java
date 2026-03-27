@@ -118,34 +118,27 @@ public class AnnotationAndReflectionHelper {
             return;
         }
 
-        //initializing type IDs via ClassGraph classpath scan
-        try (ScanResult scanResult =
-                                    new ClassGraph()
-            //                     .verbose()             // Enable verbose logging
-            .enableAnnotationInfo()
-            //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-            .scan()) {
-            ClassInfoList entities =
-                            scanResult.getClassesWithAnnotation(Entity.class.getName());
-            entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-            logger.info("Found " + entities.size() + " entities in classpath");
+        //initializing type IDs via cached ClassGraph scan
+        ClassInfoList entityInfos = ClassGraphCache.getClassInfoWithAnnotation(Entity.class.getName());
+        ClassInfoList embeddedInfos = ClassGraphCache.getClassInfoWithAnnotation(Embedded.class.getName());
+        List<ClassInfo> allInfos = new ArrayList<>(entityInfos);
+        allInfos.addAll(embeddedInfos);
+        logger.info("Found " + allInfos.size() + " entities in classpath");
 
-            for (String cn : entities.getNames()) {
-                ClassInfo ci = scanResult.getClassInfo(cn);
-                AnnotationInfoList an = ci.getAnnotationInfo();
+        for (ClassInfo ci : allInfos) {
+            String cn = ci.getName();
+            AnnotationInfoList an = ci.getAnnotationInfo();
 
-                for (AnnotationInfo ai : an) {
-                    String name = ai.getName();
+            for (AnnotationInfo ai : an) {
+                String name = ai.getName();
 
-                    if (name.equals(Entity.class.getName()) || name.equals(Embedded.class.getName())) {
-                        for (AnnotationParameterValue param : ai.getParameterValues()) {
-                            //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
-                            if (param.getName().equals("typeId")) {
-                                target.put(param.getValue().toString(), cn);
-                            }
-
-                            target.put(cn, cn);
+                if (name.equals(Entity.class.getName()) || name.equals(Embedded.class.getName())) {
+                    for (AnnotationParameterValue param : ai.getParameterValues()) {
+                        if (param.getName().equals("typeId")) {
+                            target.put(param.getValue().toString(), cn);
                         }
+
+                        target.put(cn, cn);
                     }
                 }
             }

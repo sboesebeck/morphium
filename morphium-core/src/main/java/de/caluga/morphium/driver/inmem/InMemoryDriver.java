@@ -204,8 +204,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
     private final Map < String, Class <? extends MongoCommand>> commandsCache = new HashMap<>();
     // Cache reflected Method and Constructor lookups to avoid per-call reflection overhead
-    private final Map<Class<?>, java.lang.reflect.Method> runCommandMethodCache = new ConcurrentHashMap<>();
-    private final Map<Class<?>, java.lang.reflect.Constructor<?>> constructorCache = new ConcurrentHashMap<>();
+    private final Map < Class<?>, java.lang.reflect.Method> runCommandMethodCache = new ConcurrentHashMap<>();
+    private final Map < Class<?>, java.lang.reflect.Constructor<?>> constructorCache = new ConcurrentHashMap<>();
     private final AtomicInteger commandNumber = new AtomicInteger(0);
     private final AtomicInteger connectionId = new AtomicInteger(0);
     private final Map<DriverStatsKey, AtomicDecimal> stats = new ConcurrentHashMap<>();
@@ -317,9 +317,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         ObjectMapperImpl mapper = new ObjectMapperImpl();
         MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
         mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
-        log.info("Read in json: " + b);
+        // log.info("Read in json: " + b);
         InMemDumpContainer cnt = mapper.deserialize(InMemDumpContainer.class, b.toString());
-        log.info("Restoring DB " + cnt.getDb() + " dump from " + new Date(cnt.getCreated()));
+        // log.info("Restoring DB " + cnt.getDb() + " dump from " + new Date(cnt.getCreated()));
         setDatabase(cnt.getDb(), cnt.getData());
     }
 
@@ -612,7 +612,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // Call the registration callback if set (used by ChangeStreamMonitor to signal watch started)
         if (settings.getRegistrationCallback() != null) {
-            log.info("Calling registration callback for {}.{}", db, collection);
+            // log.info("Calling registration callback for {}.{}", db, collection);
             try {
                 settings.getRegistrationCallback().run();
             } catch (Exception e) {
@@ -1118,7 +1118,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int runCommand(WatchCommand cmd) throws MorphiumDriverException {
-        log.info("InMemoryDriver.runCommand(WatchCommand) called: db={}, coll={}", cmd.getDb(), cmd.getColl());
+        // log.info("InMemoryDriver.runCommand(WatchCommand) called: db={}, coll={}", cmd.getDb(), cmd.getColl());
         int ret = commandNumber.incrementAndGet();
 
         // For server use: register subscription synchronously, run watch loop asynchronously
@@ -1154,7 +1154,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // Register subscription synchronously
         registerSubscription(subscription);
-        log.info("Watch registered with cursorId={}", cursorId);
+        // log.info("Watch registered with cursorId={}", cursorId);
 
         // Start watch loop asynchronously
         final String finalDb = db;
@@ -1391,7 +1391,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         data.put("totalSize", 0);
         data.put("totalSizeMb", 0);
         data.put("totalEntries", sum);
-        log.info("Storing listDb Result for id: " + ret);
+        // log.info("Storing listDb Result for id: " + ret);
         addResult(ret, prepareResult(data));
         return ret;
     }
@@ -1456,7 +1456,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public int runCommand(KillCursorsCommand cmd) {
         // log.error("Should not happen: " + cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
-        log.info("Killing cursors");
+        // log.info("Killing cursors");
         int ret = commandNumber.incrementAndGet();
 
         for (Long id : cmd.getCursors()) {
@@ -2068,7 +2068,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(HelloCommand cmd) {
-        log.info("Hello Command incoming");
+        // log.info("Hello Command incoming");
         int ret = commandNumber.incrementAndGet();
         // { "ok" : 1.0, "$clusterTime" : { "clusterTime" : 7129872915129958401,
         // "signature" : { "hash" : [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -2284,16 +2284,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             running = true;
         }
 
-        try (ScanResult scanResult = new ClassGraph()
-            // .verbose() // Enable verbose logging
-            .enableAnnotationInfo()
-            // .enableAllInfo() // Scan classes, methods, fields, annotations
-            .scan()) {
-            ClassInfoList entities = scanResult.getSubclasses(MongoCommand.class.getName());
+        {
+            List<String> commandNames = de.caluga.morphium.ClassGraphCache.getSubclassesOf(MongoCommand.class.getName());
 
-            for (ClassInfo info : entities) {
+            for (String n : commandNames) {
                 try {
-                    String n = info.getName();
                     Class cls = AnnotationAndReflectionHelper.classForName(n);
 
                     if (Modifier.isAbstract(cls.getModifiers())) {
@@ -6218,7 +6213,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<Map<String, Object>> documents = find(db, collection, queryMap, sortMap, null,
             collation == null ? null : collation.toQueryObject(), 0, 0, false);
 
-        log.info("MapReduce internal: found {} documents to process", documents.size());
+        // log.info("MapReduce internal: found {} documents to process", documents.size());
 
         // Initialize JavaScript engine using GraalVM polyglot Context directly
         // This avoids ScriptEngineManager issues with GraalJS option compatibility
@@ -6242,7 +6237,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // Test basic JavaScript functionality
             org.graalvm.polyglot.Value basicTest = jsContext.eval("js", "1 + 1");
-            log.info("Basic JS test (1+1): {}", basicTest.asInt());
+            // log.info("Basic JS test (1+1): {}", basicTest.asInt());
 
             // Create a JavaScript array and define emit function to use it
             jsContext.eval("js", "var jsEmitResults = [];");
@@ -6265,7 +6260,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             jsContext.eval("js", "var mapFunc = " + mapFunction + ";");
 
             // Phase 1: Map phase - execute map function for each document
-            log.info("Starting map phase with {} documents", documents.size());
+            // log.info("Starting map phase with {} documents", documents.size());
             for (Map<String, Object> doc : documents) {
                 // Execute map function with document bound to `this`
                 try {
@@ -6280,11 +6275,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // Get the final JavaScript array size and convert to Java objects
             org.graalvm.polyglot.Value finalJsArraySize = jsContext.eval("js", "jsEmitResults.length");
-            log.info("Map phase completed with {} emissions", finalJsArraySize.asInt());
+            // log.info("Map phase completed with {} emissions", finalJsArraySize.asInt());
 
             // Convert JavaScript array to Java List
             int arrayLength = finalJsArraySize.asInt();
-            log.info("Converting {} JavaScript results to Java", arrayLength);
+            // log.info("Converting {} JavaScript results to Java", arrayLength);
 
             for (int i = 0; i < arrayLength; i++) {
                 org.graalvm.polyglot.Value keyVal = jsContext.eval("js", "jsEmitResults[" + i + "]._id");

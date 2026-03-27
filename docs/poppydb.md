@@ -591,11 +591,12 @@ db.watch().on('change', console.log);
 - 💡 **Tip** - Use short dump intervals for important data
 
 ### Scalability
-- ❌ **Single Instance** - No sharding support
-- ❌ **No Replica Sets** - Experimental support only
+- ❌ **No Sharding** - Single instance only
+- ✅ **Replica Sets** - Supported with Raft-based leader election (since v6.2.0)
 - ❌ **Memory Bound** - Dataset limited by available RAM
 
 ### Features
+- ✅ **Server-side Cursors** - Batched find queries with `batchSize` and `getMore` (since v6.2.2)
 - ❌ **GridFS** - No file storage
 - ❌ **Full-Text Search** - Limited $text support
 - ❌ **Advanced Geospatial** - Basic queries only

@@ -406,7 +406,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                     var cursor = Doc.of("nextBatch", batch, "ns", db + "." + collection, "id", cursorId);
                     answer = Doc.of("ok", 1.0, "cursor", cursor);
                 }
-                sendResponse(ctx, requestId, answer);
+                // Dispatch back to Netty event loop to avoid interleaved writes
+                // from the CompletableFuture thread and the I/O thread
+                final Map<String, Object> finalAnswer = answer;
+                ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
             });
         } else if (findCursors.containsKey(cursorId)) {
             // Server-side find cursor — return next batch from pre-fetched results
@@ -1467,8 +1470,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         List<Map<String, Object>> updates = (List<Map<String, Object>>) doc.get("updates");
         if (updates == null) return Doc.of("ok", 1.0, "n", 0, "nModified", 0);
 
-        int totalMatched = 0, totalModified = 0;
+        int totalN = 0, totalModified = 0;
         List<Map<String, Object>> writeErrors = new ArrayList<>();
+        List<Map<String, Object>> upserted = new ArrayList<>();
         for (int i = 0; i < updates.size(); i++) {
             var upd = updates.get(i);
             Map<String, Object> q = (Map<String, Object>) upd.get("q");
@@ -1478,14 +1482,22 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             try {
                 var result = driver.update(db, coll, q, null, u, multi, upsert, null, null);
                 if (result != null) {
-                    totalMatched += result.getOrDefault("n", 0) instanceof Number ? ((Number) result.get("n")).intValue() : 0;
+                    totalN += result.getOrDefault("n", 0) instanceof Number ? ((Number) result.get("n")).intValue() : 0;
                     totalModified += result.getOrDefault("nModified", 0) instanceof Number ? ((Number) result.get("nModified")).intValue() : 0;
+                    if (result.containsKey("upsertedIds")) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> ids = (List<Object>) result.get("upsertedIds");
+                        for (Object id : ids) {
+                            upserted.add(Doc.of("index", i, "_id", id));
+                        }
+                    }
                 }
             } catch (Exception e) {
                 writeErrors.add(Doc.of("index", i, "code", 11000, "errmsg", e.getMessage()));
             }
         }
-        Map<String, Object> answer = Doc.of("ok", 1.0, "n", totalMatched, "nModified", totalModified);
+        Map<String, Object> answer = Doc.of("ok", 1.0, "n", totalN + upserted.size(), "nModified", totalModified);
+        if (!upserted.isEmpty()) answer.put("upserted", upserted);
         if (!writeErrors.isEmpty()) answer.put("writeErrors", writeErrors);
         return answer;
     }

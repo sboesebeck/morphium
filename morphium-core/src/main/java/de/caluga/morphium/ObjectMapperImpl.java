@@ -144,25 +144,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             if (cl == null) {
                 cl = ObjectMapperImpl.class.getClassLoader();
             }
-            try (ScanResult scanResult = new ClassGraph()
-                .enableAnnotationInfo()
-                .overrideClassLoaders(cl)
-                .scan()) {
-                ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
-                log.debug("Found " + entities.size() + " entities in classpath");
+            List<String> entityNames = ClassGraphCache.getClassesWithAnnotation(Entity.class.getName());
+            log.debug("Found " + entityNames.size() + " entities in classpath");
 
-                for (String cn : entities.getNames()) {
-                    try {
-                        Class c = AnnotationAndReflectionHelper.classForName(cn);
-                        classByCollectionName.put(getCollectionName(c), c);
-                    } catch (ClassNotFoundException e) {
-                        log.error("Could not get class / collection " + cn);
-                    }
+            for (String cn : entityNames) {
+                try {
+                    Class c = AnnotationAndReflectionHelper.classForName(cn);
+                    classByCollectionName.put(getCollectionName(c), c);
+                } catch (ClassNotFoundException e) {
+                    log.error("Could not get class / collection " + cn);
                 }
-                cachedClassByCollectionName = new ConcurrentHashMap<>(classByCollectionName);
-            } catch (ClassGraphException e) {
-                //swallow
             }
+            cachedClassByCollectionName = new ConcurrentHashMap<>(classByCollectionName);
         }
     }
 

@@ -5,6 +5,38 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.2] - Unreleased
+
+### Fixed
+
+#### PoppyDB: Update operations now return correct matched/modified counts
+The InMemoryDriver returned `"matched"` instead of the MongoDB-standard `"n"` key in update results. This caused all update-based operations (inc, set, sequence, bulk updates) to fail with "Update failed" or "Error - not updated" when running against PoppyDB over the wire protocol.
+
+#### PoppyDB: Find queries now respect batchSize (server-side cursor support)
+`processFindDirect` previously returned all matching documents in a single `firstBatch` regardless of the requested `batchSize`, with cursor ID always 0. This broke iterators and cursors that rely on batched fetching. PoppyDB now returns only the requested batch and registers a server-side cursor for `getMore` requests.
+
+#### PoppyDB: Insert error response includes nModified field
+Duplicate-key error responses from insert operations were missing the `nModified` field, causing a `NullPointerException` in `ThrowOnError` predicates that call `Number.intValue()` on the missing map entry.
+
+#### Expr.arrayExpr() parse roundtrip
+`ArrayExpr.toQueryObject()` used `Arrays.asList(stream.toArray())` which wrapped the result array as a single element instead of unpacking it. Also fixed `Expr.parse(List)` which returned `List<Expr>` objects instead of mapped query objects, and added proper `evaluate()` overrides for both `ArrayExpr` and parsed list expressions.
+
+#### IndexDescription.equals() false mismatches
+The comparison treated `null` and `false`/`0` as different values for boolean and integer fields (e.g., `background`, `sparse`, `unique`). Since MongoDB may return explicit `false` for fields that Java leaves `null`, this caused indices to appear "missing" on every startup, triggering repeated create-index attempts that fail with "Index already exists". Also removed a stale `log.info()` call inside `equals()` that logged every single index comparison at INFO level.
+
+### Changed
+
+- `WriteSafety` downgrade message (standalone MongoDB) reduced from WARN to DEBUG
+- Index creation message (`CREATE_ON_STARTUP`) reduced from WARN to INFO; `WARN_ON_STARTUP` remains WARN as intended
+
+### Performance
+
+- Zero-copy BSON decoder, reduced BsonEncoder allocations per document
+- Shallow copy instead of deep copy for change stream events
+- Direct dispatch for hot-path commands (insert, update, delete, find, count, distinct)
+- PoppyDB: fixed thread pool instead of virtual threads (prevented OOM under load)
+- PoppyDB: orphaned cursor cleanup on client disconnect
+
 ## [6.2.0]
 
 ### Breaking Changes

@@ -260,15 +260,14 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 messagingClass = de.caluga.morphium.messaging.SingleCollectionMessaging.class;
                 log.info("Using Messaging SingleCollectionMessaging");
             } else {
-                try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-                    .scan()) {
-                    ClassInfoList entities = scanResult.getClassesWithAnnotation(Messaging.class.getName());
+                try {
+                    List<String> messagingNames = ClassGraphCache.getClassesWithAnnotation(Messaging.class.getName());
 
                     if (log.isDebugEnabled()) {
-                        log.debug("Found {} messaging implementations in classpath", entities.size());
+                        log.debug("Found {} messaging implementations in classpath", messagingNames.size());
                     }
 
-                    for (String cn : entities.getNames()) {
+                    for (String cn : messagingNames) {
                         try {
                             Class c = AnnotationAndReflectionHelper.classForName(cn);
                             var ann = (Messaging)c.getAnnotation(Messaging.class);
@@ -311,17 +310,16 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 getConfig().driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
                 morphiumDriver = new SingleMongoConnectDriver();
             } else {
-                try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-                    .scan()) {
-                    ClassInfoList entities = scanResult.getClassesWithAnnotation(Driver.class.getName());
+                try {
+                    List<String> driverNames = ClassGraphCache.getClassesWithAnnotation(Driver.class.getName());
 
                     if (log.isDebugEnabled()) {
-                        log.debug("Found " + entities.size() + " drivers in classpath");
+                        log.debug("Found " + driverNames.size() + " drivers in classpath");
                     }
 
                     String driverName = getConfig().driverSettings().getDriverName();
 
-                    for (String cn : entities.getNames()) {
+                    for (String cn : driverNames) {
                         try {
                             @SuppressWarnings("rawtypes")
                             Class c = AnnotationAndReflectionHelper.classForName(cn);
@@ -3289,11 +3287,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public Map < Class<?>, Map<String, Integer >> checkCapped() {
         Map < Class<?>, Map<String, Integer >> uncappedCollections = new HashMap<>();
 
-        try (ScanResult scanResult = new ClassGraph().enableAnnotationInfo().enableClassInfo().scan()) {
-            ClassInfoList entities = scanResult.getClassesWithAnnotation(Capped.class.getName());
+        {
+            List<String> cappedNames = ClassGraphCache.getClassesWithAnnotation(Capped.class.getName());
 
-            for (String cn : entities.getNames()) {
-                // ClassInfo ci = scanResult.getClassInfo(cn);
+            for (String cn : cappedNames) {
                 try {
                     if (cn.startsWith("sun.")) {
                         continue;
@@ -3336,25 +3333,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public Map < Class<?>, List<IndexDescription >> checkIndices(ClassInfoList.ClassInfoFilter filter) {
         Map < Class<?>, List<IndexDescription >> missingIndicesByClass = new HashMap<>();
 
-        // initializing type IDs
-        try (ScanResult scanResult = new ClassGraph()
-            // .verbose() // Enable verbose logging
-            .enableAnnotationInfo()
-            // .enableFieldInfo()
-            .enableClassInfo()                         // Scan classes, methods, fields, annotations
-            .scan()) {
-            ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
+        try {
+            ClassInfoList entityInfoList = ClassGraphCache.getClassInfoWithAnnotation(Entity.class.getName());
 
             if (filter != null) {
-                entities = entities.filter(filter);
+                entityInfoList = entityInfoList.filter(filter);
             }
 
-            for (String cn : entities.getNames()) {
-                // ClassInfo ci = scanResult.getClassInfo(cn);
+            for (String cn : entityInfoList.getNames()) {
                 try {
-                    // if (param.getName().equals("index"))
-                    // logger.info("Class " + cn + " Param " + param.getName() + " = " +
-                    // param.getValue());
                     if (cn.startsWith("sun.")) {
                         continue;
                     }
