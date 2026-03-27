@@ -122,7 +122,12 @@ public abstract class Expr {
             return new ValueExpr() {
                 @Override
                 public Object toQueryObject() {
-                    return ret;
+                    return ret.stream().map(Expr::toQueryObject).collect(java.util.stream.Collectors.toList());
+                }
+
+                @Override
+                public Object evaluate(Map<String, Object> context) {
+                    return ret.stream().map(e -> e.evaluate(context)).collect(java.util.stream.Collectors.toList());
                 }
             };
         } else if (o instanceof String && ((String) o).startsWith("$")) {
@@ -2468,7 +2473,12 @@ public abstract class Expr {
 
         @Override
         public Object toQueryObject() {
-            return Arrays.asList(arr.stream().map(Expr::toQueryObject).toArray());
+            return arr.stream().map(Expr::toQueryObject).collect(java.util.stream.Collectors.toList());
+        }
+
+        @Override
+        public Object evaluate(Map<String, Object> context) {
+            return arr.stream().map(e -> e.evaluate(context)).collect(java.util.stream.Collectors.toList());
         }
     }
 

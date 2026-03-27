@@ -1064,7 +1064,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                              (Map<String, Object>) updateObj, multi, upsert, collation, cmd.getWriteConcern());
 
             // accumulate matched and modified
-            Object m = res.get("matched");
+            Object m = res.get("n");
             if (m instanceof Number)
                 totalMatched += ((Number) m).intValue();
             Object nm = res.get("nModified");
@@ -1203,10 +1203,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         result.putAll(stats);
 
         // Ensure n is set correctly for compatibility with MongoDB
-        if (!result.containsKey("n") && (result.containsKey("matched") || result.containsKey("inserted"))) {
-            int matched = result.containsKey("matched") ? (Integer) result.get("matched") : 0;
+        if (!result.containsKey("n") && result.containsKey("inserted")) {
             int inserted = result.containsKey("inserted") ? (Integer) result.get("inserted") : 0;
-            result.put("n", matched + inserted);
+            result.put("n", inserted);
         }
 
         // System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand)
@@ -4695,7 +4694,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             indexDataByDBCollection.get(db).remove(collection);
             updateIndexData(db, collection, null);
-            Doc res = Doc.of("matched", (Object) matchedCount, "nModified", modifiedCount, "modified", modifiedCount);
+            Doc res = Doc.of("n", (Object) matchedCount, "nModified", modifiedCount, "modified", modifiedCount);
             if (!upsertedIds.isEmpty()) {
                 res.put("upsertedIds", upsertedIds);
             }
@@ -5985,8 +5984,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
                             Map<String, Object> updateResult = update(db, collection, up.getQuery(), null, up.getCmd(),
                                                                up.isMultiple(), up.isUpsert(), null, null);
-                            if (updateResult.containsKey("matched")) {
-                                matchedCount += ((Number) updateResult.get("matched")).intValue();
+                            if (updateResult.containsKey("n")) {
+                                matchedCount += ((Number) updateResult.get("n")).intValue();
                             }
                             if (updateResult.containsKey("modified") || updateResult.containsKey("nModified")) {
                                 Object modified = updateResult.getOrDefault("modified", updateResult.get("nModified"));

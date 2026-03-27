@@ -1383,7 +1383,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
             return answer;
         } catch (MorphiumDriverException e) {
-            return Doc.of("ok", 1.0, "n", 0, "writeErrors",
+            return Doc.of("ok", 1.0, "n", 0, "nModified", 0, "writeErrors",
                     List.of(Doc.of("index", 0, "code", 11000, "errmsg", e.getMessage())));
         }
     }
