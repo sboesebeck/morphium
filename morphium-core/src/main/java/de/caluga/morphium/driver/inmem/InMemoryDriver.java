@@ -2723,8 +2723,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        // Shutdown the event dispatcher
-        if (eventDispatcher != null && !eventDispatcher.isShutdown()) {
+        // Shutdown the event dispatcher only if no active subscriptions remain.
+        // When multiple Morphium instances share this driver, one closing should not
+        // kill event delivery for the others.
+        boolean hasActiveSubscriptions = changeStreamSubscribers.values().stream()
+                .anyMatch(subs -> subs.stream().anyMatch(ChangeStreamSubscription::isActive));
+        if (eventDispatcher != null && !eventDispatcher.isShutdown() && !hasActiveSubscriptions) {
             eventDispatcher.shutdownNow();
             try {
                 if (!eventDispatcher.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -2734,6 +2738,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 Thread.currentThread().interrupt();
                 log.warn("Interrupted while waiting for eventDispatcher termination");
             }
+        } else if (hasActiveSubscriptions) {
+            log.info("Keeping eventDispatcher alive — {} active subscription(s) remain",
+                     changeStreamSubscribers.values().stream()
+                         .flatMap(java.util.Collection::stream)
+                         .filter(ChangeStreamSubscription::isActive).count());
         }
 
         // Notify any waiting threads
@@ -4833,7 +4842,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // Check if executor is shutdown before submitting tasks
         if (eventDispatcher.isShutdown()) {
-            log.debug("InMemoryDriver is shut down, skipping change stream event dispatch");
+            log.warn("InMemoryDriver eventDispatcher is shut down, DROPPING change stream event for {}.{} op={}",
+                     eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"));
             return;
         }
 
@@ -4870,15 +4880,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (serverMode) {
             // In server mode (PoppyDB), deliver synchronously to maintain event ordering
-            // for replication and to provide backpressure — async dispatch caused OOM
-            // because events accumulated faster than they were consumed.
+            // for replication and to provide backpressure.
             deliveryTask.run();
         } else {
-            // In client mode, dispatch async to avoid blocking insert/update/delete threads
+            // In client mode, dispatch async via virtual threads. Synchronous delivery
+            // causes deadlocks in messaging: the callback processes messages which trigger
+            // further writes, blocking the original writer thread indefinitely.
+            // Virtual threads ensure no event is lost (no bounded queue) while keeping
+            // the writer thread free.
             try {
                 eventDispatcher.execute(deliveryTask);
             } catch (java.util.concurrent.RejectedExecutionException e) {
-                log.debug("InMemoryDriver executor rejected task (likely shutting down), skipping event dispatch");
+                log.warn("InMemoryDriver executor REJECTED event dispatch for {}.{} op={} — events will be lost!",
+                         eventInfo.db, eventInfo.collection, eventInfo.event.get("operationType"));
             }
         }
     }

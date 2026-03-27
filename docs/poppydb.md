@@ -8,6 +8,7 @@ PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InM
 
 - ✅ **MongoDB Wire Protocol Compatible** - Works with any MongoDB client library
 - ✅ **Multi-Language Support** - Connect from Java, Python, Node.js, Go, C#, etc.
+- ✅ **3x Faster Than MongoDB** - Insert 0.74ms vs 4.48ms, Find 0.45ms vs 1.95ms, Update 0.66ms vs 5.19ms (local benchmarks)
 - ✅ **Fast Startup** - Starts in ~100-500ms vs ~2-5 seconds for MongoDB
 - ✅ **Lightweight** - ~50-100MB RAM vs ~500MB-1GB for MongoDB
 - ✅ **No Installation** - Pure Java, runs anywhere

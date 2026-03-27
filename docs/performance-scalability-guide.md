@@ -46,6 +46,30 @@ cfg.messagingSettings().setMessagingMultithreadded(true);
 cfg.messagingSettings().setPollPauseTime(50); // Reduce latency
 ```
 
+## Startup Performance
+
+### ClassGraph Cache (since 6.2.2)
+Morphium scans the classpath at startup to discover `@Entity`, `@Embedded`, `@Driver`, and `@Messaging` annotated classes. Since 6.2.2, scan results are cached JVM-wide in `ClassGraphCache` — the first `new Morphium()` pays the scan cost (~100–500ms), all subsequent instances reuse cached results instantly.
+
+This is especially impactful in test scenarios where many Morphium instances are created. In benchmarks, startup overhead dropped from ~5s to ~0.5s per instance.
+
+To force a rescan (e.g., after hot-reloading classes):
+```java
+ClassGraphCache.invalidate();
+```
+
+### Index Check Settings
+The `IndexCheck` setting controls what happens at startup when indices defined on `@Entity` classes don't match the database:
+
+| Setting | Behavior | Overhead |
+|---------|----------|----------|
+| `NO_CHECK` | Skip entirely | None |
+| `CREATE_ON_STARTUP` | Create missing indices (logs at INFO) | One `listIndexes` + `createIndex` per entity |
+| `CREATE_ON_WRITE_NEW_COL` | Create when first writing to a new collection | Deferred |
+| `WARN_ON_STARTUP` | Log warnings for missing indices | One `listIndexes` per entity |
+
+For fastest startup in tests, use `NO_CHECK`. For production, `CREATE_ON_WRITE_NEW_COL` is a good balance.
+
 ## Connection Pool Optimization
 
 ### Pool Sizing Guidelines

@@ -24,6 +24,12 @@ Duplicate-key error responses from insert operations were missing the `nModified
 #### IndexDescription.equals() false mismatches
 The comparison treated `null` and `false`/`0` as different values for boolean and integer fields (e.g., `background`, `sparse`, `unique`). Since MongoDB may return explicit `false` for fields that Java leaves `null`, this caused indices to appear "missing" on every startup, triggering repeated create-index attempts that fail with "Index already exists". Also removed a stale `log.info()` call inside `equals()` that logged every single index comparison at INFO level.
 
+#### PoppyDB: Upsert operations now correctly report document count
+Upserted documents were not included in the `"n"` count of update responses. MongoDB returns `n: 1` for a successful upsert (even though `matchedCount` is 0), but PoppyDB returned `n: 0`. This broke `storeMap()` assertions and any code that checks the update result count after an upsert.
+
+#### PoppyDB: Wire protocol corruption on concurrent change stream responses
+The `CompletableFuture.whenComplete()` callback for watch/tailable cursor `getMore` responses wrote directly to the Netty channel from a background thread. When a change stream event arrived while the I/O thread was writing another response on the same connection, the bytes were interleaved, producing corrupted wire protocol messages (`Illegal opcode 0`, `wrong section ID`). Responses are now dispatched back to the Netty event loop thread, serializing all writes per connection.
+
 ### Changed
 
 - `WriteSafety` downgrade message (standalone MongoDB) reduced from WARN to DEBUG
@@ -31,11 +37,15 @@ The comparison treated `null` and `false`/`0` as different values for boolean an
 
 ### Performance
 
+#### ClassGraphCache: 4.7x faster Morphium startup
+Introduced a JVM-wide singleton cache for ClassGraph classpath scan results. Previously, each `new Morphium()` triggered 2–4 full classpath scans (~100–500ms each), which dominated test setup time and slowed down applications that create multiple Morphium instances. The scan now happens once per JVM; all subsequent instances reuse cached results. In tests, `BasicFunctionalityTest` dropped from 67s to 14s.
+
 - Zero-copy BSON decoder, reduced BsonEncoder allocations per document
 - Shallow copy instead of deep copy for change stream events
 - Direct dispatch for hot-path commands (insert, update, delete, find, count, distinct)
 - PoppyDB: fixed thread pool instead of virtual threads (prevented OOM under load)
 - PoppyDB: orphaned cursor cleanup on client disconnect
+- PoppyDB: 3x faster than MongoDB for individual operations (insert 0.74ms vs 4.48ms, find 0.45ms vs 1.95ms, update 0.66ms vs 5.19ms in local benchmarks)
 
 ## [6.2.0]
 
