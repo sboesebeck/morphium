@@ -5582,6 +5582,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.writeLock().unlock();
         }
+        // Purge change stream history for this collection so that resumeAfter
+        // tokens from before the drop don't replay stale events
+        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         notifyWatchers(db, collection, "drop", null);
     }
@@ -5597,6 +5600,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             indicesByDbCollection.remove(db);
         }
 
+        // Purge change stream history for this database
+        changeStreamHistory.removeIf(e -> db.equals(e.db));
         notifyWatchers(db, null, "drop", null);
     }
 
