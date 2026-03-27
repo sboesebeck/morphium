@@ -4757,7 +4757,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                           beforeDocument);
 
         if (eventInfo == null) {
-            // log.debug("buildChangeStreamEvent returned null, skipping");
+            return;
+        }
+
+        // Don't add events to history for collections that no longer exist
+        // (async event dispatch can race with dropCollection)
+        if (!"drop".equals(op) && collection != null && !getDB(db).containsKey(collection)) {
             return;
         }
 
@@ -5582,11 +5587,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.writeLock().unlock();
         }
-        // Purge change stream history for this collection so that resumeAfter
-        // tokens from before the drop don't replay stale events
-        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         notifyWatchers(db, collection, "drop", null);
+        // Purge ALL history for this collection AFTER the drop event has been added.
+        // This removes both pre-drop events AND any async events that snuck in
+        // between the lock release and this point. The drop event itself is also
+        // removed, which is fine — resumeAfter should start fresh after a drop.
+        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
     }
 
     public synchronized void drop(String db, WriteConcern wc) {
