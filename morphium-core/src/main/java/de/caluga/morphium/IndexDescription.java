@@ -278,25 +278,41 @@ public class IndexDescription {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexDescription that = (IndexDescription) o;
-        boolean ret = Objects.equals(key, that.key)
-                && Objects.equals(background, that.background)
-                && Objects.equals(unique, that.unique)
+        // Only compare key plus fields that deviate from defaults.
+        // MongoDB may return explicit false/0 for fields that Java leaves null,
+        // so treat null as equivalent to the default value for each type.
+        return Objects.equals(key, that.key)
+                && boolEq(background, that.background)
+                && boolEq(unique, that.unique)
                 && Objects.equals(partialFilterExpression, that.partialFilterExpression)
-                && Objects.equals(sparse, that.sparse) && Objects.equals(expireAfterSeconds, that.expireAfterSeconds)
-                && Objects.equals(hidden, that.hidden) && Objects.equals(storageEngine, that.storageEngine)
+                && boolEq(sparse, that.sparse) && intEq(expireAfterSeconds, that.expireAfterSeconds)
+                && boolEq(hidden, that.hidden) && Objects.equals(storageEngine, that.storageEngine)
                 && Objects.equals(weights, that.weights) && Objects.equals(defaultLanguage, that.defaultLanguage)
                 && Objects.equals(languageOverride, that.languageOverride) && Objects.equals(textIndexVersion, that.textIndexVersion)
                 && Objects.equals(_2dsphereIndexVersion, that._2dsphereIndexVersion) && Objects.equals(bits, that.bits)
                 && Objects.equals(min, that.min) && Objects.equals(max, that.max) && Objects.equals(collation, that.collation)
                 && Objects.equals(wildcardProjection, that.wildcardProjection);
-        LoggerFactory.getLogger(IndexDescription.class).info("Comparing {} with {} -> {}", this, that, ret);
-        return ret;
+    }
+
+    private static boolean boolEq(Boolean a, Boolean b) {
+        if (Objects.equals(a, b)) return true;
+        return (a == null || !a) && (b == null || !b);
+    }
+
+    private static boolean intEq(Integer a, Integer b) {
+        if (Objects.equals(a, b)) return true;
+        return (a == null || a == 0) && (b == null || b == 0);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, background, unique, partialFilterExpression, sparse, expireAfterSeconds,
-                hidden, storageEngine, weights, defaultLanguage, languageOverride, textIndexVersion, _2dsphereIndexVersion,
-                bits, min, max, collation, wildcardProjection);
+        // Normalize boolean/int defaults to match equals(): null and false/0 are equivalent
+        return Objects.hash(key, normBool(background), normBool(unique), partialFilterExpression,
+                normBool(sparse), normInt(expireAfterSeconds),
+                normBool(hidden), storageEngine, weights, defaultLanguage, languageOverride, textIndexVersion,
+                _2dsphereIndexVersion, bits, min, max, collation, wildcardProjection);
     }
+
+    private static Boolean normBool(Boolean v) { return v != null && v ? Boolean.TRUE : null; }
+    private static Integer normInt(Integer v) { return v != null && v != 0 ? v : null; }
 }

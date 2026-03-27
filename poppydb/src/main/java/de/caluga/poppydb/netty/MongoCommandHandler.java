@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Netty handler for processing MongoDB commands.
@@ -63,6 +64,24 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     // Track cursors created by this channel so we can kill them on disconnect
     private final Set<Long> channelCursors = ConcurrentHashMap.newKeySet();
+
+    // Server-side find cursors: cursorId → remaining documents + metadata
+    private static final AtomicLong FIND_CURSOR_SEQ = new AtomicLong(1_000_000);
+    private static final ConcurrentHashMap<Long, FindCursorState> findCursors = new ConcurrentHashMap<>();
+
+    private static class FindCursorState {
+        final String db;
+        final String collection;
+        final List<Map<String, Object>> remaining;
+        final int batchSize;
+
+        FindCursorState(String db, String collection, List<Map<String, Object>> remaining, int batchSize) {
+            this.db = db;
+            this.collection = collection;
+            this.remaining = remaining;
+            this.batchSize = batchSize;
+        }
+    }
 
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
@@ -389,6 +408,21 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 }
                 sendResponse(ctx, requestId, answer);
             });
+        } else if (findCursors.containsKey(cursorId)) {
+            // Server-side find cursor — return next batch from pre-fetched results
+            FindCursorState state = findCursors.get(cursorId);
+            int count = Math.min(state.batchSize, state.remaining.size());
+            List<Map<String, Object>> batch = new ArrayList<>(state.remaining.subList(0, count));
+            state.remaining.subList(0, count).clear();
+
+            long returnCursorId = state.remaining.isEmpty() ? 0L : cursorId;
+            if (state.remaining.isEmpty()) {
+                findCursors.remove(cursorId);
+                channelCursors.remove(cursorId);
+            }
+
+            var cursor = Doc.of("nextBatch", batch, "ns", state.db + "." + state.collection, "id", returnCursorId);
+            sendResponse(ctx, requestId, Doc.of("ok", 1.0, "cursor", cursor));
         } else {
             // Regular cursor - use driver
             try {
@@ -419,7 +453,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         List<Long> notFound = new ArrayList<>();
 
         for (Long cursorId : cursorsToKill) {
-            if (cursorManager.killCursor(cursorId)) {
+            if (findCursors.remove(cursorId) != null) {
+                killed.add(cursorId);
+                channelCursors.remove(cursorId);
+            } else if (cursorManager.killCursor(cursorId)) {
                 killed.add(cursorId);
                 channelCursors.remove(cursorId);
             } else {
@@ -1390,8 +1427,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> processFindDirect(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
-        // Find is complex (tailable, projections, collation, etc.) — delegate to generic path
-        // for now but skip the GenericCommand overhead by building FindCommand directly
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("find");
         Map<String, Object> filter = (Map<String, Object>) doc.get("filter");
@@ -1399,6 +1434,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         Map<String, Object> projection = (Map<String, Object>) doc.get("projection");
         Integer limit = doc.get("limit") instanceof Number ? ((Number) doc.get("limit")).intValue() : 0;
         Integer skip = doc.get("skip") instanceof Number ? ((Number) doc.get("skip")).intValue() : 0;
+        Integer batchSize = doc.get("batchSize") instanceof Number ? ((Number) doc.get("batchSize")).intValue() : 0;
 
         // Handle tailable cursors via generic path
         if (Boolean.TRUE.equals(doc.get("tailable"))) {
@@ -1407,6 +1443,19 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         if (filter == null) filter = Doc.of();
         var results = driver.find(db, coll, filter, sort, projection, skip, limit);
+
+        // Respect batchSize: if set, only return that many in firstBatch
+        // and register a cursor for the rest (like MongoDB does)
+        if (batchSize > 0 && results.size() > batchSize) {
+            List<Map<String, Object>> firstBatch = new ArrayList<>(results.subList(0, batchSize));
+            List<Map<String, Object>> remaining = new ArrayList<>(results.subList(batchSize, results.size()));
+            long cursorId = FIND_CURSOR_SEQ.incrementAndGet();
+            findCursors.put(cursorId, new FindCursorState(db, coll, remaining, batchSize));
+            channelCursors.add(cursorId);
+            return Doc.of("ok", 1.0, "cursor",
+                    Doc.of("firstBatch", firstBatch, "id", cursorId, "ns", db + "." + coll));
+        }
+
         return Doc.of("ok", 1.0, "cursor",
                 Doc.of("firstBatch", results, "id", 0L, "ns", db + "." + coll));
     }

@@ -588,7 +588,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             if (getConfig().collectionCheckSettings().getIndexCheck().equals(IndexCheck.WARN_ON_STARTUP)) {
                                 log.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
                             } else if (getConfig().collectionCheckSettings().getIndexCheck().equals(IndexCheck.CREATE_ON_STARTUP)) {
-                                log.warn("Creating missing indices for entity " + cls.getName());
+                                log.info("Creating missing indices for entity " + cls.getName());
                                 // noinspection unchecked
                                 ensureIndicesFor(cls);
                             }
@@ -1616,7 +1616,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (!actuallyReplicaSet) {
             // Standalone MongoDB: downgrade write concern that requires replica set
             if (w > 1 || safety.level() == SafetyLevel.MAJORITY) {
-                log.warn("Entity {} has @WriteSafety(level={}) which requires a replica set, "
+                log.debug("Entity {} has @WriteSafety(level={}) which requires a replica set, "
                         + "but connected to standalone MongoDB. Downgrading to w:1 (BASIC).",
                         cls.getSimpleName(), safety.level());
                 w = 1;
