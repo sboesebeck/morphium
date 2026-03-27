@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -3327,12 +3327,13 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </ul>
 <h3 id="scalability">Scalability<a class="headerlink" href="#scalability" title="Permanent link">&para;</a></h3>
 <ul>
-<li>❌ <strong>Single Instance</strong> - No sharding support</li>
-<li>❌ <strong>No Replica Sets</strong> - Experimental support only</li>
+<li>❌ <strong>No Sharding</strong> - Single instance only</li>
+<li>✅ <strong>Replica Sets</strong> - Supported with Raft-based leader election (since v6.2.0)</li>
 <li>❌ <strong>Memory Bound</strong> - Dataset limited by available RAM</li>
 </ul>
 <h3 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h3>
 <ul>
+<li>✅ <strong>Server-side Cursors</strong> - Batched find queries with <code>batchSize</code> and <code>getMore</code> (since v6.2.2)</li>
 <li>❌ <strong>GridFS</strong> - No file storage</li>
 <li>❌ <strong>Full-Text Search</strong> - Limited $text support</li>
 <li>❌ <strong>Advanced Geospatial</strong> - Basic queries only</li>
