@@ -352,7 +352,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
             case "find":
                 answer = processFindDirect(ctx, doc, requestId);
-                if (answer == null) return; // tailable cursor sends async
+                if (answer == null) {
+                    // Tailable cursor — fall through to generic path
+                    processDefaultCommandAsync(ctx, doc, cmd, requestId);
+                    return;
+                }
                 break;
             case "update":
                 answer = processUpdateDirect(doc);
@@ -1489,6 +1493,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                         List<Object> ids = (List<Object>) result.get("upsertedIds");
                         for (Object id : ids) {
                             upserted.add(Doc.of("index", i, "_id", id));
+                        }
+                    }
+                    if (result.containsKey("writeErrors")) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> errors = (List<Map<String, Object>>) result.get("writeErrors");
+                        for (Map<String, Object> err : errors) {
+                            Map<String, Object> errorWithIndex = new java.util.HashMap<>(err);
+                            errorWithIndex.put("index", i);
+                            writeErrors.add(errorWithIndex);
                         }
                     }
                 }

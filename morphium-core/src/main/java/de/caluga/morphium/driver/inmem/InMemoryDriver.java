@@ -4768,7 +4768,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         if (!hasSubscribers(db, collection)) {
-            log.debug("notifyWatchers: no subscribers for {}.{}", db, collection);
+            log.debug("notifyWatchers: no subscribers for {}.{} op={}", db, collection, op);
             return;
         }
 
