@@ -2460,10 +2460,7 @@ public class Query<T> implements Cloneable {
                     }
                 }
                 cursorId = ((Number) cursor.get("id")).longValue();
-                // Use a reasonable maxTimeMS for tailable GetMore — not the full maxWait
-                // (which can be Integer.MAX_VALUE). 5 seconds balances responsiveness
-                // with avoiding tight polling loops.
-                GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize).setColl(getCollectionName()).setDb(cmd.getDb()).setCursorId(cursorId).setMaxTimeMs(5000);
+                GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize).setColl(getCollectionName()).setDb(cmd.getDb()).setCursorId(cursorId).setMaxTimeMs(maxWait);
                 msgId = more.executeAsync();
             }
 
