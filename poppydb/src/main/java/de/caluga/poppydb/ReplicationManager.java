@@ -421,6 +421,7 @@ public class ReplicationManager {
                 if (!connected.get()) {
                     log.info("Not connected to primary, attempting reconnect...");
                     try {
+                        disconnectFromPrimary(); // clean up previous connection before reconnecting
                         connectToPrimary();
                     } catch (Exception e) {
                         log.warn("Reconnect failed, will retry in 5s: {}", e.getMessage());

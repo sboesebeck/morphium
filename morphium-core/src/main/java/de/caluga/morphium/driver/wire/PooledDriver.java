@@ -1576,6 +1576,13 @@ public class PooledDriver extends DriverBase {
             return;
         }
         running = false;
+        // Wake up ConnectionWaiter thread so it can exit its while(running) loop
+        try {
+            waitCounterLock.lock();
+            waitCounterCondition.signalAll();
+        } finally {
+            waitCounterLock.unlock();
+        }
         if (heartbeat != null) {
             heartbeat.cancel(true);
         }
