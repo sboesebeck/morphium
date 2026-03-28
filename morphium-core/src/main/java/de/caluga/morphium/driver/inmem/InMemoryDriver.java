@@ -4764,10 +4764,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
 
-        // Don't add events to history for collections that no longer exist
-        // (async event dispatch can race with dropCollection)
-        if (!"drop".equals(op) && collection != null && !getDB(db).containsKey(collection)) {
-            return;
+        // Don't add events to history if a drop happened after this write started
+        // but before notifyWatchers ran. The event's token was assigned just above,
+        // so if lastDropSequence >= token, this event belongs to the pre-drop era.
+        if (!"drop".equals(op) && collection != null) {
+            String nsKey = db + "." + collection;
+            Long dropSeq = lastDropSequence.get(nsKey);
+            if (dropSeq != null && eventInfo.token <= dropSeq) {
+                return; // stale event from before the drop
+            }
+            Long dbDropSeq = lastDropSequence.get(db);
+            if (dbDropSeq != null && eventInfo.token <= dbDropSeq) {
+                return;
+            }
         }
 
         changeStreamHistory.addLast(eventInfo);
@@ -5605,11 +5614,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.writeLock().unlock();
         }
-        // Record the current sequence as the drop boundary — replayHistory will
-        // skip any events at or before this sequence for this namespace.
-        // This is race-free: even if async events arrive later and sneak into the
-        // history, replayHistory will ignore them because their token <= dropSequence.
-        lastDropSequence.put(db + "." + collection, changeStreamSequence.get());
+        // Advance the sequence counter and record it as the drop boundary.
+        // Any events with tokens <= this value are from before the drop.
+        // By incrementing the counter HERE (inside or just after the write lock),
+        // we ensure that any in-flight notifyWatchers calls from pre-drop writes
+        // will get tokens BELOW this boundary (they call buildChangeStreamEvent
+        // which uses incrementAndGet, but the drop bumps past them).
+        long dropBoundary = changeStreamSequence.addAndGet(100);
+        lastDropSequence.put(db + "." + collection, dropBoundary);
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         notifyWatchers(db, collection, "drop", null);
         // Also purge history to keep it bounded
@@ -5627,8 +5639,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             indicesByDbCollection.remove(db);
         }
 
-        // Record drop boundary for all collections in this database
-        lastDropSequence.put(db, changeStreamSequence.get());
+        long dropBoundary = changeStreamSequence.addAndGet(100);
+        lastDropSequence.put(db, dropBoundary);
         changeStreamHistory.removeIf(e -> db.equals(e.db));
         notifyWatchers(db, null, "drop", null);
     }
