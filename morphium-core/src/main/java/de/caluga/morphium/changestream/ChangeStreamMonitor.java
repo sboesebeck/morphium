@@ -132,10 +132,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             throw new RuntimeException("Already running!");
         }
 
+        running = true; // MUST be set BEFORE thread start — run() checks this immediately
         changeStreamThread = Thread.ofPlatform()
                              .name("changeStream")
                              .start(this);
-        running = true;
     }
 
     /**
