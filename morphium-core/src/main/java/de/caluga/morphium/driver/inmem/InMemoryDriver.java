@@ -179,6 +179,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, CopyOnWriteArrayList<ChangeStreamSubscription>> changeStreamSubscribers = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<ChangeStreamEventInfo> changeStreamHistory = new ConcurrentLinkedDeque<>();
     private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
+    // Track the sequence number at the time of the last drop per namespace (db.collection or db).
+    // replayHistory skips events older than this to prevent stale events from being replayed.
+    private final ConcurrentHashMap<String, Long> lastDropSequence = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
     private final List<WatchMonitor> monitors = new CopyOnWriteArrayList<>();
@@ -514,6 +517,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamSubscribers.clear();
         changeStreamHistory.clear();
         changeStreamSequence.set(0);
+        lastDropSequence.clear();
         eventQueue.clear();
         cursors.clear();
         commandResults.clear();
@@ -4954,8 +4958,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private void replayHistory(ChangeStreamSubscription subscription, long startingToken) {
+        // Determine the effective minimum token: the resume token or the last drop
+        // sequence for this namespace, whichever is higher. This prevents replaying
+        // stale events that were inserted by async dispatch after a drop.
+        long effectiveMinToken = startingToken;
+        String collKey = subscription.db + "." + subscription.collection;
+        Long dropSeq = lastDropSequence.get(collKey);
+        if (dropSeq != null && dropSeq > effectiveMinToken) {
+            effectiveMinToken = dropSeq;
+        }
+        Long dbDropSeq = lastDropSequence.get(subscription.db);
+        if (dbDropSeq != null && dbDropSeq > effectiveMinToken) {
+            effectiveMinToken = dbDropSeq;
+        }
+
         for (ChangeStreamEventInfo info : changeStreamHistory) {
-            if (info.token <= startingToken) {
+            if (info.token <= effectiveMinToken) {
                 continue;
             }
 
@@ -5587,12 +5605,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.writeLock().unlock();
         }
+        // Record the current sequence as the drop boundary — replayHistory will
+        // skip any events at or before this sequence for this namespace.
+        // This is race-free: even if async events arrive later and sneak into the
+        // history, replayHistory will ignore them because their token <= dropSequence.
+        lastDropSequence.put(db + "." + collection, changeStreamSequence.get());
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         notifyWatchers(db, collection, "drop", null);
-        // Purge ALL history for this collection AFTER the drop event has been added.
-        // This removes both pre-drop events AND any async events that snuck in
-        // between the lock release and this point. The drop event itself is also
-        // removed, which is fine — resumeAfter should start fresh after a drop.
+        // Also purge history to keep it bounded
         changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
     }
 
@@ -5607,7 +5627,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             indicesByDbCollection.remove(db);
         }
 
-        // Purge change stream history for this database
+        // Record drop boundary for all collections in this database
+        lastDropSequence.put(db, changeStreamSequence.get());
         changeStreamHistory.removeIf(e -> db.equals(e.db));
         notifyWatchers(db, null, "drop", null);
     }
