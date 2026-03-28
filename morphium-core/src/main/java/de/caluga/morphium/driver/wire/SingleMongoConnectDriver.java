@@ -419,7 +419,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                             incStat(DriverStatsKey.FAILOVERS);
                             decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
                             incStat(DriverStatsKey.CONNECTIONS_CLOSED);
-                            Thread.sleep(1000);
+                            Thread.sleep(200); // fast reconnect on failover
                             connect(getReplicaSetName());
                         }
                     } catch (MorphiumDriverException e) {

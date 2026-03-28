@@ -49,7 +49,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
         MongoConnection con = drv.getConnection();
         var originalConnectedTo = con.getConnectedTo();
         log.info("Stepping down on node " + originalConnectedTo);
-        StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(15).setForce(Boolean.TRUE);
+        StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(5).setForce(Boolean.TRUE);
         var res = cmd.execute();
         log.info("result: " + Utils.toJsonString(res));
         // Check if stepdown is supported - PoppyDB returns "stepping down not supported in memory"

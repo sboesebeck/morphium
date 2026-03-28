@@ -2460,7 +2460,7 @@ public class Query<T> implements Cloneable {
                     }
                 }
                 cursorId = ((Number) cursor.get("id")).longValue();
-                GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize).setColl(getCollectionName()).setDb(cmd.getDb()).setCursorId(cursorId);
+                GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize).setColl(getCollectionName()).setDb(cmd.getDb()).setCursorId(cursorId).setMaxTimeMs(maxWait);
                 msgId = more.executeAsync();
             }
 

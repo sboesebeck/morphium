@@ -100,7 +100,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     // track when a topic was paused, to report elapsed pause time on unpause
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
     // Fallback poll runs every FALLBACK_POLL_INTERVAL_MS instead of every pause cycle
-    private static final long FALLBACK_POLL_INTERVAL_MS = 5000; // 5 seconds
+    private static final long FALLBACK_POLL_INTERVAL_MS = 1000; // 1 second — faster recovery after lock release
     private volatile long lastFallbackPollTime = 0;
 
     private ScheduledThreadPoolExecutor decouplePool;
