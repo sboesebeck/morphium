@@ -11,15 +11,14 @@ import static java.lang.annotation.ElementType.FIELD;
  * Date: 07.05.12
  * Time: 17:52
  * <p>
- * Define aliases for a field. This way, the same property of an entity might be used with different ways<p>
- * <code>
+ * Define aliases for a field. This way, the same property of an entity might be used with different ways
+ * <pre>
  * class Data {
  *
- * @Aliases("alias","hugo") private String value;
+ * &#64;Aliases("alias","hugo") private String value;
  * }
  * morphium.createQueryFor(Data.class).f("alias").eq....
- * <p>
- * </code>
+ * </pre>
  */
 @Target({FIELD})
 @Retention(RetentionPolicy.RUNTIME)

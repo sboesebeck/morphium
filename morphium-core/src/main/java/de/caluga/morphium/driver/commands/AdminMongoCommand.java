@@ -6,7 +6,16 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
+/**
+ * abstract class for all admin Mongo commands
+ *
+ * @param <T> the command type
+ */
 public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements SingleResultCommand {
+    /**
+     * Creates a new AdminMongoCommand with the given connection.
+     * @param d the connection
+     */
     public AdminMongoCommand(MongoConnection d) {
         super(d);
     }

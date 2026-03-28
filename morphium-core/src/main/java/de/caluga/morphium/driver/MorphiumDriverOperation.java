@@ -1,7 +1,9 @@
 package de.caluga.morphium.driver;
 
 /**
- * Created by stephan on 09.11.15.
+ * a driver operation
+ *
+ * @param <V> the return type of the operation
  */
 @SuppressWarnings("DefaultFileTemplate")
 public interface MorphiumDriverOperation<V> {

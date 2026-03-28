@@ -11,6 +11,9 @@ import java.util.Map;
  * Time: 08:13
  * <p>
  * the adapter for the storage listener
+ * </p>
+ *
+ * @param <T> the type handled by this storage adapter
  */
 public abstract class MorphiumStorageAdapter<T> implements MorphiumStorageListener<T> {
 

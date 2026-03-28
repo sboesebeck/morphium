@@ -22,7 +22,9 @@ import java.util.regex.Pattern;
  * Time: 15:18
  * <p>
  * default implementation of a MongoField
+ * </p>
  *
+ * @param <T> the type of the entity
  * @see MongoField
  */
 @SuppressWarnings("UnusedDeclaration")

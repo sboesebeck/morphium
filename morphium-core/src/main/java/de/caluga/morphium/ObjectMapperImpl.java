@@ -47,6 +47,8 @@ import sun.misc.Unsafe;
  * Date: 26.03.12
  * Time: 19:36
  * <p>
+ * default implementation of the MorphiumObjectMapper
+ * </p>
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {

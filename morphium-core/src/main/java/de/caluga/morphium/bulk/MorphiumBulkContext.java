@@ -18,6 +18,8 @@ import java.util.*;
 
 /**
  * context for doing bulk operations. What it does is, it stores all operations here and will send them to mongodb en block
+ *
+ * @param <T> - the type handled by this bulk context
  **/
 @SuppressWarnings("unchecked")
 public class MorphiumBulkContext<T> {

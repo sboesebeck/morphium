@@ -13,6 +13,8 @@ import java.util.Map;
  * Date: 19.03.13
  * Time: 12:36
  * <p>
+ * Async implementation of MorphiumWriter
+ * </p>
  */
 public class AsyncWriterImpl extends MorphiumWriterImpl {
 

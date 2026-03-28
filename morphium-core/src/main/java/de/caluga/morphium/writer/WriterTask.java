@@ -9,7 +9,10 @@ import de.caluga.morphium.async.AsyncOperationCallback;
  * Date: 28.06.13
  * Time: 16:51
  * <p>
- * TODO: Add documentation here
+ * a writer task
+ * </p>
+ *
+ * @param <T> the type of the entity
  */
 @SuppressWarnings("WeakerAccess")
 public interface WriterTask<T> extends Runnable {

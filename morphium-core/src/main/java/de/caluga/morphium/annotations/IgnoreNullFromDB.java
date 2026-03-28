@@ -12,12 +12,12 @@ import java.lang.annotation.Target;
 /**
  * Protects a field from null values during deserialization from the database.
  *
- * <h3>Behavior Summary:</h3>
+ * <h2>Behavior Summary:</h2>
  * By default, Morphium accepts null values from the database and sets fields to null, even if they have
  * default values. This annotation changes that behavior for specific fields that need protection from
  * null contamination.
  *
- * <h3>IMPORTANT: Field Missing vs. Field = null</h3>
+ * <h2>IMPORTANT: Field Missing vs. Field = null</h2>
  * Morphium distinguishes between two scenarios when reading from the database:
  * <ul>
  *   <li><b>Field missing from DB document:</b> The field key is not present in the document at all.
@@ -26,12 +26,12 @@ import java.lang.annotation.Target;
  *       This is where @IgnoreNullFromDB matters - it controls whether to accept or ignore the explicit null.</li>
  * </ul>
  *
- * <h3>NOTE: Special Handling for @Id Fields</h3>
+ * <h2>NOTE: Special Handling for @Id Fields</h2>
  * Fields annotated with {@link Id} are NEVER stored when null, regardless of this annotation.
  * This is fundamental MongoDB behavior - if the _id field is missing, MongoDB auto-generates it.
  * Storing _id as null would cause duplicate key errors.
  *
- * <h3>Default Behavior (Without @IgnoreNullFromDB):</h3>
+ * <h2>Default Behavior (Without @IgnoreNullFromDB):</h2>
  * <ul>
  *   <li><b>Serialization (Writing to DB):</b> When a field value is null, the field is stored in the
  *       database with an explicit null value.</li>
@@ -43,7 +43,7 @@ import java.lang.annotation.Target;
  *   </li>
  * </ul>
  *
- * <h3>With @IgnoreNullFromDB:</h3>
+ * <h2>With @IgnoreNullFromDB:</h2>
  * <ul>
  *   <li><b>Serialization (Writing to DB):</b> When a field value is null, the field is omitted from the
  *       database document (not stored at all).</li>
@@ -55,7 +55,7 @@ import java.lang.annotation.Target;
  *   </li>
  * </ul>
  *
- * <h3>Example:</h3>
+ * <h2>Example:</h2>
  * <pre>{@code
  * @Entity
  * public class MyEntity {
@@ -77,7 +77,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <h3>Protection from Null Contamination:</h3>
+ * <h2>Protection from Null Contamination:</h2>
  * Fields WITH @IgnoreNullFromDB are protected from null values in the database:
  * <pre>{@code
  * // Scenario 1: MongoDB document has: { counter: null }
@@ -90,7 +90,7 @@ import java.lang.annotation.Target;
  * // -> Both cases preserve default when field is missing!
  * }</pre>
  *
- * <h3>Use Cases:</h3>
+ * <h2>Use Cases:</h2>
  * This annotation is useful for:
  * <ul>
  *   <li>Protecting fields from null contamination during data migrations or manual edits</li>

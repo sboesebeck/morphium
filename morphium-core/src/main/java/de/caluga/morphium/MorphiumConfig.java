@@ -136,7 +136,7 @@ public class MorphiumConfig {
     /**
      * use messagingSettings
      */
-    @Deprecated
+     @Deprecated
     public boolean isMessagingStatusInfoListenerEnabled() {
         return messagingSettings.isMessagingStatusInfoListenerEnabled();
     }
@@ -965,7 +965,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(List<String> str, List<Integer> ports) {
@@ -974,7 +974,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public List<String> getHostSeed() {
@@ -982,7 +982,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String... hostPorts) {
@@ -991,7 +991,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String hostPorts) {
@@ -1000,7 +1000,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String hosts, String ports) {
@@ -1009,7 +1009,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig addHostToSeed(String host, int port) {
@@ -1018,7 +1018,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig addHostToSeed(String host) {
@@ -1027,7 +1027,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public int getMaxConnections() {
@@ -1035,7 +1035,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setMaxConnections(int maxConnections) {
@@ -1043,7 +1043,7 @@ public class MorphiumConfig {
         return this;
     }
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public String getDatabase() {
@@ -1051,7 +1051,7 @@ public class MorphiumConfig {
     }
 
     /**
-     @Deprecated use getConnectionSettings().METHOD
+     * @deprecated use getConnectionSettings().METHOD
      */
     @Deprecated
     public MorphiumConfig setDatabase(String database) {

@@ -17,8 +17,10 @@ import de.caluga.morphium.driver.MorphiumDriverException;
  * User: Stephan Bösebeck
  * Date: 25.03.16
  * Time: 22:33
- * <p>
- * iterating over huge collections using the mongodb internal cursor
+ *
+ * @param <T> - the type of the search
+ *            <p>
+ *            iterating over huge collections using the mongodb internal cursor
  */
 public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
 

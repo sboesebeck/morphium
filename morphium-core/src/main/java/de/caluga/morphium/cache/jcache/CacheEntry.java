@@ -1,11 +1,11 @@
 package de.caluga.morphium.cache.jcache;
 
 /**
- * Created with IntelliJ IDEA.
- * User: stephan
- * Date: 15.04.14
- * Time: 10:06
- * To change this template use File | Settings | File Templates.
+ * <p>
+ * a cache entry
+ * </p>
+ *
+ * @param <T> the type of the cached object
  */
 public class CacheEntry<T> {
     private T result;

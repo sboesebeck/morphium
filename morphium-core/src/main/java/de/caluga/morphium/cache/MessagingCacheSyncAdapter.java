@@ -7,6 +7,8 @@ import de.caluga.morphium.messaging.Msg;
  * Date: 14.07.12
  * Time: 18:19
  * <p>
+ * Adapter for MessagingCacheSyncListener
+ * </p>
  */
 @SuppressWarnings("UnusedDeclaration")
 public class MessagingCacheSyncAdapter implements MessagingCacheSyncListener {

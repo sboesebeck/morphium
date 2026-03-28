@@ -63,6 +63,10 @@ import de.caluga.morphium.driver.wire.MongoConnection;
  * Date: 26.03.12
  * Time: 22:14
  * <p>
+ * represents a query to mongodb
+ * </p>
+ *
+ * @param <T> the type of the entity
  */
 @SuppressWarnings("WeakerAccess")
 public class Query<T> implements Cloneable {

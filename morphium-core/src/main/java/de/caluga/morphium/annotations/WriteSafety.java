@@ -13,7 +13,6 @@ import static java.lang.annotation.ElementType.TYPE;
  * <p>
  * See WriteConcern in MongoDB Java-Driver... for additional information<br>
  * <p>
- * </br>
  * WaitForSync: wait for the write to be synced to disk
  * timeout: set a timeout in ms for the operation - if set to 0, unlimited (default). If set to negative value, wait relative to replication lag
  * level: set the safety level:

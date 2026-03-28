@@ -25,19 +25,22 @@ import java.util.zip.CRC32C;
  * //   (used in responses from db)
  * int32   opCode;        // request type - see table below for details
  * }
- * <p>
+ * </p>
  * <p>
  * section type 0 (BASIC):
  * byte 0;
  * BSON-Document
+ * </p>
  * <p>
  * section type 1 (optimized):
  * byte 1;
  * int32 size
  * CString sequence id;  //reference to insert, id is "documents"/ to update id "updates", to delete id is "deletes"
  * BSON-Documents
+ * </p>
  * <p>
  * BSON-Document e.g: {insert: "test_coll", $db: "db", documents: [{_id: 1}]}
+ * </p>
  */
 public class OpMsg extends WireProtocolMessage {
     public static final int OP_CODE = 2013;

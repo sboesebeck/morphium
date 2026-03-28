@@ -10,6 +10,9 @@ import java.util.List;
  * Time: 15:39
  * <p>
  * Callback interface for async calls
+ * </p>
+ *
+ * @param <T> the type of the result
  */
 public interface AsyncOperationCallback<T> {
     /**

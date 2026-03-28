@@ -16,6 +16,10 @@ import java.util.Map;
  * Time: 22:33
  * <p>
  * iterating over huge collections using the mongodb internal cursor
+ * </p>
+ *
+ * @param <T> the type of the search
+ * @param <R> the type of the result
  */
 public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T, R> {
 
@@ -25,6 +29,9 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
 
     private MorphiumCursor cursor = null;
 
+    /** Creates a new AggregationIterator. */
+    public AggregationIterator() {
+    }
 
     public void ahead(int jump) {
         try {

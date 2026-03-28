@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
  * Date: 18.05.18
  * Time: 14:52
  * <p>
+ * JCache implementation of MorphiumCache
+ * </p>
  */
 public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpiredListener<Object, CacheEntry>, CacheEntryCreatedListener<Object, CacheEntry>, CacheEntryRemovedListener<Object, CacheEntry>, CacheEntryUpdatedListener<Object, CacheEntry> {
     public final static String RESULT_CACHE_NAME = "resultCache";

@@ -14,6 +14,8 @@ import static java.lang.annotation.ElementType.TYPE;
  * Date: 26.03.12
  * Time: 11:14
  * <p>
+ * marks a class as entity for morphium
+ * </p>
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)

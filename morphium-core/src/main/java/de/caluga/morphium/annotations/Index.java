@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
  * Defines indices to be created for a collection when `morphium.ensureIndicesFor` is called for the corresponding entity.
  * This annotation can be used on a field to create a single-field index, or on the class to create compound indexes.
  * </p>
- * <h3>Single-Field Indexes</h3>
+ * <h2>Single-Field Indexes</h2>
  * <p>
  * To create a single-field index, annotate the field with `@Index`. By default, the index will be in ascending order.
  * To create a descending index, use `@Index(decrement = true)`.
@@ -30,7 +30,7 @@ import java.lang.annotation.Target;
  * }
  * </pre>
  *
- * <h3>Compound Indexes</h3>
+ * <h2>Compound Indexes</h2>
  * <p>
  * To create a compound index, annotate the class with `@Index` and provide a list of fields to include in the index.
  * The order of the fields is important. To specify the direction of the index for each field, prefix the field name
@@ -47,7 +47,7 @@ import java.lang.annotation.Target;
  * }
  * </pre>
  *
- * <h3>Geospatial Indexes</h3>
+ * <h2>Geospatial Indexes</h2>
  * <p>
  * Morphium also supports 2D geospatial indexes. For more information, please refer to the
  * <a href="http://docs.mongodb.org/manual/applications/2d/">MongoDB documentation</a>.
