@@ -222,6 +222,7 @@ source "$(dirname "$0")/scripts/poppydb.sh"
 
 nodel=0
 skip=0
+noCompile=0
 refresh=5
 logLength=15
 numRetries=0
@@ -342,6 +343,9 @@ while [ "q$1" != "q" ]; do
 
 	elif [ "q$1" == "q--skip" ]; then
 		skip=1
+		shift
+	elif [ "q$1" == "q--no-compile" ]; then
+		noCompile=1
 		shift
 	elif [ "q$1" == "q--restart" ]; then
 		explicitRestart=1
@@ -955,11 +959,15 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	# Clean up test databases before starting fresh
 	cleanup_test_databases
 fi
-if [ "$nodel" -eq 0 ]; then
+if [ "$nodel" -eq 0 ] && [ "$noCompile" -eq 0 ]; then
 	echo -e "${BL}Info:${CL} Cleaning up - mvn clean..."
 	mvn clean -pl $TEST_MODULE >/dev/null
 fi
-echo -e "${BL}Info:${CL} Compiling..."
+if [ "$noCompile" -eq 1 ]; then
+	echo -e "${BL}Info:${CL} Skipping compilation (--no-compile)"
+else
+	echo -e "${BL}Info:${CL} Compiling..."
+fi
 MVN_PROPS=""
 if [ -n "$includeTags" ]; then MVN_PROPS="$MVN_PROPS -Dtest.includeTags=$includeTags"; fi
 if [ -n "$excludeTags" ]; then MVN_PROPS="$MVN_PROPS -Dtest.excludeTags=$excludeTags"; fi
@@ -987,10 +995,12 @@ if [ -n "$parallel" ] && [ "$parallel" -gt 1 ]; then
 	echo -e "${BL}Info:${CL} Increased client pool to ${pool_size} connections for ${parallel} parallel slots"
 fi
 
-mvn $MVN_PROPS compile test-compile -pl $TEST_MODULE -am >/dev/null || {
-	echo -e "${RD}Error:${CL} Compilation failed!"
-	exit 1
-}
+if [ "$noCompile" -eq 0 ]; then
+	mvn $MVN_PROPS compile test-compile -pl $TEST_MODULE -am >/dev/null || {
+		echo -e "${RD}Error:${CL} Compilation failed!"
+		exit 1
+	}
+fi
 
 TEST_MVN_PROPS="$MVN_PROPS -Dmaven.compiler.skip=true"
 
