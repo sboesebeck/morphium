@@ -65,15 +65,13 @@ public class TailableQueryTests extends MultiDriverTestBase {
                 });
                 assertTrue(found.get() >= 1);
             }).start();
-            TestUtils.waitForConditionToBecomeTrue(15000, "no result coming in?", ()->found.get() == 2);
-            // Give the tailable cursor time to issue GetMore and register the watch
-            // for new events after processing the initial batch (Test 1, Test 2).
-            // GetMore polls with 5s maxTimeMS, so wait at least one full cycle.
-            Thread.sleep(1000);
+            TestUtils.waitForConditionToBecomeTrue(10000, "no result coming in?", ()->found.get() == 2);
+            // Give the tailable cursor time to issue GetMore after processing the initial batch
+            Thread.sleep(500);
             log.info("Storing 3...");
             m2.store(new CappedCol("Test 3 - quit", 3));
             log.info("Stored... waiting for event");
-            TestUtils.waitForConditionToBecomeTrue(30000, "3rd result not coming in", ()->found.get() == 3);
+            TestUtils.waitForConditionToBecomeTrue(10000, "3rd result not coming in", ()->found.get() == 3);
 
             if (m.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
                 m2.close();
