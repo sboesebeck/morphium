@@ -1002,6 +1002,25 @@ if [ "$noCompile" -eq 0 ]; then
 	}
 fi
 
+# When running parallel phases, each phase needs its own build directory
+# to prevent surefire booter JAR collisions. One phase finishing cleans up
+# target/surefire/ and kills the other phase's running forked JVM.
+# Fix: use a phase-specific build directory that symlinks classes from the
+# shared build but has its own surefire/ subdirectory.
+if [ "$LOGDIR" != "test.log" ]; then
+    PHASE_SUFFIX="${LOGDIR##*.}"
+    PHASE_TARGET="$TEST_MODULE/target-${PHASE_SUFFIX}"
+    if [ ! -d "$PHASE_TARGET" ]; then
+        mkdir -p "$PHASE_TARGET"
+        # Symlink compiled classes from the shared build
+        ln -sf "$(pwd)/$TEST_MODULE/target/classes" "$PHASE_TARGET/classes"
+        ln -sf "$(pwd)/$TEST_MODULE/target/test-classes" "$PHASE_TARGET/test-classes"
+        # Own surefire dirs (no symlink — these must be phase-private)
+        mkdir -p "$PHASE_TARGET/surefire" "$PHASE_TARGET/surefire-reports"
+    fi
+    MVN_PROPS="$MVN_PROPS -Dproject.build.directory=$(pwd)/$PHASE_TARGET"
+fi
+
 TEST_MVN_PROPS="$MVN_PROPS -Dmaven.compiler.skip=true"
 
 tst=0
