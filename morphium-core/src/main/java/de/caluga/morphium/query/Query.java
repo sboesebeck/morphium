@@ -2460,7 +2460,12 @@ public class Query<T> implements Cloneable {
                     }
                 }
                 cursorId = ((Number) cursor.get("id")).longValue();
-                GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize).setColl(getCollectionName()).setDb(cmd.getDb()).setCursorId(cursorId).setMaxTimeMs(maxWait);
+                GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize).setColl(getCollectionName()).setDb(cmd.getDb()).setCursorId(cursorId);
+                // Only pass explicit maxTimeMs to server — Integer.MAX_VALUE (from maxWait=0)
+                // means "no timeout" and must not be sent, as it blocks the server indefinitely
+                if (maxWait > 0 && maxWait < Integer.MAX_VALUE) {
+                    more.setMaxTimeMs(maxWait);
+                }
                 msgId = more.executeAsync();
             }
 

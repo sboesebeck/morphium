@@ -5614,17 +5614,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.writeLock().unlock();
         }
+        // Purge history for this collection BEFORE advancing the sequence counter.
+        // This removes all old events first, preventing any stale entries from
+        // surviving the sequence boundary if removeIf misses concurrent additions.
+        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
         // Advance the sequence counter and record it as the drop boundary.
         // Any events with tokens <= this value are from before the drop.
-        // By incrementing the counter HERE (inside or just after the write lock),
-        // we ensure that any in-flight notifyWatchers calls from pre-drop writes
-        // will get tokens BELOW this boundary (they call buildChangeStreamEvent
-        // which uses incrementAndGet, but the drop bumps past them).
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db + "." + collection, dropBoundary);
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         notifyWatchers(db, collection, "drop", null);
-        // Also purge history to keep it bounded
+        // Second purge: removes the drop notification event itself and any
+        // events added by async dispatchers between the first purge and now.
         changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
     }
 

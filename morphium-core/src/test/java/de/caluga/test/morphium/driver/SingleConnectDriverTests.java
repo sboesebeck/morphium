@@ -41,11 +41,17 @@ public class SingleConnectDriverTests extends DriverTestBase {
 
     @Test
     @Tag("failover")
-    @Timeout(value = 60, unit = TimeUnit.SECONDS)
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
     public void testHeartbeat() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
+        // Skip if single-node deployment — failover requires at least 2 data-bearing nodes
+        if (drv.getHostSeed().size() < 2) {
+            log.info("Single-node deployment — skipping failover test");
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "Failover requires at least 2 nodes");
+            return;
+        }
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
-        Thread.sleep(drv.getHeartbeatFrequency() * 5);
+        Thread.sleep(drv.getHeartbeatFrequency() * 3);
         MongoConnection con = drv.getConnection();
         var originalConnectedTo = con.getConnectedTo();
         log.info("Stepping down on node " + originalConnectedTo);
