@@ -98,6 +98,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         monitor.start();
 
         try {
+            final var localMorphium = morphium;
             Thread writerThread = new Thread(() -> {
                 while (run.get()) {
                     try {
@@ -105,10 +106,11 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
                     } catch (InterruptedException e) {
                         break;
                     }
-                    morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
+                    if (!run.get()) break;
+                    localMorphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
                     log.info("Written");
                     written.incrementAndGet();
-                    morphium.createQueryFor(UncachedObject.class).f("counter").lt(50).set(UncachedObject.Fields.strValue, "newVal");
+                    localMorphium.createQueryFor(UncachedObject.class).f("counter").lt(50).set(UncachedObject.Fields.strValue, "newVal");
                     log.info("updated");
                     written.incrementAndGet();
                 }
@@ -120,6 +122,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             TestUtils.waitForConditionToBecomeTrue(30000, "No writes happened",
                 () -> written.get() >= 4);
             run.set(false);
+            writerThread.interrupt();
             writerThread.join(5000);
 
             assertTrue(eventCount.get() > 0, "Should have received events");
@@ -137,23 +140,27 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         final boolean[] run = {true};
         int[] count = {0};
         int[] written = {0};
-        new Thread(()->{
+        // Capture local reference — never use the static field from a background thread,
+        // as it may point to a different Morphium by the time the thread wakes up
+        final var localMorphium = morphium;
+        Thread writerThread = new Thread(()->{
             while (run[0]) {
                 try {
                     Thread.sleep(2500);
                 } catch (InterruptedException e) {
+                    break;
                 }
 
                 log.info("Writing...");
 
-                if (morphium != null) {
-                    //when shutting down test, this might be null
-                    morphium.store(new UncachedObject("value", 123));
+                if (run[0] && localMorphium.getConfig() != null) {
+                    localMorphium.store(new UncachedObject("value", 123));
                 }
 
                 written[0]++;
             }
-        }).start();
+        });
+        writerThread.start();
         start = System.currentTimeMillis();
         morphium.watch(UncachedObject.class, true, evt->{
             if (evt.getOperationType().equals("drop")) return true;
@@ -167,7 +174,8 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         assert(count[0] >= written[0] - 1 && count[0] <= written[0]);
         log.info("Stopped!");
         run[0] = false;
-        Thread.sleep(1000);
+        writerThread.interrupt();
+        writerThread.join(3000);
     }
 
     @Test
