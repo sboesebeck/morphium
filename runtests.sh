@@ -9,6 +9,7 @@ CL='\033[0m'
 
 PID=$$
 TEST_TMP_DIR="/tmp/morphium-runtests-$PID" # Unique temp directory for this run (outside target/ so mvn clean doesn't delete it)
+LOGDIR="${MORPHIUM_TESTLOG:-test.log}"      # Override with env var for parallel phase execution
 
 # Multi-module layout: tests live in morphium-core
 TEST_MODULE="morphium-core"
@@ -136,12 +137,12 @@ function quitting() {
 	if [ -n "$t" ]; then
 		echo -e "${RD}Shutting down...${CL} current test $t"
 		echo "Removing unfinished test $t"
-		rm -f test.log/$t.log
+		rm -f $LOGDIR/$t.log
 		get_test_stats >"$TEST_TMP_DIR/failed.txt" 2>/dev/null
-		# Copy to test.log/ so it persists after cleanup
-		cp "$TEST_TMP_DIR/failed.txt" "test.log/failed.txt" 2>/dev/null
-		echo "List of failed tests in test.log/failed.txt"
-		cat "test.log/failed.txt"
+		# Copy to $LOGDIR/ so it persists after cleanup
+		cp "$TEST_TMP_DIR/failed.txt" "$LOGDIR/failed.txt" 2>/dev/null
+		echo "List of failed tests in $LOGDIR/failed.txt"
+		cat "$LOGDIR/failed.txt"
 	else
 		echo -e "${YL} Shutting down...$CL"
 	fi
@@ -157,25 +158,25 @@ function quitting() {
 
 source "$(dirname "$0")/scripts/stats.sh"
 
-# Aggregate per-slot logs into the shared test.log directory so stats work after interruptions.
+# Aggregate per-slot logs into the shared "" directory so stats work after interruptions.
 function aggregate_slot_logs() {
 	# Nothing to do if no slot directories exist
-	if ! compgen -G "test.log/slot_*" >/dev/null 2>&1; then
+	if ! compgen -G "$LOGDIR/slot_*" >/dev/null 2>&1; then
 		return 0
 	fi
 
-	mkdir -p test.log/temp_aggregate
+	mkdir -p $LOGDIR/temp_aggregate
 
 	local old_nullglob=$(shopt -p nullglob)
 	shopt -s nullglob
 
-	for log_file in test.log/slot_*/*.log; do
+	for log_file in $LOGDIR/slot_*/*.log; do
 		[ -f "$log_file" ] || continue
 		[[ "$log_file" == */slot.log ]] && continue
 
 		local test_class
 		test_class=$(basename "$log_file" .log)
-		local dest_file="test.log/temp_aggregate/${test_class}.log"
+		local dest_file="$LOGDIR/temp_aggregate/${test_class}.log"
 
 		if [ ! -f "$dest_file" ]; then
 			cp "$log_file" "$dest_file"
@@ -198,20 +199,20 @@ function aggregate_slot_logs() {
 		shopt -u nullglob
 	fi
 
-	if [ -d "test.log/temp_aggregate" ]; then
+	if [ -d "$LOGDIR/temp_aggregate" ]; then
 		local temp_file
 		local old_nullglob_mv=$(shopt -p nullglob)
 		shopt -s nullglob
-		for temp_file in test.log/temp_aggregate/*.log; do
+		for temp_file in $LOGDIR/temp_aggregate/*.log; do
 			[ -f "$temp_file" ] || continue
-			mv -f "$temp_file" "test.log/$(basename "$temp_file")"
+			mv -f "$temp_file" "$LOGDIR/$(basename "$temp_file")"
 		done
 		if [ -n "$old_nullglob_mv" ]; then
 			eval "$old_nullglob_mv"
 		else
 			shopt -u nullglob
 		fi
-		rmdir test.log/temp_aggregate 2>/dev/null
+		rmdir $LOGDIR/temp_aggregate 2>/dev/null
 	fi
 
 	return 0
@@ -344,9 +345,9 @@ while [ "q$1" != "q" ]; do
 		shift
 	elif [ "q$1" == "q--restart" ]; then
 		explicitRestart=1
-		rm -rf test.log
+		rm -rf "$LOGDIR"
 		rm -f "$TEST_TMP_DIR/startTS"
-		mkdir test.log
+		mkdir "$LOGDIR"
 		shift
 	elif [ "q$1" == "q--logs" ]; then
 		shift
@@ -681,7 +682,7 @@ if [ "$rerunfailed" -eq 1 ]; then
 	# This prevents stale failures from appearing when tests don't run (e.g., different driver)
 	echo -e "${YL}Removing old log files for failed tests...${CL}"
 	while IFS= read -r cls; do
-		old_log="test.log/${cls}.log"
+		old_log="$LOGDIR/${cls}.log"
 		if [ -f "$old_log" ]; then
 			rm -f "$old_log"
 		fi
@@ -705,10 +706,10 @@ if [ "$rerunfailed" -eq 1 ]; then
 	skip_file_creation=1
 fi
 if [ "$explicitRestart" -eq 0 ] && [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
-	if [ -z "$(ls -A 'test.log')" ]; then
+	if [ -z "$(ls -A "$LOGDIR")" ]; then
 		count=0
 	else
-		count=$(ls -1 test.log/* | wc -l)
+		count=$(ls -1 $LOGDIR/* | wc -l)
 	fi
 	if [ "$count" -gt 0 ]; then
 		echo -e "There are restults from old tests there - ${BL}c${CL}ontinue tests (c), erase old logs and ${BL}r${CL}estart all (r) or ${RD}a${CL}bort (CTRL-C / a)?"
@@ -905,10 +906,10 @@ if [ "q$testname" = "q" ]; then
 	fi
 	if [ "$skip" -ne 0 ]; then
 		echo -e "${BL}Info:${CL} Skipping tests already run"
-		if [ -z "$(ls -A 'test.log')" ]; then
+		if [ -z "$(ls -A "$LOGDIR")" ]; then
 			echo "Nothing to skip"
 		else
-			for i in test.log/*; do
+			for i in $LOGDIR/*; do
 				i=$(basename $i)
 				i=${i%%.log}
 				echo -e "${BL}info: ${CL}not rerunning $i"
@@ -948,9 +949,9 @@ else
 fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
-	rm -rf test.log >/dev/null 2>&1
+	rm -rf "$LOGDIR" >/dev/null 2>&1
 	rm -f startTS >/dev/null 2>&1
-	mkdir test.log
+	mkdir "$LOGDIR"
 	# Clean up test databases before starting fresh
 	cleanup_test_databases
 fi
@@ -1131,7 +1132,7 @@ function monitor_class_progress() {
 		return 0
 	fi
 
-	local progress_file="test.log/slot_${slot_id}/progress"
+	local progress_file="$LOGDIR/slot_${slot_id}/progress"
 	local report_file="$SUREFIRE_REPORTS/TEST-${test_class}.xml"
 	local last_reported=-1
 
@@ -1162,7 +1163,7 @@ function run_test_slot() {
 	local test_chunk_file=$2
 	local slot_mvn_props="$TEST_MVN_PROPS -Dmorphium.database=morphium_test_$slot_id -DtempDir=surefire_slot_$slot_id -DreportsDirectory=$SUREFIRE_REPORTS-$slot_id"
 
-	mkdir -p "test.log/slot_$slot_id"
+	mkdir -p "$LOGDIR/slot_$slot_id"
 	mkdir -p "$TEST_MODULE/target/surefire_slot_$slot_id"
 
 	# Calculate actual test methods for this slot's test classes (consistent with serial mode)
@@ -1206,7 +1207,7 @@ function run_test_slot() {
 		((current_test_classes++))
 
 		# Update progress before starting test
-		echo "RUNNING:$test_class:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
+		echo "RUNNING:$test_class:$current_test_methods:$slot_testMethods:$failed_tests" >"$LOGDIR/slot_$slot_id/progress"
 
 		# Remove previous Surefire XML to avoid reading stale progress
 		local xml_report="$SUREFIRE_REPORTS/TEST-$test_class.xml"
@@ -1214,12 +1215,12 @@ function run_test_slot() {
 
 		local mvn_pid monitor_pid
 		if [ "$test_method" == "." ]; then
-			echo "Slot $slot_id: Running $test_class ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-			mvn -pl $TEST_MODULE -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
+			echo "Slot $slot_id: Running $test_class ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"$LOGDIR/slot_$slot_id/slot.log"
+			mvn -pl $TEST_MODULE -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class" >"$LOGDIR/slot_$slot_id/$test_class.log" 2>&1 &
 			mvn_pid=$!
 		else
-			echo "Slot $slot_id: Running $test_class#$test_method ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
-			mvn -pl $TEST_MODULE -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"test.log/slot_$slot_id/$test_class.log" 2>&1 &
+			echo "Slot $slot_id: Running $test_class#$test_method ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"$LOGDIR/slot_$slot_id/slot.log"
+			mvn -pl $TEST_MODULE -Dsurefire.useFile=false $slot_mvn_props surefire:test -Dtest="$test_class#$test_method" >"$LOGDIR/slot_$slot_id/$test_class.log" 2>&1 &
 			mvn_pid=$!
 		fi
 
@@ -1242,16 +1243,16 @@ function run_test_slot() {
 
 		if [ $exit_code -ne 0 ]; then
 			((failed_tests++))
-			echo "FAILED:$t" >>"test.log/slot_$slot_id/failed_tests"
+			echo "FAILED:$t" >>"$LOGDIR/slot_$slot_id/failed_tests"
 		fi
 
 		# Update progress after completing test
-		echo "COMPLETED:$t:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
+		echo "COMPLETED:$t:$current_test_methods:$slot_testMethods:$failed_tests" >"$LOGDIR/slot_$slot_id/progress"
 
 	done <"$test_chunk_file"
 
-	echo "DONE::$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
-	echo "Slot $slot_id completed: $current_test_classes classes ($current_test_methods test methods), $failed_tests failed" >>"test.log/slot_$slot_id/slot.log"
+	echo "DONE::$current_test_methods:$slot_testMethods:$failed_tests" >"$LOGDIR/slot_$slot_id/progress"
+	echo "Slot $slot_id completed: $current_test_classes classes ($current_test_methods test methods), $failed_tests failed" >>"$LOGDIR/slot_$slot_id/slot.log"
 }
 
 function monitor_parallel_progress() {
@@ -1284,8 +1285,8 @@ function monitor_parallel_progress() {
 			fi
 
 			# Read progress information if available
-			if [ -e "test.log/slot_$slot/progress" ]; then
-				progress_line=$(cat "test.log/slot_$slot/progress")
+			if [ -e "$LOGDIR/slot_$slot/progress" ]; then
+				progress_line=$(cat "$LOGDIR/slot_$slot/progress")
 				IFS=':' read -r slot_status slot_test_name slot_current_test slot_total_tests slot_failed_tests <<<"$progress_line"
 
 				# Add to totals (avoid double counting by reading each slot's progress only once per iteration)
@@ -1306,7 +1307,7 @@ function monitor_parallel_progress() {
 				fi
 
 				# Collect unique failed tests for display
-				if [ -e "test.log/slot_$slot/failed_tests" ] && [ $slot_failed_tests -gt 0 ]; then
+				if [ -e "$LOGDIR/slot_$slot/failed_tests" ] && [ $slot_failed_tests -gt 0 ]; then
 					while IFS= read -r failed_test; do
 						if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
 							test_name="${BASH_REMATCH[1]}"
@@ -1322,7 +1323,7 @@ function monitor_parallel_progress() {
 								unique_failed_tests+=("$test_name (slot $slot)")
 							fi
 						fi
-					done <"test.log/slot_$slot/failed_tests"
+					done <"$LOGDIR/slot_$slot/failed_tests"
 				fi
 			else
 				if [ "$slot_running" == "true" ]; then
@@ -1393,7 +1394,7 @@ function cleanup_parallel_execution() {
 	echo -e "\n${YL}Test Results Summary:${CL}"
 	echo "=========================================================================================================="
 	for ((slot = 1; slot <= parallel; slot++)); do
-		if [ -e "test.log/slot_$slot/failed_tests" ]; then
+		if [ -e "$LOGDIR/slot_$slot/failed_tests" ]; then
 			while IFS= read -r failed_test; do
 				if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
 					test_name="${BASH_REMATCH[1]}"
@@ -1412,7 +1413,7 @@ function cleanup_parallel_execution() {
 						failed_tests_with_slots+=("$test_name (slot $slot)")
 					fi
 				fi
-			done <"test.log/slot_$slot/failed_tests"
+			done <"$LOGDIR/slot_$slot/failed_tests"
 		fi
 	done
 
@@ -1433,7 +1434,7 @@ function cleanup_parallel_execution() {
 		echo -e "${YL}Failed test logs can be found in:${CL}"
 		for failed_test in "${failed_tests_with_slots[@]}"; do
 			test_name=$(echo "$failed_test" | cut -d' ' -f1)
-			echo -e "  ${BL}test.log/${test_name}.log${CL}"
+			echo -e "  ${BL}$LOGDIR/${test_name}.log${CL}"
 		done
 	fi
 	echo "=========================================================================================================="
@@ -1506,10 +1507,10 @@ function run_parallel_tests() {
 
 	# Third pass: collect failed tests with deduplication
 	for ((slot = 1; slot <= parallel; slot++)); do
-		if [ -d "test.log/slot_$slot" ]; then
+		if [ -d "$LOGDIR/slot_$slot" ]; then
 
 			# Collect failed tests with deduplication
-			if [ -e "test.log/slot_$slot/failed_tests" ]; then
+			if [ -e "$LOGDIR/slot_$slot/failed_tests" ]; then
 				while IFS= read -r failed_test; do
 					if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
 						test_name="${BASH_REMATCH[1]}"
@@ -1528,7 +1529,7 @@ function run_parallel_tests() {
 							failed_tests_with_slots+=("$test_name (slot $slot)")
 						fi
 					fi
-				done <"test.log/slot_$slot/failed_tests"
+				done <"$LOGDIR/slot_$slot/failed_tests"
 			fi
 		fi
 	done
@@ -1549,7 +1550,7 @@ function run_parallel_tests() {
 		echo -e "${YL}Failed test logs can be found in:${CL}"
 		for failed_test in "${failed_tests_with_slots[@]}"; do
 			test_name=$(echo "$failed_test" | cut -d' ' -f1)
-			echo -e "  ${BL}test.log/${test_name}.log${CL}"
+			echo -e "  ${BL}$LOGDIR/${test_name}.log${CL}"
 		done
 	fi
 	echo "=========================================================================================================="
@@ -1557,8 +1558,8 @@ function run_parallel_tests() {
 	# Clean up slot directories after all processing is complete
 	echo -e "${BL}Cleaning up slot directories...${CL}"
 	for ((slot = 1; slot <= parallel; slot++)); do
-		if [ -d "test.log/slot_$slot" ]; then
-			rm -rf "test.log/slot_$slot"
+		if [ -d "$LOGDIR/slot_$slot" ]; then
+			rm -rf "$LOGDIR/slot_$slot"
 		fi
 	done
 
@@ -1590,13 +1591,13 @@ else
 		while true; do
 			tm=$(date +%s)
 			if [ "$test_method" == "." ]; then
-				echo "Running Tests in $test_class" >"test.log/$test_class.log"
+				echo "Running Tests in $test_class" >"$LOGDIR/$test_class.log"
 				# Same rationale as in parallel slots: call surefire directly to keep runs isolated from build output churn.
-				mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class" >>"test.log/$test_class".log 2>&1 &
+				mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class" >>"$LOGDIR/$test_class".log 2>&1 &
 				echo $! >$testPid
 			else
-				echo "Running $test_method in $test_class" >"test.log/$test_class.log"
-				mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class#$test_method" >>"test.log/$test_class.log" 2>&1 &
+				echo "Running $test_method in $test_class" >"$LOGDIR/$test_class.log"
+				mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$test_class#$test_method" >>"$LOGDIR/$test_class.log" 2>&1 &
 				echo $! >$testPid
 			fi
 			while true; do
@@ -1670,7 +1671,7 @@ else
 						tail -n+5 "$TEST_TMP_DIR/failed.txt"
 					fi
 					echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-					tail -n $logLength test.log/"$test_class".log
+					tail -n $logLength $LOGDIR/"$test_class".log
 					echo "---------------------------------------------------------------------------------------------------------"
 				else
 					if [ "$unsuc" -gt 0 ]; then
@@ -1692,13 +1693,13 @@ else
 						tail -n+5 "$TEST_TMP_DIR/failed.txt"
 					fi
 					echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-					tail -n $logLength test.log/"$test_class".log
+					tail -n $logLength $LOGDIR/"$test_class".log
 					echo "---------------------------------------------------------------------------------------------------------"
 				fi
-				# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
+				# egrep "] Running |Tests run: " $LOGDIR/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
 
-				# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
-				# egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
+				# egrep "] Running |Tests run: " $LOGDIR/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
+				# egrep "] Running |Tests run:" $LOGDIR/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
 
 				# Check if the test process is still running
 				if [ -e "$testPid" ]; then
@@ -1713,7 +1714,7 @@ else
 				fi
 				if [ $dur -gt 600 ]; then
 					echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
-					echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
+					echo "TERMINATED DUE TO TIMEOUT" >>$LOGDIR/$t.log
 					kill $(<$testPid)
 				fi
 				# Use shorter sleep intervals so we can respond faster to process completion
@@ -1773,9 +1774,9 @@ else
 					fi
 					echo "Retrying $retry_t"
 					if [ "$m" == "." ]; then
-						mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
+						mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t" >"$LOGDIR/$retry_t.log" 2>&1
 					else
-						mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
+						mvn -pl $TEST_MODULE -Dsurefire.useFile=false $TEST_MVN_PROPS surefire:test -Dtest="$retry_t#$m" >"$LOGDIR/$retry_t.log" 2>&1
 					fi
 				done
 
@@ -1820,9 +1821,9 @@ else
 		rm -f "$TEST_TMP_DIR/failed.txt"
 		quitting
 	else
-		# Copy failed.txt to test.log/ so it persists after cleanup
-		cp "$TEST_TMP_DIR/failed.txt" "test.log/failed.txt" 2>/dev/null
-		echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in test.log/failed.txt"
+		# Copy failed.txt to $LOGDIR/ so it persists after cleanup
+		cp "$TEST_TMP_DIR/failed.txt" "$LOGDIR/failed.txt" 2>/dev/null
+		echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in $LOGDIR/failed.txt"
 		quitting
 		exit 1
 	fi
