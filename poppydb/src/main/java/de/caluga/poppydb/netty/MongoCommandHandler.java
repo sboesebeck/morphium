@@ -928,7 +928,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         // Derive "me" from the RS seed list entry matching our port, so that
         // clients see a reachable hostname instead of the bind address (e.g. 0.0.0.0).
-        String myAddress = host + ":" + port;
+        String effectiveHost = host;
+        if ("0.0.0.0".equals(effectiveHost) || "::".equals(effectiveHost)) {
+            try {
+                effectiveHost = java.net.InetAddress.getLocalHost().getCanonicalHostName();
+            } catch (Exception e) {
+                effectiveHost = "localhost";
+            }
+        }
+        String myAddress = effectiveHost + ":" + port;
         if (hosts != null && !hosts.isEmpty()) {
             for (String seed : hosts) {
                 if (seed.endsWith(":" + port)) {
@@ -941,8 +949,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 allHosts.add(0, myAddress);
             }
             res.setHosts(allHosts);
-        } else {
-            res.setHosts(Arrays.asList(myAddress));
         }
 
         // Use dynamic election state if available
@@ -965,7 +971,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         } else {
             res.setWritablePrimary(true);
             res.setSecondary(false);
-            // No setName, no hosts — standalone mode like real MongoDB
+            // Standalone mode: report hosts with resolved hostname so clients can connect back
+            res.setHosts(Arrays.asList(myAddress));
         }
         res.setLogicalSessionTimeoutMinutes(30);
         res.setMsg("PoppyDB V0.1ALPHA (Netty)");
