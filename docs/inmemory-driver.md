@@ -48,11 +48,13 @@ mvn test -Dmorphium.driver=inmem
 - ✅ **MapReduce**: Full JavaScript-based MapReduce with GraalJS engine
 - ✅ **Advanced Stages**: $lookup, $unwind, $facet, $graphLookup, $bucket, $mergeObjects
 
-### Change Streams (v6.1)
+### Change Streams (v6.1+)
 - ✅ **Event Types**: insert, update, delete, drop operations
 - ✅ **Document Snapshots**: Immutable snapshots prevent dirty reads
 - ✅ **Pipeline Filtering**: Filter events with aggregation pipelines
 - ✅ **Full Document Support**: Access complete document in change events
+- ✅ **Resume After**: Resume change streams from a token after reconnection (v6.2.2)
+- ✅ **Drop-safe History**: Events from dropped collections are purged and cannot leak into resumed streams (v6.2.2)
 - ✅ **Database-scoped Sharing**: Optional driver sharing for multiple Morphium instances (opt-in)
 - ✅ **Database-level Watches**: Watch all collections in a database (v6.1.0)
 - ✅ **PoppyDB Integration**: Full change stream support via wire protocol (v6.1.0)

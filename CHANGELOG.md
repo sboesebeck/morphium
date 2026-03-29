@@ -30,10 +30,36 @@ Upserted documents were not included in the `"n"` count of update responses. Mon
 #### PoppyDB: Wire protocol corruption on concurrent change stream responses
 The `CompletableFuture.whenComplete()` callback for watch/tailable cursor `getMore` responses wrote directly to the Netty channel from a background thread. When a change stream event arrived while the I/O thread was writing another response on the same connection, the bytes were interleaved, producing corrupted wire protocol messages (`Illegal opcode 0`, `wrong section ID`). Responses are now dispatched back to the Netty event loop thread, serializing all writes per connection.
 
+#### PoppyDB: writeErrors from InMemoryDriver not forwarded
+`processUpdateDirect` in the Netty command handler silently dropped `writeErrors` returned by the InMemoryDriver (e.g., duplicate key errors on upsert). These errors are now included in the wire protocol response, matching MongoDB behavior.
+
+#### Thread leak in PooledDriver.close() and ReplicationManager reconnect
+`PooledDriver.close()` did not signal `waitCounterCondition`, leaving `ConnectionWaiter` threads blocked forever. Over time this accumulated thousands of leaked threads. Fixed by calling `signalAll()` before shutdown. Additionally, `ReplicationManager.replicationLoop()` now calls `disconnectFromPrimary()` before `connectToPrimary()` to prevent accumulating stale Morphium instances on repeated reconnects.
+
+#### Change stream events lost after collection drop and resume
+Several race conditions in the InMemoryDriver's change stream implementation could cause events to be lost or duplicated after a collection drop:
+- **Stale async events**: Events dispatched by virtual threads after a collection drop could sneak into the change stream history with tokens from the pre-drop era. Fixed by advancing the sequence counter by 100 on drop and filtering events whose tokens fall below the drop boundary.
+- **Resume-after replay**: `replayHistory()` now uses the maximum of the resume token and the drop boundary sequence, preventing stale events from being replayed.
+- **History purge**: `drop()` now purges the change stream history for the dropped collection both before and after the drop notification, ensuring no stale events survive.
+
+#### ChangeStreamMonitor race condition on startup
+`running` was set to `true` after `Thread.start()`, creating a window where the `run()` method could see `running=false` and exit immediately. Fixed by setting `running=true` before calling `Thread.start()`.
+
+#### Tailable cursor GetMore now sends proper maxTimeMS
+Tailable cursor `GetMore` commands now send `maxTimeMS=5000` (5 second polling interval) by default. Previously, either no `maxTimeMS` was sent (causing PoppyDB to return empty immediately) or `Integer.MAX_VALUE` was forwarded (blocking the server indefinitely). Explicit `maxWait` values from the caller are passed through unchanged.
+
+#### MongoCommand.getLog() StackOverflow
+`MongoCommand` had a `log` field initialized via `getLog()` which recursively called itself. Fixed to use `LoggerFactory.getLogger()` directly.
+
+#### Count command Long/Integer cast
+`processCountDirect` in InMemoryDriver returned `long` but `CountMongoCommand.getCount()` cast to `Integer`, causing a `ClassCastException`. Now returns as `int`.
+
 ### Changed
 
 - `WriteSafety` downgrade message (standalone MongoDB) reduced from WARN to DEBUG
 - Index creation message (`CREATE_ON_STARTUP`) reduced from WARN to INFO; `WARN_ON_STARTUP` remains WARN as intended
+- `MultiCollectionMessaging` fallback poll interval reduced from 5000ms to 1000ms for faster message delivery when change streams are unavailable
+- `SingleMongoConnectDriver` reconnect sleep reduced from 1000ms to 200ms for faster failover detection
 
 ### Performance
 

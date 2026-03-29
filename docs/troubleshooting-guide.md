@@ -385,6 +385,49 @@ public class User {
 @Cache(timeout = 300000, maxEntries = 10000, strategy = Cache.ClearStrategy.LRU)
 ```
 
+## PoppyDB-Specific Issues
+
+### Illegal Opcode / Wire Protocol Corruption
+
+**Symptoms:**
+- `MorphiumDriverNetworkException: Illegal opcode 0` or random large opcode values
+- `wrong section ID` errors
+
+**Cause (fixed in 6.2.2):** Concurrent writes to the same Netty channel from different threads. Change stream event responses were written from background threads while the I/O thread was writing other responses.
+
+**Solution:** Upgrade to 6.2.2+. If you're on an older version, reduce concurrent change stream watches per connection.
+
+### Thread Leak (PooledDriver)
+
+**Symptoms:**
+- Thread count grows continuously over time
+- `ConnectionWaiter` threads never terminate
+- Eventually `OutOfMemoryError: unable to create new native thread`
+
+**Cause (fixed in 6.2.2):** `PooledDriver.close()` did not signal waiting `ConnectionWaiter` threads. They remained blocked on `waitCounterCondition` forever.
+
+**Solution:** Upgrade to 6.2.2+. As a workaround, ensure `Morphium.close()` is always called in a finally block.
+
+### Change Stream Events Lost After Collection Drop
+
+**Symptoms:**
+- `ChangeStreamMonitor` receives events from a previously dropped collection
+- Resume-after delivers stale or duplicate events
+
+**Cause (fixed in 6.2.2):** The change stream history was not properly purged on collection drop, and in-flight async events could sneak past the drop boundary.
+
+**Solution:** Upgrade to 6.2.2+. The drop operation now advances the sequence counter and purges history both before and after the drop notification.
+
+### Tailable Cursor Returns Empty on PoppyDB
+
+**Symptoms:**
+- Tailable cursor `getMore` returns immediately with no data on PoppyDB
+- Works fine on real MongoDB
+
+**Cause (fixed in 6.2.2):** `getMore` for tailable cursors did not send `maxTimeMS`, causing PoppyDB to return immediately instead of waiting for new data.
+
+**Solution:** Upgrade to 6.2.2+. The tailable cursor now sends `maxTimeMS=5000` (5s polling interval) by default.
+
 ## Getting Help
 
 When reporting issues, include:

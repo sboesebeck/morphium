@@ -573,6 +573,8 @@ PoppyDB fully supports change streams for real-time notifications:
 - **Collection-level watches**: Watch changes on a specific collection
 - **Database-level watches**: Watch all collections in a database
 - **Cluster-level watches**: Watch all databases
+- **Resume tokens**: Resume a change stream from a token after reconnection (since v6.2.2)
+- **Tailable cursors**: Capped collection tailable cursors with proper `maxTimeMS` polling (since v6.2.2)
 
 Example with mongosh:
 ```javascript
@@ -598,6 +600,8 @@ db.watch().on('change', console.log);
 
 ### Features
 - ✅ **Server-side Cursors** - Batched find queries with `batchSize` and `getMore` (since v6.2.2)
+- ✅ **Tailable Cursors** - Capped collection tailable cursors with `maxTimeMS` polling (since v6.2.2)
+- ✅ **Change Stream Resume** - Resume-after token support for reliable event delivery (since v6.2.2)
 - ❌ **GridFS** - No file storage
 - ❌ **Full-Text Search** - Limited $text support
 - ❌ **Advanced Geospatial** - Basic queries only
