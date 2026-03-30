@@ -1908,7 +1908,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
      * will be processed.
      *
      * @param theMessage to be sent
-     * @param timoutInMs milliseconds to wait until listener is removed
+     * @param timeoutInMs milliseconds to wait until listener is removed
      * @param cb - the message callback
      */
     @Override

@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Mongodb throws errors on failover to the client, so we need to repeat all network calls several times
  * this class capsulates these calls.
+ *
+ * @param <T> the type of the result
  **/
 @SuppressWarnings("WeakerAccess")
 public class NetworkCallHelper<T> {

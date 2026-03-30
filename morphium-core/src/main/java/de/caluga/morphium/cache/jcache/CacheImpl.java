@@ -20,7 +20,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * Date: 17.05.18
  * Time: 08:38
  * <p>
- * simple copy before update implemenation of a in-Memory Cache
+ * simple copy before update implementation of a in-Memory Cache
+ * </p>
+ *
+ * @param <K> the type of the key
+ * @param <CE> the type of the cache entry
  */
 @SuppressWarnings("unchecked")
 public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {

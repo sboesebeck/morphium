@@ -125,7 +125,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * @param m               - morphium
      * @param pause           - pause between checks
      * @param processMultiple - deprecated, set windowSize to 1 if needed
-     * @Deprecated - use morphium.createMessaging() instead
+     * @deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple) {
@@ -136,7 +136,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - use morphium.createMessaging() instead
+     * @deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause) {
@@ -144,7 +144,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - use morphium.createMessaging() instead
+     * @deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m) {
@@ -152,7 +152,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - use morphium.createMessaging() instead
+     * @deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded,
@@ -169,7 +169,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - use morphium.createMessaging() instead
+     * @deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple) {
@@ -186,7 +186,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - use morphium.createMessaging() instead
+     * @deprecated - use morphium.createMessaging() instead
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple,
@@ -199,7 +199,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @Deprecated - processMultiple is unused
+     * @deprecated - processMultiple is unused
      */
     @Deprecated
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple,
@@ -1837,7 +1837,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * will be processed.
      *
      * @param theMessage to be sent
-     * @param timoutInMs - milliseconds to wait until listener is removed
+     * @param timeoutInMs - milliseconds to wait until listener is removed
      * @param cb - the message callback
      */
     @Override

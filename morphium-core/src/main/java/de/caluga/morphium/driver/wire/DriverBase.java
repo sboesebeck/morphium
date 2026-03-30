@@ -23,8 +23,8 @@ import java.util.regex.Pattern;
  * Date: 03.12.15
  * Time: 22:36
  * <p>
- * <p>
  * Base for custom drivers
+ * </p>
  */
 @SuppressWarnings("WeakerAccess")
 public abstract class DriverBase implements MorphiumDriver {

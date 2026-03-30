@@ -5,6 +5,8 @@ package de.caluga.morphium;
  * Date: 05.07.12
  * Time: 13:21
  * <p>
+ * enumeration of statistic keys
+ * </p>
  */
 public enum StatisticKeys {
 

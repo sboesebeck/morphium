@@ -16,5 +16,9 @@ import static java.lang.annotation.ElementType.FIELD;
 @Target({FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AdditionalData {
+    /**
+     * Indicates whether the additional data field is read only.
+     * @return true if field is read only
+     */
     boolean readOnly() default true;
 }

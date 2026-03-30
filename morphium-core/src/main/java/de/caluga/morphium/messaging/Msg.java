@@ -16,7 +16,6 @@ import java.util.*;
  * Time: 15:45
  * <p>
  * Message class - used by Morphium's own messaging system<br>
- * </br>
  * Reads default to primary-preferred to avoid stale reads causing duplicates under replication lag.
  * All writes block until <b>all nodes</b> have confirmed the write.
  */

@@ -890,7 +890,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     /**
      * This method unsets a field
-     @Deprecated use {Morphium{@link #unsetInEntity(Object, String, String, AsyncOperationCallback)} instead.
+     * @deprecated use {@link #unsetInEntity(Object, String, String, AsyncOperationCallback)} instead.
      */
     // @Deprecated
     // public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
@@ -1153,7 +1153,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     /**
      * This method sets a map of properties (defined by enums in the map) with their associated values
      *
-     @Deprecated There is a newer implementation.
+     * @deprecated There is a newer implementation.
      * Please use {@link Morphium setInEntity()} instead.
      */
     @Deprecated
@@ -1174,7 +1174,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     /**
      * This method sets a map of properties with their associated values
      *
-     @Deprecated There is a newer implementation.
+     * @deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object, String, Map, boolean, AsyncOperationCallback)}   instead.
      */
     @Deprecated
@@ -1248,8 +1248,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     /**
-     * * Use remove instead, to make it more similar to mongosh
-     @Deprecated use {@link Morphium#remove(List, String)}
+     * Use remove instead, to make it more similar to mongosh
+     * @deprecated use {@link Morphium#remove(List, String)}
      **/
     @Deprecated
     public <T> void delete (List<T> lst, String forceCollectionName) {
@@ -1257,8 +1257,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     /**
-     * * Use remove instead, to make it more similar to mongosh
-     @Deprecated use {@link Morphium#remove(List, String, AsyncOperationCallback)}
+     * Use remove instead, to make it more similar to mongosh
+     * @deprecated use {@link Morphium#remove(List, String, AsyncOperationCallback)}
      **/
     @Deprecated
     public <T> void delete (List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
@@ -1758,10 +1758,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     /**
      * use query.asList() instead
-     @Deprecated - for read access use {@link Query} instead
-     * @param q
-     * @param <T>
-     * @return
+     * @deprecated - for read access use {@link Query} instead
+     * @param q the query to execute
+     * @param <T> the type of the result
+     * @return list of results
      */
     @Deprecated
     public <T> List<T> find(Query<T> q) {

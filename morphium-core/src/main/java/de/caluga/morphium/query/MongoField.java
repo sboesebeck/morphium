@@ -17,6 +17,9 @@ import java.util.regex.Pattern;
  * Time: 11:30
  * <p>
  * Representation of a field in a query
+ * </p>
+ *
+ * @param <T> the type of the entity
  */
 @SuppressWarnings("UnusedDeclaration")
 public interface MongoField<T> {

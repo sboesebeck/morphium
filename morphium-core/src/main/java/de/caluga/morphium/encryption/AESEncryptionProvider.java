@@ -4,10 +4,14 @@ import de.caluga.rsa.AES;
 
 import java.util.Base64;
 
+/**
+ * AES-based implementation of {@link ValueEncryptionProvider}.
+ */
 public class AESEncryptionProvider implements ValueEncryptionProvider {
     @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private AES aes;
 
+    /** Creates a new AESEncryptionProvider with a default AES instance. */
     public AESEncryptionProvider() {
         aes = new AES();
     }

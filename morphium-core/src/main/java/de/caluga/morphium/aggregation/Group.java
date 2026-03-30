@@ -14,6 +14,10 @@ import java.util.Map;
  * Time: 08:48
  * <p>
  * Aggregator-Group
+ * </p>
+ *
+ * @param <T> search type
+ * @param <R> result type
  */
 @SuppressWarnings("UnusedDeclaration")
 public class Group<T, R> {

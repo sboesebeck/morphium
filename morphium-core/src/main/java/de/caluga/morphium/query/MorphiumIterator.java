@@ -11,14 +11,21 @@ import java.util.Map;
  * Date: 23.11.12
  * Time: 11:35
  * <p>
- * iterator, makes paging through huge collections a lot easier. Default Window (~page) size is 10.<p>
+ * iterator, makes paging through huge collections a lot easier. Default Window (~page) size is 10.
+ * </p>
+ * <p>
  * This iterator only reads as many objects from mongo as specified in window-size. It can be used like a
  * normal java iterator:
- * <code>
+ * </p>
+ * <pre>
+ * {@code
  * for (Object o:query.asIterable()) {
  * //do something here
- * };
- * </code>
+ * }
+ * }
+ * </pre>
+ *
+ * @param <T> the type of the entity
  */
 @SuppressWarnings("UnusedDeclaration")
 public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
@@ -57,8 +64,11 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      */
     void back(int jump);
 
+    /** Closes the underlying cursor and releases resources. */
     void close();
 
+    /** Returns the next result as a raw map document.
+     * @return the next document as a map */
     Map<String, Object> nextMap();
 
 }

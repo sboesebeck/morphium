@@ -57,26 +57,38 @@ public abstract class MongoCommand<T extends MongoCommand> {
     }
 
 
+    /**
+     * Returns the connection associated with this command.
+     * @return the connection
+     */
     public MongoConnection getConnection() {
         return connection;
     }
 
+    /**
+     * Sets the connection for this command.
+     * @param connection the connection to set
+     * @return the command itself
+     */
     public MongoCommand<T> setConnection(MongoConnection connection) {
         this.connection = connection;
         return this;
     }
 
+    /**
+     * Returns the database name for this command.
+     * @return the database
+     */
     public String getDb() {
         return $db;
     }
 
     /**
-     * will be set by the driver, containing information about
-     * total runtime (duration)
-     * host used (server)
-     * and other meta information about the execution of this command
+     * Returns meta data set by the driver, containing information about
+     * total runtime (duration), host used (server),
+     * and other meta information about the execution of this command.
      *
-     * @return
+     * @return the meta data map
      */
     public Map<String, Object> getMetaData() {
         return metaData;
@@ -94,29 +106,57 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return this;
     }
 
+    /**
+     * Sets the database name for this command.
+     * @param db the database to set
+     * @return the command itself
+     */
     public T setDb(String db) {
         this.$db = db;
         return (T) this;
     }
 
+    /**
+     * Returns the collection name for this command.
+     * @return the collection
+     */
     public String getColl() {
         return coll;
     }
 
+    /**
+     * Sets the collection name for this command.
+     * @param coll the collection to set
+     * @return the command itself
+     */
     public T setColl(String coll) {
         this.coll = coll;
         return (T) this;
     }
 
+    /**
+     * Returns the comment for this command.
+     * @return the comment
+     */
     public String getComment() {
         return comment;
     }
 
+    /**
+     * Sets the comment for this command.
+     * @param c the comment to set
+     * @return the command itself
+     */
     public T setComment(String c) {
         comment = c;
         return (T) this;
     }
 
+    /**
+     * Populates this command from the given map representation.
+     * @param m map representation
+     * @return the command itself
+     */
     public T fromMap(Map<String, Object> m) {
         setColl("" + m.get(getCommandName()));
         getLog().debug("fromMap for {}: map keys = {}", this.getClass().getSimpleName(), m.keySet());
@@ -194,6 +234,10 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return (T) this;
     }
 
+    /**
+     * Returns a map representation of this command.
+     * @return map representation
+     */
     public Map<String, Object> asMap() {
         Object o;
         Doc map = new Doc();
@@ -279,8 +323,17 @@ public abstract class MongoCommand<T extends MongoCommand> {
         $readPreference = Doc.of("mode", "primaryPreferred");
     }
 
+    /**
+     * Returns the MongoDB command name (e.g. "find", "insert").
+     * @return the command name
+     */
     public abstract String getCommandName();
 
+    /**
+     * executes the command asynchronously
+     * @return message id
+     * @throws MorphiumDriverException in case of error
+     */
     public int executeAsync() throws MorphiumDriverException {
         MongoConnection con = getConnection();
 

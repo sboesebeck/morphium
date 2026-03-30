@@ -10,8 +10,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * MorphiumStorageListener
+ * <p>
+ * These listeners will be informed about Storing _any_ object in morphium!
+ * </p>
+ *
+ * @param <T> the type of the objects handled by this listener
  * @author stephan
- *         These listeners will be informed about Storing _any_ object in morphium!
  */
 public interface MorphiumStorageListener<T> {
     void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
