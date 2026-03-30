@@ -1900,6 +1900,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#poppydb-specific-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PoppyDB-Specific Issues
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PoppyDB-Specific Issues">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#illegal-opcode-wire-protocol-corruption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Illegal Opcode / Wire Protocol Corruption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread-leak-pooleddriver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Leak (PooledDriver)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-stream-events-lost-after-collection-drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change Stream Events Lost After Collection Drop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tailable-cursor-returns-empty-on-poppydb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tailable Cursor Returns Empty on PoppyDB
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#getting-help" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2226,6 +2287,67 @@
     <span class="md-ellipsis">
       
         4. Inefficient Cache Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#poppydb-specific-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PoppyDB-Specific Issues
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PoppyDB-Specific Issues">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#illegal-opcode-wire-protocol-corruption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Illegal Opcode / Wire Protocol Corruption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread-leak-pooleddriver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Leak (PooledDriver)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-stream-events-lost-after-collection-drop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change Stream Events Lost After Collection Drop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tailable-cursor-returns-empty-on-poppydb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tailable Cursor Returns Empty on PoppyDB
       
     </span>
   </a>
@@ -2621,6 +2743,32 @@
 </span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1">// Solution: Match cache to data access patterns</span>
 </span><span id="__span-30-5"><a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="nd">@Cache</span><span class="p">(</span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">300000</span><span class="p">,</span><span class="w"> </span><span class="n">maxEntries</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span><span class="w"> </span><span class="n">strategy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Cache</span><span class="p">.</span><span class="na">ClearStrategy</span><span class="p">.</span><span class="na">LRU</span><span class="p">)</span>
 </span></code></pre></div>
+<h2 id="poppydb-specific-issues">PoppyDB-Specific Issues<a class="headerlink" href="#poppydb-specific-issues" title="Permanent link">&para;</a></h2>
+<h3 id="illegal-opcode-wire-protocol-corruption">Illegal Opcode / Wire Protocol Corruption<a class="headerlink" href="#illegal-opcode-wire-protocol-corruption" title="Permanent link">&para;</a></h3>
+<p><strong>Symptoms:</strong>
+- <code>MorphiumDriverNetworkException: Illegal opcode 0</code> or random large opcode values
+- <code>wrong section ID</code> errors</p>
+<p><strong>Cause (fixed in 6.2.2):</strong> Concurrent writes to the same Netty channel from different threads. Change stream event responses were written from background threads while the I/O thread was writing other responses.</p>
+<p><strong>Solution:</strong> Upgrade to 6.2.2+. If you're on an older version, reduce concurrent change stream watches per connection.</p>
+<h3 id="thread-leak-pooleddriver">Thread Leak (PooledDriver)<a class="headerlink" href="#thread-leak-pooleddriver" title="Permanent link">&para;</a></h3>
+<p><strong>Symptoms:</strong>
+- Thread count grows continuously over time
+- <code>ConnectionWaiter</code> threads never terminate
+- Eventually <code>OutOfMemoryError: unable to create new native thread</code></p>
+<p><strong>Cause (fixed in 6.2.2):</strong> <code>PooledDriver.close()</code> did not signal waiting <code>ConnectionWaiter</code> threads. They remained blocked on <code>waitCounterCondition</code> forever.</p>
+<p><strong>Solution:</strong> Upgrade to 6.2.2+. As a workaround, ensure <code>Morphium.close()</code> is always called in a finally block.</p>
+<h3 id="change-stream-events-lost-after-collection-drop">Change Stream Events Lost After Collection Drop<a class="headerlink" href="#change-stream-events-lost-after-collection-drop" title="Permanent link">&para;</a></h3>
+<p><strong>Symptoms:</strong>
+- <code>ChangeStreamMonitor</code> receives events from a previously dropped collection
+- Resume-after delivers stale or duplicate events</p>
+<p><strong>Cause (fixed in 6.2.2):</strong> The change stream history was not properly purged on collection drop, and in-flight async events could sneak past the drop boundary.</p>
+<p><strong>Solution:</strong> Upgrade to 6.2.2+. The drop operation now advances the sequence counter and purges history both before and after the drop notification.</p>
+<h3 id="tailable-cursor-returns-empty-on-poppydb">Tailable Cursor Returns Empty on PoppyDB<a class="headerlink" href="#tailable-cursor-returns-empty-on-poppydb" title="Permanent link">&para;</a></h3>
+<p><strong>Symptoms:</strong>
+- Tailable cursor <code>getMore</code> returns immediately with no data on PoppyDB
+- Works fine on real MongoDB</p>
+<p><strong>Cause (fixed in 6.2.2):</strong> <code>getMore</code> for tailable cursors did not send <code>maxTimeMS</code>, causing PoppyDB to return immediately instead of waiting for new data.</p>
+<p><strong>Solution:</strong> Upgrade to 6.2.2+. The tailable cursor now sends <code>maxTimeMS=5000</code> (5s polling interval) by default.</p>
 <h2 id="getting-help">Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h2>
 <p>When reporting issues, include:</p>
 <ol>

@@ -1218,6 +1218,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#stepdown-failover-behavior-replica-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        StepDown / Failover Behavior (Replica Set)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#change-stream-support" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2547,6 +2558,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#stepdown-failover-behavior-replica-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        StepDown / Failover Behavior (Replica Set)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#change-stream-support" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3304,12 +3326,48 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <li><code>replSetStepDown</code> commands are acknowledged but the server immediately becomes primary again</li>
 <li>This ensures compatibility with clients and tests that issue replica set commands</li>
 </ul>
+<h3 id="stepdown-failover-behavior-replica-set">StepDown / Failover Behavior (Replica Set)<a class="headerlink" href="#stepdown-failover-behavior-replica-set" title="Permanent link">&para;</a></h3>
+<p>PoppyDB uses <strong>Raft-based leader election</strong>, which behaves differently from MongoDB:</p>
+<table>
+<thead>
+<tr>
+<th>Behavior</th>
+<th>MongoDB</th>
+<th>PoppyDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>StepDown</td>
+<td>Old primary steps down, may become primary again after <code>timeToStepDown</code></td>
+<td>Old primary steps down permanently</td>
+</tr>
+<tr>
+<td>New leader</td>
+<td>Elected via priority/oplog, often original wins re-election</td>
+<td>Elected via Raft, new leader stays</td>
+</tr>
+<tr>
+<td>Step-back</td>
+<td>Common (original typically returns as primary)</td>
+<td>Never (Raft has no step-back mechanism)</td>
+</tr>
+<tr>
+<td>Election time</td>
+<td>~2-10 seconds</td>
+<td>~2-5 seconds</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Impact on tests/applications:</strong> Do not assume the original primary will return after a stepDown. If your failover logic waits for the original node to become primary again, it will hang indefinitely on PoppyDB. Instead, verify that <em>any</em> node became primary after failover.</p>
 <h3 id="change-stream-support">Change Stream Support<a class="headerlink" href="#change-stream-support" title="Permanent link">&para;</a></h3>
 <p>PoppyDB fully supports change streams for real-time notifications:</p>
 <ul>
 <li><strong>Collection-level watches</strong>: Watch changes on a specific collection</li>
 <li><strong>Database-level watches</strong>: Watch all collections in a database</li>
 <li><strong>Cluster-level watches</strong>: Watch all databases</li>
+<li><strong>Resume tokens</strong>: Resume a change stream from a token after reconnection (since v6.2.2)</li>
+<li><strong>Tailable cursors</strong>: Capped collection tailable cursors with proper <code>maxTimeMS</code> polling (since v6.2.2)</li>
 </ul>
 <p>Example with mongosh:
 <div class="language-javascript highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1">// Watch a collection</span>
@@ -3335,6 +3393,8 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <h3 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h3>
 <ul>
 <li>✅ <strong>Server-side Cursors</strong> - Batched find queries with <code>batchSize</code> and <code>getMore</code> (since v6.2.2)</li>
+<li>✅ <strong>Tailable Cursors</strong> - Capped collection tailable cursors with <code>maxTimeMS</code> polling (since v6.2.2)</li>
+<li>✅ <strong>Change Stream Resume</strong> - Resume-after token support for reliable event delivery (since v6.2.2)</li>
 <li>❌ <strong>GridFS</strong> - No file storage</li>
 <li>❌ <strong>Full-Text Search</strong> - Limited $text support</li>
 <li>❌ <strong>Advanced Geospatial</strong> - Basic queries only</li>

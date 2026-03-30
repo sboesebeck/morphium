@@ -888,7 +888,7 @@
   <a href="#change-streams-v61" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Change Streams (v6.1)
+        Change Streams (v6.1+)
       
     </span>
   </a>
@@ -2267,7 +2267,7 @@
   <a href="#change-streams-v61" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Change Streams (v6.1)
+        Change Streams (v6.1+)
       
     </span>
   </a>
@@ -2786,12 +2786,14 @@
 <li>✅ <strong>MapReduce</strong>: Full JavaScript-based MapReduce with GraalJS engine</li>
 <li>✅ <strong>Advanced Stages</strong>: $lookup, $unwind, $facet, $graphLookup, $bucket, $mergeObjects</li>
 </ul>
-<h3 id="change-streams-v61">Change Streams (v6.1)<a class="headerlink" href="#change-streams-v61" title="Permanent link">&para;</a></h3>
+<h3 id="change-streams-v61">Change Streams (v6.1+)<a class="headerlink" href="#change-streams-v61" title="Permanent link">&para;</a></h3>
 <ul>
 <li>✅ <strong>Event Types</strong>: insert, update, delete, drop operations</li>
 <li>✅ <strong>Document Snapshots</strong>: Immutable snapshots prevent dirty reads</li>
 <li>✅ <strong>Pipeline Filtering</strong>: Filter events with aggregation pipelines</li>
 <li>✅ <strong>Full Document Support</strong>: Access complete document in change events</li>
+<li>✅ <strong>Resume After</strong>: Resume change streams from a token after reconnection (v6.2.2)</li>
+<li>✅ <strong>Drop-safe History</strong>: Events from dropped collections are purged and cannot leak into resumed streams (v6.2.2)</li>
 <li>✅ <strong>Database-scoped Sharing</strong>: Optional driver sharing for multiple Morphium instances (opt-in)</li>
 <li>✅ <strong>Database-level Watches</strong>: Watch all collections in a database (v6.1.0)</li>
 <li>✅ <strong>PoppyDB Integration</strong>: Full change stream support via wire protocol (v6.1.0)</li>
