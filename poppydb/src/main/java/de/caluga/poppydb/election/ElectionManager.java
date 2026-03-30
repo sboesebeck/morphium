@@ -32,6 +32,7 @@ public class ElectionManager {
     private final AtomicLong currentTerm = new AtomicLong(0);
     private volatile String votedFor = null;
     private volatile String currentLeader = null;
+    private long electionTimerGeneration = 0; // guarded by stateLock
 
     // Log state (for election comparison)
     private final AtomicLong lastLogIndex = new AtomicLong(0);
@@ -159,13 +160,13 @@ public class ElectionManager {
 
             // Cancel heartbeat sending (only leaders send heartbeats)
             if (heartbeatTask != null) {
-                heartbeatTask.cancel(false);
+                heartbeatTask.cancel(true);
                 heartbeatTask = null;
             }
 
             // Cancel lease check (only leaders check lease)
             if (leaseCheckTask != null) {
-                leaseCheckTask.cancel(false);
+                leaseCheckTask.cancel(true);
                 leaseCheckTask = null;
             }
 
@@ -256,7 +257,7 @@ public class ElectionManager {
 
             // Cancel election timer (leaders don't need it)
             if (electionTimerTask != null) {
-                electionTimerTask.cancel(false);
+                electionTimerTask.cancel(true);
                 electionTimerTask = null;
             }
 
@@ -294,9 +295,9 @@ public class ElectionManager {
 
         stateLock.lock();
         try {
-            // Cancel existing timer
+            // Cancel existing timer — use cancel(true) to interrupt running callbacks
             if (electionTimerTask != null) {
-                electionTimerTask.cancel(false);
+                electionTimerTask.cancel(true);
             }
 
             // Don't set timer for leader
@@ -304,11 +305,13 @@ public class ElectionManager {
                 return;
             }
 
-            // Schedule new timer with random timeout
+            // Schedule new timer with random timeout.
+            // Increment generation so stale callbacks (from cancelled-but-already-running timers) are ignored.
+            long gen = ++electionTimerGeneration;
             int timeout = config.randomElectionTimeout();
-            electionTimerTask = scheduler.schedule(this::onElectionTimeout, timeout, TimeUnit.MILLISECONDS);
+            electionTimerTask = scheduler.schedule(() -> onElectionTimeout(gen), timeout, TimeUnit.MILLISECONDS);
 
-            log.trace("{} election timer reset to {}ms", myAddress, timeout);
+            log.trace("{} election timer reset to {}ms (gen={})", myAddress, timeout, gen);
 
         } finally {
             stateLock.unlock();
@@ -317,16 +320,23 @@ public class ElectionManager {
 
     /**
      * Called when election timer expires without receiving heartbeat.
+     * The generation parameter prevents stale timer callbacks from triggering elections
+     * after the timer was reset by a concurrent heartbeat.
      */
-    private void onElectionTimeout() {
+    private void onElectionTimeout(long generation) {
         if (!running) {
             return;
         }
 
         stateLock.lock();
         try {
+            // Stale timer callback — a newer resetElectionTimer() already replaced us
+            if (generation != electionTimerGeneration) {
+                log.trace("{} ignoring stale election timeout (gen={}, current={})", myAddress, generation, electionTimerGeneration);
+                return;
+            }
+
             if (state == ElectionState.LEADER) {
-                // Leaders don't have election timeouts
                 return;
             }
 
@@ -734,6 +744,20 @@ public class ElectionManager {
 
     public boolean isLeader() {
         return state == ElectionState.LEADER;
+    }
+
+    /**
+     * Atomic snapshot of leader state — prevents inconsistent reads when
+     * isLeader() and getCurrentLeader() are called separately.
+     * Returns [isLeader, currentLeader] under the state lock.
+     */
+    public Object[] getLeaderSnapshot() {
+        stateLock.lock();
+        try {
+            return new Object[]{state == ElectionState.LEADER, currentLeader};
+        } finally {
+            stateLock.unlock();
+        }
     }
 
     public boolean isRunning() {

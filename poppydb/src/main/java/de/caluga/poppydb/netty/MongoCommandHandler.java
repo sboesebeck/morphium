@@ -952,9 +952,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             res.setHosts(allHosts);
         }
 
-        // Use dynamic election state if available
-        boolean isPrimary = isCurrentPrimary();
-        String currentPrimaryHost = getCurrentPrimaryHost();
+        // Use atomic snapshot to avoid inconsistent reads between isPrimary and primaryHost
+        boolean isPrimary;
+        String currentPrimaryHost;
+        if (electionManager != null) {
+            Object[] snap = electionManager.getLeaderSnapshot();
+            isPrimary = (Boolean) snap[0];
+            currentPrimaryHost = (String) snap[1];
+        } else {
+            isPrimary = primary;
+            currentPrimaryHost = primaryHost;
+        }
 
         res.setConnectionId(1);
         res.setMaxWireVersion(17);
