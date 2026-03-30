@@ -349,6 +349,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // Bypasses GenericCommand reflection roundtrip: Map → InMemoryDriver directly.
             case "insert":
                 answer = processInsertDirect(doc);
+                notifyTailableCursorsOnInsert(doc);
                 break;
             case "find":
                 answer = processFindDirect(ctx, doc, requestId);
