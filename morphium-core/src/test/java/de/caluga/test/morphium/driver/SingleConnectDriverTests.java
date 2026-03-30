@@ -117,7 +117,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
         boolean isPoppyDB = false;
         try {
             var hello = new de.caluga.morphium.driver.commands.HelloCommand(con).execute();
-            isPoppyDB = hello.containsKey("poppyDB") && Boolean.TRUE.equals(hello.get("poppyDB"));
+            isPoppyDB = Boolean.TRUE.equals(hello.getPoppyDB());
         } catch (Exception e) {
             log.warn("Could not detect server type: {}", e.getMessage());
         }
