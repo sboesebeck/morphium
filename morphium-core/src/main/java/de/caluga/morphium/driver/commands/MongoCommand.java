@@ -287,11 +287,15 @@ public abstract class MongoCommand<T extends MongoCommand> {
         if (con == null) throw new IllegalArgumentException("you need to set the driver!");
 
         return new NetworkCallHelper<Integer>().doCall(()-> {
-            //long start = System.currentTimeMillis();
-            var result = con.sendCommand(this);
-            // long dur = System.currentTimeMillis() - start;
+            // If the connection was closed (e.g. corrupt stream), get a fresh one from the pool
+            MongoConnection c = getConnection();
+            if (!c.isConnected()) {
+                c = c.getDriver().getPrimaryConnection(null);
+                setConnection(c);
+            }
+            var result = c.sendCommand(this);
             setMetaData("duration", 0); //not waiting!
-            setMetaData("server", con.getConnectedTo() + ":" + con.getConnectedToPort());
+            setMetaData("server", c.getConnectedTo() + ":" + c.getConnectedToPort());
             return result;
         }, con.getDriver().getRetriesOnNetworkError(), con.getDriver().getSleepBetweenErrorRetries());
     }

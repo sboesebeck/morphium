@@ -50,6 +50,11 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
 
         while (true) {
             MongoConnection con = getConnection();
+            // If the connection was closed (e.g. corrupt stream on previous attempt), get a fresh one
+            if (!con.isConnected()) {
+                con = drv.getPrimaryConnection(null);
+                setConnection(con);
+            }
             //noinspection unchecked
             setMetaData("server", con.getConnectedTo());
             long start = System.currentTimeMillis();
