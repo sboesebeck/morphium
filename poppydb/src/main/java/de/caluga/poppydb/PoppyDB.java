@@ -437,7 +437,11 @@ public class PoppyDB {
     /**
      * Called when a new leader is discovered.
      */
-    private void onLeaderDiscovered(String leaderId) {
+    private synchronized void onLeaderDiscovered(String leaderId) {
+        // Only act on actual leader changes to prevent flapping
+        if (leaderId != null && leaderId.equals(primaryHost) && replicationManager != null) {
+            return; // same leader, already replicating — nothing to do
+        }
         log.info("Discovered leader: {}", leaderId);
         primaryHost = leaderId;
 

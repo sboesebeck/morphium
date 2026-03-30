@@ -612,10 +612,13 @@ public class ElectionManager {
             // Reset election timer
             resetElectionTimer();
 
-            // Notify of leader discovery
+            // Notify of leader discovery — only on actual change to prevent flapping
             if (onLeaderDiscovered != null) {
                 String leader = request.getLeaderId();
-                scheduler.execute(() -> onLeaderDiscovered.accept(leader));
+                if (leader != null && !leader.equals(currentLeader)) {
+                    currentLeader = leader;
+                    scheduler.execute(() -> onLeaderDiscovered.accept(leader));
+                }
             }
 
             // For now, just acknowledge (log replication will be added later)
