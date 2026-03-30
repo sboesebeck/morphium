@@ -566,6 +566,19 @@ When running PoppyDB as a standalone server (without replica set configuration):
 - `replSetStepDown` commands are acknowledged but the server immediately becomes primary again
 - This ensures compatibility with clients and tests that issue replica set commands
 
+### StepDown / Failover Behavior (Replica Set)
+
+PoppyDB uses **Raft-based leader election**, which behaves differently from MongoDB:
+
+| Behavior | MongoDB | PoppyDB |
+|----------|---------|---------|
+| StepDown | Old primary steps down, may become primary again after `timeToStepDown` | Old primary steps down permanently |
+| New leader | Elected via priority/oplog, often original wins re-election | Elected via Raft, new leader stays |
+| Step-back | Common (original typically returns as primary) | Never (Raft has no step-back mechanism) |
+| Election time | ~2-10 seconds | ~2-5 seconds |
+
+**Impact on tests/applications:** Do not assume the original primary will return after a stepDown. If your failover logic waits for the original node to become primary again, it will hang indefinitely on PoppyDB. Instead, verify that *any* node became primary after failover.
+
 ### Change Stream Support
 
 PoppyDB fully supports change streams for real-time notifications:

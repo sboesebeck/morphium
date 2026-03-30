@@ -111,28 +111,41 @@ public class SingleConnectDriverTests extends DriverTestBase {
         assertNotNull(originalConnectedTo);
         assertNotNull(con.getConnectedTo());
         log.info("Connection changed from " + originalConnectedTo + " to " + con.getConnectedTo());
-        drv.releaseConnection(con);
 
-        while (true) {
-            log.info("Waiting for it to change back to..." + originalConnectedTo);
-            Thread.sleep(1000);
-
-            if (drv.isConnected()) {
-                con = drv.getConnection();
-
-                if (!con.getConnectedTo().equals(originalConnectedTo)) {
-                    log.info("Still connected to " + con.getConnectedTo());
-                    drv.releaseConnection(con);
-                    continue;
-                }
-
-                break;
-            }
+        // PoppyDB uses Raft-based leader election: the new leader stays primary permanently
+        // (no automatic step-back like MongoDB). Skip the "wait for original to come back" phase.
+        boolean isPoppyDB = false;
+        try {
+            var hello = new de.caluga.morphium.driver.commands.HelloCommand(con).execute();
+            isPoppyDB = hello.containsKey("poppyDB") && Boolean.TRUE.equals(hello.get("poppyDB"));
+        } catch (Exception e) {
+            log.warn("Could not detect server type: {}", e.getMessage());
         }
-
-        String hst = con.getConnectedTo();
-        log.info("back connected to " + con.getConnectedTo());
         drv.releaseConnection(con);
+
+        if (isPoppyDB) {
+            log.info("PoppyDB detected — Raft keeps new leader, skipping step-back wait");
+        } else {
+            while (true) {
+                log.info("Waiting for it to change back to..." + originalConnectedTo);
+                Thread.sleep(1000);
+
+                if (drv.isConnected()) {
+                    con = drv.getConnection();
+
+                    if (!con.getConnectedTo().equals(originalConnectedTo)) {
+                        log.info("Still connected to " + con.getConnectedTo());
+                        drv.releaseConnection(con);
+                        continue;
+                    }
+
+                    break;
+                }
+            }
+
+            log.info("back connected to " + con.getConnectedTo());
+            drv.releaseConnection(con);
+        }
     }
 
     @Test
