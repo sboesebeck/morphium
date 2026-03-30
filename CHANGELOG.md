@@ -45,8 +45,25 @@ Several race conditions in the InMemoryDriver's change stream implementation cou
 #### ChangeStreamMonitor race condition on startup
 `running` was set to `true` after `Thread.start()`, creating a window where the `run()` method could see `running=false` and exit immediately. Fixed by setting `running=true` before calling `Thread.start()`.
 
-#### Tailable cursor GetMore now sends proper maxTimeMS
-Tailable cursor `GetMore` commands now send `maxTimeMS=5000` (5 second polling interval) by default. Previously, either no `maxTimeMS` was sent (causing PoppyDB to return empty immediately) or `Integer.MAX_VALUE` was forwarded (blocking the server indefinitely). Explicit `maxWait` values from the caller are passed through unchanged.
+#### PoppyDB: Tailable cursor events not delivered from direct insert path
+The performance-optimized direct insert path (`processInsertDirect`) did not call `notifyTailableCursorsOnInsert()`. Only the generic command path had this notification. Tailable cursors on capped collections never received new documents, causing `TailableQueryTests` to fail on all PoppyDB phases.
+
+#### PoppyDB: Hostname 0.0.0.0 in hello response breaks client connections
+When PoppyDB binds to `0.0.0.0`, the `hello` response reported `hosts: ["0.0.0.0:17017"]`. Clients tried connecting to `0.0.0.0` which is unreachable from remote hosts. PoppyDB now resolves `0.0.0.0` to the actual hostname via `InetAddress.getLocalHost()`.
+
+#### PoppyDB: Raft election flapping under load
+Three nodes on the same host with equal priority (50) caused endless split-vote elections. Combined with `onLeaderDiscovered` firing on every heartbeat (not just on changes) and non-atomic `isLeader()`/`getCurrentLeader()` reads in `getHelloResult()`, the PooledDriver saw rapid primary flapping ("Primary failover?" multiple times per second). Fixed by:
+- Election timer generation guard prevents stale timer callbacks from triggering spurious elections
+- `cancel(true)` instead of `cancel(false)` for all timer tasks
+- `getLeaderSnapshot()` provides atomic leader state reads
+- `onLeaderDiscovered` only fires on actual leader changes
+- RS nodes should use different priorities (e.g. `--rs-priorities 100,75,50`)
+
+#### Wire protocol corruption: concurrent writes on shared connection
+`SingleMongoConnection.sendQuery()` was not synchronized. When the PooledDriver gave the same connection to multiple threads, their bytes interleaved on the wire, producing corrupted messages (`Illegal opcode 0` with `responseTo=0x6B6C0000` — bytes from `$clusterTime` mid-stream). Fixed by synchronizing `sendQuery`, `sendCommand`, and `sendAndWaitForReply`.
+
+#### Network retry on closed connection reuses dead connection
+When a `MorphiumDriverNetworkException` closed the connection (e.g. corrupt stream), the `NetworkCallHelper` retried on the same dead connection — guaranteed to fail again. `MongoCommand.executeAsync()` and `WriteMongoCommand.execute()` now check `isConnected()` before each retry and get a fresh connection from the pool if needed.
 
 #### MongoCommand.getLog() StackOverflow
 `MongoCommand` had a `log` field initialized via `getLog()` which recursively called itself. Fixed to use `LoggerFactory.getLogger()` directly.
