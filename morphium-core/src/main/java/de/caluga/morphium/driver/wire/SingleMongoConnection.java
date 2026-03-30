@@ -527,7 +527,7 @@ public class SingleMongoConnection implements MongoConnection {
     //     return incoming.remove(msgid);
     // }
     //
-    public void sendQuery(OpMsg q) throws MorphiumDriverException {
+    public synchronized void sendQuery(OpMsg q) throws MorphiumDriverException {
         if (driver.getTransactionContext() != null) {
             q.getFirstDoc().put("lsid", Doc.of("id", driver.getTransactionContext().getLsid()));
             q.getFirstDoc().put("txnNumber", driver.getTransactionContext().getTxnNumber());
@@ -586,7 +586,7 @@ public class SingleMongoConnection implements MongoConnection {
         }
     }
 
-    public OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
+    public synchronized OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
         sendQuery(q);
         return readNextMessage(driver.getMaxWaitTime());//getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
     }
@@ -628,7 +628,7 @@ public class SingleMongoConnection implements MongoConnection {
 
     @SuppressWarnings("unchecked")
     @Override
-    public int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
+    public synchronized int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
         OpMsg q = new OpMsg();
         q.setMessageId(msgId.incrementAndGet());
         q.setFirstDoc(Doc.of(cmd.asMap()));
