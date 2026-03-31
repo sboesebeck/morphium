@@ -4,7 +4,7 @@
   <parent>
     <groupId>de.caluga</groupId>
     <artifactId>morphium-parent</artifactId>
-    <version>6.2.2-SNAPSHOT</version>
+    <version>6.2.2</version>
   </parent>
   <artifactId>morphium</artifactId>
   <packaging>jar</packaging>
