@@ -440,6 +440,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             .setExplain(isExplain())
             .setAllowDiskUse(isUseDisk());
 
+            int timeout = morphium.getConfig().connectionSettings().getDefaultQueryTimeoutMS();
+            if (timeout > 0) {
+                cmd.setMaxWaitTime(timeout);
+            }
+
             if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
             if (morphium.getReadConcernForClass(getSearchType())!=null){
                 cmd.setReadConcern(Map.of("level",morphium.getReadConcernForClass(getSearchType()).name()));
