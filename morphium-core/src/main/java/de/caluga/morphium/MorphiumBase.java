@@ -702,8 +702,10 @@ public abstract class MorphiumBase {
     public <T> void save(T o, String collection, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             saveList((List) o, collection, callback);
+            return;
         } else if (o instanceof Collection) {
             saveList(new ArrayList<>((Collection) o), collection, callback);
+            return;
         }
 
         // Orphan removal: collect old references before store
