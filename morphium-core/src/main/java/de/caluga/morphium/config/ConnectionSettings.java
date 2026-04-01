@@ -11,6 +11,7 @@ import java.util.List;
 public class ConnectionSettings extends Settings {
 
     private int maxWaitTime = 2000;
+    private int defaultQueryTimeoutMS = 0;
     private int connectionTimeout = 0;
     private int heartbeatFrequency = 1000;
     private int maxConnections = 250;
@@ -30,6 +31,26 @@ public class ConnectionSettings extends Settings {
         this.maxWaitTime = maxWaitTime;
         return this;
     }
+
+    /**
+     * Default server-side time limit (in milliseconds) for queries when no
+     * per-query {@code maxTimeMS} is set via {@code Query.setMaxTimeMS()}.
+     * <p>
+     * MongoDB enforces this as {@code maxTimeMS} across the entire cursor
+     * lifecycle (initial {@code find} + all {@code getMore} operations).
+     * <p>
+     * Default is {@code 0}, which means no server-side time limit
+     * (Morphium will set {@code noCursorTimeout} instead).
+     */
+    public int getDefaultQueryTimeoutMS() {
+        return defaultQueryTimeoutMS;
+    }
+
+    public ConnectionSettings setDefaultQueryTimeoutMS(int defaultQueryTimeoutMS) {
+        this.defaultQueryTimeoutMS = defaultQueryTimeoutMS;
+        return this;
+    }
+
     public int getConnectionTimeout() {
         return connectionTimeout;
     }
