@@ -2574,7 +2574,7 @@ public class Query<T> implements Cloneable {
 
     public int getMaxTimeMS() {
         if (maxTimeMS == null) {
-            return morphium.getConfig().connectionSettings().getMaxWaitTime();
+            return morphium.getConfig().connectionSettings().getDefaultQueryTimeoutMS();
         } else {
             return maxTimeMS;
         }
