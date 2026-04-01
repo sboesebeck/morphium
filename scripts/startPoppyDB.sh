@@ -37,7 +37,28 @@ elif [[ "$1" = "stop" ]]; then
   done
   exit 0
 elif [[ "$1" = "status" ]]; then
-  echo "Not implemented yet"
+  if [ ! -d $TMPDIR ]; then
+    echo "No PoppyDB nodes configured (TMPDIR $TMPDIR does not exist)."
+    exit 0
+  fi
+  found=false
+  for i in $TMPDIR/node-*.pid; do
+    if [ ! -e "$i" ]; then
+      continue
+    fi
+    found=true
+    node_num=$(basename $i | sed 's/node-\([0-9]*\)\.pid/\1/')
+    pid=$(<$i)
+    if kill -0 $pid 2>/dev/null; then
+       echo "Node $node_num: Running (PID: $pid)"
+       lsof -Pan -p $pid -i | grep LISTEN | sed 's/.*TCP \(.*\):\(.*\) (LISTEN)/\tListening on: \1:\2/' || echo "\tNo listening port found for this PID"
+    else
+       echo "Node $node_num: Not running (PID file exists with PID $pid, but process is dead)"
+    fi
+  done
+  if [ "$found" = false ]; then
+    echo "No PoppyDB nodes found in $TMPDIR"
+  fi
   exit 0
 elif [[ "$1" = "viewlogs" ]]; then
   multitail $TMPDIR/*.log
@@ -91,9 +112,21 @@ fi
 cd $TMPDIR
 
 if [ $NODES -eq 1 ]; then
-  echo "Starting single node PoppyDB"
+  if lsof -Pi :$BASEPORT -sTCP:LISTEN -t >/dev/null; then
+    echo "Port $BASEPORT is already in use!"
+    exit 1
+  fi
+  echo "Starting single node PoppyDB on port $BASEPORT"
   java -Xmx8G -jar $TMPDIR/poppydb.jar -p $BASEPORT >$TMPDIR/poppydb-1.log 2>&1 &
-  echo "$!" >$TMPDIR/node1.pid
+  pid=$!
+  echo "$pid" >$TMPDIR/node-1.pid
+  sleep 2
+  if ! kill -0 $pid 2>/dev/null; then
+    echo "Failed to start single node PoppyDB, check $TMPDIR/poppydb-1.log"
+    cat $TMPDIR/poppydb-1.log
+    rm $TMPDIR/node-1.pid
+    exit 1
+  fi
 else
 
   p=$BASEPORT
@@ -112,11 +145,22 @@ else
 
   p=$BASEPORT
   for n in $(seq $NODES); do
+    if lsof -Pi :$p -sTCP:LISTEN -t >/dev/null; then
+      echo "Port $p is already in use, skipping node $n"
+      continue
+    fi
     if [ $ONLYNODE -eq 0 ] || [ $ONLYNODE -eq $n ]; then
       echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
 
       java -Xmx8G -jar $TMPDIR/poppydb.jar -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" >$TMPDIR/poppydb-$n.log 2>&1 &
-      echo "$!" >$TMPDIR/node-$n.pid
+      pid=$!
+      echo "$pid" >$TMPDIR/node-$n.pid
+      sleep 1
+      if ! kill -0 $pid 2>/dev/null; then
+        echo "Failed to start node $n PoppyDB, check $TMPDIR/poppydb-$n.log"
+        cat $TMPDIR/poppydb-$n.log
+        rm $TMPDIR/node-$n.pid
+      fi
     fi
     let p=p+1
 

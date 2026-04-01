@@ -234,7 +234,12 @@ public class PoppyDBCLI {
             }
         }
 
-        srv.start();
+        try {
+            srv.start();
+        } catch (Exception e) {
+            log.error("Failed to start PoppyDB: {}", e.getMessage());
+            System.exit(1);
+        }
 
         // Add shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
