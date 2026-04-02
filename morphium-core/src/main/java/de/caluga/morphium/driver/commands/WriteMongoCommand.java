@@ -122,6 +122,29 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                     }
                     setConnection(drv.getPrimaryConnection(null));
                     continue;
+                } else if (e.getMongoCode() instanceof Number mc && mc.intValue() == 112) {
+                    // Error 112 (WriteConflict): transient error — either a real write conflict
+                    // between concurrent sessions OR the WiredTiger storage engine evicted the
+                    // pinned transaction due to cache pressure ("-31800: oldest pinned transaction
+                    // ID rolled back for eviction").
+                    // Inside a transaction, the server has already aborted it — retrying the
+                    // individual command is futile. Propagate immediately so the caller (e.g.
+                    // MorphiumTransactionalInterceptor) can restart the entire transaction.
+                    if (drv.isTransactionInProgress()) {
+                        log.warn("WriteConflict (code 112) inside transaction — propagating to transaction layer");
+                        throw e;
+                    }
+                    if (attempts++ < maxAttempts) {
+                        log.warn("Transient WriteConflict (code 112) — retrying (attempt {}/{})", attempts, maxAttempts);
+                        try {
+                            Thread.sleep(Math.max(50, drv.getSleepBetweenErrorRetries()));
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw e;
+                        }
+                        continue;
+                    }
+                    throw e;
                 } else {
                     throw e;
                 }
