@@ -131,6 +131,21 @@ class WriteMongoCommandRetryTest {
         }
     }
 
+    // --------------------------------------------------------------------- //
+    //  DriverMock variant that reports an active transaction                 //
+    // --------------------------------------------------------------------- //
+
+    static class TransactionActiveDriverMock extends FastDriverMock {
+        TransactionActiveDriverMock(int retriesOnNetworkError, MongoConnection freshConnection) {
+            super(retriesOnNetworkError, freshConnection);
+        }
+
+        @Override
+        public boolean isTransactionInProgress() {
+            return true;
+        }
+    }
+
     // ===================================================================== //
     //  Tests                                                                 //
     // ===================================================================== //
@@ -210,6 +225,31 @@ class WriteMongoCommandRetryTest {
         assertEquals(1.0, result.get("ok"));
         assertEquals(failTimes + 1, con.getReadCallCount(),
                 "readSingleAnswer should be called " + (failTimes + 1) + " times (" + failTimes + " failures + 1 success)");
+    }
+
+    /**
+     * When a transaction is in progress, Error 112 must NOT be retried at the
+     * write-command level — it must propagate immediately so the transaction
+     * interceptor can abort and restart the entire transaction.
+     */
+    @Test
+    void error112_insideTransaction_propagatesImmediately() {
+        TransactionActiveDriverMock drv = new TransactionActiveDriverMock(0, null);
+        Error112Connection con = new Error112Connection(1, drv);
+        drv = new TransactionActiveDriverMock(0, con);
+
+        // Re-create connection with the final driver instance
+        con = new Error112Connection(1, drv);
+
+        TestWriteCommand cmd = new TestWriteCommand(con)
+                .setDb("test_db")
+                .setColl("test_coll");
+
+        MorphiumDriverException thrown = assertThrows(MorphiumDriverException.class, cmd::execute);
+        assertEquals(112, ((Number) thrown.getMongoCode()).intValue());
+        // Must have been called exactly once — no retry
+        assertEquals(1, con.getReadCallCount(),
+                "Error 112 inside a transaction must NOT be retried at write level");
     }
 
     /**
