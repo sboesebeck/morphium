@@ -215,6 +215,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         morphium.getARHelper().setValue(entity, 1L, vField);
     }
 
+
     private void setIdIfNull(Object record) throws IllegalAccessException {
         Field idf = morphium.getARHelper().getIdField(record);
 
@@ -573,7 +574,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
                             }
                         }
-                        // Process versioned updates with optimistic locking
+                        // Process versioned updates with optimistic locking — BATCHED
                         for (Map.Entry<Class, List<Object>> es : toVersionedUpdate.entrySet()) {
                             Class c = es.getKey();
                             List<String> vFields = morphium.getARHelper().getFields(c, Version.class);
@@ -591,55 +592,86 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             String coll = cln != null ? cln : morphium.getMapper().getCollectionName(c);
                             checkIndexAndCaps(c, coll, callback);
 
-                            for (Object entity : es.getValue()) {
-                                Object entityId = morphium.getId(entity);
-                                Object rawVersion = morphium.getARHelper().getValue(entity, javaVersionField);
-                                long currentVersion = rawVersion instanceof Number ? ((Number) rawVersion).longValue() : 0L;
+                            List<Object> entities = es.getValue();
 
-                                // Serialise all fields; then strip _id and version from $set
+                            // Pre-build all update operations (parallel arrays)
+                            Object[] entityIds = new Object[entities.size()];
+                            long[] currentVersions = new long[entities.size()];
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object>[] filters = new Map[entities.size()];
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object>[] updateDocs = new Map[entities.size()];
+
+                            for (int i = 0; i < entities.size(); i++) {
+                                Object entity = entities.get(i);
+                                entityIds[i] = morphium.getId(entity);
+                                Object rawVersion = morphium.getARHelper().getValue(entity, javaVersionField);
+                                currentVersions[i] = rawVersion instanceof Number n ? n.longValue() : 0L;
+
                                 Map<String, Object> serialized = new LinkedHashMap<>(morphium.getMapper().serialize(entity));
                                 serialized.remove("_id");
                                 serialized.remove(mongoVersionField);
 
-                                // Use $and so that all conditions are checked independently.
-                                // InMemoryDriver's matchesQuery returns after the first field,
-                                // so a flat multi-field map would only check _id and ignore the
-                                // version condition.  Real MongoDB also handles $and correctly.
-                                Map<String, Object> filter = Doc.of("$and", java.util.List.of(
-                                    Doc.of("_id", entityId),
-                                    Doc.of(mongoVersionField, currentVersion)));
-                                Map<String, Object> update = Doc.of(
+                                // IMPORTANT: Use $and so that InMemoryDriver checks both conditions.
+                                // A flat multi-field map would only check _id in InMemoryDriver.
+                                filters[i] = Doc.of("$and", List.of(
+                                    Doc.of("_id", entityIds[i]),
+                                    Doc.of(mongoVersionField, currentVersions[i])));
+                                updateDocs[i] = Doc.of(
                                     "$set", serialized,
                                     "$inc", Doc.of(mongoVersionField, 1L));
+                            }
+
+                            // Execute in chunks of cursorBatchSize.
+                            // Each entity's conditional update is issued individually but all
+                            // share a single connection per chunk to reduce pool overhead.
+                            // True batching (N updates in one wire message) is not possible because
+                            // MongoDB only returns aggregate matched counts — per-entity conflict
+                            // detection would be impossible (a conditional update that matches zero
+                            // documents is not an error from MongoDB's perspective, so writeErrors
+                            // does not report it, and the aggregate 'n' cannot identify which
+                            // specific entity had a version conflict).
+                            int batchSize = Math.max(1, morphium.getConfig().getCursorBatchSize());
+                            for (int offset = 0; offset < entities.size(); ) {
+                                int end = Math.min(offset + batchSize, entities.size());
 
                                 MongoConnection con = null;
-                                UpdateMongoCommand upd = null;
                                 try {
                                     con = morphium.getDriver().getPrimaryConnection(wc);
-                                    upd = new UpdateMongoCommand(con)
-                                        .setDb(morphium.getConfig().connectionSettings().getDatabase())
-                                        .setColl(coll);
-                                    upd.addUpdate(filter, update, null, false, false, null, null, null);
-                                    Map<String, Object> result = upd.execute();
+                                    for (int i = offset; i < end; i++) {
+                                        UpdateMongoCommand upd = new UpdateMongoCommand(con)
+                                            .setDb(morphium.getConfig().connectionSettings().getDatabase())
+                                            .setColl(coll);
+                                        if (wc != null) {
+                                            upd.setWriteConcern(wc.asMap());
+                                        }
+                                        upd.addUpdate(filters[i], updateDocs[i], null, false, false, null, null, null);
 
-                                    int matched = result.get("n") instanceof Number n ? n.intValue() : 0;
-                                    if (matched == 0) {
-                                        throw new VersionMismatchException(entityId, currentVersion);
-                                    }
-                                    // Reflect the new version back into the entity
-                                    morphium.getARHelper().setValue(entity, currentVersion + 1L, javaVersionField);
+                                        Map<String, Object> result = upd.execute();
+                                        // WriteMongoCommand.execute() may swap the connection on retries
+                                        // (e.g. "not primary" errors). Always capture the potentially new
+                                        // reference BEFORE any branching, so the finally block and the
+                                        // next loop iteration use the correct connection.
+                                        con = upd.getConnection();
+                                        int matched = result.get("n") instanceof Number n ? n.intValue() : 0;
 
-                                    var cache = morphium.getCache();
-                                    if (cache != null) {
-                                        cache.clearCacheIfNecessary(c);
+                                        if (matched == 0) {
+                                            throw new VersionMismatchException(entityIds[i], currentVersions[i]);
+                                        }
+                                        morphium.getARHelper().setValue(entities.get(i), currentVersions[i] + 1L, javaVersionField);
+                                        morphium.firePostStore(entities.get(i), false);
                                     }
                                 } finally {
-                                    if (upd != null) {
-                                        upd.releaseConnection();
-                                    } else if (con != null) {
+                                    if (con != null) {
                                         morphium.getDriver().releaseConnection(con);
                                     }
                                 }
+                                offset = end;
+                            }
+
+                            var cache = morphium.getCache();
+                            if (cache != null) {
+                                cache.clearCacheIfNecessary(c);
                             }
                         }
                         for (Map.Entry<Class, List<Map<String, Object>>> es : toUpdate.entrySet()) {
