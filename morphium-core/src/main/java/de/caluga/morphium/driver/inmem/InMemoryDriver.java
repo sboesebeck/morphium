@@ -3743,8 +3743,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 && (options.get("unique").equals("true") || options.get("unique").equals(true))) {
                             // checking fields
                             Map<String, Object> indexKey = new HashMap<>(idx);
+                            List<Map<String, Object>> duplicateDocs = new ArrayList<>();
 
-                            for (var o : objs) {
+                            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
+                                var o = objs.get(objIdx);
                                 var q = Doc.of();
 
                                 for (String k : indexKey.keySet()) {
@@ -3766,12 +3768,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                 if (existsMatchingDocument(db, collection, q)) {
                                     log.error("Cannot store - unique index!");
-                                    writeErrors.add(o);
+                                    writeErrors.add(Doc.of(
+                                        "index", objIdx,
+                                        "code", 11000,
+                                        "errmsg", "E11000 duplicate key error"
+                                    ));
+                                    duplicateDocs.add(o);
                                 }
                             }
 
-                            errors = errors + writeErrors.size();
-                            objs.removeAll(writeErrors);
+                            errors = errors + duplicateDocs.size();
+                            objs.removeAll(duplicateDocs);
                         }
                     }
                 }
