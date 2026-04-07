@@ -1369,7 +1369,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             String collectionName = q.getCollectionName();
             var limit = q.getLimit();
             settings = new DeleteMongoCommand(con).setColl(collectionName).setDb(getDbName())
-            .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", limit, "collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
+            .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", limit).addIfNotNull("collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
             return settings.explain(verbosity);
         } finally {
             if (settings != null) {
@@ -1421,7 +1421,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     settings = new DeleteMongoCommand(con).setColl(collectionName).setDb(getDbName())
-                    .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", limit, "collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
+                    .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", limit).addIfNotNull("collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
 
                     if (wc != null) {
                         settings.setWriteConcern(wc.asMap());
