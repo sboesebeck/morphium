@@ -51,7 +51,6 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
             up.put("u", Doc.of("$set", o));
             up.put("upsert", true);
             up.put("multi", false);
-            //up.put("collation",collationDocument);
             //up.put("arrayFilters",list of arrayfilters)
             //up.put("hint",indexInfo);
             //up.put("c",variablesDocument);
