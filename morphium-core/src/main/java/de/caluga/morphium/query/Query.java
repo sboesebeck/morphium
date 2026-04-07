@@ -1564,7 +1564,7 @@ public class Query<T> implements Cloneable {
                         Object id = getARHelper().getId(unmarshall);
                         // Cannot use store, as this would trigger an update of last changed...
                         settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
-                            Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
+                            Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false).addIfNotNull("collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
                         settings.releaseConnection();
                         settings = null;
