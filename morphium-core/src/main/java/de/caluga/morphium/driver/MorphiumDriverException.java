@@ -2,6 +2,7 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 09.11.15.
  */
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +31,7 @@ public class MorphiumDriverException extends RuntimeException {
     private Map<String, Object> query;
     private Object mongoCode;
     private Object mongoReason;
+    private List<Map<String, Object>> writeErrors;
 
     public MorphiumDriverException(String message) {
         super(message);
@@ -91,5 +93,13 @@ public class MorphiumDriverException extends RuntimeException {
     @SuppressWarnings("unused")
     public void setQuery(Map<String, Object> query) {
         this.query = query;
+    }
+
+    public List<Map<String, Object>> getWriteErrors() {
+        return writeErrors;
+    }
+
+    public void setWriteErrors(List<Map<String, Object>> writeErrors) {
+        this.writeErrors = writeErrors;
     }
 }

@@ -81,7 +81,9 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
                 msg.append(":");
                 msg.append(err.get("errmsg"));
             }
-            throw new MorphiumDriverException(msg.toString());
+            var ex = new MorphiumDriverException(msg.toString());
+            ex.setWriteErrors(writeErrors);
+            throw ex;
         }
         return writeResult;
     }
