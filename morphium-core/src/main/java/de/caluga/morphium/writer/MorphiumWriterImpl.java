@@ -349,13 +349,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     settings.releaseConnection();
                                     settings = null;
                                     con = null;
-
-                                    if (writeResult.containsKey("writeErrors")) {
-                                        int failedWrites = ((List) writeResult.get("writeErrors")).size();
-                                        int success = (int) writeResult.get("n");
-                                        //                                    con.release();
-                                        throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
-                                    }
                                 }
                             } finally {
                                 if (settings != null) {
@@ -735,12 +728,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 insert.releaseConnection();
                                 insert = null;
                                 con = null;
-
-                                if (result.containsKey("writeErrors")) {
-                                    int failedWrites = ((List) result.get("writeErrors")).size();
-                                    int success = (int) result.get("n");
-                                    throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
-                                }
                             } finally {
                                 if (insert != null) {
                                     insert.releaseConnection();
