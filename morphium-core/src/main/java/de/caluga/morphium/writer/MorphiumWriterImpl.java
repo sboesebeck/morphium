@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.json.simple.parser.JSONParser;
 
 import de.caluga.morphium.Collation;
+import de.caluga.morphium.FailedStore;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
@@ -785,6 +787,261 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             };
             submitAndBlockIfNecessary(callback, r);
         }
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <T> List<FailedStore<T>> storeList(List<T> lst, String cln, boolean continueOnError) {
+        List<FailedStore<T>> failures = new ArrayList<>();
+        if (lst.isEmpty()) {
+            return failures;
+        }
+
+        Map<Class, List<Map<String, Object>>> newElementsToInsert = new HashMap<>();
+        Map<Class, List<Map<String, Object>>> toUpdate = new HashMap<>();
+        // Track versioned entities together with their original list index
+        Map<Class, List<Object[]>> toVersionedUpdate = new HashMap<>(); // Object[] = {entity, Integer index}
+        // Track isNew status per entity for correct firePostStore calls
+        Map<Object, Boolean> isNewMap = new HashMap<>();
+        // Track failed entity identities (identity-based) for excluding from firePostStore
+        Set<Object> failedEntities = new HashSet<>();
+        // Map original list index to resolved (unwrapped) entity reference
+        Object[] resolvedEntities = new Object[lst.size()];
+
+        if (morphium.isAutoValuesEnabledForThread()) {
+            try {
+                morphium.setAutoValuesBatch(lst);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException("could not set @AutoSequence values!", e);
+            }
+        }
+
+        for (int i = 0; i < lst.size(); i++) {
+            Object o = lst.get(i);
+            Class type = morphium.getARHelper().getRealClass(o.getClass());
+
+            if (!morphium.getARHelper().isAnnotationPresentInHierarchy(type, Entity.class)) {
+                logger.error("Not an entity! Storing not possible! Even not in list!");
+                continue;
+            }
+
+            morphium.inc(StatisticKeys.WRITES);
+            o = morphium.getARHelper().getRealObject(o);
+
+            if (o == null) {
+                logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
+                continue;
+            }
+            resolvedEntities[i] = o;
+
+            boolean isn = morphium.getId(o) == null;
+            if (morphium.isAutoValuesEnabledForThread()) {
+                try {
+                    isn = morphium.setAutoValues(o);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException("could not set auto variable!", e);
+                }
+            }
+
+            if (!isn) {
+                List<String> vf = morphium.getARHelper().getFields(type, Version.class);
+                if (!vf.isEmpty()) {
+                    Object rawV = morphium.getARHelper().getValue(o, vf.get(0));
+                    long cv = rawV instanceof Number ? ((Number) rawV).longValue() : 0L;
+                    if (cv == 0L) {
+                        isn = true;
+                    }
+                }
+            }
+
+            isNewMap.put(o, isn);
+
+            if (isn) {
+                initVersionFieldForInsert(o);
+                try {
+                    setIdIfNull(o);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+                morphium.firePreStore(o, true);
+                newElementsToInsert.putIfAbsent(o.getClass(), new ArrayList<>());
+                newElementsToInsert.get(o.getClass()).add(morphium.getMapper().serialize(o));
+            } else {
+                morphium.firePreStore(o, false);
+                List<String> vFields = morphium.getARHelper().getFields(type, Version.class);
+                if (!vFields.isEmpty()) {
+                    toVersionedUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
+                    toVersionedUpdate.get(o.getClass()).add(new Object[]{o, i});
+                } else {
+                    toUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
+                    toUpdate.get(o.getClass()).add(morphium.getMapper().serialize(o));
+                }
+            }
+        }
+
+        // Process versioned updates with optimistic locking
+        for (Map.Entry<Class, List<Object[]>> es : toVersionedUpdate.entrySet()) {
+            Class c = es.getKey();
+            List<String> vFields = morphium.getARHelper().getFields(c, Version.class);
+            if (vFields.isEmpty()) {
+                continue;
+            }
+            String javaVersionField = vFields.get(0);
+            Field versionField = morphium.getARHelper().getField(c, javaVersionField);
+            if (versionField != null && versionField.getType() != long.class && versionField.getType() != Long.class) {
+                throw new IllegalArgumentException("@Version field '" + javaVersionField + "' on " + c.getName()
+                        + " must be of type long or Long, but is " + versionField.getType().getName());
+            }
+            String mongoVersionField = morphium.getARHelper().getMongoFieldName(c, javaVersionField);
+            WriteConcern wc = morphium.getWriteConcernForClass(c);
+            String coll = cln != null ? cln : morphium.getMapper().getCollectionName(c);
+            checkIndexAndCaps(c, coll, null);
+
+            for (Object[] pair : es.getValue()) {
+                Object entity = pair[0];
+                int listIndex = (int) pair[1];
+
+                Object entityId = morphium.getId(entity);
+                Object rawVersion = morphium.getARHelper().getValue(entity, javaVersionField);
+                long currentVersion = rawVersion instanceof Number ? ((Number) rawVersion).longValue() : 0L;
+
+                Map<String, Object> serialized = new LinkedHashMap<>(morphium.getMapper().serialize(entity));
+                serialized.remove("_id");
+                serialized.remove(mongoVersionField);
+
+                Map<String, Object> filter = Doc.of("$and", java.util.List.of(
+                    Doc.of("_id", entityId),
+                    Doc.of(mongoVersionField, currentVersion)));
+                Map<String, Object> update = Doc.of(
+                    "$set", serialized,
+                    "$inc", Doc.of(mongoVersionField, 1L));
+
+                MongoConnection con = null;
+                UpdateMongoCommand upd = null;
+                try {
+                    con = morphium.getDriver().getPrimaryConnection(wc);
+                    upd = new UpdateMongoCommand(con)
+                        .setDb(morphium.getConfig().connectionSettings().getDatabase())
+                        .setColl(coll);
+                    upd.addUpdate(filter, update, null, false, false, null, null, null);
+                    Map<String, Object> result = upd.execute();
+
+                    int matched = result.get("n") instanceof Number n ? n.intValue() : 0;
+                    if (matched == 0) {
+                        var ex = new VersionMismatchException(entityId, currentVersion, listIndex);
+                        if (!continueOnError) {
+                            throw ex;
+                        }
+                        failures.add(new FailedStore<>(listIndex, (T) entity, ex));
+                        failedEntities.add(entity);
+                        continue;
+                    }
+                    morphium.getARHelper().setValue(entity, currentVersion + 1L, javaVersionField);
+
+                    var cache = morphium.getCache();
+                    if (cache != null) {
+                        cache.clearCacheIfNecessary(c);
+                    }
+                } catch (Exception e) {
+                    if (!continueOnError) {
+                        if (e instanceof RuntimeException re) throw re;
+                        throw new RuntimeException(e);
+                    }
+                    failures.add(new FailedStore<>(listIndex, (T) entity, e));
+                    failedEntities.add(entity);
+                } finally {
+                    if (upd != null) {
+                        upd.releaseConnection();
+                    } else if (con != null) {
+                        morphium.getDriver().releaseConnection(con);
+                    }
+                }
+            }
+        }
+
+        // Process non-versioned updates (bulk store)
+        for (Map.Entry<Class, List<Map<String, Object>>> es : toUpdate.entrySet()) {
+            Class c = es.getKey();
+            WriteConcern wc = morphium.getWriteConcernForClass(c);
+            String coll = cln != null ? cln : morphium.getMapper().getCollectionName(c);
+            checkIndexAndCaps(c, coll, null);
+            MongoConnection con = null;
+            StoreMongoCommand settings = null;
+            List<Map<String, Object>> batch = new ArrayList<>(es.getValue());
+            try {
+                con = morphium.getDriver().getPrimaryConnection(wc);
+                while (!batch.isEmpty()) {
+                    settings = new StoreMongoCommand(con).setDb(morphium.getConfig().connectionSettings().getDatabase()).setColl(coll);
+                    if (batch.size() > morphium.getConfig().getCursorBatchSize()) {
+                        settings.setDocuments(batch.subList(0, morphium.getConfig().getCursorBatchSize()));
+                        batch = batch.subList(morphium.getConfig().getCursorBatchSize(), batch.size());
+                    } else {
+                        settings.setDocuments(batch);
+                        batch = new ArrayList<>();
+                    }
+                    if (wc != null) {
+                        settings.setWriteConcern(wc.asMap());
+                    }
+                    settings.execute();
+                }
+                var cache = morphium.getCache();
+                if (cache != null) {
+                    cache.clearCacheIfNecessary(c);
+                }
+            } finally {
+                if (settings != null) {
+                    settings.releaseConnection();
+                } else if (con != null) {
+                    morphium.getDriver().releaseConnection(con);
+                }
+            }
+        }
+
+        // Process new inserts (bulk insert)
+        for (Map.Entry<Class, List<Map<String, Object>>> es : newElementsToInsert.entrySet()) {
+            Class c = es.getKey();
+            WriteConcern wc = morphium.getWriteConcernForClass(c);
+            String coll = cln != null ? cln : morphium.getMapper().getCollectionName(c);
+            checkIndexAndCaps(c, coll, null);
+            InsertMongoCommand insert = null;
+            MongoConnection con = null;
+            try {
+                con = morphium.getDriver().getPrimaryConnection(wc);
+                insert = new InsertMongoCommand(con);
+                insert.setDb(morphium.getDatabase());
+                insert.setColl(coll);
+                insert.setDocuments(es.getValue());
+                insert.setOrdered(false);
+                if (wc != null) {
+                    insert.setWriteConcern(wc.asMap());
+                }
+                insert.execute();
+                insert.releaseConnection();
+                insert = null;
+                con = null;
+            } finally {
+                if (insert != null) {
+                    insert.releaseConnection();
+                } else if (con != null) {
+                    morphium.getDriver().releaseConnection(con);
+                }
+            }
+            var cache = morphium.getCache();
+            if (cache != null) {
+                cache.clearCacheIfNecessary(c);
+            }
+        }
+
+        // Fire postStore only for successfully stored entities, with correct isNew flag.
+        // Use the resolved references stored during classification to ensure identity consistency.
+        for (int i = 0; i < lst.size(); i++) {
+            Object resolved = resolvedEntities[i];
+            if (resolved != null && !failedEntities.contains(resolved)) {
+                Boolean isn = isNewMap.get(resolved);
+                morphium.firePostStore(resolved, isn != null && isn);
+            }
+        }
+        return failures;
     }
 
     @Override
