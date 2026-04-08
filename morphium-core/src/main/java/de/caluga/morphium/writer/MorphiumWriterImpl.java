@@ -665,6 +665,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     }
 
                                     Map<String, Object> ret = settings.execute();
+                                    // Track potential connection swap from retry logic
+                                    con = settings.getConnection();
                                 }
 
                                 var cache = morphium.getCache();
