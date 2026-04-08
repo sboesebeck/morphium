@@ -3805,7 +3805,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // Check new objects for duplicates in O(M) time instead of O(N*M)
             List<Map<String, Object>> idDuplicates = new ArrayList<>();
-            int baseIndex = objs.size() - (objs.size()); // recalculate because unique-index check may have removed items
             for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
                 Map<String, Object> o = objs.get(objIdx);
                 if (o.get("_id") != null && existingIds.contains(o.get("_id"))) {
