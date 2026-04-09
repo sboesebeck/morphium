@@ -2745,6 +2745,25 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
     }
 
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <T> List<FailedStore<T>> storeList(List<T> lst, String collection, boolean continueOnError) {
+        if (lst == null || lst.isEmpty()) {
+            return List.of();
+        }
+        // Group by writer class to handle mixed-type lists correctly
+        Map<MorphiumWriter, List<T>> byWriter = new LinkedHashMap<>();
+        for (T o : lst) {
+            MorphiumWriter w = getWriterForClass(o.getClass());
+            byWriter.computeIfAbsent(w, k -> new ArrayList<>()).add(o);
+        }
+        List<FailedStore<T>> allFailures = new ArrayList<>();
+        for (Map.Entry<MorphiumWriter, List<T>> entry : byWriter.entrySet()) {
+            allFailures.addAll(entry.getKey().storeList(entry.getValue(), collection, continueOnError));
+        }
+        return allFailures;
+    }
+
     //////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////
     //////////////////////////////

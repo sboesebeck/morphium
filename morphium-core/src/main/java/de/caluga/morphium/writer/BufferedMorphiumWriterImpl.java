@@ -1335,6 +1335,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
+    public <T> List<FailedStore<T>> storeList(List<T> lst, String collectionName, boolean continueOnError) {
+        return directWriter.storeList(lst, collectionName, continueOnError);
+    }
+
+    @Override
     public <T> Map<String, Object> explainRemove(ExplainVerbosity verbosity, T o, String Collection) {
         return directWriter.explainRemove(verbosity, o, Collection);
     }

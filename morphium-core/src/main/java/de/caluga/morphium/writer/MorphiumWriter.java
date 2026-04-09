@@ -1,5 +1,6 @@
 package de.caluga.morphium.writer;
 
+import de.caluga.morphium.FailedStore;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
@@ -40,6 +41,26 @@ public interface MorphiumWriter {
 
 
     <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback);
+
+    /**
+     * Stores a list of entities with optional continue-on-error semantics.
+     * <p>
+     * When {@code continueOnError} is {@code true}, version conflicts on individual
+     * {@link de.caluga.morphium.annotations.Version @Version}-annotated entities are
+     * collected as {@link FailedStore} entries instead of aborting the batch.
+     * Entities that succeed are committed; entities that fail are reported in the return list.
+     * Note: only optimistic-locking failures on versioned entities are collected — failures
+     * during bulk inserts or non-versioned updates propagate as exceptions.
+     * <p>
+     * When {@code continueOnError} is {@code false}, the first version conflict
+     * throws {@link de.caluga.morphium.VersionMismatchException}.
+     * <p>
+     * Unlike {@link #store(List, String, AsyncOperationCallback)}, this method runs
+     * synchronously on the caller's thread without retry or async callback support.
+     *
+     * @return empty list if all entities stored successfully, otherwise the failures
+     */
+    <T> List<FailedStore<T>> storeList(List<T> lst, String collectionName, boolean continueOnError);
 
     <T> void insert(List<T> lst, String collectionName, AsyncOperationCallback<T> callback);
     /**

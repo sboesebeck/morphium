@@ -157,9 +157,17 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     public Map<String, Object> execute() throws MorphiumDriverException {
         var writeResult = super.execute();
         if (writeResult.containsKey("writeErrors")) {
-            int failedWrites = ((List) writeResult.get("writeErrors")).size();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> writeErrors = (List<Map<String, Object>>) writeResult.get("writeErrors");
             int success = (int) writeResult.get("n");
-            throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
+            StringBuilder msg = new StringBuilder();
+            msg.append("Failed to write: ").append(writeErrors.size()).append(" - succeeded: ").append(success);
+            for (Map<String, Object> err : writeErrors) {
+                msg.append("\n----> ").append(err.get("code")).append(":").append(err.get("errmsg"));
+            }
+            var ex = new MorphiumDriverException(msg.toString());
+            ex.setWriteErrors(writeErrors);
+            throw ex;
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> value = (Map<String, Object>) writeResult.get("value");

@@ -656,6 +656,26 @@ public abstract class MorphiumBase {
     public <T> void storeList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
         saveList(lst, collection, callback);
     }
+
+    /**
+     * Stores all elements, optionally continuing on version conflicts.
+     * <p>
+     * When {@code continueOnError} is {@code true}, entities that fail due to
+     * {@link VersionMismatchException} are collected as {@link FailedStore} entries
+     * instead of aborting the batch. Successfully stored entities are committed.
+     *
+     * @return empty list if all stored successfully, otherwise the failures
+     */
+    public <T> List<FailedStore<T>> storeList(List<T> lst, boolean continueOnError) {
+        return storeList(lst, null, continueOnError);
+    }
+
+    /**
+     * Stores all elements into the given collection, optionally continuing on version conflicts.
+     *
+     * @return empty list if all stored successfully, otherwise the failures
+     */
+    public abstract <T> List<FailedStore<T>> storeList(List<T> lst, String collection, boolean continueOnError);
     /**
      * Stores a single Object. Clears the corresponding cache
      *

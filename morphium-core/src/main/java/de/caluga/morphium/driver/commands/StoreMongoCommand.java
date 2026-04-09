@@ -30,8 +30,13 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
         UpdateMongoCommand updateSettings = getUpdateMongoCommand();
-
         Map<String, Object> result = updateSettings.execute();
+        // WriteMongoCommand retry logic may swap the connection on the delegated
+        // command (e.g. on "not primary" or transient errors). Propagate the
+        // potentially new connection back so our caller releases the right one.
+        if (updateSettings.getConnection() != getConnection()) {
+            setConnection(updateSettings.getConnection());
+        }
         return result;
     }
 
@@ -51,7 +56,6 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
             up.put("u", Doc.of("$set", o));
             up.put("upsert", true);
             up.put("multi", false);
-            up.put("collation", null);
             //up.put("arrayFilters",list of arrayfilters)
             //up.put("hint",indexInfo);
             //up.put("c",variablesDocument);

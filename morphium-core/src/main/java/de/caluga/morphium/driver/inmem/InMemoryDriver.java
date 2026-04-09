@@ -1475,8 +1475,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
+        boolean ordered = cmd.getOrdered() == null || cmd.getOrdered();
         List<Map<String, Object>> writeErrors = insert(cmd.getDb(), cmd.getColl(), cmd.getDocuments(),
-            cmd.getWriteConcern());
+            cmd.getWriteConcern(), ordered);
         var m = prepareResult();
         m.put("n", cmd.getDocuments().size() - writeErrors.size());
         if (writeErrors.size() != 0) {
@@ -3723,6 +3724,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
                                             Map<String, Object> wc) throws MorphiumDriverException {
+        return insert(db, collection, objs, wc, true);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
+                                            Map<String, Object> wc, boolean ordered) throws MorphiumDriverException {
         // log.debug("insert() called: db={}, coll={}, thread={}", db, collection,
         // Thread.currentThread().getName());
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
@@ -3743,8 +3750,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 && (options.get("unique").equals("true") || options.get("unique").equals(true))) {
                             // checking fields
                             Map<String, Object> indexKey = new HashMap<>(idx);
+                            List<Map<String, Object>> duplicateDocs = new ArrayList<>();
 
-                            for (var o : objs) {
+                            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
+                                var o = objs.get(objIdx);
                                 var q = Doc.of();
 
                                 for (String k : indexKey.keySet()) {
@@ -3766,12 +3775,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                 if (existsMatchingDocument(db, collection, q)) {
                                     log.error("Cannot store - unique index!");
-                                    writeErrors.add(o);
+                                    writeErrors.add(Doc.of(
+                                        "index", objIdx,
+                                        "code", 11000,
+                                        "errmsg", "E11000 duplicate key error"
+                                    ));
+                                    duplicateDocs.add(o);
                                 }
                             }
 
-                            errors = errors + writeErrors.size();
-                            objs.removeAll(writeErrors);
+                            errors = errors + duplicateDocs.size();
+                            objs.removeAll(duplicateDocs);
                         }
                     }
                 }
@@ -3790,15 +3804,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             // Check new objects for duplicates in O(M) time instead of O(N*M)
-            for (Map<String, Object> o : objs) {
-                if (o.get("_id") != null) {
-                    if (existingIds.contains(o.get("_id"))) {
+            List<Map<String, Object>> idDuplicates = new ArrayList<>();
+            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
+                Map<String, Object> o = objs.get(objIdx);
+                if (o.get("_id") != null && existingIds.contains(o.get("_id"))) {
+                    if (ordered) {
                         throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
                     }
+                    writeErrors.add(Doc.of(
+                        "index", objIdx,
+                        "code", 11000,
+                        "errmsg", "E11000 duplicate key error collection: " + db + "." + collection + " dup key: { _id: " + o.get("_id") + " }"
+                    ));
+                    idDuplicates.add(o);
+                    continue;
                 }
-
                 o.putIfAbsent("_id", new ObjectId());
             }
+            objs.removeAll(idDuplicates);
             // collectionData already retrieved above
             if (cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(collection)) {
                 while (!collectionData.isEmpty() && cappedCollections.get(db).get(collection).containsKey("max")
