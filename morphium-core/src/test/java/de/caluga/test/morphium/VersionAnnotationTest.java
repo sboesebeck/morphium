@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -299,5 +300,118 @@ public class VersionAnnotationTest {
 
         List<VersionedStringIdEntity> all = morphium.createQueryFor(VersionedStringIdEntity.class).asList();
         assertThat(all).hasSize(2);
+    }
+
+    // -----------------------------------------------------------------------
+    // 10. Bulk update: 100 entities, all updated in one store(list) call
+    // -----------------------------------------------------------------------
+    @Test
+    public void bulkUpdate_versionedEntities_allVersionsIncremented() {
+        List<VersionedEntity> entities = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            entities.add(new VersionedEntity("entity-" + i));
+        }
+        morphium.store(entities);
+        entities.forEach(e -> assertThat(e.version).as("after insert").isEqualTo(1L));
+
+        // Modify all and bulk-update
+        entities.forEach(e -> e.name = e.name + "-updated");
+        morphium.store(entities);
+
+        // In-memory versions must all be 2
+        entities.forEach(e -> assertThat(e.version).as("in-memory version after bulk update").isEqualTo(2L));
+
+        // DB versions must all be 2
+        List<VersionedEntity> loaded = morphium.createQueryFor(VersionedEntity.class).asList();
+        assertThat(loaded).hasSize(100);
+        loaded.forEach(e -> assertThat(e.version).as("DB version after bulk update").isEqualTo(2L));
+    }
+
+    // -----------------------------------------------------------------------
+    // 11. Bulk update: one stale entity causes VersionMismatchException
+    // -----------------------------------------------------------------------
+    @Test
+    public void bulkUpdate_oneStaleEntity_throwsVersionMismatch() {
+        VersionedEntity e1 = new VersionedEntity("one");
+        VersionedEntity e2 = new VersionedEntity("two");
+        VersionedEntity e3 = new VersionedEntity("three");
+        morphium.store(Arrays.asList(e1, e2, e3));
+
+        // Advance e2 in DB independently (simulates concurrent writer)
+        VersionedEntity e2Reloaded = morphium.createQueryFor(VersionedEntity.class)
+            .f("id").eq(e2.id).get();
+        e2Reloaded.name = "two-by-other";
+        morphium.store(e2Reloaded); // e2 is now at version 2 in DB
+
+        // e2 in our list still has version=1 — stale
+        e1.name = "one-updated";
+        e2.name = "two-stale";
+        e3.name = "three-updated";
+
+        assertThatThrownBy(() -> morphium.store(Arrays.asList(e1, e2, e3)))
+            .isInstanceOf(VersionMismatchException.class);
+
+        // e1 was processed first and succeeded before the conflict on e2
+        assertThat(e1.version).isEqualTo(2L);
+        // e2 was the conflicting entity — version not incremented
+        assertThat(e2.version).isEqualTo(1L);
+        // e3 was never reached in the resolution loop
+        assertThat(e3.version).isEqualTo(1L);
+    }
+
+    // -----------------------------------------------------------------------
+    // 12. Bulk update exceeds cursorBatchSize → chunked correctly
+    // -----------------------------------------------------------------------
+    @Test
+    public void bulkUpdate_exceedsCursorBatchSize_chunkedCorrectly() {
+        int originalBatchSize = morphium.getConfig().getCursorBatchSize();
+        try {
+            // Set a small batch size to force multiple chunks
+            morphium.getConfig().setCursorBatchSize(10);
+
+            List<VersionedEntity> entities = new ArrayList<>();
+            for (int i = 0; i < 25; i++) {
+                entities.add(new VersionedEntity("chunked-" + i));
+            }
+            morphium.store(entities);
+            entities.forEach(e -> assertThat(e.version).as("after insert").isEqualTo(1L));
+
+            entities.forEach(e -> e.name = e.name + "-v2");
+            morphium.store(entities);
+
+            entities.forEach(e -> assertThat(e.version).as("in-memory version after chunked update").isEqualTo(2L));
+
+            List<VersionedEntity> loaded = morphium.createQueryFor(VersionedEntity.class).asList();
+            assertThat(loaded).hasSize(25);
+            loaded.forEach(e -> assertThat(e.version).as("DB version after chunked update").isEqualTo(2L));
+        } finally {
+            morphium.getConfig().setCursorBatchSize(originalBatchSize);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // 13. Multiple rounds of bulk updates — versions increment correctly
+    // -----------------------------------------------------------------------
+    @Test
+    public void bulkUpdate_multipleRounds_versionsIncrementCorrectly() {
+        List<VersionedEntity> entities = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            entities.add(new VersionedEntity("multi-" + i));
+        }
+        morphium.store(entities); // version = 1
+
+        for (int round = 2; round <= 4; round++) {
+            final int r = round;
+            entities.forEach(e -> e.name = "multi-round-" + r + "-" + e.name);
+            morphium.store(entities);
+            final long expectedVersion = r;
+            entities.forEach(e ->
+                assertThat(e.version).as("in-memory version after round " + r).isEqualTo(expectedVersion));
+        }
+
+        // DB must reflect version = 4
+        List<VersionedEntity> loaded = morphium.createQueryFor(VersionedEntity.class).asList();
+        assertThat(loaded).hasSize(50);
+        loaded.forEach(e -> assertThat(e.version).as("DB version after 3 update rounds").isEqualTo(4L));
     }
 }
