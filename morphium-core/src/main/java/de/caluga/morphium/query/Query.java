@@ -696,10 +696,11 @@ public class Query<T> implements Cloneable {
     public Map<String, Object> explainDistinct(String field, ExplainVerbosity verbosity) {
         MongoConnection con = null;
         DistinctMongoCommand cmd = null;
+        String mongoField = getARHelper().getMongoFieldName(type, field);
 
         try {
             con = morphium.getDriver().getPrimaryConnection(null);
-            cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(field).setQuery(Doc.of(toQueryObject()));
+            cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(mongoField).setQuery(Doc.of(toQueryObject()));
 
             if (getCollation() != null) {
                 cmd.setCollation(getCollation().toQueryObject());
@@ -722,10 +723,11 @@ public class Query<T> implements Cloneable {
     public List<?> distinct(String field) {
         MongoConnection con = null;
         DistinctMongoCommand cmd = null;
+        String mongoField = getARHelper().getMongoFieldName(type, field);
 
         try {
             con = morphium.getDriver().getPrimaryConnection(null);
-            cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(field).setQuery(Doc.of(toQueryObject()));
+            cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(mongoField).setQuery(Doc.of(toQueryObject()));
 
             if (getCollation() != null) {
                 cmd.setCollation(getCollation().toQueryObject());
