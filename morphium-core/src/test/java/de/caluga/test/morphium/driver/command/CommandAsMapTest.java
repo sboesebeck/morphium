@@ -48,7 +48,29 @@ public class CommandAsMapTest {
                     Class <? extends MongoCommand > cls = (Class <? extends MongoCommand > ) Class.forName(cn);
 
                     if (Modifier.isAbstract(cls.getModifiers())) continue;
-                    MongoCommand cmd = cls.getConstructor(MongoConnection.class).newInstance(new ConnectionMock());
+                    MongoCommand cmd;
+                    try {
+                        cmd = cls.getConstructor(MongoConnection.class).newInstance(new ConnectionMock());
+                    } catch (NoSuchMethodException e) {
+                        try {
+                            var ctor = cls.getDeclaredConstructor(MongoConnection.class);
+                            ctor.setAccessible(true);
+                            cmd = ctor.newInstance(new ConnectionMock());
+                        } catch (NoSuchMethodException e2) {
+                            try {
+                                cmd = cls.getConstructor().newInstance();
+                            } catch (NoSuchMethodException e1) {
+                                try {
+                                    var ctor = cls.getDeclaredConstructor();
+                                    ctor.setAccessible(true);
+                                    cmd = ctor.newInstance();
+                                } catch (NoSuchMethodException e3) {
+                                    log.error("No suitable constructor for " + cn);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
                     cmd.setColl("testcoll").setDb("testDB").setMetaData("test", true);
                     var m = cmd.asMap();
                     assertFalse(m.containsKey("test"));
