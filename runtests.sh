@@ -99,13 +99,13 @@ function cleanup_test_databases() {
 
 	echo -e "${BL}Info:${CL} Cleaning up ${db_from_uri}* databases..."
 	local count=0
-	while read db rst; do
+	mongosh "$cleanup_uri" --quiet --eval "show databases" 2>/dev/null | while read db rst; do
 		if [[ "$db" == ${db_from_uri}* ]]; then
 			echo -e "  Dropping db ${YL}$db${CL}"
 			mongosh "$cleanup_uri" --quiet --eval "use $db; db.dropDatabase()" >/dev/null 2>&1
 			((count++))
 		fi
-	done < <(mongosh "$cleanup_uri" --quiet --eval "show databases" 2>/dev/null)
+	done
 	if [ "$count" -gt 0 ]; then
 		echo -e "${GN}Info:${CL} Dropped $count test database(s)"
 	fi
@@ -655,7 +655,7 @@ if [ "$rerunfailed" -eq 1 ]; then
 	# Convert to ClassName#methodName format and write to classList
 	# Use process substitution to avoid subshell (which would lose the file writes)
 	: >$classList
-	while IFS= read -r failed_test; do
+	echo "$failed_tests" | while IFS= read -r failed_test; do
 		# Skip empty lines
 		[ -z "$failed_test" ] && continue
 
@@ -675,7 +675,7 @@ if [ "$rerunfailed" -eq 1 ]; then
 			method_part=$(echo "$failed_test" | sed 's/^.*\.//')
 			echo "$class_part#$method_part*" >>$classList
 		fi
-	done < <(echo "$failed_tests")
+	done
 
 	# Count unique classes and total methods
 	num_methods=$(wc -l <$classList | tr -d ' ')
@@ -685,23 +685,23 @@ if [ "$rerunfailed" -eq 1 ]; then
 	# Delete old log files for failed tests so we only see current results
 	# This prevents stale failures from appearing when tests don't run (e.g., different driver)
 	echo -e "${YL}Removing old log files for failed tests...${CL}"
-	while IFS= read -r cls; do
+	cut -d'#' -f1 <$classList | sort -u | while IFS= read -r cls; do
 		old_log="$LOGDIR/${cls}.log"
 		if [ -f "$old_log" ]; then
 			rm -f "$old_log"
 		fi
-	done < <(cut -d'#' -f1 <$classList | sort -u)
+	done
 
 	# Create file list based on unique classes
 	: >$filesList
-	while IFS= read -r cls; do
+	cut -d'#' -f1 <$classList | sort -u | while IFS= read -r cls; do
 		# Convert class name to file path
 		file_path=$(echo "$cls" | sed 's/\./\//g')
 		file_path="$TEST_SRC/${file_path}.java"
 		if [ -f "$file_path" ]; then
 			echo "$file_path" >>$filesList
 		fi
-	done < <(cut -d'#' -f1 <$classList | sort -u)
+	done
 
 	# Create disabled list (empty for failed test reruns)
 	: >$disabledList
@@ -920,6 +920,12 @@ if [ "q$testname" = "q" ]; then
 				grep -v $i $classList >files_$PID.tmp
 				mv files_$PID.tmp $classList
 			done
+		fi
+		cnt=$(wc -l <$classList | tr -d ' ')
+		if [ "$cnt" -eq 0 ]; then
+			echo -e "${GN}Info:${CL} All tests already completed."
+			get_test_stats
+			exit 0
 		fi
 	fi
 else
