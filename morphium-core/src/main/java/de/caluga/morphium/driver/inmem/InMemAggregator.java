@@ -38,6 +38,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         setResultType(resultType);
     }
 
+    private String tf(String field) {
+        if (morphium.getARHelper().getField(type, field) == null) return field;
+        return morphium.getARHelper().getMongoFieldName(type, field);
+    }
+
     @Override
     public Collation getCollation() {
         return collation;
@@ -112,7 +117,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         Map<String, Object> p = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            p.put(e.getKey(), e.getValue());
+            p.put(tf(e.getKey()), e.getValue());
         }
 
         Map<String, Object> map = UtilsMap.of("$project", p);
@@ -205,7 +210,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> unwind(String listField) {
-        Map<String, Object> o = UtilsMap.of("$unwind", listField);
+        Map<String, Object> o = UtilsMap.of("$unwind", tf(listField));
         params.add(o);
         return this;
     }
@@ -281,6 +286,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Group<T, R> group(String id) {
+        if (id != null && id.startsWith("$")) {
+            id = "$" + tf(id.substring(1));
+        }
         Group<T, R> gr = new Group<>(this, id);
         groups.add(gr);
         return gr;
@@ -631,7 +639,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         Map<String, Object> m = new HashMap<>(UtilsMap.of("from", fromCollection));
 
         if (localField != null) {
-            m.put("localField", localField);
+            m.put("localField", tf(localField));
         }
 
         if (foreignField != null) {
@@ -862,13 +870,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> unset(List<String> field) {
-        params.add(UtilsMap.of("$unset", field));
+        params.add(UtilsMap.of("$unset", field.stream().map(this::tf).collect(Collectors.toList())));
         return this;
     }
 
     @Override
     public Aggregator<T, R> unset(String... param) {
-        params.add(UtilsMap.of("$unset", Arrays.asList(param)));
+        params.add(UtilsMap.of("$unset", Arrays.stream(param).map(this::tf).collect(Collectors.toList())));
         return this;
     }
 
