@@ -7,6 +7,7 @@ import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -297,6 +299,77 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         }
 
         log.info("$function graceful fallback test completed successfully");
+    }
+
+    @NoCache
+    @Entity
+    public static class TypeAggregation {
+        @Id
+        private String type;
+        private double totals;
+        private int count;
+
+        public String getType() { return type; }
+        public double getTotals() { return totals; }
+        public int getCount() { return count; }
+
+        public String toString() {
+            return String.format("typeAgg: %s:%d/%f", type, count, totals);
+        }
+    }
+
+    @Test
+    public void projectExcludeFieldNameTranslation() throws Exception {
+        for (int i = 0; i < 9; i++) {
+            morphium.store(new UncachedObject("mod" + (i % 3), i));
+        }
+
+        Aggregator<UncachedObject, TypeAggregation> agg =
+                morphium.createAggregator(UncachedObject.class, TypeAggregation.class);
+        agg.match(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0));
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("strValue", 1);
+        map.put("counter", 1);
+        map.put("_id", 0);        // exclude — change key to "strValue" on str_value to see the bug
+        agg.project(map);
+
+        agg.group("$strValue").sum("totals", "$counter").sum("count", 1).end();
+
+        List<TypeAggregation> result = agg.aggregate();
+        assertEquals(3, result.size(), "should have 3 distinct str_value groups");
+        result.sort(Comparator.comparing(TypeAggregation::getType));
+        for (TypeAggregation ta : result) {
+            assertNotNull(ta.getType(), "group key must not be null — str_value was correctly projected");
+            assertEquals(3, ta.getCount(), "each group should contain 3 documents");
+        }
+    }
+
+    @Test
+    public void projectFieldNameTranslationSnakeCase() throws Exception {
+        for (int i = 0; i < 9; i++) {
+            morphium.store(new UncachedObject("mod" + (i % 3), i));
+        }
+
+        Aggregator<UncachedObject, TypeAggregation> agg =
+                morphium.createAggregator(UncachedObject.class, TypeAggregation.class);
+        agg.match(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0));
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("str_value", 1);
+        map.put("counter", 1);
+        map.put("_id", 0);
+        agg.project(map);
+
+        agg.group("$str_value").sum("totals", "$counter").sum("count", 1).end();
+
+        List<TypeAggregation> result = agg.aggregate();
+        assertEquals(3, result.size(), "should have 3 distinct str_value groups");
+        result.sort(Comparator.comparing(TypeAggregation::getType));
+        for (TypeAggregation ta : result) {
+            assertNotNull(ta.getType(), "group key must not be null — str_value was correctly projected");
+            assertEquals(3, ta.getCount(), "each group should contain 3 documents");
+        }
     }
 
     @Test
