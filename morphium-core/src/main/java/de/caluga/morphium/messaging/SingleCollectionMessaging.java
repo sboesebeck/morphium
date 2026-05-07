@@ -956,8 +956,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     }
                 };
                 queueOrRun(r);
-            } catch (Exception e) {
-                // swallow
+            } catch (Throwable t) {
+                // Catch Throwable (not just Exception) so that an Error like OutOfMemoryError
+                // does not silently kill the main messaging thread. A dead main thread leaves
+                // the change stream cursor running, listeners attached, and the processing
+                // queue filling up — but no one drains it, so the whole messaging instance
+                // appears alive while delivering nothing. Logging here at least makes the
+                // failure visible; the next allocation attempt may still re-throw, but the
+                // operator can see what is happening instead of staring at a silent log.
+                if (running) {
+                    log.error("Unhandled throwable in messaging main loop for '{}' — keeping thread alive",
+                            getCollectionName(), t);
+                }
             }
         }
 
