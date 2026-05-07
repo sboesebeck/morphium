@@ -77,6 +77,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private int windowSize = 100;
     private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
+    // Watchdog state for the main change stream — used to detect a stalled cursor
+    // (events stop arriving while the fallback poll keeps finding unprocessed messages)
+    // and trigger a restart without resume token to jump back to the present.
+    private volatile long lastCsEventMs = 0;
+    private volatile long lastCsRestartMs = 0;
+    private final AtomicLong csStallRestarts = new AtomicLong(0);
+    private List<Map<String, Object>> changeStreamPipeline;
+    private int changeStreamMaxWait;
     private static List<SingleCollectionMessaging> allMessagings = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     // answers for messages
@@ -604,6 +612,67 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
     }
 
+    /**
+     * Listener wrapper for the main change stream. Updates the liveness marker before
+     * delegating to {@link #handleChangeStreamEvent(ChangeStreamEvent)} so the watchdog
+     * can detect when the cursor stops delivering events.
+     */
+    private boolean onMainCsEvent(ChangeStreamEvent evt) {
+        lastCsEventMs = System.currentTimeMillis();
+        return handleChangeStreamEvent(evt);
+    }
+
+    /**
+     * Restart the main change stream if events have stopped arriving while the
+     * fallback poll is still finding unprocessed messages — the classic "cursor
+     * fell behind" pattern. The fresh monitor starts without a resume token so it
+     * jumps straight to the present; any backlog is picked up by the polling path,
+     * which is idempotent w.r.t. already-processed messages.
+     *
+     * Only call from the fallback poll thread, never from a CS listener.
+     */
+    private void restartMainCsIfStalled(long stallThresholdMs) {
+        if (!running || !useChangeStream) return;
+        ChangeStreamMonitor old = changeStreamMonitor;
+        if (old == null) return;
+
+        long now = System.currentTimeMillis();
+        long silenceMs = now - lastCsEventMs;
+        if (silenceMs < stallThresholdMs) return;
+        // Cooldown: don't restart again until the new stream had a fair chance
+        // to either deliver an event or prove it is also stuck.
+        if (now - lastCsRestartMs < stallThresholdMs) return;
+
+        log.warn("Main change stream for '{}' silent for {}ms while polling found backlog — restarting (restart #{})",
+                 getCollectionName(), silenceMs, csStallRestarts.incrementAndGet());
+
+        try {
+            old.terminate();
+        } catch (Exception e) {
+            log.warn("Error terminating stalled change stream for '{}': {}", getCollectionName(), e.getMessage());
+        }
+
+        try {
+            ChangeStreamMonitor fresh = new ChangeStreamMonitor(
+                    morphium, getCollectionName(), false, changeStreamMaxWait, changeStreamPipeline);
+            fresh.addListener(this::onMainCsEvent);
+            changeStreamMonitor = fresh;
+            fresh.start();
+            // Reset markers — give the fresh stream the full threshold before re-evaluating.
+            lastCsEventMs = System.currentTimeMillis();
+            lastCsRestartMs = lastCsEventMs;
+        } catch (Exception e) {
+            log.error("Failed to restart change stream for '{}'", getCollectionName(), e);
+        }
+    }
+
+    /**
+     * @return number of times the main change stream watchdog has triggered a restart since startup
+     */
+    public long getCsStallRestarts() {
+        return csStallRestarts.get();
+    }
+
     private void initChangeStreams() {
         // pipeline for reducing incoming traffic
         List<Map<String, Object>> pipeline = new ArrayList<>();
@@ -646,7 +715,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         pipeline.add(UtilsMap.of("$match", relevanceMatch));
         // Use longer maxWait for change streams to avoid constant network polling
         // Change streams are designed to block server-side; short timeouts waste CPU/network
-        int changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
+        changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
+        changeStreamPipeline = pipeline;
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, changeStreamMaxWait,
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
         lockMonitor.addListener(evt -> {
@@ -658,7 +728,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return running;
         });
         changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, changeStreamMaxWait, pipeline);
-        changeStreamMonitor.addListener(evt -> handleChangeStreamEvent(evt));
+        changeStreamMonitor.addListener(this::onMainCsEvent);
+        // Initialize liveness markers so the watchdog doesn't fire immediately at startup.
+        lastCsEventMs = System.currentTimeMillis();
+        lastCsRestartMs = lastCsEventMs;
 
         // Start both monitors in parallel to speed up initialization
         Thread t1 = Thread.ofPlatform().start(() -> changeStreamMonitor.start());
@@ -725,7 +798,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
                         sk.set(sk.get() + requestPoll.get());
                         requestPoll.set(0);
-                        findMessages();
+                        boolean foundBacklog = findMessages();
+                        // Watchdog: if the poll picks up unprocessed messages but the change stream
+                        // has been silent for too long, the cursor has fallen behind — restart it.
+                        // Threshold = 2 × FALLBACK_POLL_INTERVAL × pause covers two full poll cycles
+                        // before declaring a stall, which avoids false positives from slow networks.
+                        if (foundBacklog && useChangeStream) {
+                            restartMainCsIfStalled(2L * FALLBACK_POLL_INTERVAL * pause);
+                        }
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
                     }
@@ -1113,20 +1193,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         requestPoll.incrementAndGet();
     }
 
-    private void findMessages() {
+    /**
+     * @return true if at least one unprocessed message was found by the poll. The caller uses this
+     * as a signal that there is real backlog (used by the change stream watchdog).
+     */
+    private boolean findMessages() {
         if (!running) {
-            return;
+            return false;
         }
 
         // log.debug("getting messages...");
         List<ProcessingQueueElement> messages = getMessagesForProcessing();
 
         if (messages == null) {
-            return;
+            return false;
         }
 
         if (messages.size() == 0) {
-            return;
+            return false;
         }
 
         for (ProcessingQueueElement el : messages) {
@@ -1139,6 +1223,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
             }
         }
+        return true;
     }
 
     @SuppressWarnings("CommentedOutCode")
