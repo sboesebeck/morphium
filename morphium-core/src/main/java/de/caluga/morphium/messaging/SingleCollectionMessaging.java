@@ -85,6 +85,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private final AtomicLong csStallRestarts = new AtomicLong(0);
     private List<Map<String, Object>> changeStreamPipeline;
     private int changeStreamMaxWait;
+    // Throttles the main-thread-death log so we don't spam every poll cycle once detected.
+    private volatile long lastMainThreadDeathLogMs = 0;
     private static List<SingleCollectionMessaging> allMessagings = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     // answers for messages
@@ -673,6 +675,30 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         return csStallRestarts.get();
     }
 
+    /**
+     * Detect the "main thread died but instance still appears alive" failure mode observed
+     * in production: SingleCollectionMessaging is itself a Thread, and run() drains the
+     * processing queue. If an Error escapes (pre-fix this was possible because the catch
+     * was on Exception only) the thread terminates while the change stream cursor and
+     * worker pools keep running — listeners get nothing, log goes silent.
+     *
+     * We can't safely re-start a Thread instance once it has terminated, so the best we
+     * can do is fail loud: log at ERROR (throttled to every 30s) so the operator sees it
+     * and can restart the application. {@link #isAlive()} reflects the messaging thread
+     * itself; this method is invoked from the polling thread, so the check is meaningful.
+     */
+    private void checkMainThreadAlive() {
+        if (!running) return;
+        if (isAlive()) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastMainThreadDeathLogMs < 30_000) return;
+        lastMainThreadDeathLogMs = now;
+        log.error("FATAL: main messaging thread for '{}' is no longer alive but running=true. " +
+                "Listeners will receive nothing until the application is restarted.",
+                getCollectionName());
+    }
+
     private void initChangeStreams() {
         // pipeline for reducing incoming traffic
         List<Map<String, Object>> pipeline = new ArrayList<>();
@@ -779,6 +805,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
+                    // Liveness-check first — see checkMainThreadAlive() for the failure mode.
+                    checkMainThreadAlive();
                     // Cleanup old message tracking entries to prevent unbounded memory growth
                     long cleanupTime = System.currentTimeMillis();
                     locallyProcessedMessageIds.entrySet().removeIf(entry ->
