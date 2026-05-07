@@ -77,6 +77,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private int windowSize = 100;
     private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
+    // Watchdog state for the main change stream — used to detect a stalled cursor
+    // (events stop arriving while the fallback poll keeps finding unprocessed messages)
+    // and trigger a restart without resume token to jump back to the present.
+    private volatile long lastCsEventMs = 0;
+    private volatile long lastCsRestartMs = 0;
+    private final AtomicLong csStallRestarts = new AtomicLong(0);
+    private List<Map<String, Object>> changeStreamPipeline;
+    private int changeStreamMaxWait;
+    // Throttles the main-thread-death log so we don't spam every poll cycle once detected.
+    private volatile long lastMainThreadDeathLogMs = 0;
     private static List<SingleCollectionMessaging> allMessagings = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     // answers for messages
@@ -604,6 +614,91 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
     }
 
+    /**
+     * Listener wrapper for the main change stream. Updates the liveness marker before
+     * delegating to {@link #handleChangeStreamEvent(ChangeStreamEvent)} so the watchdog
+     * can detect when the cursor stops delivering events.
+     */
+    private boolean onMainCsEvent(ChangeStreamEvent evt) {
+        lastCsEventMs = System.currentTimeMillis();
+        return handleChangeStreamEvent(evt);
+    }
+
+    /**
+     * Restart the main change stream if events have stopped arriving while the
+     * fallback poll is still finding unprocessed messages — the classic "cursor
+     * fell behind" pattern. The fresh monitor starts without a resume token so it
+     * jumps straight to the present; any backlog is picked up by the polling path,
+     * which is idempotent w.r.t. already-processed messages.
+     *
+     * Only call from the fallback poll thread, never from a CS listener.
+     */
+    private void restartMainCsIfStalled(long stallThresholdMs) {
+        if (!running || !useChangeStream) return;
+        ChangeStreamMonitor old = changeStreamMonitor;
+        if (old == null) return;
+
+        long now = System.currentTimeMillis();
+        long silenceMs = now - lastCsEventMs;
+        if (silenceMs < stallThresholdMs) return;
+        // Cooldown: don't restart again until the new stream had a fair chance
+        // to either deliver an event or prove it is also stuck.
+        if (now - lastCsRestartMs < stallThresholdMs) return;
+
+        log.warn("Main change stream for '{}' silent for {}ms while polling found backlog — restarting (restart #{})",
+                 getCollectionName(), silenceMs, csStallRestarts.incrementAndGet());
+
+        try {
+            old.terminate();
+        } catch (Exception e) {
+            log.warn("Error terminating stalled change stream for '{}': {}", getCollectionName(), e.getMessage());
+        }
+
+        try {
+            ChangeStreamMonitor fresh = new ChangeStreamMonitor(
+                    morphium, getCollectionName(), false, changeStreamMaxWait, changeStreamPipeline);
+            fresh.addListener(this::onMainCsEvent);
+            changeStreamMonitor = fresh;
+            fresh.start();
+            // Reset markers — give the fresh stream the full threshold before re-evaluating.
+            lastCsEventMs = System.currentTimeMillis();
+            lastCsRestartMs = lastCsEventMs;
+        } catch (Exception e) {
+            log.error("Failed to restart change stream for '{}'", getCollectionName(), e);
+        }
+    }
+
+    /**
+     * @return number of times the main change stream watchdog has triggered a restart since startup
+     */
+    public long getCsStallRestarts() {
+        return csStallRestarts.get();
+    }
+
+    /**
+     * Detect the "main thread died but instance still appears alive" failure mode observed
+     * in production: SingleCollectionMessaging is itself a Thread, and run() drains the
+     * processing queue. If an Error escapes (pre-fix this was possible because the catch
+     * was on Exception only) the thread terminates while the change stream cursor and
+     * worker pools keep running — listeners get nothing, log goes silent.
+     *
+     * We can't safely re-start a Thread instance once it has terminated, so the best we
+     * can do is fail loud: log at ERROR (throttled to every 30s) so the operator sees it
+     * and can restart the application. {@link #isAlive()} reflects the messaging thread
+     * itself; this method is invoked from the polling thread, so the check is meaningful.
+     */
+    private void checkMainThreadAlive() {
+        if (!running) return;
+        if (isAlive()) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastMainThreadDeathLogMs < 30_000) return;
+        lastMainThreadDeathLogMs = now;
+        log.error("FATAL: main messaging thread for '{}' is no longer alive but running=true. " +
+                "Listeners will receive nothing until the application is restarted.",
+                getCollectionName());
+    }
+
     private void initChangeStreams() {
         // pipeline for reducing incoming traffic
         List<Map<String, Object>> pipeline = new ArrayList<>();
@@ -614,9 +709,40 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         in.put("$in", Arrays.asList("insert", "lock_released"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
+
+        // Server-side relevance filter for insert events.
+        //
+        // Without this, every consumer's change stream cursor receives every insert into
+        // the messaging collection — including messages addressed to other consumers and
+        // the full payloads of large answers from other producers. Under high traffic
+        // (e.g. document-export bursts) this causes the cursor to fall behind, producing
+        // intermittent CS delivery delays where messages are only picked up via the
+        // fallback poll (~FALLBACK_POLL_INTERVAL × pause latency).
+        //
+        // This filter restricts inserts to messages that are actually for this instance:
+        //   - sender != my id        → don't echo my own inserts
+        //   - recipients null/me     → broadcast or addressed to me
+        // lock_released events are passed through unchanged (no fullDocument).
+        // Use translated Mongo field names so the pipeline survives camelCase mapping changes.
+        String senderField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.sender.name());
+        String recipientsField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.recipients.name());
+        Map<String, Object> insertRelevant = new LinkedHashMap<>();
+        insertRelevant.put("operationType", "insert");
+        insertRelevant.put(senderField, UtilsMap.of("$ne", id));
+        insertRelevant.put("$or", Arrays.asList(
+            UtilsMap.of(recipientsField, null),
+            UtilsMap.of(recipientsField, id)
+        ));
+        Map<String, Object> relevanceMatch = new LinkedHashMap<>();
+        relevanceMatch.put("$or", Arrays.asList(
+            UtilsMap.of("operationType", "lock_released"),
+            insertRelevant
+        ));
+        pipeline.add(UtilsMap.of("$match", relevanceMatch));
         // Use longer maxWait for change streams to avoid constant network polling
         // Change streams are designed to block server-side; short timeouts waste CPU/network
-        int changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
+        changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
+        changeStreamPipeline = pipeline;
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, changeStreamMaxWait,
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
         lockMonitor.addListener(evt -> {
@@ -628,7 +754,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return running;
         });
         changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, changeStreamMaxWait, pipeline);
-        changeStreamMonitor.addListener(evt -> handleChangeStreamEvent(evt));
+        changeStreamMonitor.addListener(this::onMainCsEvent);
+        // Initialize liveness markers so the watchdog doesn't fire immediately at startup.
+        lastCsEventMs = System.currentTimeMillis();
+        lastCsRestartMs = lastCsEventMs;
 
         // Start both monitors in parallel to speed up initialization
         Thread t1 = Thread.ofPlatform().start(() -> changeStreamMonitor.start());
@@ -676,6 +805,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
+                    // Liveness-check first — see checkMainThreadAlive() for the failure mode.
+                    checkMainThreadAlive();
                     // Cleanup old message tracking entries to prevent unbounded memory growth
                     long cleanupTime = System.currentTimeMillis();
                     locallyProcessedMessageIds.entrySet().removeIf(entry ->
@@ -695,7 +826,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
                         sk.set(sk.get() + requestPoll.get());
                         requestPoll.set(0);
-                        findMessages();
+                        boolean foundBacklog = findMessages();
+                        // Watchdog: if the poll picks up unprocessed messages but the change stream
+                        // has been silent for too long, the cursor has fallen behind — restart it.
+                        // Threshold = 2 × FALLBACK_POLL_INTERVAL × pause covers two full poll cycles
+                        // before declaring a stall, which avoids false positives from slow networks.
+                        if (foundBacklog && useChangeStream) {
+                            restartMainCsIfStalled(2L * FALLBACK_POLL_INTERVAL * pause);
+                        }
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
                     }
@@ -846,8 +984,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     }
                 };
                 queueOrRun(r);
-            } catch (Exception e) {
-                // swallow
+            } catch (Throwable t) {
+                // Catch Throwable (not just Exception) so that an Error like OutOfMemoryError
+                // does not silently kill the main messaging thread. A dead main thread leaves
+                // the change stream cursor running, listeners attached, and the processing
+                // queue filling up — but no one drains it, so the whole messaging instance
+                // appears alive while delivering nothing. Logging here at least makes the
+                // failure visible; the next allocation attempt may still re-throw, but the
+                // operator can see what is happening instead of staring at a silent log.
+                if (running) {
+                    log.error("Unhandled throwable in messaging main loop for '{}' — keeping thread alive",
+                            getCollectionName(), t);
+                }
             }
         }
 
@@ -1083,20 +1231,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         requestPoll.incrementAndGet();
     }
 
-    private void findMessages() {
+    /**
+     * @return true if at least one unprocessed message was found by the poll. The caller uses this
+     * as a signal that there is real backlog (used by the change stream watchdog).
+     */
+    private boolean findMessages() {
         if (!running) {
-            return;
+            return false;
         }
 
         // log.debug("getting messages...");
         List<ProcessingQueueElement> messages = getMessagesForProcessing();
 
         if (messages == null) {
-            return;
+            return false;
         }
 
         if (messages.size() == 0) {
-            return;
+            return false;
         }
 
         for (ProcessingQueueElement el : messages) {
@@ -1109,6 +1261,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
             }
         }
+        return true;
     }
 
     @SuppressWarnings("CommentedOutCode")
