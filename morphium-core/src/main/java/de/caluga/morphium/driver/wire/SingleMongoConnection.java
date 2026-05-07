@@ -618,6 +618,16 @@ public class SingleMongoConnection implements MongoConnection {
                 throw ex;
             }
 
+            // BSON document size limit: 10334 (legacy) or 17280 (newer storage path) — both mean
+            // the single document exceeded MongoDB's hard 16 MB BSON limit. Surface as a
+            // dedicated subtype so callers can catch it without parsing error strings.
+            if (code == 10334 || code == 17280
+                    || (errmsg != null && errmsg.contains("BSONObj size"))) {
+                var ex = new MorphiumDocumentTooLargeException(formattedMsg);
+                ex.setMongoCode(codeObj);
+                throw ex;
+            }
+
             var ex = new MorphiumDriverException(formattedMsg);
             ex.setMongoCode(codeObj);
             throw ex;
