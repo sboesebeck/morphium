@@ -614,6 +614,36 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         in.put("$in", Arrays.asList("insert", "lock_released"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
+
+        // Server-side relevance filter for insert events.
+        //
+        // Without this, every consumer's change stream cursor receives every insert into
+        // the messaging collection — including messages addressed to other consumers and
+        // the full payloads of large answers from other producers. Under high traffic
+        // (e.g. document-export bursts) this causes the cursor to fall behind, producing
+        // intermittent CS delivery delays where messages are only picked up via the
+        // fallback poll (~FALLBACK_POLL_INTERVAL × pause latency).
+        //
+        // This filter restricts inserts to messages that are actually for this instance:
+        //   - sender != my id        → don't echo my own inserts
+        //   - recipients null/me     → broadcast or addressed to me
+        // lock_released events are passed through unchanged (no fullDocument).
+        // Use translated Mongo field names so the pipeline survives camelCase mapping changes.
+        String senderField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.sender.name());
+        String recipientsField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.recipients.name());
+        Map<String, Object> insertRelevant = new LinkedHashMap<>();
+        insertRelevant.put("operationType", "insert");
+        insertRelevant.put(senderField, UtilsMap.of("$ne", id));
+        insertRelevant.put("$or", Arrays.asList(
+            UtilsMap.of(recipientsField, null),
+            UtilsMap.of(recipientsField, id)
+        ));
+        Map<String, Object> relevanceMatch = new LinkedHashMap<>();
+        relevanceMatch.put("$or", Arrays.asList(
+            UtilsMap.of("operationType", "lock_released"),
+            insertRelevant
+        ));
+        pipeline.add(UtilsMap.of("$match", relevanceMatch));
         // Use longer maxWait for change streams to avoid constant network polling
         // Change streams are designed to block server-side; short timeouts waste CPU/network
         int changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
