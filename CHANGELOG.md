@@ -5,7 +5,46 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.2.2] - Unreleased
+## [6.2.3] - 2026-04-20
+
+### Added
+
+#### `defaultQueryTimeoutMS` configuration (#182)
+A new `defaultQueryTimeoutMS` setting decouples the query/operation timeout from the connection pool wait time. Previously both reused `maxWaitTime`, making it impossible to wait long for a connection while still timing out individual queries quickly. Applied as fallback to both `Query` execution and aggregation commands.
+
+#### `storeList(..., continueOnError)` for partial-failure batch stores (#190)
+New overload `storeList(List<T>, String collection, boolean continueOnError)` continues processing remaining entities when individual stores fail, mirroring MongoDB's `ordered: false` insert semantics. Successful entities are persisted; failures are reported via the returned result. As part of this work, entity classification logic was refactored into a shared helper using Java records instead of `Object[]`.
+
+#### Batched versioned-entity updates in `store(List)` (#185)
+Versioned-entity updates within a `store(List)` are now batched per connection instead of executing one round-trip per entity, reducing pool overhead noticeably for large lists.
+
+### Fixed
+
+#### Connection swap in `StoreMongoCommand` not propagated to caller (#191)
+When `StoreMongoCommand` swapped to a fresh connection (e.g. after a network error), the new connection reference was not returned to the caller. The caller continued using the stale reference, leading to inconsistent connection state. The swap is now propagated back correctly.
+
+#### Transient `WriteConflict` (error 112) not retried (#184)
+Single-document writes hitting a transient `WriteConflict` outside a transaction were surfaced to the caller instead of being retried. `WriteMongoCommand` now retries on error 112 — except inside an explicit transaction, where the caller must own the retry decision.
+
+#### `null` collation sent in write commands (CosmosDB compatibility) (#186)
+Write commands serialized an explicit `collation: null` field when no collation was set. CosmosDB rejects this with a parse error. Null collations are now omitted from the command document.
+
+#### Insert/upsert `writeErrors` not surfaced as structured errors (#187, #188)
+- `InsertMongoCommand` and `WriteMongoCommand` failures now attach a structured `writeErrors` list to the thrown `MorphiumDriverException`, matching MongoDB's response format.
+- `InMemoryDriver.insert()` now produces proper `writeError` documents (with `index`, `code`, `errmsg`) for duplicate-key failures.
+- `FindAndModifyMongoCommand` now throws `MorphiumDriverException` with structured `writeErrors` on failure instead of returning a partial result.
+- Dead `writeErrors` checks following `InsertMongoCommand.execute()` were removed (the command now throws instead of returning errors).
+
+#### `InMemoryDriver` insert did not honor `ordered: false` (#189)
+When `ordered=false` was requested, `InMemoryDriver.insert()` still aborted at the first failure like the ordered case. It now continues inserting remaining documents and returns all `writeErrors` together, matching MongoDB semantics.
+
+#### Missing `return` in `save(T, String, AsyncOperationCallback)` (#183)
+A missing `return` after the `saveList()` call caused execution to fall through and double-process the entity.
+
+#### PoppyDB startup checks and `status` command
+Stabilized PoppyDB startup checks and added the missing `status` command implementation.
+
+## [6.2.2] - 2026-03-31
 
 ### Fixed
 
