@@ -5,6 +5,33 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.4] - 2026-05-08
+
+### Added
+
+#### `MorphiumDocumentTooLargeException` for BSON size limits (#199)
+Introduced a dedicated `MorphiumDocumentTooLargeException` that is thrown when a document exceeds the 16MB BSON limit. This replaces generic `MorphiumDriverException` for these cases, allowing callers to programmatically handle oversized documents.
+
+#### Messaging: Server-side recipient/sender filtering (#200)
+`SingleCollectionMessaging` now uses a server-side `$match` stage in its change stream pipeline. This significantly reduces wire traffic and client-side decoding overhead by filtering out messages not intended for the current node directly on the MongoDB server.
+
+#### Messaging: Passive liveness watchdog and cursor recovery (#201)
+Added a watchdog that monitors the health of the messaging change stream. It can detect when a cursor has fallen behind or stalled and automatically restarts it to ensure timely message delivery.
+
+#### Aggregator: Field name translation support (#198)
+The `Aggregator` pipeline now supports field name translation, ensuring that Java camelCase field names are correctly mapped to their MongoDB snake_case counterparts during aggregation.
+
+### Fixed
+
+#### Messaging: Robustness against Errors in main loop (#202)
+The messaging main loop now catches `Throwable` instead of just `Exception`. This prevents the messaging thread from dying silently due to `Error`s (like `OutOfMemoryError`), keeping the system more resilient.
+
+#### Field translation in `Query.distinct()` (#197)
+Fixed a bug where `Query.distinct()` and `explainDistinct()` did not translate Java field names, leading to incorrect results when using camelCase names.
+
+#### Messaging: Thread liveness check
+Added a FATAL log message when the messaging main thread terminates unexpectedly, improving visibility into component failures.
+
 ## [6.2.3] - 2026-04-20
 
 ### Added
