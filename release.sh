@@ -5,15 +5,20 @@ set -eo pipefail
 # Morphium & PoppyDB Release Script (Multi-Module)
 # =============================================================================
 # This script handles the complete release process for the multi-module project:
-# 1. Validates prerequisites (branch, credentials, GPG)
+# 1. Validates prerequisites (branch, credentials, GPG, Java)
 # 2. Runs tests (optional)
-# 3. Updates version and creates release tag via maven-release-plugin
-# 4. Builds release artifacts for all modules
-# 5. Creates, signs & uploads 3 bundles to Maven Central:
-#    - morphium-parent (POM only)
-#    - morphium (jar, sources, javadoc)
-#    - poppydb (jar, sources, javadoc, cli fat-jar)
-# 6. Merges to master and pushes tags
+# 3. Aligns POM versions if necessary
+# 4. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
+# 5. Builds release artifacts for all modules
+# 6. Creates combined bundle (parent + morphium + poppydb)
+# 7. Signs & generates checksums for all artifacts
+# 8. Uploads bundle to Sonatype Central Portal
+# 9. Merges tag to master and pushes changes
+# 10. Deploys documentation to gh-pages (optional)
+# 11. Finalizes state and provides summary
+#
+# Note: Can skip to Step 8 (Upload) using --skip-to-upload if previous run failed, this can happen when
+# the Sonatype credentials are not correct
 #
 # Usage:
 #   ./release.sh [OPTIONS]
@@ -26,6 +31,7 @@ set -eo pipefail
 #   --dry-run          Build & bundle everything but don't upload or tag
 #   --auto-publish     Automatically publish to Maven Central after validation
 #   --deploy-docs      Deploy documentation to gh-pages after release
+#   --skip-to-upload   Skip to Step 8 (Upload) if previous run failed
 #   --rollback         Roll back the last release (renames tag, resets branches)
 #   --reset            Emergency reset: clean up release leftovers, align all
 #                      module versions to develop, remove dangling tags
@@ -34,6 +40,7 @@ set -eo pipefail
 # Prerequisites:
 #   - SONATYPE_USERNAME and SONATYPE_PASSWORD environment variables
 #   - GPG key configured for signing
+#   - Java 21+
 #   - On develop branch with clean working directory
 # =============================================================================
 
@@ -50,6 +57,7 @@ RUN_TESTS=false
 DRY_RUN=false
 AUTO_PUBLISH=false
 DEPLOY_DOCS=false
+SKIP_TO_UPLOAD=false
 ROLLBACK=false
 RESET=false
 
@@ -84,6 +92,10 @@ while [[ $# -gt 0 ]]; do
     DEPLOY_DOCS=true
     shift
     ;;
+  --skip-to-upload)
+    SKIP_TO_UPLOAD=true
+    shift
+    ;;
   --rollback)
     ROLLBACK=true
     shift
@@ -93,7 +105,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --help)
-    sed -n '4,32p' "$0" | sed 's/^# //' | sed 's/^#//'
+    sed -n '4,44p' "$0" | sed 's/^# //' | sed 's/^#//'
     exit 0
     ;;
   *)
@@ -465,7 +477,47 @@ fi
 # Step 1: Validate prerequisites
 # -----------------------------------------------------------------------------
 
-log_step "Validating prerequisites"
+if [ "$SKIP_TO_UPLOAD" = true ]; then
+  log_step "Skipping to Upload (Step 8)"
+
+  if [ -f release.properties ]; then
+    log_info "Using release.properties for metadata"
+    # Extract version and tag from release.properties
+    version=$(grep "project.rel.de.caluga\\\\:morphium-parent" release.properties | cut -f2 -d=)
+    tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
+  else
+    log_warn "release.properties not found! Attempting to infer version from bundle..."
+    # Fallback: look for bundle in target
+    bundle_file=$(ls target/bundle-*.jar 2>/dev/null | head -n1 || echo "")
+    if [ -n "$bundle_file" ]; then
+      version=$(echo "$bundle_file" | sed 's/target\/bundle-\(.*\)\.jar/\1/')
+      tag="v${version}"
+      log_info "Inferred version $version and tag $tag from $bundle_file"
+    else
+      log_error "Cannot skip to upload: No release.properties and no bundle found in target/"
+      exit 1
+    fi
+  fi
+
+  if [ -z "$version" ] || [ -z "$tag" ]; then
+    log_error "Could not extract version or tag"
+    exit 1
+  fi
+
+  bundle_file="target/bundle-${version}.jar"
+
+  if [ ! -f "$bundle_file" ]; then
+    log_error "Bundle file $bundle_file not found! Please run a full release or dry-run first."
+    exit 1
+  fi
+
+  log_info "Retrieved version: $version"
+  log_info "Retrieved tag: $tag"
+  log_info "Using bundle: $bundle_file"
+
+  # Skip to Step 8
+else
+  log_step "Validating prerequisites"
 
 # Check branch
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
@@ -582,24 +634,27 @@ for module_dir in morphium-core poppydb; do
   fi
 done
 log_success "Multi-module structure: morphium-parent, morphium-core (morphium), poppydb"
+fi
 
 # -----------------------------------------------------------------------------
 # Step 2: Run tests (optional)
 # -----------------------------------------------------------------------------
 
-if [ "$RUN_TESTS" = true ]; then
-  log_step "Running tests (--run-tests)"
+if [ "$SKIP_TO_UPLOAD" != true ]; then
+  if [ "$RUN_TESTS" = true ]; then
+    log_step "Running tests (--run-tests)"
 
-  if ! mvn clean test -q; then
-    log_error "Tests failed!"
-    if ! confirm "Continue with release anyway?"; then
-      exit 1
+    if ! mvn clean test -q; then
+      log_error "Tests failed!"
+      if ! confirm "Continue with release anyway?"; then
+        exit 1
+      fi
+    else
+      log_success "All tests passed"
     fi
   else
-    log_success "All tests passed"
+    log_step "Skipping tests (use --run-tests to enable)"
   fi
-else
-  log_step "Skipping tests (use --run-tests to enable)"
 fi
 
 # -----------------------------------------------------------------------------
@@ -676,160 +731,168 @@ fi
 # Step 4: Confirm release
 # -----------------------------------------------------------------------------
 
-log_step "Release confirmation"
-echo ""
-echo "About to release:"
-echo "  Last release: $last_tag"
-echo "  Release version: $release_version (--${BUMP_TYPE})"
-echo "  Next development: $next_snapshot"
-echo "  Modules: morphium-parent, morphium, poppydb"
-echo "  Branch: $branch"
-echo "  Auto-publish: $AUTO_PUBLISH"
-echo ""
+if [ "$SKIP_TO_UPLOAD" != true ]; then
+  log_step "Release confirmation"
+  echo ""
+  echo "About to release:"
+  echo "  Last release: $last_tag"
+  echo "  Release version: $release_version (--${BUMP_TYPE})"
+  echo "  Next development: $next_snapshot"
+  echo "  Modules: morphium-parent, morphium, poppydb"
+  echo "  Branch: $branch"
+  echo "  Auto-publish: $AUTO_PUBLISH"
+  echo ""
 
-if ! confirm "Proceed with release?" "n"; then
-  echo "Release cancelled"
-  exit 0
+  if ! confirm "Proceed with release?" "n"; then
+    echo "Release cancelled"
+    exit 0
+  fi
 fi
 
 # -----------------------------------------------------------------------------
 # Step 5: Maven release:prepare (tag + version bump)
 # -----------------------------------------------------------------------------
 
-log_step "Preparing release with Maven"
+if [ "$SKIP_TO_UPLOAD" != true ]; then
+  log_step "Preparing release with Maven"
 
-# Clean up rolled-back tag from previous attempt if present
-rolled_back_tag="v${release_version}-rolled-back"
-if git tag -l "$rolled_back_tag" | grep -q .; then
-  log_info "Cleaning up rolled-back tag: $rolled_back_tag"
-  git tag -d "$rolled_back_tag" 2>/dev/null || true
-  git push --delete origin "$rolled_back_tag" 2>/dev/null || true
-  log_success "Removed $rolled_back_tag"
+  # Clean up rolled-back tag from previous attempt if present
+  rolled_back_tag="v${release_version}-rolled-back"
+  if git tag -l "$rolled_back_tag" | grep -q .; then
+    log_info "Cleaning up rolled-back tag: $rolled_back_tag"
+    git tag -d "$rolled_back_tag" 2>/dev/null || true
+    git push --delete origin "$rolled_back_tag" 2>/dev/null || true
+    log_success "Removed $rolled_back_tag"
+  fi
+
+  # Create log directory
+  mkdir -p logs
+  RELEASE_LOG="logs/release-${release_version}-$(date +%Y%m%d-%H%M%S).log"
+
+  log_info "Release log: $RELEASE_LOG"
+
+  # Clean and compile first
+  mvn clean compile -q || {
+    log_error "Compile failed"
+    exit 1
+  }
+
+  # Run release:prepare — creates tag, bumps to next SNAPSHOT, pushes both commits
+  log_info "Running mvn release:prepare..."
+  log_info "  Release: $release_version → Next: $next_snapshot"
+  mvn release:clean release:prepare \
+    -DreleaseVersion="$release_version" \
+    -DdevelopmentVersion="$next_snapshot" \
+    -Dtag="v${release_version}" \
+    2>&1 | tee -a "$RELEASE_LOG"
+
+  # Extract version and tag from release.properties
+  if [ ! -f release.properties ]; then
+    log_error "release.properties not found after release:prepare"
+    exit 1
+  fi
+
+  # Multi-module: parent artifactId is morphium-parent
+  version=$(grep "project.rel.de.caluga\\\\:morphium-parent" release.properties | cut -f2 -d= || echo "$release_version")
+  tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
+
+  log_success "Release prepared: $version (tag: $tag)"
 fi
-
-# Create log directory
-mkdir -p logs
-RELEASE_LOG="logs/release-${release_version}-$(date +%Y%m%d-%H%M%S).log"
-
-log_info "Release log: $RELEASE_LOG"
-
-# Clean and compile first
-mvn clean compile -q || {
-  log_error "Compile failed"
-  exit 1
-}
-
-# Run release:prepare — creates tag, bumps to next SNAPSHOT, pushes both commits
-log_info "Running mvn release:prepare..."
-log_info "  Release: $release_version → Next: $next_snapshot"
-mvn release:clean release:prepare \
-  -DreleaseVersion="$release_version" \
-  -DdevelopmentVersion="$next_snapshot" \
-  -Dtag="v${release_version}" \
-  2>&1 | tee -a "$RELEASE_LOG"
-
-# Extract version and tag from release.properties
-if [ ! -f release.properties ]; then
-  log_error "release.properties not found after release:prepare"
-  exit 1
-fi
-
-# Multi-module: parent artifactId is morphium-parent
-version=$(grep "project.rel.de.caluga\\\\:morphium-parent" release.properties | cut -f2 -d= || echo "$release_version")
-tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
-
-log_success "Release prepared: $version (tag: $tag)"
 
 # -----------------------------------------------------------------------------
 # Step 6: Build artifacts
 # -----------------------------------------------------------------------------
 
-log_step "Building release artifacts"
+if [ "$SKIP_TO_UPLOAD" != true ]; then
+  log_step "Building release artifacts"
 
-# Checkout the release tag to build the correct version
-log_info "Checking out release tag $tag..."
-git checkout "$tag"
+  # Checkout the release tag to build the correct version
+  log_info "Checking out release tag $tag..."
+  git checkout "$tag"
 
-# Build all modules
-log_info "Building all modules for version $version..."
-mvn clean package verify -DskipTests -Dmaven.javadoc.failOnError=false || {
-  log_error "Package failed"
-  exit 1
-}
+  # Build all modules
+  log_info "Building all modules for version $version..."
+  mvn clean package verify -DskipTests -Dmaven.javadoc.failOnError=false || {
+    log_error "Package failed"
+    exit 1
+  }
 
-log_success "All modules built"
+  log_success "All modules built"
+fi
 
 # -----------------------------------------------------------------------------
 # Step 7: Create combined bundle (parent + morphium + poppydb)
 # -----------------------------------------------------------------------------
 
-log_step "Creating combined release bundle"
+if [ "$SKIP_TO_UPLOAD" != true ]; then
+  log_step "Creating combined release bundle"
 
-BUNDLE_DIR="$(pwd)/target/bundle-staging"
-mkdir -p "$BUNDLE_DIR"
+  BUNDLE_DIR="$(pwd)/target/bundle-staging"
+  mkdir -p "$BUNDLE_DIR"
 
-# --- morphium-parent (POM-only) ---
-log_info "Adding morphium-parent..."
-parent_repo="${BUNDLE_DIR}/de/caluga/morphium-parent/${version}"
-mkdir -p "$parent_repo"
+  # --- morphium-parent (POM-only) ---
+  log_info "Adding morphium-parent..."
+  parent_repo="${BUNDLE_DIR}/de/caluga/morphium-parent/${version}"
+  mkdir -p "$parent_repo"
 
-cp pom.xml "${parent_repo}/morphium-parent-${version}.pom"
-sign_file "${parent_repo}/morphium-parent-${version}.pom"
-checksum_file "${parent_repo}/morphium-parent-${version}.pom"
+  cp pom.xml "${parent_repo}/morphium-parent-${version}.pom"
+  sign_file "${parent_repo}/morphium-parent-${version}.pom"
+  checksum_file "${parent_repo}/morphium-parent-${version}.pom"
 
-# --- morphium (morphium-core module, artifactId=morphium) ---
-log_info "Adding morphium..."
-morphium_repo="${BUNDLE_DIR}/de/caluga/morphium/${version}"
-mkdir -p "$morphium_repo"
+  # --- morphium (morphium-core module, artifactId=morphium) ---
+  log_info "Adding morphium..."
+  morphium_repo="${BUNDLE_DIR}/de/caluga/morphium/${version}"
+  mkdir -p "$morphium_repo"
 
-cp morphium-core/pom.xml "${morphium_repo}/morphium-${version}.pom"
-cp morphium-core/target/morphium-${version}.jar "${morphium_repo}/"
-cp morphium-core/target/morphium-${version}-sources.jar "${morphium_repo}/"
-cp morphium-core/target/morphium-${version}-javadoc.jar "${morphium_repo}/"
+  cp morphium-core/pom.xml "${morphium_repo}/morphium-${version}.pom"
+  cp morphium-core/target/morphium-${version}.jar "${morphium_repo}/"
+  cp morphium-core/target/morphium-${version}-sources.jar "${morphium_repo}/"
+  cp morphium-core/target/morphium-${version}-javadoc.jar "${morphium_repo}/"
 
-for file in "${morphium_repo}"/morphium-${version}*; do
-  [ -f "$file" ] || continue
-  sign_file "$file"
-  checksum_file "$file"
-done
-
-# --- poppydb ---
-log_info "Adding poppydb..."
-poppydb_repo="${BUNDLE_DIR}/de/caluga/poppydb/${version}"
-mkdir -p "$poppydb_repo"
-
-cp poppydb/pom.xml "${poppydb_repo}/poppydb-${version}.pom"
-cp poppydb/target/poppydb-${version}.jar "${poppydb_repo}/"
-cp poppydb/target/poppydb-${version}-sources.jar "${poppydb_repo}/"
-cp poppydb/target/poppydb-${version}-javadoc.jar "${poppydb_repo}/"
-if [ -f "poppydb/target/poppydb-${version}-cli.jar" ]; then
-  cp "poppydb/target/poppydb-${version}-cli.jar" "${poppydb_repo}/"
-fi
-
-for file in "${poppydb_repo}"/poppydb-${version}*; do
-  [ -f "$file" ] || continue
-  sign_file "$file"
-  checksum_file "$file"
-done
-
-# Verify all required files
-log_info "Verifying artifacts..."
-for suffix in .pom .pom.asc .jar .jar.asc -sources.jar -sources.jar.asc -javadoc.jar -javadoc.jar.asc; do
-  for artifact_repo in "$morphium_repo/morphium" "$poppydb_repo/poppydb"; do
-    if [ ! -f "${artifact_repo}-${version}${suffix}" ]; then
-      log_error "Missing: $(basename "${artifact_repo}-${version}${suffix}")"
-      exit 1
-    fi
+  for file in "${morphium_repo}"/morphium-${version}*; do
+    [ -f "$file" ] || continue
+    sign_file "$file"
+    checksum_file "$file"
   done
-done
-log_success "All required artifacts present"
 
-# Create single combined bundle
-bundle_file="target/bundle-${version}.jar"
-(cd "$BUNDLE_DIR" && zip -q -r "$(pwd)/../bundle-${version}.jar" de/)
+  # --- poppydb ---
+  log_info "Adding poppydb..."
+  poppydb_repo="${BUNDLE_DIR}/de/caluga/poppydb/${version}"
+  mkdir -p "$poppydb_repo"
 
-log_success "Combined bundle: $bundle_file ($(du -h "$bundle_file" | cut -f1))"
-log_info "  Contents: morphium-parent (pom), morphium (jar+sources+javadoc), poppydb (jar+sources+javadoc+cli)"
+  cp poppydb/pom.xml "${poppydb_repo}/poppydb-${version}.pom"
+  cp poppydb/target/poppydb-${version}.jar "${poppydb_repo}/"
+  cp poppydb/target/poppydb-${version}-sources.jar "${poppydb_repo}/"
+  cp poppydb/target/poppydb-${version}-javadoc.jar "${poppydb_repo}/"
+  if [ -f "poppydb/target/poppydb-${version}-cli.jar" ]; then
+    cp "poppydb/target/poppydb-${version}-cli.jar" "${poppydb_repo}/"
+  fi
+
+  for file in "${poppydb_repo}"/poppydb-${version}*; do
+    [ -f "$file" ] || continue
+    sign_file "$file"
+    checksum_file "$file"
+  done
+
+  # Verify all required files
+  log_info "Verifying artifacts..."
+  for suffix in .pom .pom.asc .jar .jar.asc -sources.jar -sources.jar.asc -javadoc.jar -javadoc.jar.asc; do
+    for artifact_repo in "$morphium_repo/morphium" "$poppydb_repo/poppydb"; do
+      if [ ! -f "${artifact_repo}-${version}${suffix}" ]; then
+        log_error "Missing: $(basename "${artifact_repo}-${version}${suffix}")"
+        exit 1
+      fi
+    done
+  done
+  log_success "All required artifacts present"
+
+  # Create single combined bundle
+  bundle_file="target/bundle-${version}.jar"
+  (cd "$BUNDLE_DIR" && zip -q -r "$(pwd)/../bundle-${version}.jar" de/)
+
+  log_success "Combined bundle: $bundle_file ($(du -h "$bundle_file" | cut -f1))"
+  log_info "  Contents: morphium-parent (pom), morphium (jar+sources+javadoc), poppydb (jar+sources+javadoc+cli)"
+fi
 
 # -----------------------------------------------------------------------------
 # Step 8: Upload to Sonatype Central Portal
