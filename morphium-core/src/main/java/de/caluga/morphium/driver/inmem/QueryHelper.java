@@ -70,6 +70,14 @@ public class QueryHelper {
         return KNOWN_OPERATORS.contains(op);
     }
 
+    // Operators whose payload is itself a query document (or list of query documents).
+    // Only recurse into these — other operators carry expressions (e.g. aggregation
+    // operators like $dateFromString inside $expr), regex options, geometry, bit masks
+    // etc., which must not be validated as if they were query operators.
+    private static final Set<String> QUERY_CONTAINER_OPERATORS = Set.of(
+        "$and", "$or", "$nor", "$not", "$elemMatch"
+    );
+
     /**
      * Validates a query for unknown operators before execution.
      * Should be called before processing to catch invalid queries even on empty collections.
@@ -86,6 +94,13 @@ public class QueryHelper {
             if (key.startsWith("$") && !isKnownOperator(key)) {
                 throw new IllegalArgumentException("unknown top level operator: " + key);
             }
+
+            // Skip recursion into operators whose payload is not a query document
+            // (e.g. $expr/$jsonSchema/$where carry aggregation expressions, not queries).
+            if (key.startsWith("$") && !QUERY_CONTAINER_OPERATORS.contains(key)) {
+                continue;
+            }
+
             Object value = query.get(key);
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
@@ -95,12 +110,14 @@ public class QueryHelper {
                     if (subKey.startsWith("$") && !isKnownOperator(subKey)) {
                         throw new IllegalArgumentException("unknown operator: " + subKey);
                     }
-                    // Recursively validate nested queries (e.g., $elemMatch, $not)
+                    // Only recurse into operators whose payload is itself a query document.
+                    if (!QUERY_CONTAINER_OPERATORS.contains(subKey)) {
+                        continue;
+                    }
                     Object subValue = subQuery.get(subKey);
                     if (subValue instanceof Map) {
                         validateQuery((Map<String, Object>) subValue);
                     } else if (subValue instanceof List) {
-                        // Handle $and, $or, $nor which contain lists of queries
                         for (Object item : (List<?>) subValue) {
                             if (item instanceof Map) {
                                 validateQuery((Map<String, Object>) item);

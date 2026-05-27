@@ -19,9 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("inmemory")
 public class QueryHelperTest extends MorphiumInMemTestBase {
@@ -61,7 +59,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     }
     @Test
-    public void geoSearchWithinBoxTest() throws Exception {
+    public void geoSearchWithinBoxTest()  {
         GeoSearchTests.Place p = new GeoSearchTests.Place();
         List<Double> pos = new ArrayList<>();
         pos.add(100.0);
@@ -78,12 +76,11 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void elemAllTest() throws Exception {
+    public void elemAllTest() {
         ListContainer c = new ListContainer();
         c.addString("test 1");
         c.addString("test 2");
         c.addString("test 3");
-        Map<String, Object> doc = morphium.getMapper().serialize(c);
         Map<String, Object> query = morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).all("test 1", "test 2").toQueryObject();
         assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(c), null));
         query = morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).all("test 1", "test not").toQueryObject();
@@ -97,13 +94,12 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void elemMatchTest() throws Exception {
+    public void elemMatchTest() {
         ListContainer c = new ListContainer();
         c.addString("test 1");
         c.addString("test 2");
         c.addString("test 3");
 
-        Map<String, Object> doc = morphium.getMapper().serialize(c);
         Map<String, Object> query = morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).elemMatch(Doc.of("$eq", "test 1")).toQueryObject();
         assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(c), null));
 
@@ -139,8 +135,8 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void bitMatchTest() throws Exception {
-        Map<String, Object> doc = UtilsMap.of("counter", (Object) 12, "str_value", "hello");
+    public void bitMatchTest() {
+        Map<String, Object> doc = UtilsMap.of("counter",12, "str_value", "hello");
         Map<String, Object> query = morphium.createQueryFor(UncachedObject.class).f("counter").bitsAllClear(0, 1).toQueryObject();
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
         query = morphium.createQueryFor(UncachedObject.class).f("counter").bitsAllClear(0, 1, 2).toQueryObject();
@@ -163,8 +159,8 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void simpleMatchTest() throws Exception {
-        Map<String, Object> doc = UtilsMap.of("counter", (Object) 12, "str_value", "hello");
+    public void simpleMatchTest() {
+        Map<String, Object> doc = UtilsMap.of("counter", 12, "str_value", "hello");
 
         Map<String, Object> query = morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
          .f("str_value").eq("not hello").toQueryObject();
@@ -189,7 +185,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
          .f(ListContainer.Fields.refList).eq(referenced).toQueryObject();
 
         assertTrue(query.containsKey("ref_list.refid"), () -> "Missing ref_list.refid key: " + query.keySet());
-        assertTrue(query.get("ref_list.refid") instanceof ObjectId, () -> "Unexpected value type: " + query.get("ref_list.refid").getClass());
+        assertInstanceOf(ObjectId.class, query.get("ref_list.refid"), () -> "Unexpected value type: " + query.get("ref_list.refid").getClass());
 
         assertTrue(QueryHelper.matchesQuery(query, serialized, null));
     }
@@ -216,7 +212,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test
     public void combinedRangeOperatorTest() {
-        Map<String, Object> doc = UtilsMap.of("value", (Object) 10);
+        Map<String, Object> doc = UtilsMap.of("value", 10);
 
         Map<String, Object> query = Doc.of("value", Doc.of("$gte", 5, "$lte", 15));
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
@@ -227,7 +223,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test
     public void regexOptionsTest() {
-        Map<String, Object> doc = UtilsMap.of("text", (Object) "Hello\nWorld");
+        Map<String, Object> doc = UtilsMap.of("text", "Hello\nWorld");
 
         Map<String, Object> query = Doc.of("text", Doc.of("$regex", "world", "$options", "i"));
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
@@ -241,7 +237,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test
     public void textSearchTokenizationTest() {
-        Map<String, Object> doc = UtilsMap.of("description", (Object) "The quick brown fox jumps over the lazy dog");
+        Map<String, Object> doc = UtilsMap.of("description",  "The quick brown fox jumps over the lazy dog");
 
         Map<String, Object> query = Doc.of("description", Doc.of("$text", "quick \"brown fox\""));
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
@@ -257,11 +253,11 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
         // Create test documents
         Map<String, Object> doc1 = UtilsMap.of(
-            "title", (Object) "The quick brown fox",
+            "title",  "The quick brown fox",
             "content", "jumps over the lazy dog"
         );
         Map<String, Object> doc2 = UtilsMap.of(
-            "title", (Object) "A slow hedgehog",
+            "title", "A slow hedgehog",
             "content", "walks in the garden"
         );
 
@@ -328,7 +324,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     @Test
     public void inOperatorMatchesObjectIds() {
         MorphiumId morphiumId = new MorphiumId();
-        Map<String, Object> doc = UtilsMap.of("_id", (Object) morphiumId);
+        Map<String, Object> doc = UtilsMap.of("_id", morphiumId);
 
         Map<String, Object> query = Doc.of("_id", Doc.of("$in", List.of(morphiumId)));
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
@@ -358,8 +354,8 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void orMatchTest() throws Exception {
-        Map<String, Object> doc = UtilsMap.of("counter", (Object) 12, "str_value", "hello");
+    public void orMatchTest() {
+        Map<String, Object> doc = UtilsMap.of("counter", 12, "str_value", "hello");
 
         Query<UncachedObject> query = morphium.createQueryFor(UncachedObject.class);
         query.or(query.q().f("counter").eq(12), query.q().f("strValue").eq("not hello"));
@@ -372,14 +368,10 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
         query = morphium.createQueryFor(UncachedObject.class);
         query.or(query.q().f("str_value").eq("not hello"), query.q().f("counter").eq(22));
         assertFalse(QueryHelper.matchesQuery(query.toQueryObject(), doc, null));
-//        query=morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
-//                .f("value").eq("hello").toQueryObject();
-//
-//        assert (QueryHelper.matchesQuery(query,doc));
-
     }
+
     @Test
-    public void geoNearTests() throws Exception {
+    public void geoNearTests() {
         GeoSearchTests.Place p = new GeoSearchTests.Place();
         p.setPosition(Arrays.asList(-73.9667,40.78));
         var ret=QueryHelper.matchesQuery(Doc.of("position",Doc.of("$near",Doc.of(
@@ -480,6 +472,46 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
                 "status", "PUBLISHED");
         assertFalse(QueryHelper.matchesQuery(query, doc, null),
                 "Array index match must not short-circuit; status mismatch");
+    }
+
+    /**
+     * Reproduces a query that uses $expr containing $dateFromString (an aggregation
+     * expression operator). validateQuery must not treat operators inside $expr as
+     * query operators — otherwise it raises "unknown top level operator: $dateFromString".
+     */
+    @Test
+    public void validateQueryAllowsAggregationOperatorsInsideExpr() {
+        Map<String, Object> query = Map.of(
+                "$and", List.of(
+                        Map.of("date_validation", UtilsMap.of("$ne", null)),
+                        Map.of("last_validated_at", UtilsMap.of("$ne", null)),
+                        UtilsMap.of("soft_deleted", null),
+                        UtilsMap.of("permanent_deleted", null),
+                        Map.of("DATE_VALIDATION", UtilsMap.of("$lte", "2026-05-26")),
+                        Map.of("$expr",
+                                UtilsMap.of("$lt",
+                                        List.of(
+                                                "$last_validated_at",
+                                                UtilsMap.of("$dateFromString",
+                                                        Map.of("dateString", "$DATE_VALIDATION",
+                                                                "format", "%Y-%m-%d"))
+                                        )))
+                ));
+
+        assertDoesNotThrow(() -> QueryHelper.validateQuery(query),
+                "$dateFromString inside $expr must not trip the query validator");
+    }
+
+    @Test
+    public void validateQueryStillRejectsUnknownTopLevelOperator() {
+        Map<String, Object> query = Map.of("$bogusOperator", 1);
+        assertThrows(IllegalArgumentException.class, () -> QueryHelper.validateQuery(query));
+    }
+
+    @Test
+    public void validateQueryStillRejectsUnknownFieldOperator() {
+        Map<String, Object> query = Map.of("field", Map.of("$bogusOperator", 1));
+        assertThrows(IllegalArgumentException.class, () -> QueryHelper.validateQuery(query));
     }
 
 }
