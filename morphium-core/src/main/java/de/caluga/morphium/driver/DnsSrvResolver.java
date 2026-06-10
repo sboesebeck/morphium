@@ -28,6 +28,8 @@ public final class DnsSrvResolver {
     private static final Logger log = LoggerFactory.getLogger(DnsSrvResolver.class);
     private static final int DNS_SRV_PORT       = 53;
     private static final int DNS_SRV_TIMEOUT_MS = 5_000;
+    /** Public DNS resolvers used only as a last resort when no system name-servers are configured. */
+    private static final String[] PUBLIC_DNS_FALLBACK = {"8.8.8.8", "1.1.1.1"};
 
     private DnsSrvResolver() {}
 
@@ -71,8 +73,38 @@ public final class DnsSrvResolver {
         return Collections.emptyList();
     }
 
-    /** Collects name-server addresses from JVM properties, /etc/resolv.conf (non-Windows), and public fallbacks. */
+    /**
+     * Collects name-server addresses from JVM properties and {@code /etc/resolv.conf}, falling back to
+     * public DNS servers only when no system name-servers can be found.
+     */
     public static List<InetAddress> systemDnsServers() {
+        return systemDnsServers(new File("/etc/resolv.conf"));
+    }
+
+    /** Seam taking the resolv.conf location so the fallback logic is testable (consistent with the other public test seams in this class). */
+    public static List<InetAddress> systemDnsServers(File resolvConf) {
+        List<InetAddress> servers = collectConfiguredDnsServers(resolvConf);
+
+        if (servers.isEmpty()) {
+            // No system name-servers (e.g. minimal container without /etc/resolv.conf): use public DNS as a
+            // last resort. Doing this unconditionally breaks split-DNS/private-Atlas setups and causes a
+            // per-server timeout when outbound UDP/53 is firewalled (issue #170).
+            log.debug("No system DNS name-servers found; falling back to public DNS {}", Arrays.toString(PUBLIC_DNS_FALLBACK));
+            for (String addr : PUBLIC_DNS_FALLBACK) {
+                try { servers.add(InetAddress.getByName(addr)); } catch (Exception ignored) {}
+            }
+        }
+
+        if (log.isDebugEnabled()) {
+            List<String> addrs = new ArrayList<>(servers.size());
+            for (InetAddress s : servers) addrs.add(s.getHostAddress());
+            log.debug("System DNS servers: {}", addrs);
+        }
+        return servers;
+    }
+
+    /** Reads configured name-servers from the {@code sun.net.spi.nameservice.nameservers} property and resolv.conf. */
+    private static List<InetAddress> collectConfiguredDnsServers(File resolvConf) {
         List<InetAddress> servers = new ArrayList<>();
 
         String prop = System.getProperty("sun.net.spi.nameservice.nameservers");
@@ -82,31 +114,18 @@ public final class DnsSrvResolver {
             }
         }
 
-        String os = System.getProperty("os.name", "").toLowerCase();
-        if (!os.contains("win")) {
-            File resolvConf = new File("/etc/resolv.conf");
-            if (resolvConf.exists()) {
-                try (BufferedReader br = new BufferedReader(new FileReader(resolvConf))) {
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        line = line.trim();
-                        if (line.startsWith("nameserver ")) {
-                            String addr = line.substring("nameserver ".length()).trim();
-                            try { servers.add(InetAddress.getByName(addr)); } catch (Exception ignored) {}
-                        }
+        // resolv.conf only exists on Unix-like systems; the exists() check keeps this a no-op on Windows.
+        if (resolvConf != null && resolvConf.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(resolvConf))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    line = line.trim();
+                    if (line.startsWith("nameserver ")) {
+                        String addr = line.substring("nameserver ".length()).trim();
+                        try { servers.add(InetAddress.getByName(addr)); } catch (Exception ignored) {}
                     }
-                } catch (Exception ignored) {}
-            }
-        }
-
-        // Always add public fallbacks so Windows (and restricted environments) work reliably
-        try { servers.add(InetAddress.getByName("8.8.8.8")); } catch (Exception ignored) {}
-        try { servers.add(InetAddress.getByName("1.1.1.1")); } catch (Exception ignored) {}
-
-        if (log.isDebugEnabled()) {
-            List<String> addrs = new ArrayList<>(servers.size());
-            for (InetAddress s : servers) addrs.add(s.getHostAddress());
-            log.debug("System DNS servers: {}", addrs);
+                }
+            } catch (Exception ignored) {}
         }
         return servers;
     }

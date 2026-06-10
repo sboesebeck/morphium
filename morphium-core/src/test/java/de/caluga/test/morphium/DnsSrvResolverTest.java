@@ -4,8 +4,10 @@ import de.caluga.morphium.driver.DnsSrvResolver;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -149,32 +151,62 @@ public class DnsSrvResolverTest {
         assertThrows(Exception.class, () -> DnsSrvResolver.parseSrvRecords(tooShort));
     }
 
-    // ── systemDnsServers ──────────────────────────────────────────────────────
+    // ── systemDnsServers fallback behaviour (issue #170) ──────────────────────
 
-    @Test
-    void systemDnsServers_containsFallback() {
-        List<InetAddress> servers = DnsSrvResolver.systemDnsServers();
-        assertFalse(servers.isEmpty(), "Should always have at least the public fallback servers");
+    private static final String NAMESERVER_PROP = "sun.net.spi.nameservice.nameservers";
 
-        boolean hasFallback = servers.stream()
-            .anyMatch(a -> a.getHostAddress().equals("8.8.8.8") || a.getHostAddress().equals("1.1.1.1"));
-        assertTrue(hasFallback, "Should contain 8.8.8.8 or 1.1.1.1 as fallback");
+    private static boolean containsAddr(List<InetAddress> servers, String addr) {
+        return servers.stream().anyMatch(a -> a.getHostAddress().equals(addr));
     }
 
     @Test
-    void systemDnsServers_noExceptionOnWindows() {
-        String original = System.getProperty("os.name");
+    void systemDnsServers_doesNotAddPublicFallback_whenSystemServersPresent() throws Exception {
+        String savedProp = System.getProperty(NAMESERVER_PROP);
+        File resolvConf = File.createTempFile("resolv", ".conf");
         try {
-            System.setProperty("os.name", "Windows 10");
-            // Must not throw even though /etc/resolv.conf does not exist on Windows
-            List<InetAddress> servers = assertDoesNotThrow(() -> DnsSrvResolver.systemDnsServers());
-            assertFalse(servers.isEmpty(), "Should still return public fallback servers on Windows");
+            System.clearProperty(NAMESERVER_PROP);
+            Files.writeString(resolvConf.toPath(), "nameserver 10.123.45.67\n");
+
+            List<InetAddress> servers = DnsSrvResolver.systemDnsServers(resolvConf);
+
+            assertTrue(containsAddr(servers, "10.123.45.67"), "configured system name-server should be present");
+            assertFalse(containsAddr(servers, "8.8.8.8"), "public DNS fallback must not be added when system servers exist (issue #170)");
+            assertFalse(containsAddr(servers, "1.1.1.1"), "public DNS fallback must not be added when system servers exist (issue #170)");
         } finally {
-            if (original != null) {
-                System.setProperty("os.name", original);
-            } else {
-                System.clearProperty("os.name");
-            }
+            //noinspection ResultOfMethodCallIgnored
+            resolvConf.delete();
+            restoreProp(savedProp);
+        }
+    }
+
+    @Test
+    void systemDnsServers_addsPublicFallback_whenNoSystemServers() throws Exception {
+        String savedProp = System.getProperty(NAMESERVER_PROP);
+        File missing = new File(File.createTempFile("resolv", ".conf").getAbsolutePath() + ".gone");
+        try {
+            System.clearProperty(NAMESERVER_PROP);
+            assertFalse(missing.exists(), "test precondition: resolv.conf must not exist");
+
+            List<InetAddress> servers = DnsSrvResolver.systemDnsServers(missing);
+
+            assertTrue(containsAddr(servers, "8.8.8.8"), "public DNS fallback should be used when no system servers are found");
+            assertTrue(containsAddr(servers, "1.1.1.1"), "public DNS fallback should be used when no system servers are found");
+        } finally {
+            restoreProp(savedProp);
+        }
+    }
+
+    @Test
+    void systemDnsServers_neverEmpty() {
+        // The public entry point must always yield at least one resolver to query.
+        assertFalse(DnsSrvResolver.systemDnsServers().isEmpty(), "must always return at least one DNS server to query");
+    }
+
+    private static void restoreProp(String savedProp) {
+        if (savedProp != null) {
+            System.setProperty(NAMESERVER_PROP, savedProp);
+        } else {
+            System.clearProperty(NAMESERVER_PROP);
         }
     }
 }
