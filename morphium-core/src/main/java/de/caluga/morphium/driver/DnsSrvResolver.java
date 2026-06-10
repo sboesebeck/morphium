@@ -16,7 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -70,6 +72,43 @@ public final class DnsSrvResolver {
             }
         }
         if (lastEx != null) throw lastEx;
+        return Collections.emptyList();
+    }
+
+    /**
+     * Resolves TXT records for the given DNS name (used for MongoDB seedlist options).
+     * Per the DNS Seedlist Discovery spec the TXT record sits at the <em>bare</em> hostname
+     * (e.g. {@code cluster.mongodb.net}), not under the {@code _mongodb._tcp.} prefix.
+     * Returns the raw TXT strings; failures are swallowed and yield an empty list, since TXT
+     * options are optional defaults and must never block a connection.
+     *
+     * @param name the bare hostname, e.g. {@code cluster.mongodb.net}
+     * @return list of TXT record strings (never {@code null}, possibly empty)
+     */
+    public static List<String> resolveTxt(String name) {
+        List<InetAddress> servers;
+        try {
+            servers = systemDnsServers();
+        } catch (Exception ex) {
+            log.debug("No DNS servers available for TXT lookup of '{}': {}", name, ex.getMessage());
+            return Collections.emptyList();
+        }
+        for (InetAddress dns : servers) {
+            try {
+                byte[] query    = buildDnsQuery(name, 16 /* TXT */);
+                byte[] response = dnsOverUdp(dns, query);
+                if ((response[2] & 0x02) != 0) { // truncated → retry over TCP
+                    response = dnsOverTcp(dns, query);
+                }
+                List<String> records = parseTxtRecords(response);
+                if (!records.isEmpty()) {
+                    log.info("DNS server {} returned {} TXT record(s) for '{}'", dns.getHostAddress(), records.size(), name);
+                    return records;
+                }
+            } catch (Exception ex) {
+                log.debug("DNS server {} TXT lookup failed for '{}': {}", dns.getHostAddress(), name, ex.getMessage());
+            }
+        }
         return Collections.emptyList();
     }
 
@@ -254,6 +293,77 @@ public final class DnsSrvResolver {
             offset += rdLength;
         }
         return results;
+    }
+
+    /**
+     * Parses a TXT DNS response and returns the decoded record strings.
+     * Each TXT record's RDATA is one or more length-prefixed character-strings, which are
+     * concatenated to form the full record value (per RFC 1035 §3.3.14).
+     */
+    public static List<String> parseTxtRecords(byte[] data) throws Exception {
+        if (data.length < 12) throw new Exception("DNS response too short (" + data.length + " bytes)");
+        int rcode = data[3] & 0x0F;
+        if (rcode != 0) throw new Exception("DNS RCODE=" + rcode + " error for TXT query");
+
+        int qdCount = dnsShort(data, 4);
+        int anCount = dnsShort(data, 6);
+        int offset  = 12;
+
+        for (int i = 0; i < qdCount && offset < data.length; i++) {
+            offset = dnsSkipName(data, offset) + 4; // +4 for QTYPE + QCLASS
+        }
+
+        List<String> results = new ArrayList<>();
+        for (int i = 0; i < anCount && offset + 10 <= data.length; i++) {
+            offset  = dnsSkipName(data, offset);
+            int type     = dnsShort(data, offset);
+            int rdLength = dnsShort(data, offset + 8);
+            offset += 10;
+
+            if (offset + rdLength > data.length) {
+                log.warn("DNS response: malformed TXT record at offset {}, rdLength={} exceeds data length {}", offset, rdLength, data.length);
+                break;
+            }
+
+            if (type == 16 /* TXT */) {
+                StringBuilder sb  = new StringBuilder();
+                int rd            = offset;
+                int rdEnd         = offset + rdLength;
+                while (rd < rdEnd) {
+                    int strLen = data[rd] & 0xFF;
+                    rd++;
+                    if (rd + strLen > rdEnd) break; // malformed character-string
+                    sb.append(new String(data, rd, strLen, StandardCharsets.UTF_8));
+                    rd += strLen;
+                }
+                results.add(sb.toString());
+            }
+            offset += rdLength;
+        }
+        return results;
+    }
+
+    /**
+     * Parses MongoDB seedlist TXT records (e.g. {@code "authSource=admin&replicaSet=myRS"}) into a
+     * map of options. Keys are lower-cased so look-ups are case-insensitive (as connection-string
+     * options are), while values keep their original case (e.g. replica-set names are case-sensitive).
+     * Malformed fragments without a {@code key=value} shape or with an empty key are skipped.
+     */
+    public static Map<String, String> parseTxtOptions(List<String> txtRecords) {
+        Map<String, String> options = new LinkedHashMap<>();
+        if (txtRecords == null) return options;
+        for (String record : txtRecords) {
+            if (record == null || record.isBlank()) continue;
+            for (String pair : record.split("&")) {
+                int eq = pair.indexOf('=');
+                if (eq <= 0) continue; // no '=' or empty key
+                String key   = pair.substring(0, eq).trim().toLowerCase();
+                String value = pair.substring(eq + 1).trim();
+                if (key.isEmpty()) continue;
+                options.put(key, value);
+            }
+        }
+        return options;
     }
 
     public static int dnsShort(byte[] data, int off) {

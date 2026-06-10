@@ -658,10 +658,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * {@link de.caluga.morphium.config.ClusterSettings#getAtlasUrl()} and populates
      * {@code hostSeed} via DNS SRV lookup when the seed list is still empty.
      *
-     * <p>The SRV record {@code _mongodb._tcp.<hostname>} is queried through JNDI.
-     * TLS is enabled automatically because Atlas always requires it.  Any
-     * {@code authMechanism} / {@code authSource} query parameters present in the
-     * URL are ignored here – they must be configured separately via
+     * <p>The SRV record {@code _mongodb._tcp.<hostname>} provides the host:port seed list and the
+     * companion TXT record at the bare {@code <hostname>} provides default {@code authSource} /
+     * {@code replicaSet} options (applied only when not already configured). TLS is enabled
+     * automatically because Atlas always requires it. {@code authMechanism} and any query
+     * parameters in the URL itself are not parsed here and must be configured separately via
      * {@link MorphiumConfig#setAuthMechanism} / {@link MorphiumConfig#setMongoAuthDb}.
      *
      * <p>If the atlasUrl is absent, the seed list is already populated, or the
@@ -727,6 +728,52 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             String[] hp = hostPort.split(":", 2);
             getConfig().clusterSettings().addHostToSeed(hp[0], Integer.parseInt(hp[1]));
             log.info("  → resolved Atlas host {}:{}", hp[0], hp[1]);
+        }
+
+        // DNS Seedlist spec: the companion TXT record carries default connection options
+        // (authSource, replicaSet). It sits at the bare hostname, not under _mongodb._tcp.
+        // Applied only as defaults — values already present in the config always win.
+        Map<String, String> txtOptions = DnsSrvResolver.parseTxtOptions(DnsSrvResolver.resolveTxt(hostname));
+        applyAtlasTxtDefaults(getConfig(), txtOptions);
+    }
+
+    /**
+     * Applies MongoDB DNS-seedlist TXT options as defaults: {@code authSource} maps to the
+     * mongo auth DB and {@code replicaSet} to the required replica-set name. Each is only applied
+     * when not already configured, so explicit user configuration always takes precedence.
+     * Other spec-permitted options (e.g. {@code loadBalanced}) are not supported by Morphium and ignored.
+     */
+    static void applyAtlasTxtDefaults(MorphiumConfig cfg, Map<String, String> txtOptions) {
+        if (txtOptions == null || txtOptions.isEmpty()) {
+            return;
+        }
+
+        String authSource = txtOptions.get("authsource");
+        if (authSource != null && !authSource.isBlank()) {
+            String current = cfg.authSettings().getMongoAuthDb();
+            if (current == null || current.isBlank()) {
+                cfg.authSettings().setMongoAuthDb(authSource);
+                log.info("  → applying authSource='{}' from DNS TXT record", authSource);
+            } else {
+                log.debug("  → ignoring DNS TXT authSource='{}', already configured as '{}'", authSource, current);
+            }
+        }
+
+        String replicaSet = txtOptions.get("replicaset");
+        if (replicaSet != null && !replicaSet.isBlank()) {
+            String current = cfg.clusterSettings().getRequiredReplicaSetName();
+            if (current == null || current.isBlank()) {
+                cfg.clusterSettings().setRequiredReplicaSetName(replicaSet);
+                log.info("  → applying replicaSet='{}' from DNS TXT record", replicaSet);
+            } else {
+                log.debug("  → ignoring DNS TXT replicaSet='{}', already configured as '{}'", replicaSet, current);
+            }
+        }
+
+        for (String key : txtOptions.keySet()) {
+            if (!"authsource".equals(key) && !"replicaset".equals(key)) {
+                log.debug("  → ignoring unsupported DNS TXT option '{}'", key);
+            }
         }
     }
 

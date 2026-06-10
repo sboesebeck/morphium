@@ -9,6 +9,7 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -149,6 +150,93 @@ public class DnsSrvResolverTest {
     void parseSrvRecords_tooShortThrows() {
         byte[] tooShort = new byte[10];
         assertThrows(Exception.class, () -> DnsSrvResolver.parseSrvRecords(tooShort));
+    }
+
+    // ── parseTxtRecords / parseTxtOptions (issue #169) ─────────────────────────
+
+    /**
+     * Builds a minimal TXT DNS response carrying a single character-string.
+     * Layout mirrors {@link #buildSingleSrvResponse}, but TYPE=16 (TXT) and the
+     * RDATA is a length-prefixed character-string (assumes value length &le; 255).
+     */
+    private static byte[] buildSingleTxtResponse(String qname, String txtValue) {
+        byte[] qnameEnc = DnsSrvResolver.encodeDnsName(qname);
+        byte[] txtBytes = txtValue.getBytes(StandardCharsets.US_ASCII);
+        int rdLen = 1 + txtBytes.length; // character-string length byte + content
+
+        byte[] hdr = {
+            0x00, 0x01,        // ID
+            (byte)0x81, 0x00,  // QR=1 RD=1 RCODE=0
+            0x00, 0x01,        // QDCOUNT=1
+            0x00, 0x01,        // ANCOUNT=1
+            0x00, 0x00,        // NSCOUNT=0
+            0x00, 0x00         // ARCOUNT=0
+        };
+
+        byte[] question = new byte[qnameEnc.length + 4];
+        System.arraycopy(qnameEnc, 0, question, 0, qnameEnc.length);
+        question[qnameEnc.length]     = 0x00; question[qnameEnc.length + 1] = 0x10; // QTYPE=16 (TXT)
+        question[qnameEnc.length + 2] = 0x00; question[qnameEnc.length + 3] = 0x01; // QCLASS=1
+
+        byte[] answer = new byte[12 + rdLen];
+        answer[0] = (byte)0xC0; answer[1] = 0x0C;   // NAME: pointer to question name at offset 12
+        answer[2] = 0x00; answer[3] = 0x10;          // TYPE=16 (TXT)
+        answer[4] = 0x00; answer[5] = 0x01;          // CLASS=1 (IN)
+        answer[6] = 0x00; answer[7] = 0x00;
+        answer[8] = 0x00; answer[9] = (byte)0x2C;    // TTL
+        answer[10] = (byte)(rdLen >> 8);
+        answer[11] = (byte)(rdLen & 0xFF);            // RDLENGTH
+        answer[12] = (byte)txtBytes.length;           // character-string length
+        System.arraycopy(txtBytes, 0, answer, 13, txtBytes.length);
+
+        byte[] response = new byte[hdr.length + question.length + answer.length];
+        System.arraycopy(hdr,      0, response, 0,                            hdr.length);
+        System.arraycopy(question, 0, response, hdr.length,                   question.length);
+        System.arraycopy(answer,   0, response, hdr.length + question.length, answer.length);
+        return response;
+    }
+
+    @Test
+    void parseTxtRecords_singleRecord() throws Exception {
+        byte[] response = buildSingleTxtResponse("cluster.example.com", "authSource=admin&replicaSet=myRS");
+
+        List<String> records = DnsSrvResolver.parseTxtRecords(response);
+
+        assertEquals(1, records.size());
+        assertEquals("authSource=admin&replicaSet=myRS", records.get(0));
+    }
+
+    @Test
+    void parseTxtRecords_emptyAnswer() throws Exception {
+        byte[] response = {
+            0x00, 0x01, (byte)0x81, 0x00,
+            0x00, 0x00,  // QDCOUNT=0
+            0x00, 0x00,  // ANCOUNT=0
+            0x00, 0x00, 0x00, 0x00
+        };
+
+        List<String> records = DnsSrvResolver.parseTxtRecords(response);
+        assertNotNull(records);
+        assertTrue(records.isEmpty());
+    }
+
+    @Test
+    void parseTxtOptions_lowercasesKeysKeepsValueCase() {
+        Map<String, String> opts = DnsSrvResolver.parseTxtOptions(List.of("authSource=admin&replicaSet=MyReplSet"));
+
+        assertEquals("admin", opts.get("authsource"), "option key lookup must be case-insensitive");
+        assertEquals("MyReplSet", opts.get("replicaset"), "replica-set name value must keep its case");
+    }
+
+    @Test
+    void parseTxtOptions_handlesEmptyAndMalformed() {
+        assertTrue(DnsSrvResolver.parseTxtOptions(List.of()).isEmpty());
+        assertTrue(DnsSrvResolver.parseTxtOptions(List.of("")).isEmpty());
+
+        Map<String, String> opts = DnsSrvResolver.parseTxtOptions(List.of("authSource=admin&garbage&=novalue"));
+        assertEquals("admin", opts.get("authsource"));
+        assertFalse(opts.containsKey(""), "empty key must be skipped");
+        assertEquals(1, opts.size(), "only well-formed key=value pairs are kept");
     }
 
     // ── systemDnsServers fallback behaviour (issue #170) ──────────────────────
