@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -32,12 +33,33 @@ public class AggregatorFieldNameTranslationTest extends MorphiumInMemTestBase {
         private int itemCount;
 
         public AggEntity() {}
+
+        public enum Fields { firstName, lastName, itemCount }
+    }
+
+    @NoCache
+    @Entity(translateCamelCase = true)
+    public static class LookupEntity {
+        @Id
+        private MorphiumId id;
+        private String ownerName;
+
+        public LookupEntity() {}
+
+        public enum Fields { ownerName }
     }
 
     private Map<String, Object> firstStage(Aggregator<AggEntity, Map> agg) {
         List<Map<String, Object>> pipeline = agg.getPipeline();
         assertFalse(pipeline.isEmpty(), "pipeline should have at least one stage");
         return pipeline.get(0);
+    }
+
+    /** the InMem driver returns an InMemAggregator - AggregatorImpl has to be tested explicitly */
+    private List<Aggregator<AggEntity, Map>> bothImplementations() {
+        return List.of(
+                   morphium.createAggregator(AggEntity.class, Map.class),
+                   new AggregatorImpl<>(morphium, AggEntity.class, Map.class));
     }
 
     @Test
@@ -91,5 +113,38 @@ public class AggregatorFieldNameTranslationTest extends MorphiumInMemTestBase {
         assertTrue(fields.contains("first_name"), "firstName should be translated to first_name in pipeline");
         assertTrue(fields.contains("last_name"), "lastName should be translated to last_name in pipeline");
         assertFalse(fields.contains("firstName"), "untranslated firstName should not appear in pipeline");
+    }
+
+    @Test
+    public void unsetEnumTranslatesCamelCaseFieldNames() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.unset(AggEntity.Fields.firstName, AggEntity.Fields.lastName);
+
+            Map<String, Object> stage = firstStage(agg);
+            assertTrue(stage.containsKey("$unset"), impl + ": stage should be $unset");
+            @SuppressWarnings("unchecked")
+            List<String> fields = (List<String>) stage.get("$unset");
+
+            assertTrue(fields.contains("first_name"), impl + ": firstName should be translated to first_name in pipeline");
+            assertTrue(fields.contains("last_name"), impl + ": lastName should be translated to last_name in pipeline");
+            assertFalse(fields.contains("firstName"), impl + ": untranslated firstName should not appear in pipeline");
+        }
+    }
+
+    @Test
+    public void lookupEnumTranslatesLocalAndForeignFieldNames() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.lookup(LookupEntity.class, AggEntity.Fields.firstName, LookupEntity.Fields.ownerName, "joined", null, null);
+
+            Map<String, Object> stage = firstStage(agg);
+            assertTrue(stage.containsKey("$lookup"), impl + ": stage should be $lookup");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> lookup = (Map<String, Object>) stage.get("$lookup");
+
+            assertEquals("first_name", lookup.get("localField"), impl + ": localField should be translated using the search type");
+            assertEquals("owner_name", lookup.get("foreignField"), impl + ": foreignField should be translated using the lookup type");
+        }
     }
 }

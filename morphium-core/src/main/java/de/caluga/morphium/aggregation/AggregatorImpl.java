@@ -749,8 +749,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
 
     public Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
+        // foreignField belongs to fromType - the String overload can only translate fields of the search type
         return lookup(getMorphium().getMapper().getCollectionName(fromType),
-            localField.name(), foreignField.name(), outputArray, pipeline, let
+            localField.name(), getMorphium().getARHelper().getMongoFieldName(fromType, foreignField.name()), outputArray, pipeline, let
             );
     }
 
@@ -983,7 +984,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> unset(@SuppressWarnings("rawtypes") Enum... field) {
-        List<String> lst = Arrays.stream(field).map(Enum::name).collect(Collectors.toList());
+        List<String> lst = Arrays.stream(field).map(e -> tf(e.name())).collect(Collectors.toList());
         params.add(UtilsMap.of("$unset", lst));
         return this;
     }
