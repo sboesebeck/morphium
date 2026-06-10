@@ -1,4 +1,4 @@
-# Morphium 6.2.0
+# Morphium 6.2.4
 
 **Feature-reiches MongoDB ODM und Messaging-Framework für Java 21+**
 
@@ -39,7 +39,7 @@ _* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware u
 ### Schnellzugriff
 - **[Dokumentenportal](docs/index.md)** – Einstieg in sämtliche Guides
 - **[Überblick](docs/overview.md)** – Kernkonzepte, Quickstart, Kompatibilität
-- **[Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md)** – Migrationsleitfaden für 6.2.0
+- **[Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md)** – Migrationsleitfaden für 6.2.x
 - **[Migration v5→v6](docs/howtos/migration-v5-to-v6.md)** – Schritt-für-Schritt-Anleitung
 - **[InMemory Driver Guide](docs/howtos/inmemory-driver.md)** – Features, Einschränkungen, Tests
 
@@ -64,14 +64,14 @@ PoppyDB und Morphium Messaging sind **aufeinander optimiert** — beide Seiten e
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.2.0</version>
+    <version>6.2.4</version>
     <scope>test</scope> <!-- oder scope entfernen für produktiven Einsatz -->
 </dependency>
 ```
 
 - ✅ **Volle Wire-Protocol-Unterstützung**: Jeder MongoDB-Client kann sich verbinden (mongosh, Compass, PyMongo, ...)
 - ✅ **Messaging-Backend**: Morphium-Messaging ohne MongoDB betreiben — optimiert für niedrige Latenz
-- ✅ **CLI-Tooling**: `poppydb-6.2.0-cli.jar` für Standalone-Deployment
+- ✅ **CLI-Tooling**: `poppydb-6.2.4-cli.jar` für Standalone-Deployment
 - ✅ **Replica-Set-Emulation**: Cluster-Verhalten testen ohne echtes MongoDB
 - ✅ **Snapshot-Persistenz**: `--dump-dir` / `--dump-interval` zum Sichern der Daten über Neustarts
 
@@ -90,9 +90,12 @@ Funktioniert korrekt mit `store()` und `storeList()`, unterstützt `@CreationTim
 ### CosmosDB Auto-Erkennung
 Morphium erkennt Azure CosmosDB-Verbindungen und passt sein Verhalten automatisch an.
 
+### Patch-Releases 6.2.1 – 6.2.4
+Die 6.2.x-Patch-Releases brachten laufend Verbesserungen, unter anderem: serverseitiges Empfänger-Filtering und einen Liveness-Watchdog fürs Messaging, die neue Einstellung `defaultQueryTimeoutMS`, Feldnamen-Übersetzung in `Aggregator` und `Query.distinct()`, eine eigene `MorphiumDocumentTooLargeException` sowie zahlreiche Robustheits-Fixes für PoppyDB und den InMemoryDriver.
+
 Siehe [CHANGELOG](CHANGELOG.md) für alle Details.
 
-## Upgrade von 6.1.x auf 6.2.0
+## Upgrade von 6.1.x auf 6.2.x
 
 Die wichtigsten Änderungen beim Upgrade:
 
@@ -114,9 +117,9 @@ public void doStuff() { ... }
 
 ### Breaking: MorphiumServer → PoppyDB
 
-| | 6.1.x | 6.2.0 |
+| | 6.1.x | 6.2.x |
 |---|---|---|
-| Maven-Artifact | in `morphium` enthalten | separat: `de.caluga:poppydb:6.2.0` |
+| Maven-Artifact | in `morphium` enthalten | separat: `de.caluga:poppydb:6.2.4` |
 | Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
 | Hauptklasse | `MorphiumServer` | `PoppyDB` |
 | CLI-JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
@@ -195,7 +198,7 @@ Upgrade von v6.1? → `docs/howtos/migration-v6_1-to-v6_2.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.2.0</version>
+  <version>6.2.4</version>
 </dependency>
 ```
 
@@ -378,13 +381,13 @@ PoppyDB (ehemals MorphiumServer) ist ein eigenständiger Prozess, der das MongoD
 
 ```bash
 # Server starten
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
+java -jar poppydb/target/poppydb-6.2.4-cli.jar
 
 # Clients verbinden (z.B. MongoDB Compass, mongosh)
 mongosh mongodb://localhost:27017
 
 # Start mit Persistenz (Snapshots)
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.2.4-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Unterstützung (experimentell)**
@@ -392,7 +395,7 @@ java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --dump-dir ./data --dump
 PoppyDB unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
 
 ```bash
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.2.4-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use Cases:**
@@ -424,6 +427,9 @@ Morphium wird produktiv eingesetzt in:
 - **GitHub**: [sboesebeck/morphium](https://github.com/sboesebeck/morphium)
 - **Issues**: Bug-Reports und Feature-Requests auf GitHub
 
+### Showcase
+Unbedingt anschauen: der **[Quarkus Morphium Showcase](https://morphium.kopp-cloud.de/)** von Heiko Kopp ([Bardioc1977](https://github.com/Bardioc1977)) — eine interaktive Live-Demo von Morphium mit Quarkus, die CRUD, Caching, Aggregation-Pipelines, Geo-Abfragen, Messaging, Transaktionen, Jakarta Data und mehr zeigt. Perfekt, um Morphium auszuprobieren, bevor man die erste Zeile Code schreibt.
+
 ### Beitragen
 
 Beiträge sind herzlich willkommen! Bereiche wo wir Hilfe brauchen:
@@ -453,7 +459,9 @@ Apache License 2.0 - Siehe [LICENSE](LICENSE) für Details
 
 ## 🙏 Danksagungen
 
-Vielen Dank an alle Contributors die diese Release möglich gemacht haben, und an die MongoDB-Community für Support und Feedback.
+Vielen Dank an alle Contributors, die diese Releases möglich gemacht haben, und an die MongoDB-Community für Support und Feedback.
+
+Ein besonderer Dank geht an **Heiko Kopp** ([Bardioc1977](https://github.com/Bardioc1977)) für unzählige Beiträge, Praxis-Feedback aus großen Produktions-Deployments und den großartigen [Quarkus Morphium Showcase](https://morphium.kopp-cloud.de/).
 
 ---
 
@@ -461,6 +469,6 @@ Vielen Dank an alle Contributors die diese Release möglich gemacht haben, und a
 
 **Upgrade geplant?** Siehe [Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md) oder [Migration v5→v6](docs/howtos/migration-v5-to-v6.md).
 
-Viel Erfolg mit Morphium 6.2.0! 🚀
+Viel Erfolg mit Morphium 6.2.4! 🚀
 
 *Stephan Bösebeck & das Morphium-Team*
