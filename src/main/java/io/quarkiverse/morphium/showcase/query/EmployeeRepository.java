@@ -1,7 +1,7 @@
 package io.quarkiverse.morphium.showcase.query;
 
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.quarkus.data.MorphiumRepository;
+import de.caluga.morphium.data.MorphiumRepository;
 import io.quarkiverse.morphium.showcase.query.entity.Employee;
 import jakarta.data.Limit;
 import jakarta.data.Order;

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.quarkiverse.morphium</groupId>
+    <artifactId>quarkus-morphium-parent</artifactId>
+    <version>1.2.0</version>
+  </parent>
+
+  <artifactId>quarkus-morphium-deployment</artifactId>
+  <name>Quarkus Morphium Extension – Deployment</name>
+
+  <dependencies>
+    <!-- Runtime module -->
+    <dependency>
+      <groupId>io.quarkiverse.morphium</groupId>
+      <artifactId>quarkus-morphium</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Quarkus build-time APIs -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-core-deployment</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-arc-deployment</artifactId>
+    </dependency>
+    <!-- Health check build-time SPI — provides HealthBuildItem without
+         pulling in the full SmallRye Health extension. The health checks
+         activate only when the app includes quarkus-smallrye-health. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-health-spi</artifactId>
+    </dependency>
+    <!-- ClassGraph for @Entity scanning during build.
+         Comes transitively from quarkus-morphium (runtime) → morphium. -->
+
+    <!-- JSON deployment counterparts — required by Quarkus extension parity
+         verification because the runtime module depends on quarkus-jackson and
+         quarkus-jsonb. Both optional, mirroring the optional runtime deps: an app
+         that pulls in neither JSON layer must not inherit them transitively.
+         MorphiumProcessor gates customizer registration on Capabilities, so the
+         build steps run only when the app's own classpath provides the layer. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jackson-deployment</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jsonb-deployment</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- TLS registry deployment — required by Quarkus extension parity verification
+         because the runtime module depends on quarkus-tls-registry. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-tls-registry-deployment</artifactId>
+    </dependency>
+
+    <!-- Dev Services infrastructure – converts DevServicesResultBuildItem
+         into DevServiceDescriptionBuildItem so the container appears
+         in the Dev UI "Dev Services" panel. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-devservices-deployment</artifactId>
+    </dependency>
+
+    <!-- Dev UI SPI – for CardPageBuildItem / dev UI integration -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-devui-deployment-spi</artifactId>
+    </dependency>
+
+    <!-- Testcontainers – only needed at build time for Dev Services.
+         Version managed by quarkus-bom; no explicit version required. -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+    </dependency>
+    <!-- MongoDBContainer: single-node replica set support for devservices.replica-set=true -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-mongodb</artifactId>
+    </dependency>
+
+    <!-- Test dependencies -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>io.quarkus</groupId>
+              <artifactId>quarkus-extension-processor</artifactId>
+              <version>${quarkus.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

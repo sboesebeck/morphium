@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.quarkiverse.morphium</groupId>
+    <artifactId>quarkus-morphium-parent</artifactId>
+    <version>1.2.0</version>
+  </parent>
+
+  <artifactId>quarkus-morphium</artifactId>
+  <name>Quarkus Morphium Extension – Runtime</name>
+
+  <dependencies>
+    <!-- Quarkus CDI, config and lifecycle APIs -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-arc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-core</artifactId>
+    </dependency>
+    <!-- MicroProfile Health API — optional so downstream apps that do not
+         include quarkus-smallrye-health are not forced into the health extension. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-health</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <!-- JSON serialization layers — both optional. The extension ships an
+         ObjectMapperCustomizer (Jackson) and a JsonbConfigCustomizer (JSON-B)
+         that serialize MorphiumId as its canonical hex string instead of the
+         internal bean shape. Optional so apps that emit no JSON are not forced
+         into either layer; the build-time processor registers each customizer
+         only when the corresponding capability is present on the application
+         classpath. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jackson</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jsonb</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <!-- Jakarta Data API -->
+    <dependency>
+      <groupId>jakarta.data</groupId>
+      <artifactId>jakarta.data-api</artifactId>
+      <version>${jakarta.data.version}</version>
+    </dependency>
+    <!-- Shared Jakarta Data runtime for Morphium (query derivation, JDQL, pagination) -->
+    <dependency>
+      <groupId>de.caluga</groupId>
+      <artifactId>morphium-jakarta-data</artifactId>
+    </dependency>
+    <!-- The Morphium ORM library -->
+    <dependency>
+      <groupId>de.caluga</groupId>
+      <artifactId>morphium</artifactId>
+      <exclusions>
+        <!-- Quarkus provides its own SLF4J provider (jboss-logmanager).
+             Logback on the classpath causes "multiple SLF4J providers" warnings. -->
+        <exclusion>
+          <groupId>ch.qos.logback</groupId>
+          <artifactId>logback-classic</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>ch.qos.logback</groupId>
+          <artifactId>logback-core</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!-- Quarkus TLS Registry — provides TlsConfigurationRegistry to consume
+         standard quarkus.tls.* properties as an SSLContext fallback for MongoDB.
+         Essential for native images where run-quarkus-native.sh writes
+         quarkus.tls.key-store.p12.* / quarkus.tls.trust-store.p12.* properties. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-tls-registry</artifactId>
+    </dependency>
+    <!-- Dev Services runtime counterpart (required by Quarkus 3.32+) -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-devservices</artifactId>
+    </dependency>
+    <!-- Test -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+      <resource>
+        <directory>src/main/resources-filtered</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>io.quarkus</groupId>
+              <artifactId>quarkus-extension-processor</artifactId>
+              <version>${quarkus.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-extension-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>compile</phase>
+            <goals>
+              <goal>extension-descriptor</goal>
+            </goals>
+            <configuration>
+              <deployment>${project.groupId}:${project.artifactId}-deployment:${project.version}</deployment>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

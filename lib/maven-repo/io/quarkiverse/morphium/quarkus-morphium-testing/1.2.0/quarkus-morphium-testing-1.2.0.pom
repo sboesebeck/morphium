@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.quarkiverse.morphium</groupId>
+    <artifactId>quarkus-morphium-parent</artifactId>
+    <version>1.2.0</version>
+  </parent>
+
+  <artifactId>quarkus-morphium-testing</artifactId>
+  <name>Quarkus Morphium Extension – Testing</name>
+  <description>
+    Test utilities for applications using the quarkus-morphium extension.
+    Provides InMemMorphiumTestProfile to run Quarkus tests against the
+    Morphium in-memory driver without starting a MongoDB container.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.quarkiverse.morphium</groupId>
+      <artifactId>quarkus-morphium</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit</artifactId>
+    </dependency>
+  </dependencies>
+</project>

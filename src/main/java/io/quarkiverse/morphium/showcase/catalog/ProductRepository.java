@@ -6,7 +6,7 @@ import jakarta.data.Limit;
 import jakarta.data.Order;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
-import de.caluga.morphium.quarkus.data.MorphiumRepository;
+import de.caluga.morphium.data.MorphiumRepository;
 import jakarta.data.repository.Find;
 import jakarta.data.repository.OrderBy;
 import jakarta.data.repository.Param;

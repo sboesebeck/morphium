@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.quarkiverse.morphium</groupId>
+  <artifactId>quarkus-morphium-parent</artifactId>
+  <version>1.2.0</version>
+  <packaging>pom</packaging>
+
+  <name>Quarkus Morphium Extension – Parent</name>
+  <description>
+    Quarkus CDI extension that integrates the Morphium MongoDB ORM.
+    Provides @ApplicationScoped Morphium producer, type-safe @ConfigMapping,
+    and GraalVM native reflection registration for all @Entity classes.
+  </description>
+  <url>https://github.com/Bardioc1977/quarkus-morphium</url>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <scm>
+    <connection>scm:git:https://github.com/Bardioc1977/quarkus-morphium.git</connection>
+    <developerConnection>scm:git:git@github.com:Bardioc1977/quarkus-morphium.git</developerConnection>
+    <url>https://github.com/Bardioc1977/quarkus-morphium</url>
+  </scm>
+
+  <issueManagement>
+    <system>GitHub Issues</system>
+    <url>https://github.com/Bardioc1977/quarkus-morphium/issues</url>
+  </issueManagement>
+
+  <developers>
+    <developer>
+      <id>Bardioc1977</id>
+      <url>https://github.com/Bardioc1977</url>
+    </developer>
+  </developers>
+
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/Bardioc1977/quarkus-morphium</url>
+    </repository>
+  </distributionManagement>
+
+  <modules>
+    <module>runtime</module>
+    <module>deployment</module>
+    <module>testing</module>
+    <module>integration-tests</module>
+  </modules>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <quarkus.version>3.32.3</quarkus.version>
+    <morphium.version>6.2.5-SNAPSHOT</morphium.version>
+    <jakarta.data.version>1.0.0</jakarta.data.version>
+    <morphium-jakarta-data.version>1.1.0-SNAPSHOT</morphium-jakarta-data.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.quarkus.platform</groupId>
+        <artifactId>quarkus-bom</artifactId>
+        <version>${quarkus.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>de.caluga</groupId>
+        <artifactId>morphium</artifactId>
+        <version>${morphium.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>de.caluga</groupId>
+        <artifactId>morphium-jakarta-data</artifactId>
+        <version>${morphium-jakarta-data.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>3.27.7</version>
+        <scope>test</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.15.0</version>
+          <configuration>
+            <release>${maven.compiler.release}</release>
+            <parameters>true</parameters>
+            <compilerArgs>
+              <arg>-Xlint:deprecation,unchecked</arg>
+            </compilerArgs>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>io.quarkus</groupId>
+          <artifactId>quarkus-extension-maven-plugin</artifactId>
+          <version>${quarkus.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.5.5</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>
