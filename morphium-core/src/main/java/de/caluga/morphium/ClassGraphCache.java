@@ -4,9 +4,12 @@ import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -15,6 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Morphium instance creation.
  */
 public final class ClassGraphCache {
+
+    private static final Logger log = LoggerFactory.getLogger(ClassGraphCache.class);
 
     private static volatile List<String> allClassNames;
     private static volatile ScanResult cachedScanResult;
@@ -73,6 +78,37 @@ public final class ClassGraphCache {
      */
     public static ClassInfoList getSubclassInfoOf(String className) {
         return getScanResult().getSubclasses(className);
+    }
+
+    /**
+     * Pre-populate the annotation cache with a known list of class names.
+     *
+     * <p>Must be called <em>before</em> the first call to
+     * {@link #getClassesWithAnnotation(String)} for the same annotation name.
+     * When an entry is already present in the cache the pre-registered list wins
+     * (the {@code computeIfAbsent} in {@code getClassesWithAnnotation} will find
+     * the existing entry and skip the ClassGraph scan entirely).
+     *
+     * <p>Calling this method with an empty list is valid and intentional: it puts
+     * an empty entry into the cache, which causes {@code getClassesWithAnnotation}
+     * to return the empty list without triggering a live ClassGraph scan.
+     *
+     * <p>Primary use-case: Quarkus native image. ClassGraph finds nothing at
+     * runtime because there is no live classpath; this method lets the
+     * quarkus-morphium extension inject the Jandex-discovered class names that
+     * were collected at build time.
+     *
+     * @param annotationName fully qualified annotation class name (must not be null)
+     * @param classNames     list of class names to register (must not be null)
+     */
+    public static void preRegister(String annotationName, List<String> classNames) {
+        Objects.requireNonNull(annotationName, "annotationName must not be null");
+        Objects.requireNonNull(classNames, "classNames must not be null");
+        if (classNames.isEmpty()) {
+            log.warn("preRegister called with empty class list for annotation {} — "
+                    + "ClassGraph scan will be skipped but no classes are registered", annotationName);
+        }
+        classesWithAnnotation.put(annotationName, List.copyOf(classNames));
     }
 
     /**
