@@ -58,8 +58,10 @@
         <repository>
             <id>local-bundled</id>
             <url>file://${project.basedir}/lib/maven-repo</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
+            <!-- checksumPolicy=ignore: the bundled artifacts are copied without .sha1/.md5
+                 sidecars, so do not fail the build on missing checksums. -->
+            <releases><enabled>true</enabled><checksumPolicy>ignore</checksumPolicy></releases>
+            <snapshots><enabled>true</enabled><checksumPolicy>ignore</checksumPolicy></snapshots>
         </repository>
     </repositories>
 
