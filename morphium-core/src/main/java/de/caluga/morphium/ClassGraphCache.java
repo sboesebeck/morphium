@@ -28,9 +28,10 @@ public final class ClassGraphCache {
     /**
      * Build-time pre-registered class names per annotation. Unlike {@link #classesWithAnnotation}
      * (a scan cache cleared by {@link #invalidate()}), this map survives invalidation and always
-     * takes precedence over a live scan — mirroring the {@code preRegisteredTypeIds} hook in
-     * {@code AnnotationAndReflectionHelper}. This keeps a Quarkus native image scan-free even
-     * after a cache invalidation, where a live scan would silently find nothing.
+     * takes precedence over a live scan. This follows the same pattern as the
+     * {@code preRegisteredTypeIds} hook in {@code AnnotationAndReflectionHelper} (a separate map
+     * that survives cache invalidation), and keeps a Quarkus native image scan-free even after a
+     * cache invalidation, where a live scan would silently find nothing.
      */
     private static final Map<String, List<String>> preRegisteredClassesWithAnnotation = new ConcurrentHashMap<>();
     private static final Object lock = new Object();
@@ -100,14 +101,18 @@ public final class ClassGraphCache {
      *
      * <p>A pre-registration always takes precedence over a live ClassGraph scan in
      * {@link #getClassesWithAnnotation(String)} and, unlike the scan cache, <strong>survives
-     * {@link #invalidate()}</strong> — it is re-applied on the next lookup. This mirrors the
-     * {@code registerTypeIds()} hook in {@code AnnotationAndReflectionHelper} and keeps a Quarkus
-     * native image scan-free even across invalidations, where a live scan would silently find
-     * nothing.
+     * {@link #invalidate()}</strong> — it is re-applied on the next lookup. This follows the same
+     * pattern as the {@code registerTypeIds()} hook in {@code AnnotationAndReflectionHelper} (a
+     * separate map that survives cache invalidation) and keeps a Quarkus native image scan-free
+     * even across invalidations, where a live scan would silently find nothing.
+     *
+     * <p>Note the empty-list semantics differ from {@code registerTypeIds()}, which only skips the
+     * scan when its map is non-empty: here an empty list is valid and intentional — it pins an
+     * empty result and skips the live scan (e.g. an app with no
+     * {@code @Capped}/{@code @Driver}/{@code @Messaging} classes).
      *
      * <p>Last call wins: a later pre-registration for the same annotation replaces the previous
-     * one. An empty list is valid and intentional — it pins an empty result and skips the live
-     * scan (e.g. an app with no {@code @Capped}/{@code @Driver}/{@code @Messaging} classes).
+     * one.
      *
      * <p>Note: this hook only covers the name-based {@link #getClassesWithAnnotation(String)}
      * path. {@link #getClassInfoWithAnnotation(String)} (used by the startup index check) and the

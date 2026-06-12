@@ -65,11 +65,28 @@ public class ClassGraphCachePreRegisterTest {
 
     @Test
     public void clearPreRegistrationsDropsThem() {
-        ClassGraphCache.preRegisterClassesWithAnnotation(ANNO_EMPTY, List.of());
+        // Pin a NON-empty list. ANNO is a made-up annotation not on the classpath, so once the
+        // pre-registration is cleared the lookup falls back to a live scan that finds nothing.
+        ClassGraphCache.preRegisterClassesWithAnnotation(ANNO, List.of("com.example.A"));
+        assertEquals(List.of("com.example.A"), ClassGraphCache.getClassesWithAnnotation(ANNO),
+                "sanity: the pre-registration is in effect before clearing");
+
         ClassGraphCache.clearPreRegistrations();
-        // ANNO_EMPTY was made-up and not on the classpath, so after clearing, the lookup falls
-        // back to a live scan that finds nothing — still empty, but no longer pinned.
-        assertTrue(ClassGraphCache.getClassesWithAnnotation(ANNO_EMPTY).isEmpty());
+
+        assertTrue(ClassGraphCache.getClassesWithAnnotation(ANNO).isEmpty(),
+                "after clearPreRegistrations() the pinned entry must be gone (scan finds nothing)");
+    }
+
+    @Test
+    public void preRegisterOverridesAnAlreadyScannedEntry() {
+        // Populate the scan cache FIRST (made-up annotation -> scan yields empty, cached as empty).
+        assertTrue(ClassGraphCache.getClassesWithAnnotation(ANNO).isEmpty(),
+                "sanity: a live scan for a made-up annotation yields empty");
+
+        // A pre-registration AFTER the scan must still win.
+        ClassGraphCache.preRegisterClassesWithAnnotation(ANNO, List.of("com.example.A"));
+        assertEquals(List.of("com.example.A"), ClassGraphCache.getClassesWithAnnotation(ANNO),
+                "a pre-registration must override an already-scanned (cached) entry");
     }
 
     @Test
