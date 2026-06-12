@@ -28,3 +28,7 @@ Thumbs.db
 
 # Docker local credentials
 .env
+
+# Bundled local Maven repo: morphium / quarkus-morphium are not on Maven Central yet,
+# so their jars are committed here. Override any global *.jar ignore for this path.
+!lib/maven-repo/**/*.jar
