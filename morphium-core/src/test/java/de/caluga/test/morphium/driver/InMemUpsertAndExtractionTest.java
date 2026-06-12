@@ -136,6 +136,56 @@ public class InMemUpsertAndExtractionTest {
                 .isFalse();
     }
 
+    @Test
+    public void explicitEqOperatorSeedsValue() throws Exception {
+        // {$and:[{_id:"x"},{state:{$eq:"active"}}]} — the explicit $eq form must seed like a scalar
+        Map<String, Object> filter = and(
+                eq("_id", "x"),
+                operator("state", "$eq", "active"));
+
+        upsert(filter, set("name", "n"));
+
+        Map<String, Object> stored = onlyDocument();
+        assertThat(stored.get("_id")).isEqualTo("x");
+        assertThat(stored.get("state"))
+                .as("an explicit {$eq: value} predicate must seed the value")
+                .isEqualTo("active");
+    }
+
+    @Test
+    public void eqNullDoesNotSeedField() throws Exception {
+        // {$and:[{_id:"x"},{deletedAt:{$eq:null}}]} — DELIBERATE divergence from MongoDB:
+        // the real server seeds a literal null; the in-memory driver leaves the field unset.
+        Map<String, Object> filter = and(
+                eq("_id", "x"),
+                operator("deletedAt", "$eq", null));
+
+        upsert(filter, set("name", "n"));
+
+        Map<String, Object> stored = onlyDocument();
+        assertThat(stored.get("_id")).isEqualTo("x");
+        assertThat(stored.containsKey("deletedAt"))
+                .as("{$eq:null} must not seed the field (documented divergence from MongoDB)")
+                .isFalse();
+    }
+
+    @Test
+    public void orBranchesDoNotSeedUpsert() throws Exception {
+        // {$and:[{_id:"x"},{$or:[{role:"admin"}]}]} — $or is not seeded (documented divergence:
+        // MongoDB would collapse a single-branch $or and seed role:"admin").
+        Map<String, Object> filter = and(
+                eq("_id", "x"),
+                Doc.of("$or", List.of(eq("role", "admin"))));
+
+        upsert(filter, set("name", "n"));
+
+        Map<String, Object> stored = onlyDocument();
+        assertThat(stored.get("_id")).isEqualTo("x");
+        assertThat(stored.containsKey("role"))
+                .as("$or branches must not seed a value (documented divergence)")
+                .isFalse();
+    }
+
     // --- helpers -------------------------------------------------------------
 
     /** {field: value} — an equality predicate. */

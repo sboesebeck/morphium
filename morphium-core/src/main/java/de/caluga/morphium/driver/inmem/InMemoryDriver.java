@@ -4165,8 +4165,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * recursively, so a filter like {@code {$and:[{_id:"x"},{expires_at:{$lte:now}}]}} still
      * seeds {@code _id:"x"} into the upserted document.
      *
-     * <p>{@code $or}/{@code $nor} are intentionally skipped: they are ambiguous (no single value
-     * is implied) and MongoDB does not seed from them either.
+     * <p><strong>Known divergences from the real server</strong> (acceptable for an in-memory
+     * test driver, documented so the parity claim above is not overstated):
+     * <ul>
+     *   <li>{@code $or}/{@code $nor} are skipped unconditionally. The real server seeds a
+     *       single-branch {@code $or} (e.g. {@code {$or:[{f:9}]}} → {@code f:9}), because its
+     *       optimizer collapses it to the child; multi-branch {@code $or} and any {@code $nor}
+     *       are never seeded. We do not special-case the single-branch collapse.</li>
+     *   <li>Null equality ({@code {f:null}} / {@code {f:{$eq:null}}}) is dropped here, whereas
+     *       the real server seeds a literal {@code null} — see {@link #seedField}.</li>
+     * </ul>
      *
      * @param filter the query filter
      * @param target the document being built for the upsert; mutated in place
@@ -4183,7 +4191,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (isAndOperator(field)) {
                 collectFromAndBranches(predicate, target);
             } else if (isOperatorKey(field)) {
-                // other logical/operator keys ($or, $nor, $expr, ...) do not seed an upsert
+                // Logical/operator keys ($or, $nor, $expr, ...) are not seeded. NB: the real
+                // server does seed a single-branch $or; we deliberately do not (see Javadoc).
                 continue;
             } else {
                 seedField(field, predicate, target);
@@ -4205,10 +4214,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * Seeds a single field into the upsert document, applying MongoDB's rules:
-     * a scalar or {@code {$eq: value}} is an equality predicate and is copied; an operator
-     * predicate ({@code $lte}, {@code $gt}, {@code $in}, ...) is ignored; a {@code null} value
-     * removes the field.
+     * Seeds a single field into the upsert document. A scalar or {@code {$eq: value}} is an
+     * equality predicate and is copied; an operator predicate ({@code $lte}, {@code $gt},
+     * {@code $in}, ...) is ignored.
+     *
+     * <p><strong>Null equality deliberately diverges from the real server.</strong> MongoDB
+     * <em>does</em> seed null equality predicates ({@code {f:null}} → {@code f:null}, and even
+     * {@code {_id:{$eq:null}}} → literal {@code _id:null}). We drop the field instead, so for
+     * {@code _id} the driver generates a fresh id. Aligning would require special handling around
+     * fresh-id generation in {@code storeInternal}; null-equality upserts are rare and this
+     * matches the driver's prior behaviour, so the divergence is intentional.
      *
      * <p>Dotted field names (e.g. {@code "a.b"}) are seeded as nested documents
      * ({@code {a:{b:value}}}), matching MongoDB and the rest of the driver's path handling, so a
@@ -4216,6 +4231,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     private void seedField(String field, Object predicate, Map<String, Object> target) {
         if (predicate == null) {
+            // {field: null} — diverges from MongoDB (which seeds null); we leave the field unset.
             removeSeed(target, field);
             return;
         }
@@ -4224,9 +4240,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> ops = asStringKeyedMap(predicate);
             if (ops.containsKey("$eq")) {
                 Object eqValue = ops.get("$eq");
-                // {field: {$eq: null}} carries no usable value to seed. Treat it like a null
-                // predicate (remove the field) so the field is left unset; for _id this lets the
-                // driver generate a fresh id rather than seeding an explicit null.
+                // {field: {$eq: null}} — same divergence as {field: null}: MongoDB would seed a
+                // literal null, we drop the field so an upserted _id still gets a fresh id.
                 if (eqValue == null) {
                     removeSeed(target, field);
                 } else {
