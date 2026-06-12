@@ -25,6 +25,14 @@ public final class ClassGraphCache {
     private static volatile ScanResult cachedScanResult;
     private static final Map<String, List<String>> classesWithAnnotation = new ConcurrentHashMap<>();
     private static final Map<String, List<String>> subclassesOf = new ConcurrentHashMap<>();
+    /**
+     * Build-time pre-registered class names per annotation. Unlike {@link #classesWithAnnotation}
+     * (a scan cache cleared by {@link #invalidate()}), this map survives invalidation and always
+     * takes precedence over a live scan — mirroring the {@code preRegisteredTypeIds} hook in
+     * {@code AnnotationAndReflectionHelper}. This keeps a Quarkus native image scan-free even
+     * after a cache invalidation, where a live scan would silently find nothing.
+     */
+    private static final Map<String, List<String>> preRegisteredClassesWithAnnotation = new ConcurrentHashMap<>();
     private static final Object lock = new Object();
 
     private ClassGraphCache() {}
@@ -45,9 +53,16 @@ public final class ClassGraphCache {
 
     /**
      * Get class names annotated with the given annotation.
-     * Results are cached after first lookup.
+     *
+     * <p>A build-time pre-registration via {@link #preRegisterClassesWithAnnotation(String, List)}
+     * always wins and is returned without a live scan. Otherwise the result is taken from (or
+     * computed into) the scan cache on first lookup.
      */
     public static List<String> getClassesWithAnnotation(String annotationName) {
+        List<String> preRegistered = preRegisteredClassesWithAnnotation.get(annotationName);
+        if (preRegistered != null) {
+            return preRegistered;
+        }
         return classesWithAnnotation.computeIfAbsent(annotationName, name -> {
             ClassInfoList list = getScanResult().getClassesWithAnnotation(name);
             return List.copyOf(list.getNames());
@@ -81,41 +96,43 @@ public final class ClassGraphCache {
     }
 
     /**
-     * Pre-populate the annotation cache with a known list of class names.
+     * Pre-register the class names annotated with a given annotation, collected at build time.
      *
-     * <p>Intended to be called <em>before</em> the first call to
-     * {@link #getClassesWithAnnotation(String)} for the same annotation name. The cache is
-     * treated as write-once: this method only inserts when no entry exists yet
-     * ({@code putIfAbsent}). An already-present entry — whether from a previous
-     * {@code preRegister} or from a live scan via {@code getClassesWithAnnotation} — is kept
-     * unchanged, so the cache stays immutable after initialization and is safe to call from a
-     * concurrent startup sequence.
+     * <p>A pre-registration always takes precedence over a live ClassGraph scan in
+     * {@link #getClassesWithAnnotation(String)} and, unlike the scan cache, <strong>survives
+     * {@link #invalidate()}</strong> — it is re-applied on the next lookup. This mirrors the
+     * {@code registerTypeIds()} hook in {@code AnnotationAndReflectionHelper} and keeps a Quarkus
+     * native image scan-free even across invalidations, where a live scan would silently find
+     * nothing.
      *
-     * <p>Calling this method with an empty list is valid and intentional: it seeds an empty
-     * entry, which causes {@code getClassesWithAnnotation} to return the empty list without
-     * triggering a live ClassGraph scan. The empty-list warning is logged only when the empty
-     * entry was actually inserted (i.e. no entry existed yet).
+     * <p>Last call wins: a later pre-registration for the same annotation replaces the previous
+     * one. An empty list is valid and intentional — it pins an empty result and skips the live
+     * scan (e.g. an app with no {@code @Capped}/{@code @Driver}/{@code @Messaging} classes).
      *
-     * <p>Primary use-case: Quarkus native image. ClassGraph finds nothing at
-     * runtime because there is no live classpath; this method lets the
-     * quarkus-morphium extension inject the Jandex-discovered class names that
-     * were collected at build time.
+     * <p>Note: this hook only covers the name-based {@link #getClassesWithAnnotation(String)}
+     * path. {@link #getClassInfoWithAnnotation(String)} (used by the startup index check) and the
+     * {@code subclassesOf} cache still require a live scan; native-image callers that must avoid
+     * any scan should account for those paths separately.
      *
      * @param annotationName fully qualified annotation class name (must not be null)
-     * @param classNames     list of class names to register (must not be null)
+     * @param classNames     list of class names to register (must not be null; may be empty)
      */
-    public static void preRegister(String annotationName, List<String> classNames) {
+    public static void preRegisterClassesWithAnnotation(String annotationName, List<String> classNames) {
         Objects.requireNonNull(annotationName, "annotationName must not be null");
         Objects.requireNonNull(classNames, "classNames must not be null");
-        List<String> previous = classesWithAnnotation.putIfAbsent(annotationName, List.copyOf(classNames));
-        if (previous == null && classNames.isEmpty()) {
-            log.warn("preRegister called with empty class list for annotation {} — "
-                    + "ClassGraph scan will be skipped but no classes are registered", annotationName);
+        preRegisteredClassesWithAnnotation.put(annotationName, List.copyOf(classNames));
+        if (classNames.isEmpty()) {
+            log.debug("preRegisterClassesWithAnnotation: empty class list for annotation {} — "
+                    + "live scan skipped, no classes registered for it", annotationName);
         }
     }
 
     /**
      * Force cache invalidation. Useful for testing or hot-reload scenarios.
+     *
+     * <p>Clears the scan result and the scan caches. Build-time pre-registrations made via
+     * {@link #preRegisterClassesWithAnnotation(String, List)} are intentionally <strong>kept</strong>,
+     * so they keep taking effect after a re-scan. Use {@link #clearPreRegistrations()} to drop them.
      */
     public static void invalidate() {
         synchronized (lock) {
@@ -127,5 +144,13 @@ public final class ClassGraphCache {
             subclassesOf.clear();
             allClassNames = null;
         }
+    }
+
+    /**
+     * Drop all build-time pre-registrations. Mainly for tests and hot-reload scenarios where the
+     * set of entities changes; ordinary {@link #invalidate()} deliberately keeps them.
+     */
+    public static void clearPreRegistrations() {
+        preRegisteredClassesWithAnnotation.clear();
     }
 }
