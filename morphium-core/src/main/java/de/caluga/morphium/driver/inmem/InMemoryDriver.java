@@ -4154,6 +4154,142 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return result;
     }
 
+    /**
+     * Seeds an upserted document with the equality predicates of a query filter, mirroring
+     * MongoDB's upsert behaviour.
+     *
+     * <p>Only equality predicates contribute to the new document: a plain scalar
+     * ({@code {field: value}}) or an explicit {@code {field: {$eq: value}}}. Operator
+     * predicates such as {@code $lte}, {@code $gt} or {@code $in} are ignored, exactly as the
+     * real server does. Equality fields nested inside an {@code $and} array are collected
+     * recursively, so a filter like {@code {$and:[{_id:"x"},{expires_at:{$lte:now}}]}} still
+     * seeds {@code _id:"x"} into the upserted document.
+     *
+     * <p>{@code $or}/{@code $nor} are intentionally skipped: they are ambiguous (no single value
+     * is implied) and MongoDB does not seed from them either.
+     *
+     * @param filter the query filter
+     * @param target the document being built for the upsert; mutated in place
+     */
+    private void collectUpsertEqualityFields(Map<String, Object> filter, Map<String, Object> target) {
+        if (filter == null) {
+            return;
+        }
+
+        for (Map.Entry<String, Object> entry : filter.entrySet()) {
+            String field = entry.getKey();
+            Object predicate = entry.getValue();
+
+            if (isAndOperator(field)) {
+                collectFromAndBranches(predicate, target);
+            } else if (isOperatorKey(field)) {
+                // other logical/operator keys ($or, $nor, $expr, ...) do not seed an upsert
+                continue;
+            } else {
+                seedField(field, predicate, target);
+            }
+        }
+    }
+
+    /** Recurse into every sub-filter of an {@code $and} array. */
+    private void collectFromAndBranches(Object andValue, Map<String, Object> target) {
+        if (!(andValue instanceof List<?> branches)) {
+            return;
+        }
+
+        for (Object branch : branches) {
+            if (branch instanceof Map<?, ?> subFilter) {
+                collectUpsertEqualityFields(asStringKeyedMap(subFilter), target);
+            }
+        }
+    }
+
+    /**
+     * Seeds a single field into the upsert document, applying MongoDB's rules:
+     * a scalar or {@code {$eq: value}} is an equality predicate and is copied; an operator
+     * predicate ({@code $lte}, {@code $gt}, {@code $in}, ...) is ignored; a {@code null} value
+     * removes the field.
+     *
+     * <p>Dotted field names (e.g. {@code "a.b"}) are seeded as nested documents
+     * ({@code {a:{b:value}}}), matching MongoDB and the rest of the driver's path handling, so a
+     * later query on {@code a.b} matches the upserted document.
+     */
+    private void seedField(String field, Object predicate, Map<String, Object> target) {
+        if (predicate == null) {
+            removeSeed(target, field);
+            return;
+        }
+
+        if (isOperatorPredicate(predicate)) {
+            Map<String, Object> ops = asStringKeyedMap(predicate);
+            if (ops.containsKey("$eq")) {
+                Object eqValue = ops.get("$eq");
+                // {field: {$eq: null}} carries no usable value to seed. Treat it like a null
+                // predicate (remove the field) so the field is left unset; for _id this lets the
+                // driver generate a fresh id rather than seeding an explicit null.
+                if (eqValue == null) {
+                    removeSeed(target, field);
+                } else {
+                    putSeed(target, field, eqValue);
+                }
+            }
+            // any other operator ($lte, $gt, $in, ...) implies no single value -> do not seed
+            return;
+        }
+
+        putSeed(target, field, predicate);
+    }
+
+    /** Writes a seeded value, expanding dotted field names into nested documents. */
+    private void putSeed(Map<String, Object> target, String field, Object value) {
+        if (field.indexOf('.') >= 0) {
+            setByPath(target, field, value);
+        } else {
+            target.put(field, value);
+        }
+    }
+
+    /** Removes a seeded field, honouring dotted field names. */
+    private void removeSeed(Map<String, Object> target, String field) {
+        if (field.indexOf('.') >= 0) {
+            removeByPath(target, field);
+        } else {
+            target.remove(field);
+        }
+    }
+
+    private boolean isAndOperator(String field) {
+        return "$and".equals(field);
+    }
+
+    private boolean isOperatorKey(String field) {
+        return field.startsWith("$");
+    }
+
+    /**
+     * A predicate is an operator predicate when it is a map with at least one operator key
+     * ({@code $eq}, {@code $lte}, ...). A plain value or an empty map ({@code {}}) is treated as
+     * a scalar equality value, not an operator predicate.
+     */
+    private boolean isOperatorPredicate(Object predicate) {
+        if (!(predicate instanceof Map<?, ?> map) || map.isEmpty()) {
+            return false;
+        }
+
+        for (Object key : map.keySet()) {
+            if (key instanceof String s && s.startsWith("$")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asStringKeyedMap(Object map) {
+        return (Map<String, Object>) map;
+    }
+
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query,
             Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
@@ -4173,20 +4309,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             if (upsert && lst.isEmpty()) {
-                lst.add(new HashMap<>());
-
-                for (String k : query.keySet()) {
-                    if (k.startsWith("$")) {
-                        continue;
-                    }
-
-                    if (query.get(k) != null) {
-                        lst.get(0).put(k, query.get(k));
-                    } else {
-                        lst.get(0).remove(k);
-                    }
-                }
-
+                Map<String, Object> upsertDoc = new HashMap<>();
+                // MongoDB seeds an upserted document with the equality predicates from the
+                // query filter. Collect them — including those nested inside $and — so that
+                // e.g. {$and:[{_id:"x"},{expires_at:{$lte:now}}]} still seeds _id:"x".
+                // Operator predicates ($lte, $gt, $in, ...) are NOT applied, matching MongoDB.
+                collectUpsertEqualityFields(query, upsertDoc);
+                lst.add(upsertDoc);
                 insert = true;
             }
             // Track modifications per object and collect upsert ids
