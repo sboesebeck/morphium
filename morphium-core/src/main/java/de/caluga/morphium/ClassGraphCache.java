@@ -83,15 +83,18 @@ public final class ClassGraphCache {
     /**
      * Pre-populate the annotation cache with a known list of class names.
      *
-     * <p>Must be called <em>before</em> the first call to
-     * {@link #getClassesWithAnnotation(String)} for the same annotation name.
-     * When an entry is already present in the cache the pre-registered list wins
-     * (the {@code computeIfAbsent} in {@code getClassesWithAnnotation} will find
-     * the existing entry and skip the ClassGraph scan entirely).
+     * <p>Intended to be called <em>before</em> the first call to
+     * {@link #getClassesWithAnnotation(String)} for the same annotation name. The cache is
+     * treated as write-once: this method only inserts when no entry exists yet
+     * ({@code putIfAbsent}). An already-present entry — whether from a previous
+     * {@code preRegister} or from a live scan via {@code getClassesWithAnnotation} — is kept
+     * unchanged, so the cache stays immutable after initialization and is safe to call from a
+     * concurrent startup sequence.
      *
-     * <p>Calling this method with an empty list is valid and intentional: it puts
-     * an empty entry into the cache, which causes {@code getClassesWithAnnotation}
-     * to return the empty list without triggering a live ClassGraph scan.
+     * <p>Calling this method with an empty list is valid and intentional: it seeds an empty
+     * entry, which causes {@code getClassesWithAnnotation} to return the empty list without
+     * triggering a live ClassGraph scan. The empty-list warning is logged only when the empty
+     * entry was actually inserted (i.e. no entry existed yet).
      *
      * <p>Primary use-case: Quarkus native image. ClassGraph finds nothing at
      * runtime because there is no live classpath; this method lets the
@@ -104,11 +107,11 @@ public final class ClassGraphCache {
     public static void preRegister(String annotationName, List<String> classNames) {
         Objects.requireNonNull(annotationName, "annotationName must not be null");
         Objects.requireNonNull(classNames, "classNames must not be null");
-        if (classNames.isEmpty()) {
+        List<String> previous = classesWithAnnotation.putIfAbsent(annotationName, List.copyOf(classNames));
+        if (previous == null && classNames.isEmpty()) {
             log.warn("preRegister called with empty class list for annotation {} — "
                     + "ClassGraph scan will be skipped but no classes are registered", annotationName);
         }
-        classesWithAnnotation.put(annotationName, List.copyOf(classNames));
     }
 
     /**
