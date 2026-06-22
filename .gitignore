@@ -48,3 +48,4 @@ package.json
 site/
 .morphiumserver-local
 .poppydb-local
+/default.profraw
