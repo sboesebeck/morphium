@@ -35,6 +35,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final String collectionName;
     private final boolean fullDocument;
     private final int maxWait;
+    // getMore batch size for the change stream cursor; defaults to the configured changeStreamBatchSize,
+    // can be overridden per monitor via setBatchSize() before start().
+    private int batchSize;
     private volatile boolean running = true;
     private Thread changeStreamThread;
     private final MorphiumObjectMapper mapper;
@@ -97,9 +100,23 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             this.maxWait = m.getConfig().connectionSettings().getMaxWaitTime();
         }
 
+        this.batchSize = m.getConfig().driverSettings().getChangeStreamBatchSize();
         mapper = new ObjectMapperImpl();
         AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
         mapper.setAnnotationHelper(hlp);
+    }
+
+    public int getBatchSize() {
+        return batchSize;
+    }
+
+    /**
+     * Override the change stream getMore batch size for this monitor. Must be called before {@link #start()}.
+     * Defaults to {@code driverSettings().getChangeStreamBatchSize()}.
+     */
+    public ChangeStreamMonitor setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+        return this;
     }
 
     public void addListener(ChangeStreamListener lst) {
@@ -317,7 +334,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     continue;  // Retry connection
                 }
 
-                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(maxWait)
+                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(batchSize).setMaxTimeMS(maxWait)
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
 
                 // Use resume token to continue from where we left off (prevents duplicate events)

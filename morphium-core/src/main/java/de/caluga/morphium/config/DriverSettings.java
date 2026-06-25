@@ -22,6 +22,13 @@ public class DriverSettings extends Settings {
     private int maxConnectionIdleTime = 30000;
     private int maxConnectionLifeTime = 600000;
     private int cursorBatchSize = 1000;
+    // Batch size for change stream getMore. With batchSize=1 the stream delivers exactly one event
+    // per getMore round-trip, which caps throughput at ~1/network-RTT — fine on localhost, but a
+    // bottleneck over high-latency links (e.g. SSH/SOCKS tunnels) where a busy stream cannot keep
+    // up and falls behind. A larger value lets one round-trip drain many backlogged events without
+    // any latency penalty (awaitData still returns as soon as the first event is available).
+    // Bounded in practice by MongoDB's ~16MB per-reply limit regardless of this count.
+    private int changeStreamBatchSize = 100;
     private int heartbeatFrequency = 1000;
     private int idleSleepTime = 20;
 
@@ -114,6 +121,13 @@ public class DriverSettings extends Settings {
     }
     public DriverSettings setCursorBatchSize(int cursorBatchSize) {
         this.cursorBatchSize = cursorBatchSize;
+        return this;
+    }
+    public int getChangeStreamBatchSize() {
+        return changeStreamBatchSize;
+    }
+    public DriverSettings setChangeStreamBatchSize(int changeStreamBatchSize) {
+        this.changeStreamBatchSize = changeStreamBatchSize;
         return this;
     }
     public String getDriverName() {

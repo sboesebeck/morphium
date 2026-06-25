@@ -5,6 +5,17 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.5] - Unreleased
+
+### Changed
+
+#### Messaging/ChangeStream: configurable change stream batch size
+The change stream `getMore` batch size is no longer hardcoded to `1`. It is now configurable via `DriverSettings.changeStreamBatchSize` (default `100`) and can be overridden per monitor through `ChangeStreamMonitor.setBatchSize()`.
+
+A batch size of `1` delivers exactly one event per `getMore` round-trip, which caps stream throughput at roughly one event per network round-trip. On localhost this is unnoticeable, but over a high-latency link (e.g. an SSH/SOCKS tunnel with tens of milliseconds RTT) a busy stream cannot keep up: it drains a backlog at only ~1/RTT events per second and falls behind, delivering events — including messaging answers awaited by `sendAndAwaitAnswers()` — up to tens of seconds late, until traffic drops and the cursor catches up.
+
+Because `awaitData` returns as soon as the first event is available, a larger batch size adds no latency at low traffic but lets a single round-trip drain many backlogged events. The original reason for `batchSize=1` (a multi-document-batch hang in the previous `watch()` implementation) no longer reproduces after the change stream rewrite. The effective batch is still bounded by MongoDB's ~16MB per-reply limit regardless of the configured count.
+
 ## [6.2.4] - 2026-05-08
 
 ### Added
