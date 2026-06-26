@@ -114,6 +114,17 @@ messaging.addListenerForTopic("events", (m, msg) -> {
 });
 ```
 
+**Change Stream Batch Size (since 6.2.5)**
+
+The `getMore` batch size of the messaging change stream is configurable via
+`cfg.driverSettings().setChangeStreamBatchSize(int)` (default `100`). The previous
+hardcoded value of `1` capped throughput at one event per network round-trip, which
+on high-latency links (e.g. an SSH/SOCKS tunnel) caused a busy stream to fall behind
+and deliver messages — including answers awaited by `sendAndAwaitAnswers()` — tens of
+seconds late. Raising the batch lets a single round-trip drain many backlogged events
+without adding latency at low traffic. See
+[Configuration Reference → Change Stream Batch Size](configuration-reference.md#change-stream-batch-size).
+
 ### InMemoryDriver Support
 Full messaging support with InMemoryDriver for testing:
 

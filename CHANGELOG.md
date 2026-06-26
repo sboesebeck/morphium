@@ -32,7 +32,7 @@ On upsert the `InMemoryDriver` seeded the new document only from top-level non-`
 #### DNS: only use public DNS as a last-resort fallback (#170)
 `DnsSrvResolver.systemDnsServers()` appended `8.8.8.8`/`1.1.1.1` unconditionally, even when system name-servers were present. In split-DNS / private-Atlas setups this could resolve SRV records against public DNS (wrong results) and caused a per-server timeout when outbound UDP/53 is firewalled. Public DNS is now only added when no system name-server is configured (e.g. a minimal container without `/etc/resolv.conf`); an existing system resolver is treated as authoritative and fails fast.
 
-#### Aggregation: field name translation in `unset(Enum...)` and `lookup` foreignField (#197)
+#### Aggregation: field name translation in `unset(Enum...)` and `lookup` foreignField (#198)
 Follow-up to #198: two remaining field-name translation gaps. `unset(Enum...)` in `AggregatorImpl` and `InMemAggregator` passed `Enum.name()` raw to the pipeline instead of translating via `tf()`, and `AggregatorImpl.lookup(Class, Enum, Enum, ...)` did not translate the `foreignField` with the lookup type. Both `Aggregator` implementations are now covered by explicit tests.
 
 #### InMemoryDriver: `$expr` queries with aggregation operators no longer rejected
@@ -45,13 +45,13 @@ Follow-up to #198: two remaining field-name translation gaps. `unset(Enum...)` i
 
 ### Added
 
-#### `MorphiumDocumentTooLargeException` for BSON size limits (#199)
+#### `MorphiumDocumentTooLargeException` for BSON size limits
 Introduced a dedicated `MorphiumDocumentTooLargeException` that is thrown when a document exceeds the 16MB BSON limit. This replaces generic `MorphiumDriverException` for these cases, allowing callers to programmatically handle oversized documents.
 
-#### Messaging: Server-side recipient/sender filtering (#200)
+#### Messaging: Server-side recipient/sender filtering
 `SingleCollectionMessaging` now uses a server-side `$match` stage in its change stream pipeline. This significantly reduces wire traffic and client-side decoding overhead by filtering out messages not intended for the current node directly on the MongoDB server.
 
-#### Messaging: Passive liveness watchdog and cursor recovery (#201)
+#### Messaging: Passive liveness watchdog and cursor recovery
 Added a watchdog that monitors the health of the messaging change stream. It can detect when a cursor has fallen behind or stalled and automatically restarts it to ensure timely message delivery.
 
 #### Aggregator: Field name translation support (#198)
@@ -59,7 +59,7 @@ The `Aggregator` pipeline now supports field name translation, ensuring that Jav
 
 ### Fixed
 
-#### Messaging: Robustness against Errors in main loop (#202)
+#### Messaging: Robustness against Errors in main loop
 The messaging main loop now catches `Throwable` instead of just `Exception`. This prevents the messaging thread from dying silently due to `Error`s (like `OutOfMemoryError`), keeping the system more resilient.
 
 #### Field translation in `Query.distinct()` (#197)

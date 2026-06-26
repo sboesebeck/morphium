@@ -92,6 +92,31 @@ cfg.driverSettings()
 | `setMaxConnectionIdleTime(int)` | 30000 | Max connection idle time (ms) |
 | `setMaxConnectionLifeTime(int)` | 600000 | Max connection lifetime (ms) |
 | `setCursorBatchSize(int)` | 1000 | Default batch size for cursors |
+| `setChangeStreamBatchSize(int)` | 100 | `getMore` batch size for change stream cursors (messaging, watch). See note below. |
+
+### Change Stream Batch Size
+
+`setChangeStreamBatchSize(int)` controls the `getMore` batch size of change stream
+cursors (used by messaging and `watch()`). It defaults to `100`.
+
+A batch size of `1` delivers exactly one event per `getMore` round-trip, capping
+stream throughput at roughly one event per network round-trip. On localhost this is
+unnoticeable, but over a high-latency link (e.g. an SSH/SOCKS tunnel with tens of
+milliseconds RTT) a busy stream cannot keep up: it drains its backlog at only ~1/RTT
+events per second and falls behind, delivering events — including messaging answers
+awaited by `sendAndAwaitAnswers()` — up to tens of seconds late, until traffic drops
+and the cursor catches up. A larger batch adds no latency at low traffic (the cursor
+returns as soon as the first event is available) but lets a single round-trip drain
+many backlogged events. The effective batch is still bounded by MongoDB's ~16MB
+per-reply limit regardless of the configured count.
+
+The value can be overridden per monitor via `ChangeStreamMonitor.setBatchSize(int)`
+before `start()`; an unset monitor inherits `driverSettings().getChangeStreamBatchSize()`.
+
+```java
+// raise for high-latency links / busy streams
+cfg.driverSettings().setChangeStreamBatchSize(500);
+```
 
 ### Available Drivers
 - **`PooledDriver`** (default): Connection pooling with replica set support
