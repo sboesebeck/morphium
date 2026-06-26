@@ -3063,26 +3063,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            // Special handling for map field queries like "stringMap.key1"
-            // System.out.println("[DEBUG_LOG] Original query: " + query);
-            Map<String, Object> renamedQuery = new LinkedHashMap<>(query);
-            for (String key : new ArrayList<>(query.keySet())) {
-                if (!key.startsWith("$") && key.contains(".")) {
-                    String[] parts = key.split("\\.", 2);
-
-                    if (parts.length == 2) {
-                        String translatedField = camelToSnakeCase(parts[0]);
-                        String newKey = translatedField + "." + parts[1];
-
-                        if (!newKey.equals(key)) {
-                            Object value = renamedQuery.remove(key);
-                            renamedQuery.put(newKey, value);
-                        }
-                    }
-                }
-            }
-            query = renamedQuery;
-            // System.out.println("[DEBUG_LOG] Modified query: " + query);
+            // NOTE: dotted query keys (e.g. "meta.source" or "stringMap.key1") are matched as-is
+            // against the stored documents. Query and stored field names are both produced by the
+            // Morphium mapper, so they already share the same casing. A previous camelCase->snake_case
+            // rewrite of the first path segment broke any field whose stored name is not snake_case
+            // (e.g. upper-case field names), turning the query key into a non-existent path.
             if (query.containsKey("$and")) {
                 // and complex query handling ?!?!?
                 List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
@@ -3906,21 +3891,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (v instanceof Boolean)
             return (Boolean) v;
         return true;
-    }
-
-    private static String camelToSnakeCase(String camelCase) {
-        if (camelCase == null)
-            return null;
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < camelCase.length(); i++) {
-            char c = camelCase.charAt(i);
-            if (Character.isUpperCase(c)) {
-                result.append('_').append(Character.toLowerCase(c));
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
     }
 
     // Helper class to defer change stream notifications until after locks are
@@ -5898,6 +5868,38 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void setDefaultJ(boolean j) {
     }
 
+    /**
+     * Resolves a (possibly dotted) field path against a document. For a plain field name this is a
+     * simple map lookup; for a dotted path like "meta.source" it walks the nested maps. When an
+     * intermediate value is a list, the remaining path is resolved against each list element.
+     */
+    @SuppressWarnings("unchecked")
+    private static Object resolveNestedFieldValue(Map<String, Object> doc, String field) {
+        if (field == null || !field.contains(".")) {
+            return doc.get(field);
+        }
+        Object current = doc;
+        for (String part : field.split("\\.")) {
+            if (current instanceof Map) {
+                current = ((Map<String, Object>) current).get(part);
+            } else if (current instanceof List) {
+                List<Object> collected = new ArrayList<>();
+                for (Object element : (List<Object>) current) {
+                    if (element instanceof Map) {
+                        Object v = ((Map<String, Object>) element).get(part);
+                        if (v != null) {
+                            collected.add(v);
+                        }
+                    }
+                }
+                current = collected;
+            } else {
+                return null;
+            }
+        }
+        return current;
+    }
+
     public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter,
                                  Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> list = find(db, collection, filter, null, null, 0, 0);
@@ -5905,8 +5907,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (list != null && !list.isEmpty()) {
             for (Map<String, Object> doc : list) {
-                if (doc != null && !doc.isEmpty() && doc.get(field) != null) {
-                    distinctValues.add(doc.get(field));
+                if (doc == null || doc.isEmpty()) {
+                    continue;
+                }
+                // Resolve dotted paths (e.g. "meta.source") into the nested document instead of
+                // doing a flat map lookup that would never find the value. Arrays are unwound like MongoDB.
+                Object value = resolveNestedFieldValue(doc, field);
+                if (value instanceof List) {
+                    for (Object element : (List<?>) value) {
+                        if (element != null) {
+                            distinctValues.add(element);
+                        }
+                    }
+                } else if (value != null) {
+                    distinctValues.add(value);
                 }
             }
         }
