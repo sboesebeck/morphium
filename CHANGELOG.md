@@ -5,7 +5,15 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.2.5] - Unreleased
+## [6.2.5] - 2026-06-26
+
+### Added
+
+#### ClassGraph: `preRegisterClassesWithAnnotation()` for build-time discovered classes (#200)
+Adds a pre-registration hook to `ClassGraphCache` so frameworks that know all annotated classes at build time (e.g. the quarkus-morphium extension via Jandex) can inject them and skip the runtime ClassGraph scan — essential for Quarkus native images, where a live scan finds nothing. Pre-registrations live in a separate map that always wins over the scan cache and survives `invalidate()`; `clearPreRegistrations()` drops them explicitly. Empty lists are valid pins (skip the scan, return empty). Covers the name-based `getClassesWithAnnotation()` path.
+
+#### DNS: resolve TXT seedlist options for `mongodb+srv://` (#169)
+`mongodb+srv://` URLs previously resolved the SRV host list but ignored the companion TXT record, forcing Atlas users to set `authSource`/`replicaSet` by hand. `DnsSrvResolver` now also resolves and parses the TXT record (RFC 1035 length-prefixed character-strings, `k=v&k=v` options). `Morphium.resolveAtlasUrlIfNeeded()` applies `authSource → mongoAuthDb` and `replicaSet → requiredReplicaSetName`, but only when not already configured, so explicit user configuration always wins (per the DNS Seedlist spec). TXT resolution failures yield empty options and never block a connection.
 
 ### Changed
 
@@ -15,6 +23,23 @@ The change stream `getMore` batch size is no longer hardcoded to `1`. It is now 
 A batch size of `1` delivers exactly one event per `getMore` round-trip, which caps stream throughput at roughly one event per network round-trip. On localhost this is unnoticeable, but over a high-latency link (e.g. an SSH/SOCKS tunnel with tens of milliseconds RTT) a busy stream cannot keep up: it drains a backlog at only ~1/RTT events per second and falls behind, delivering events — including messaging answers awaited by `sendAndAwaitAnswers()` — up to tens of seconds late, until traffic drops and the cursor catches up.
 
 Because `awaitData` returns as soon as the first event is available, a larger batch size adds no latency at low traffic but lets a single round-trip drain many backlogged events. The original reason for `batchSize=1` (a multi-document-batch hang in the previous `watch()` implementation) no longer reproduces after the change stream rewrite. The effective batch is still bounded by MongoDB's ~16MB per-reply limit regardless of the configured count.
+
+### Fixed
+
+#### InMemoryDriver: seed upserted document from equality predicates nested in `$and` (#201)
+On upsert the `InMemoryDriver` seeded the new document only from top-level non-`$` filter keys. With a filter like `{$and:[{_id:"lock"},{expires_at:{$lte:now}}]}` the `_id` equality was never seeded, so the upserted document got a generated `ObjectId` and a later `delete({_id:"lock"})` never matched (lock leak in the quarkus-morphium migration runner). `collectUpsertEqualityFields()` now seeds the document the way MongoDB does: scalar and `$eq` predicates are seeded, `$and` is recursed, dotted names become nested documents, and operator predicates / `$or` / `$nor` are not seeded. Verified against MongoDB 8.0.13.
+
+#### DNS: only use public DNS as a last-resort fallback (#170)
+`DnsSrvResolver.systemDnsServers()` appended `8.8.8.8`/`1.1.1.1` unconditionally, even when system name-servers were present. In split-DNS / private-Atlas setups this could resolve SRV records against public DNS (wrong results) and caused a per-server timeout when outbound UDP/53 is firewalled. Public DNS is now only added when no system name-server is configured (e.g. a minimal container without `/etc/resolv.conf`); an existing system resolver is treated as authoritative and fails fast.
+
+#### Aggregation: field name translation in `unset(Enum...)` and `lookup` foreignField (#197)
+Follow-up to #198: two remaining field-name translation gaps. `unset(Enum...)` in `AggregatorImpl` and `InMemAggregator` passed `Enum.name()` raw to the pipeline instead of translating via `tf()`, and `AggregatorImpl.lookup(Class, Enum, Enum, ...)` did not translate the `foreignField` with the lookup type. Both `Aggregator` implementations are now covered by explicit tests.
+
+#### InMemoryDriver: `$expr` queries with aggregation operators no longer rejected
+`QueryHelper.validateQuery` now only recurses into operators whose payload is a query document (`$and`, `$or`, `$nor`, `$not`, `$elemMatch`), so aggregation expression operators inside `$expr` (e.g. `$dateFromString`) are no longer misclassified as unknown query operators. Unknown top-level and field-level operators are still rejected.
+
+#### ObjectMapping: `BigDecimalMapper.unmarshall` tolerates `Integer`/`Long`
+`unmarshall` did `new BigDecimal((double) d)` and threw `ClassCastException` when MongoDB returned an integer-literal field as int32/int64. It now goes through `Number#doubleValue()` for any `Number` type, with a passthrough for already-decoded `BigDecimal`.
 
 ## [6.2.4] - 2026-05-08
 
