@@ -4275,6 +4275,71 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return (Map<String, Object>) map;
     }
 
+    /**
+     * Applies the field assignments of a {@code $set}-style update operator to {@code obj}.
+     * Shared by {@code $set} and {@code $setOnInsert} so both behave identically with respect
+     * to value evaluation and dotted-path navigation. Path-creation errors are appended to
+     * {@code writeErrors}.
+     */
+    @SuppressWarnings("unchecked")
+    private void applySetFields(Map<String, Object> obj, Map<String, Object> cmd,
+                                List<Map<String, Object>> writeErrors) {
+        // Process all entries, including null values (unlike $unset which removes fields)
+        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+            var v = entry.getValue();
+
+            if (v instanceof Map) {
+                try {
+                    v = Expr.parse(v).evaluate(obj);
+                } catch (Exception e) {
+                    // swallow
+                }
+            }
+
+            if (entry.getKey().contains(".")) {
+                String[] path = entry.getKey().split("\\.");
+                var current = obj;
+                boolean pathError = false;
+
+                // Navigate to parent, creating intermediate documents as needed
+                for (int i = 0; i < path.length - 1; i++) {
+                    String p = path[i];
+                    Object existing = current.get(p);
+                    if (existing != null) {
+                        if (existing instanceof Map) {
+                            current = (Map) existing;
+                        } else {
+                            // Type mismatch - cannot create field in non-document
+                            String errorMsg = String.format(
+                                                              "Cannot create field '%s' in element {%s: %s}",
+                                                              path[i + 1], p, existing);
+                            log.error(errorMsg);
+                            writeErrors.add(Doc.of(
+                                                            "index", 0,
+                                                            "code", 28,
+                                                            "errmsg", errorMsg
+                                            ));
+                            pathError = true;
+                            break;
+                        }
+                    } else {
+                        // Create intermediate document
+                        Map<String, Object> newDoc = Doc.of();
+                        current.put(p, newDoc);
+                        current = newDoc;
+                    }
+                }
+
+                if (!pathError) {
+                    // Set the final field
+                    current.put(path[path.length - 1], v);
+                }
+            } else {
+                obj.put(entry.getKey(), v);
+            }
+        }
+    }
+
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query,
             Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
@@ -4342,86 +4407,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         case "$set":
 
                             // $set:{"field":"value", "other_field": 123}
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                // Process all entries, including null values (unlike $unset which removes
-                                // fields)
-                                var v = entry.getValue();
+                            applySetFields(obj, cmd, writeErrors);
 
-                                if (v instanceof Map) {
-                                    try {
-                                        v = Expr.parse(v).evaluate(obj);
-                                    } catch (Exception e) {
-                                        // swallow
-                                    }
-                                }
+                            break;
 
-                                if (entry.getKey().contains(".")) {
-                                    String[] path = entry.getKey().split("\\.");
-                                    var current = obj;
-                                    Map lastEl = null;
-                                    boolean pathError = false;
+                        case "$setOnInsert":
 
-                                    // Navigate to parent, creating intermediate documents as needed
-                                    for (int i = 0; i < path.length - 1; i++) {
-                                        String p = path[i];
-                                        Object existing = current.get(p);
-                                        if (existing != null) {
-                                            if (existing instanceof Map) {
-                                                lastEl = current;
-                                                current = (Map) existing;
-                                            } else {
-                                                // Type mismatch - cannot create field in non-document
-                                                String errorMsg = String.format(
-                                                                                  "Cannot create field '%s' in element {%s: %s}",
-                                                                                  path[i + 1], p, existing);
-                                                log.error(errorMsg);
-                                                writeErrors.add(Doc.of(
-                                                                                "index", 0,
-                                                                                "code", 28,
-                                                                                "errmsg", errorMsg
-                                                                ));
-                                                pathError = true;
-                                                break;
-                                            }
-                                        } else {
-                                            // Create intermediate document
-                                            Map<String, Object> newDoc = Doc.of();
-                                            current.put(p, newDoc);
-                                            lastEl = current;
-                                            current = newDoc;
-                                        }
-                                    }
-
-                                    if (!pathError) {
-                                        // Set the final field
-                                        current.put(path[path.length - 1], v);
-                                    }
-                                } else {
-                                    obj.put(entry.getKey(), v);
-                                }
-                                // } else {
-                                // if (entry.getKey().contains(".")) {
-                                // String[] path = entry.getKey().split("\\.");
-                                // var current = obj;
-                                // Map lastEl = null;
-
-                                // for (String p : path) {
-                                // lastEl = current;
-
-                                // if (current.get(p) != null) {
-                                // current = (Map) current.get(p);
-                                // } else {
-                                // break;
-                                // }
-                                // }
-
-                                // if (lastEl != null) {
-                                // lastEl.remove(path[path.length - 1]);
-                                // }
-                                // } else {
-                                // obj.remove(entry.getKey());
-                                // }
-                                // }
+                            // $setOnInsert applies its fields ONLY when the upsert results in an
+                            // insert. On a pure update (the document already existed) it is a no-op,
+                            // matching MongoDB semantics. This lets callers seed insert-only fields
+                            // such as a String _id, an initial @Version value or a creationSource
+                            // without overwriting them on subsequent updates.
+                            if (insert) {
+                                applySetFields(obj, cmd, writeErrors);
                             }
 
                             break;
