@@ -2,6 +2,7 @@ package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.ClearCollectionCommand;
+import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
@@ -100,7 +101,64 @@ public class InMemSetOnInsertTest {
         assertThat(stored.get("creationSource")).isEqualTo("AUTOMATIC");
     }
 
+    @Test
+    public void findAndModifyUpsertInsertsAndSeedsSetOnInsert() throws Exception {
+        Map<String, Object> filter = Doc.of("campaignNumber", "F0001");
+        Map<String, Object> update = Doc.of(
+                "$set", Doc.of("publicationDate", "2026-06-01"),
+                "$setOnInsert", Doc.of("_id", "famid-1", "version", 1L, "creationSource", "AUTOMATIC"),
+                "$inc", Doc.of("version", 1L));
+
+        // newFlag=true must return the inserted document
+        Map<String, Object> returned = findAndModify(filter, update, true, true);
+
+        assertThat(returned).as("findAndModify upsert must return the inserted document").isNotNull();
+        assertThat(returned.get("_id")).isEqualTo("famid-1");
+        assertThat(returned.get("creationSource")).isEqualTo("AUTOMATIC");
+        assertThat(returned.get("publicationDate")).isEqualTo("2026-06-01");
+
+        Map<String, Object> stored = onlyDocument();
+        assertThat(stored.get("_id")).isEqualTo("famid-1");
+    }
+
+    @Test
+    public void findAndModifyUpsertMergesIntoExistingAndReturnsNew() throws Exception {
+        Map<String, Object> filter = Doc.of("campaignNumber", "F0002");
+
+        findAndModify(filter, Doc.of(
+                "$set", Doc.of("publicationDate", "2026-06-01"),
+                "$setOnInsert", Doc.of("_id", "famid-2", "creationSource", "AUTOMATIC")), true, true);
+
+        // second call merges (description) — creationSource must survive, newFlag returns post-state
+        Map<String, Object> returned = findAndModify(filter, Doc.of(
+                "$set", Doc.of("campaignDescription", "merged"),
+                "$setOnInsert", Doc.of("_id", "ignored", "creationSource", "MANUAL")), true, true);
+
+        assertThat(returned.get("_id")).isEqualTo("famid-2");
+        assertThat(returned.get("creationSource")).isEqualTo("AUTOMATIC");
+        assertThat(returned.get("campaignDescription")).isEqualTo("merged");
+        assertThat(returned.get("publicationDate")).isEqualTo("2026-06-01");
+        assertThat(find(Doc.of())).hasSize(1);
+    }
+
+    @Test
+    public void findAndModifyWithoutUpsertReturnsNullWhenAbsent() throws Exception {
+        Map<String, Object> returned = findAndModify(Doc.of("campaignNumber", "missing"),
+                Doc.of("$set", Doc.of("x", 1)), false, true);
+        assertThat(returned).isNull();
+        assertThat(find(Doc.of())).isEmpty();
+    }
+
     // --- helpers -------------------------------------------------------------
+
+    private Map<String, Object> findAndModify(Map<String, Object> filter, Map<String, Object> update,
+                                              boolean upsert, boolean newFlag) throws Exception {
+        return new FindAndModifyMongoCommand(driver)
+                .setDb(DB).setColl(COLL)
+                .setQuery(filter).setUpdate(update)
+                .setUpsert(upsert).setNewFlag(newFlag)
+                .execute();
+    }
 
     private Map<String, Object> upsert(Map<String, Object> filter, Map<String, Object> update) throws Exception {
         return new UpdateMongoCommand(driver)

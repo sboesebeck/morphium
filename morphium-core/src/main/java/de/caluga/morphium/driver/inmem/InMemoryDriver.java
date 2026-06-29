@@ -1686,7 +1686,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             addResult(ret, prepareResult(valueDoc));
         } else {
             var res = findAndOneAndUpdate(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getUpdate(), cmd.getSort(),
-                                          cmd.getCollation());
+                                          cmd.getCollation(), cmd.isUpsert(), cmd.isNewFlag());
             addResult(ret, prepareResult(Doc.of("value", res)));
         }
 
@@ -6030,6 +6030,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
             Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation)
     throws MorphiumDriverException {
+        return findAndOneAndUpdate(db, col, query, update, sort, collation, false, false);
+    }
+
+    /**
+     * In-memory implementation of {@code findAndModify} for the update case, honouring
+     * {@code upsert} and {@code newFlag} (MongoDB's {@code new}):
+     * <ul>
+     *   <li>If no document matches and {@code upsert} is false, returns {@code null} and writes nothing.</li>
+     *   <li>If no document matches and {@code upsert} is true, inserts a document (seeded from the
+     *       query equality predicates plus {@code $set}/{@code $setOnInsert}) and returns it
+     *       (the inserted document is always the "new" one).</li>
+     *   <li>If a document matches, it is updated; {@code newFlag} selects whether the returned
+     *       document is the post-update ({@code true}) or pre-update ({@code false}) state.</li>
+     * </ul>
+     */
+    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
+            Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation,
+            boolean upsert, boolean newFlag)
+    throws MorphiumDriverException {
         // NOTE: In MongoDB, findAndModify is atomic. We implement this by holding the
         // write lock for both find and update.
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, col);
@@ -6039,12 +6058,34 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         try {
             // Use internal flag to skip lock acquisition in find() and update()
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
-            if (ret.isEmpty()) {
+            if (ret.isEmpty() && !upsert) {
                 return null;
             }
-            // Call update with internal=true via the internal updateInternal method
-            updateInternal(db, col, query, null, update, false, false, collation, null, pendingNotifications);
-            result = ret.get(0);
+            // Pre-update snapshot for an existing document (used when newFlag == false)
+            Map<String, Object> before = ret.isEmpty() ? null : deepClone(ret.get(0));
+            Object matchedId = ret.isEmpty() ? null : ret.get(0).get("_id");
+
+            var updateResult = updateInternal(db, col, query, null, update, false, upsert, collation, null,
+                                              pendingNotifications);
+
+            // Determine which document to return.
+            Object resultId = matchedId;
+            if (matchedId == null && updateResult.get("upsertedIds") instanceof List<?> ids && !ids.isEmpty()) {
+                resultId = ids.get(0); // freshly inserted document
+            }
+            if (matchedId == null) {
+                // Insert case: the new document is always returned regardless of newFlag.
+                result = resultId == null ? null
+                    : find(db, col, Doc.of("_id", resultId), null, null, collation, 0, 1, true)
+                        .stream().findFirst().orElse(null);
+            } else if (newFlag) {
+                // Return the post-update state.
+                result = find(db, col, Doc.of("_id", matchedId), null, null, collation, 0, 1, true)
+                    .stream().findFirst().orElse(null);
+            } else {
+                // Return the pre-update state.
+                result = before;
+            }
         } finally {
             lock.writeLock().unlock();
         }
