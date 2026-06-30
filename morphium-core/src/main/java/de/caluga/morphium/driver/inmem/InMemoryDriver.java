@@ -1686,7 +1686,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             addResult(ret, prepareResult(valueDoc));
         } else {
             var res = findAndOneAndUpdate(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getUpdate(), cmd.getSort(),
-                                          cmd.getCollation());
+                                          cmd.getCollation(), cmd.isUpsert(), cmd.isNewFlag());
             addResult(ret, prepareResult(Doc.of("value", res)));
         }
 
@@ -4275,6 +4275,71 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return (Map<String, Object>) map;
     }
 
+    /**
+     * Applies the field assignments of a {@code $set}-style update operator to {@code obj}.
+     * Shared by {@code $set} and {@code $setOnInsert} so both behave identically with respect
+     * to value evaluation and dotted-path navigation. Path-creation errors are appended to
+     * {@code writeErrors}.
+     */
+    @SuppressWarnings("unchecked")
+    private void applySetFields(Map<String, Object> obj, Map<String, Object> cmd,
+                                List<Map<String, Object>> writeErrors) {
+        // Process all entries, including null values (unlike $unset which removes fields)
+        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+            var v = entry.getValue();
+
+            if (v instanceof Map) {
+                try {
+                    v = Expr.parse(v).evaluate(obj);
+                } catch (Exception e) {
+                    // swallow
+                }
+            }
+
+            if (entry.getKey().contains(".")) {
+                String[] path = entry.getKey().split("\\.");
+                var current = obj;
+                boolean pathError = false;
+
+                // Navigate to parent, creating intermediate documents as needed
+                for (int i = 0; i < path.length - 1; i++) {
+                    String p = path[i];
+                    Object existing = current.get(p);
+                    if (existing != null) {
+                        if (existing instanceof Map) {
+                            current = (Map) existing;
+                        } else {
+                            // Type mismatch - cannot create field in non-document
+                            String errorMsg = String.format(
+                                                              "Cannot create field '%s' in element {%s: %s}",
+                                                              path[i + 1], p, existing);
+                            log.error(errorMsg);
+                            writeErrors.add(Doc.of(
+                                                            "index", 0,
+                                                            "code", 28,
+                                                            "errmsg", errorMsg
+                                            ));
+                            pathError = true;
+                            break;
+                        }
+                    } else {
+                        // Create intermediate document
+                        Map<String, Object> newDoc = Doc.of();
+                        current.put(p, newDoc);
+                        current = newDoc;
+                    }
+                }
+
+                if (!pathError) {
+                    // Set the final field
+                    current.put(path[path.length - 1], v);
+                }
+            } else {
+                obj.put(entry.getKey(), v);
+            }
+        }
+    }
+
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query,
             Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
@@ -4342,86 +4407,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         case "$set":
 
                             // $set:{"field":"value", "other_field": 123}
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                // Process all entries, including null values (unlike $unset which removes
-                                // fields)
-                                var v = entry.getValue();
+                            applySetFields(obj, cmd, writeErrors);
 
-                                if (v instanceof Map) {
-                                    try {
-                                        v = Expr.parse(v).evaluate(obj);
-                                    } catch (Exception e) {
-                                        // swallow
-                                    }
-                                }
+                            break;
 
-                                if (entry.getKey().contains(".")) {
-                                    String[] path = entry.getKey().split("\\.");
-                                    var current = obj;
-                                    Map lastEl = null;
-                                    boolean pathError = false;
+                        case "$setOnInsert":
 
-                                    // Navigate to parent, creating intermediate documents as needed
-                                    for (int i = 0; i < path.length - 1; i++) {
-                                        String p = path[i];
-                                        Object existing = current.get(p);
-                                        if (existing != null) {
-                                            if (existing instanceof Map) {
-                                                lastEl = current;
-                                                current = (Map) existing;
-                                            } else {
-                                                // Type mismatch - cannot create field in non-document
-                                                String errorMsg = String.format(
-                                                                                  "Cannot create field '%s' in element {%s: %s}",
-                                                                                  path[i + 1], p, existing);
-                                                log.error(errorMsg);
-                                                writeErrors.add(Doc.of(
-                                                                                "index", 0,
-                                                                                "code", 28,
-                                                                                "errmsg", errorMsg
-                                                                ));
-                                                pathError = true;
-                                                break;
-                                            }
-                                        } else {
-                                            // Create intermediate document
-                                            Map<String, Object> newDoc = Doc.of();
-                                            current.put(p, newDoc);
-                                            lastEl = current;
-                                            current = newDoc;
-                                        }
-                                    }
-
-                                    if (!pathError) {
-                                        // Set the final field
-                                        current.put(path[path.length - 1], v);
-                                    }
-                                } else {
-                                    obj.put(entry.getKey(), v);
-                                }
-                                // } else {
-                                // if (entry.getKey().contains(".")) {
-                                // String[] path = entry.getKey().split("\\.");
-                                // var current = obj;
-                                // Map lastEl = null;
-
-                                // for (String p : path) {
-                                // lastEl = current;
-
-                                // if (current.get(p) != null) {
-                                // current = (Map) current.get(p);
-                                // } else {
-                                // break;
-                                // }
-                                // }
-
-                                // if (lastEl != null) {
-                                // lastEl.remove(path[path.length - 1]);
-                                // }
-                                // } else {
-                                // obj.remove(entry.getKey());
-                                // }
-                                // }
+                            // $setOnInsert applies its fields ONLY when the upsert results in an
+                            // insert. On a pure update (the document already existed) it is a no-op,
+                            // matching MongoDB semantics. This lets callers seed insert-only fields
+                            // such as a String _id, an initial @Version value or a creationSource
+                            // without overwriting them on subsequent updates.
+                            if (insert) {
+                                applySetFields(obj, cmd, writeErrors);
                             }
 
                             break;
@@ -6032,6 +6030,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
             Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation)
     throws MorphiumDriverException {
+        return findAndOneAndUpdate(db, col, query, update, sort, collation, false, false);
+    }
+
+    /**
+     * In-memory implementation of {@code findAndModify} for the update case, honouring
+     * {@code upsert} and {@code newFlag} (MongoDB's {@code new}):
+     * <ul>
+     *   <li>If no document matches and {@code upsert} is false, returns {@code null} and writes nothing.</li>
+     *   <li>If no document matches and {@code upsert} is true, inserts a document (seeded from the
+     *       query equality predicates plus {@code $set}/{@code $setOnInsert}). An insert has no
+     *       pre-image, so {@code newFlag} selects between the inserted document ({@code true}) and
+     *       {@code null} ({@code false}) — matching MongoDB.</li>
+     *   <li>If a document matches, it is updated; {@code newFlag} selects whether the returned
+     *       document is the post-update ({@code true}) or pre-update ({@code false}) state.</li>
+     * </ul>
+     *
+     * <p>The returned document is always a {@link #deepClone(Map) deepClone}; callers may mutate it
+     * without corrupting the in-memory store.
+     */
+    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
+            Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation,
+            boolean upsert, boolean newFlag)
+    throws MorphiumDriverException {
         // NOTE: In MongoDB, findAndModify is atomic. We implement this by holding the
         // write lock for both find and update.
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, col);
@@ -6041,12 +6062,33 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         try {
             // Use internal flag to skip lock acquisition in find() and update()
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
-            if (ret.isEmpty()) {
+            if (ret.isEmpty() && !upsert) {
                 return null;
             }
-            // Call update with internal=true via the internal updateInternal method
-            updateInternal(db, col, query, null, update, false, false, collation, null, pendingNotifications);
-            result = ret.get(0);
+            // Pre-update snapshot for an existing document (used when newFlag == false)
+            Map<String, Object> before = ret.isEmpty() ? null : deepClone(ret.get(0));
+            Object matchedId = ret.isEmpty() ? null : ret.get(0).get("_id");
+
+            var updateResult = updateInternal(db, col, query, null, update, false, upsert, collation, null,
+                                              pendingNotifications);
+
+            // Determine which document to return. Every branch returns a deepClone (or null) so a
+            // caller mutating the result cannot corrupt the stored map.
+            if (matchedId == null) {
+                // Insert case: no pre-image exists. newFlag=false returns null (MongoDB semantics);
+                // newFlag=true returns the freshly inserted document.
+                Object insertedId = null;
+                if (updateResult.get("upsertedIds") instanceof List<?> ids && !ids.isEmpty()) {
+                    insertedId = ids.get(0);
+                }
+                result = (newFlag && insertedId != null) ? findByIdClone(db, col, insertedId, collation) : null;
+            } else if (newFlag) {
+                // Return the post-update state.
+                result = findByIdClone(db, col, matchedId, collation);
+            } else {
+                // Return the pre-update snapshot (already a deepClone).
+                result = before;
+            }
         } finally {
             lock.writeLock().unlock();
         }
@@ -6056,6 +6098,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                            notification.updatedFields, notification.removedFields, notification.beforeDocument);
         }
         return result;
+    }
+
+    /**
+     * Looks up a document by {@code _id} and returns a {@link #deepClone(Map) deepClone} of it, or
+     * {@code null} if absent. Used by {@link #findAndOneAndUpdate} so the returned document is never
+     * a live reference into the store. Must be called while holding the collection write lock.
+     */
+    private Map<String, Object> findByIdClone(String db, String col, Object id, Map<String, Object> collation)
+    throws MorphiumDriverException {
+        return find(db, col, Doc.of("_id", id), null, null, collation, 0, 1, true)
+            .stream().findFirst().map(this::deepClone).orElse(null);
     }
 
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query,
