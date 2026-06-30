@@ -2,6 +2,7 @@ package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.ClearCollectionCommand;
+import de.caluga.morphium.driver.commands.DeleteMongoCommand;
 import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -192,6 +194,40 @@ public class InMemSetOnInsertTest {
         assertThat(find(Doc.of())).isEmpty();
     }
 
+    /**
+     * Regression test for #202: {@code runCommand(FindAndModifyMongoCommand)} must honour the
+     * {@code upsert} flag so that an equality predicate nested inside {@code $and} seeds the
+     * upserted {@code _id} (mirroring MongoDB), and a later delete by that fixed {@code _id} matches.
+     *
+     * <p>Reproduces the quarkus-morphium migration-lock scenario exactly via the findAndModify path
+     * (the update-command path is covered by {@code InMemUpsertAndExtractionTest}). Before the fix in
+     * #203, findAndModify ignored {@code upsert}, so nothing was inserted at all.
+     */
+    @Test
+    public void findAndModifyUpsertSeedsIdFromNestedAndFilterAndIsDeletable() throws Exception {
+        Date now = new Date();
+        // {$and:[{_id:"migration_lock"},{expires_at:{$lte:now}}]} — exactly what the lock acquire builds
+        Map<String, Object> filter = Doc.of("$and", List.of(
+                Doc.of("_id", "migration_lock"),
+                Doc.of("expires_at", Doc.of("$lte", now))));
+
+        // upsert with new:false: an insert has no pre-image, so MongoDB (and now InMem) returns null
+        Map<String, Object> returned = findAndModify(filter, Doc.of("$set", Doc.of("owner", "owner-1")),
+                true, false);
+        assertThat(returned).as("upsert-insert with new:false returns null").isNull();
+
+        Map<String, Object> stored = onlyDocument();
+        assertThat(stored.get("_id"))
+                .as("_id must be seeded from the $and-nested equality, not a generated ObjectId")
+                .isEqualTo("migration_lock");
+        assertThat(stored.get("owner")).isEqualTo("owner-1");
+
+        // the fixed _id must be deletable — before the fix the upsert never ran, so this is the
+        // load-bearing assertion for the migration-lock release path
+        deleteById("migration_lock");
+        assertThat(find(Doc.of())).as("delete by the fixed _id must remove the upserted lock").isEmpty();
+    }
+
     // --- helpers -------------------------------------------------------------
 
     private Map<String, Object> findAndModify(Map<String, Object> filter, Map<String, Object> update,
@@ -212,6 +248,13 @@ public class InMemSetOnInsertTest {
 
     private List<Map<String, Object>> find(Map<String, Object> filter) throws Exception {
         return new FindCommand(driver).setDb(DB).setColl(COLL).setFilter(filter).execute();
+    }
+
+    private void deleteById(Object id) throws Exception {
+        // limit 1: deleting by a unique _id matches at most one document
+        new DeleteMongoCommand(driver).setDb(DB).setColl(COLL)
+                .addDelete(Doc.of("_id", id), 1, null, null)
+                .execute();
     }
 
     private Map<String, Object> onlyDocument() throws Exception {
