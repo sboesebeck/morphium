@@ -104,9 +104,11 @@ public class InMemSetOnInsertTest {
     @Test
     public void findAndModifyUpsertInsertsAndSeedsSetOnInsert() throws Exception {
         Map<String, Object> filter = Doc.of("campaignNumber", "F0001");
+        // version is incremented via $inc only (1 on insert) — $setOnInsert must NOT also target it,
+        // mirroring the application upsert; real mongod rejects a field appearing in both operators.
         Map<String, Object> update = Doc.of(
                 "$set", Doc.of("publicationDate", "2026-06-01"),
-                "$setOnInsert", Doc.of("_id", "famid-1", "version", 1L, "creationSource", "AUTOMATIC"),
+                "$setOnInsert", Doc.of("_id", "famid-1", "creationSource", "AUTOMATIC"),
                 "$inc", Doc.of("version", 1L));
 
         // newFlag=true must return the inserted document
@@ -116,9 +118,50 @@ public class InMemSetOnInsertTest {
         assertThat(returned.get("_id")).isEqualTo("famid-1");
         assertThat(returned.get("creationSource")).isEqualTo("AUTOMATIC");
         assertThat(returned.get("publicationDate")).isEqualTo("2026-06-01");
+        assertThat(returned.get("version")).as("$inc seeds version=1 on insert").isEqualTo(1L);
 
         Map<String, Object> stored = onlyDocument();
         assertThat(stored.get("_id")).isEqualTo("famid-1");
+    }
+
+    @Test
+    public void findAndModifyUpsertInsertWithNewFalseReturnsNull() throws Exception {
+        // An insert has no pre-image: with new:false (the default) MongoDB returns null.
+        Map<String, Object> filter = Doc.of("campaignNumber", "F0004");
+        Map<String, Object> returned = findAndModify(filter, Doc.of(
+                "$setOnInsert", Doc.of("_id", "famid-4", "creationSource", "AUTOMATIC")), true, false);
+
+        assertThat(returned).as("upsert-insert with new:false must return null").isNull();
+        // but the document was still inserted
+        Map<String, Object> stored = onlyDocument();
+        assertThat(stored.get("_id")).isEqualTo("famid-4");
+        assertThat(stored.get("creationSource")).isEqualTo("AUTOMATIC");
+    }
+
+    @Test
+    public void findAndModifyUpdateWithNewFalseReturnsPreImage() throws Exception {
+        Map<String, Object> filter = Doc.of("campaignNumber", "F0005");
+        findAndModify(filter, Doc.of("$set", Doc.of("status", "before")), true, true);
+
+        // new:false must return the document as it was BEFORE this update
+        Map<String, Object> returned = findAndModify(filter,
+                Doc.of("$set", Doc.of("status", "after")), false, false);
+
+        assertThat(returned.get("status")).as("new:false returns the pre-image").isEqualTo("before");
+        assertThat(onlyDocument().get("status")).as("store holds the post-update value").isEqualTo("after");
+    }
+
+    @Test
+    public void findAndModifyReturnedDocumentIsNotLiveReference() throws Exception {
+        // Mutating the returned document must not corrupt the stored map (all branches deepClone).
+        Map<String, Object> filter = Doc.of("campaignNumber", "F0006");
+        Map<String, Object> returned = findAndModify(filter, Doc.of(
+                "$setOnInsert", Doc.of("_id", "famid-6", "creationSource", "AUTOMATIC")), true, true);
+
+        returned.put("creationSource", "TAMPERED");
+        assertThat(onlyDocument().get("creationSource"))
+                .as("mutating the returned doc must not leak into the store")
+                .isEqualTo("AUTOMATIC");
     }
 
     @Test

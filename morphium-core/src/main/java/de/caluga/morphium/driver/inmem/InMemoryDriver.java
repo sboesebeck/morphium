@@ -6039,11 +6039,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * <ul>
      *   <li>If no document matches and {@code upsert} is false, returns {@code null} and writes nothing.</li>
      *   <li>If no document matches and {@code upsert} is true, inserts a document (seeded from the
-     *       query equality predicates plus {@code $set}/{@code $setOnInsert}) and returns it
-     *       (the inserted document is always the "new" one).</li>
+     *       query equality predicates plus {@code $set}/{@code $setOnInsert}). An insert has no
+     *       pre-image, so {@code newFlag} selects between the inserted document ({@code true}) and
+     *       {@code null} ({@code false}) — matching MongoDB.</li>
      *   <li>If a document matches, it is updated; {@code newFlag} selects whether the returned
      *       document is the post-update ({@code true}) or pre-update ({@code false}) state.</li>
      * </ul>
+     *
+     * <p>The returned document is always a {@link #deepClone(Map) deepClone}; callers may mutate it
+     * without corrupting the in-memory store.
      */
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
             Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation,
@@ -6068,22 +6072,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             var updateResult = updateInternal(db, col, query, null, update, false, upsert, collation, null,
                                               pendingNotifications);
 
-            // Determine which document to return.
-            Object resultId = matchedId;
-            if (matchedId == null && updateResult.get("upsertedIds") instanceof List<?> ids && !ids.isEmpty()) {
-                resultId = ids.get(0); // freshly inserted document
-            }
+            // Determine which document to return. Every branch returns a deepClone (or null) so a
+            // caller mutating the result cannot corrupt the stored map.
             if (matchedId == null) {
-                // Insert case: the new document is always returned regardless of newFlag.
-                result = resultId == null ? null
-                    : find(db, col, Doc.of("_id", resultId), null, null, collation, 0, 1, true)
-                        .stream().findFirst().orElse(null);
+                // Insert case: no pre-image exists. newFlag=false returns null (MongoDB semantics);
+                // newFlag=true returns the freshly inserted document.
+                Object insertedId = null;
+                if (updateResult.get("upsertedIds") instanceof List<?> ids && !ids.isEmpty()) {
+                    insertedId = ids.get(0);
+                }
+                result = (newFlag && insertedId != null) ? findByIdClone(db, col, insertedId, collation) : null;
             } else if (newFlag) {
                 // Return the post-update state.
-                result = find(db, col, Doc.of("_id", matchedId), null, null, collation, 0, 1, true)
-                    .stream().findFirst().orElse(null);
+                result = findByIdClone(db, col, matchedId, collation);
             } else {
-                // Return the pre-update state.
+                // Return the pre-update snapshot (already a deepClone).
                 result = before;
             }
         } finally {
@@ -6095,6 +6098,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                            notification.updatedFields, notification.removedFields, notification.beforeDocument);
         }
         return result;
+    }
+
+    /**
+     * Looks up a document by {@code _id} and returns a {@link #deepClone(Map) deepClone} of it, or
+     * {@code null} if absent. Used by {@link #findAndOneAndUpdate} so the returned document is never
+     * a live reference into the store. Must be called while holding the collection write lock.
+     */
+    private Map<String, Object> findByIdClone(String db, String col, Object id, Map<String, Object> collation)
+    throws MorphiumDriverException {
+        return find(db, col, Doc.of("_id", id), null, null, collation, 0, 1, true)
+            .stream().findFirst().map(this::deepClone).orElse(null);
     }
 
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query,
