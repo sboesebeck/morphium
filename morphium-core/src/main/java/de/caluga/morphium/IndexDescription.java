@@ -260,7 +260,6 @@ public class IndexDescription {
                     map.put(fn, v);
                 }
             } catch (IllegalAccessException e) {
-                //e.printStackTrace();
                 LoggerFactory.getLogger(this.getClass()).error("IllegalAccess",e);
             }
         }

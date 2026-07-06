@@ -224,7 +224,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             //        try {
             //            Thread.sleep(100);
             //        } catch (InterruptedException e) {
-            //            // e.printStackTrace();
             //        }
 
             //        break;

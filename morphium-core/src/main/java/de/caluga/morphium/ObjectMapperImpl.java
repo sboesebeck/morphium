@@ -1004,7 +1004,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                     cls = annotationHelper.getClassForTypeId(cN);
                 } catch (ClassNotFoundException cnf) {
-                    //cnf.printStackTrace();
                     log.warn("Class not found exception", cnf);
                     return null;
                 }

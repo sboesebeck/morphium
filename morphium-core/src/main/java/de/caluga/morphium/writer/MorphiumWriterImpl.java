@@ -530,7 +530,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     try {
                         //
-                        // System.out.println(System.currentTimeMillis()+" - storing" );
                         Map<Class, List<Map<String, Object>>> toUpdate = new HashMap<>();
                         Map<Class, List<Map<String, Object>>> newElementsToInsert = new HashMap<>();
                         Map<Class, List<Object>> toVersionedUpdate = new HashMap<>();
@@ -779,8 +778,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
                         callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, e.getMessage(), e, null, lst);
                     }
-                    // System.out.println(System.currentTimeMillis()+" -
-                    // finish" );
                 }
             };
             submitAndBlockIfNecessary(callback, r);
@@ -1126,7 +1123,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     cmd.setValidationLevel(e.validationLevel().name());
                     cmd.setValidationAction(e.validationAction().name());
                 } catch (Exception parseException) {
-                    // parseException.printStackTrace();
                     throw new RuntimeException("Error parsing", parseException);
                 }
             }
@@ -1410,7 +1406,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             try {
                 Thread.sleep(5);
             } catch (InterruptedException e) {
-                // e.printStackTrace();
             }
         }
 

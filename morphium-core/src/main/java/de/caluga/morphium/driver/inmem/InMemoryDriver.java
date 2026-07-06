@@ -1113,10 +1113,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             stats.put("writeErrors", allWriteErrors);
         }
 
-        // System.out.println("[DEBUG_LOG] UpdateMongoCommand result: " + stats);
         Map<String, Object> preparedResult = prepareResult(stats);
-        // System.out.println("[DEBUG_LOG] UpdateMongoCommand result after
-        // prepareResult: " + preparedResult);
         addResult(ret, preparedResult);
         return ret;
     }
@@ -1212,11 +1209,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             result.put("n", inserted);
         }
 
-        // System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand)
-        // result before prepareResult: " + result);
         Map<String, Object> preparedResult = prepareResult(result);
-        // System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand)
-        // result after prepareResult: " + preparedResult);
         addResult(ret, preparedResult);
         return ret;
     }
@@ -3946,8 +3939,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int upd = 0;
         int inserted = 0;
         int total = objs.size();
-        // System.out.println("[DEBUG_LOG] store method called with db=" + db + ",
-        // collection=" + collection + ", objs=" + objs);
 
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
@@ -4003,7 +3994,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         ret.put("updated", upd);
         ret.put("inserted", inserted);
         ret.put("n", upd + inserted);
-        // System.out.println("[DEBUG_LOG] store method returning stats: " + ret);
         return ret;
     }
 
@@ -7280,12 +7270,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         public void emit(Object key, Object value) {
-            // System.out.println("EMIT called with key=" + key + ", value=" + value);
             Map<String, Object> result = new HashMap<>();
             result.put("_id", key);
             result.put("value", value);
             results.add(result);
-            // System.out.println("Total emit results now: " + results.size());
         }
     }
 

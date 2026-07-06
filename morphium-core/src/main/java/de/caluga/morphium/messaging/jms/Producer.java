@@ -95,7 +95,6 @@ public class Producer implements JMSProducer {
             send(destination, txt);
 
         } catch (JMSException e) {
-            e.printStackTrace();
             throw new RuntimeException(e);
         }
 

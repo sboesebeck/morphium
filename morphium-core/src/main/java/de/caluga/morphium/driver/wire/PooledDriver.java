@@ -713,7 +713,6 @@ public class PooledDriver extends DriverBase {
                                       && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
                                      || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                                 // log.info("Creating new connection to {}", hst);
-                                // System.out.println("Creating new connection to " + hst);
                                 loopCounter++;
                                 // log.debug("Creating connection to {} - totalConnections to host is {}", hst,
                                 // getTotalConnectionsToHost(hst));

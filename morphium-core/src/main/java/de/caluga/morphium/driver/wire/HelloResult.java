@@ -76,7 +76,6 @@ public class HelloResult {
                 }
             } catch (Exception e) {
                 //something went wrong...
-                //e.printStackTrace();
                 LoggerFactory.getLogger(HelloResult.class).error("Exception parsing answer", e);
             }
         }
@@ -103,7 +102,6 @@ public class HelloResult {
                     ret.add(f.getName(), f.get(this));
                 }
             } catch (Exception e) {
-                //e.printStackTrace();
                 LoggerFactory.getLogger(this.getClass()).error("Exception parsing answer", e);
             }
         }

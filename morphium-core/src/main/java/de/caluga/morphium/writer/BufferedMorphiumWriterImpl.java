@@ -348,7 +348,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             try {
                 setIdIfNull(o);
             } catch (IllegalAccessException e) {
-                // e.printStackTrace();
             }
             objToInsert.add(Doc.of(morphium.getMapper().serialize(o)));
             InsertBulkRequest ins = ctx.addInsertBulkRequest(objToInsert);

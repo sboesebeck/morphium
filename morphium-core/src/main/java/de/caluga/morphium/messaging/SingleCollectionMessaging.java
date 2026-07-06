@@ -1973,7 +1973,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 changeStreamMonitor.terminate();
             }
         } catch (Exception e) {
-            // e.printStackTrace();
             // swallow
         }
     }

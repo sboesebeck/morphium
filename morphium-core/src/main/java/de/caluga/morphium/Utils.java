@@ -5,6 +5,8 @@ package de.caluga.morphium;/**
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -20,6 +22,8 @@ import java.util.*;
 @SuppressWarnings("WeakerAccess")
 public class Utils {
 
+    private static final Logger log = LoggerFactory.getLogger(Utils.class);
+
     public static final String[] hexChars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};
 
 
@@ -28,7 +32,7 @@ public class Utils {
         try {
             writeJson(o, sw);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Could not write JSON representation", e);
         }
         return sw.toString();
     }

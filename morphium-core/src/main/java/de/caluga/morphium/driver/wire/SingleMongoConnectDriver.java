@@ -445,7 +445,6 @@ public class SingleMongoConnectDriver extends DriverBase {
                             log.error("Could not reconnect", ex);
                         }
                     } catch (InterruptedException e) {
-                        //e.printStackTrace();
                     } catch (Exception e) {
                         incStat(DriverStatsKey.ERRORS);
                         log.error("Error during heartbeat", e);

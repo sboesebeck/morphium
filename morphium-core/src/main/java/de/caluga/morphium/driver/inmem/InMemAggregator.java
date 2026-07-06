@@ -339,7 +339,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     List<R> result = deserializeList();
                     callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, InMemAggregator.this);
                 } catch (MorphiumDriverException e) {
-                    e.printStackTrace();
+                    log.error("Aggregation failed", e);
                 }
             });
         }

@@ -86,7 +86,6 @@ public class BsonEncoder {
         //        try {
         //            n.write(out.toByteArray());
         //        } catch (IOException e) {
-        //            e.printStackTrace();
         //        }
         //        n.write(0x00);
         //        return n.toByteArray();
@@ -255,7 +254,6 @@ public class BsonEncoder {
                 string(s.getJs());
                 writeBytes(b);
                 //                } catch (IOException e) {
-                //                    e.printStackTrace();
                 //                }
 
             } else {

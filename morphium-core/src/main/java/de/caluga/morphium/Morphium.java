@@ -2935,7 +2935,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     morphiumDriver.close();
                 }
             } catch (Exception e) {
-                //swallow - during close! e.printStackTrace();
+                //swallow - during close!
             }
 
             morphiumDriver = null;
