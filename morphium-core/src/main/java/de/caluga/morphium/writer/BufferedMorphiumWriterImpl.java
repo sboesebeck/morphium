@@ -223,7 +223,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         //        synchronized (opLog) {
         if (opLog.get(type) == null) {
             synchronized (opLog) {
-                opLog.putIfAbsent(type, new Vector<>());
+                opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
             }
         }
 
@@ -869,8 +869,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     lastRun.put(clz, System.currentTimeMillis());
                     List<WriteBufferEntry> localQueue;
                     localQueue = opLog.remove(clz);
-                    //                            opLog.put(clz, new
-                    // Vector<WriteBufferEntry>());
                     flushQueueToMongo(localQueue);
 
                     if (localQueue != null && !localQueue.isEmpty()) {
