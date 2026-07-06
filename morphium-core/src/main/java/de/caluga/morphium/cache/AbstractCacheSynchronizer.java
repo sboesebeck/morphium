@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * User: Stephan Bösebeck
@@ -20,9 +22,9 @@ public abstract class AbstractCacheSynchronizer<T extends CacheSyncListener> {
     /** The morphium instance this synchronizer operates on. */
     protected final Morphium morphium;
     /** List of all registered cache sync listeners. */
-    protected final List<T> listeners = Collections.synchronizedList(new ArrayList<>());
+    protected final List<T> listeners = new CopyOnWriteArrayList<>();
     /** Map of type-specific listeners. */
-    protected final Hashtable<Class<?>, Vector<T>> listenerForType = new Hashtable<>();
+    protected final Map<Class<?>, List<T>> listenerForType = new ConcurrentHashMap<>();
 
 
     /**
@@ -56,8 +58,7 @@ public abstract class AbstractCacheSynchronizer<T extends CacheSyncListener> {
      */
     @SuppressWarnings("rawtypes")
     public void addSyncListener(Class type, T cl) {
-        listenerForType.putIfAbsent(type, new Vector<>());
-        listenerForType.get(type).add(cl);
+        listenerForType.computeIfAbsent(type, t -> new CopyOnWriteArrayList<>()).add(cl);
     }
 
     /**

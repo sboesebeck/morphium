@@ -7,10 +7,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.jms.*;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Producer implements JMSProducer {
 
@@ -21,7 +22,7 @@ public class Producer implements JMSProducer {
     private int deliveryMode;
     private boolean disableTimestamp;
     private boolean disableId;
-    private final Vector<Object> waitingForAck;
+    private final List<Object> waitingForAck;
     private CompletionListener completionListener;
 
     private final Logger log = LoggerFactory.getLogger(Producer.class);
@@ -31,7 +32,7 @@ public class Producer implements JMSProducer {
         this.messaging = messaging;
         messaging.start();
         properties = new ConcurrentHashMap<>();
-        waitingForAck = new Vector<>();
+        waitingForAck = new CopyOnWriteArrayList<>();
         messaging.addListenerForTopic("ack", (MessageListener<JMSMessage>) (msg, m) -> {
             if (waitingForAck.contains(m.getInAnswerTo())) {
                 completionListener.onCompletion(m);

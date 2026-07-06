@@ -18,6 +18,7 @@ import javax.cache.event.*;
 import javax.cache.expiry.EternalExpiryPolicy;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -40,7 +41,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
 
     private AnnotationAndReflectionHelper anHelper = new AnnotationAndReflectionHelper(false);
 
-    private final List<CacheListener> cacheListeners = new Vector<>();
+    private final List<CacheListener> cacheListeners = new CopyOnWriteArrayList<>();
 
     private final Logger log = LoggerFactory.getLogger(MorphiumCacheJCacheImpl.class);
 

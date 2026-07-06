@@ -1,12 +1,12 @@
 package de.caluga.morphium.cache;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.cache.CacheManager;
 
@@ -42,7 +42,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     public MorphiumCacheImpl() {
         cache = new ConcurrentHashMap<>();
         idCache = new ConcurrentHashMap<>();
-        cacheListeners = Collections.synchronizedList(new ArrayList<>());
+        cacheListeners = new CopyOnWriteArrayList<>();
         cacheHousekeeper = new CacheHousekeeper(this);
         cacheHousekeeper.start();
     }
