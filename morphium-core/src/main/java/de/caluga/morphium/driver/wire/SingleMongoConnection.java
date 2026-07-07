@@ -109,7 +109,11 @@ public class SingleMongoConnection implements MongoConnection {
         // startReaderThread();
         // Cache the source port for later use (needed for cleanup even after socket close)
         cachedSourcePort = s.getLocalPort();
-        var hello = getHelloResult(true);
+        // The handshake against a freshly connected host must answer quickly. Using
+        // maxWaitTime here would make connects to half-dead hosts (TCP accepted, mongod
+        // frozen) hang for up to a minute - stalling startup and the heartbeat.
+        int helloTimeout = drv.getConnectionTimeout() > 0 ? Math.max(drv.getConnectionTimeout(), 2000) : 5000;
+        var hello = getHelloResult(true, helloTimeout);
         connectedTo = host;
         connectedToPort = port;
         //log.info("Connected to "+connectedTo+":"+port);
@@ -214,6 +218,16 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public HelloResult getHelloResult(boolean includeClient) throws MorphiumDriverException {
+        return getHelloResult(includeClient, getDriver().getMaxWaitTime());
+    }
+
+    /**
+     * Hello with an explicit reply timeout. Used by the connection handshake and the
+     * heartbeat: a hello against a host that accepted the TCP connection but never
+     * answers (frozen VM, network partition) must not block for maxWaitTime -
+     * otherwise dead-host detection takes minutes.
+     */
+    public HelloResult getHelloResult(boolean includeClient, int timeoutMs) throws MorphiumDriverException {
         OpMsg result = null;
         long start = System.currentTimeMillis();
 
@@ -233,9 +247,9 @@ public class SingleMongoConnection implements MongoConnection {
             OpMsg msg = new OpMsg();
             msg.setMessageId(msgId.incrementAndGet());
             msg.setFirstDoc(cmd.asMap());
-            result = sendAndWaitForReply(msg);
+            result = sendAndWaitForReply(msg, timeoutMs);
 
-            if (result == null && System.currentTimeMillis() - start > getDriver().getMaxWaitTime()) {
+            if (result == null && System.currentTimeMillis() - start > timeoutMs) {
                 throw new MorphiumDriverException("Hello result is null");
             }
 
@@ -378,9 +392,11 @@ public class SingleMongoConnection implements MongoConnection {
 
         // For watch/tailable scenarios, limit consecutive socket timeouts
         // This allows calling code to check isContinued() periodically
-        // 100 retries with 100ms timeout = ~10 seconds before returning to allow checks
-        int maxConsecutiveTimeouts = 100;
-        int consecutiveTimeouts = 0;
+        // The timeout parameter is the TOTAL time we wait for a reply. It must not be
+        // multiplied by retries: a frozen/partitioned host would otherwise block callers
+        // for timeout*100 (with maxWaitTime=60s that is over an hour) and dead-host
+        // detection would never kick in.
+        long deadline = timeout > 0 ? System.currentTimeMillis() + timeout : Long.MAX_VALUE;
 
         while (true) {
             try {
@@ -412,20 +428,18 @@ public class SingleMongoConnection implements MongoConnection {
                 stats.get(REPLY_RECEIVED).incrementAndGet();
                 return msg;
             } catch (SocketTimeoutException ste) {
-                consecutiveTimeouts++;
-                if (consecutiveTimeouts >= maxConsecutiveTimeouts) {
-                    log.debug("socket timeout - max retries reached, returning null to allow continuation check");
+                if (System.currentTimeMillis() >= deadline) {
+                    log.debug("socket timeout - deadline reached, returning null to allow continuation check");
                     return null;
                 }
-                log.debug("socket timeout - retrying ({}/{})", consecutiveTimeouts, maxConsecutiveTimeouts);
+                log.debug("socket timeout - retrying until deadline");
             } catch (Exception e) {
                 if (e.getCause() instanceof SocketTimeoutException) {
-                    consecutiveTimeouts++;
-                    if (consecutiveTimeouts >= maxConsecutiveTimeouts) {
-                        log.debug("socket timeout - max retries reached, returning null to allow continuation check");
+                    if (System.currentTimeMillis() >= deadline) {
+                        log.debug("socket timeout - deadline reached, returning null to allow continuation check");
                         return null;
                     }
-                    log.debug("socket timeout - retry ({}/{})", consecutiveTimeouts, maxConsecutiveTimeouts);
+                    log.debug("socket timeout - retrying until deadline");
                     continue;
                 } else if (running) {
                     log.warn("Connection error on {} (port {}), closing connection: {}",
@@ -587,8 +601,12 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public synchronized OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
+        return sendAndWaitForReply(q, driver.getMaxWaitTime());
+    }
+
+    public synchronized OpMsg sendAndWaitForReply(OpMsg q, int timeout) throws MorphiumDriverException {
         sendQuery(q);
-        return readNextMessage(driver.getMaxWaitTime());//getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
+        return readNextMessage(timeout);
     }
 
     @Override

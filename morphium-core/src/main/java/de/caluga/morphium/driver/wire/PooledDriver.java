@@ -268,6 +268,11 @@ public class PooledDriver extends DriverBase {
      */
     private final ConcurrentHashMap<String, String> hostAliases = new ConcurrentHashMap<>();
 
+    /** currently known primary (normalized host:port) - null while failover is in progress */
+    public String getPrimaryNode() {
+        return primaryNode;
+    }
+
     private String resolveAlias(String hostPort) {
         if (hostPort == null) return null;
         return hostAliases.getOrDefault(hostPort, hostPort);
@@ -353,7 +358,8 @@ public class PooledDriver extends DriverBase {
         connect(null);
     }
 
-    private void handleHelloResult(HelloResult hello, String hostConnected) {
+    /** package-private for testing */
+    void handleHelloResult(HelloResult hello, String hostConnected) {
         if (!running) return;
         if (hello == null)
             return;
@@ -437,7 +443,9 @@ public class PooledDriver extends DriverBase {
                     primaryNode = null;
                 } else if (primaryNode == null && hello.getPrimary() != null) {
                     // Only use the advertised primary if it maps to a known/reachable host key.
-                    String advertised = resolveAlias(hello.getPrimary());
+                    // Must be normalized like the hosts-map keys (lowercase + port): replica set
+                    // configs may advertise members with different casing than the client seed.
+                    String advertised = normalizeHostKey(resolveAlias(hello.getPrimary()));
                     if (hosts.containsKey(advertised)) {
                         primaryNode = advertised;
                     }
@@ -653,7 +661,12 @@ public class PooledDriver extends DriverBase {
                                         markStatsDirty();
                                         containerDisposed = true;
                                     } else {
-                                        result = container.getCon().getHelloResult(false);
+                                        // Bounded hello: a frozen/partitioned host must fail the
+                                        // heartbeat check within ~a heartbeat, not after maxWaitTime.
+                                        // Otherwise eviction (MAX_FAILURES) takes minutes and all
+                                        // in-flight operations stay stuck on dead connections.
+                                        result = container.getCon().getHelloResult(false,
+                                                Math.max(2000, getHeartbeatFrequency()));
 
                                         long dur = System.currentTimeMillis() - start;
 
@@ -721,7 +734,15 @@ public class PooledDriver extends DriverBase {
 
                             // log.info("Finished connection creation");
                         } catch (Throwable e) {
-                            log.error("Could not create connection to host {}", hst, e);
+                            // full stacktrace only on the first failure - a host that is down
+                            // for a while would otherwise flood the log every heartbeat
+                            Host failedHost = hosts.get(normalizeHostKey(hst));
+                            if (failedHost == null || failedHost.getFailures() == 0) {
+                                log.error("Could not create connection to host {}", hst, e);
+                            } else {
+                                log.warn("Still cannot connect to host {} ({} consecutive failures): {}",
+                                         hst, failedHost.getFailures(), e.getMessage());
+                            }
                             onConnectionError(hst);
                         } finally {
                             hostThreads.remove(hst);
@@ -851,8 +872,18 @@ public class PooledDriver extends DriverBase {
                 }
             }
             for (Integer port : borrowedToDelete) {
-                if (borrowedConnections.remove(port) != null) {
+                ConnectionContainer removed = borrowedConnections.remove(port);
+                if (removed != null) {
                     h.decrementBorrowedConnections();
+                    // Close the connection: threads blocked in a read on this dead host
+                    // (e.g. frozen VM, network partition) are woken up immediately with a
+                    // network error and can retry on the new primary. Without this they
+                    // hang until the socket read timeout (maxWaitTime) expires.
+                    try {
+                        removed.getCon().close();
+                    } catch (Exception ignored) {
+                    }
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                 }
             }
             if (!borrowedToDelete.isEmpty()) {
@@ -1022,10 +1053,23 @@ public class PooledDriver extends DriverBase {
             }
 
             do {
-                if (getServerSelectionTimeout() <= 0) {
-                    bc = queue.poll(Integer.MAX_VALUE, TimeUnit.SECONDS);
-                } else {
-                    bc = queue.poll(getServerSelectionTimeout(), TimeUnit.MILLISECONDS);
+                // Poll in slices so we can abort early when the host gets evicted
+                // (dead primary during failover) instead of waiting the full
+                // serverSelectionTimeout on a host that will never deliver.
+                long deadline = getServerSelectionTimeout() <= 0
+                                ? Long.MAX_VALUE
+                                : System.currentTimeMillis() + getServerSelectionTimeout();
+
+                while ((bc = queue.poll(100, TimeUnit.MILLISECONDS)) == null) {
+                    if (!hosts.containsKey(host)) {
+                        throw new MorphiumDriverException("Host " + host + " was removed while waiting for a connection (failover?)");
+                    }
+                    if (!running) {
+                        throw new MorphiumDriverException("Driver is shutting down");
+                    }
+                    if (System.currentTimeMillis() >= deadline) {
+                        break;
+                    }
                 }
 
                 if (bc == null) {

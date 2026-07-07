@@ -62,6 +62,18 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
 
             try {
                 var crs = con.readSingleAnswer(msg);
+                if (crs == null) {
+                    // No reply: either the connection was closed while waiting (dead host
+                    // evicted during failover) or the reply did not arrive within the
+                    // timeout. Either way the connection is in an undefined state (a late
+                    // reply would corrupt the next command) - close it and retry on a
+                    // fresh one, like any other network error.
+                    try {
+                        con.close();
+                    } catch (Exception ignore) {
+                    }
+                    throw new MorphiumDriverNetworkException("No reply for write request (connection closed or timeout)");
+                }
                 long dur = System.currentTimeMillis() - start;
                 setMetaData("duration", dur);
 
@@ -80,19 +92,25 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                 return crs;
             } catch (MorphiumDriverException e) {
                 String errMsg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
-                if ("not primary".equals(e.getMessage())) {
-                    drv.releaseConnection(getConnection());
-                    log.warn("node no primary anymore - waiting for failover");
+                if (isStepDownError(e, errMsg)) {
+                    // Primary stepped down / is shutting down: the write was rejected, so
+                    // retrying on the newly elected primary is safe.
+                    if (attempts++ >= maxAttempts) {
+                        throw e;
+                    }
+                    log.warn("Primary step-down ({}) - waiting for failover, retry {}/{}", e.getMessage(), attempts, maxAttempts);
                     try {
-                        Thread.sleep(drv.getHeartbeatFrequency() * 2L);
+                        drv.releaseConnection(getConnection());
+                    } catch (Exception ignore) {
+                    }
+                    try {
+                        Thread.sleep(Math.max(50, drv.getHeartbeatFrequency()));
                     } catch (InterruptedException e1) {
                         Thread.currentThread().interrupt();
                         throw e;
                     }
-                    log.warn("Retrying... (recursive)");
                     setConnection(drv.getPrimaryConnection(null));
-                    // retrying
-                    return execute();
+                    continue;
                 } else if (e instanceof MorphiumDriverNetworkException
                     && e.getMongoCode() instanceof Number mc && mc.intValue() == 251
                     && attempts++ < maxAttempts) {
@@ -145,12 +163,46 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                         continue;
                     }
                     throw e;
+                } else if (e instanceof MorphiumDriverNetworkException && attempts++ < maxAttempts) {
+                    // Connection to the primary died mid-write (e.g. primary crash / broken pipe).
+                    // Retrying on the re-resolved primary gives at-least-once semantics, matching
+                    // MongoDB's retryWrites behavior. Without this, every in-flight write during
+                    // a failover is lost even though retriesOnNetworkError is configured.
+                    log.warn("Network error during write ({}) - re-resolving primary, retry {}/{}", e.getMessage(), attempts, maxAttempts);
+                    try {
+                        drv.releaseConnection(getConnection());
+                    } catch (Exception ignore) {
+                    }
+                    try {
+                        Thread.sleep(Math.max(50, drv.getSleepBetweenErrorRetries()));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw e;
+                    }
+                    setConnection(drv.getPrimaryConnection(null));
+                    continue;
                 } else {
                     throw e;
                 }
             }
         }
 
+    }
+
+    /**
+     * True for errors indicating the node is not (or no longer) the primary and the
+     * write was rejected: NotWritablePrimary(10107), PrimarySteppedDown(189),
+     * ShutdownInProgress(91), InterruptedAtShutdown(11600),
+     * InterruptedDueToReplStateChange(11602), NotPrimaryNoSecondaryOk(13435).
+     */
+    private boolean isStepDownError(MorphiumDriverException e, String lowerCaseMsg) {
+        if (e.getMongoCode() instanceof Number mc) {
+            int code = mc.intValue();
+            if (code == 10107 || code == 189 || code == 91 || code == 11600 || code == 11602 || code == 13435) {
+                return true;
+            }
+        }
+        return lowerCaseMsg.contains("not primary") || lowerCaseMsg.contains("not master");
     }
 
     @SuppressWarnings("unchecked")

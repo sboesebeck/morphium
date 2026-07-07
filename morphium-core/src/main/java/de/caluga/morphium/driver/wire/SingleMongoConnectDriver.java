@@ -254,7 +254,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                         throw new MorphiumDriverNetworkException("Could not connect to " + h[0] + ":" + port);
                     }
 
-                    Thread.sleep(getSleepBetweenErrorRetries() * 10000);
+                    Thread.sleep(getSleepBetweenErrorRetries());
                     continue;
                 }
 

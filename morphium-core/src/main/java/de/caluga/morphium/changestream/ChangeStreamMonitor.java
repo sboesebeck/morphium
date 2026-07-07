@@ -243,6 +243,64 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         return collectionName;
     }
 
+    /**
+     * Decides how to react to an exception thrown by the watch loop.
+     * Returns true if the monitor should retry, false if it must terminate.
+     * package-private for testing.
+     */
+    boolean handleWatchError(Exception e) {
+        // Check if we should stop before handling errors
+        if (!running || morphium.getConfig() == null) {
+            log.debug("ChangeStreamMonitor stopping due to shutdown");
+            return false;
+        }
+
+        if (e.getMessage() == null) {
+            log.warn("Restarting changestream", e);
+        } else if (e.getMessage().contains("reply is null")) {
+            log.warn("Reply is null - cannot watch - retrying");
+        } else if (e.getMessage().contains("cursor is null")) {
+            log.warn("Cursor is null - cannot watch - retrying");
+        } else if (e.getMessage().contains("ChangeStreamHistoryLost") || e.getMessage().contains("resume point may no longer be in the oplog")) {
+            // Oplog has rolled past our resume point - discard token and start fresh
+            log.warn("Oplog rolled past resume point for changestream '{}' - discarding resume token and restarting fresh", collectionName);
+            lastResumeToken = null;
+            sleepBeforeRetry();
+        } else if (e.getMessage().contains("Network error error: state should be: open")) {
+            log.warn("Changstream connection broke - restarting");
+        } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time") || e.getMessage().contains("Read timed out")) {
+            log.debug("changestream iteration");
+        } else if (e.getMessage().contains("closed")) {
+            // Connection closed is often transient (network issues, failover) - retry instead of giving up
+            log.warn("Connection closed for changestream '{}' - will retry", collectionName);
+            sleepBeforeRetry();
+        } else if (e.getMessage().contains("No such host")) {
+            // Thrown by the connection pool when the host was just evicted (e.g. dead
+            // primary during failover). The heartbeat re-adds replica set members, so
+            // this is transient - terminating here would kill messaging permanently.
+            log.warn("Host currently not available for changestream '{}' - will retry", collectionName);
+            sleepBeforeRetry();
+        } else {
+            if (!running) {
+                return false;
+            }
+            log.warn("Error in changestream monitor - restarting", e);
+            sleepBeforeRetry();
+        }
+        return true;
+    }
+
+    private void sleepBeforeRetry() {
+        if (morphium.getConfig() == null) {
+            return;
+        }
+        try {
+            Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     @Override
     public void run() {
         WatchCommand watch = null;
@@ -357,57 +415,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     // log.info("CSM: watch() returned normally for collection '{}'", collectionName);
                 }
             } catch (Exception e) {
-                // Check if we should stop before handling errors
-                if (!running || morphium.getConfig() == null) {
-                    log.debug("ChangeStreamMonitor stopping due to shutdown");
+                if (!handleWatchError(e)) {
                     break;
-                }
-
-                if (e.getMessage() == null) {
-                    log.warn("Restarting changestream", e);
-                } else if (e.getMessage().contains("reply is null")) {
-                    log.warn("Reply is null - cannot watch - retrying");
-                } else if (e.getMessage().contains("cursor is null")) {
-                    log.warn("Cursor is null - cannot watch - retrying");
-                } else if (e.getMessage().contains("ChangeStreamHistoryLost") || e.getMessage().contains("resume point may no longer be in the oplog")) {
-                    // Oplog has rolled past our resume point - discard token and start fresh
-                    log.warn("Oplog rolled past resume point for changestream '{}' - discarding resume token and restarting fresh", collectionName);
-                    lastResumeToken = null;
-                    try {
-                        Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-                    } catch (InterruptedException ex) {
-                        if (!running) break;
-                    }
-                } else if (e.getMessage().contains("Network error error: state should be: open")) {
-                    log.warn("Changstream connection broke - restarting");
-                } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time") || e.getMessage().contains("Read timed out")) {
-                    log.debug("changestream iteration");
-                } else if (morphium.getConfig() == null) {
-                    log.warn("Morphium config is null, stopping changestream monitor for '{}'", collectionName);
-                    break;
-                } else if (e.getMessage().contains("closed")) {
-                    // Connection closed is often transient (network issues, failover) - retry instead of giving up
-                    log.warn("Connection closed for changestream '{}' - will retry", collectionName);
-                    try {
-                        Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-                    } catch (InterruptedException ex) {
-                        if (!running) break;
-                    }
-                } else if (e.getMessage().contains("No such host")) {
-                    // Server was shut down, stop trying to reconnect
-                    log.warn("Server no longer available (No such host), stopping changestream monitor for collection '{}'", collectionName);
-                    break;
-                } else {
-                    if (running) {
-                        log.warn("Error in changestream monitor - restarting", e);
-
-                        try {
-                            Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
-                        } catch (InterruptedException ex) {
-                        }
-                    } else {
-                        break;
-                    }
                 }
             } finally {
                 boolean connectionReleased = false;
