@@ -403,31 +403,9 @@ public class Query<T> implements Cloneable {
     @SuppressWarnings("ConstantConditions")
 
     public T findOneAndUpdate(Map<String, Object> update) {
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !InMemoryDriver.driverName.equals(morphium.getDriver().getName());
-        String ck = null;
-
-        if (useCache) {
-            ck = morphium.getCache().getCacheKey(this);
-            morphium.inc(StatisticKeys.READS);
-            if (morphium.getCache().isCached(type, ck)) {
-                morphium.inc(StatisticKeys.CHITS);
-                List<T> lst = morphium.getCache().getFromCache(type, ck);
-
-                if (lst == null || lst.isEmpty()) {
-                    return null;
-                } else {
-                    morphium.delete(lst.get(0));
-                    return lst.get(0);
-                }
-            }
-
-            morphium.inc(StatisticKeys.CMISS);
-        } else {
-            morphium.inc(StatisticKeys.NO_CACHED_READS);
-        }
-
-        long start = System.currentTimeMillis();
+        // find-and-update always has a write side-effect - it must never be served
+        // from the read cache (see #214)
+        morphium.inc(StatisticKeys.NO_CACHED_READS);
         Map<String, Object> ret = null;
         MongoConnection con = null;
         FindAndModifyMongoCommand settings = null;
@@ -459,40 +437,20 @@ public class Query<T> implements Cloneable {
         }
 
         if (ret == null) {
-            List<T> lst = new ArrayList<>(0);
-
-            if (useCache) {
-                morphium.getCache().addToCache(ck, type, lst);
-            }
-
             return null;
         }
 
-        List<T> lst = new ArrayList<>(1);
-        long dur = System.currentTimeMillis() - start;
-        // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+        // a document was modified - invalidate cached reads so they cannot serve
+        // the pre-update state
+        morphium.getCache().clearCacheIfNecessary(type);
+        T unmarshall = morphium.getMapper().deserialize(type, ret);
 
-        if (ret != null) {
-            T unmarshall = morphium.getMapper().deserialize(type, ret);
-
-            if (unmarshall != null) {
-                morphium.firePostLoadEvent(unmarshall);
-                updateLastAccess(unmarshall);
-                lst.add(unmarshall);
-
-                if (useCache) {
-                    morphium.getCache().addToCache(ck, type, lst);
-                }
-            }
-
-            return unmarshall;
+        if (unmarshall != null) {
+            morphium.firePostLoadEvent(unmarshall);
+            updateLastAccess(unmarshall);
         }
 
-        if (useCache) {
-            morphium.getCache().addToCache(ck, type, lst);
-        }
-
-        return null;
+        return unmarshall;
     }
 
     public T findOneAndUpdateEnums(Map<Enum, Object> update) {

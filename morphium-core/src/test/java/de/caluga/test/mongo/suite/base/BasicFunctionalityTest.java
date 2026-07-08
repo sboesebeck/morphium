@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Tag;
@@ -931,6 +932,53 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertEquals(1, TestUtils.countUC(morphium));
             morphium.reread(uc);
             assertEquals(42, uc.getCounter());
+        }
+    }
+
+    // regression test for #214: findOneAndUpdate on a read-cached entity deleted
+    // the document instead of updating it when the query was served from cache
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoInMem")
+    public void testFindOneAndUpdateCachedEntity(Morphium morphium) throws Exception {
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+
+        try (morphium) {
+            morphium.dropCollection(CachedUpdateObject.class);
+            CachedUpdateObject co = new CachedUpdateObject();
+            co.value = "value";
+            co.counter = 123;
+            morphium.store(co);
+            TestUtils.waitForConditionToBecomeTrue(2000, "Object not persisted",
+                                                   () -> morphium.createQueryFor(CachedUpdateObject.class).countAll() == 1);
+            Query<CachedUpdateObject> q = morphium.createQueryFor(CachedUpdateObject.class).f("counter").eq(123);
+            // populate the read cache with this exact query
+            assertNotNull(q.get());
+            assertTrue(morphium.getCache().isCached(CachedUpdateObject.class, morphium.getCache().getCacheKey(q)));
+            CachedUpdateObject ret = q.findOneAndUpdate(UtilsMap.of("$set", UtilsMap.of("counter", 42)));
+            assertNotNull(ret);
+            assertEquals("value", ret.value);
+            // document must still exist and the update must be applied
+            assertEquals(1, morphium.createQueryFor(CachedUpdateObject.class).countAll());
+            assertNotNull(morphium.reread(co));
+            assertEquals(42, co.counter);
+            // the write must have invalidated the read cache (clearOnWrite default)
+            assertFalse(morphium.getCache().isCached(CachedUpdateObject.class, morphium.getCache().getCacheKey(q)));
+        }
+    }
+
+    @Entity
+    @Cache
+    public static class CachedUpdateObject {
+        @Id
+        public MorphiumId id;
+        public String value;
+        public int counter;
+
+        public enum Fields {
+            id, value, counter
         }
     }
 
