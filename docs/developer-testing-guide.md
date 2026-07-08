@@ -169,7 +169,12 @@ The `runtests.sh` script provides a convenient wrapper around Maven with additio
 --rerunfailed       # Rerun only previously failed tests
 ```
 
-Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache`, `admin`, `performance`, `encryption`, `jms`, `geo`, `util`, `external`
+Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache`, `admin`, `performance`, `encryption`, `jms`, `geo`, `util`, `external`, `manual`, `failover`
+
+Two tags have special semantics:
+
+- `external` — the test needs a real MongoDB (CI-safe). Excluded by default; enabled by `--external` / the `-Pexternal` Maven profile.
+- `manual` — the test kills processes or relies on a hardcoded local setup (e.g. `FailoverReproTest` controls a local replica set via `~/mongo`). **Never runs in CI**: excluded by default, by `-Pexternal` and by `runtests.sh`. Run explicitly via `mvn -pl morphium-core test -Dtest=<Class> -Dtest.excludeTags=`. All real failover tests (StepDown/Shutdown/process kills) carry this tag; the remaining `failover` tag only marks tests to skip on PoppyDB phases.
 
 #### PoppyDB Options
 ```bash

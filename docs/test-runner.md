@@ -115,9 +115,15 @@ ssh morphium-test@testrunner.fritz.box "~/run-morphium-tests.sh"
 
 Open `http://testrunner.fritz.box:8080/` in your browser.
 
-The test orchestration runs three phases sequentially:
-1. InMemDriver (fast, no external deps)
-2. MongoDB Replica Set (mongo1 + mongo2)
-3. PoppyDB Replica Set (local, 3 nodes)
+The test orchestration runs five phases in parallel (each against its own server):
+1. InMemDriver (in-process, no external deps)
+2. MongoDB Replica Set
+3. MongoDB Single Node
+4. PoppyDB Replica Set
+5. PoppyDB Single Node
+
+Failed tests are retried individually in a second pass: a test that passes on
+retry is reported as *flaky*, one that fails again as *broken*. Stale test
+databases are dropped automatically before each run.
 
 Claude Code analyzes failures and generates a detailed HTML report.
