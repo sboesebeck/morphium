@@ -105,12 +105,11 @@ public class ExpireIndexTest extends MultiDriverTestBase {
             // Worst case for MongoDB: created just after TTL pass = wait 60s for next pass
             // + 5s expiry + 10s buffer = 75s
             // For InMemory: worst case ~15s
-            // NOTE: on the homelab RS (MongoDB 8.0.9, PSA with unreachable arbiter) the
-            // effective TTL cutoff lags a constant ~300s behind wall clock (verified via
-            // direct mongosh probes; a backdated document is deleted on the next pass,
-            // a fresh one only after ~330s; mongo-single on 8.0.20 deletes in ~75s).
-            // 400s covers that server-side offset until the RS is updated/fixed.
-            int timeout = driverName.contains("InMem") ? 30000 : 400000;
+            // NOTE: MongoDB 8.0.9 had a server-side bug delaying the effective TTL
+            // cutoff by a constant ~300s (verified via direct mongosh probes); fixed
+            // by upgrading the servers to 8.0.26 - deletion now happens within one
+            // TTL pass (~48s measured). 280s keeps ample headroom for loaded runners.
+            int timeout = driverName.contains("InMem") ? 30000 : 280000;
             TestUtils.waitForConditionToBecomeTrue(timeout, driverName + ": Did not clear?!?!",
                                                    () -> morphium.createQueryFor(UCobj.class).countAll() == 0,
             (dur) -> {
