@@ -37,6 +37,9 @@ The read-cache branch in `findOneAndUpdate(Map)` was copy/pasted from `findOneAn
 
 ### Changed
 
+#### SequenceGenerator: duplicated lock lifecycle extracted (#171)
+`getNextValue()` and `getNextBatch()` shared ~40 identical lines of insert-based lock acquisition (retry with jitter, proactive stale-lock clearing) and release. Both now run their critical section through a single `withSequenceLock(Supplier)` helper. No behavioral change.
+
 #### Internal: legacy `Vector`/`Hashtable` replaced with concurrent collections (#173, #212)
 `AbstractCacheSynchronizer`, `MorphiumCacheImpl`/`MorphiumCacheJCacheImpl` and `jms/Producer` now use `ConcurrentHashMap`/`CopyOnWriteArrayList` instead of `Hashtable`/`Vector`; `BufferedMorphiumWriterImpl` uses `Collections.synchronizedList` consistently. Thread-safety guarantees are unchanged or strengthened (listener iteration is now safe against `ConcurrentModificationException`); no API change. Remaining `printStackTrace()` calls in production code were routed through SLF4J.
 
