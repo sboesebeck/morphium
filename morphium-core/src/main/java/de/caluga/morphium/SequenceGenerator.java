@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -118,7 +119,11 @@ public class SequenceGenerator {
         return s.getCurrentValue();
     }
 
-    public long getNextValue() {
+    /**
+     * Acquires the insert-based sequence lock (retrying with jitter and clearing stale
+     * locks), runs {@code action}, and always releases the lock afterwards.
+     */
+    private <T> T withSequenceLock(Supplier<T> action) {
         long start = System.currentTimeMillis();
         SeqLock lock = new SeqLock();
         lock.setName(name);
@@ -126,7 +131,7 @@ public class SequenceGenerator {
 
         while (true) {
             if (System.currentTimeMillis() - start > 100_000) {
-                throw new RuntimeException(String.format("Getting lock on seqence %s failed!", name));
+                throw new RuntimeException(String.format("Getting lock on sequence %s failed!", name));
             }
 
             try {
@@ -162,41 +167,19 @@ public class SequenceGenerator {
                 }
 
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos((long)(100 * Math.random() + 10)));
-                // try {
-                //     Thread.sleep((long)(100 * Math.random() + 10));
-                // } catch (InterruptedException ignored) {
-                // }
             }
-
-            // MongoConnection con = null;
-            //
-            // try {
-            // con = morphium.getDriver().getPrimaryConnection(null);
-            // long st = System.currentTimeMillis();
-            // InsertMongoCommand ins = new InsertMongoCommand(con);
-            // ins.setDb(morphium.getDatabase());
-            // ins.setColl(morphium.getMapper().getCollectionName(SeqLock.class));
-            // ins.setDocuments(Arrays.asList(morphium.getMapper().serialize(lock)));
-            // ins.executeAsync();
-            // // log.info(String.format("insert lock: %s ms", System.currentTimeMillis() -
-            // st));
-            // break;
-            // } catch (Exception e) {
-            // // lock failed
-            // // waiting for it to be released
-            // try {
-            // Thread.sleep((long)(100 * Math.random() + 10));
-            // } catch (InterruptedException ignored) {
-            // }
-            // } finally {
-            // if (con != null) {
-            // con.release();
-            // }
-            // }
         }
 
-        // long st = System.currentTimeMillis();
         try {
+            return action.get();
+        } finally {
+            // Always delete the lock, even if an exception occurs
+            morphium.delete(lock);
+        }
+    }
+
+    public long getNextValue() {
+        return withSequenceLock(() -> {
             Query<Sequence> seq = morphium.createQueryFor(Sequence.class)
                 .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
                 .f("_id").eq(name);
@@ -214,7 +197,6 @@ public class SequenceGenerator {
                 val = seq.get();
             }
             morphium.inc(val, "current_value", inc);
-            // log.info(String.format("inc: %s ms", System.currentTimeMillis() - st));
             // WARNING: morphium.inc() updates the local object by adding to its current value,
             // but in concurrent scenarios the local value may be stale. Re-read from DB to get correct value.
 
@@ -240,10 +222,7 @@ public class SequenceGenerator {
             }
 
             return val.getCurrentValue();
-        } finally {
-            // Always delete the lock, even if an exception occurs
-            morphium.delete(lock);
-        }
+        });
     }
 
     /**
@@ -272,47 +251,7 @@ public class SequenceGenerator {
             return new long[]{getNextValue()};
         }
 
-        long start = System.currentTimeMillis();
-        SeqLock lock = new SeqLock();
-        lock.setName(name);
-        lock.setLockedBy(id);
-
-        while (true) {
-            if (System.currentTimeMillis() - start > 100_000) {
-                throw new RuntimeException(String.format("Getting lock on sequence %s failed!", name));
-            }
-
-            try {
-                lock.setLockedAt(new Date());
-                morphium.insert(lock);
-                break;
-            } catch (Exception e) {
-                try {
-                    SeqLock existingLock = morphium.createQueryFor(SeqLock.class)
-                        .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
-                        .f("_id").eq(name).get();
-
-                    if (existingLock != null && existingLock.getLockedAt() != null) {
-                        long age = System.currentTimeMillis() - existingLock.getLockedAt().getTime();
-
-                        if (age > LOCK_EXPIRE_MILLIS + LOCK_EXPIRE_GRACE_MILLIS) {
-                            morphium.delete(
-                                morphium.createQueryFor(SeqLock.class)
-                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
-                                    .f("_id").eq(name)
-                                    .f("lockedBy").eq(existingLock.getLockedBy())
-                                    .f("lockedAt").eq(existingLock.getLockedAt())
-                            );
-                        }
-                    }
-                } catch (Exception ignored) {
-                }
-
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos((long) (100 * Math.random() + 10)));
-            }
-        }
-
-        try {
+        return withSequenceLock(() -> {
             Query<Sequence> seq = morphium.createQueryFor(Sequence.class)
                 .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
                 .f("_id").eq(name);
@@ -341,9 +280,7 @@ public class SequenceGenerator {
                 result[i] = preValue + (long) (i + 1) * inc;
             }
             return result;
-        } finally {
-            morphium.delete(lock);
-        }
+        });
     }
 
     public int getInc() {
