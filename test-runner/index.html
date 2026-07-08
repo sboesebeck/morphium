@@ -2094,10 +2094,15 @@ This prevents different JVMs from dropping or overwriting each other’s data du
 </span></code></pre></div>
 <h3 id="view-results">View results<a class="headerlink" href="#view-results" title="Permanent link">&para;</a></h3>
 <p>Open <code>http://testrunner.fritz.box:8080/</code> in your browser.</p>
-<p>The test orchestration runs three phases sequentially:
-1. InMemDriver (fast, no external deps)
-2. MongoDB Replica Set (mongo1 + mongo2)
-3. PoppyDB Replica Set (local, 3 nodes)</p>
+<p>The test orchestration runs five phases in parallel (each against its own server):
+1. InMemDriver (in-process, no external deps)
+2. MongoDB Replica Set
+3. MongoDB Single Node
+4. PoppyDB Replica Set
+5. PoppyDB Single Node</p>
+<p>Failed tests are retried individually in a second pass: a test that passes on
+retry is reported as <em>flaky</em>, one that fails again as <em>broken</em>. Stale test
+databases are dropped automatically before each run.</p>
 <p>Claude Code analyzes failures and generates a detailed HTML report.</p>
 
 

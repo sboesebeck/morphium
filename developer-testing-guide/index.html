@@ -2249,7 +2249,12 @@
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>--exclude-tags<span class="w"> </span>LIST<span class="w"> </span><span class="c1"># Exclude JUnit 5 tags</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>--rerunfailed<span class="w">       </span><span class="c1"># Rerun only previously failed tests</span>
 </span></code></pre></div>
-<p>Available tags: <code>core</code>, <code>messaging</code>, <code>driver</code>, <code>inmemory</code>, <code>aggregation</code>, <code>cache</code>, <code>admin</code>, <code>performance</code>, <code>encryption</code>, <code>jms</code>, <code>geo</code>, <code>util</code>, <code>external</code></p>
+<p>Available tags: <code>core</code>, <code>messaging</code>, <code>driver</code>, <code>inmemory</code>, <code>aggregation</code>, <code>cache</code>, <code>admin</code>, <code>performance</code>, <code>encryption</code>, <code>jms</code>, <code>geo</code>, <code>util</code>, <code>external</code>, <code>manual</code>, <code>failover</code></p>
+<p>Two tags have special semantics:</p>
+<ul>
+<li><code>external</code> — the test needs a real MongoDB (CI-safe). Excluded by default; enabled by <code>--external</code> / the <code>-Pexternal</code> Maven profile.</li>
+<li><code>manual</code> — the test kills processes or relies on a hardcoded local setup (e.g. <code>FailoverReproTest</code> controls a local replica set via <code>~/mongo</code>). <strong>Never runs in CI</strong>: excluded by default, by <code>-Pexternal</code> and by <code>runtests.sh</code>. Run explicitly via <code>mvn -pl morphium-core test -Dtest=&lt;Class&gt; -Dtest.excludeTags=</code>. All real failover tests (StepDown/Shutdown/process kills) carry this tag; the remaining <code>failover</code> tag only marks tests to skip on PoppyDB phases.</li>
+</ul>
 <h4 id="poppydb-options">PoppyDB Options<a class="headerlink" href="#poppydb-options" title="Permanent link">&para;</a></h4>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>--poppydb<span class="w">                      </span><span class="c1"># Start single-node PoppyDB (recommended)</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>--poppydb-replicaset<span class="w">           </span><span class="c1"># Start 3-node replica set (ports 27017-27019)</span>
