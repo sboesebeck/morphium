@@ -5,6 +5,46 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### InMemoryDriver: `$setOnInsert` and upsert/`new` support in `findAndModify` (#203)
+The `InMemoryDriver` now honors `$setOnInsert` and the `upsert`/`new` flags in `findAndModify`, matching MongoDB behavior. Includes a regression test for upsert via `$and`-nested `_id` filters (#202, #204).
+
+### Fixed
+
+#### Driver: replicaset failover repaired — bounded timeouts, write retries, changestream recovery
+During a primary failure (crash, frozen VM, network partition) the driver effectively never recovered: writes failed or hung indefinitely, messaging never reconnected. Root causes and fixes:
+
+- `readNextMessage` tolerated 100 consecutive socket timeouts, multiplying the intended timeout by 100 (`maxWaitTime` 60s → >1h hang per operation). The timeout is now a hard total deadline.
+- `WriteMongoCommand`'s step-down handling was dead code (string comparison against `"not primary"` never matched the formatted error). Step-downs are now detected via mongo error codes (10107/189/91/11600/11602/13435) and retried on the newly resolved primary; network errors and missing replies are retried the same way (at-least-once, like `retryWrites`).
+- `ChangeStreamMonitor` terminated permanently on "No such host" (thrown in the window between host eviction and re-add during failover), killing messaging for good. It now retries; error handling is extracted into a testable `handleWatchError()`.
+- `handleHelloResult` compared the advertised primary against the hosts map without `normalizeHostKey`, breaking primary discovery via secondaries on casing/port differences.
+- Dead-host detection: heartbeat hellos and the connect handshake use a bounded timeout instead of `maxWaitTime`; eviction closes borrowed connections so in-flight operations fail fast and get retried; `borrowConnection` polls in slices and aborts when the host is evicted.
+- `SingleMongoConnectDriver` slept `sleepBetweenErrorRetries * 10000` (~16min) on a null hello during reconnect.
+
+Verified with unit tests plus a manual failover suite (`FailoverReproTest`: SIGTERM, kill -9, SIGSTOP freeze, restart-while-primary-down against a local 3-node replicaset). Before: 1 successful write in 45s after a hard kill, messaging dead. After: full write throughput ~25s after failure, no lost messages.
+
+#### Query: `findOneAndUpdate(Map)` deleted the matched document on a read-cache hit (#214)
+The read-cache branch in `findOneAndUpdate(Map)` was copy/pasted from `findOneAndDelete()` and **deleted** the cached document instead of applying the update — silent, timing-dependent data loss for entities with `@Cache(readCache = true)`. A find-and-update always has a write side-effect, so it is never served from the read cache anymore: the `FindAndModifyMongoCommand` executes unconditionally, the pre-update document state is no longer written to the cache, and a successful modification invalidates the type's read cache (`clearCacheIfNecessary`).
+
+#### InMemoryDriver: dotted field paths in queries
+`find` no longer rewrites dotted query keys, so nested paths containing upper-case segments match correctly; `distinct` resolves dotted paths into the nested document instead of doing a flat lookup.
+
+### Changed
+
+#### Internal: legacy `Vector`/`Hashtable` replaced with concurrent collections (#173, #212)
+`AbstractCacheSynchronizer`, `MorphiumCacheImpl`/`MorphiumCacheJCacheImpl` and `jms/Producer` now use `ConcurrentHashMap`/`CopyOnWriteArrayList` instead of `Hashtable`/`Vector`; `BufferedMorphiumWriterImpl` uses `Collections.synchronizedList` consistently. Thread-safety guarantees are unchanged or strengthened (listener iteration is now safe against `ConcurrentModificationException`); no API change. Remaining `printStackTrace()` calls in production code were routed through SLF4J.
+
+### CI / Tests
+
+#### Test runner: retry classification fixed — failed retries were reported as "passed on retry"
+`get_test_stats` parsed a hardcoded `test.log` directory; phase retries log to `test.log.<phase>.retries_log`, so retry statistics always came back empty and **every** retried test was classified as flaky, even when the retry failed identically. `stats.sh` now honors `MORPHIUM_TESTLOG`. Flaky classifications from earlier runs are unreliable.
+
+#### Test tags: new `manual` tag — real failover tests never run in CI
+`-Pexternal` cleared the surefire tag excludes entirely, so manual-only tests (hardcoded localhost replicaset, mongod process kills) leaked into the external CI phases. New semantics: `external` = needs a real MongoDB (CI-safe, enabled by `-Pexternal`); `manual` = process-killing/hardcoded-local tests, excluded by default, by `-Pexternal` and by `runtests.sh`. All real failover tests (`FailoverReproTest`, `SingleConnectDriverFailoverTests` incl. `testHeartbeat`, pool `FailoverTests`, `FailoverTest`) are tagged `manual`; the remaining `failover` tag only marks tests to skip on PoppyDB phases.
+
 ## [6.2.5] - 2026-06-26
 
 ### Added
