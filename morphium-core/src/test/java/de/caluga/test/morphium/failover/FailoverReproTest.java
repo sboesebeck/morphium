@@ -24,10 +24,12 @@ import de.caluga.morphium.messaging.Msg;
  * Node 1 (27017) has priority 100 and is expected to be primary at test start.
  * The test kills it via ~/mongo/stopNode.sh 1 and restarts it via startNode.sh.
  */
-// "external" is in the default surefire excludedGroups - these tests need the local
-// replicaset from ~/mongo and kill/freeze mongod processes, so they must never run
-// in a normal build. Run manually via:
+// "manual" is excluded by default AND by the -Pexternal profile - these tests need
+// the local replicaset from ~/mongo and kill/freeze mongod processes, so they must
+// never run in CI (external phases run with -Pexternal, which enables "external"
+// tagged tests, but not "manual" ones). Run manually via:
 //   mvn -pl morphium-core test -Dtest=FailoverReproTest -Dtest.excludeTags=
+@Tag("manual")
 @Tag("external")
 @Tag("failover")
 @Tag("failoverRepro")

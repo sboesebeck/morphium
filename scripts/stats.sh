@@ -54,11 +54,15 @@ function get_test_stats() {
 	local total_build_failures=0
 	local failed_tests=""
 
-	# Handle both sequential and parallel log structures
+	# Handle both sequential and parallel log structures.
+	# MUST honor MORPHIUM_TESTLOG: phase/retry runs log to test.log.<phase>[.retries_log]
+	# - parsing a hardcoded "test.log" there yields 0 tests / 0 failures and makes
+	# every failed retry look like a pass (exit 0 -> falsely classified FLAKY).
+	local logdir="${MORPHIUM_TESTLOG:-test.log}"
 	local log_pattern=""
-	if [ -d "test.log" ]; then
+	if [ -d "$logdir" ]; then
 		# Sequential execution - standard pattern
-		log_pattern="test.log/*.log test.log/slot_*/*.log"
+		log_pattern="$logdir/*.log $logdir/slot_*/*.log"
 
 		# Use a simple deduplication approach: collect unique test classes and process newest first
 		# This handles parallel execution where same test runs in multiple slots

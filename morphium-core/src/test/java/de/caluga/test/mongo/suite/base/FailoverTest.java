@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Tag;
  * to the async Netty-based PoppyDB implementation.
  */
 @Disabled("Failover functionality removed - PoppyDB now uses simplified primary election")
+@Tag("manual")
 @Tag("failover")
 @Tag("poppydb")
 public class FailoverTest {

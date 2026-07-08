@@ -622,6 +622,18 @@ if [ "$startPoppydbLocal" -eq 1 ]; then
 	echo -e "${BL}Info:${CL} PoppyDB selected - automatically excluding 'failover' tagged tests"
 fi
 
+# 'manual' tagged tests (process-killing, hardcoded local setups) must never run in CI.
+# The pom defaults exclude them, but an explicit -Dtest.excludeTags overrides the pom
+# property - so 'manual' has to be (re-)added here whenever we build our own exclude
+# list. Only an explicit --tags manual (plus --exclude-tags '') may enable them.
+if [[ ! "$includeTags" == *"manual"* ]]; then
+	if [ -z "$excludeTags" ]; then
+		excludeTags="manual"
+	elif [[ ! "$excludeTags" == *"manual"* ]]; then
+		excludeTags="$excludeTags,manual"
+	fi
+fi
+
 # Handle --rerunfailed option early to bypass interactive prompts
 if [ "$rerunfailed" -eq 1 ]; then
 	echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"

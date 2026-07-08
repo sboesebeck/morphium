@@ -20,7 +20,9 @@ import de.caluga.morphium.driver.wire.PooledDriver;
 
 
 @Disabled
+@Tag("manual")
 @Tag("external")
+@Tag("failover")
 public class FailoverTests {
     private Logger log = LoggerFactory.getLogger(FailoverTests.class);
     @Test
