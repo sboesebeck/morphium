@@ -935,11 +935,26 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
+    // the cache-hit path needs a real mongo (read cache is disabled for the
+    // InMemoryDriver) - fall back to a placeholder so the inmem phase skips
+    // instead of failing on an empty parameter stream
+    public static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> noInMemInstancesOrPlaceholder() {
+        List<org.junit.jupiter.params.provider.Arguments> lst =
+            MultiDriverTestBase.getMorphiumInstancesNoInMem().collect(java.util.stream.Collectors.toList());
+
+        if (lst.isEmpty()) {
+            return java.util.stream.Stream.of(org.junit.jupiter.params.provider.Arguments.of(new Object[] { null }));
+        }
+
+        return lst.stream();
+    }
+
     // regression test for #214: findOneAndUpdate on a read-cached entity deleted
     // the document instead of updating it when the query was served from cache
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoInMem")
+    @MethodSource("noInMemInstancesOrPlaceholder")
     public void testFindOneAndUpdateCachedEntity(Morphium morphium) throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(morphium != null, "no external mongo driver available");
         String tstName = new Object() {
         }
         .getClass().getEnclosingMethod().getName();
