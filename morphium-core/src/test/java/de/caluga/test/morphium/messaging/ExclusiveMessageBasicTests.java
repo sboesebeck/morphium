@@ -127,6 +127,11 @@ public class ExclusiveMessageBasicTests extends MultiDriverTestBase {
         MorphiumMessaging m2 = morphium.createMessaging();
         m2.setPause(100).setMultithreadded(true).setWindowSize(1);
         m2.addListenerForTopic("A message", (msg, m) -> {
+            // this flag was commented out in 2022 ("fixing some things"), turning the
+            // test into a lottery: whenever m2 won the exclusive message no flag was
+            // set and the test ran into the 180s timeout - and a duplicate delivery
+            // to m2 could never be detected
+            gotMessage2 = true;
             return null;
         });
         MorphiumMessaging m3 = morphium.createMessaging();
