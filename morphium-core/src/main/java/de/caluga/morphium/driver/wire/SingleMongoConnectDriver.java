@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -72,10 +73,13 @@ public class SingleMongoConnectDriver extends DriverBase {
     public static final String driverName = "SingleMongoConnectDriver";
 
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
-    private SingleMongoConnection connection;
+    private volatile SingleMongoConnection connection;
     private ConnectionType connectionType = ConnectionType.PRIMARY;
     private int idleSleepTime = 20;
-    private boolean connectionInUse = false;
+    // guards the single connection: borrowed by callers AND by the heartbeat.
+    // Must be atomic - plain-boolean check-then-set raced with the heartbeat and
+    // a non-volatile read let getConnection() spin on a stale 'true' forever (#215)
+    private final AtomicBoolean connectionInUse = new AtomicBoolean(false);
     private AtomicInteger waitingForHeartbeatCounter = new AtomicInteger(0);
 
     private volatile boolean inMemoryBackend = false;
@@ -124,32 +128,44 @@ public class SingleMongoConnectDriver extends DriverBase {
     public MongoConnection getConnection() throws MorphiumDriverException {
         long waitUntil = System.currentTimeMillis() + getMaxWaitTime() * 5; //just to be sure - single connection!
 
-        while (connectionInUse) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
-
-            if (System.currentTimeMillis() > waitUntil) {
-                throw new MorphiumDriverException("could not get connection - still in use after " + getMaxWaitTime());
-            }
-        }
-
-        while (connection != null && !connection.isConnected()) {
-            try {
-                log.info("Waiting for heartbeat to fix connection...");
-                int waitingCount = waitingForHeartbeatCounter.incrementAndGet();
-
-                if (waitingCount > 20) {
-                    if (heartbeat != null) {
-                        heartbeat.cancel(true);
-                    }
-
-                    heartbeat = null;
-                    waitingForHeartbeatCounter.set(0);
-                    startHeartbeat();
+        while (true) {
+            // atomically claim the single connection - a plain check-then-set here
+            // raced with the heartbeat (both claiming at once) and a non-volatile
+            // read could spin on a stale 'true' forever (#215)
+            while (!connectionInUse.compareAndSet(false, true)) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
                 }
 
+                if (System.currentTimeMillis() > waitUntil) {
+                    throw new MorphiumDriverException("could not get connection - still in use after " + getMaxWaitTime());
+                }
+            }
+
+            SingleMongoConnection con = connection;
+
+            if (con == null || con.isConnected()) {
+                incStat(DriverStatsKey.CONNECTIONS_BORROWED);
+                return new ConnectionWrapper(con);
+            }
+
+            // not connected: release the claim so the heartbeat can repair it, then wait
+            connectionInUse.set(false);
+            log.info("Waiting for heartbeat to fix connection...");
+            int waitingCount = waitingForHeartbeatCounter.incrementAndGet();
+
+            if (waitingCount > 20) {
+                if (heartbeat != null) {
+                    heartbeat.cancel(true);
+                }
+
+                heartbeat = null;
+                waitingForHeartbeatCounter.set(0);
+                startHeartbeat();
+            }
+
+            try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
             }//waiting for heartbeat
@@ -158,10 +174,6 @@ public class SingleMongoConnectDriver extends DriverBase {
                 throw new MorphiumDriverException("could not get connection - not connected after " + getMaxWaitTime());
             }
         }
-
-        incStat(DriverStatsKey.CONNECTIONS_BORROWED);
-        connectionInUse = true;
-        return new ConnectionWrapper(connection);
     }
 
     public ConnectionType getConnectionType() {
@@ -392,15 +404,14 @@ public class SingleMongoConnectDriver extends DriverBase {
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()-> {
                 try {
-                    if (connectionInUse) {
-                        return;
-                    }
-
                     // log.info("checking connection");
                     if (connection == null)
                         return;
 
-                    connectionInUse = true;
+                    // atomically claim the connection - skip this heartbeat if a caller has it
+                    if (!connectionInUse.compareAndSet(false, true)) {
+                        return;
+                    }
 
                     try {
                         HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
@@ -449,7 +460,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                         incStat(DriverStatsKey.ERRORS);
                         log.error("Error during heartbeat", e);
                     } finally {
-                        connectionInUse = false;
+                        connectionInUse.set(false);
                     }
                 } catch (Throwable e) {
                     log.error("Heartbeat caught error", e);
@@ -468,7 +479,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     @Override
     public void releaseConnection(MongoConnection con) {
         incStat(DriverStatsKey.CONNECTIONS_RELEASED);
-        connectionInUse = false;
+        connectionInUse.set(false);
 
         if (con instanceof ConnectionWrapper) {
             ((ConnectionWrapper) con).setDelegate(null);
@@ -510,7 +521,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         heartbeat = null;
-        connectionInUse = false;
+        connectionInUse.set(false);
     }
 
     @Override

@@ -2994,12 +2994,31 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     MongoConnection con = null;
                     DropMongoCommand settings = null;
+                    boolean dropped = false;
 
                     try {
                         con = morphium.getDriver().getPrimaryConnection(null);
                         settings = new DropMongoCommand(con).setColl(co).setDb(getDbName());
                         settings.execute();
+                        dropped = true;
+                    } catch (MorphiumDriverException e) {
+                        if (e.getMessage().endsWith("error: 26 - ns not found")) {
+                            LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("NS not found: " + morphium.getMapper().getCollectionName(cls));
+                        } else {
+                            throw e;
+                        }
+                    } finally {
+                        // MUST release before the exists() poll below: exists() borrows its own
+                        // connection - with the SingleMongoConnectDriver (one connection total)
+                        // polling while still holding the drop connection self-deadlocks (#215)
+                        if (settings != null) {
+                            settings.releaseConnection();
+                        } else if (con != null) {
+                            morphium.getDriver().releaseConnection(con);
+                        }
+                    }
 
+                    if (dropped) {
                         // On real MongoDB, drop may return before the namespace is fully gone.
                         // Tests (and callers) commonly expect a subsequent write to not be "eaten" by an in-flight drop.
                         long waitStart = System.currentTimeMillis();
@@ -3015,18 +3034,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 Thread.currentThread().interrupt();
                                 break;
                             }
-                        }
-                    } catch (MorphiumDriverException e) {
-                        if (e.getMessage().endsWith("error: 26 - ns not found")) {
-                            LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("NS not found: " + morphium.getMapper().getCollectionName(cls));
-                        } else {
-                            throw e;
-                        }
-                    } finally {
-                        if (settings != null) {
-                            settings.releaseConnection();
-                        } else if (con != null) {
-                            morphium.getDriver().releaseConnection(con);
                         }
                     }
 
