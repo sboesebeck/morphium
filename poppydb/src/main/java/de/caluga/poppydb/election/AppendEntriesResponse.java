@@ -32,6 +32,13 @@ public class AppendEntriesResponse {
      */
     private String followerId;
 
+    /**
+     * Election priority of the responding node (0-100), or -1 if the node did not report one.
+     * The leader uses this to detect a higher-priority successor (priority takeover).
+     * Nodes from before priority takeover was introduced omit the field, hence the -1 default.
+     */
+    private int priority = -1;
+
     public AppendEntriesResponse() {
     }
 
@@ -82,6 +89,15 @@ public class AppendEntriesResponse {
         return this;
     }
 
+    public int getPriority() {
+        return priority;
+    }
+
+    public AppendEntriesResponse setPriority(int priority) {
+        this.priority = priority;
+        return this;
+    }
+
     /**
      * Convert to Map for wire protocol transmission.
      */
@@ -93,6 +109,9 @@ public class AppendEntriesResponse {
         map.put("matchIndex", matchIndex);
         if (followerId != null) {
             map.put("followerId", followerId);
+        }
+        if (priority >= 0) {
+            map.put("priority", priority);
         }
         return map;
     }
@@ -110,6 +129,9 @@ public class AppendEntriesResponse {
         if (map.containsKey("followerId")) {
             resp.setFollowerId((String) map.get("followerId"));
         }
+        if (map.get("priority") instanceof Number prio) {
+            resp.setPriority(prio.intValue());
+        }
         return resp;
     }
 
@@ -120,6 +142,7 @@ public class AppendEntriesResponse {
                 ", success=" + success +
                 ", matchIndex=" + matchIndex +
                 ", followerId='" + followerId + '\'' +
+                ", priority=" + priority +
                 '}';
     }
 }

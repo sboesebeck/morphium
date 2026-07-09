@@ -9,6 +9,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import java.util.function.ToLongFunction;
 
 /**
  * Manages leader election for PoppyDB replica set.
@@ -43,11 +45,22 @@ public class ElectionManager {
     private volatile long lastHeartbeatTime = 0;
     private volatile long leaseExpiryTime = 0;
 
+    // Priority takeover bookkeeping (leader only): what we learned from heartbeat responses
+    private final Map<String, Integer> peerPriorities = new ConcurrentHashMap<>();
+    private final Map<String, Long> peerLastContact = new ConcurrentHashMap<>();
+    private volatile long leaderSince = 0;
+    private volatile long leaderStartSequence = 0;
+
+    // Replication progress hooks, injected by PoppyDB. Defaults make every peer count as caught up.
+    private volatile LongSupplier localSequenceSupplier = () -> 0L;
+    private volatile ToLongFunction<String> peerSequenceSupplier = peer -> -1L;
+
     // Timers and executors
     private ScheduledExecutorService scheduler;
     private ScheduledFuture<?> electionTimerTask;
     private ScheduledFuture<?> heartbeatTask;
     private ScheduledFuture<?> leaseCheckTask;
+    private ScheduledFuture<?> priorityTakeoverTask;
 
     // Callbacks for integration with PoppyDB
     private Consumer<Boolean> onLeadershipChange;  // Called with true when becoming leader, false when stepping down
@@ -131,6 +144,9 @@ public class ElectionManager {
         if (leaseCheckTask != null) {
             leaseCheckTask.cancel(true);
         }
+        if (priorityTakeoverTask != null) {
+            priorityTakeoverTask.cancel(true);
+        }
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
@@ -169,6 +185,14 @@ public class ElectionManager {
                 leaseCheckTask.cancel(true);
                 leaseCheckTask = null;
             }
+
+            // Cancel priority takeover check (only leaders yield leadership).
+            // cancel(false): the check itself calls stepDown(), so it must not interrupt its own thread.
+            if (priorityTakeoverTask != null) {
+                priorityTakeoverTask.cancel(false);
+                priorityTakeoverTask = null;
+            }
+            leaderSince = 0;
 
             electionInProgress = false;
             votesReceived.clear();
@@ -263,6 +287,14 @@ public class ElectionManager {
 
             // Update lease expiry
             leaseExpiryTime = System.currentTimeMillis() + config.getLeaderLeaseTimeoutMs();
+            leaderSince = System.currentTimeMillis();
+
+            // Progress reports from previous terms mean nothing to us: peers acknowledge
+            // sequences of the leader that produced them. Only what we replicate counts.
+            leaderStartSequence = localSequenceSupplier.getAsLong();
+
+            // Peer liveness must be re-established from our own heartbeats; priorities stay valid
+            peerLastContact.clear();
 
             log.info("{} became LEADER at term {}", myAddress, currentTerm.get());
 
@@ -271,6 +303,9 @@ public class ElectionManager {
 
             // Start lease checking
             startLeaseCheck();
+
+            // Watch for a higher-priority successor
+            startPriorityTakeoverCheck();
 
         } finally {
             stateLock.unlock();
@@ -605,7 +640,8 @@ public class ElectionManager {
             if (requestTerm < myTerm) {
                 log.debug("{} rejecting appendEntries from {} (term {} < {})",
                         myAddress, request.getLeaderId(), requestTerm, myTerm);
-                return new AppendEntriesResponse(myTerm, false, lastLogIndex.get()).setFollowerId(myAddress);
+                return new AppendEntriesResponse(myTerm, false, lastLogIndex.get())
+                        .setFollowerId(myAddress).setPriority(takeoverPriority());
             }
 
             // Valid heartbeat from current leader
@@ -631,12 +667,22 @@ public class ElectionManager {
                 }
             }
 
-            // For now, just acknowledge (log replication will be added later)
-            return new AppendEntriesResponse(myTerm, true, lastLogIndex.get()).setFollowerId(myAddress);
+            // For now, just acknowledge (log replication will be added later).
+            // The priority lets the leader detect that we are a better candidate (priority takeover).
+            return new AppendEntriesResponse(myTerm, true, lastLogIndex.get())
+                    .setFollowerId(myAddress).setPriority(takeoverPriority());
 
         } finally {
             stateLock.unlock();
         }
+    }
+
+    /**
+     * The priority we advertise to a leader looking for a successor: a node that must never
+     * lead (arbiter, canBecomeLeader=false) reports -1, so nobody hands leadership to it.
+     */
+    private int takeoverPriority() {
+        return config.canBecomeLeaderByPriority() ? config.getElectionPriority() : -1;
     }
 
     /**
@@ -662,6 +708,13 @@ public class ElectionManager {
             if (response.isSuccess()) {
                 // Extend our lease since we got a response
                 leaseExpiryTime = System.currentTimeMillis() + config.getLeaderLeaseTimeoutMs();
+                peerLastContact.put(peer, System.currentTimeMillis());
+
+                // Nodes older than priority takeover omit the field and report -1
+                if (response.getPriority() >= 0) {
+                    peerPriorities.put(peer, response.getPriority());
+                }
+
                 log.trace("{} received heartbeat ack from {}", myAddress, peer);
             }
 
@@ -706,7 +759,146 @@ public class ElectionManager {
         }
     }
 
+    // ==================== Priority Takeover ====================
+
+    /**
+     * Start looking for a higher-priority successor while we are leader.
+     */
+    private void startPriorityTakeoverCheck() {
+        if (priorityTakeoverTask != null) {
+            priorityTakeoverTask.cancel(false);
+        }
+
+        if (!config.isPriorityTakeoverEnabled() || peerAddresses.isEmpty()) {
+            return;
+        }
+
+        int interval = config.getPriorityTakeoverCheckIntervalMs();
+        priorityTakeoverTask = scheduler.scheduleAtFixedRate(
+                this::checkPriorityTakeover,
+                interval,
+                interval,
+                TimeUnit.MILLISECONDS
+        );
+
+        log.debug("{} started priority takeover check every {}ms (my priority: {})",
+                myAddress, interval, config.getElectionPriority());
+    }
+
+    /**
+     * Voluntarily hand leadership to a peer with higher priority, mirroring MongoDB's
+     * priority takeover: without this, a failover to a lower-priority node would be permanent.
+     *
+     * A peer only qualifies if it is
+     * <ul>
+     *   <li>configured with a higher priority than ours,</li>
+     *   <li>still answering our heartbeats, and</li>
+     *   <li>caught up with our replication stream (see {@link #isCaughtUp}).</li>
+     * </ul>
+     * We only yield once we have been leader for {@code priorityTakeoverMinStabilityMs},
+     * so a settling cluster does not flap.
+     */
+    private void checkPriorityTakeover() {
+        if (!running || state != ElectionState.LEADER || !config.isPriorityTakeoverEnabled()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long stableFor = now - leaderSince;
+
+        if (stableFor < config.getPriorityTakeoverMinStabilityMs()) {
+            log.trace("{} leader for only {}ms, not yet eligible to yield", myAddress, stableFor);
+            return;
+        }
+
+        int myPriority = config.getElectionPriority();
+        long localSequence = localSequenceSupplier.getAsLong();
+
+        // A peer that stopped answering heartbeats must not inherit leadership
+        long freshnessMs = Math.max(3L * config.getHeartbeatIntervalMs(), 2000L);
+
+        String successor = null;
+        int successorPriority = myPriority;
+
+        for (Map.Entry<String, Integer> entry : peerPriorities.entrySet()) {
+            String peer = entry.getKey();
+            int peerPriority = entry.getValue();
+
+            if (peerPriority <= successorPriority) {
+                continue;
+            }
+
+            Long lastContact = peerLastContact.get(peer);
+
+            if (lastContact == null || now - lastContact > freshnessMs) {
+                log.debug("{} skipping higher-priority peer {} - no heartbeat response for {}ms",
+                        myAddress, peer, lastContact == null ? -1 : now - lastContact);
+                continue;
+            }
+
+            if (!isCaughtUp(peer, localSequence)) {
+                continue;
+            }
+
+            successor = peer;
+            successorPriority = peerPriority;
+        }
+
+        if (successor == null) {
+            return;
+        }
+
+        log.info("{} (priority {}) yielding leadership: {} has higher priority {} and is caught up",
+                myAddress, myPriority, successor, successorPriority);
+
+        // Refusing re-election for a while gives the successor time to win the election
+        // its own (shorter, priority-adjusted) election timeout triggers.
+        stepDown(config.getPriorityTakeoverStepDownSecs(), 0, true);
+    }
+
+    /**
+     * Whether the peer has replicated far enough to take over without data loss.
+     * Sequences are change stream tokens issued by this leader, reported back by the
+     * secondaries; a peer we have no progress report for is never considered caught up.
+     */
+    private boolean isCaughtUp(String peer, long localSequence) {
+        if (localSequence <= leaderStartSequence) {
+            return true;  // we replicated nothing during our term - any peer is as up-to-date as we are
+        }
+
+        long peerSequence = peerSequenceSupplier.applyAsLong(peer);
+
+        if (peerSequence < 0) {
+            log.debug("{} skipping higher-priority peer {} - no replication progress reported", myAddress, peer);
+            return false;
+        }
+
+        long lag = localSequence - peerSequence;
+
+        if (lag > config.getPriorityTakeoverMaxLag()) {
+            log.debug("{} skipping higher-priority peer {} - lagging {} events behind", myAddress, peer, lag);
+            return false;
+        }
+
+        return true;
+    }
+
     // ==================== Callbacks ====================
+
+    /**
+     * Supplies this node's current replication sequence (change stream token) while it is leader.
+     * Used by the priority takeover check to measure how far a peer lags behind.
+     */
+    public void setLocalSequenceSupplier(LongSupplier supplier) {
+        this.localSequenceSupplier = supplier != null ? supplier : () -> 0L;
+    }
+
+    /**
+     * Supplies the last replication sequence a peer acknowledged, or a negative value if unknown.
+     */
+    public void setPeerSequenceSupplier(ToLongFunction<String> supplier) {
+        this.peerSequenceSupplier = supplier != null ? supplier : peer -> -1L;
+    }
 
     public void setOnLeadershipChange(Consumer<Boolean> callback) {
         this.onLeadershipChange = callback;
@@ -917,8 +1109,11 @@ public class ElectionManager {
         stats.put("running", running);
         stats.put("priority", config.getElectionPriority());
         stats.put("canBecomeLeader", config.canBecomeLeaderByPriority());
+        stats.put("priorityTakeoverEnabled", config.isPriorityTakeoverEnabled());
         if (state == ElectionState.LEADER) {
             stats.put("leaseExpiryMs", Math.max(0, leaseExpiryTime - System.currentTimeMillis()));
+            stats.put("leaderSinceMs", System.currentTimeMillis() - leaderSince);
+            stats.put("peerPriorities", new LinkedHashMap<>(peerPriorities));
         }
         return stats;
     }

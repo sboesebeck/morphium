@@ -78,6 +78,45 @@ public class ElectionConfig {
     private int voteRequestTimeoutMs = Integer.getInteger("morphiumserver.voteRequestTimeoutMs", 1000);
 
     /**
+     * Whether a leader voluntarily steps down when a node with higher priority is
+     * online and caught up ("priority takeover", like MongoDB).
+     * Without this, a temporary failover to a lower-priority node stays permanent.
+     * Default: true
+     * Can be overridden via system property "morphiumserver.priorityTakeoverEnabled".
+     */
+    private boolean priorityTakeoverEnabled =
+            Boolean.parseBoolean(System.getProperty("morphiumserver.priorityTakeoverEnabled", "true"));
+
+    /**
+     * Interval at which the leader looks for a higher-priority successor.
+     * Default: 2000ms
+     * Can be overridden via system property "morphiumserver.priorityTakeoverCheckIntervalMs".
+     */
+    private int priorityTakeoverCheckIntervalMs = Integer.getInteger("morphiumserver.priorityTakeoverCheckIntervalMs", 2000);
+
+    /**
+     * Minimum time a node must have been leader before it may yield to a higher-priority peer.
+     * Prevents leadership flapping while a cluster is still settling.
+     * Default: 30000ms (same order as MongoDB's catchUpTakeoverDelayMillis)
+     * Can be overridden via system property "morphiumserver.priorityTakeoverMinStabilityMs".
+     */
+    private int priorityTakeoverMinStabilityMs = Integer.getInteger("morphiumserver.priorityTakeoverMinStabilityMs", 30000);
+
+    /**
+     * How far a peer may lag behind the leader (in replicated change stream events)
+     * and still count as "caught up" for a priority takeover.
+     * Default: 0 (must be fully caught up)
+     */
+    private int priorityTakeoverMaxLag = Integer.getInteger("morphiumserver.priorityTakeoverMaxLag", 0);
+
+    /**
+     * Seconds the yielding leader refuses to seek election again, giving the
+     * higher-priority node time to win the election it triggers.
+     * Default: 10
+     */
+    private int priorityTakeoverStepDownSecs = Integer.getInteger("morphiumserver.priorityTakeoverStepDownSecs", 10);
+
+    /**
      * Whether to persist election state (term, votedFor) to disk.
      * Required for correctness across restarts in production.
      * Default: false (for easier testing)
@@ -163,6 +202,51 @@ public class ElectionConfig {
         return this;
     }
 
+    public boolean isPriorityTakeoverEnabled() {
+        return priorityTakeoverEnabled;
+    }
+
+    public ElectionConfig setPriorityTakeoverEnabled(boolean priorityTakeoverEnabled) {
+        this.priorityTakeoverEnabled = priorityTakeoverEnabled;
+        return this;
+    }
+
+    public int getPriorityTakeoverCheckIntervalMs() {
+        return priorityTakeoverCheckIntervalMs;
+    }
+
+    public ElectionConfig setPriorityTakeoverCheckIntervalMs(int priorityTakeoverCheckIntervalMs) {
+        this.priorityTakeoverCheckIntervalMs = priorityTakeoverCheckIntervalMs;
+        return this;
+    }
+
+    public int getPriorityTakeoverMinStabilityMs() {
+        return priorityTakeoverMinStabilityMs;
+    }
+
+    public ElectionConfig setPriorityTakeoverMinStabilityMs(int priorityTakeoverMinStabilityMs) {
+        this.priorityTakeoverMinStabilityMs = priorityTakeoverMinStabilityMs;
+        return this;
+    }
+
+    public int getPriorityTakeoverMaxLag() {
+        return priorityTakeoverMaxLag;
+    }
+
+    public ElectionConfig setPriorityTakeoverMaxLag(int priorityTakeoverMaxLag) {
+        this.priorityTakeoverMaxLag = priorityTakeoverMaxLag;
+        return this;
+    }
+
+    public int getPriorityTakeoverStepDownSecs() {
+        return priorityTakeoverStepDownSecs;
+    }
+
+    public ElectionConfig setPriorityTakeoverStepDownSecs(int priorityTakeoverStepDownSecs) {
+        this.priorityTakeoverStepDownSecs = priorityTakeoverStepDownSecs;
+        return this;
+    }
+
     public boolean isPersistState() {
         return persistState;
     }
@@ -236,6 +320,7 @@ public class ElectionConfig {
                 ", leaderLeaseTimeoutMs=" + leaderLeaseTimeoutMs +
                 ", electionPriority=" + electionPriority +
                 ", canBecomeLeader=" + canBecomeLeader +
+                ", priorityTakeoverEnabled=" + priorityTakeoverEnabled +
                 '}';
     }
 }

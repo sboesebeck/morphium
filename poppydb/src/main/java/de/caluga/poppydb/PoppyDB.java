@@ -87,7 +87,7 @@ public class PoppyDB {
 
     // Replication
     private ReplicationManager replicationManager = null;
-    private ReplicationCoordinator replicationCoordinator = null;
+    private volatile ReplicationCoordinator replicationCoordinator = null;
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
@@ -361,6 +361,14 @@ public class PoppyDB {
             // Set up leadership change callback
             electionManager.setOnLeadershipChange(this::onLeadershipChange);
             electionManager.setOnLeaderDiscovered(this::onLeaderDiscovered);
+
+            // Replication progress, so the leader can tell whether a higher-priority peer
+            // has caught up before handing leadership over to it (priority takeover).
+            electionManager.setLocalSequenceSupplier(driver::getChangeStreamSequence);
+            electionManager.setPeerSequenceSupplier(peer -> {
+                ReplicationCoordinator coordinator = replicationCoordinator;
+                return coordinator == null ? -1L : coordinator.getAcknowledgedSequence(peer);
+            });
 
             // Create network client for inter-node communication
             electionNetworkClient = new ElectionNetworkClient(electionManager);

@@ -572,12 +572,31 @@ PoppyDB uses **Raft-based leader election**, which behaves differently from Mong
 
 | Behavior | MongoDB | PoppyDB |
 |----------|---------|---------|
-| StepDown | Old primary steps down, may become primary again after `timeToStepDown` | Old primary steps down permanently |
-| New leader | Elected via priority/oplog, often original wins re-election | Elected via Raft, new leader stays |
-| Step-back | Common (original typically returns as primary) | Never (Raft has no step-back mechanism) |
+| StepDown | Old primary steps down, may become primary again after `timeToStepDown` | Old primary steps down, may reclaim leadership via priority takeover |
+| New leader | Elected via priority/oplog, often original wins re-election | Elected via Raft, highest priority wins |
+| Step-back | Common (original typically returns as primary) | Yes, if the original node has a higher priority (since 6.3) |
 | Election time | ~2-10 seconds | ~2-5 seconds |
 
-**Impact on tests/applications:** Do not assume the original primary will return after a stepDown. If your failover logic waits for the original node to become primary again, it will hang indefinitely on PoppyDB. Instead, verify that *any* node became primary after failover.
+**Impact on tests/applications:** the original primary only returns if it was configured with a *higher priority* than the node that took over. In a cluster where all nodes share the default priority (50), the new leader keeps leadership — do not wait for a specific node to become primary, verify that *any* node did.
+
+#### Priority Takeover
+
+A leader periodically checks whether a peer with higher priority is available. It hands leadership over once that peer
+
+- answers the leader's heartbeats (it is online and reachable), and
+- has acknowledged everything the leader replicated during its term (it is caught up, see `priorityTakeoverMaxLag`).
+
+The yielding leader then refuses re-election for `priorityTakeoverStepDownSecs`, so the higher-priority node — which uses a shorter, priority-adjusted election timeout — wins the resulting election.
+
+| `ElectionConfig` setting | System property | Default | Meaning |
+|--------------------------|-----------------|---------|---------|
+| `priorityTakeoverEnabled` | `morphiumserver.priorityTakeoverEnabled` | `true` | Enable voluntary step-down to a higher-priority peer |
+| `priorityTakeoverCheckIntervalMs` | `morphiumserver.priorityTakeoverCheckIntervalMs` | `2000` | How often the leader looks for a successor |
+| `priorityTakeoverMinStabilityMs` | `morphiumserver.priorityTakeoverMinStabilityMs` | `30000` | How long a node must have been leader before it may yield (anti-flapping) |
+| `priorityTakeoverMaxLag` | `morphiumserver.priorityTakeoverMaxLag` | `0` | Change stream events the successor may still lag behind |
+| `priorityTakeoverStepDownSecs` | `morphiumserver.priorityTakeoverStepDownSecs` | `10` | How long the yielding leader refuses re-election |
+
+Set `priorityTakeoverEnabled` to `false` to keep the pre-6.3 behavior, where a failover is permanent.
 
 ### Change Stream Support
 

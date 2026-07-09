@@ -61,6 +61,14 @@ public class ReplicationCoordinator {
     }
 
     /**
+     * Last sequence number the given secondary reported, or -1 if it never reported progress.
+     */
+    public long getAcknowledgedSequence(String secondaryAddress) {
+        Long seq = secondaryProgress.get(secondaryAddress);
+        return seq == null ? -1L : seq;
+    }
+
+    /**
      * Called by secondaries to report their replication progress.
      */
     public void reportProgress(String secondaryAddress, long sequenceNumber) {

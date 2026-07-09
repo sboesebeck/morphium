@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: priority-based leader step-back after failover (#177)
+A PoppyDB leader now voluntarily hands leadership to a peer with higher election priority, mirroring MongoDB's priority takeover. Previously a failover to a lower-priority node was permanent — the preferred primary never returned, even after it recovered.
+
+The leader yields only once the higher-priority peer answers its heartbeats and has acknowledged everything replicated during the leader's term, and only after it has been leader for `priorityTakeoverMinStabilityMs` (default 30s), so a settling cluster does not flap. Followers report their priority in the `appendEntries` response; nodes that omit it (older versions) never trigger a takeover.
+
+Enabled by default. Configurable via `ElectionConfig.priorityTakeoverEnabled` / `-Dmorphiumserver.priorityTakeoverEnabled=false` plus `priorityTakeoverCheckIntervalMs`, `priorityTakeoverMinStabilityMs`, `priorityTakeoverMaxLag` and `priorityTakeoverStepDownSecs`. In a cluster where all nodes share the default priority (50), behavior is unchanged.
+
 #### InMemoryDriver: `$setOnInsert` and upsert/`new` support in `findAndModify` (#203)
 The `InMemoryDriver` now honors `$setOnInsert` and the `upsert`/`new` flags in `findAndModify`, matching MongoDB behavior. Includes a regression test for upsert via `$and`-nested `_id` filters (#202, #204).
 
