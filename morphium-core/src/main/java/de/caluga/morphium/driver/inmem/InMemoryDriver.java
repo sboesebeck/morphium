@@ -6059,7 +6059,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> before = ret.isEmpty() ? null : deepClone(ret.get(0));
             Object matchedId = ret.isEmpty() ? null : ret.get(0).get("_id");
 
-            var updateResult = updateInternal(db, col, query, null, update, false, upsert, collation, null,
+            // IMPORTANT: once `sort` has picked a specific document above, the update itself must
+            // be pinned to that document's _id. Re-running the original (unsorted, unlimited)
+            // `query` here would let updateInternal's own find(..., limit=1) pick an arbitrary
+            // match, silently ignoring the caller's sort() when several documents match. On the
+            // upsert-insert path (matchedId == null) the original query is still needed so
+            // collectUpsertEqualityFields() can seed the new document from its equality predicates.
+            Map<String, Object> updateQuery = matchedId != null ? Doc.of("_id", matchedId) : query;
+
+            var updateResult = updateInternal(db, col, updateQuery, null, update, false, upsert, collation, null,
                                               pendingNotifications);
 
             // Determine which document to return. Every branch returns a deepClone (or null) so a

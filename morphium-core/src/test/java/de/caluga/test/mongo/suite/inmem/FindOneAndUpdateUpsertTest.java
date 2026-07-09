@@ -4,6 +4,7 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Version;
+import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
 import org.junit.jupiter.api.Test;
 
@@ -174,6 +175,65 @@ public class FindOneAndUpdateUpsertTest extends MorphiumInMemTestBase {
         assertEquals(24, stored.id.length(), "MorphiumId hex string is expected to be 24 chars");
     }
 
+    @Test
+    public void sortDeterminesWhichMatchingDocumentIsUpdated() {
+        // Three documents share the same group -> without a sort, MongoDB would update an
+        // arbitrary one. With sort("-priority") the highest-priority document must be updated.
+        for (int i = 1; i <= 3; i++) {
+            UpsertTestEntity e = new UpsertTestEntity();
+            e.id = "doc-" + i;
+            e.naturalKey = "group";
+            e.priority = i;
+            e.payload = "untouched";
+            morphium.store(e);
+        }
+        waitForWrites();
+
+        Query<UpsertTestEntity> q = morphium.createQueryFor(UpsertTestEntity.class)
+                .f("naturalKey").eq("group")
+                .sort("-priority");
+
+        Map<String, Object> update = UtilsMap.of("$set", UtilsMap.of("payload", "updated"));
+        UpsertTestEntity updated = q.findOneAndUpdate(update, false, true);
+
+        assertNotNull(updated);
+        assertEquals("doc-3", updated.id, "sort(\"-priority\") must select the highest-priority document");
+        assertEquals("updated", updated.payload);
+
+        // the other two must be untouched
+        assertEquals("untouched", morphium.createQueryFor(UpsertTestEntity.class).f("_id").eq("doc-1").get().payload);
+        assertEquals("untouched", morphium.createQueryFor(UpsertTestEntity.class).f("_id").eq("doc-2").get().payload);
+    }
+
+    @Test
+    public void upsertInvalidatesReadCacheForCachedEntity() {
+        CachedUpsertTestEntity existing = new CachedUpsertTestEntity();
+        existing.id = "cache-1";
+        existing.naturalKey = "cachedGroup";
+        existing.payload = "before";
+        morphium.store(existing);
+        waitForWrites();
+
+        // populate the read cache with the pre-upsert state
+        CachedUpsertTestEntity cachedRead = morphium.createQueryFor(CachedUpsertTestEntity.class)
+                .f("naturalKey").eq("cachedGroup").get();
+        assertNotNull(cachedRead);
+        assertEquals("before", cachedRead.payload);
+
+        Query<CachedUpsertTestEntity> q = morphium.createQueryFor(CachedUpsertTestEntity.class)
+                .f("naturalKey").eq("cachedGroup");
+        Map<String, Object> update = UtilsMap.of("$set", UtilsMap.of("payload", "after"));
+        CachedUpsertTestEntity updated = q.findOneAndUpdate(update, true, true);
+        assertNotNull(updated);
+        assertEquals("after", updated.payload);
+
+        // a fresh read for the same query must observe the update, not a stale cache entry
+        CachedUpsertTestEntity reread = morphium.createQueryFor(CachedUpsertTestEntity.class)
+                .f("naturalKey").eq("cachedGroup").get();
+        assertNotNull(reread);
+        assertEquals("after", reread.payload, "findOneAndUpdate must invalidate the read cache for @Cache entities");
+    }
+
     @Entity(translateCamelCase = false)
     public static class UpsertTestEntity {
         @Id
@@ -181,7 +241,17 @@ public class FindOneAndUpdateUpsertTest extends MorphiumInMemTestBase {
         public String naturalKey;
         public String payload;
         public String createdBy;
+        public int priority;
         @Version
         public Long version;
+    }
+
+    @Entity(translateCamelCase = false)
+    @Cache(readCache = true, clearOnWrite = true)
+    public static class CachedUpsertTestEntity {
+        @Id
+        public String id;
+        public String naturalKey;
+        public String payload;
     }
 }

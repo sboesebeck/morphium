@@ -532,6 +532,9 @@ public class Query<T> implements Cloneable {
             var wc = getMorphium().getWriteConcernForClass(getType());
             con = morphium.getDriver().getPrimaryConnection(wc);
             settings = new FindAndModifyMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(queryObject)).setUpdate(Doc.of(effectiveUpdate)).setUpsert(upsert).setNewFlag(returnNew);
+            if (getSort() != null && !getSort().isEmpty()) {
+                settings.setSort(new Doc(getSort()));
+            }
             if (wc != null) {
                 settings.setWriteConcern(wc.asMap());
             }
@@ -545,13 +548,22 @@ public class Query<T> implements Cloneable {
             settings = null;
             con = null;
         } catch (MorphiumDriverException e) {
-            log.error("Error", e);
+            // MorphiumDriverException is already an unchecked exception (see
+            // MorphiumDriverExceptionTest) — let it propagate as-is so callers can catch it
+            // specifically, instead of masking it behind a generic RuntimeException. For an
+            // atomic write, the caller must be able to distinguish "no match" (null return,
+            // upsert=false) from "the write failed".
+            throw e;
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
             } else if (con != null) {
                 morphium.getDriver().releaseConnection(con);
             }
+        }
+
+        if (morphium.getCache() != null) {
+            morphium.getCache().clearCacheIfNecessary(type);
         }
 
         if (ret == null) {
