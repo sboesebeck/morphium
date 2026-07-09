@@ -10,6 +10,7 @@ public class ObjectMappingSettings extends Settings {
     private boolean objectSerializationEnabled = true;
     private boolean camelCaseConversionEnabled = true;
     private boolean warnOnNoEntitySerialization = false;
+    private boolean translateAggregationFieldNames = false;
     public boolean isCheckForNew() {
         return checkForNew;
     }
@@ -78,6 +79,35 @@ public class ObjectMappingSettings extends Settings {
     }
     public ObjectMappingSettings setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
         this.warnOnNoEntitySerialization = warnOnNoEntitySerialization;
+        return this;
+    }
+
+    /**
+     * if enabled, Java property names in aggregation stages are translated to Mongo
+     * field names. Covered: group operator $-references and id values, project(Map)
+     * and addFields/set keys and values, sort(Map) keys, graphLookup connect fields
+     * and startWith. NOT covered (see issue #221): stages taking a raw Expr, i.e.
+     * match(Expr), sortByCount, replaceRoot/replaceWith, redact, bucket, facetExpr,
+     * unwind(Expr) - use Mongo field names or Expr.field(Enum) there. Default false =
+     * legacy behavior (everything passed through verbatim). Overridable per
+     * aggregator, see Aggregator.setTranslateAggregationFieldNames.
+     */
+    public boolean isTranslateAggregationFieldNames() {
+        return translateAggregationFieldNames;
+    }
+
+    public ObjectMappingSettings setTranslateAggregationFieldNames(boolean translateAggregationFieldNames) {
+        this.translateAggregationFieldNames = translateAggregationFieldNames;
+        return this;
+    }
+
+    public ObjectMappingSettings enableTranslateAggregationFieldNames() {
+        translateAggregationFieldNames = true;
+        return this;
+    }
+
+    public ObjectMappingSettings disableTranslateAggregationFieldNames() {
+        translateAggregationFieldNames = false;
         return this;
     }
 }
