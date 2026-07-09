@@ -21,6 +21,9 @@ The `InMemoryDriver` now honors `$setOnInsert` and the `upsert`/`new` flags in `
 
 ### Fixed
 
+#### Aggregator: `Group.stdDevSamp(String, Object)` emitted `stdDevSamp` without the `$` prefix
+The operator map was built as `{stdDevSamp: ...}` instead of `{$stdDevSamp: ...}`, so the String-based `stdDevSamp` accumulator never worked. (The `$stdDevPop` sibling was correct.)
+
 #### Driver: replicaset failover repaired — bounded timeouts, write retries, changestream recovery
 During a primary failure (crash, frozen VM, network partition) the driver effectively never recovered: writes failed or hung indefinitely, messaging never reconnected. Root causes and fixes:
 
