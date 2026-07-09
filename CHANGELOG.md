@@ -29,6 +29,11 @@ Enabled by default. Configurable via `ElectionConfig.priorityTakeoverEnabled` / 
 #### InMemoryDriver: `$setOnInsert` and upsert/`new` support in `findAndModify` (#203)
 The `InMemoryDriver` now honors `$setOnInsert` and the `upsert`/`new` flags in `findAndModify`, matching MongoDB behavior. Includes a regression test for upsert via `$and`-nested `_id` filters (#202, #204).
 
+### Deprecated
+
+#### 7.0-removal candidates now carry `@Deprecated(since = "6.3", forRemoval = true)` (#218)
+Members confirmed for removal in 7.0 (#172 et al.) are now annotated `@Deprecated(since = "6.3", forRemoval = true)`, and their Javadoc names the replacement — IDEs flag usages a full minor release before anything is removed. Covered groups: the flat `MorphiumConfig` setters/getters (use the `Settings` sub-objects via `connectionSettings()`, `objectMappingSettings()`, ... instead), the `MorphiumBase.set…`/`unsetQ…` variants, the legacy `SingleCollectionMessaging` constructors, `Query.complexQuery`/`getById`/`textSearch`, `Msg.name`, `MorphiumMessaging.setProcessMultiple`, `MongoBob` and `@UseIfnull` (use `@IgnoreNullFromDB`). Members that stay deprecated-but-kept, and the BSON-spec deprecations in `MongoType`, are unchanged. Pure annotation/Javadoc change, zero runtime impact.
+
 ### Changed
 
 #### Aggregator: `graphLookup` enum overload now translates connect fields (#217)

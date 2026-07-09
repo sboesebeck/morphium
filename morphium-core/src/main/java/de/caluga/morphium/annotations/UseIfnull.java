@@ -26,10 +26,12 @@ import java.lang.annotation.Target;
  *   <li>Add @IgnoreNullFromDB to fields that previously did NOT have @UseIfNull and you want to keep the protection</li>
  * </ul>
  *
+ * <p>Will be removed in 7.0.</p>
+ *
  * @author stephan
  * @see IgnoreNullFromDB
  */
-@Deprecated
+@Deprecated(since = "6.3", forRemoval = true)
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface UseIfnull {

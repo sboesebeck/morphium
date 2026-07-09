@@ -1173,9 +1173,9 @@ public abstract class MorphiumBase {
      * This method sets a property.
      *
      * @deprecated There is a newer implementation.
-     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     * Please use {@link Query#set(Enum, Object, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
@@ -1188,7 +1188,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> set(Query<T> query, String field, Object val) {
         return set(query, field, val, (AsyncOperationCallback<T>) null);
     }
@@ -1199,7 +1199,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field, val);
@@ -1279,7 +1279,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     @SuppressWarnings("unused")
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
         return set(query, field.name(), val, upsert, multiple, null);
@@ -1292,7 +1292,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return set(query, field.name(), val, upsert, multiple, callback);
     }
@@ -1308,7 +1308,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
         return set(query, field, val, upsert, multiple, null);
     }
@@ -1319,7 +1319,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Object> map = new HashMap<>();
         map.put(field, val);
@@ -1332,7 +1332,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public Map<String, Object> set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
         return query.set( map, upsert, multiple, null);
     }
@@ -1495,7 +1495,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#unset(String[])}  instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> unsetQ(Query<T> q, String... field) {
         return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
@@ -1506,7 +1506,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#unset(boolean, String[])} instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, String... field) {
         return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }
@@ -1517,7 +1517,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#unset(Enum[])} instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> unsetQ(Query<T> q, Enum... field) {
         return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
@@ -1529,7 +1529,7 @@ public abstract class MorphiumBase {
      * @deprecated There is a newer implementation.
      * Please use {@link Query#unset(boolean, Enum[])} instead.
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, Enum... field) {
         return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }

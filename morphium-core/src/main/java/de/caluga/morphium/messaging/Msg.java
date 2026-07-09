@@ -73,8 +73,9 @@ public class Msg {
     private int priority = 1000;
     private Boolean exclusive = false;
 
-    //backward compatibility
-    @Deprecated
+    // backward compatibility only - replaced by the field {@code topic}
+    // (kept so that pre-6.x messages stored with "name" can still be read; see preStore/postLoad)
+    @Deprecated(since = "6.3", forRemoval = true)
     private String name;
 
     public Msg() {

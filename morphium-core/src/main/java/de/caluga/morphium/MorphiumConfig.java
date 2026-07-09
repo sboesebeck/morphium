@@ -134,32 +134,32 @@ public class MorphiumConfig {
     public AuthSettings authSettings() {return authSettings;}
     public ClusterSettings clusterSettings() {return clusterSettings;}
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#isMessagingStatusInfoListenerEnabled()} via {@code messagingSettings()} instead
      */
-     @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isMessagingStatusInfoListenerEnabled() {
         return messagingSettings.isMessagingStatusInfoListenerEnabled();
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#setMessagingStatusInfoListenerEnabled(boolean)} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMessagingStatusInfoListenerEnabled(boolean messagingStatusInfoListenerEnabled) {
         this.messagingSettings.setMessagingStatusInfoListenerEnabled(messagingStatusInfoListenerEnabled);
         return this;
     }
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#getMessagingStatusInfoListenerName()} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getMessagingStatusInfoListenerName() {
         return messagingSettings.getMessagingStatusInfoListenerName();
     }
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#setMessagingStatusInfoListenerName(String)} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMessagingStatusInfoListenerName(String name) {
         messagingSettings.setMessagingStatusInfoListenerName(name);
         return this;
@@ -350,17 +350,17 @@ public class MorphiumConfig {
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#getMessagingWindowSize()} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMessagingWindowSize() {
         return messagingSettings.getMessagingWindowSize();
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#setMessagingWindowSize(int)} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public void setMessagingWindowSize(int messagingWindowSize) {
         messagingSettings.setMessagingWindowSize(messagingWindowSize);
     }
@@ -375,120 +375,120 @@ public class MorphiumConfig {
 
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ClusterSettings#isReplicaset()} via {@code clusterSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isReplicaset() {
         return clusterSettings.isReplicaset();
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#getCompressionType()} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public CompressionType getCompressionType() {
         return driverSettings.getCompressionType();
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#setCompressionType(CompressionType)} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCompressionType(CompressionType t) {
         driverSettings.setCompressionType(t);
         return this;
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ClusterSettings#setReplicaset(boolean)} via {@code clusterSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setReplicasetMonitoring(boolean replicaset) {
         clusterSettings.setReplicaset(replicaset);
         return this;
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#getValueEncryptionProviderClass()} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public Class <? extends ValueEncryptionProvider > getValueEncryptionProviderClass() {
         return encryptionSettings.getValueEncryptionProviderClass();
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#setValueEncryptionProviderClass(Class)} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setValueEncryptionProviderClass(Class <? extends ValueEncryptionProvider > valueEncryptionProviderClass) {
         encryptionSettings.setValueEncryptionProviderClass(valueEncryptionProviderClass);
         return this;
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#getEncryptionKeyProviderClass()} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public Class <? extends EncryptionKeyProvider > getEncryptionKeyProviderClass() {
         return encryptionSettings.getEncryptionKeyProviderClass();
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#setEncryptionKeyProviderClass(Class)} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setEncryptionKeyProviderClass(Class <? extends EncryptionKeyProvider > encryptionKeyProviderClass) {
         encryptionSettings.setEncryptionKeyProviderClass(encryptionKeyProviderClass);
         return this;
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#getCredentialsEncryptionKey()} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getCredentialsEncryptionKey() {
         return encryptionSettings.getCredentialsEncryptionKey();
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#setCredentialsEncryptionKey(String)} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCredentialsEncryptionKey(String credentialsEncryptionKey) {
         encryptionSettings.setCredentialsEncryptionKey(credentialsEncryptionKey);
         return this;
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#getCredentialsDecryptionKey()} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getCredentialsDecryptionKey() {
         return encryptionSettings.getCredentialsDecryptionKey();
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#setCredentialsDecryptionKey(String)} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCredentialsDecryptionKey(String credentialsDecryptionKey) {
         encryptionSettings.setCredentialsDecryptionKey(credentialsDecryptionKey);
         return this;
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#getDriverName()} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getDriverName() {
         return driverSettings.getDriverName();
     }
 
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#setDriverName(String)} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setDriverName(String driverName) {
         driverSettings.setDriverName(driverName);
         return this;
@@ -518,26 +518,26 @@ public class MorphiumConfig {
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#isWarnOnNoEntitySerialization()} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isWarnOnNoEntitySerialization() {
         return objectMappingSettings.isWarnOnNoEntitySerialization();
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#setWarnOnNoEntitySerialization(boolean)} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
         objectMappingSettings.setWarnOnNoEntitySerialization(warnOnNoEntitySerialization);
         return this;
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#isCheckForNew()} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isCheckForNew() {
         return objectMappingSettings.isCheckForNew();
     }
@@ -550,43 +550,43 @@ public class MorphiumConfig {
      * default false
      *
      * @param checkForNew boolean, check if object is really not stored yet
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#setCheckForNew(boolean)} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCheckForNew(boolean checkForNew) {
         objectMappingSettings.setCheckForNew(checkForNew);
         return this;
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#getRetriesOnNetworkError()} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getRetriesOnNetworkError() {
         return connectionSettings.getRetriesOnNetworkError();
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#setRetriesOnNetworkError(int)} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setRetriesOnNetworkError(int retriesOnNetworkError) {
         connectionSettings.setRetriesOnNetworkError(retriesOnNetworkError);
         return this;
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#getSleepBetweenNetworkErrorRetries()} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getSleepBetweenNetworkErrorRetries() {
         return connectionSettings.getSleepBetweenNetworkErrorRetries();
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#setSleepBetweenNetworkErrorRetries(int)} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
         connectionSettings.setSleepBetweenNetworkErrorRetries(sleepBetweenNetworkErrorRetries);
         return this;
@@ -594,110 +594,110 @@ public class MorphiumConfig {
 
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getWriteBufferTimeGranularity()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getWriteBufferTimeGranularity() {
         return writerSettings.getWriteBufferTimeGranularity();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setWriteBufferTimeGranularity(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
         writerSettings.setWriteBufferTimeGranularity(writeBufferTimeGranularity);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#getCache()} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumCache getCache() {
         return cacheSettings.getCache();
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setCache(MorphiumCache)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCache(MorphiumCache cache) {
         cacheSettings.setCache(cache);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getWriteBufferTime()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getWriteBufferTime() {
         return writerSettings.getWriteBufferTime();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setWriteBufferTime(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setWriteBufferTime(int writeBufferTime) {
         writerSettings.setWriteBufferTime(writeBufferTime);
         return this;
     }
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getBufferedWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumWriter getBufferedWriter() {
         return writerSettings.getBufferedWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setBufferedWriter(MorphiumWriter)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setBufferedWriter(MorphiumWriter bufferedWriter) {
         writerSettings.setBufferedWriter(bufferedWriter);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumWriter getWriter() {
         return writerSettings.getWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setWriter(MorphiumWriter)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setWriter(MorphiumWriter writer) {
         writerSettings.setWriter(writer);
         return this;
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#getConnectionTimeout()} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getConnectionTimeout() {
         return connectionSettings.getConnectionTimeout();
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#setConnectionTimeout(int)} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setConnectionTimeout(int connectionTimeout) {
         connectionSettings.setConnectionTimeout(connectionTimeout);
         return this;
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#getMaxWaitTime()} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMaxWaitTime() {
         return connectionSettings.getMaxWaitTime();
     }
@@ -709,18 +709,18 @@ public class MorphiumConfig {
      * @return {@code this}
      */
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#setMaxWaitTime(int)} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMaxWaitTime(int maxWaitTime) {
         connectionSettings.setMaxWaitTime(maxWaitTime);
         return this;
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#getServerSelectionTimeout()} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getServerSelectionTimeout() {
         return driverSettings.getServerSelectionTimeout();
     }
@@ -741,35 +741,35 @@ public class MorphiumConfig {
      * @return {@code this}
      */
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#setServerSelectionTimeout(int)} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setServerSelectionTimeout(int serverSelectionTimeout) {
         driverSettings.setServerSelectionTimeout(serverSelectionTimeout);
         return this;
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#getCredentialsEncrypted()} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public Boolean getCredentialsEncrypted() {
         return encryptionSettings.getCredentialsEncrypted();
     }
 
     /**
-     * use encryptionSettings
+     * @deprecated use {@link EncryptionSettings#setCredentialsEncrypted(Boolean)} via {@code encryptionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCredentialsEncrypted(Boolean credentialsEncrypted) {
         encryptionSettings.setCredentialsEncrypted(credentialsEncrypted);
         return this;
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link AuthSettings#getMongoAuthDb()} via {@code authSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getMongoAuthDb() {
         return  authSettings.getMongoAuthDb();
     }
@@ -826,43 +826,43 @@ public class MorphiumConfig {
 // }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link AuthSettings#setMongoAuthDb(String)} via {@code authSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMongoAuthDb(String mongoAuthDb) {
         authSettings.setMongoAuthDb(mongoAuthDb);
         return this;
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link AuthSettings#getMongoLogin()} via {@code authSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getMongoLogin() {
         return authSettings.getMongoLogin();
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link AuthSettings#setMongoLogin(String)} via {@code authSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMongoLogin(String mongoLogin) {
         authSettings.setMongoLogin(mongoLogin);
         return this;
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link AuthSettings#getMongoPassword()} via {@code authSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getMongoPassword() {
         return authSettings.getMongoPassword();
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link AuthSettings#setMongoPassword(String)} via {@code authSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMongoPassword(String mongoPassword) {
         authSettings.setMongoPassword(mongoPassword);
         return this;
@@ -887,34 +887,34 @@ public class MorphiumConfig {
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#getDefaultReadPreference()} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public ReadPreference getDefaultReadPreference() {
         return driverSettings.getDefaultReadPreference();
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#setDefaultReadPreference(ReadPreference)} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setDefaultReadPreference(ReadPreference defaultReadPreference) {
         driverSettings.setDefaultReadPreference(defaultReadPreference);
         return this;
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#getDefaultReadPreferenceType()} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getDefaultReadPreferenceType() {
         return driverSettings.getDefaultReadPreferenceType();
     }
 
     /**
-     * use driverSettings
+     * @deprecated use {@link DriverSettings#setDefaultReadPreferenceType(String)} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setDefaultReadPreferenceType(String stringDefaultReadPreference) {
         driverSettings.setDefaultReadPreferenceType(stringDefaultReadPreference);
         ReadPreferenceType readPreferenceType;
@@ -936,17 +936,17 @@ public class MorphiumConfig {
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#getWriteCacheTimeout()} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getWriteCacheTimeout() {
         return cacheSettings.getWriteCacheTimeout();
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setWriteCacheTimeout(int)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setWriteCacheTimeout(int writeCacheTimeout) {
         cacheSettings.setWriteCacheTimeout(writeCacheTimeout);
         return this;
@@ -957,113 +957,116 @@ public class MorphiumConfig {
      * setting hosts as Host:Port
      *
      * @param str list of hosts, with or without port
+     * @deprecated use {@code config.clusterSettings().setHostSeed(...)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setHostSeed(List<String> str) {
         clusterSettings.setHostSeed(str);
         return this;
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@code config.clusterSettings().setHostSeed(...)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setHostSeed(List<String> str, List<Integer> ports) {
         clusterSettings.setHostSeed(str, ports);
         return this;
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@link ClusterSettings#getHostSeed()} via {@code clusterSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public List<String> getHostSeed() {
         return clusterSettings.getHostSeed();
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@code config.clusterSettings().setHostSeed(...)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setHostSeed(String... hostPorts) {
         clusterSettings.setHostSeed(hostPorts);
         return this;
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@code config.clusterSettings().setHostSeed(...)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setHostSeed(String hostPorts) {
         clusterSettings.setHostSeed(hostPorts);
         return this;
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@code config.clusterSettings().setHostSeed(...)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setHostSeed(String hosts, String ports) {
         clusterSettings.setHostSeed(hosts, ports);
         return this;
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@code config.clusterSettings().addHostToSeed(...)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig addHostToSeed(String host, int port) {
         clusterSettings.addHostToSeed(host, port);
         return this;
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@code config.clusterSettings().addHostToSeed(...)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig addHostToSeed(String host) {
         clusterSettings.addHostToSeed(host);
         return this;
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@link ConnectionSettings#getMaxConnections()} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMaxConnections() {
         return connectionSettings.getMaxConnections();
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@link ConnectionSettings#setMaxConnections(int)} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMaxConnections(int maxConnections) {
         connectionSettings.setMaxConnections(maxConnections);
         return this;
     }
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@link ConnectionSettings#getDatabase()} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getDatabase() {
         return connectionSettings.getDatabase();
     }
 
     /**
-     * @deprecated use getConnectionSettings().METHOD
+     * @deprecated use {@link ConnectionSettings#setDatabase(String)} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setDatabase(String database) {
         connectionSettings.setDatabase(database);
         return this;
     }
-    @Deprecated
+    /** @deprecated use {@link CacheSettings#getHousekeepingTimeout()} via {@code cacheSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getHousekeepingTimeout() {
         return cacheSettings.getHousekeepingTimeout();
     }
 
-    @Deprecated
+    /** @deprecated use {@link CacheSettings#setHousekeepingTimeout(int)} via {@code cacheSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setHousekeepingTimeout(int housekeepingTimeout) {
         cacheSettings.setHousekeepingTimeout(housekeepingTimeout);
         return this;
@@ -1073,13 +1076,15 @@ public class MorphiumConfig {
      * for future use - set Global Caching time
      *
      * @return the global cache valid time
+     * @deprecated use {@link CacheSettings#getGlobalCacheValidTime()} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getGlobalCacheValidTime() {
         return cacheSettings.getGlobalCacheValidTime();
     }
 
-    @Deprecated
+    /** @deprecated use {@link CacheSettings#setGlobalCacheValidTime(int)} via {@code cacheSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setGlobalCacheValidTime(int globalCacheValidTime) {
         cacheSettings.setGlobalCacheValidTime(globalCacheValidTime);
         return this;
@@ -1109,137 +1114,137 @@ public class MorphiumConfig {
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setThreadConnectionMultiplier(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setThreadConnectionMultiplier(int mp) {
         writerSettings.setThreadConnectionMultiplier(mp);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getThreadConnectionMultiplier()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getThreadConnectionMultiplier() {
         return writerSettings.getThreadConnectionMultiplier();
     }
 
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getAsyncWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumWriter getAsyncWriter() {
         return writerSettings.getAsyncWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setAsyncWriter(MorphiumWriter)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setAsyncWriter(MorphiumWriter asyncWriter) {
         writerSettings.setAsyncWriter(asyncWriter);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getMaximumRetriesAsyncWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMaximumRetriesBufferedWriter() {
         return writerSettings.getMaximumRetriesAsyncWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setMaximumRetriesBufferedWriter(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
         writerSettings.setMaximumRetriesBufferedWriter(maximumRetriesBufferedWriter);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getMaximumRetriesWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMaximumRetriesWriter() {
         return writerSettings.getMaximumRetriesWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setMaximumRetriesWriter(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMaximumRetriesWriter(int maximumRetriesWriter) {
         writerSettings.setMaximumRetriesWriter(maximumRetriesWriter);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getMaximumRetriesAsyncWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMaximumRetriesAsyncWriter() {
         return writerSettings.getMaximumRetriesAsyncWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setMaximumRetriesAsyncWriter(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
         writerSettings.setMaximumRetriesAsyncWriter(maximumRetriesAsyncWriter);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getRetryWaitTimeBufferedWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getRetryWaitTimeBufferedWriter() {
         return writerSettings.getRetryWaitTimeBufferedWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setRetryWaitTimeBufferedWriter(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
         writerSettings.setRetryWaitTimeBufferedWriter(retryWaitTimeBufferedWriter);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getRetryWaitTimeWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getRetryWaitTimeWriter() {
         return writerSettings.getRetryWaitTimeWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setRetryWaitTimeWriter(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setRetryWaitTimeWriter(int retryWaitTimeWriter) {
         writerSettings.setRetryWaitTimeWriter(retryWaitTimeWriter);
         return this;
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#getRetryWaitTimeAsyncWriter()} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getRetryWaitTimeAsyncWriter() {
         return writerSettings.getRetryWaitTimeAsyncWriter();
     }
 
     /**
-     * use writerSettings
+     * @deprecated use {@link WriterSettings#setRetryWaitTimeAsyncWriter(int)} via {@code writerSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
         writerSettings.setRetryWaitTimeAsyncWriter(retryWaitTimeAsyncWriter);
         return this;
@@ -1368,287 +1373,289 @@ public class MorphiumConfig {
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#isReadCacheEnabled()} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isReadCacheEnabled() {
         return cacheSettings.isReadCacheEnabled();
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setReadCacheEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setReadCacheEnabled(boolean readCacheEnabled) {
         cacheSettings.setReadCacheEnabled(readCacheEnabled);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setReadCacheEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig disableReadCache() {
         cacheSettings.setReadCacheEnabled(false);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setReadCacheEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig enableReadCache() {
         cacheSettings.setReadCacheEnabled(true);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#isAsyncWritesEnabled()} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isAsyncWritesEnabled() {
         return cacheSettings.isAsyncWritesEnabled();
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setAsyncWritesEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setAsyncWritesEnabled(boolean asyncWritesEnabled) {
         cacheSettings.setAsyncWritesEnabled(asyncWritesEnabled);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setAsyncWritesEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig disableAsyncWrites() {
         cacheSettings.setAsyncWritesEnabled(false);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setAsyncWritesEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig enableAsyncWrites() {
         cacheSettings.setAsyncWritesEnabled(true);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#isBufferedWritesEnabled()} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isBufferedWritesEnabled() {
         return cacheSettings.isBufferedWritesEnabled();
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setBufferedWritesEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
         cacheSettings.setBufferedWritesEnabled(bufferedWritesEnabled);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setBufferedWritesEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig disableBufferedWrites() {
         cacheSettings.setBufferedWritesEnabled(false);
         return this;
     }
 
     /**
-     * use CacheSettings
+     * @deprecated use {@link CacheSettings#setBufferedWritesEnabled(boolean)} via {@code cacheSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig enableBufferedWrites() {
         cacheSettings.setBufferedWritesEnabled(true);
         return this;
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#isAutoValues()} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isAutoValuesEnabled() {
         return objectMappingSettings.isAutoValues();
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#setAutoValues(boolean)} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setAutoValuesEnabled(boolean enabled) {
         objectMappingSettings.setAutoValues(enabled);
         return this;
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#setAutoValues(boolean)} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig enableAutoValues() {
         objectMappingSettings.setAutoValues(true);
         return this;
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#setAutoValues(boolean)} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig disableAutoValues() {
         objectMappingSettings.setAutoValues(false);
         return this;
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#isCamelCaseConversionEnabled()} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isCamelCaseConversionEnabled() {
         return objectMappingSettings.isCamelCaseConversionEnabled();
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#setCamelCaseConversionEnabled(boolean)} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
         objectMappingSettings.setCamelCaseConversionEnabled(camelCaseConversionEnabled);
         return this;
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#getThreadPoolMessagingCoreSize()} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getThreadPoolMessagingCoreSize() {
         return messagingSettings.getThreadPoolMessagingCoreSize();
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#setThreadPoolMessagingCoreSize(int)} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
         messagingSettings.setThreadPoolMessagingCoreSize(threadPoolMessagingCoreSize);
         return this;
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#getThreadPoolMessagingMaxSize()} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getThreadPoolMessagingMaxSize() {
         return messagingSettings.getThreadPoolMessagingMaxSize();
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#setThreadPoolMessagingMaxSize(int)} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
         messagingSettings.setThreadPoolMessagingMaxSize(threadPoolMessagingMaxSize);
         return this;
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#getThreadPoolMessagingKeepAliveTime()} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public long getThreadPoolMessagingKeepAliveTime() {
         return messagingSettings.getThreadPoolMessagingKeepAliveTime();
     }
 
     /**
-     * use messagingSettings
+     * @deprecated use {@link MessagingSettings#setThreadPoolMessagingKeepAliveTime(long)} via {@code messagingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
         messagingSettings.setThreadPoolMessagingKeepAliveTime(threadPoolMessagingKeepAliveTime);
         return this;
     }
 
     /**
-     * use threadPoolSettings
+     * @deprecated use {@link ThreadPoolSettings#getThreadPoolAsyncOpCoreSize()} via {@code threadPoolSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getThreadPoolAsyncOpCoreSize() {
         return threadPoolSettings.getThreadPoolAsyncOpCoreSize();
     }
 
     /**
-     * use threadPoolSettings
+     * @deprecated use {@link ThreadPoolSettings#setThreadPoolAsyncOpCoreSize(int)} via {@code threadPoolSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
         threadPoolSettings.setThreadPoolAsyncOpCoreSize(threadPoolAsyncOpCoreSize);
         return this;
     }
 
     /**
-     * use threadPoolSettings
+     * @deprecated use {@link ThreadPoolSettings#getThreadPoolAsyncOpMaxSize()} via {@code threadPoolSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getThreadPoolAsyncOpMaxSize() {
         return threadPoolSettings.getThreadPoolAsyncOpMaxSize();
     }
 
     /**
-     * use threadPoolSettings
+     * @deprecated use {@link ThreadPoolSettings#setThreadPoolAsyncOpMaxSize(int)} via {@code threadPoolSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
         threadPoolSettings.setThreadPoolAsyncOpMaxSize(threadPoolAsyncOpMaxSize);
         return this;
     }
 
     /**
-     * use threadPoolSettings
+     * @deprecated use {@link ThreadPoolSettings#getThreadPoolAsyncOpKeepAliveTime()} via {@code threadPoolSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public long getThreadPoolAsyncOpKeepAliveTime() {
         return threadPoolSettings.getThreadPoolAsyncOpKeepAliveTime();
     }
 
     /**
-     * use threadPoolSettings
+     * @deprecated use {@link ThreadPoolSettings#setThreadPoolAsyncOpKeepAliveTime(long)} via {@code threadPoolSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
         threadPoolSettings.setThreadPoolAsyncOpKeepAliveTime(threadPoolAsyncOpKeepAliveTime);
         return this;
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#isObjectSerializationEnabled()} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isObjectSerializationEnabled() {
         return objectMappingSettings.isObjectSerializationEnabled();
     }
 
     /**
-     * use ObjectMappingSettings
+     * @deprecated use {@link ObjectMappingSettings#setObjectSerializationEnabled(boolean)} via {@code objectMappingSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setObjectSerializationEnabled(boolean objectSerializationEnabled) {
         objectMappingSettings.setObjectSerializationEnabled(objectSerializationEnabled);
         return this;
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#getHeartbeatFrequency()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getHeartbeatFrequency() {
         return driverSettings.getHeartbeatFrequency();
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#setHeartbeatFrequency(int)} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setHeartbeatFrequency(int heartbeatFrequency) {
         driverSettings.setHeartbeatFrequency(heartbeatFrequency);
         return this;
@@ -1656,15 +1663,16 @@ public class MorphiumConfig {
 
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#setMinConnections(int)} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMinConnections(int minConnections) {
         connectionSettings.setMinConnections(minConnections);
         return this;
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#getLocalThreshold()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getLocalThreshold() {
         return driverSettings.getLocalThreshold();
     }
@@ -1694,47 +1702,52 @@ public class MorphiumConfig {
      * Refer to the MongoDB documentation for details on localThreshold: reference/program/mongos/#cmdoption--localThreshold
      *                        Local Threshold
      * @since 2.13.0
+     * @deprecated use {@link DriverSettings#setLocalThreshold(int)} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setLocalThreshold(int localThreshold) {
         driverSettings.setLocalThreshold(localThreshold);
         return this;
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#getMaxConnectionIdleTime()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMaxConnectionIdleTime() {
         return driverSettings.getMaxConnectionIdleTime();
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#setMaxConnectionIdleTime(int)} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMaxConnectionIdleTime(int maxConnectionIdleTime) {
         driverSettings.setMaxConnectionIdleTime(maxConnectionIdleTime);
         return this;
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#getMaxConnectionLifeTime()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMaxConnectionLifeTime() {
         return driverSettings.getMaxConnectionLifeTime();
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#setMaxConnectionLifeTime(int)} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setMaxConnectionLifeTime(int maxConnectionLifeTime) {
         driverSettings.setMaxConnectionLifeTime(maxConnectionLifeTime);
         return this;
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ClusterSettings#getRequiredReplicaSetName()} via {@code clusterSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getRequiredReplicaSetName() {
         return clusterSettings.getRequiredReplicaSetName();
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ClusterSettings#setRequiredReplicaSetName(String)} via {@code clusterSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setRequiredReplicaSetName(String requiredReplicaSetName) {
         clusterSettings.setRequiredReplicaSetName(requiredReplicaSetName);
         return this;
@@ -1801,38 +1814,45 @@ public class MorphiumConfig {
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
         connectionSettings.setSslInvalidHostNameAllowed(sslInvalidHostNameAllowed);
     }
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#getReadTimeout()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getReadTimeout() {
         return driverSettings.getReadTimeout();
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#setReadTimeout(int)} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setReadTimeout(int readTimeout) {
         driverSettings.setReadTimeout(readTimeout);
         return this;
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#isRetryReads()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isRetryReads() {
         return driverSettings.isRetryReads();
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#setRetryReads(boolean)} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public void setRetryReads(boolean retryReads) {
         driverSettings.setRetryReads(retryReads);
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#isRetryWrites()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public boolean isRetryWrites() {
         return driverSettings.isRetryWrites();
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#setRetryWrites(boolean)} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public void setRetryWrites(boolean retryWrites) {
         driverSettings.setRetryWrites(retryWrites);
     }
 
-    @Deprecated
+    /** @deprecated use {@link DriverSettings#getUuidRepresentation()} via {@code driverSettings()} instead */
+    @Deprecated(since = "6.3", forRemoval = true)
     public String getUuidRepresentation() {
         return driverSettings.getUuidRepresentation();
     }
@@ -1862,33 +1882,33 @@ public class MorphiumConfig {
     }
 
     /**
-     * use collectionCheckSettings
+     * @deprecated use {@link CollectionCheckSettings#getIndexCheck()} via {@code collectionCheckSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public IndexCheck getIndexCheck() {
         return collectionCheckSettings.getIndexCheck();
     }
 
     /**
-     * use collectionCheckSettings
+     * @deprecated use {@link CollectionCheckSettings#setIndexCheck(IndexCheck)} via {@code collectionCheckSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public void setIndexCheck(IndexCheck indexCheck) {
         collectionCheckSettings.setIndexCheck(indexCheck);
     }
 
     /**
-     * use collectionCheckSettings
+     * @deprecated use {@link CollectionCheckSettings#getCappedCheck()} via {@code collectionCheckSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public CappedCheck getCappedCheck() {
         return collectionCheckSettings.getCappedCheck();
     }
 
     /**
-     * use collectionCheckSettings
+     * @deprecated use {@link CollectionCheckSettings#setCappedCheck(CappedCheck)} via {@code collectionCheckSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public MorphiumConfig setCappedCheck(CappedCheck cappedCheck) {
         collectionCheckSettings.setCappedCheck(cappedCheck);
         return this;
@@ -1909,17 +1929,17 @@ public class MorphiumConfig {
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link DriverSettings#getIdleSleepTime()} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getIdleSleepTime() {
         return driverSettings.getIdleSleepTime();
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link DriverSettings#setIdleSleepTime(int)} via {@code driverSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public void setIdleSleepTime(int idleSleepTime) {
         driverSettings.setIdleSleepTime(idleSleepTime);
     }
@@ -1933,9 +1953,9 @@ public class MorphiumConfig {
     }
 
     /**
-     * use ConnectionSettings
+     * @deprecated use {@link ConnectionSettings#getMinConnections()} via {@code connectionSettings()} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public int getMinConnections() {
         return connectionSettings.getMinConnections();
     }
