@@ -1,5 +1,8 @@
 package de.caluga.test.mongo.suite.inmem;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.aggregation.Expr;
@@ -7,6 +10,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -156,6 +160,90 @@ public class AggregatorFieldNameTranslationTest extends MorphiumInMemTestBase {
             Map<String, Object> group = groupParams(agg);
             assertEquals("$item_count", opRef(group, "s1", "$stdDevSamp"),
                          impl + ": stdDevSamp must emit the $stdDevSamp operator");
+        }
+    }
+
+    private List<ILoggingEvent> runAndCaptureWarns(Aggregator<AggEntity, Map> agg, Runnable pipelineBuilder) {
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(agg.getClass());
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            pipelineBuilder.run();
+            return appender.list.stream()
+                   .filter(ev -> ev.getLevel() == Level.WARN)
+                   .collect(java.util.stream.Collectors.toList());
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    private ILoggingEvent runAndCaptureWarn(Aggregator<AggEntity, Map> agg, Runnable pipelineBuilder) {
+        List<ILoggingEvent> warns = runAndCaptureWarns(agg, pipelineBuilder);
+        return warns.isEmpty() ? null : warns.get(0);
+    }
+
+    @Test
+    public void warnsWhenTranslatedProjectKeyIsReferencedUntranslated() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            ILoggingEvent warn = runAndCaptureWarn(agg, () -> {
+                agg.project(Map.of("itemCount", "$item_count"));
+                agg.group("$lastName").sum("total", "$itemCount").end();
+            });
+            assertNotNull(warn, impl + ": referencing $itemCount after project translated the key to item_count should WARN");
+            assertTrue(warn.getFormattedMessage().contains("itemCount"),
+                       impl + ": warning should name the reference the user wrote");
+            assertTrue(warn.getFormattedMessage().contains("item_count"),
+                       impl + ": warning should name the translated key");
+        }
+    }
+
+    @Test
+    public void noWarnWhenTranslatedKeyIsReferencedCorrectly() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            ILoggingEvent warn = runAndCaptureWarn(agg, () -> {
+                agg.project(Map.of("itemCount", "$item_count"));
+                agg.group("$lastName").sum("total", "$item_count").end();
+            });
+            assertNull(warn, impl + ": referencing the translated name must not WARN");
+        }
+    }
+
+    @Test
+    public void warnsOutsideGroupStagesToo() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            ILoggingEvent warn = runAndCaptureWarn(agg, () -> {
+                agg.project(Map.of("itemCount", "$item_count"));
+                agg.addFields(Map.of("doubled", "$itemCount"));
+            });
+            assertNotNull(warn, impl + ": a non-group stage referencing the renamed key must WARN too");
+        }
+    }
+
+    @Test
+    public void warnIsEmittedOnlyOncePerReference() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            List<ILoggingEvent> warns = runAndCaptureWarns(agg, () -> {
+                agg.project(Map.of("itemCount", "$item_count"));
+                agg.group("$lastName").sum("a", "$itemCount").max("b", "$itemCount").end();
+            });
+            assertEquals(1, warns.size(), impl + ": the same untranslated reference must only be warned about once");
+        }
+    }
+
+    @Test
+    public void noWarnForLiteralContent() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            ILoggingEvent warn = runAndCaptureWarn(agg, () -> {
+                agg.project(Map.of("itemCount", "$item_count"));
+                agg.addFields(Map.of("label", Map.of("$literal", "$itemCount")));
+            });
+            assertNull(warn, impl + ": $literal content is data, not a reference - no WARN");
         }
     }
 
