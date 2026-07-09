@@ -1149,11 +1149,11 @@ public class MorphiumConfig {
     }
 
     /**
-     * @deprecated use {@link WriterSettings#getMaximumRetriesAsyncWriter()} via {@code writerSettings()} instead
+     * @deprecated use {@link WriterSettings#getMaximumRetriesBufferedWriter()} via {@code writerSettings()} instead
      */
     @Deprecated(since = "6.3", forRemoval = true)
     public int getMaximumRetriesBufferedWriter() {
-        return writerSettings.getMaximumRetriesAsyncWriter();
+        return writerSettings.getMaximumRetriesBufferedWriter();
     }
 
     /**

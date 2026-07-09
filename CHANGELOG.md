@@ -41,6 +41,9 @@ Members confirmed for removal in 7.0 (#172 et al.) are now annotated `@Deprecate
 
 ### Fixed
 
+#### MorphiumConfig: `getMaximumRetriesBufferedWriter()` returned the AsyncWriter value (#227)
+The deprecated flat getter delegated to `WriterSettings.getMaximumRetriesAsyncWriter()` instead of `getMaximumRetriesBufferedWriter()` — callers silently got the async-writer retry count whenever the two settings differed (both default to 10, which is why it never surfaced). Found while writing the #218 replacement Javadoc.
+
 #### Aggregator: `Group.stdDevSamp(String, Object)` emitted `stdDevSamp` without the `$` prefix
 The operator map was built as `{stdDevSamp: ...}` instead of `{$stdDevSamp: ...}`, so the String-based `stdDevSamp` accumulator never worked. (The `$stdDevPop` sibling was correct.)
 
