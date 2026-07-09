@@ -38,9 +38,24 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         setResultType(resultType);
     }
 
+    private Boolean translateAggregationFieldNames;
+    private final Map<String, String> translatedProjectKeys = new LinkedHashMap<>();
+
     private String tf(String field) {
         if (morphium.getARHelper().getField(type, field) == null) return field;
         return morphium.getARHelper().getMongoFieldName(type, field);
+    }
+
+    @Override
+    public Aggregator<T, R> setTranslateAggregationFieldNames(Boolean translate) {
+        translateAggregationFieldNames = translate;
+        return this;
+    }
+
+    @Override
+    public boolean isTranslateAggregationFieldNames() {
+        if (translateAggregationFieldNames != null) return translateAggregationFieldNames;
+        return morphium != null && morphium.getConfig().objectMappingSettings().isTranslateAggregationFieldNames();
     }
 
     @Override
@@ -117,7 +132,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         Map<String, Object> p = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            p.put(tf(e.getKey()), e.getValue());
+            String key = tf(e.getKey());
+            if (!key.equals(e.getKey())) {
+                translatedProjectKeys.put(e.getKey(), key);
+            }
+            p.put(key, e.getValue());
         }
 
         Map<String, Object> map = UtilsMap.of("$project", p);
@@ -296,6 +315,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public void addOperator(Map<String, Object> o) {
+        UntranslatedRefWarner.warnOnUntranslatedRefs(translatedProjectKeys, o, log);
         params.add(o);
     }
 

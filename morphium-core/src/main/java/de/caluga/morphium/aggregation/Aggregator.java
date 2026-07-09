@@ -246,9 +246,13 @@ public interface Aggregator<T, R> {
     Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let);
 
     /** Adds a $lookup stage using a collection name and string fields.
+     * Note: localField is translated using the search type's field-name mapping,
+     * but foreignField is always passed through as a raw Mongo field name — with only
+     * a collection name there is no entity type to translate against. Use the
+     * Class/Enum-based overload to get translation on both sides.
      * @param fromCollection the collection name to join
-     * @param localField the local field name
-     * @param foreignField the foreign field name
+     * @param localField the local field name (Java property name, will be translated)
+     * @param foreignField the foreign field name (raw Mongo field name, not translated)
      * @param outputArray the output array field name
      * @param pipeline optional sub-pipeline
      * @param let optional let variables
@@ -442,6 +446,20 @@ public interface Aggregator<T, R> {
      * @return the aggregator */
     @SuppressWarnings("unused")
     Aggregator<T,R> setCollectionName(String cn);
+
+    /** Overrides the config setting translateAggregationFieldNames for this aggregator.
+     * When enabled, $-field references in group stage helpers are translated from Java
+     * property names to Mongo field names (consistent with project(Map) key translation).
+     * Set before building stages.
+     * @param translate true/false to override, null to use the MorphiumConfig setting
+     * @return the aggregator */
+    Aggregator<T, R> setTranslateAggregationFieldNames(Boolean translate);
+
+    /** Returns the effective field-name-translation setting for this aggregator:
+     * the per-aggregator override if set, otherwise the value from MorphiumConfig
+     * (objectMappingSettings). Default false = legacy behavior.
+     * @return true if $-field references should be translated */
+    boolean isTranslateAggregationFieldNames();
 
     /** Adds a $group stage using a map as the id expression.
      * @param id the group id expression map

@@ -48,9 +48,24 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         setResultType(resultType);
     }
 
+    private Boolean translateAggregationFieldNames;
+    private final Map<String, String> translatedProjectKeys = new LinkedHashMap<>();
+
     private String tf(String field) {
         if (morphium.getARHelper().getField(type, field) == null) return field;
         return morphium.getARHelper().getMongoFieldName(type, field);
+    }
+
+    @Override
+    public Aggregator<T, R> setTranslateAggregationFieldNames(Boolean translate) {
+        translateAggregationFieldNames = translate;
+        return this;
+    }
+
+    @Override
+    public boolean isTranslateAggregationFieldNames() {
+        if (translateAggregationFieldNames != null) return translateAggregationFieldNames;
+        return morphium != null && morphium.getConfig().objectMappingSettings().isTranslateAggregationFieldNames();
     }
 
     @Override
@@ -114,6 +129,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
             String key = tf(e.getKey());
+            if (!key.equals(e.getKey())) {
+                translatedProjectKeys.put(e.getKey(), key);
+            }
             if (e.getValue() instanceof Expr) {
                 p.put(key, ((Expr) e.getValue()).toQueryObject());
             } else {
@@ -312,6 +330,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public void addOperator(Map<String, Object> o) {
+        UntranslatedRefWarner.warnOnUntranslatedRefs(translatedProjectKeys, o, log);
         params.add(o);
     }
 
