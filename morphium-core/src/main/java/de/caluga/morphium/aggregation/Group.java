@@ -137,7 +137,7 @@ public class Group<T, R> {
     }
 
     public Group<T, R> stdDevSamp(String name, Object value) {
-        operators.add(getMap(name, getMap("stdDevSamp", value)));
+        operators.add(getMap(name, getMap("$stdDevSamp", value)));
         return this;
     }
 
