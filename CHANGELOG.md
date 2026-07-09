@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Aggregator: WARN when a renamed project(Map) key is referenced by its original spelling (#208)
 `project(Map)` translates its keys through the entity's field-name mapping. When a later stage references such a key by the name the user wrote, the reference points at a non-existent field and MongoDB silently returns `$sum: 0` / `$push: []`. Both aggregator implementations now log a WARN (once per reference) naming both spellings. `$$`-variables and `$literal` subtrees are ignored; dot-paths are matched by their first segment.
 
+#### Aggregator: opt-in consistent field-name translation (#208, #217)
+New opt-in setting `translateAggregationFieldNames` (`ObjectMappingSettings`, overridable per aggregator via `Aggregator.setTranslateAggregationFieldNames`): when enabled, Java property names are translated to Mongo field names. Covered stages: group operator `$`-references and id values, `project(Map)` and `addFields`/`set` keys *and values*, `sort(Map)` keys, `graphLookup` connect fields and `startWith` — including `$`-references inside `Expr` values there. **Not covered** (tracked in #221): stages taking a raw `Expr` — `match(Expr)`, `sortByCount`, `replaceRoot`/`replaceWith`, `redact`, `bucket`, `facetExpr`, `unwind(Expr)` — use Mongo field names or `Expr.field(Enum)` there. Dot-paths translate their first segment; `$$`-variables and `$literal` subtrees are never touched. **Default off = exactly the previous behavior.** The effective config value is snapshotted when the aggregator is created; the per-aggregator override wins at any time.
+
+New helpers `Aggregator.ref(Enum)` / `Aggregator.name(Enum)` translate enum field references explicitly (`F.itemCount` → `"$item_count"` / `"item_count"`), independent of the flag: `group.sum(agg.name(F.itemCount), agg.ref(F.itemCount))`. All new `Aggregator` interface methods are default methods — third-party implementations keep compiling.
+
+Known limitation: translation operates on the serialized pipeline, where `Expr.string("$...")` is indistinguishable from a field reference. Wrap string values that look like field references in `$literal` when the flag is on.
+
 #### PoppyDB: priority-based leader step-back after failover (#177)
 A PoppyDB leader now voluntarily hands leadership to a peer with higher election priority, mirroring MongoDB's priority takeover. Previously a failover to a lower-priority node was permanent — the preferred primary never returned, even after it recovered.
 
@@ -21,6 +28,11 @@ Enabled by default. Configurable via `ElectionConfig.priorityTakeoverEnabled` / 
 
 #### InMemoryDriver: `$setOnInsert` and upsert/`new` support in `findAndModify` (#203)
 The `InMemoryDriver` now honors `$setOnInsert` and the `upsert`/`new` flags in `findAndModify`, matching MongoDB behavior. Includes a regression test for upsert via `$and`-nested `_id` filters (#202, #204).
+
+### Changed
+
+#### Aggregator: `graphLookup` enum overload now translates connect fields (#217)
+`graphLookup(Class, Expr, Enum, Enum, ...)` passed `connectFromField.name()` / `connectToField.name()` through untranslated — same defect family as the `lookup` enum overload fixed in 6.2.5 (#198). The enum overload now always translates both connect fields against the given from type, independent of the `translateAggregationFieldNames` flag. Code that relied on the raw enum name reaching the pipeline must use the String overload instead.
 
 ### Fixed
 

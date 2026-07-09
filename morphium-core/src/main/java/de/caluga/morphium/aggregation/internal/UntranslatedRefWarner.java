@@ -55,7 +55,7 @@ public final class UntranslatedRefWarner {
                 if (translated != null && warnedRefs.add(firstSegment)) {
                     log.warn("Aggregation stage references '${}', but project(Map) translated that key to '{}'. "
                              + "The reference will not resolve and silently yields 0 / []. "
-                             + "Reference '${}' instead.",
+                             + "Reference '${}' instead, or enable translateAggregationFieldNames.",
                              firstSegment, translated, translated);
                 }
             }

@@ -182,10 +182,15 @@ public interface Aggregator<T, R> {
     Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch);
 
     /** Adds a $graphLookup stage using a collection name and string fields.
+     * Note: connectFromField and connectToField are always passed through as raw Mongo
+     * field names — with only a collection name there is no entity type to translate
+     * against. Use the Class-based overloads to get field-name translation. startWith
+     * however is evaluated against the input documents (the search type), so with
+     * translateAggregationFieldNames enabled its $-references ARE translated.
      * @param fromCollection the collection name to search
-     * @param startWith expression for the starting value
-     * @param connectFromField the field to connect from
-     * @param connectToField the field to connect to
+     * @param startWith expression for the starting value (translated against the search type when the flag is on)
+     * @param connectFromField the field to connect from (raw Mongo field name, not translated)
+     * @param connectToField the field to connect to (raw Mongo field name, not translated)
      * @param as the output array field name
      * @param maxDepth maximum recursion depth
      * @param depthField field name to store depth
@@ -246,9 +251,13 @@ public interface Aggregator<T, R> {
     Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let);
 
     /** Adds a $lookup stage using a collection name and string fields.
+     * Note: localField is translated using the search type's field-name mapping,
+     * but foreignField is always passed through as a raw Mongo field name — with only
+     * a collection name there is no entity type to translate against. Use the
+     * Class/Enum-based overload to get translation on both sides.
      * @param fromCollection the collection name to join
-     * @param localField the local field name
-     * @param foreignField the foreign field name
+     * @param localField the local field name (Java property name, will be translated)
+     * @param foreignField the foreign field name (raw Mongo field name, not translated)
      * @param outputArray the output array field name
      * @param pipeline optional sub-pipeline
      * @param let optional let variables
@@ -442,6 +451,45 @@ public interface Aggregator<T, R> {
      * @return the aggregator */
     @SuppressWarnings("unused")
     Aggregator<T,R> setCollectionName(String cn);
+
+    /** Overrides the config setting translateAggregationFieldNames for this aggregator.
+     * When enabled, stage keys and $-field references in stage helpers are translated
+     * from Java property names to Mongo field names (consistent with project(Map) key
+     * translation). Set before building stages.
+     * Default implementation is a no-op so that third-party Aggregator implementations
+     * keep compiling; Morphium's own implementations override it.
+     * @param translate true/false to override, null to use the MorphiumConfig setting
+     * @return the aggregator */
+    default Aggregator<T, R> setTranslateAggregationFieldNames(Boolean translate) {
+        return this;
+    }
+
+    /** Returns the effective field-name-translation setting for this aggregator:
+     * the per-aggregator override if set, otherwise the value from MorphiumConfig
+     * (objectMappingSettings). Default false = legacy behavior.
+     * @return true if $-field references should be translated */
+    default boolean isTranslateAggregationFieldNames() {
+        return false;
+    }
+
+    /** Translates an enum field reference of the search type to its Mongo field name.
+     * Example: {@code MyEntity.Fields.itemCount} becomes {@code "item_count"}. Use as
+     * output field name in stage helpers: {@code group.sum(agg.name(F.itemCount), ...)}.
+     * @param field enum naming a Java property of the search type
+     * @return the translated Mongo field name */
+    default String name(Enum<?> field) {
+        return de.caluga.morphium.aggregation.internal.FieldNameTranslation.translate(getMorphium(), getSearchType(), field.name());
+    }
+
+    /** Translates an enum field reference of the search type to a $-prefixed Mongo
+     * field reference. Example: {@code MyEntity.Fields.itemCount} becomes
+     * {@code "$item_count"}. Use as value in stage helpers:
+     * {@code group.sum("total", agg.ref(F.itemCount))}.
+     * @param field enum naming a Java property of the search type
+     * @return the translated $-prefixed field reference */
+    default String ref(Enum<?> field) {
+        return "$" + name(field);
+    }
 
     /** Adds a $group stage using a map as the id expression.
      * @param id the group id expression map

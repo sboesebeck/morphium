@@ -1,6 +1,7 @@
 package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.Collation;
+import de.caluga.morphium.aggregation.internal.FieldNameTranslation;
 import de.caluga.morphium.aggregation.internal.UntranslatedRefWarner;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
@@ -43,16 +44,28 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Collation collation;
     private final Logger log = LoggerFactory.getLogger(AggregatorImpl.class);
     private final UntranslatedRefWarner refWarner = new UntranslatedRefWarner();
+    private final FieldNameTranslation fieldNames;
 
     public AggregatorImpl(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
         this.morphium = morphium;
         setSearchType(type);
         setResultType(resultType);
+        fieldNames = new FieldNameTranslation(morphium, type);
     }
 
     private String tf(String field) {
-        if (morphium.getARHelper().getField(type, field) == null) return field;
-        return morphium.getARHelper().getMongoFieldName(type, field);
+        return fieldNames.tf(field);
+    }
+
+    @Override
+    public Aggregator<T, R> setTranslateAggregationFieldNames(Boolean translate) {
+        fieldNames.setOverride(translate);
+        return this;
+    }
+
+    @Override
+    public boolean isTranslateAggregationFieldNames() {
+        return fieldNames.isEnabled();
     }
 
     @Override
@@ -113,17 +126,15 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> project(Map<String, Object> m) {
         Map<String, Object> p = new LinkedHashMap<>();
+        boolean translate = isTranslateAggregationFieldNames();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
             String key = tf(e.getKey());
             if (!key.equals(e.getKey())) {
                 refWarner.recordProjectKeyTranslation(e.getKey(), key);
             }
-            if (e.getValue() instanceof Expr) {
-                p.put(key, ((Expr) e.getValue()).toQueryObject());
-            } else {
-                p.put(key, e.getValue());
-            }
+            Object value = e.getValue() instanceof Expr ? ((Expr) e.getValue()).toQueryObject() : e.getValue();
+            p.put(key, translate ? fieldNames.translateRefs(value) : value);
         }
 
         Map<String, Object> map = UtilsMap.of("$project", p);
@@ -160,13 +171,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> addFields(Map<String, Object> m) {
         Map<String, Object> ret = new LinkedHashMap<>();
+        boolean translate = isTranslateAggregationFieldNames();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            if (e.getValue() instanceof Expr) {
-                ret.put(e.getKey(), ((Expr) e.getValue()).toQueryObject());
-            } else {
-                ret.put(e.getKey(), e.getValue());
-            }
+            String key = translate ? tf(e.getKey()) : e.getKey();
+            Object value = e.getValue() instanceof Expr ? ((Expr) e.getValue()).toQueryObject() : e.getValue();
+            ret.put(key, translate ? fieldNames.translateRefs(value) : value);
         }
 
         Map<String, Object> o = UtilsMap.of("$addFields", ret);
@@ -275,7 +285,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> sort(Map<String, Integer> sort) {
-        Map<String, Object> o = UtilsMap.of("$sort", sort);
+        Map<String, Integer> s = isTranslateAggregationFieldNames() ? fieldNames.translateKeys(sort) : sort;
+        Map<String, Object> o = UtilsMap.of("$sort", s);
         addOperator(o);
         return this;
     }
@@ -315,9 +326,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         return gr;
     }
 
+    /** single entry point for pipeline stages: every stage helper routes through here.
+     * Invariant: any flag-based translation must happen BEFORE this call, so the
+     * untranslated-reference check only sees the stage as it will be sent to MongoDB. */
     @Override
-    /** single entry point for pipeline stages: every stage helper routes through here,
-     * so the untranslated-reference check sees the stage as it will be sent to MongoDB. */
     public void addOperator(Map<String, Object> o) {
         refWarner.warnUntranslatedRefs(o, log);
         params.add(o);
@@ -635,21 +647,22 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
-        return graphLookup(morphium.getMapper().getCollectionName(type),
+    public Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, Enum connectFromField, Enum connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
+        return graphLookup(morphium.getMapper().getCollectionName(fromType),
             startWith,
-            connectFromField.name(),
-            connectToField.name(),
+            fieldNames.tf(fromType, connectFromField.name()),
+            fieldNames.tf(fromType, connectToField.name()),
             as,
             maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
-    public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
-        return graphLookup(morphium.getMapper().getCollectionName(type),
+    public Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
+        boolean translate = isTranslateAggregationFieldNames();
+        return graphLookup(morphium.getMapper().getCollectionName(fromType),
             startWith,
-            connectFromField,
-            connectToField,
+            translate ? fieldNames.tf(fromType, connectFromField) : connectFromField,
+            translate ? fieldNames.tf(fromType, connectToField) : connectToField,
             as,
             maxDepth, depthField, restrictSearchWithMatch);
     }
@@ -657,8 +670,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField,
         Query restrictSearchWithMatch) {
+        Object startWithQo = isTranslateAggregationFieldNames()
+            ? fieldNames.translateRefs(startWith.toQueryObject()) : startWith.toQueryObject();
         Map<String, Object> add = UtilsMap.of("from", (Object) fromCollection,
-            "startWith", startWith.toQueryObject(),
+            "startWith", startWithQo,
             "connectFromField", connectFromField,
             "connectToField", connectToField,
             "as", as);
@@ -943,7 +958,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      */
     @Override
     public Aggregator<T, R> set(Map<String, Expr> param) {
-        Map<String, Object> o = UtilsMap.of("$set", Utils.getQueryObjectMap(param));
+        Map<String, Object> qo = Utils.getQueryObjectMap(param);
+        if (isTranslateAggregationFieldNames()) {
+            qo = fieldNames.translateKeys(qo);
+            qo.replaceAll((k, v) -> fieldNames.translateRefs(v));
+        }
+        Map<String, Object> o = UtilsMap.of("$set", qo);
         addOperator(o);
         return this;
     }
