@@ -105,6 +105,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     private ScheduledThreadPoolExecutor decouplePool;
     private MessagingRegistry networkRegistry;
+    // Mongo field name of Msg.processedBy ("processed_by"), resolved once via the object mapper in init()
+    private String processedByFieldName;
 
     // Ready signaling for tests - latch is counted down when change streams are fully initialized
     private final CountDownLatch readyLatch = new CountDownLatch(1);
@@ -455,7 +457,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         long sum = 0;
         for (var msgName : monitorsByTopic.keySet()) {
             Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
-            q1.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+            q1.f(Msg.Fields.sender).ne(getSenderId()).f(processedByFieldName + ".0").notExists();
             sum += q1.countAll();
         }
         return sum;
@@ -774,8 +776,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @SuppressWarnings("unchecked")
     private void pollAndProcessDms(String name) {
-        // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
-        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f("processed_by.0").notExists() // not processed
+        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(processedByFieldName + ".0").notExists() // not processed
                 .f(Msg.Fields.topic).nin(getPausedTopics())
                 .f(Msg.Fields.topic).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
         int window = getWindowSize();
@@ -817,7 +818,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         // Query for unprocessed messages in DM collection
         // Exclude messages already being processed or recently completed
         var q = morphium.createQueryFor(Msg.class, dmCollectionName)
-                .f("processed_by.0").notExists() // not processed
+                .f(processedByFieldName + ".0").notExists() // not processed
                 .f(Msg.Fields.msgId).nin(new ArrayList<>(processingMessages));
 
         int window = getWindowSize();
@@ -880,7 +881,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q1.f(Msg.Fields.exclusive).eq(true) // exclusive message
-          .f("processed_by.0").notExists() // not processed yet (more efficient than eq(null))
+          .f(processedByFieldName + ".0").notExists() // not processed yet (more efficient than eq(null))
           .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
         if (!processingIds.isEmpty()) {
             q1.f(Msg.Fields.msgId).nin(processingIds); // not processed by me
@@ -888,8 +889,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q2.f(Msg.Fields.exclusive).eq(false) // non-exclusive message
-          // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
-          .f("processed_by").ne(getSenderId()) // not processed by me
+          .f(processedByFieldName).ne(getSenderId()) // not processed by me
           .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
         if (!processingIds.isEmpty()) {
             q2.f(Msg.Fields.msgId).nin(processingIds); // not processing already
@@ -1115,7 +1115,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         Query<Msg> idq = morphium.createQueryFor(Msg.class, collName);
         idq.f("_id").eq(queryId);
         Map<String, Object> qobj = idq.toQueryObject();
-        Map<String, Object> set = Doc.of("processed_by", id);
+        Map<String, Object> set = Doc.of(processedByFieldName, id);
         Map<String, Object> update = Doc.of("$addToSet", set);
         UpdateMongoCommand cmd = null;
 
@@ -1757,13 +1757,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
                 // pending = not processed by anyone (exclusive) or not processed by me
                 // (broadcast)
-                q1.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+                q1.f(Msg.Fields.sender).ne(getSenderId()).f(processedByFieldName + ".0").notExists();
                 total += q1.countAll();
             }
 
             // Include direct messages for this node in its DM collection
             Query<Msg> qdm = morphium.createQueryFor(Msg.class, getDMCollectionName());
-            qdm.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+            qdm.f(Msg.Fields.sender).ne(getSenderId()).f(processedByFieldName + ".0").notExists();
             total += qdm.countAll();
         } catch (Exception e) {
             log.warn("Error calculating number of messages", e);
@@ -2014,6 +2014,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     @Override
     public void init(Morphium m, MessagingSettings overrides) {
         morphium = m;
+        processedByFieldName = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.processedBy.name());
 
         if (overrides == m.getConfig().messagingSettings()) {
             // create copy of settings, if same as morphiums
