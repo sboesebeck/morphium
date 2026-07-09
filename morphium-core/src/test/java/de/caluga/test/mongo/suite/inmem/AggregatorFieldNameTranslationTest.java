@@ -132,6 +132,33 @@ public class AggregatorFieldNameTranslationTest extends MorphiumInMemTestBase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> groupParams(Aggregator<AggEntity, Map> agg) {
+        Map<String, Object> stage = firstStage(agg);
+        assertTrue(stage.containsKey("$group"), "stage should be $group");
+        return (Map<String, Object>) stage.get("$group");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object opRef(Map<String, Object> group, String name, String op) {
+        assertTrue(group.containsKey(name), "group should contain output field " + name);
+        Map<String, Object> opMap = (Map<String, Object>) group.get(name);
+        assertTrue(opMap.containsKey(op), name + " should use operator " + op);
+        return opMap.get(op);
+    }
+
+    @Test
+    public void stdDevSampStringOverloadUsesDollarOperator() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.group("$lastName").stdDevSamp("s1", "$item_count").end();
+
+            Map<String, Object> group = groupParams(agg);
+            assertEquals("$item_count", opRef(group, "s1", "$stdDevSamp"),
+                         impl + ": stdDevSamp must emit the $stdDevSamp operator");
+        }
+    }
+
     @Test
     public void lookupEnumTranslatesLocalAndForeignFieldNames() {
         for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
