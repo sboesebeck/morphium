@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.inmem;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.aggregation.*;
+import de.caluga.morphium.aggregation.internal.UntranslatedRefWarner;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings("CommentedOutCode")
 public class InMemAggregator<T, R> implements Aggregator<T, R> {
     private final Logger log = LoggerFactory.getLogger(InMemAggregator.class);
+    private final UntranslatedRefWarner refWarner = new UntranslatedRefWarner();
     private final List<Map<String, Object>> params = new ArrayList<>();
     private final List<Group<T, R>> groups = new ArrayList<>();
     private Class <? extends T > type;
@@ -117,7 +119,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         Map<String, Object> p = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            p.put(tf(e.getKey()), e.getValue());
+            String key = tf(e.getKey());
+            if (!key.equals(e.getKey())) {
+                refWarner.recordProjectKeyTranslation(e.getKey(), key);
+            }
+            p.put(key, e.getValue());
         }
 
         Map<String, Object> map = UtilsMap.of("$project", p);
@@ -295,8 +301,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    /** single entry point for pipeline stages: every stage helper routes through here. */
+    /** single entry point for pipeline stages: every stage helper routes through here,
+     * so the untranslated-reference check sees the stage as it will be executed. */
     public void addOperator(Map<String, Object> o) {
+        refWarner.warnUntranslatedRefs(o, log);
         params.add(o);
     }
 

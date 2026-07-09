@@ -1,6 +1,7 @@
 package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.Collation;
+import de.caluga.morphium.aggregation.internal.UntranslatedRefWarner;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
@@ -41,6 +42,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private boolean explain = false;
     private Collation collation;
     private final Logger log = LoggerFactory.getLogger(AggregatorImpl.class);
+    private final UntranslatedRefWarner refWarner = new UntranslatedRefWarner();
 
     public AggregatorImpl(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
         this.morphium = morphium;
@@ -114,6 +116,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
             String key = tf(e.getKey());
+            if (!key.equals(e.getKey())) {
+                refWarner.recordProjectKeyTranslation(e.getKey(), key);
+            }
             if (e.getValue() instanceof Expr) {
                 p.put(key, ((Expr) e.getValue()).toQueryObject());
             } else {
@@ -311,8 +316,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    /** single entry point for pipeline stages: every stage helper routes through here. */
+    /** single entry point for pipeline stages: every stage helper routes through here,
+     * so the untranslated-reference check sees the stage as it will be sent to MongoDB. */
     public void addOperator(Map<String, Object> o) {
+        refWarner.warnUntranslatedRefs(o, log);
         params.add(o);
     }
 
