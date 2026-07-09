@@ -122,7 +122,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         }
 
         Map<String, Object> map = UtilsMap.of("$project", p);
-        params.add(map);
+        addOperator(map);
         return this;
     }
 
@@ -165,7 +165,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         }
 
         Map<String, Object> o = UtilsMap.of("$addFields", ret);
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
@@ -191,34 +191,34 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (collectionName == null)
             collectionName = q.getCollectionName();
 
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> matchSubQuery(Query<?> q) {
         Map<String, Object> o = UtilsMap.of("$match", q.toQueryObject());
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> match(Expr q) {
-        params.add(UtilsMap.of("$match", UtilsMap.of("$expr", q.toQueryObject())));
+        addOperator(UtilsMap.of("$match", UtilsMap.of("$expr", q.toQueryObject())));
         return this;
     }
 
     @Override
     public Aggregator<T, R> limit(int num) {
         Map<String, Object> o = UtilsMap.of("$limit", num);
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> skip(int num) {
         Map<String, Object> o = UtilsMap.of("$skip", num);
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
@@ -226,14 +226,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> unwind(Expr listField) {
         Map<String, Object> o = UtilsMap.of("$unwind", listField);
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> unwind(String listField) {
         Map<String, Object> o = UtilsMap.of("$unwind", tf(listField));
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
@@ -271,7 +271,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> sort(Map<String, Integer> sort) {
         Map<String, Object> o = UtilsMap.of("$sort", sort);
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
@@ -311,6 +311,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    /** single entry point for pipeline stages: every stage helper routes through here. */
     public void addOperator(Map<String, Object> o) {
         params.add(o);
     }
@@ -481,7 +482,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> count(String fld) {
-        params.add(UtilsMap.of("$count", fld));
+        addOperator(UtilsMap.of("$count", fld));
         return this;
     }
 
@@ -524,7 +525,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             "default", preset.toQueryObject(),
             "output", Utils.getQueryObjectMap(output))
             );
-        params.add(m);
+        addOperator(m);
         return this;
     }
 
@@ -549,7 +550,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (granularity != null)
             bucketAuto.put("granularity", granularity.getValue());
 
-        params.add(map);
+        addOperator(map);
         return this;
     }
 
@@ -580,7 +581,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             m.put("queryExecStats", new HashMap<>());
         }
 
-        params.add(UtilsMap.of("$collStats", m));
+        addOperator(UtilsMap.of("$collStats", m));
         return this;
     }
 
@@ -588,7 +589,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     //{ $currentOp: { allUsers: <boolean>, idleConnections: <boolean>, idleCursors: <boolean>, idleSessions: <boolean>, localOps: <boolean> } }
     @Override
     public Aggregator<T, R> currentOp(boolean allUsers, boolean idleConnections, boolean idleCursors, boolean idleSessions, boolean localOps) {
-        params.add(UtilsMap.of("$currentOp", UtilsMap.of("allUsers", allUsers, "idleConnections", idleConnections, "idleCursors", idleCursors,
+        addOperator(UtilsMap.of("$currentOp", UtilsMap.of("allUsers", allUsers, "idleConnections", idleConnections, "idleCursors", idleCursors,
             "idleSessions", idleSessions,
             "localOps", localOps)
             ));
@@ -598,7 +599,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> facetExpr(Map<String, Expr> facets) {
         Map<String, Object> map = Utils.getQueryObjectMap(facets);
-        params.add(UtilsMap.of("$facet", map));
+        addOperator(UtilsMap.of("$facet", map));
         return this;
     }
 
@@ -610,7 +611,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             map.put(e.getKey(), e.getValue().getPipeline());
         }
 
-        params.add(UtilsMap.of("$facet", map));
+        addOperator(UtilsMap.of("$facet", map));
         return this;
     }
 
@@ -622,7 +623,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             map.put(e.getKey().name(), ((ObjectMapperImpl) morphium.getMapper()).marshallIfNecessary(e.getValue()));
         }
 
-        params.add(UtilsMap.of("$geoNear", map));
+        addOperator(UtilsMap.of("$geoNear", map));
         return this;
     }
 
@@ -654,7 +655,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             "connectFromField", connectFromField,
             "connectToField", connectToField,
             "as", as);
-        params.add(UtilsMap.of("$graphLookup", add));
 
         if (maxDepth != null)
             add.put("maxDepth", maxDepth);
@@ -665,24 +665,25 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (restrictSearchWithMatch != null)
             add.put("restrictSearchWithMatch", restrictSearchWithMatch.toQueryObject());
 
+        addOperator(UtilsMap.of("$graphLookup", add));
         return this;
     }
 
     @Override
     public Aggregator<T, R> indexStats() {
-        params.add(UtilsMap.of("$indexStats", new HashMap<>()));
+        addOperator(UtilsMap.of("$indexStats", new HashMap<>()));
         return this;
     }
 
     @Override
     public Aggregator<T, R> listLocalSessionsAllUsers() {
-        params.add(UtilsMap.of("$listLocalSessions", UtilsMap.of("allUsers", true)));
+        addOperator(UtilsMap.of("$listLocalSessions", UtilsMap.of("allUsers", true)));
         return this;
     }
 
     @Override
     public Aggregator<T, R> listLocalSessions() {
-        params.add(UtilsMap.of("$listLocalSessions", new HashMap<>()));
+        addOperator(UtilsMap.of("$listLocalSessions", new HashMap<>()));
         return this;
     }
 
@@ -700,19 +701,19 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             usersList.add(UtilsMap.of(users.get(i), dbs.get(j)));
         }
 
-        params.add(UtilsMap.of("$listLocalSessions", UtilsMap.of("users", usersList)));
+        addOperator(UtilsMap.of("$listLocalSessions", UtilsMap.of("users", usersList)));
         return this;
     }
 
     @Override
     public Aggregator<T, R> listSessionsAllUsers() {
-        params.add(UtilsMap.of("$listSessions", UtilsMap.of("allUsers", true)));
+        addOperator(UtilsMap.of("$listSessions", UtilsMap.of("allUsers", true)));
         return this;
     }
 
     @Override
     public Aggregator<T, R> listSessions() {
-        params.add(UtilsMap.of("$listSessions", new HashMap<>()));
+        addOperator(UtilsMap.of("$listSessions", new HashMap<>()));
         return this;
     }
 
@@ -730,7 +731,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             usersList.add(UtilsMap.of(users.get(i), dbs.get(j)));
         }
 
-        params.add(UtilsMap.of("$listSessions", UtilsMap.of("users", usersList)));
+        addOperator(UtilsMap.of("$listSessions", UtilsMap.of("users", usersList)));
         return this;
     }
 
@@ -788,7 +789,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             m.put("let", map);
         }
 
-        params.add(UtilsMap.of("$lookup", m));
+        addOperator(UtilsMap.of("$lookup", m));
         return this;
     }
 
@@ -868,26 +869,26 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             doc.put("whenMatched", pipeline);
         }
 
-        params.add(UtilsMap.of("$merge", doc));
+        addOperator(UtilsMap.of("$merge", doc));
         return this;
     }
 
     @Override
     public Aggregator<T, R> out(String collectionName) {
-        params.add(UtilsMap.of("$out", UtilsMap.of("coll", collectionName)));
+        addOperator(UtilsMap.of("$out", UtilsMap.of("coll", collectionName)));
         return this;
     }
 
     @Override
     public Aggregator<T, R> out(String db, String collectionName) {
-        params.add(UtilsMap.of("$out", UtilsMap.of("coll", collectionName, "db", db)
+        addOperator(UtilsMap.of("$out", UtilsMap.of("coll", collectionName, "db", db)
             ));
         return this;
     }
 
     @Override
     public Aggregator<T, R> planCacheStats(Map<String, Object> param) {
-        params.add(UtilsMap.of("$planCacheStats", new HashMap<>()));
+        addOperator(UtilsMap.of("$planCacheStats", new HashMap<>()));
         return this;
     }
 
@@ -902,25 +903,25 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      */
     @Override
     public Aggregator<T, R> redact(Expr redact) {
-        params.add(UtilsMap.of("$redact", redact.toQueryObject()));
+        addOperator(UtilsMap.of("$redact", redact.toQueryObject()));
         return this;
     }
 
     @Override
     public Aggregator<T, R> replaceRoot(Expr newRoot) {
-        params.add(UtilsMap.of("$replaceRoot", UtilsMap.of("newRoot", newRoot.toQueryObject())));
+        addOperator(UtilsMap.of("$replaceRoot", UtilsMap.of("newRoot", newRoot.toQueryObject())));
         return this;
     }
 
     @Override
     public Aggregator<T, R> replaceWith(Expr newDoc) {
-        params.add(UtilsMap.of("$replaceWith", newDoc.toQueryObject()));
+        addOperator(UtilsMap.of("$replaceWith", newDoc.toQueryObject()));
         return this;
     }
 
     @Override
     public Aggregator<T, R> sample(int sampleSize) {
-        params.add(UtilsMap.of("$sample", UtilsMap.of("size", sampleSize)));
+        addOperator(UtilsMap.of("$sample", UtilsMap.of("size", sampleSize)));
         return this;
     }
 
@@ -936,7 +937,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> set(Map<String, Expr> param) {
         Map<String, Object> o = UtilsMap.of("$set", Utils.getQueryObjectMap(param));
-        params.add(o);
+        addOperator(o);
         return this;
     }
 
@@ -952,19 +953,19 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      */
     @Override
     public Aggregator<T, R> sortByCount(Expr sortby) {
-        params.add(UtilsMap.of("$sortByCount", sortby.toQueryObject()));
+        addOperator(UtilsMap.of("$sortByCount", sortby.toQueryObject()));
         return this;
     }
 
     @Override
     public Aggregator<T, R> unionWith(String collection) {
-        params.add(UtilsMap.of("$unionWith", collection));
+        addOperator(UtilsMap.of("$unionWith", collection));
         return this;
     }
 
     @Override
     public Aggregator<T, R> unionWith(Aggregator agg) {
-        params.add(UtilsMap.of("$unionWith", UtilsMap.of("coll", (Object) collectionName,
+        addOperator(UtilsMap.of("$unionWith", UtilsMap.of("coll", (Object) collectionName,
             "pipeline", agg.getPipeline())
             ));
         return this;
@@ -972,20 +973,20 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> unset(List<String> field) {
-        params.add(UtilsMap.of("$unset", field.stream().map(this::tf).collect(Collectors.toList())));
+        addOperator(UtilsMap.of("$unset", field.stream().map(this::tf).collect(Collectors.toList())));
         return this;
     }
 
     @Override
     public Aggregator<T, R> unset(String... param) {
-        params.add(UtilsMap.of("$unset", Arrays.stream(param).map(this::tf).collect(Collectors.toList())));
+        addOperator(UtilsMap.of("$unset", Arrays.stream(param).map(this::tf).collect(Collectors.toList())));
         return this;
     }
 
     @Override
     public Aggregator<T, R> unset(@SuppressWarnings("rawtypes") Enum... field) {
         List<String> lst = Arrays.stream(field).map(e -> tf(e.name())).collect(Collectors.toList());
-        params.add(UtilsMap.of("$unset", lst));
+        addOperator(UtilsMap.of("$unset", lst));
         return this;
     }
 
@@ -999,7 +1000,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             stageName = "$" + stageName;
         }
 
-        params.add(UtilsMap.of(stageName, param));
+        addOperator(UtilsMap.of(stageName, param));
         return this;
     }
 
