@@ -1226,6 +1226,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="StepDown / Failover Behavior (Replica Set)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#priority-takeover" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Priority Takeover
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -2566,6 +2583,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="StepDown / Failover Behavior (Replica Set)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#priority-takeover" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Priority Takeover
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -3340,17 +3374,17 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 <tr>
 <td>StepDown</td>
 <td>Old primary steps down, may become primary again after <code>timeToStepDown</code></td>
-<td>Old primary steps down permanently</td>
+<td>Old primary steps down, may reclaim leadership via priority takeover</td>
 </tr>
 <tr>
 <td>New leader</td>
 <td>Elected via priority/oplog, often original wins re-election</td>
-<td>Elected via Raft, new leader stays</td>
+<td>Elected via Raft, highest priority wins</td>
 </tr>
 <tr>
 <td>Step-back</td>
 <td>Common (original typically returns as primary)</td>
-<td>Never (Raft has no step-back mechanism)</td>
+<td>Yes, if the original node has a higher priority (since 6.3)</td>
 </tr>
 <tr>
 <td>Election time</td>
@@ -3359,7 +3393,57 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
 </tr>
 </tbody>
 </table>
-<p><strong>Impact on tests/applications:</strong> Do not assume the original primary will return after a stepDown. If your failover logic waits for the original node to become primary again, it will hang indefinitely on PoppyDB. Instead, verify that <em>any</em> node became primary after failover.</p>
+<p><strong>Impact on tests/applications:</strong> the original primary only returns if it was configured with a <em>higher priority</em> than the node that took over. In a cluster where all nodes share the default priority (50), the new leader keeps leadership — do not wait for a specific node to become primary, verify that <em>any</em> node did.</p>
+<h4 id="priority-takeover">Priority Takeover<a class="headerlink" href="#priority-takeover" title="Permanent link">&para;</a></h4>
+<p>A leader periodically checks whether a peer with higher priority is available. It hands leadership over once that peer</p>
+<ul>
+<li>answers the leader's heartbeats (it is online and reachable), and</li>
+<li>has acknowledged everything the leader replicated during its term (it is caught up, see <code>priorityTakeoverMaxLag</code>).</li>
+</ul>
+<p>The yielding leader then refuses re-election for <code>priorityTakeoverStepDownSecs</code>, so the higher-priority node — which uses a shorter, priority-adjusted election timeout — wins the resulting election.</p>
+<table>
+<thead>
+<tr>
+<th><code>ElectionConfig</code> setting</th>
+<th>System property</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>priorityTakeoverEnabled</code></td>
+<td><code>morphiumserver.priorityTakeoverEnabled</code></td>
+<td><code>true</code></td>
+<td>Enable voluntary step-down to a higher-priority peer</td>
+</tr>
+<tr>
+<td><code>priorityTakeoverCheckIntervalMs</code></td>
+<td><code>morphiumserver.priorityTakeoverCheckIntervalMs</code></td>
+<td><code>2000</code></td>
+<td>How often the leader looks for a successor</td>
+</tr>
+<tr>
+<td><code>priorityTakeoverMinStabilityMs</code></td>
+<td><code>morphiumserver.priorityTakeoverMinStabilityMs</code></td>
+<td><code>30000</code></td>
+<td>How long a node must have been leader before it may yield (anti-flapping)</td>
+</tr>
+<tr>
+<td><code>priorityTakeoverMaxLag</code></td>
+<td><code>morphiumserver.priorityTakeoverMaxLag</code></td>
+<td><code>0</code></td>
+<td>Change stream events the successor may still lag behind</td>
+</tr>
+<tr>
+<td><code>priorityTakeoverStepDownSecs</code></td>
+<td><code>morphiumserver.priorityTakeoverStepDownSecs</code></td>
+<td><code>10</code></td>
+<td>How long the yielding leader refuses re-election</td>
+</tr>
+</tbody>
+</table>
+<p>Set <code>priorityTakeoverEnabled</code> to <code>false</code> to keep the pre-6.3 behavior, where a failover is permanent.</p>
 <h3 id="change-stream-support">Change Stream Support<a class="headerlink" href="#change-stream-support" title="Permanent link">&para;</a></h3>
 <p>PoppyDB fully supports change streams for real-time notifications:</p>
 <ul>
