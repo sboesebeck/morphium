@@ -52,8 +52,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private final Map<String, String> translatedProjectKeys = new LinkedHashMap<>();
 
     private String tf(String field) {
-        if (morphium.getARHelper().getField(type, field) == null) return field;
-        return morphium.getARHelper().getMongoFieldName(type, field);
+        return tf(type, field);
+    }
+
+    private String tf(Class<?> t, String field) {
+        if (morphium.getARHelper().getField(t, field) == null) return field;
+        return morphium.getARHelper().getMongoFieldName(t, field);
     }
 
     @Override
@@ -173,12 +177,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> addFields(Map<String, Object> m) {
         Map<String, Object> ret = new LinkedHashMap<>();
+        boolean translate = isTranslateAggregationFieldNames();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
+            String key = translate ? tf(e.getKey()) : e.getKey();
             if (e.getValue() instanceof Expr) {
-                ret.put(e.getKey(), ((Expr) e.getValue()).toQueryObject());
+                ret.put(key, ((Expr) e.getValue()).toQueryObject());
             } else {
-                ret.put(e.getKey(), e.getValue());
+                ret.put(key, translate ? RefTranslation.translateRefs(e.getValue(), this::tf) : e.getValue());
             }
         }
 
@@ -288,7 +294,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> sort(Map<String, Integer> sort) {
-        Map<String, Object> o = UtilsMap.of("$sort", sort);
+        Map<String, Integer> s = sort;
+        if (isTranslateAggregationFieldNames()) {
+            s = new LinkedHashMap<>();
+            for (Map.Entry<String, Integer> e : sort.entrySet()) {
+                s.put(tf(e.getKey()), e.getValue());
+            }
+        }
+        Map<String, Object> o = UtilsMap.of("$sort", s);
         params.add(o);
         return this;
     }
@@ -649,18 +662,19 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
         return graphLookup(morphium.getMapper().getCollectionName(type),
             startWith,
-            connectFromField.name(),
-            connectToField.name(),
+            tf(type, connectFromField.name()),
+            tf(type, connectToField.name()),
             as,
             maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
+        boolean translate = isTranslateAggregationFieldNames();
         return graphLookup(morphium.getMapper().getCollectionName(type),
             startWith,
-            connectFromField,
-            connectToField,
+            translate ? tf(type, connectFromField) : connectFromField,
+            translate ? tf(type, connectToField) : connectToField,
             as,
             maxDepth, depthField, restrictSearchWithMatch);
     }
@@ -954,7 +968,15 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      */
     @Override
     public Aggregator<T, R> set(Map<String, Expr> param) {
-        Map<String, Object> o = UtilsMap.of("$set", Utils.getQueryObjectMap(param));
+        Map<String, Object> qo = Utils.getQueryObjectMap(param);
+        if (isTranslateAggregationFieldNames()) {
+            Map<String, Object> translated = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> e : qo.entrySet()) {
+                translated.put(tf(e.getKey()), e.getValue());
+            }
+            qo = translated;
+        }
+        Map<String, Object> o = UtilsMap.of("$set", qo);
         params.add(o);
         return this;
     }

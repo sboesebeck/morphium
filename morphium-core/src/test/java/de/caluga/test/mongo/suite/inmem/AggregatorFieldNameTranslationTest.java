@@ -345,6 +345,111 @@ public class AggregatorFieldNameTranslationTest extends MorphiumInMemTestBase {
                      "sum must be 3+2+1=6, not the silent 0 from issue #208");
     }
 
+    /** InMemAggregator wraps raw addFields values in Expr — normalize for comparison */
+    private Object unwrapExpr(Object value) {
+        return value instanceof Expr ? ((Expr) value).toQueryObject() : value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> stagePart(Aggregator<AggEntity, Map> agg, String stageName) {
+        Map<String, Object> stage = firstStage(agg);
+        assertTrue(stage.containsKey(stageName), "stage should be " + stageName);
+        return (Map<String, Object>) stage.get(stageName);
+    }
+
+    @Test
+    public void graphLookupEnumTranslatesConnectFields() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.graphLookup(LookupEntity.class, Expr.field("owner_name"),
+                            LookupEntity.Fields.ownerName, LookupEntity.Fields.ownerName,
+                            "joined", null, null, null);
+
+            Map<String, Object> gl = stagePart(agg, "$graphLookup");
+            assertEquals("owner_name", gl.get("connectFromField"),
+                         impl + ": enum connectFromField should be translated using the from type");
+            assertEquals("owner_name", gl.get("connectToField"),
+                         impl + ": enum connectToField should be translated using the from type");
+        }
+    }
+
+    @Test
+    public void graphLookupClassStringConnectFieldsTranslateWithFlagOn() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.setTranslateAggregationFieldNames(true);
+            agg.graphLookup(LookupEntity.class, Expr.field("owner_name"),
+                            "ownerName", "ownerName", "joined", null, null, null);
+
+            Map<String, Object> gl = stagePart(agg, "$graphLookup");
+            assertEquals("owner_name", gl.get("connectFromField"),
+                         impl + ": flag on must translate String connectFromField against the from type");
+            assertEquals("owner_name", gl.get("connectToField"),
+                         impl + ": flag on must translate String connectToField against the from type");
+        }
+    }
+
+    @Test
+    public void addFieldsAndSortStayVerbatimByDefault() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.addFields(Map.of("itemCount", "$firstName"));
+
+            Map<String, Object> af = stagePart(agg, "$addFields");
+            assertTrue(af.containsKey("itemCount"), impl + ": legacy default must not translate addFields keys");
+            assertEquals("$firstName", unwrapExpr(af.get("itemCount")),
+                         impl + ": legacy default must not translate addFields refs");
+        }
+
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.sort(Map.of("itemCount", 1));
+            assertTrue(stagePart(agg, "$sort").containsKey("itemCount"),
+                       impl + ": legacy default must not translate sort(Map) keys");
+        }
+    }
+
+    @Test
+    public void addFieldsKeysAndRefsTranslateWithFlagOn() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.setTranslateAggregationFieldNames(true);
+            agg.addFields(Map.of("itemCount", "$firstName"));
+
+            Map<String, Object> af = stagePart(agg, "$addFields");
+            assertTrue(af.containsKey("item_count"), impl + ": flag on must translate addFields keys");
+            assertFalse(af.containsKey("itemCount"), impl + ": untranslated key must not appear with flag on");
+            assertEquals("$first_name", unwrapExpr(af.get("item_count")),
+                         impl + ": flag on must translate $-refs in addFields values");
+        }
+    }
+
+    @Test
+    public void setMapKeysTranslateWithFlagOn() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.setTranslateAggregationFieldNames(true);
+            agg.set(Map.of("itemCount", Expr.field("first_name")));
+
+            Map<String, Object> set = stagePart(agg, "$set");
+            assertTrue(set.containsKey("item_count"), impl + ": flag on must translate set(Map) keys");
+            assertFalse(set.containsKey("itemCount"), impl + ": untranslated key must not appear with flag on");
+        }
+    }
+
+    @Test
+    public void sortMapKeysTranslateWithFlagOn() {
+        for (Aggregator<AggEntity, Map> agg : bothImplementations()) {
+            String impl = agg.getClass().getSimpleName();
+            agg.setTranslateAggregationFieldNames(true);
+            agg.sort(Map.of("itemCount", 1));
+
+            Map<String, Object> sort = stagePart(agg, "$sort");
+            assertTrue(sort.containsKey("item_count"), impl + ": flag on must translate sort(Map) keys");
+            assertFalse(sort.containsKey("itemCount"), impl + ": untranslated key must not appear with flag on");
+        }
+    }
+
     @Test
     public void lookupEnumTranslatesLocalAndForeignFieldNames() {
         for (Aggregator<AggEntity, Map> agg : bothImplementations()) {

@@ -42,8 +42,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     private final Map<String, String> translatedProjectKeys = new LinkedHashMap<>();
 
     private String tf(String field) {
-        if (morphium.getARHelper().getField(type, field) == null) return field;
-        return morphium.getARHelper().getMongoFieldName(type, field);
+        return tf(type, field);
+    }
+
+    private String tf(Class<?> t, String field) {
+        if (morphium.getARHelper().getField(t, field) == null) return field;
+        return morphium.getARHelper().getMongoFieldName(t, field);
     }
 
     @Override
@@ -172,15 +176,19 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> addFields(Map<String, Object> m) {
         Map<String, Object> ret = new LinkedHashMap<>();
+        boolean translate = isTranslateAggregationFieldNames();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
             Object value = e.getValue();
             if (!(value instanceof Expr)) {
+                if (translate) {
+                    value = RefTranslation.translateRefs(value, this::tf);
+                }
                 // Convert raw aggregation expressions to Expr objects
                 value = Expr.parse(value);
             }
 
-            ret.put(e.getKey(), value);
+            ret.put(translate ? tf(e.getKey()) : e.getKey(), value);
         }
 
         Map<String, Object> o = UtilsMap.of("$addFields", ret);
@@ -273,7 +281,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> sort(Map<String, Integer> sort) {
-        Map<String, Object> o = UtilsMap.of("$sort", sort);
+        Map<String, Integer> s = sort;
+        if (isTranslateAggregationFieldNames()) {
+            s = new LinkedHashMap<>();
+            for (Map.Entry<String, Integer> e : sort.entrySet()) {
+                s.put(tf(e.getKey()), e.getValue());
+            }
+        }
+        Map<String, Object> o = UtilsMap.of("$sort", s);
         params.add(o);
         return this;
     }
@@ -541,12 +556,16 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
-        return graphLookup(morphium.getMapper().getCollectionName(type), startWith, connectFromField.name(), connectToField.name(), as, maxDepth, depthField, restrictSearchWithMatch);
+        return graphLookup(morphium.getMapper().getCollectionName(type), startWith, tf(type, connectFromField.name()), tf(type, connectToField.name()), as, maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
-        return graphLookup(morphium.getMapper().getCollectionName(type), startWith, connectFromField, connectToField, as, maxDepth, depthField, restrictSearchWithMatch);
+        boolean translate = isTranslateAggregationFieldNames();
+        return graphLookup(morphium.getMapper().getCollectionName(type), startWith,
+            translate ? tf(type, connectFromField) : connectFromField,
+            translate ? tf(type, connectToField) : connectToField,
+            as, maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
@@ -854,7 +873,15 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      */
     @Override
     public Aggregator<T, R> set(Map<String, Expr> param) {
-        Map<String, Object> o = UtilsMap.of("$set", Utils.getQueryObjectMap(param));
+        Map<String, Object> qo = Utils.getQueryObjectMap(param);
+        if (isTranslateAggregationFieldNames()) {
+            Map<String, Object> translated = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> e : qo.entrySet()) {
+                translated.put(tf(e.getKey()), e.getValue());
+            }
+            qo = translated;
+        }
+        Map<String, Object> o = UtilsMap.of("$set", qo);
         params.add(o);
         return this;
     }

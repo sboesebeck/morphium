@@ -286,43 +286,12 @@ public class Group<T, R> {
         operators.forEach(params::putAll);
         if (aggregator.isTranslateAggregationFieldNames()) {
             //noinspection unchecked
-            params = (Map<String, Object>) translateRefs(params);
+            params = (Map<String, Object>) RefTranslation.translateRefs(params, this::tf);
         }
         Map<String, Object> obj = getMap("$group", params);
         aggregator.addOperator(obj);
         ended = true;
         return aggregator;
-    }
-
-    /**
-     * translates $-field references (not $$-variables) from Java property names to Mongo
-     * field names, recursing into maps and lists. Only active when
-     * translateAggregationFieldNames is enabled.
-     */
-    @SuppressWarnings("unchecked")
-    private Object translateRefs(Object value) {
-        if (value instanceof String) {
-            String s = (String) value;
-            if (s.startsWith("$") && !s.startsWith("$$")) {
-                return "$" + tf(s.substring(1));
-            }
-            return s;
-        }
-        if (value instanceof Map) {
-            Map<String, Object> ret = new HashMap<>();
-            for (Map.Entry<String, Object> e : ((Map<String, Object>) value).entrySet()) {
-                ret.put(e.getKey(), translateRefs(e.getValue()));
-            }
-            return ret;
-        }
-        if (value instanceof List) {
-            List<Object> ret = new ArrayList<>();
-            for (Object o : (List<Object>) value) {
-                ret.add(translateRefs(o));
-            }
-            return ret;
-        }
-        return value;
     }
 
     public List<Map<String, Object>> getOperators() {

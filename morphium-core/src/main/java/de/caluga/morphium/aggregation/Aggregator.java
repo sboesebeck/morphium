@@ -182,10 +182,13 @@ public interface Aggregator<T, R> {
     Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch);
 
     /** Adds a $graphLookup stage using a collection name and string fields.
+     * Note: connectFromField and connectToField are always passed through as raw Mongo
+     * field names — with only a collection name there is no entity type to translate
+     * against. Use the Class-based overloads to get field-name translation.
      * @param fromCollection the collection name to search
      * @param startWith expression for the starting value
-     * @param connectFromField the field to connect from
-     * @param connectToField the field to connect to
+     * @param connectFromField the field to connect from (raw Mongo field name, not translated)
+     * @param connectToField the field to connect to (raw Mongo field name, not translated)
      * @param as the output array field name
      * @param maxDepth maximum recursion depth
      * @param depthField field name to store depth
