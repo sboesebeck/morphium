@@ -101,6 +101,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private final AtomicInteger changeStreamEventsReceived = new AtomicInteger(0);
     private MessagingSettings settings = null;
     private MessagingRegistry networkRegistry;
+    // Mongo field name of Msg.processedBy ("processed_by"), resolved once via the object mapper in init()
+    private String processedByFieldName;
 
     // Ready signaling for tests - latch is counted down when change streams are fully initialized
     private final CountDownLatch readyLatch = new CountDownLatch(1);
@@ -261,6 +263,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     public void init(Morphium m, MessagingSettings settings) {
         morphium = m;
         this.settings = settings;
+        processedByFieldName = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.processedBy.name());
         statusInfoListenerEnabled = settings.isMessagingStatusInfoListenerEnabled();
         decouplePool = new ScheduledThreadPoolExecutor(windowSize,
             Thread.ofPlatform().name("decouple_thr-", 0).factory());
@@ -430,7 +433,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @Override
     public long getPendingMessagesCount() {
         Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName());
-        q1.f(Msg.Fields.sender).ne(id).f("processed_by.0").notExists();
+        q1.f(Msg.Fields.sender).ne(id).f(processedByFieldName + ".0").notExists();
         return q1.countAll();
     }
 
@@ -506,7 +509,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 Boolean exclusive = (Boolean) msg.get("exclusive");
                 if (exclusive != null && exclusive) {
                     @SuppressWarnings("unchecked")
-                    List<String> processedBy = (List<String>) (msg.containsKey("processed_by") ? msg.get("processed_by") : msg.get("processedBy"));
+                    List<String> processedBy = (List<String>) msg.get(processedByFieldName);
                     // Only skip if explicitly marked as processed by someone
                     if (processedBy != null && !processedBy.isEmpty()) {
                         // Exclusive message already processed, skip
@@ -1132,8 +1135,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
             if (listenerByName.isEmpty()) {
                 // No listeners - only answers will be processed
-                // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
-                return q.q().f(Msg.Fields.sender).ne(id).f("processed_by").ne(id).f(Msg.Fields.inAnswerTo)
+                return q.q().f(Msg.Fields.sender).ne(id).f(processedByFieldName).ne(id).f(Msg.Fields.inAnswerTo)
                        .in(waitingForAnswers.keySet()).limit(windowSize).idList();
             }
 
@@ -1156,10 +1158,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
 
             // q1: Exclusive messages, not locked yet, not processed yet
-            var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
+            var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f(processedByFieldName + ".0").notExists();
             // q2: non-exclusive messages, cannot be locked, not processed by me yet
-            // Use stored field name explicitly for inMem parity (processed_by is persisted in snake_case)
-            var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f("processed_by").ne(id);
+            var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(processedByFieldName).ne(id);
             q.f("_id").nin(idsToIgnore);
             q.f(Msg.Fields.sender).ne(id);  // Don't receive messages sent by myself
             q.f(Msg.Fields.recipients).in(Arrays.asList(null, id));
@@ -1569,7 +1570,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         idq.f("_id").eq(queryId);
         // Don't modify local copy until database update succeeds
         Map<String, Object> qobj = idq.toQueryObject();
-        Map<String, Object> set = Doc.of("processed_by", id);
+        Map<String, Object> set = Doc.of(processedByFieldName, id);
         Map<String, Object> update = Doc.of("$addToSet", set);
         UpdateMongoCommand cmd = null;
 

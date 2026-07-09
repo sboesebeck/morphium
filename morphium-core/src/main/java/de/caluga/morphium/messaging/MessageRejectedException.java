@@ -44,7 +44,8 @@ public class MessageRejectedException extends RuntimeException {
                     if (!m.isExclusive()) {
                         cmd = new UpdateMongoCommand(msg.getMorphium().getDriver().getPrimaryConnection(msg.getMorphium().getWriteConcernForClass(Msg.class)));
                         cmd.setColl(msg.getCollectionName()).setDb(msg.getMorphium().getDatabase());
-                        cmd.addUpdate(Doc.of("_id", m.getMsgId()), Doc.of("$addToSet", Doc.of("processed_by", msg.getSenderId())), null, false, false, null, null, null);
+                        String processedByFieldName = msg.getMorphium().getARHelper().getMongoFieldName(Msg.class, Msg.Fields.processedBy.name());
+                        cmd.addUpdate(Doc.of("_id", m.getMsgId()), Doc.of("$addToSet", Doc.of(processedByFieldName, msg.getSenderId())), null, false, false, null, null, null);
                         cmd.execute();
                         //not exclusive message is marked as processed by me
                     } else {
