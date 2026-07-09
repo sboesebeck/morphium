@@ -10,6 +10,7 @@ public class ObjectMappingSettings extends Settings {
     private boolean objectSerializationEnabled = true;
     private boolean camelCaseConversionEnabled = true;
     private boolean warnOnNoEntitySerialization = false;
+    private boolean translateAggregationFieldNames = false;
     public boolean isCheckForNew() {
         return checkForNew;
     }
@@ -78,6 +79,32 @@ public class ObjectMappingSettings extends Settings {
     }
     public ObjectMappingSettings setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
         this.warnOnNoEntitySerialization = warnOnNoEntitySerialization;
+        return this;
+    }
+
+    /**
+     * if enabled, $-field references in aggregation stage helpers (e.g. Group.sum/push/avg)
+     * are translated from Java property names to Mongo field names, consistent with the
+     * translation of project(Map) keys. Default false = legacy behavior (references are
+     * passed through verbatim). Overridable per aggregator, see
+     * Aggregator.setTranslateAggregationFieldNames.
+     */
+    public boolean isTranslateAggregationFieldNames() {
+        return translateAggregationFieldNames;
+    }
+
+    public ObjectMappingSettings setTranslateAggregationFieldNames(boolean translateAggregationFieldNames) {
+        this.translateAggregationFieldNames = translateAggregationFieldNames;
+        return this;
+    }
+
+    public ObjectMappingSettings enableTranslateAggregationFieldNames() {
+        translateAggregationFieldNames = true;
+        return this;
+    }
+
+    public ObjectMappingSettings disableTranslateAggregationFieldNames() {
+        translateAggregationFieldNames = false;
         return this;
     }
 }

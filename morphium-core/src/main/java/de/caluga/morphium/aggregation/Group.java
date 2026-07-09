@@ -1,5 +1,6 @@
 package de.caluga.morphium.aggregation;
 
+import de.caluga.morphium.aggregation.internal.FieldNameTranslation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +52,10 @@ public class Group<T, R> {
         Map<String, Object> ret = new HashMap<>();
         ret.put(key, value);
         return ret;
+    }
+
+    private String tf(String field) {
+        return FieldNameTranslation.translate(aggregator.getMorphium(), aggregator.getSearchType(), field);
     }
 
     public Group<T, R> addToSet(String name, Object p) {
@@ -106,6 +111,7 @@ public class Group<T, R> {
         operators.add(jp);
         return this;
     }
+
     public Group<T, R> push(String name, String vn, String value) {
         Map<String, Object> o = getMap(name, getMap("$push", getMap(vn, value)));
         operators.add(o);
@@ -154,6 +160,10 @@ public class Group<T, R> {
         }
         Map<String, Object> params = new HashMap<>(id);
         operators.forEach(params::putAll);
+        if (aggregator.isTranslateAggregationFieldNames()) {
+            //noinspection unchecked
+            params = (Map<String, Object>) FieldNameTranslation.translateRefs(params, this::tf);
+        }
         Map<String, Object> obj = getMap("$group", params);
         aggregator.addOperator(obj);
         ended = true;
