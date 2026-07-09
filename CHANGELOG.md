@@ -36,10 +36,16 @@ Members confirmed for removal in 7.0 (#172 et al.) are now annotated `@Deprecate
 
 ### Changed
 
+#### Messaging: unified `processed_by` field-name handling (#219)
+The Mongo field name of `Msg.processedBy` is now resolved once per messaging instance via the object mapper instead of being hardcoded at ~15 call sites. The dual-name defensive read (`processed_by`/`processedBy`) in the exclusive-message path was removed — documents written with the non-canonical camelCase spelling (never produced by Morphium itself) are no longer recognized there.
+
 #### Aggregator: `graphLookup` enum overload now translates connect fields (#217)
 `graphLookup(Class, Expr, Enum, Enum, ...)` passed `connectFromField.name()` / `connectToField.name()` through untranslated — same defect family as the `lookup` enum overload fixed in 6.2.5 (#198). The enum overload now always translates both connect fields against the given from type, independent of the `translateAggregationFieldNames` flag. Code that relied on the raw enum name reaching the pipeline must use the String overload instead.
 
 ### Fixed
+
+#### InMemAggregator: `$count` on empty input emitted `{field: 0}` — MongoDB emits no document (#228)
+The in-memory `$count` stage always produced a result document; real MongoDB returns an empty result set when the stage input is empty. The stage now matches MongoDB, and `InMemAggregator.getCount()` gained the same empty-result guard `AggregatorImpl` already had.
 
 #### MorphiumConfig: `getMaximumRetriesBufferedWriter()` returned the AsyncWriter value (#227)
 The deprecated flat getter delegated to `WriterSettings.getMaximumRetriesAsyncWriter()` instead of `getMaximumRetriesBufferedWriter()` — callers silently got the async-writer retry count whenever the two settings differed (both default to 10, which is why it never surfaced). Found while writing the #218 replacement Javadoc.

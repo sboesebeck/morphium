@@ -351,15 +351,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         var originalPipeline = new ArrayList<>(getPipeline());
         addOperator(UtilsMap.of("$count", "num"));
         List<Map<String, Object>> res = doAggregation();
+        params.clear();
+        params.addAll(originalPipeline);
+
+        if (res.isEmpty()) {
+            return 0;
+        }
 
         if (res.get(0).get("num") instanceof Integer) {
-            params.clear();
-            params.addAll(originalPipeline);
             return ((Integer) res.get(0).get("num")).longValue();
         }
 
-        params.clear();
-        params.addAll(originalPipeline);
         return (Long) res.get(0).get("num");
     }
 
@@ -1059,7 +1061,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 break;
 
             case "$count":
-                ret.add(UtilsMap.of((String) step.get(stage), data.size()));
+                // MongoDB emits no document at all when the stage input is empty
+                if (!data.isEmpty()) {
+                    ret.add(UtilsMap.of((String) step.get(stage), data.size()));
+                }
                 break;
 
             case "$group":

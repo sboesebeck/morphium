@@ -118,6 +118,18 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void inMemAggregationCountEmptyInputTest() throws Exception {
+        // parity with MongoDB (#228): $count on empty input emits no document at all
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.count("myCount");
+        List<Map<String, Object>> lst = agg.aggregateMap();
+        assert (lst.isEmpty()) : "$count on empty input must yield no document, got: " + lst;
+
+        Aggregator<UncachedObject, Map> agg2 = morphium.createAggregator(UncachedObject.class, Map.class);
+        assert (agg2.getCount() == 0) : "getCount() on empty collection must be 0";
+    }
+
+    @Test
     public void inMemAggregationPushTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
