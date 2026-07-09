@@ -138,7 +138,14 @@ public interface MorphiumMessaging extends Closeable {
 
     boolean isProcessMultiple();
 
-    @Deprecated
+    /**
+     * legacy switch for processing several messages at once. This concept is obsolete:
+     * how many messages are processed in parallel is controlled by the window size, use
+     * {@link #setWindowSize(int)} instead.
+     *
+     * @deprecated use {@link #setWindowSize(int)} instead; will be removed in 7.0
+     */
+    @Deprecated(since = "6.3", forRemoval = true)
     MorphiumMessaging setProcessMultiple(boolean processMultiple);
 
     String getQueueName();

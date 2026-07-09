@@ -135,9 +135,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * @param m               - morphium
      * @param pause           - pause between checks
      * @param processMultiple - deprecated, set windowSize to 1 if needed
-     * @deprecated - use morphium.createMessaging() instead
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple) {
         this(m, null, pause, processMultiple);
 
@@ -146,25 +146,25 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @deprecated - use morphium.createMessaging() instead
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, int pause) {
         this(m, null, pause, true, 10);
     }
 
     /**
-     * @deprecated - use morphium.createMessaging() instead
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m) {
         this(m, null, 500, false, 100);
     }
 
     /**
-     * @deprecated - use morphium.createMessaging() instead
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded,
                                      int windowSize) {
         this(m, null, pause, multithreadded, windowSize);
@@ -173,15 +173,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             setWindowSize(1);
     }
 
-    @Deprecated
+    /**
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
+     */
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, int pause, boolean multithreadded, int windowSize) {
         this(m, null, pause, multithreadded, windowSize);
     }
 
     /**
-     * @deprecated - use morphium.createMessaging() instead
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple) {
         this(m, queueName, pause, false, m.getConfig().getMessagingWindowSize());
 
@@ -189,16 +192,19 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             setWindowSize(1);
     }
 
-    @Deprecated
+    /**
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
+     */
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize) {
         this(m, queueName, pause, multithreadded, windowSize,
              m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
     }
 
     /**
-     * @deprecated - use morphium.createMessaging() instead
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple,
                                      boolean multithreadded, int windowSize) {
         this(m, queueName, pause, multithreadded, windowSize,
@@ -209,9 +215,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @deprecated - processMultiple is unused
+     * @deprecated processMultiple is unused; use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple,
                                      boolean multithreadded, int windowSize, boolean useChangeStream) {
         this(m, queueName, pause, multithreadded, windowSize, useChangeStream);
@@ -232,8 +238,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      *                         depending on your configuration
      * @param pause: when waiting for incoming messages, especially when
      *        multithreadded == false, how long to wait between polls
+     *
+     * @deprecated use {@link Morphium#createMessaging()} or {@link Morphium#createMessaging(MessagingSettings)} instead
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize,
                                      boolean useChangeStream) {
         this();
@@ -2120,7 +2128,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         return windowSize == 1;
     }
 
-    @Deprecated
+    /**
+     * @deprecated use {@link #setWindowSize(int)} instead (windowSize 1 corresponds to processMultiple == false)
+     */
+    @Deprecated(since = "6.3", forRemoval = true)
     @Override
     public MorphiumMessaging setProcessMultiple(boolean processMultiple) {
         if (processMultiple) {

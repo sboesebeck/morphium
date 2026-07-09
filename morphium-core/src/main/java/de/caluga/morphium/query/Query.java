@@ -250,12 +250,14 @@ public class Query<T> implements Cloneable {
     }
 
     /**
-     * use rawQuery instead
+     * runs a raw query map against the collection.
      *
      * @param query
      * @return
+     * @deprecated use {@link #rawQuery(Map)} to set the query and the standard API
+     *             (e.g. {@code rawQuery(query).asList()}) instead; will be removed in 7.0
      */
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public List<T> complexQuery(Map<String, Object> query) {
         return complexQuery(query, (String) null, 0, 0);
     }
@@ -648,17 +650,20 @@ public class Query<T> implements Cloneable {
     }
 
     /**
-     * use rawQuery to set query, and standard API
+     * runs a raw query map against the collection with sort, skip and limit.
      *
      * @param query - query to be sent
      * @param sort
      * @param skip - amount to skip
      * @param limit - maximium number of results
      * @return
+     * @deprecated use {@link #rawQuery(Map)} to set the query and the standard API
+     *             ({@code sort()}, {@code skip()}, {@code limit()}, {@code asList()}) instead;
+     *             will be removed in 7.0
      */
     @SuppressWarnings("DeprecatedIsStillUsed")
 
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
         Cache ca = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = ca != null && ca.readCache() && morphium.isReadCacheEnabledForThread() && !morphium.getDriver().getName().equals(InMemoryDriver.driverName);
@@ -1682,7 +1687,13 @@ public class Query<T> implements Cloneable {
         }
     }
 
-    @Deprecated
+    /**
+     * asynchronously gets an entity by its id.
+     *
+     * @deprecated use a standard query on the id field instead, e.g.
+     *             {@code q().f("_id").eq(id).get(callback)}; will be removed in 7.0
+     */
+    @Deprecated(since = "6.3", forRemoval = true)
     public void getById(final Object id, final AsyncOperationCallback<T> callback) {
         if (callback == null) {
             throw new IllegalArgumentException("Callback is null");
@@ -1703,7 +1714,13 @@ public class Query<T> implements Cloneable {
         getExecutor().submit(c);
     }
 
-    @Deprecated
+    /**
+     * gets an entity by its id.
+     *
+     * @deprecated use a standard query on the id field instead, e.g.
+     *             {@code q().f("_id").eq(id).get()}; will be removed in 7.0
+     */
+    @Deprecated(since = "6.3", forRemoval = true)
     public T getById(Object id) {
         @SuppressWarnings("unchecked")
         List<String> flds = getARHelper().getFields(type, Id.class);
@@ -2360,15 +2377,28 @@ public class Query<T> implements Cloneable {
         return text(metaScoreField, lang, true, true, text);
     }
 
-    @Deprecated
+    /**
+     * runs a text search using the legacy {@code text} command.
+     *
+     * @deprecated use the {@code $text} query operator via {@link #text(String...)} and the
+     *             standard API (e.g. {@code text(texts).asList()}) instead; will be removed in 7.0
+     */
+    @Deprecated(since = "6.3", forRemoval = true)
     public List<T> textSearch(String ... texts) {
         // noinspection deprecation
         return textSearch(TextSearchLanguages.mongo_default, texts);
     }
 
+    /**
+     * runs a text search using the legacy {@code text} command.
+     *
+     * @deprecated use the {@code $text} query operator via
+     *             {@link #text(TextSearchLanguages, String...)} and the standard API
+     *             (e.g. {@code text(lang, texts).asList()}) instead; will be removed in 7.0
+     */
     @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
 
-    @Deprecated
+    @Deprecated(since = "6.3", forRemoval = true)
     public List<T> textSearch(TextSearchLanguages lang, String ... texts) {
         if (texts.length == 0) {
             return new ArrayList<>();

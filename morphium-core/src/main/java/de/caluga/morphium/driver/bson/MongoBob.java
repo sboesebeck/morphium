@@ -4,9 +4,12 @@ package de.caluga.morphium.driver.bson;/**
 
 /**
  * BOB implementation for BSON
+ *
+ * @deprecated wrap raw BSON bytes in a plain {@code byte[]} (encoded as BSON binary)
+ * instead; will be removed in 7.0 together with its {@code BsonEncoder} support.
  **/
 @SuppressWarnings("WeakerAccess")
-@Deprecated
+@Deprecated(since = "6.3", forRemoval = true)
 public class MongoBob {
     private byte[] data;
 

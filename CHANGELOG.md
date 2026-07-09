@@ -29,12 +29,20 @@ Enabled by default. Configurable via `ElectionConfig.priorityTakeoverEnabled` / 
 #### InMemoryDriver: `$setOnInsert` and upsert/`new` support in `findAndModify` (#203)
 The `InMemoryDriver` now honors `$setOnInsert` and the `upsert`/`new` flags in `findAndModify`, matching MongoDB behavior. Includes a regression test for upsert via `$and`-nested `_id` filters (#202, #204).
 
+### Deprecated
+
+#### 7.0-removal candidates now carry `@Deprecated(since = "6.3", forRemoval = true)` (#218)
+Members confirmed for removal in 7.0 (#172 et al.) are now annotated `@Deprecated(since = "6.3", forRemoval = true)`, and their Javadoc names the replacement — IDEs flag usages a full minor release before anything is removed. Covered groups: the flat `MorphiumConfig` setters/getters (use the `Settings` sub-objects via `connectionSettings()`, `objectMappingSettings()`, ... instead), the `MorphiumBase.set…`/`unsetQ…` variants, the legacy `SingleCollectionMessaging` constructors, `Query.complexQuery`/`getById`/`textSearch`, `Msg.name`, `MorphiumMessaging.setProcessMultiple`, `MongoBob` and `@UseIfnull` (use `@IgnoreNullFromDB`). Members that stay deprecated-but-kept, and the BSON-spec deprecations in `MongoType`, are unchanged. Pure annotation/Javadoc change, zero runtime impact.
+
 ### Changed
 
 #### Aggregator: `graphLookup` enum overload now translates connect fields (#217)
 `graphLookup(Class, Expr, Enum, Enum, ...)` passed `connectFromField.name()` / `connectToField.name()` through untranslated — same defect family as the `lookup` enum overload fixed in 6.2.5 (#198). The enum overload now always translates both connect fields against the given from type, independent of the `translateAggregationFieldNames` flag. Code that relied on the raw enum name reaching the pipeline must use the String overload instead.
 
 ### Fixed
+
+#### MorphiumConfig: `getMaximumRetriesBufferedWriter()` returned the AsyncWriter value (#227)
+The deprecated flat getter delegated to `WriterSettings.getMaximumRetriesAsyncWriter()` instead of `getMaximumRetriesBufferedWriter()` — callers silently got the async-writer retry count whenever the two settings differed (both default to 10, which is why it never surfaced). Found while writing the #218 replacement Javadoc.
 
 #### Aggregator: `Group.stdDevSamp(String, Object)` emitted `stdDevSamp` without the `$` prefix
 The operator map was built as `{stdDevSamp: ...}` instead of `{$stdDevSamp: ...}`, so the String-based `stdDevSamp` accumulator never worked. (The `$stdDevPop` sibling was correct.)
