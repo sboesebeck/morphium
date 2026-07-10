@@ -1408,6 +1408,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // Runnable r = ()->{
         boolean wasProcessed = false;
         boolean wasRejected = false;
+        boolean markedForExclusiveOnly = false;
         List<MessageRejectedException> rejections = new ArrayList<>();
         List<MessageListener> lst = new ArrayList<>();
 
@@ -1431,7 +1432,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     break;
                 }
 
-                if (l.markAsProcessedBeforeExec() && !alreadyUpdatedProcessedBy) {
+                // Exclusive messages must set processed_by BEFORE onMessage: exactly-once must not
+                // rely on the MsgLock alone. If the lock is lost mid-processing (TTL, cleanup, failover)
+                // and the message is re-fetched via the poll path, a second instance would re-lock,
+                // see an empty processed_by and process again.
+                if ((l.markAsProcessedBeforeExec() || msg.isExclusive()) && !alreadyUpdatedProcessedBy) {
                     boolean updated = updateProcessedBy(msg);
                     if (!updated) {
                         // processed_by update failed - don't call listener, allow retry
@@ -1442,6 +1447,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         return;
                     }
                     alreadyUpdatedProcessedBy = true;
+                    markedForExclusiveOnly = !l.markAsProcessedBeforeExec();
                 }
 
                 // Call listener
@@ -1468,8 +1474,23 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 wasRejected = true;
                 rejections.add(mre);
                 requestPoll.incrementAndGet();
+
+                // rollback the pre-exec mark that was only set because the message is exclusive,
+                // otherwise the message could never be retried
+                if (markedForExclusiveOnly) {
+                    removeProcessedBy(msg);
+                    alreadyUpdatedProcessedBy = false;
+                    markedForExclusiveOnly = false;
+                }
             } catch (Exception e) {
                 log.error(id + ": listener Processing failed", e);
+
+                // same rollback as for rejections - keep retry semantics for exclusive messages
+                if (markedForExclusiveOnly) {
+                    removeProcessedBy(msg);
+                    alreadyUpdatedProcessedBy = false;
+                    markedForExclusiveOnly = false;
+                }
                 checkDeleteAfterProcessing(msg);
             }
         }
@@ -1606,6 +1627,48 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
             return false;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
+
+    /**
+     * Rollback for updateProcessedBy: remove our id from processed_by ($pull) so the message
+     * can be retried. Used when an exclusive message was marked before exec (see processMessage)
+     * but the listener rejected or failed.
+     */
+    private void removeProcessedBy(Msg msg) {
+        if (msg == null) {
+            return;
+        }
+
+        if (!running || morphium == null || morphium.getDriver() == null || morphium.getConfig() == null) {
+            return;
+        }
+
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
+        idq.f("_id").eq(queryId);
+        Map<String, Object> qobj = idq.toQueryObject();
+        Map<String, Object> update = Doc.of("$pull", Doc.of("processed_by", id));
+        UpdateMongoCommand cmd = null;
+
+        try {
+            cmd = new UpdateMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
+            cmd.addUpdate(qobj, update, null, false, false, null, null, null);
+            cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+            msg.getProcessedBy().remove(id);
+        } catch (MorphiumDriverException e) {
+            log.error("Error removing processed_by - message might not be retried!", e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
