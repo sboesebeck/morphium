@@ -41,6 +41,11 @@ public class SingleMongoConnection implements MongoConnection {
 
     private AtomicInteger msgId = new AtomicInteger(1000);
 
+    // Extra client-side wait on top of a watch getMore's maxTimeMS: the server answers
+    // within maxTimeMS, this grace covers network and processing time. Only a truly broken
+    // connection exceeds it.
+    static final int WATCH_READ_GRACE_MS = 10_000;
+
     //    private List<OpMsg> replies = Collections.synchronizedList(new ArrayList<>());
     // private Thread readerThread = null;
     // private Map<Integer, OpMsg> incoming = new HashMap<>();
@@ -415,6 +420,9 @@ public class SingleMongoConnection implements MongoConnection {
                     byte[] msgb = opc.getCompressedMessage();
                     OpMsg message = new OpMsg();
                     message.setMessageId(opc.getMessageId());
+                    // the outer OP_COMPRESSED header carries the real responseTo - without it,
+                    // reply/request matching would flag every compressed reply as out-of-sync
+                    message.setResponseTo(opc.getResponseTo());
                     message.parsePayload(msgb, 0);
                     msg = message;
                 } else {
@@ -606,12 +614,34 @@ public class SingleMongoConnection implements MongoConnection {
 
     public synchronized OpMsg sendAndWaitForReply(OpMsg q, int timeout) throws MorphiumDriverException {
         sendQuery(q);
-        return readNextMessage(timeout);
+        return readReplyFor(q.getMessageId(), timeout);
+    }
+
+    /**
+     * Reads the next message and verifies it actually answers the given request.
+     * If the reply's responseTo does not match, this connection's stream is out of sync
+     * (a reply was left unread by an earlier aborted/timed-out request) - every subsequent
+     * caller would receive its predecessor's answer (seen in prod as "cursor id not found"
+     * on fresh finds, 2026-07-11/12). The connection is poisoned: close it and throw a
+     * retriable network exception so callers retry on a fresh connection.
+     */
+    private OpMsg readReplyFor(int requestId, int timeout) throws MorphiumDriverException {
+        OpMsg reply = readNextMessage(timeout);
+
+        if (reply != null && reply.getResponseTo() != requestId) {
+            log.error("Connection to {} out of sync: expected reply to request {}, got reply to {} - closing connection",
+                connectedTo, requestId, reply.getResponseTo());
+            close();
+            throw new MorphiumDriverNetworkException("Connection out of sync: expected reply to request "
+                + requestId + ", got reply to " + reply.getResponseTo());
+        }
+
+        return reply;
     }
 
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
-        OpMsg reply = readNextMessage(driver.getMaxWaitTime());//getReplyFor(id, driver.getMaxWaitTime());
+        OpMsg reply = readReplyFor(id, driver.getMaxWaitTime());
 
         if (reply == null) {
             return null;
@@ -708,7 +738,14 @@ public class SingleMongoConnection implements MongoConnection {
             OpMsg reply = null;
 
             try {
-                reply = readNextMessage(maxWait);//getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
+                // The server answers a getMore within maxTimeMS (empty batch on no events).
+                // Waiting only maxWait client-side loses the race against network/processing
+                // time: the client hits its deadline just before the reply arrives, "restarts"
+                // the stream in place and thereby (a) leaks the previous server-side cursor
+                // (seen as hundreds of idle $changeStream cursors in prod) and (b) leaves the
+                // late reply unread in the stream - desyncing every following read (Error 43
+                // on unrelated queries, planner stall 2026-07-11/12). Grant a grace period.
+                reply = readNextMessage(maxWait + WATCH_READ_GRACE_MS);
             } catch (MorphiumDriverException e) {
                 if (e.getMessage().contains("server did not answer in time: ") || e.getMessage().contains("Read timed out")) {
                     log.debug("WATCH: timeout, resending query");
@@ -721,7 +758,7 @@ public class SingleMongoConnection implements MongoConnection {
 
             //log.info("got answer for watch!");
 
-            // Handle null reply (can happen after max socket timeout retries)
+            // Handle null reply (no answer within maxTimeMS + grace)
             // Check isContinued() to allow caller to detect staleness and decide to stop
             if (reply == null) {
                 log.debug("Got null as reply - checking if should continue");
@@ -729,17 +766,18 @@ public class SingleMongoConnection implements MongoConnection {
                     log.debug("Callback indicates stop - exiting watch loop");
                     break;
                 }
-                // Callback wants to continue - restart the watch with resume token if available
-                log.debug("Restarting watch after null reply");
+
+                // No reply although the server must answer within maxTimeMS: this connection
+                // is suspect - a late reply may still be in flight. Restarting the stream on
+                // the same connection would desync the reply stream and leak the server-side
+                // cursor. Close and let the caller (ChangeStreamMonitor) resume on a fresh
+                // connection using its tracked resume token.
                 if (lastResumeToken[0] != null) {
                     command.setResumeAfter(lastResumeToken[0]);
-                    startMsg.setFirstDoc(command.asMap());
-                    msg = startMsg;
-                    log.debug("Resuming from token after null reply");
                 }
-                msg.setMessageId(msgId.incrementAndGet());
-                sendQuery(msg);
-                continue;
+                log.warn("watch: no reply within maxTimeMS+{}ms grace on {} - closing connection, caller should resume", WATCH_READ_GRACE_MS, connectedTo);
+                close();
+                throw new MorphiumDriverNetworkException("watch: no reply within maxTimeMS + grace - connection closed, resume on a fresh connection");
             }
 
             checkForError(reply);
@@ -861,7 +899,7 @@ public class SingleMongoConnection implements MongoConnection {
 
     @Override
     public MorphiumCursor getAnswerFor(int queryId, int batchSize) throws MorphiumDriverException {
-        OpMsg reply = readNextMessage(driver.getMaxWaitTime());//getReplyFor(queryId, driver.getMaxWaitTime());
+        OpMsg reply = readReplyFor(queryId, driver.getMaxWaitTime());
         checkForError(reply);
 
         if (reply == null) {
