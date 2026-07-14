@@ -4330,6 +4330,36 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
+    /**
+     * Removes a field for a $unset operation. Supports dotted paths into nested
+     * documents (e.g. "a.b.c"): navigates through the existing sub-documents and
+     * removes the leaf key. If any intermediate segment is missing or not a
+     * document, this is a no-op (matching MongoDB semantics).
+     */
+    @SuppressWarnings("unchecked")
+    private void unsetField(Map<String, Object> obj, String key) {
+        if (!key.contains(".")) {
+            obj.remove(key);
+            return;
+        }
+
+        String[] path = key.split("\\.");
+        Map<String, Object> current = obj;
+
+        for (int i = 0; i < path.length - 1; i++) {
+            Object existing = current.get(path[i]);
+
+            if (!(existing instanceof Map)) {
+                // Path does not exist (or is not a sub-document) -> nothing to unset
+                return;
+            }
+
+            current = (Map<String, Object>) existing;
+        }
+
+        current.remove(path[path.length - 1]);
+    }
+
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query,
             Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
@@ -4416,9 +4446,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                         case "$unset":
 
-                            // $unset: { <field1>: "", ... }
+                            // $unset: { <field1>: "", ... } - supports dotted paths into nested documents
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                obj.remove(entry.getKey());
+                                unsetField(obj, entry.getKey());
                             }
 
                             break;

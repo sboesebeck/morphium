@@ -5,53 +5,50 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+
+## [6.2.9] - 2026-07-14
+
+### Fixed
+
+#### InMemoryDriver: `$unset` now supports dotted (nested) field paths
+`$unset` only removed top-level keys via a flat `Map.remove(key)`, so unsetting a nested field such as `es_upload.acceptance.idx` was a silent no-op — the field stayed and the update reported `nModified: 0`. It now navigates the sub-documents and removes the leaf key, matching MongoDB (missing/non-document intermediate segments remain a no-op). Regression test in `InMemUnsetDottedPathTest`.
+
+#### InMemoryDriver: `$in` / `$nin` accept Java-array operands, not just `List`
+`$in`/`$nin` hard-cast their operand to `List`, throwing `ClassCastException` when a raw query supplied a Java array (e.g. a `String[]` passed into `rawQuery` as `{_id: {$in: ids}}`) — MongoDB/BSON serialization would deliver a list, but the in-memory driver sees the original array. The operand is now normalized (`List`, object/primitive arrays and other `Iterable`s all accepted). Regression test in `InMemInArrayOperandTest`.
+
+#### Expr: `$in` expression no longer throws on a null/missing array operand
+The `$in` aggregation expression (also used in query `$expr`) iterated its array operand unguarded, throwing a `NullPointerException` when it resolved to a missing field path (e.g. `$source_shortcuts`) or a non-list value. It now treats a null/non-list array as "not contained" and returns `false`, and compares elements null-safely.
+
+## [6.2.8] - 2026-07-13
+
+### Fixed
+
+#### Driver: reply/request matching and watch cursor leak on `SingleMongoConnection`
+A production incident (JEF runners, 2026-07-11/12) showed waves of `Error 43 - cursor id not found` on unrelated fresh queries, ending in a permanently stalled consumer. Two causes: watch `getMore`s used `maxTimeMS=maxWaitTime` while the client also waited only `maxWaitTime` for the reply and regularly lost that race, restarting the change stream in place and leaking the server-side cursor (hundreds of idle `$changeStream` cursors); and `readSingleAnswer()`/`getAnswerFor()` ignored the reply's `responseTo`, so once a connection was out of sync every caller got its predecessor's answer until one blocked forever. `readReplyFor()` now verifies `responseTo` against the request id and poisons/closes the connection on mismatch (retriable `MorphiumDriverNetworkException`, same pattern as the code-251 handling).
+
+## [6.2.7] - 2026-07-10
+
+### Fixed
+
+#### Messaging: exclusive messages processed twice when the `MsgLock` was lost mid-processing
+Exclusive messages relied solely on the `MsgLock` for exactly-once delivery — `processed_by` was written only *after* `onMessage` (unless the listener opted into `markAsProcessedBeforeExec`). If the lock vanished mid-processing (TTL, cleanup, failover) and the message was re-fetched via the poll path (active during change-stream stalls), a second instance re-locked it, saw an empty `processed_by` and processed it again (observed in production as 1 message → 2 JEF tasks → 2 invoices with the same number). Exclusive messages now mark `processed_by` *before* invoking the listener and roll the mark back (new helper `removeProcessedBy`) on rejection or listener failure, preserving retry semantics. New fault-injection test `ExclusiveOnceReproTest`.
+
+## [6.2.6] - 2026-07-08
 
 ### Added
-
-#### Aggregator: WARN when a renamed project(Map) key is referenced by its original spelling (#208)
-`project(Map)` translates its keys through the entity's field-name mapping. When a later stage references such a key by the name the user wrote, the reference points at a non-existent field and MongoDB silently returns `$sum: 0` / `$push: []`. Both aggregator implementations now log a WARN (once per reference) naming both spellings. `$$`-variables and `$literal` subtrees are ignored; dot-paths are matched by their first segment.
-
-#### Aggregator: opt-in consistent field-name translation (#208, #217)
-New opt-in setting `translateAggregationFieldNames` (`ObjectMappingSettings`, overridable per aggregator via `Aggregator.setTranslateAggregationFieldNames`): when enabled, Java property names are translated to Mongo field names. Covered stages: group operator `$`-references and id values, `project(Map)` and `addFields`/`set` keys *and values*, `sort(Map)` keys, `graphLookup` connect fields and `startWith` — including `$`-references inside `Expr` values there. **Not covered** (tracked in #221): stages taking a raw `Expr` — `match(Expr)`, `sortByCount`, `replaceRoot`/`replaceWith`, `redact`, `bucket`, `facetExpr`, `unwind(Expr)` — use Mongo field names or `Expr.field(Enum)` there. Dot-paths translate their first segment; `$$`-variables and `$literal` subtrees are never touched. **Default off = exactly the previous behavior.** The effective config value is snapshotted when the aggregator is created; the per-aggregator override wins at any time.
-
-New helpers `Aggregator.ref(Enum)` / `Aggregator.name(Enum)` translate enum field references explicitly (`F.itemCount` → `"$item_count"` / `"item_count"`), independent of the flag: `group.sum(agg.name(F.itemCount), agg.ref(F.itemCount))`. All new `Aggregator` interface methods are default methods — third-party implementations keep compiling.
-
-Known limitation: translation operates on the serialized pipeline, where `Expr.string("$...")` is indistinguishable from a field reference. Wrap string values that look like field references in `$literal` when the flag is on.
-
-#### PoppyDB: priority-based leader step-back after failover (#177)
-A PoppyDB leader now voluntarily hands leadership to a peer with higher election priority, mirroring MongoDB's priority takeover. Previously a failover to a lower-priority node was permanent — the preferred primary never returned, even after it recovered.
-
-The leader yields only once the higher-priority peer answers its heartbeats and has acknowledged everything replicated during the leader's term, and only after it has been leader for `priorityTakeoverMinStabilityMs` (default 30s), so a settling cluster does not flap. Followers report their priority in the `appendEntries` response; nodes that omit it (older versions) never trigger a takeover.
-
-Enabled by default. Configurable via `ElectionConfig.priorityTakeoverEnabled` / `-Dmorphiumserver.priorityTakeoverEnabled=false` plus `priorityTakeoverCheckIntervalMs`, `priorityTakeoverMinStabilityMs`, `priorityTakeoverMaxLag` and `priorityTakeoverStepDownSecs`. In a cluster where all nodes share the default priority (50), behavior is unchanged.
 
 #### InMemoryDriver: `$setOnInsert` and upsert/`new` support in `findAndModify` (#203)
 The `InMemoryDriver` now honors `$setOnInsert` and the `upsert`/`new` flags in `findAndModify`, matching MongoDB behavior. Includes a regression test for upsert via `$and`-nested `_id` filters (#202, #204).
 
-### Deprecated
-
-#### 7.0-removal candidates now carry `@Deprecated(since = "6.3", forRemoval = true)` (#218)
-Members confirmed for removal in 7.0 (#172 et al.) are now annotated `@Deprecated(since = "6.3", forRemoval = true)`, and their Javadoc names the replacement — IDEs flag usages a full minor release before anything is removed. Covered groups: the flat `MorphiumConfig` setters/getters (use the `Settings` sub-objects via `connectionSettings()`, `objectMappingSettings()`, ... instead), the `MorphiumBase.set…`/`unsetQ…` variants, the legacy `SingleCollectionMessaging` constructors, `Query.complexQuery`/`getById`/`textSearch`, `Msg.name`, `MorphiumMessaging.setProcessMultiple`, `MongoBob` and `@UseIfnull` (use `@IgnoreNullFromDB`). Members that stay deprecated-but-kept, and the BSON-spec deprecations in `MongoType`, are unchanged. Pure annotation/Javadoc change, zero runtime impact.
-
 ### Changed
 
-#### Messaging: unified `processed_by` field-name handling (#219)
-The Mongo field name of `Msg.processedBy` is now resolved once per messaging instance via the object mapper instead of being hardcoded at ~15 call sites. The dual-name defensive read (`processed_by`/`processedBy`) in the exclusive-message path was removed — documents written with the non-canonical camelCase spelling (never produced by Morphium itself) are no longer recognized there.
+#### SequenceGenerator: duplicated lock lifecycle extracted (#171)
+`getNextValue()` and `getNextBatch()` shared ~40 identical lines of insert-based lock acquisition (retry with jitter, proactive stale-lock clearing) and release. Both now run their critical section through a single `withSequenceLock(Supplier)` helper. No behavioral change.
 
-#### Aggregator: `graphLookup` enum overload now translates connect fields (#217)
-`graphLookup(Class, Expr, Enum, Enum, ...)` passed `connectFromField.name()` / `connectToField.name()` through untranslated — same defect family as the `lookup` enum overload fixed in 6.2.5 (#198). The enum overload now always translates both connect fields against the given from type, independent of the `translateAggregationFieldNames` flag. Code that relied on the raw enum name reaching the pipeline must use the String overload instead.
+#### Internal: legacy `Vector`/`Hashtable` replaced with concurrent collections (#173, #212)
+`AbstractCacheSynchronizer`, `MorphiumCacheImpl`/`MorphiumCacheJCacheImpl` and `jms/Producer` now use `ConcurrentHashMap`/`CopyOnWriteArrayList` instead of `Hashtable`/`Vector`; `BufferedMorphiumWriterImpl` uses `Collections.synchronizedList` consistently. Thread-safety guarantees are unchanged or strengthened (listener iteration is now safe against `ConcurrentModificationException`); no API change. Remaining `printStackTrace()` calls in production code were routed through SLF4J.
 
 ### Fixed
-
-#### InMemAggregator: `$count` on empty input emitted `{field: 0}` — MongoDB emits no document (#228)
-The in-memory `$count` stage always produced a result document; real MongoDB returns an empty result set when the stage input is empty. The stage now matches MongoDB, and `InMemAggregator.getCount()` gained the same empty-result guard `AggregatorImpl` already had.
-
-#### MorphiumConfig: `getMaximumRetriesBufferedWriter()` returned the AsyncWriter value (#227)
-The deprecated flat getter delegated to `WriterSettings.getMaximumRetriesAsyncWriter()` instead of `getMaximumRetriesBufferedWriter()` — callers silently got the async-writer retry count whenever the two settings differed (both default to 10, which is why it never surfaced). Found while writing the #218 replacement Javadoc.
-
-#### Aggregator: `Group.stdDevSamp(String, Object)` emitted `stdDevSamp` without the `$` prefix
-The operator map was built as `{stdDevSamp: ...}` instead of `{$stdDevSamp: ...}`, so the String-based `stdDevSamp` accumulator never worked. (The `$stdDevPop` sibling was correct.)
 
 #### Driver: replicaset failover repaired — bounded timeouts, write retries, changestream recovery
 During a primary failure (crash, frozen VM, network partition) the driver effectively never recovered: writes failed or hung indefinitely, messaging never reconnected. Root causes and fixes:
@@ -73,14 +70,6 @@ The read-cache branch in `findOneAndUpdate(Map)` was copy/pasted from `findOneAn
 
 #### InMemoryDriver: dotted field paths in queries
 `find` no longer rewrites dotted query keys, so nested paths containing upper-case segments match correctly; `distinct` resolves dotted paths into the nested document instead of doing a flat lookup.
-
-### Changed
-
-#### SequenceGenerator: duplicated lock lifecycle extracted (#171)
-`getNextValue()` and `getNextBatch()` shared ~40 identical lines of insert-based lock acquisition (retry with jitter, proactive stale-lock clearing) and release. Both now run their critical section through a single `withSequenceLock(Supplier)` helper. No behavioral change.
-
-#### Internal: legacy `Vector`/`Hashtable` replaced with concurrent collections (#173, #212)
-`AbstractCacheSynchronizer`, `MorphiumCacheImpl`/`MorphiumCacheJCacheImpl` and `jms/Producer` now use `ConcurrentHashMap`/`CopyOnWriteArrayList` instead of `Hashtable`/`Vector`; `BufferedMorphiumWriterImpl` uses `Collections.synchronizedList` consistently. Thread-safety guarantees are unchanged or strengthened (listener iteration is now safe against `ConcurrentModificationException`); no API change. Remaining `printStackTrace()` calls in production code were routed through SLF4J.
 
 ### CI / Tests
 

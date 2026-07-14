@@ -654,7 +654,7 @@ public class QueryHelper {
                                 return expectExists ? exists : !exists;
 
                             case "$nin":
-                                List<?> ninList = (List) commandMap.get(commandKey);
+                                List<?> ninList = asValueList(commandMap.get(commandKey));
                                 boolean foundNin = false;
 
                                 // When collation is present, use O(n) comparison that respects collation
@@ -696,7 +696,7 @@ public class QueryHelper {
                                 return !foundNin;
 
                             case "$in":
-                                List<?> inList = (List) commandMap.get(commandKey);
+                                List<?> inList = asValueList(commandMap.get(commandKey));
 
                                 // When collation is present, use O(n) comparison that respects collation
                                 // Otherwise use O(1) HashSet lookup
@@ -2417,6 +2417,47 @@ public class QueryHelper {
         }
 
         return value;
+    }
+
+    /**
+     * Normalizes a query operand that is expected to be a list of values (as used
+     * by $in / $nin). MongoDB/BSON serialization would deliver a List, but when the
+     * InMemoryDriver operates directly on a raw in-memory query the value may still
+     * be a Java array (e.g. a String[] passed into rawQuery) or another Iterable.
+     * Accept all of them instead of hard-casting to List.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Object> asValueList(Object value) {
+        if (value instanceof List) {
+            return (List<Object>) value;
+        }
+
+        if (value instanceof Object[]) {
+            return Arrays.asList((Object[]) value);
+        }
+
+        if (value != null && value.getClass().isArray()) {
+            int len = Array.getLength(value);
+            List<Object> list = new ArrayList<>(len);
+
+            for (int i = 0; i < len; i++) {
+                list.add(Array.get(value, i));
+            }
+
+            return list;
+        }
+
+        if (value instanceof Iterable) {
+            List<Object> list = new ArrayList<>();
+
+            for (Object o : (Iterable<Object>) value) {
+                list.add(o);
+            }
+
+            return list;
+        }
+
+        return value == null ? Collections.emptyList() : List.of(value);
     }
 
     private static final class LookupResult {

@@ -531,17 +531,22 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 Object v = eval(elem, context);
+                Object arr = eval(array, context);
                 boolean found = false;
 
-                //noinspection unchecked
-                for (Object o : (List<Object>) eval(array, context)) {
-                    if (o instanceof Expr) {
-                        o = eval(((Expr) o), context);
-                    }
+                // The array operand can resolve to null (e.g. a missing field path
+                // like "$source_shortcuts") or to a non-list value; in that case the
+                // element simply is not contained -> no match instead of an NPE/CCE.
+                if (arr instanceof List) {
+                    for (Object o : (List<Object>) arr) {
+                        if (o instanceof Expr) {
+                            o = eval(((Expr) o), context);
+                        }
 
-                    if (o.equals(v)) {
-                        found = true;
-                        break;
+                        if (Objects.equals(o, v)) {
+                            found = true;
+                            break;
+                        }
                     }
                 }
 
