@@ -30,6 +30,19 @@ public interface MorphiumDriver extends Closeable {
     //.----)   |   |  |____     |  |        |  |     |  | |  |\   | |  |__| | .----)   |
     //|_______/    |_______|    |__|        |__|     |__| |__| \__|  \______| |_______/
     String getName();
+
+    /**
+     * application name sent to MongoDB as {@code client.application.name} in the connection
+     * handshake - visible in db.currentOp(), server logs and profiler output
+     */
+    default String getAppName() {
+        return null;
+    }
+
+    default void setAppName(String appName) {
+        // optional - drivers that do not send a handshake may ignore this
+    }
+
     int getCompression();
     MorphiumDriver setCompression(int type);
     int getIdleSleepTime();

@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.MorphiumVersion;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
@@ -102,12 +103,16 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
         }
         ret.put("$db", "admin");
         String driverName = "unknown";
+        String appName = "Morphium";
         if (getConnection() != null && getConnection().getDriver() != null) {
             driverName = getConnection().getDriver().getName();
+            if (getConnection().getDriver().getAppName() != null) {
+                appName = getConnection().getDriver().getAppName();
+            }
         }
         if (includeClient) {
-            ret.put("client", Doc.of("application", Doc.of("name", "Morphium"),
-                                     "driver", Doc.of("name", "Morphium V6/" + driverName, "version", "6.2"),
+            ret.put("client", Doc.of("application", Doc.of("name", appName),
+                                     "driver", Doc.of("name", "Morphium/" + driverName, "version", MorphiumVersion.getVersion()),
                                      "os", Doc.of("type", System.getProperty("os.name"))));
         }
         // Advertise supported compressors to the server (MongoDB wire protocol compression negotiation)
