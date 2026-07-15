@@ -46,6 +46,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private javax.net.ssl.SSLContext sslContext = null;
     private boolean sslInvalidHostNameAllowed = false;
     private String authMechanism = null;
+    private String appName = "Morphium";
     private int defaultW = 1;
     private int connectionTimeout = 1000;
     private int maxConnectionIdleTime = 100000;
@@ -512,6 +513,16 @@ public abstract class DriverBase implements MorphiumDriver {
     @Override
     public void setDefaultW(int w) {
         defaultW = w;
+    }
+
+    @Override
+    public String getAppName() {
+        return appName;
+    }
+
+    @Override
+    public void setAppName(String appName) {
+        this.appName = appName;
     }
 
     @Override

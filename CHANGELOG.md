@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Added
+
+#### Driver: configurable `appName` in the connection handshake
+New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as `client.application.name` in the `hello` handshake. Set it per service to tell instances apart in `db.currentOp()`, server logs and profiler output (MongoDB truncates values over 128 bytes). Third-party `MorphiumDriver` implementations keep compiling — the new interface methods are defaults.
+
+### Fixed
+
+#### Driver: handshake metadata sent the hardcoded version "6.2"
+The `hello` client metadata reported `driver.version: "6.2"` regardless of the actual Morphium version, making the field useless for telling patch levels apart on the server side. The real version is now read at runtime from `morphium-version.properties`, a Maven-filtered classpath resource (`MorphiumVersion.getVersion()`, fallback `"unknown"`) — this also works in GraalVM native images, unlike the jar manifest. Additionally, the connect handshake built its `HelloCommand` without a connection, so `driver.name` was always reported as `Morphium V6/unknown`; the driver name is now resolved (`Morphium/PooledDriver` etc.). Verified end-to-end against a real replicaset via `db.currentOp()`.
+
 ## [6.2.9] - 2026-07-14
 
 ### Added

@@ -237,7 +237,8 @@ public class SingleMongoConnection implements MongoConnection {
         long start = System.currentTimeMillis();
 
         while (null == result) {
-            HelloCommand cmd = new HelloCommand(null);
+            // pass this connection so the client metadata (driver name, appName) can be resolved
+            HelloCommand cmd = new HelloCommand(this);
 
             if (authDb != null) {
                 cmd.setUser(user);
