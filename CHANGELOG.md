@@ -15,6 +15,9 @@ New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as 
 
 ### Fixed
 
+#### PooledDriver: empty hosts map is re-seeded from the host seed — driver no longer permanently dead after a full replica-set outage (#233)
+When every replica-set member was unreachable long enough (rolling restart with overlapping windows, short network partition), `onConnectionError` evicted all hosts and the driver had no way back: the heartbeat only iterates the hosts map, and `handleHelloResult` — the only place re-adding hosts — only runs from heartbeat threads. Every operation failed with `No primary node found - not connected yet?` until the application was restarted, even though the cluster was healthy again (observed in production on morphium 6.1.8, 2026-07-16; the defect existed unchanged on develop). The heartbeat now re-seeds the hosts map from the configured host seed when it finds it empty, restarting the normal discovery cycle.
+
 #### InMemoryDriver: event dispatcher no longer uses virtual threads — JVM-wide logging deadlock under JDK 21 (#234)
 The change-stream event dispatcher used a virtual-thread factory. Under load, dispatcher threads pinned to their carriers while parked on the logback appender lock could occupy every carrier of the common ForkJoinPool; the unmounted virtual thread holding the lock then never got scheduled again, freezing every thread that logs (observed as a 20+ minute hang of the InMem CI phase in `SingleCollectionMessaging.terminate()` → `log.info()`). This is the same JDK-21 pinning/starvation class that led to the earlier project-wide virtual-thread rollback; the dispatcher had been missed. It now uses daemon platform threads.
 
