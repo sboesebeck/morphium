@@ -160,36 +160,7 @@ public class ReplicationManager {
             return;
         }
 
-        // Group events by type and collection for bulk operations
-        Map<String, List<Map<String, Object>>> insertsByCollection = new HashMap<>();
-        List<Map<String, Object>> otherEvents = new ArrayList<>();
-
-        for (Map<String, Object> event : batch) {
-            String operationType = (String) event.get("operationType");
-            @SuppressWarnings("unchecked")
-            Map<String, Object> ns = (Map<String, Object>) event.get("ns");
-
-            if (ns == null || !"insert".equals(operationType)) {
-                otherEvents.add(event);
-                continue;
-            }
-
-            String db = (String) ns.get("db");
-            String coll = (String) ns.get("coll");
-            String key = db + "." + coll;
-
-            insertsByCollection.computeIfAbsent(key, k -> new ArrayList<>()).add(event);
-        }
-
-        // Apply bulk inserts
-        for (Map.Entry<String, List<Map<String, Object>>> entry : insertsByCollection.entrySet()) {
-            applyBulkInserts(entry.getKey(), entry.getValue());
-        }
-
-        // Apply other events individually
-        for (Map<String, Object> event : otherEvents) {
-            applyChangeEvent(event);
-        }
+        applyEventsInOrder(batch);
 
         // Notify about log index update for election consistency
         long currentSeq = lastAppliedSequence.get();
@@ -201,6 +172,58 @@ public class ReplicationManager {
         // Immediately report progress after processing batch for faster write concern acknowledgment
         if (immediateProgressReporting) {
             reportProgressToPrimary();
+        }
+    }
+
+    /**
+     * Apply a batch of change events to the local driver, preserving global event order.
+     *
+     * Only *contiguous* runs of insert events for the same collection are bundled into a
+     * single bulk insert; any non-insert event, or an insert for a different collection,
+     * flushes the pending run first (in order) before the next event is handled. This keeps
+     * the effective application order identical to sequential (one-event-at-a-time)
+     * application, while still batching same-collection inserts that happen to be adjacent
+     * for throughput.
+     *
+     * Package-visible (rather than private) so tests can exercise the ordering/grouping
+     * logic directly, without a live replication connection.
+     */
+    @SuppressWarnings("unchecked")
+    void applyEventsInOrder(List<Map<String, Object>> batch) {
+        List<Map<String, Object>> run = new ArrayList<>();
+        String runCollectionKey = null;
+
+        for (Map<String, Object> event : batch) {
+            String operationType = (String) event.get("operationType");
+            Map<String, Object> ns = (Map<String, Object>) event.get("ns");
+            boolean isInsert = ns != null && "insert".equals(operationType);
+            String collKey = isInsert ? ns.get("db") + "." + ns.get("coll") : null;
+
+            if (isInsert && (runCollectionKey == null || runCollectionKey.equals(collKey))) {
+                run.add(event);
+                runCollectionKey = collKey;
+                continue;
+            }
+
+            // Non-insert event, or insert for a different collection: flush the pending run
+            // first so it is applied before this event, preserving global order.
+            if (!run.isEmpty()) {
+                applyBulkInserts(runCollectionKey, run);
+                run = new ArrayList<>();
+            }
+            runCollectionKey = null;
+
+            if (isInsert) {
+                run.add(event);
+                runCollectionKey = collKey;
+            } else {
+                applyChangeEvent(event);
+            }
+        }
+
+        // Flush any trailing run.
+        if (!run.isEmpty()) {
+            applyBulkInserts(runCollectionKey, run);
         }
     }
 
