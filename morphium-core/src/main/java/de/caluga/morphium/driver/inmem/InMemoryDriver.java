@@ -225,11 +225,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
     // Executor for dispatching change stream events asynchronously
     // This prevents insert/update/delete operations from blocking on event delivery
-    // Using cached thread pool with virtual threads to handle high event volumes
-    // without blocking
+    // Platform threads on purpose: virtual threads can deadlock the whole JVM here
+    // under JDK 21 — dispatchers pinned on the logback appender lock occupy all
+    // carriers while the unmounted lock holder never gets scheduled again (#234).
     private final java.util.concurrent.ExecutorService eventDispatcher = java.util.concurrent.Executors
         .newCachedThreadPool(
-                        Thread.ofVirtual().name("event-dispatcher-", 0).factory());
+                        Thread.ofPlatform().name("event-dispatcher-", 0).daemon(true).factory());
     private boolean running = true;
     private int expireCheck = 10000;
     private ScheduledFuture<?> expire;

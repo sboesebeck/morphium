@@ -15,6 +15,9 @@ New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as 
 
 ### Fixed
 
+#### InMemoryDriver: event dispatcher no longer uses virtual threads — JVM-wide logging deadlock under JDK 21 (#234)
+The change-stream event dispatcher used a virtual-thread factory. Under load, dispatcher threads pinned to their carriers while parked on the logback appender lock could occupy every carrier of the common ForkJoinPool; the unmounted virtual thread holding the lock then never got scheduled again, freezing every thread that logs (observed as a 20+ minute hang of the InMem CI phase in `SingleCollectionMessaging.terminate()` → `log.info()`). This is the same JDK-21 pinning/starvation class that led to the earlier project-wide virtual-thread rollback; the dispatcher had been missed. It now uses daemon platform threads.
+
 #### Expr: `$in` rejects a non-array second operand — matching MongoDB (error 40081)
 The `$in` aggregation expression (also used in query `$expr`) silently returned `false` when its array operand resolved to null (e.g. a missing field path), a scalar or any other non-array — pipelines that fail on real MongoDB (`$in requires an array as a second argument`) passed against the in-memory evaluation. It now throws an `IllegalArgumentException` instead. **This reverts the lenient behavior introduced in 6.2.9**, which had replaced the previous `NullPointerException` with `false`; the clean error message stays. Java arrays are accepted as operand alongside `List`, and elements are compared null-safely.
 
