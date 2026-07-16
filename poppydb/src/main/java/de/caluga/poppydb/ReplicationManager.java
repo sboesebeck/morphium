@@ -59,7 +59,10 @@ public class ReplicationManager {
     // Using reasonable batch interval for good throughput
     private static final int BATCH_SIZE = 100;
     private static final long BATCH_FLUSH_INTERVAL_MS = 5;
-    private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>();
+    // Bounded so a stalled batch processor applies backpressure to the watch callback
+    // (via put()) instead of buffering replication events until OOM.
+    private static final int EVENT_QUEUE_CAPACITY = 100_000;
+    private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>(EVENT_QUEUE_CAPACITY);
     private ScheduledExecutorService batchProcessor;
 
     // Flag to enable immediate progress reporting after each batch
@@ -580,8 +583,15 @@ public class ReplicationManager {
                         }
                         // Update staleness tracker - we received a response
                         lastWatchResponseTime.set(System.currentTimeMillis());
-                        // Queue for batch processing instead of immediate application
-                        eventQueue.offer(data);
+                        // Queue for batch processing instead of immediate application.
+                        // Use put() so a full queue blocks the watch callback (backpressure)
+                        // rather than dropping events or growing without bound.
+                        try {
+                            eventQueue.put(data);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.warn("Interrupted while enqueuing replication event; dropping event");
+                        }
                     }
 
                     @Override

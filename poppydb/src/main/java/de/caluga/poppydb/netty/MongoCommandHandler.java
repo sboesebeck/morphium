@@ -74,13 +74,50 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         final String collection;
         final List<Map<String, Object>> remaining;
         final int batchSize;
+        volatile long lastAccessed;
 
         FindCursorState(String db, String collection, List<Map<String, Object>> remaining, int batchSize) {
             this.db = db;
             this.collection = collection;
             this.remaining = remaining;
             this.batchSize = batchSize;
+            this.lastAccessed = System.currentTimeMillis();
         }
+    }
+
+    /** Idle time after which an unexhausted find cursor is reaped (MongoDB default cursorTimeoutMillis = 10 min). */
+    private static final long FIND_CURSOR_TTL_MS = 10 * 60 * 1000L;
+
+    // Single shared daemon thread that reaps idle find cursors. There is no pre-existing
+    // server-wide scheduler reachable from this static context, so a dedicated one is used.
+    private static final java.util.concurrent.ScheduledExecutorService CURSOR_SWEEPER =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "PoppyDB-cursor-sweeper");
+                t.setDaemon(true);
+                return t;
+            });
+
+    static {
+        CURSOR_SWEEPER.scheduleWithFixedDelay(MongoCommandHandler::sweepIdleFindCursors,
+                1, 1, java.util.concurrent.TimeUnit.MINUTES);
+    }
+
+    private static void sweepIdleFindCursors() {
+        long cutoff = System.currentTimeMillis() - FIND_CURSOR_TTL_MS;
+        int removed = 0;
+        for (var e : findCursors.entrySet()) {
+            if (e.getValue().lastAccessed < cutoff && findCursors.remove(e.getKey(), e.getValue())) {
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            log.debug("Cursor sweeper reaped {} idle find cursor(s)", removed);
+        }
+    }
+
+    /** Test/monitoring hook: number of currently open server-side find cursors (across all channels). */
+    public static int openFindCursors() {
+        return findCursors.size();
     }
 
     private final InMemoryDriver driver;
@@ -419,6 +456,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         } else if (findCursors.containsKey(cursorId)) {
             // Server-side find cursor — return next batch from pre-fetched results
             FindCursorState state = findCursors.get(cursorId);
+            state.lastAccessed = System.currentTimeMillis();
             int count = Math.min(state.batchSize, state.remaining.size());
             List<Map<String, Object>> batch = new ArrayList<>(state.remaining.subList(0, count));
             state.remaining.subList(0, count).clear();
@@ -1399,9 +1437,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Channel inactive, cleaning up ({} cursors to kill)", channelCursors.size());
-        // Kill all cursors owned by this channel to prevent thread/subscription leaks
+        // Kill all cursors owned by this channel to prevent thread/subscription leaks.
+        // A cursor is either a watch/tailable cursor (owned by cursorManager) or a
+        // server-side find cursor (in the static findCursors map) — clean up both, since
+        // an unexhausted find cursor would otherwise leak permanently on disconnect.
         for (Long cursorId : channelCursors) {
-            if (cursorManager.killCursor(cursorId)) {
+            if (findCursors.remove(cursorId) != null) {
+                log.debug("Removed orphaned find cursor {} on channel disconnect", cursorId);
+            } else if (cursorManager.killCursor(cursorId)) {
                 log.debug("Killed orphaned cursor {} on channel disconnect", cursorId);
             }
         }
