@@ -9,6 +9,7 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
@@ -532,25 +533,26 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 Object v = eval(elem, context);
                 Object arr = eval(array, context);
-                boolean found = false;
 
-                // The array operand can resolve to null (e.g. a missing field path
-                // like "$source_shortcuts") or to a non-list value; in that case the
-                // element simply is not contained -> no match instead of an NPE/CCE.
-                if (arr instanceof List) {
-                    for (Object o : (List<Object>) arr) {
-                        if (o instanceof Expr) {
-                            o = eval(((Expr) o), context);
-                        }
+                if (!(arr instanceof List) && (arr == null || !arr.getClass().isArray())) {
+                    throw new IllegalArgumentException("$in requires an array as its second operand");
+                }
 
-                        if (Objects.equals(o, v)) {
-                            found = true;
-                            break;
-                        }
+                int size = arr instanceof List ? ((List<?>) arr).size() : Array.getLength(arr);
+
+                for (int i = 0; i < size; i++) {
+                    Object value = arr instanceof List ? ((List<?>) arr).get(i) : Array.get(arr, i);
+
+                    if (value instanceof Expr) {
+                        value = eval((Expr) value, context);
+                    }
+
+                    if (Objects.equals(value, v)) {
+                        return true;
                     }
                 }
 
-                return found;
+                return false;
             }
         };
     }

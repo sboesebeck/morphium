@@ -94,6 +94,9 @@ public class QueryHelper {
             if (key.startsWith("$") && !isKnownOperator(key)) {
                 throw new IllegalArgumentException("unknown top level operator: " + key);
             }
+            if (("$in".equals(key) || "$nin".equals(key)) && !isValueList(query.get(key))) {
+                throw new IllegalArgumentException(key + " requires an array operand");
+            }
 
             // Skip recursion into operators whose payload is not a query document
             // (e.g. $expr/$jsonSchema/$where carry aggregation expressions, not queries).
@@ -109,6 +112,9 @@ public class QueryHelper {
                 for (String subKey : subQuery.keySet()) {
                     if (subKey.startsWith("$") && !isKnownOperator(subKey)) {
                         throw new IllegalArgumentException("unknown operator: " + subKey);
+                    }
+                    if (("$in".equals(subKey) || "$nin".equals(subKey)) && !isValueList(subQuery.get(subKey))) {
+                        throw new IllegalArgumentException(subKey + " requires an array operand");
                     }
                     // Only recurse into operators whose payload is itself a query document.
                     if (!QUERY_CONTAINER_OPERATORS.contains(subKey)) {
@@ -2457,7 +2463,13 @@ public class QueryHelper {
             return list;
         }
 
-        return value == null ? Collections.emptyList() : List.of(value);
+        throw new IllegalArgumentException("$in/$nin requires an array operand");
+    }
+
+    private static boolean isValueList(Object value) {
+        return value instanceof List
+               || value instanceof Iterable
+               || value != null && value.getClass().isArray();
     }
 
     private static final class LookupResult {
