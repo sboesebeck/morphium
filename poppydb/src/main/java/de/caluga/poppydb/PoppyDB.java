@@ -7,7 +7,9 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.IdentityCipherSuiteFilter;
 import io.netty.handler.ssl.JdkSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -279,6 +281,8 @@ public class PoppyDB {
         log.info("PoppyDB shutdown complete");
     }
 
+    @SuppressWarnings("deprecation") // SelfSignedCertificate is deprecated by Netty but is
+    // an intentional, WARN-logged test/dev-only fallback here - see below.
     private io.netty.handler.ssl.SslContext buildSslContext() throws Exception {
         if (sslContext != null) {
             // Adapt the caller-provided javax.net.ssl.SSLContext (e.g. built via
@@ -287,7 +291,22 @@ public class PoppyDB {
             log.info("Using explicitly configured SSLContext for TLS");
 
             try {
-                return new JdkSslContext(sslContext, false, ClientAuth.NONE);
+                // Netty's 3-arg JdkSslContext(SSLContext, boolean, ClientAuth) constructor is
+                // deprecated in favor of this 8-arg one. This call reproduces the exact
+                // defaults the deprecated constructor used internally: no explicit cipher
+                // list, IdentityCipherSuiteFilter, the default ALPN negotiator (selected by
+                // passing a null ApplicationProtocolConfig), no protocol override, no
+                // startTLS - verified against the netty-handler bytecode on the classpath.
+                return new JdkSslContext(
+                        sslContext,
+                        false,
+                        null,
+                        IdentityCipherSuiteFilter.INSTANCE,
+                        (ApplicationProtocolConfig) null,
+                        ClientAuth.NONE,
+                        null,
+                        false
+                );
             } catch (Exception e) {
                 throw new IllegalArgumentException(
                         "Configured SSLContext could not be adapted for server-side TLS: " + e.getMessage(), e);
