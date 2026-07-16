@@ -264,6 +264,8 @@ public class ReplicationManager {
             }
         }
 
+        final long finalMaxSeq = maxSeq;
+
         if (!documents.isEmpty()) {
             try {
                 GenericCommand cmd = new GenericCommand(localDriver);
@@ -274,32 +276,59 @@ public class ReplicationManager {
                     "$db", db,
                     "documents", documents
                 ));
-                localDriver.runCommand(cmd);
+                int msgId = localDriver.runCommand(cmd);
+                Map<String, Object> result = localDriver.readSingleAnswer(msgId);
+                Object writeErrors = (result != null) ? result.get("writeErrors") : null;
+
+                if (writeErrors instanceof List<?> errors && !errors.isEmpty()) {
+                    // InMemoryDriver does not throw for unique-secondary-index
+                    // violations (only an ordered _id duplicate throws); it silently
+                    // commits the non-conflicting documents from this very call and
+                    // reports the rest as writeErrors in the result. Treat that as a
+                    // failure of the bulk as a whole so it goes through the same
+                    // fallback below, instead of being mistaken for full success.
+                    throw new MorphiumDriverException(
+                        "Bulk insert into " + db + "." + coll + " reported writeErrors: " + errors, null);
+                }
+
                 eventsApplied.addAndGet(documents.size());
                 log.debug("Bulk inserted {} documents into {}.{}", documents.size(), db, coll);
 
-                // Whole bulk succeeded: safe to advance to the run's max sequence.
-                final long finalMaxSeq = maxSeq;
+                // Whole bulk command reported success: safe to advance to the run's max
+                // sequence.
                 if (finalMaxSeq > 0) {
                     lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
                 }
             } catch (Exception e) {
                 log.error("Error applying bulk insert to {}.{}: {}", db, coll, e.getMessage());
-                // The bulk insert failed as a whole (e.g. a duplicate key/unique index
-                // violation from one poison event) -- fall back to applying each event in
-                // the run individually via applyChangeEvent. That advances
-                // lastAppliedSequence per event, and only on success, so events that don't
-                // conflict still get applied and correctly acknowledged, while the poison
-                // event fails on its own without blocking the rest of the run or falsely
-                // advancing the sequence past it.
+                // The bulk insert failed as a whole, or partially (writeErrors above).
+                // Its atomicity is *not* guaranteed in general: an ordered _id-duplicate
+                // throws before any document is written, but a unique-secondary-index
+                // writeErrors result (or a failure raised later, e.g. during index
+                // maintenance) can leave some of this run's documents already
+                // committed. So we cannot just retry every event with a plain insert --
+                // that would spuriously fail (and permanently stall the sequence) on
+                // whatever already landed.
+                //
+                // Instead, fall back to applying each event in the run individually via
+                // applyChangeEvent in "replay" mode, which applies inserts as an
+                // idempotent full-document upsert-by-key (applyInsertIdempotent) rather
+                // than a strict insert -- the same replay-idempotency rule the
+                // initial-sync path needs (see task 8). Documents that already landed
+                // are harmlessly re-written to the same content; documents that didn't
+                // land yet get created. applyChangeEvent only advances
+                // lastAppliedSequence per event, and only on success, so events that
+                // don't conflict still get applied and correctly acknowledged, while a
+                // genuinely poison event (e.g. a real, still-unresolved unique-index
+                // conflict) fails on its own without blocking the rest of the run or
+                // falsely advancing the sequence past it.
                 for (Map<String, Object> event : events) {
-                    applyChangeEvent(event);
+                    applyChangeEvent(event, true);
                 }
             }
         } else {
             // No documents to insert (e.g. all events lacked fullDocument) -- nothing was
             // attempted, so it's safe to advance to the run's max sequence.
-            final long finalMaxSeq = maxSeq;
             if (finalMaxSeq > 0) {
                 lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
             }
@@ -665,8 +694,25 @@ public class ReplicationManager {
     /**
      * Apply a change event to the local driver.
      */
-    @SuppressWarnings("unchecked")
     private void applyChangeEvent(Map<String, Object> event) {
+        applyChangeEvent(event, false);
+    }
+
+    /**
+     * Apply a change event to the local driver.
+     *
+     * @param asReplay when {@code true}, an "insert" event is applied as an idempotent
+     *                  full-document upsert-by-key (see {@link #applyInsertIdempotent})
+     *                  instead of a strict insert. Used by {@code applyBulkInserts}'
+     *                  per-event fallback after a failed/partially-failed bulk insert,
+     *                  where some of the run's documents may already have been
+     *                  committed -- a plain re-insert of those would spuriously fail on
+     *                  a duplicate key. Other operation types are already applied
+     *                  idempotently regardless of this flag (update/replace as an
+     *                  upsert, delete/drop/dropDatabase are naturally safe to repeat).
+     */
+    @SuppressWarnings("unchecked")
+    private void applyChangeEvent(Map<String, Object> event, boolean asReplay) {
         try {
             // Extract sequence number from resume token
             long sequenceNumber = extractSequenceFromEvent(event);
@@ -700,16 +746,21 @@ public class ReplicationManager {
             switch (operationType) {
                 case "insert": {
                     Map<String, Object> fullDoc = (Map<String, Object>) event.get("fullDocument");
+                    Map<String, Object> docKey = (Map<String, Object>) event.get("documentKey");
                     if (fullDoc != null) {
-                        GenericCommand cmd = new GenericCommand(localDriver);
-                        cmd.setDb(db);
-                        cmd.setColl(coll);
-                        cmd.setCmdData(Doc.of(
-                            "insert", coll,
-                            "$db", db,
-                            "documents", List.of(fullDoc)
-                        ));
-                        localDriver.runCommand(cmd);
+                        if (asReplay && docKey != null) {
+                            applyInsertIdempotent(db, coll, docKey, fullDoc);
+                        } else {
+                            GenericCommand cmd = new GenericCommand(localDriver);
+                            cmd.setDb(db);
+                            cmd.setColl(coll);
+                            cmd.setCmdData(Doc.of(
+                                "insert", coll,
+                                "$db", db,
+                                "documents", List.of(fullDoc)
+                            ));
+                            localDriver.runCommand(cmd);
+                        }
                     }
                     break;
                 }
@@ -795,6 +846,47 @@ public class ReplicationManager {
         } catch (Exception e) {
             log.error("Error applying change event: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Applies an insert event as an idempotent full-document upsert-by-key rather than a
+     * strict insert.
+     *
+     * This is the replay-safe counterpart to the strict insert path above: it is used
+     * when an insert event might be re-applied after already having landed (see the
+     * per-event fallback in {@code applyBulkInserts}, and the upcoming initial-sync
+     * replay in task 8). A strict insert of a document whose key already exists fails
+     * with a duplicate-key error even when the replayed content is identical to what's
+     * already there, which would incorrectly treat a harmless replay as a real conflict
+     * and stall replication. Using {@code {q: documentKey, u: fullDocument, upsert:
+     * true}} -- the exact same technique already used for replicated update/replace
+     * events -- makes replay a no-op when the document already matches, and creates it
+     * when it doesn't exist yet.
+     *
+     * A genuine unique-index conflict (a *different* document already owning a
+     * unique-indexed value the replayed document also wants) still surfaces as an
+     * exception when the replayed document doesn't exist yet (InMemoryDriver enforces
+     * uniqueness for the upsert-creates-a-new-document case). Note this is currently
+     * NOT enforced by InMemoryDriver when the upsert instead replaces an
+     * already-existing document -- a pre-existing driver characteristic (its
+     * full-document-replacement path skips the uniqueness check that its
+     * partial-update path runs), not something introduced or relied upon here.
+     */
+    private void applyInsertIdempotent(String db, String coll, Map<String, Object> docKey,
+                                        Map<String, Object> fullDoc) {
+        GenericCommand cmd = new GenericCommand(localDriver);
+        cmd.setDb(db);
+        cmd.setColl(coll);
+        cmd.setCmdData(Doc.of(
+            "update", coll,
+            "$db", db,
+            "updates", List.of(Doc.of(
+                "q", docKey,
+                "u", fullDoc,
+                "upsert", true
+            ))
+        ));
+        localDriver.runCommand(cmd);
     }
 
     /**

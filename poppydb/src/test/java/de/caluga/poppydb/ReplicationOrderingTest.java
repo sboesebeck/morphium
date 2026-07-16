@@ -52,6 +52,25 @@ public class ReplicationOrderingTest {
         return event;
     }
 
+    /**
+     * Same shape as {@link #insertEvent}, but with an "email" field instead of "value" --
+     * used by the unique-secondary-index tests below, which need a field other than _id
+     * to violate a unique index on.
+     */
+    private Map<String, Object> insertEmailEvent(String db, String coll, Object id, String email) {
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("_id", id);
+        doc.put("email", email);
+
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("_id", Doc.of("_data", String.format(Locale.ROOT, "%016x", seq++)));
+        event.put("operationType", "insert");
+        event.put("ns", Doc.of("db", db, "coll", coll));
+        event.put("fullDocument", doc);
+        event.put("documentKey", Doc.of("_id", id));
+        return event;
+    }
+
     private Map<String, Object> deleteEvent(String db, String coll, Object id) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("_id", Doc.of("_data", String.format(Locale.ROOT, "%016x", seq++)));
@@ -153,27 +172,26 @@ public class ReplicationOrderingTest {
 
     /**
      * Regression test for A5: a failed bulk insert must not falsely advance
-     * lastAppliedSequence to the batch max.
+     * lastAppliedSequence to the batch max, and the per-event fallback must be an
+     * idempotent replay (not a strict insert) so a plain _id "conflict" against an
+     * already-committed document converges instead of being permanently blocked.
      *
      * Setup: id=1 already exists (committed by an earlier, already-applied batch). A
      * single contiguous insert run for the same collection then arrives containing
-     * id=2 (new), id=3 (new), and id=1 again (duplicate of the pre-existing document).
-     * InMemoryDriver's insert() is ordered by default and detects the duplicate _id
-     * before writing anything, so the whole bulk insert command throws and (pre-fix)
-     * none of id=2/id=3/id=1 are applied -- yet applyBulkInserts unconditionally
-     * advanced lastAppliedSequence to the run's max sequence (the duplicate id=1
-     * event, since it was queued last), falsely telling the primary this run was
-     * fully replicated.
+     * id=2 (new), id=3 (new), and id=1 again with different content. InMemoryDriver's
+     * insert() is ordered by default and detects the duplicate _id before writing
+     * anything, so the whole bulk insert command throws.
      *
      * Required behavior: on bulk failure, fall back to applying each event
-     * one-by-one via applyChangeEvent, so id=2 and id=3 (which don't conflict) still
-     * get applied and their sequence advanced, while the poison id=1 event fails on
-     * its own without blocking or falsely acknowledging the rest of the run. Final
-     * lastAppliedSequence must equal the sequence of the last event that actually
-     * succeeded (id=3), not the batch max (the failed id=1 event).
+     * one-by-one via applyChangeEvent in replay mode (applyInsertIdempotent), which
+     * applies an insert as a full-document upsert-by-key rather than a strict insert --
+     * the same technique already used for replicated update/replace events. That makes
+     * id=1's replay a harmless replace (converging to the new content) instead of a
+     * permanent duplicate-key failure, so all three events in the run succeed and
+     * lastAppliedSequence reaches the true batch max.
      */
     @Test
-    public void bulkInsertFailureOnlyAdvancesSequenceForSuccessfulEvents() throws Exception {
+    public void bulkInsertFailureConvergesViaIdempotentReplayForDuplicateId() throws Exception {
         InMemoryDriver drv = new InMemoryDriver();
         drv.connect();
 
@@ -186,26 +204,174 @@ public class ReplicationOrderingTest {
             Map<String, Object> insert2 = insertEvent("testdb", "coll", 2, "v2");
             Map<String, Object> insert3 = insertEvent("testdb", "coll", 3, "v3");
             Map<String, Object> insertDup = insertEvent("testdb", "coll", 1, "dup");
-
-            long seqOf3 = extractSeq(insert3);
             long seqOfDup = extractSeq(insertDup);
-            assertTrue(seqOfDup > seqOf3, "test setup: duplicate event must have the highest sequence in the run");
 
             List<Map<String, Object>> batch = new ArrayList<>(List.of(insert2, insert3, insertDup));
             rm.applyEventsInOrder(batch);
 
-            // id=1 stays as the original v1 -- the duplicate insert failed and did not
-            // overwrite it.
+            // id=1 converges to the replayed content -- the idempotent replay applies it
+            // as a full-document upsert-by-key rather than a strict (permanently-failing)
+            // insert.
             List<Map<String, Object>> found1 = drv.find("testdb", "coll", Doc.of("_id", 1), null, null, 0, 10);
             assertEquals(1, found1.size());
-            assertEquals("v1", found1.get(0).get("value"));
+            assertEquals("dup", found1.get(0).get("value"));
 
-            // id=2 and id=3 were applied via the per-event fallback despite the bulk failure.
             List<Map<String, Object>> found2 = drv.find("testdb", "coll", Doc.of("_id", 2), null, null, 0, 10);
             assertEquals(1, found2.size());
             List<Map<String, Object>> found3 = drv.find("testdb", "coll", Doc.of("_id", 3), null, null, 0, 10);
             assertEquals(1, found3.size());
 
+            // All three events converged, so the sequence reaches the true batch max.
+            assertEquals(seqOfDup, rm.getLastAppliedSequence(),
+                "lastAppliedSequence must reach the batch max once every event in the run has converged");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /**
+     * (a) Regression test for review issue #1 ("writeErrors-failures still falsely
+     * ack"): InMemoryDriver does not throw for unique-secondary-index violations --
+     * insert() silently commits the non-conflicting documents in the same call and
+     * reports the rest as `writeErrors` in the command result, without ever throwing.
+     * applyBulkInserts must inspect that result and treat a non-empty writeErrors as a
+     * bulk failure -- not silently trust the call as full success -- falling back to
+     * the same per-event idempotent replay used for a thrown failure.
+     *
+     * The conflicting document (id=3) doesn't exist yet, so its replay goes through
+     * applyInsertIdempotent's insert-via-upsert path, which InMemoryDriver *does*
+     * enforce uniqueness for (via storeInternal) -- so it correctly fails there too,
+     * exactly as it did in the initial bulk call: this is a genuine, persistent
+     * conflict, not a replay artifact, and must never be created. The bug this test
+     * guards against is specifically the false ack: pre-fix, lastAppliedSequence was
+     * unconditionally advanced to the run's max sequence regardless of writeErrors,
+     * claiming id=3's insert was replicated when it never actually applied. Fixed
+     * behavior: the sequence stops at the last event that *actually* succeeded (id=2),
+     * not the batch max (id=3, which permanently failed).
+     */
+    @Test
+    public void writeErrorsFromBulkInsertTriggerFallbackAndDoNotFalselyAckTheConflict() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        try {
+            drv.createIndex("testdb", "coll", Doc.of("email", 1), Doc.of("unique", true));
+
+            ReplicationManager rm = new ReplicationManager(drv, "127.0.0.1", 1);
+
+            // Pre-existing document already owns "taken@example.com".
+            rm.applyEventsInOrder(new ArrayList<>(
+                List.of(insertEmailEvent("testdb", "coll", 1, "taken@example.com"))));
+
+            Map<String, Object> insertOk = insertEmailEvent("testdb", "coll", 2, "new@example.com");
+            Map<String, Object> insertConflict = insertEmailEvent("testdb", "coll", 3, "taken@example.com");
+            long seqOfOk = extractSeq(insertOk);
+            long seqOfConflict = extractSeq(insertConflict);
+            assertTrue(seqOfConflict > seqOfOk,
+                "test setup: the unresolved conflict must be last/highest sequence in the run");
+
+            List<Map<String, Object>> batch = new ArrayList<>(List.of(insertOk, insertConflict));
+            rm.applyEventsInOrder(batch);
+
+            // id=2 was written directly by the initial (partially-successful) bulk call,
+            // and survives the fallback replay unchanged.
+            List<Map<String, Object>> found2 = drv.find("testdb", "coll", Doc.of("_id", 2), null, null, 0, 10);
+            assertEquals(1, found2.size());
+
+            // id=3 is a genuine, persistent unique-index conflict (a different document
+            // already owns that email) -- it must never be created, in the initial bulk
+            // call or on replay.
+            List<Map<String, Object>> found3 = drv.find("testdb", "coll", Doc.of("_id", 3), null, null, 0, 10);
+            assertEquals(0, found3.size(), "a genuinely conflicting document must never be created");
+
+            // The key regression check: lastAppliedSequence must NOT be falsely advanced
+            // to the batch max (id=3's sequence) just because the initial bulk call
+            // returned without throwing -- it must reflect only what actually succeeded.
+            assertEquals(seqOfOk, rm.getLastAppliedSequence(),
+                "lastAppliedSequence must not falsely ack the sequence of a document that was never applied");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /**
+     * (b) Regression test for review issue #2 ("fallback replay can permanently stall
+     * the sequence when the bulk landed partially"): applyBulkInserts' fallback must
+     * stay correct even when the failed/partially-failed bulk command already durably
+     * wrote some of the run's documents -- its atomicity is only guaranteed for the
+     * ordered-_id-duplicate-throws-before-any-write case, not in general (a
+     * writeErrors-only partial failure, like issue #1, is a concrete counterexample).
+     *
+     * This models a run where two of three events replay against already-landed
+     * documents (harmless idempotent no-ops -- one because it's an exact resubmit, one
+     * because the bulk call itself already wrote it before reporting writeErrors for
+     * the third), and the third is a genuinely new document with a persistent
+     * unique-index conflict against a *different*, already-existing document. That
+     * conflict must fail on its own without blocking the rest of the run, converging
+     * everything else and leaving lastAppliedSequence at the last successfully-covered
+     * sequence -- not the batch max, which belongs to the event that never actually
+     * applied.
+     */
+    @Test
+    public void partiallyLandedRunConvergesAndSequenceStopsAtLastSuccess() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        try {
+            drv.createIndex("testdb", "coll", Doc.of("email", 1), Doc.of("unique", true));
+
+            ReplicationManager rm = new ReplicationManager(drv, "127.0.0.1", 1);
+
+            // Simulates already-landed state (e.g. from an earlier, already-applied
+            // batch): id=1 and id=2 already exist, and id=5 already owns
+            // "taken@example.com".
+            rm.applyEventsInOrder(new ArrayList<>(List.of(
+                insertEmailEvent("testdb", "coll", 1, "e1@example.com"),
+                insertEmailEvent("testdb", "coll", 2, "e2@example.com"),
+                insertEmailEvent("testdb", "coll", 5, "taken@example.com"))));
+
+            // The run under test: id=2 is re-sent unchanged (replay of already-landed
+            // data), id=3 is genuinely new and non-conflicting, and id=6 is genuinely
+            // new but collides with id=5's email -- a real, persistent conflict, not a
+            // replay artifact.
+            Map<String, Object> replay2 = insertEmailEvent("testdb", "coll", 2, "e2@example.com");
+            Map<String, Object> insert3 = insertEmailEvent("testdb", "coll", 3, "e3@example.com");
+            Map<String, Object> insertConflict6 = insertEmailEvent("testdb", "coll", 6, "taken@example.com");
+
+            long seqOf3 = extractSeq(insert3);
+            long seqOfConflict6 = extractSeq(insertConflict6);
+            assertTrue(seqOfConflict6 > seqOf3,
+                "test setup: the unresolved conflict must be last/highest sequence in the run");
+
+            List<Map<String, Object>> batch = new ArrayList<>(List.of(replay2, insert3, insertConflict6));
+            rm.applyEventsInOrder(batch);
+
+            // id=1 is untouched by this run.
+            List<Map<String, Object>> found1 = drv.find("testdb", "coll", Doc.of("_id", 1), null, null, 0, 10);
+            assertEquals(1, found1.size());
+            assertEquals("e1@example.com", found1.get(0).get("email"));
+
+            // id=2 is unchanged (harmless self-replay, whether re-applied via the
+            // fallback or already written by the initial bulk call).
+            List<Map<String, Object>> found2 = drv.find("testdb", "coll", Doc.of("_id", 2), null, null, 0, 10);
+            assertEquals(1, found2.size());
+            assertEquals("e2@example.com", found2.get(0).get("email"));
+
+            // id=3 is newly created -- written directly by the initial (partially-
+            // successful) bulk call, then safely re-applied (idempotent no-op) by the
+            // fallback replay.
+            List<Map<String, Object>> found3 = drv.find("testdb", "coll", Doc.of("_id", 3), null, null, 0, 10);
+            assertEquals(1, found3.size());
+
+            // id=5 is untouched, and id=6 (the genuine conflict) was never created.
+            List<Map<String, Object>> found5 = drv.find("testdb", "coll", Doc.of("_id", 5), null, null, 0, 10);
+            assertEquals(1, found5.size());
+            assertEquals("taken@example.com", found5.get(0).get("email"));
+            List<Map<String, Object>> found6 = drv.find("testdb", "coll", Doc.of("_id", 6), null, null, 0, 10);
+            assertEquals(0, found6.size(), "a genuinely conflicting document must never be created");
+
+            // lastAppliedSequence stops at the last *successfully* applied event (id=3),
+            // not the batch max (id=6, which never actually applied).
             assertEquals(seqOf3, rm.getLastAppliedSequence(),
                 "lastAppliedSequence must reflect the last successfully applied event, not the batch max");
         } finally {
