@@ -277,15 +277,32 @@ public class ReplicationManager {
                 localDriver.runCommand(cmd);
                 eventsApplied.addAndGet(documents.size());
                 log.debug("Bulk inserted {} documents into {}.{}", documents.size(), db, coll);
+
+                // Whole bulk succeeded: safe to advance to the run's max sequence.
+                final long finalMaxSeq = maxSeq;
+                if (finalMaxSeq > 0) {
+                    lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
+                }
             } catch (Exception e) {
                 log.error("Error applying bulk insert to {}.{}: {}", db, coll, e.getMessage());
+                // The bulk insert failed as a whole (e.g. a duplicate key/unique index
+                // violation from one poison event) -- fall back to applying each event in
+                // the run individually via applyChangeEvent. That advances
+                // lastAppliedSequence per event, and only on success, so events that don't
+                // conflict still get applied and correctly acknowledged, while the poison
+                // event fails on its own without blocking the rest of the run or falsely
+                // advancing the sequence past it.
+                for (Map<String, Object> event : events) {
+                    applyChangeEvent(event);
+                }
             }
-        }
-
-        // Update sequence
-        final long finalMaxSeq = maxSeq;
-        if (finalMaxSeq > 0) {
-            lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
+        } else {
+            // No documents to insert (e.g. all events lacked fullDocument) -- nothing was
+            // attempted, so it's safe to advance to the run's max sequence.
+            final long finalMaxSeq = maxSeq;
+            if (finalMaxSeq > 0) {
+                lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
+            }
         }
     }
 

@@ -2,6 +2,7 @@ package de.caluga.poppydb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -135,6 +136,78 @@ public class ReplicationOrderingTest {
 
             assertEquals(3, collA.size());
             assertEquals(1, collB.size());
+        } finally {
+            drv.close();
+        }
+    }
+
+    /**
+     * Extracts the sequence number carried by an event's resume token, mirroring
+     * ReplicationManager#extractSequenceFromEvent for test assertions.
+     */
+    @SuppressWarnings("unchecked")
+    private long extractSeq(Map<String, Object> event) {
+        Map<String, Object> idMap = (Map<String, Object>) event.get("_id");
+        return Long.parseLong((String) idMap.get("_data"), 16);
+    }
+
+    /**
+     * Regression test for A5: a failed bulk insert must not falsely advance
+     * lastAppliedSequence to the batch max.
+     *
+     * Setup: id=1 already exists (committed by an earlier, already-applied batch). A
+     * single contiguous insert run for the same collection then arrives containing
+     * id=2 (new), id=3 (new), and id=1 again (duplicate of the pre-existing document).
+     * InMemoryDriver's insert() is ordered by default and detects the duplicate _id
+     * before writing anything, so the whole bulk insert command throws and (pre-fix)
+     * none of id=2/id=3/id=1 are applied -- yet applyBulkInserts unconditionally
+     * advanced lastAppliedSequence to the run's max sequence (the duplicate id=1
+     * event, since it was queued last), falsely telling the primary this run was
+     * fully replicated.
+     *
+     * Required behavior: on bulk failure, fall back to applying each event
+     * one-by-one via applyChangeEvent, so id=2 and id=3 (which don't conflict) still
+     * get applied and their sequence advanced, while the poison id=1 event fails on
+     * its own without blocking or falsely acknowledging the rest of the run. Final
+     * lastAppliedSequence must equal the sequence of the last event that actually
+     * succeeded (id=3), not the batch max (the failed id=1 event).
+     */
+    @Test
+    public void bulkInsertFailureOnlyAdvancesSequenceForSuccessfulEvents() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        try {
+            ReplicationManager rm = new ReplicationManager(drv, "127.0.0.1", 1);
+
+            // Pre-existing state: id=1 already committed by an earlier, already-applied batch.
+            rm.applyEventsInOrder(new ArrayList<>(List.of(insertEvent("testdb", "coll", 1, "v1"))));
+
+            Map<String, Object> insert2 = insertEvent("testdb", "coll", 2, "v2");
+            Map<String, Object> insert3 = insertEvent("testdb", "coll", 3, "v3");
+            Map<String, Object> insertDup = insertEvent("testdb", "coll", 1, "dup");
+
+            long seqOf3 = extractSeq(insert3);
+            long seqOfDup = extractSeq(insertDup);
+            assertTrue(seqOfDup > seqOf3, "test setup: duplicate event must have the highest sequence in the run");
+
+            List<Map<String, Object>> batch = new ArrayList<>(List.of(insert2, insert3, insertDup));
+            rm.applyEventsInOrder(batch);
+
+            // id=1 stays as the original v1 -- the duplicate insert failed and did not
+            // overwrite it.
+            List<Map<String, Object>> found1 = drv.find("testdb", "coll", Doc.of("_id", 1), null, null, 0, 10);
+            assertEquals(1, found1.size());
+            assertEquals("v1", found1.get(0).get("value"));
+
+            // id=2 and id=3 were applied via the per-event fallback despite the bulk failure.
+            List<Map<String, Object>> found2 = drv.find("testdb", "coll", Doc.of("_id", 2), null, null, 0, 10);
+            assertEquals(1, found2.size());
+            List<Map<String, Object>> found3 = drv.find("testdb", "coll", Doc.of("_id", 3), null, null, 0, 10);
+            assertEquals(1, found3.size());
+
+            assertEquals(seqOf3, rm.getLastAppliedSequence(),
+                "lastAppliedSequence must reflect the last successfully applied event, not the batch max");
         } finally {
             drv.close();
         }
