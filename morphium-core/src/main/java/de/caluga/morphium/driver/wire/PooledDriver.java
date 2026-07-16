@@ -572,6 +572,8 @@ public class PooledDriver extends DriverBase {
                     log.debug("Error during borrowed connection cleanup", e);
                 }
 
+                reseedIfAllHostsEvicted();
+
                 for (var entry : hosts.entrySet()) {
                     var hst = entry.getKey();
                     var host = entry.getValue();
@@ -830,6 +832,30 @@ public class PooledDriver extends DriverBase {
                     fastestHost = host;
                 }
                 default -> { /* no update needed */ }
+        }
+    }
+
+    /**
+     * After a full cluster outage every host may have been evicted by
+     * onConnectionError() (MAX_FAILURES exceeded on all of them). The heartbeat
+     * only iterates the hosts map, and handleHelloResult() — the only place that
+     * (re-)adds hosts — only runs from heartbeat threads. With an empty map the
+     * driver could therefore never recover, even after the cluster returned (#233).
+     * Re-seeding from the configured host seed restarts the normal discovery
+     * cycle (hello → handleHelloResult → primary election).
+     */
+    void reseedIfAllHostsEvicted() {
+        if (!hosts.isEmpty() || getHostSeed() == null) {
+            return;
+        }
+
+        for (String seedHost : getHostSeed()) {
+            String normalizedHost = normalizeHostKey(seedHost);
+            hosts.putIfAbsent(normalizedHost, new Host(getHost(normalizedHost), getPortFromHost(normalizedHost)));
+        }
+
+        if (!hosts.isEmpty()) {
+            log.warn("All hosts had been evicted - re-seeded {} host(s) from the host seed for re-discovery", hosts.size());
         }
     }
 
