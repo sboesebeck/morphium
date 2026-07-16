@@ -15,6 +15,15 @@ New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as 
 
 ### Fixed
 
+#### Expr: `$in` rejects a non-array second operand — matching MongoDB (error 40081)
+The `$in` aggregation expression (also used in query `$expr`) silently returned `false` when its array operand resolved to null (e.g. a missing field path), a scalar or any other non-array — pipelines that fail on real MongoDB (`$in requires an array as a second argument`) passed against the in-memory evaluation. It now throws an `IllegalArgumentException` instead. **This reverts the lenient behavior introduced in 6.2.9**, which had replaced the previous `NullPointerException` with `false`; the clean error message stays. Java arrays are accepted as operand alongside `List`, and elements are compared null-safely.
+
+#### InMemoryDriver: `$in` / `$nin` reject scalar and null operands — matching MongoDB (`$in needs an array`)
+The 6.2.9 operand normalization went too far: besides accepting Java arrays and `Iterable`s (which stays), it silently wrapped scalars into single-element lists and turned `null` into an empty list — `{$in: "a"}` behaved like `{$in: ["a"]}`, hiding query bugs that real MongoDB rejects with `BadValue: $in needs an array`. Non-array operands now fail query validation (also on empty collections) with an `IllegalArgumentException`.
+
+#### InMemoryDriver: `$unset` supports array-index path segments (e.g. `ratings.0.rating`)
+The dotted-path `$unset` support added in 6.2.9 stopped at `List` intermediates, so valid paths through array indexes were a silent no-op. Numeric segments now index into arrays, matching MongoDB semantics: `ratings.0.rating` removes the field inside the first element, and `$unset` on an array element itself (`tags.1`) sets it to `null` instead of removing it. Non-numeric segments on arrays and out-of-range indexes remain a no-op.
+
 #### Driver: handshake metadata sent the hardcoded version "6.2"
 The `hello` client metadata reported `driver.version: "6.2"` regardless of the actual Morphium version, making the field useless for telling patch levels apart on the server side. The real version is now read at runtime from `morphium-version.properties`, a Maven-filtered classpath resource (`MorphiumVersion.getVersion()`, fallback `"unknown"`) — this also works in GraalVM native images, unlike the jar manifest. Additionally, the connect handshake built its `HelloCommand` without a connection, so `driver.name` was always reported as `Morphium V6/unknown`; the driver name is now resolved (`Morphium/PooledDriver` etc.). Verified end-to-end against a real replicaset via `db.currentOp()`.
 

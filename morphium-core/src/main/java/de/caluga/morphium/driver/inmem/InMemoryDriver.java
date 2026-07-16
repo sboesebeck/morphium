@@ -4332,32 +4332,88 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     /**
      * Removes a field for a $unset operation. Supports dotted paths into nested
-     * documents (e.g. "a.b.c"): navigates through the existing sub-documents and
-     * removes the leaf key. If any intermediate segment is missing or not a
-     * document, this is a no-op (matching MongoDB semantics).
+     * documents and indexed array elements (e.g. "a.0.b"). If any intermediate
+     * segment is missing or cannot be traversed, this is a no-op.
      */
-    @SuppressWarnings("unchecked")
     private void unsetField(Map<String, Object> obj, String key) {
         if (!key.contains(".")) {
             obj.remove(key);
             return;
         }
 
-        String[] path = key.split("\\.");
-        Map<String, Object> current = obj;
+        unsetPath(obj, key.split("\\."), 0);
+    }
 
-        for (int i = 0; i < path.length - 1; i++) {
-            Object existing = current.get(path[i]);
+    @SuppressWarnings("unchecked")
+    private void unsetPath(Object current, String[] path, int offset) {
+        String segment = path[offset];
+        boolean leaf = offset == path.length - 1;
 
-            if (!(existing instanceof Map)) {
-                // Path does not exist (or is not a sub-document) -> nothing to unset
-                return;
+        if (current instanceof Map) {
+            Map<String, Object> document = (Map<String, Object>) current;
+            if (leaf) {
+                document.remove(segment);
+            } else {
+                Object next = mutablePathContainer(document.get(segment));
+                if (next != document.get(segment)) {
+                    document.put(segment, next);
+                }
+                unsetPath(next, path, offset + 1);
             }
-
-            current = (Map<String, Object>) existing;
+            return;
         }
 
-        current.remove(path[path.length - 1]);
+        if (!(current instanceof List) || !isArrayIndex(segment)) {
+            return;
+        }
+
+        List<Object> array = (List<Object>) current;
+        int index;
+
+        try {
+            index = Integer.parseInt(segment);
+        } catch (NumberFormatException ignored) {
+            return;
+        }
+
+        if (index >= array.size()) {
+            return;
+        }
+
+        if (leaf) {
+            array.set(index, null);
+        } else {
+            Object next = mutablePathContainer(array.get(index));
+            if (next != array.get(index)) {
+                array.set(index, next);
+            }
+            unsetPath(next, path, offset + 1);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object mutablePathContainer(Object value) {
+        if (value instanceof Map) {
+            return new HashMap<>((Map<String, Object>) value);
+        }
+        if (value instanceof List) {
+            return new ArrayList<>((List<Object>) value);
+        }
+        return value;
+    }
+
+    private boolean isArrayIndex(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
