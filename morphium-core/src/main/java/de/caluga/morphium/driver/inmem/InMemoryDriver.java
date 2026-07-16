@@ -3715,6 +3715,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         lock.writeLock().lock();
         List<Map<String, Object>> writeErrors;
         try {
+            markCollectionTouched(db, collection);
             int errors = 0;
             objs = new ArrayList<>(objs);
             writeErrors = new ArrayList<>();
@@ -3921,6 +3922,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Integer> result;
         try {
+            markCollectionTouched(db, collection);
             result = storeInternal(db, collection, objs, wc, pendingNotifications);
         } finally {
             lock.writeLock().unlock();
@@ -4008,6 +4010,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             currentTransaction.get().getDatabase().putIfAbsent(db, new ConcurrentHashMap<>());
             // noinspection unchecked
             return (Map<String, List<Map<String, Object>>>) currentTransaction.get().getDatabase().get(db);
+        }
+    }
+
+    /**
+     * Records that the current transaction (if any) wrote to the given collection. Only touched
+     * collections are merged back into the live database on commit, so concurrent non-transactional
+     * writes to collections the transaction never touched are not clobbered. No-op outside a
+     * transaction.
+     */
+    private void markCollectionTouched(String db, String collection) {
+        InMemTransactionContext ctx = currentTransaction.get();
+        if (ctx != null) {
+            ctx.getTouchedCollections().add(db + "/" + collection);
         }
     }
 
@@ -4102,6 +4117,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Object> result;
         try {
+            markCollectionTouched(db, collection);
             result = updateInternal(db, collection, query, sort, op, multiple, upsert, collation, wc,
                                     pendingNotifications);
         } finally {
@@ -5709,6 +5725,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         try {
+            markCollectionTouched(db, collection);
             List<Map<String, Object>> toDel = new ArrayList<>(
                             find(db, collection, query, null, UtilsMap.of("_id", 1), collation, 0, multiple ? 0 : 1, true));
 
@@ -5811,6 +5828,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         try {
+            markCollectionTouched(db, collection);
             getDB(db).remove(collection);
 
             if (indexDataByDBCollection.containsKey(db)) {
@@ -6137,6 +6155,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Object> result;
         try {
+            markCollectionTouched(db, col);
             // Use internal flag to skip lock acquisition in find() and update()
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
             if (ret.isEmpty() && !upsert) {
@@ -6206,6 +6225,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Object> result;
         try {
+            markCollectionTouched(db, col);
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
             if (ret.isEmpty()) {
                 return null;
@@ -6782,22 +6802,58 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         InMemTransactionContext ctx = currentTransaction.get();
-        // replace full database state with transaction snapshot
-        database.clear();
-        // noinspection unchecked
-        database.putAll(ctx.getDatabase());
-        // rebuild index data to reflect committed dataset
-        indexDataByDBCollection.clear();
-        for (var dbName : database.keySet()) {
-            for (var collName : database.get(dbName).keySet()) {
-                try {
-                    updateIndexData(dbName, collName, null);
-                } catch (Exception e) {
-                    // swallow to avoid breaking commit; indexes will be lazily rebuilt
+        // Merge back ONLY the collections the transaction actually wrote to. Collections the
+        // transaction never touched are left as-is in the live database, so concurrent
+        // non-transactional writes to them (possibly on other threads while the transaction was
+        // open) are preserved instead of being clobbered by the start-of-transaction snapshot.
+        //
+        // Merge granularity is per-collection last-writer-wins: for a touched collection the
+        // transaction's whole version replaces the live one, so a concurrent write to the SAME
+        // collection during the transaction is overwritten by the commit. Full row-level conflict
+        // detection is out of scope here.
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, List<Map<String, Object>>>> snapshot =
+            (Map<String, Map<String, List<Map<String, Object>>>>) ctx.getDatabase();
+
+        // Clear the current transaction first so getCollectionLock/index helpers below operate on
+        // the live database rather than routing back into the (about-to-be-discarded) snapshot.
+        currentTransaction.set(null);
+
+        for (String key : ctx.getTouchedCollections()) {
+            int sep = key.indexOf('/');
+            String dbName = key.substring(0, sep);
+            String collName = key.substring(sep + 1);
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(dbName, collName);
+            lock.writeLock().lock();
+            try {
+                Map<String, List<Map<String, Object>>> snapDb = snapshot.get(dbName);
+                if (snapDb == null || !snapDb.containsKey(collName)) {
+                    // Collection was dropped within the transaction: remove it from the live state
+                    // and purge its index structures (mirrors drop()).
+                    if (database.containsKey(dbName)) {
+                        database.get(dbName).remove(collName);
+                    }
+                    if (indexDataByDBCollection.containsKey(dbName)) {
+                        indexDataByDBCollection.get(dbName).remove(collName);
+                    }
+                    if (indicesByDbCollection.containsKey(dbName)) {
+                        indicesByDbCollection.get(dbName).remove(collName);
+                    }
+                    collectionsWithTtlIndex.remove(dbName + "." + collName);
+                } else {
+                    database.putIfAbsent(dbName, new ConcurrentHashMap<>());
+                    database.get(dbName).put(collName, snapDb.get(collName));
+                    try {
+                        // Rebuild only this collection's index data to reflect the committed dataset.
+                        updateIndexData(dbName, collName, null);
+                    } catch (Exception e) {
+                        // swallow to avoid breaking commit; indexes will be lazily rebuilt
+                    }
                 }
+            } finally {
+                lock.writeLock().unlock();
             }
         }
-        currentTransaction.set(null);
     }
 
     public void abortTransaction() {
