@@ -51,6 +51,24 @@ public class ReplicationManager {
     private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
 
+    // Lossless initial sync (watch-first, buffer, snapshot, replay):
+    //   applying              - gate for the batch processor. While false, replication events
+    //                           keep accumulating in eventQueue but are NOT applied. It is
+    //                           opened once the initial-sync snapshot is done, so events that
+    //                           arrived during the snapshot are replayed on top of it.
+    //   watchLive             - true while the change-stream watch cursor is established on the
+    //                           primary (set by the WatchCommand registration callback, cleared
+    //                           when the watch ends). While it is true the watch is guaranteed to
+    //                           capture every subsequent write, so the snapshot may start without
+    //                           a lost-write gap. It is resettable (unlike a one-shot latch) so a
+    //                           reconnect during the initial sync makes the snapshot wait for the
+    //                           new watch to re-establish rather than racing ahead.
+    //   initialSyncStarted    - guards against launching more than one snapshot thread.
+    private final AtomicBoolean applying = new AtomicBoolean(false);
+    private final AtomicBoolean watchLive = new AtomicBoolean(false);
+    private final AtomicBoolean initialSyncStarted = new AtomicBoolean(false);
+    private volatile Thread initialSyncThread;
+
     // Progress reporting interval - balanced for good throughput and write concern latency
     // 50ms gives good responsiveness while not overwhelming the primary with reports
     private static final long PROGRESS_REPORT_INTERVAL_MS = 50;
@@ -149,6 +167,16 @@ public class ReplicationManager {
      * Process queued events in batches for better performance.
      */
     private void processBatch() {
+        // Gate: do not apply events until the initial-sync snapshot has completed. Events keep
+        // accumulating in the (bounded) eventQueue; once the snapshot is done the gate opens and
+        // the buffered events are drained as an idempotent replay on top of the snapshot. If the
+        // snapshot outlasts the queue capacity the watch callback's blocking put() applies
+        // backpressure to the watch reader (never to the snapshot, which runs on its own thread
+        // and uses its own connections), so this cannot deadlock the snapshot.
+        if (!applying.get()) {
+            return;
+        }
+
         if (eventQueue.isEmpty()) {
             return;
         }
@@ -411,6 +439,13 @@ public class ReplicationManager {
 
         log.info("Stopping replication...");
 
+        // Interrupt an in-flight initial-sync snapshot thread (if any) so it exits promptly.
+        Thread syncThread = initialSyncThread;
+        if (syncThread != null) {
+            syncThread.interrupt();
+            initialSyncThread = null;
+        }
+
         // Stop batch processor first to flush remaining events
         if (batchProcessor != null) {
             // Process any remaining events
@@ -502,14 +537,18 @@ public class ReplicationManager {
                     }
                 }
 
-                // Perform initial sync if not done
+                // Lossless initial sync: start the change-stream watch FIRST (below, on this
+                // thread) so events flow into eventQueue, while a background thread performs the
+                // snapshot copy. The snapshot waits for the watch cursor to be established
+                // (watchEstablishedLatch) before copying, so no write is lost in the gap between
+                // snapshot and watch. The batch processor stays gated (applying=false) until the
+                // snapshot completes, then drains the buffered events as an idempotent replay.
                 if (!initialSyncComplete.get()) {
-                    performInitialSync();
-                    initialSyncComplete.set(true);
-                    initialSyncLatch.countDown();
+                    startInitialSyncOnce();
                 }
 
-                // Watch for changes
+                // Watch for changes (blocks; produces events into eventQueue). During the initial
+                // sync this is the producer that fills the buffer while the snapshot runs.
                 watchForChanges();
 
                 // Check if watch ended due to staleness (no response for too long)
@@ -540,6 +579,69 @@ public class ReplicationManager {
                 }
             }
         }
+    }
+
+    /**
+     * Launch the initial-sync snapshot on a dedicated background thread, exactly once.
+     *
+     * The snapshot runs concurrently with the change-stream watch (which is driven on the
+     * replication loop thread). It first waits for the watch cursor to be established
+     * ({@code watchEstablishedLatch}) so that every write happening during the copy is already
+     * being captured into {@code eventQueue}; only then does it copy the data. When the copy is
+     * done it opens the {@code applying} gate, which lets the batch processor drain the events
+     * that were buffered during the copy -- an idempotent replay on top of the snapshot (see the
+     * idempotency note below) -- followed by all subsequent live events.
+     *
+     * Idempotency of the replay: the buffered events may cover documents the snapshot already
+     * copied (a document inserted during the copy can appear both in the snapshot's find() and as
+     * a buffered insert event). Update/replace events are already applied as full-document
+     * upserts-by-key, so they are naturally idempotent; a delete of a document the snapshot never
+     * contained is a no-op. Buffered *inserts* that collide with an already-copied _id are handled
+     * by the existing bulk-insert path: an ordered _id-duplicate makes the bulk command fail, and
+     * {@code applyBulkInserts} then falls back to a per-event idempotent replay
+     * ({@link #applyInsertIdempotent}, a {@code {q: _id, u: doc, upsert: true}} upsert), which
+     * converges the colliding document instead of stalling on a duplicate key. We deliberately do
+     * NOT route every replicated insert through the per-document idempotent path permanently:
+     * that would defeat the contiguous-insert bulk batching and, because InMemoryDriver's
+     * upsert-replace path skips unique-secondary-index enforcement, would be strictly weaker than
+     * the bulk path for genuine unique-index conflicts. The bulk-with-idempotent-fallback already
+     * makes the replay window lossless and convergent, which is all the initial sync needs.
+     */
+    private void startInitialSyncOnce() {
+        if (!initialSyncStarted.compareAndSet(false, true)) {
+            return; // snapshot already launched (or completed)
+        }
+
+        initialSyncThread = new Thread(() -> {
+            try {
+                // Wait until the watch cursor is live before copying, so every write that happens
+                // during the snapshot is already being captured into eventQueue. The watch may
+                // establish on this or a later (reconnect) attempt; poll running so a stop() during
+                // this wait exits promptly.
+                while (running.get() && !watchLive.get()) {
+                    Thread.sleep(50);
+                }
+                if (!running.get()) {
+                    return;
+                }
+
+                performInitialSync();
+
+                // Open the gate: the batch processor now drains the events buffered during the
+                // snapshot (idempotent replay) and all subsequent live events, in order.
+                applying.set(true);
+                initialSyncComplete.set(true);
+                initialSyncLatch.countDown();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                log.error("Initial sync failed, will retry on next reconnect: {}", e.getMessage(), e);
+                // Allow a retry on a later loop iteration (e.g. after a reconnect).
+                initialSyncStarted.set(false);
+            }
+        }, "PoppyDB-InitialSync");
+        initialSyncThread.setDaemon(true);
+        initialSyncThread.start();
     }
 
     /**
@@ -644,6 +746,10 @@ public class ReplicationManager {
                 .setMaxTimeMS(500)  // 500ms timeout - low latency for messaging tests
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
                 .setPipeline(List.of())  // Empty = watch everything
+                // Fires once the watch cursor is established on the primary. From that point the
+                // stream captures every subsequent write, so the initial-sync snapshot can safely
+                // start copying without losing writes that happen during the copy.
+                .setRegistrationCallback(() -> watchLive.set(true))
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long cursorId) {
@@ -682,6 +788,9 @@ public class ReplicationManager {
 
             cmd.watch();
         } finally {
+            // Watch is no longer live: a snapshot still waiting to start must wait for the next
+            // watch attempt to re-establish before copying.
+            watchLive.set(false);
             if (cmd != null) {
                 cmd.releaseConnection();
             }
