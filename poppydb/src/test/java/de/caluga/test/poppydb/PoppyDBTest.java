@@ -730,7 +730,6 @@ public class PoppyDBTest {
         secondary.configureReplicaSet("rsLateJoin", hosts, prio);
         lateJoiner.configureReplicaSet("rsLateJoin", hosts, prio);
         startServer(primary, port1);
-        startServer(secondary, port2);
 
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.clusterSettings().setHostSeed("localhost:" + port1);
@@ -738,6 +737,12 @@ public class PoppyDBTest {
         cfg.connectionSettings().setMaxConnections(5);
         Morphium morphiumPrimary = new Morphium(cfg);
 
+        // Seed data before any secondary connects. UncachedObject uses
+        // @WriteSafety(WAIT_FOR_ALL_SLAVES); now that the fast-path insert honors write concern
+        // (Task 4), waiting for all three configured members while two are offline would block
+        // for the full wtimeout. With no secondary connected yet the coordinator fast-fails the
+        // write concern immediately (returning a tolerated writeConcernError), matching the
+        // seeding pattern used by testReplicaSetDataReplication.
         for (int i = 0; i < 7; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
@@ -748,6 +753,8 @@ public class PoppyDBTest {
         var primaryCount = morphiumPrimary.createQueryFor(UncachedObject.class).countAll();
         assertEquals(7, primaryCount, "Primary should have inserted documents");
 
+        // Bring up the second member and the late joiner; both perform an initial sync.
+        startServer(secondary, port2);
         startServer(lateJoiner, port3);
         Thread.sleep(3000);
 

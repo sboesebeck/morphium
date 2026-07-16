@@ -62,6 +62,43 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
     );
 
+    // Control-plane / handshake / session / election commands that are handled with their
+    // own explicit switch case and must NOT go through the data-command middleware
+    // (preDispatch). Everything not listed here is treated as a data command: it runs the
+    // shared primary/readPreference/transaction checks before dispatch, whether it takes the
+    // fast path or the generic path. Keep this in sync with the non-data cases in
+    // processOpMsg's switch (all lower-cased).
+    private static final Set<String> CONTROL_COMMANDS = Set.of(
+            "getcmdlineopts", "buildinfo", "ismaster", "hello",
+            "getfreemonitoringstatus", "ping",
+            "registermessagingcollection", "unregistermessagingsubscriber", "getmessagingstats",
+            "listdatabases", "endsessions", "startsession", "refreshsessions",
+            "aborttransaction", "committransaction", "getmore", "killcursors",
+            "getlog", "getparameter", "replsetprogress",
+            "requestvote", "appendentries", "replsetgetstatus", "replsetstepdown", "replsetfreeze"
+    );
+
+    /**
+     * Outcome of the shared pre-dispatch middleware. When {@link #errorResponse} is non-null
+     * the caller must send it and stop; otherwise dispatch proceeds.
+     */
+    private static final class CheckResult {
+        static final CheckResult PROCEED = new CheckResult(null);
+        final Map<String, Object> errorResponse;
+
+        private CheckResult(Map<String, Object> errorResponse) {
+            this.errorResponse = errorResponse;
+        }
+
+        static CheckResult reject(Map<String, Object> errorResponse) {
+            return new CheckResult(errorResponse);
+        }
+
+        boolean rejected() {
+            return errorResponse != null;
+        }
+    }
+
     // Track cursors created by this channel so we can kill them on disconnect
     private final Set<Long> channelCursors = ConcurrentHashMap.newKeySet();
 
@@ -265,6 +302,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
         log.debug("Handling command {}", cmd);
 
+        // Shared command middleware: run the primary-rejection, read-preference and
+        // transaction-context checks once, before any dispatch variant (the fast-path
+        // executors below or the generic processDefaultCommandAsync path). Control-plane
+        // commands (hello/ping/election/cursor & session management) are exempt.
+        if (!CONTROL_COMMANDS.contains(cmd.toLowerCase())) {
+            CheckResult check = preDispatch(ctx, cmd, doc);
+            if (check.rejected()) {
+                sendResponse(ctx, requestId, check.errorResponse);
+                return;
+            }
+        }
+
         Map<String, Object> answer;
 
         switch (cmd) {
@@ -421,6 +470,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 return; // Async response
         }
 
+        // Shared write-concern handling for fast-path writes (insert/update/delete/
+        // createIndexes). When w>1 this waits for replication off the I/O thread and sends
+        // the response itself; otherwise we send it here synchronously.
+        if (WRITE_COMMANDS.contains(cmd.toLowerCase())
+                && postWrite(ctx, doc, cmd, answer, requestId)) {
+            return; // response will be sent asynchronously after the replication wait
+        }
+
         sendResponse(ctx, requestId, answer);
     }
 
@@ -521,50 +578,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private void processDefaultCommandAsync(ChannelHandlerContext ctx, Map<String, Object> doc,
                                             String cmd, int requestId) {
         try {
-            boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
-
-            // Reject writes to secondaries (use dynamic election state if available)
-            boolean isPrimary = isCurrentPrimary();
-            if (!isPrimary && isWriteCommand &&
-                    !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
-                // Include primary host so client can redirect
-                String currentPrimary = getCurrentPrimaryHost();
-                Map<String, Object> errorResponse = Doc.of(
-                    "ok", 0.0,
-                    "errmsg", "not primary",
-                    "code", 10107,
-                    "codeName", "NotWritablePrimary"
-                );
-                if (currentPrimary != null) {
-                    errorResponse.put("primaryHost", currentPrimary);
-                }
-                sendResponse(ctx, requestId, errorResponse);
-                return;
-            }
-
-            // Check read preference for read commands on secondaries
-            // If read preference requires primary, reject on secondaries to ensure consistency
-            if (!isPrimary && !isWriteCommand) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
-                if (readPref != null) {
-                    String mode = (String) readPref.get("mode");
-                    if ("primary".equalsIgnoreCase(mode)) {
-                        String currentPrimary = getCurrentPrimaryHost();
-                        Map<String, Object> errorResponse = Doc.of(
-                            "ok", 0.0,
-                            "errmsg", "not primary and read preference is primary",
-                            "code", 10107,
-                            "codeName", "NotPrimaryNoSecondaryOk"
-                        );
-                        if (currentPrimary != null) {
-                            errorResponse.put("primaryHost", currentPrimary);
-                        }
-                        sendResponse(ctx, requestId, errorResponse);
-                        return;
-                    }
-                }
-            }
+            // The primary/readPreference/transaction middleware (preDispatch) has already
+            // run in processOpMsg before this generic path was chosen — do not repeat it here.
 
             // Check for change stream aggregation
             if (doc.containsKey("pipeline")) {
@@ -577,9 +592,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                     }
                 }
             }
-
-            // Set up transaction context
-            setupTransactionContext(ctx, doc);
 
             // Execute command
             int cmdMsgId = driver.runCommand(new GenericCommand(driver).fromMap(doc));
@@ -608,34 +620,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 setupTailableCursor(doc, answer);
             }
 
-            // Handle write concern for write commands on primary - ASYNC to not block Netty I/O
-            if (isWriteCommand && isCurrentPrimary() && replicationCoordinator != null) {
-                long writeSeq = driver.getChangeStreamSequence();
-                int w = getWriteConcernW(doc);
-                long wtimeout = getWriteConcernTimeout(doc);
-
-                if (w > 1) {
-                    // Wait for replication on a separate thread to not block Netty I/O
-                    final Map<String, Object> finalAnswer = answer;
-                    log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
-                    COMMAND_EXECUTOR.execute(() -> {
-                        try {
-                            boolean acknowledged = replicationCoordinator.waitForReplication(writeSeq, w, wtimeout);
-                            if (!acknowledged) {
-                                finalAnswer.put("writeConcernError", Doc.of(
-                                    "code", 64,
-                                    "codeName", "WriteConcernFailed",
-                                    "errmsg", "waiting for replication timed out",
-                                    "errInfo", Doc.of("wtimeout", true)
-                                ));
-                            }
-                        } finally {
-                            // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
-                            ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
-                        }
-                    });
-                    return; // Response will be sent asynchronously
-                }
+            // Shared write-concern handling (w>1 waits for replication off the I/O thread
+            // and sends the response itself).
+            if (WRITE_COMMANDS.contains(cmd.toLowerCase())
+                    && postWrite(ctx, doc, cmd, answer, requestId)) {
+                return; // Response will be sent asynchronously
             }
 
             // No replication wait needed - send response immediately
@@ -654,6 +643,116 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             log.error("Error executing command {}: {}", cmd, errorMsg, e);
             sendResponse(ctx, requestId, Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd));
         }
+    }
+
+    /**
+     * Shared command middleware run before every dispatch variant (the fast-path executors
+     * and the generic {@link #processDefaultCommandAsync}). In order:
+     * <ol>
+     *   <li>reject client writes on a non-primary — except replication-applied writes, which
+     *       carry {@code $fromPrimary} (in practice these bypass this handler entirely and
+     *       apply straight to the local driver, so the flag is a defensive guard);</li>
+     *   <li>reject primary-only reads on a non-primary;</li>
+     *   <li>establish the per-channel transaction context for the command.</li>
+     * </ol>
+     * Returns {@link CheckResult#PROCEED} when dispatch may continue, or a rejection carrying
+     * the error response the caller must send.
+     */
+    @SuppressWarnings("unchecked")
+    private CheckResult preDispatch(ChannelHandlerContext ctx, String cmd, Map<String, Object> doc) {
+        boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
+        boolean isPrimary = isCurrentPrimary();
+
+        // (1) Reject writes to secondaries (use dynamic election state if available).
+        // Replication-applied writes are flagged $fromPrimary and must pass through.
+        if (!isPrimary && isWriteCommand && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
+            String currentPrimary = getCurrentPrimaryHost();
+            Map<String, Object> errorResponse = Doc.of(
+                "ok", 0.0,
+                "errmsg", "not primary",
+                "code", 10107,
+                "codeName", "NotWritablePrimary"
+            );
+            if (currentPrimary != null) {
+                errorResponse.put("primaryHost", currentPrimary);
+            }
+            return CheckResult.reject(errorResponse);
+        }
+
+        // (2) Reject primary-only reads on secondaries to ensure consistency.
+        if (!isPrimary && !isWriteCommand) {
+            Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
+            if (readPref != null && "primary".equalsIgnoreCase((String) readPref.get("mode"))) {
+                String currentPrimary = getCurrentPrimaryHost();
+                Map<String, Object> errorResponse = Doc.of(
+                    "ok", 0.0,
+                    "errmsg", "not primary and read preference is primary",
+                    "code", 10107,
+                    "codeName", "NotPrimaryNoSecondaryOk"
+                );
+                if (currentPrimary != null) {
+                    errorResponse.put("primaryHost", currentPrimary);
+                }
+                return CheckResult.reject(errorResponse);
+            }
+        }
+
+        // (3) Establish transaction context (start or join) for this command.
+        setupTransactionContext(ctx, doc);
+        return CheckResult.PROCEED;
+    }
+
+    /**
+     * Shared write-concern handling for both dispatch paths, called after a successful write.
+     * If the effective write concern requires replication acknowledgement (w &gt; 1) this waits
+     * off the Netty I/O thread and sends the response itself, returning {@code true}. Otherwise
+     * it returns {@code false} and the caller sends the response synchronously.
+     *
+     * <p>The replication coordinator is resolved through {@link #replicationCoordinator()} at
+     * call time so a later switch to a live supplier needs no change here.
+     */
+    private boolean postWrite(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+                              Map<String, Object> answer, int requestId) {
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        if (coordinator == null || !isCurrentPrimary()) {
+            return false;
+        }
+
+        int w = getWriteConcernW(doc);
+        if (w <= 1) {
+            return false;
+        }
+
+        long writeSeq = driver.getChangeStreamSequence();
+        long wtimeout = getWriteConcernTimeout(doc);
+        final Map<String, Object> finalAnswer = answer;
+        log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
+        COMMAND_EXECUTOR.execute(() -> {
+            try {
+                boolean acknowledged = coordinator.waitForReplication(writeSeq, w, wtimeout);
+                if (!acknowledged) {
+                    finalAnswer.put("writeConcernError", Doc.of(
+                        "code", 64,
+                        "codeName", "WriteConcernFailed",
+                        "errmsg", "waiting for replication timed out",
+                        "errInfo", Doc.of("wtimeout", true)
+                    ));
+                }
+            } finally {
+                // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
+                ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Single accessor for the replication coordinator, resolved at call time. Task 5 will
+     * replace the frozen field with a live supplier — keeping every read behind this method
+     * means only this body needs to change.
+     */
+    private ReplicationCoordinator replicationCoordinator() {
+        return replicationCoordinator;
     }
 
     /**
