@@ -178,7 +178,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // Change stream infrastructure (per driver instance)
     private final Map<String, CopyOnWriteArrayList<ChangeStreamSubscription>> changeStreamSubscribers = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<ChangeStreamEventInfo> changeStreamHistory = new ConcurrentLinkedDeque<>();
+    // Bounded in-memory replay buffer for change events, keyed by (monotonic, per-driver) sequence
+    // token. Acts as a ring buffer: on overflow the oldest event is evicted (pollFirst). It backs
+    // resume-after-disconnect: a change stream that reconnects with resumeAfter replays the still
+    // buffered events after its token (see replayHistory / canResumeChangeStream). The default keeps
+    // the historical core behaviour; PoppyDB raises it on its primary driver so the replay window is
+    // large enough to resume a secondary after a realistic outage instead of forcing a full re-sync.
     private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
+    private volatile int changeStreamHistoryLimit = CHANGE_STREAM_HISTORY_LIMIT;
     // Track the sequence number at the time of the last drop per namespace (db.collection or db).
     // replayHistory skips events older than this to prevent stale events from being replayed.
     private final ConcurrentHashMap<String, Long> lastDropSequence = new ConcurrentHashMap<>();
@@ -5009,7 +5016,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         changeStreamHistory.addLast(eventInfo);
 
-        while (changeStreamHistory.size() > CHANGE_STREAM_HISTORY_LIMIT) {
+        while (changeStreamHistory.size() > changeStreamHistoryLimit) {
             changeStreamHistory.pollFirst();
         }
 
@@ -5192,6 +5199,67 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         subscription.deactivate();
+    }
+
+    /**
+     * Maximum number of change events retained in the replay buffer (ring buffer). Once this many
+     * events have accumulated the oldest is evicted, so a resume token older than the oldest retained
+     * event can no longer be replayed.
+     */
+    public int getChangeStreamHistoryLimit() {
+        return changeStreamHistoryLimit;
+    }
+
+    /**
+     * Set the replay-buffer bound. PoppyDB uses this to size its primary's replay window. Shrinking
+     * the limit immediately trims the oldest buffered events down to the new bound.
+     */
+    public void setChangeStreamHistoryLimit(int limit) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("changeStreamHistoryLimit must be >= 1");
+        }
+        this.changeStreamHistoryLimit = limit;
+        while (changeStreamHistory.size() > limit) {
+            changeStreamHistory.pollFirst();
+        }
+    }
+
+    /**
+     * Decide whether a change stream that has consumed up to {@code resumeToken} can be resumed
+     * losslessly from the current replay buffer, i.e. whether every event after {@code resumeToken}
+     * is still buffered (or there is nothing after it).
+     *
+     * <p>This is the conservative miss-detection behind resume-after-disconnect. It returns
+     * {@code false} — signalling the caller to fall back to a full re-sync — whenever the buffer
+     * cannot prove a clean, gap-free resume:
+     * <ul>
+     *   <li>{@code resumeToken > newest}: the token is beyond anything this driver ever emitted.
+     *       This happens when the primary process restarted (its per-driver sequence counter reset
+     *       to 0) or the token comes from a different primary's sequence space — never resumable.</li>
+     *   <li>buffer empty while {@code resumeToken < newest}: the events after the token were already
+     *       evicted (or purged by a drop) — the window is lost.</li>
+     *   <li>oldest retained token {@code > resumeToken + 1}: there is a gap between the token and the
+     *       oldest event still buffered — the window is lost.</li>
+     * </ul>
+     * Returns {@code true} when {@code resumeToken == newest} (the consumer is fully caught up,
+     * nothing to replay) or the oldest retained event is contiguous with {@code resumeToken + 1}.
+     *
+     * <p>Sequence tokens are globally monotonic per driver across all namespaces, so this global
+     * check matches the cluster-wide replication watch used by PoppyDB secondaries.
+     */
+    public boolean canResumeChangeStream(long resumeToken) {
+        long newest = changeStreamSequence.get();
+        if (resumeToken > newest) {
+            return false; // token from a reset/foreign sequence space — cannot resume
+        }
+        if (resumeToken == newest) {
+            return true;  // fully caught up, nothing to replay
+        }
+        ChangeStreamEventInfo oldest = changeStreamHistory.peekFirst();
+        if (oldest == null) {
+            return false; // nothing buffered but events exist after the token — window lost
+        }
+        return oldest.token <= resumeToken + 1;
     }
 
     private void replayHistory(ChangeStreamSubscription subscription, long startingToken) {

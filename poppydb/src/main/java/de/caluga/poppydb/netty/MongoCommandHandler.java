@@ -872,6 +872,27 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private Map<String, Object> processChangeStream(Map<String, Object> doc) {
         try {
             WatchCommand wcmd = new WatchCommand(driver).fromMap(doc);
+
+            // Resume-after-disconnect: a PoppyDB secondary resuming its replication watch tags its
+            // resumeAfter token with "poppyResumeSequence" (its lastAppliedSequence). Only these
+            // replication resumes are gated here — ordinary change streams (e.g. messaging) that use
+            // resumeAfter without the marker keep their previous behaviour. If the primary's replay
+            // buffer can no longer cover the gap after that sequence, answer with an explicit
+            // ChangeStreamHistoryLost error instead of a silently-truncated replay, so the secondary
+            // distinguishes "window lost" and falls back to a full re-sync.
+            Map<String, Object> resumeAfter = wcmd.getResumeAfter();
+            if (resumeAfter != null && resumeAfter.get("poppyResumeSequence") instanceof Number seqNum) {
+                long resumeSeq = seqNum.longValue();
+                if (!driver.canResumeChangeStream(resumeSeq)) {
+                    log.warn("Resume window lost for secondary (resume sequence {} no longer buffered) — signalling re-sync", resumeSeq);
+                    return Doc.of(
+                        "ok", 0.0,
+                        "code", 286,
+                        "codeName", "ChangeStreamHistoryLost",
+                        "errmsg", "resume window lost: sequence " + resumeSeq + " is no longer in the replay buffer");
+                }
+            }
+
             long cursorId = cursorManager.createWatchCursor(driver, wcmd);
             channelCursors.add(cursorId);
 

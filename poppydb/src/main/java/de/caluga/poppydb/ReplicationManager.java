@@ -38,6 +38,12 @@ public class ReplicationManager {
     private final AtomicLong lastEventTime = new AtomicLong(0);
     private final AtomicLong lastAppliedSequence = new AtomicLong(0);
     private final AtomicLong lastReportedSequence = new AtomicLong(0);
+    // Number of times the primary signalled "resume window lost" and we fell back to a full re-sync.
+    // Exposed for tests/metrics to distinguish a clean resume (0) from a re-sync fallback.
+    private final AtomicLong resyncCount = new AtomicLong(0);
+    // Test hook: when true the replication loop severs its connection and stops reconnecting,
+    // simulating a network partition between this secondary and the primary.
+    private final AtomicBoolean pausedForTest = new AtomicBoolean(false);
 
     // Secondary's address for reporting back to primary
     private String myAddress;
@@ -527,6 +533,12 @@ public class ReplicationManager {
     private void replicationLoop() {
         while (running.get()) {
             try {
+                // Test hook: simulate a partition — stay severed and do not reconnect until resumed.
+                if (pausedForTest.get()) {
+                    Thread.sleep(100);
+                    continue;
+                }
+
                 if (!connected.get()) {
                     log.info("Not connected to primary, attempting reconnect...");
                     try {
@@ -569,8 +581,13 @@ public class ReplicationManager {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                log.error("Error in replication loop: {}", e.getMessage(), e);
                 connected.set(false);
+                // A partition simulated by the test hook severs the connection on purpose; the watch
+                // throwing is expected, so don't log it as an error or sleep the 5s backoff.
+                if (pausedForTest.get()) {
+                    continue;
+                }
+                log.error("Error in replication loop: {}", e.getMessage(), e);
 
                 if (running.get()) {
                     try {
@@ -839,7 +856,32 @@ public class ReplicationManager {
                     }
                 });
 
-            cmd.watch();
+            // Resume-after-disconnect: once the initial sync is complete and we have applied events,
+            // ask the primary to resume the stream right after our last-applied sequence instead of
+            // starting "now" (which would silently drop every event that occurred while we were
+            // disconnected). The token carries the standard change-stream _data (so the primary's
+            // replay buffer delivers the gap) plus a "poppyResumeSequence" marker that tells the
+            // primary this is a replication resume and to answer with an explicit "resume window lost"
+            // error (rather than a truncated replay) when the buffer can no longer cover the gap.
+            long resumeSeq = lastAppliedSequence.get();
+            if (initialSyncComplete.get() && resumeSeq > 0) {
+                cmd.setResumeAfter(Doc.of(
+                    "_data", String.format(Locale.ROOT, "%016x", resumeSeq),
+                    "poppyResumeSequence", resumeSeq));
+                log.info("Resuming change stream after sequence {}", resumeSeq);
+            }
+
+            try {
+                cmd.watch();
+            } catch (MorphiumDriverException e) {
+                if (isResumeWindowLost(e)) {
+                    // Primary can no longer replay from our last-applied sequence — fall back to a
+                    // full re-initial-sync via the Task 8 machinery.
+                    triggerResync(resumeSeq);
+                    return;
+                }
+                throw e;
+            }
         } finally {
             // Watch is no longer live: a snapshot still waiting to start must wait for the next
             // watch attempt to re-establish before copying.
@@ -851,6 +893,57 @@ public class ReplicationManager {
 
         // If we get here, the watch ended - loop will restart it
         log.debug("Change stream watch ended");
+    }
+
+    /**
+     * Recognise the primary's explicit "resume window lost" signal (ChangeStreamHistoryLost, code
+     * 286) sent when its replay buffer can no longer cover the gap after our last-applied sequence.
+     */
+    private boolean isResumeWindowLost(MorphiumDriverException e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("resume window lost") || msg.contains("ChangeStreamHistoryLost"));
+    }
+
+    /**
+     * Fall back to a full re-initial-sync after the primary signalled that our resume point is no
+     * longer replayable. Rearms the Task 8 initial-sync machinery: closes the apply gate, resets the
+     * sync flags so {@link #startInitialSyncOnce()} launches a fresh snapshot, drops the events left
+     * over from the lost window, and resets the sequence so the next watch starts fresh (no
+     * resumeAfter) instead of re-requesting the same lost window in a loop. The replication loop then
+     * re-runs initial sync + watch on its next iteration.
+     */
+    private void triggerResync(long fromSequence) {
+        long n = resyncCount.incrementAndGet();
+        log.warn("Primary signalled resume window lost at sequence {} — falling back to full re-sync (#{})",
+                fromSequence, n);
+        applying.set(false);            // close the apply gate until the new snapshot completes
+        initialSyncComplete.set(false);
+        initialSyncStarted.set(false);  // allow startInitialSyncOnce() to launch a new snapshot
+        watchLive.set(false);
+        lastAppliedSequence.set(0);     // resume fresh; next watch sends no resumeAfter
+        lastReportedSequence.set(0);
+        eventQueue.clear();             // discard events buffered for the lost window
+    }
+
+    /**
+     * Test hook: sever the replication connection and stop reconnecting, simulating a network
+     * partition between this secondary and the primary. Writes on the primary during the pause are
+     * not seen until {@link #resumeReplicationForTest()} is called.
+     */
+    void pauseReplicationForTest() {
+        pausedForTest.set(true);
+        connected.set(false);
+        disconnectFromPrimary();
+    }
+
+    /** Test hook: heal the simulated partition; the replication loop reconnects and resumes. */
+    void resumeReplicationForTest() {
+        pausedForTest.set(false);
+    }
+
+    /** Number of times replication fell back to a full re-sync because the resume window was lost. */
+    long getResyncCount() {
+        return resyncCount.get();
     }
 
     /**
@@ -1113,6 +1206,7 @@ public class ReplicationManager {
         stats.put("lastEventTime", lastEventTime.get());
         stats.put("lastAppliedSequence", lastAppliedSequence.get());
         stats.put("lastReportedSequence", lastReportedSequence.get());
+        stats.put("resyncCount", resyncCount.get());
         stats.put("primaryHost", primaryHost + ":" + primaryPort);
         stats.put("myAddress", myAddress);
         return stats;

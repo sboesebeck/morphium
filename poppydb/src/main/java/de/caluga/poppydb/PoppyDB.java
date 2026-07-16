@@ -114,7 +114,14 @@ public class PoppyDB {
         driver.connect();
         // Enable server mode to prevent internal Morphium instances from shutting down the driver
         driver.setServerMode(true);
+        // Size the change-event replay buffer for replication resume-after-disconnect: a reconnecting
+        // secondary replays events after its last-applied sequence from this buffer instead of doing a
+        // full re-sync. Bound: 100_000 events (ring buffer, oldest evicted on overflow).
+        driver.setChangeStreamHistoryLimit(REPLICATION_REPLAY_BUFFER_EVENTS);
     }
+
+    /** Primary replay-buffer bound (events) backing replication resume-after-disconnect. */
+    static final int REPLICATION_REPLAY_BUFFER_EVENTS = 100_000;
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds) {
         this(port, host, maxConnections, idleTimeoutSeconds, OpCompressed.COMPRESSOR_NOOP);
@@ -753,6 +760,11 @@ public class PoppyDB {
 
     public ReplicationCoordinator getReplicationCoordinator() {
         return replicationCoordinatorRef.get();
+    }
+
+    /** Test hook: the secondary-side replication manager (null on a node that is currently primary). */
+    ReplicationManager getReplicationManagerForTest() {
+        return replicationManager;
     }
 
     public ElectionManager getElectionManager() {
