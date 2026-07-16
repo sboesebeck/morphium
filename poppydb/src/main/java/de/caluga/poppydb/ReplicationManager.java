@@ -42,7 +42,9 @@ public class ReplicationManager {
     // Secondary's address for reporting back to primary
     private String myAddress;
 
-    private Morphium primaryMorphium;
+    // volatile: written by the replication-loop thread (connect/reconnect) and read by the
+    // separate initial-sync snapshot thread.
+    private volatile Morphium primaryMorphium;
     private ExecutorService replicationExecutor;
     private ScheduledExecutorService progressReporter;
     private volatile long watchCursorId = -1;
@@ -539,10 +541,11 @@ public class ReplicationManager {
 
                 // Lossless initial sync: start the change-stream watch FIRST (below, on this
                 // thread) so events flow into eventQueue, while a background thread performs the
-                // snapshot copy. The snapshot waits for the watch cursor to be established
-                // (watchEstablishedLatch) before copying, so no write is lost in the gap between
-                // snapshot and watch. The batch processor stays gated (applying=false) until the
-                // snapshot completes, then drains the buffered events as an idempotent replay.
+                // snapshot copy. The snapshot waits for the watch to be live (watchLive, set by the
+                // WatchCommand registration callback) before copying, so no write is lost in the
+                // gap between snapshot and watch. The batch processor stays gated (applying=false)
+                // until the snapshot completes, then drains the buffered events as an idempotent
+                // replay.
                 if (!initialSyncComplete.get()) {
                     startInitialSyncOnce();
                 }
@@ -585,12 +588,24 @@ public class ReplicationManager {
      * Launch the initial-sync snapshot on a dedicated background thread, exactly once.
      *
      * The snapshot runs concurrently with the change-stream watch (which is driven on the
-     * replication loop thread). It first waits for the watch cursor to be established
-     * ({@code watchEstablishedLatch}) so that every write happening during the copy is already
-     * being captured into {@code eventQueue}; only then does it copy the data. When the copy is
-     * done it opens the {@code applying} gate, which lets the batch processor drain the events
-     * that were buffered during the copy -- an idempotent replay on top of the snapshot (see the
-     * idempotency note below) -- followed by all subsequent live events.
+     * replication loop thread). It first waits for the watch to be live ({@code watchLive}, set by
+     * the WatchCommand registration callback) so that every write happening during the copy is
+     * already being captured into {@code eventQueue}; only then does it copy the data. When the
+     * copy is done it opens the {@code applying} gate, which lets the batch processor drain the
+     * events that were buffered during the copy -- an idempotent replay on top of the snapshot
+     * (see the idempotency note below) -- followed by all subsequent live events.
+     *
+     * Failure/retry semantics: the snapshot uses its own pool connections, so it can fail
+     * transiently (e.g. a per-collection read error) while the change-stream watch is perfectly
+     * healthy. Because the replication loop thread is parked inside {@code watchForChanges()} for
+     * the whole life of a healthy watch, it will NOT come back around to relaunch the snapshot.
+     * So this thread retries the snapshot itself, with exponential backoff, keeping the gate
+     * closed (events keep buffering) until a copy succeeds -- rather than resetting state and
+     * relying on the loop to retry, which would leave the node permanently ungated (and eventually
+     * fill the bounded queue, blocking the watch reader) whenever the watch stays up. Each retry
+     * first drops any partially-copied local data ({@link #clearLocalDatabases()}) so that
+     * {@code performInitialSync}'s strict inserts start from a clean slate instead of failing on
+     * documents left behind by a previous, partially-successful attempt.
      *
      * Idempotency of the replay: the buffered events may cover documents the snapshot already
      * copied (a document inserted during the copy can appear both in the snapshot's find() and as
@@ -613,35 +628,73 @@ public class ReplicationManager {
         }
 
         initialSyncThread = new Thread(() -> {
+            long backoffMs = 1000;
             try {
-                // Wait until the watch cursor is live before copying, so every write that happens
-                // during the snapshot is already being captured into eventQueue. The watch may
-                // establish on this or a later (reconnect) attempt; poll running so a stop() during
-                // this wait exits promptly.
-                while (running.get() && !watchLive.get()) {
-                    Thread.sleep(50);
-                }
-                if (!running.get()) {
-                    return;
-                }
+                while (running.get()) {
+                    // Wait until the watch is live before copying, so every write that happens
+                    // during the snapshot is already being captured into eventQueue. The watch may
+                    // establish on this or a later (reconnect) attempt; poll running so a stop()
+                    // during this wait exits promptly.
+                    while (running.get() && !watchLive.get()) {
+                        Thread.sleep(50);
+                    }
+                    if (!running.get()) {
+                        return;
+                    }
 
-                performInitialSync();
+                    try {
+                        // Start each attempt from a clean local slate so a retry after a
+                        // partially-successful copy doesn't fail on already-copied documents.
+                        clearLocalDatabases();
+                        performInitialSync();
 
-                // Open the gate: the batch processor now drains the events buffered during the
-                // snapshot (idempotent replay) and all subsequent live events, in order.
-                applying.set(true);
-                initialSyncComplete.set(true);
-                initialSyncLatch.countDown();
+                        // Success: open the gate. The batch processor now drains the events
+                        // buffered during the snapshot (idempotent replay) and all subsequent live
+                        // events, in order.
+                        applying.set(true);
+                        initialSyncComplete.set(true);
+                        initialSyncLatch.countDown();
+                        return;
+                    } catch (Exception e) {
+                        // Snapshot failed while the watch may still be healthy. Retry from within
+                        // this thread with backoff, keeping the gate closed, so the node cannot get
+                        // stuck permanently ungated when watchForChanges() is parked on a healthy
+                        // watch and never returns to drive the loop's retry.
+                        log.error("Initial sync failed, retrying in {}ms (replication gate stays closed): {}",
+                                backoffMs, e.getMessage(), e);
+                        Thread.sleep(backoffMs);
+                        backoffMs = Math.min(backoffMs * 2, 30_000);
+                    }
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                log.error("Initial sync failed, will retry on next reconnect: {}", e.getMessage(), e);
-                // Allow a retry on a later loop iteration (e.g. after a reconnect).
-                initialSyncStarted.set(false);
             }
         }, "PoppyDB-InitialSync");
         initialSyncThread.setDaemon(true);
         initialSyncThread.start();
+    }
+
+    /**
+     * Drop all non-system databases from the local driver.
+     *
+     * Used before each (re)try of the initial snapshot so {@code performInitialSync}'s strict
+     * inserts start from a clean slate and don't fail on documents left behind by a previous,
+     * partially-successful copy. Safe during the buffer phase: buffered change events are not
+     * applied until the gate opens ({@code applying == true}), so only snapshot data lives locally
+     * at this point -- dropping and re-copying it just rebuilds the snapshot, and the buffered
+     * events are still replayed on top of it once the gate opens.
+     */
+    private void clearLocalDatabases() throws Exception {
+        for (String dbName : localDriver.listDatabases()) {
+            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
+                continue;
+            }
+            GenericCommand cmd = new GenericCommand(localDriver);
+            cmd.setDb(dbName);
+            cmd.setColl(null);
+            cmd.setCmdData(Doc.of("dropDatabase", 1, "$db", dbName));
+            localDriver.runCommand(cmd);
+        }
     }
 
     /**
