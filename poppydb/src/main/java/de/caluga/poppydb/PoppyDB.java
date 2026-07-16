@@ -7,8 +7,11 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.JdkSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -278,17 +281,35 @@ public class PoppyDB {
 
     private io.netty.handler.ssl.SslContext buildSslContext() throws Exception {
         if (sslContext != null) {
-            // Use provided SSLContext - need to extract key/cert
-            // For now, use default
-            log.warn("Custom SSLContext not fully supported yet, using self-signed");
+            // Adapt the caller-provided javax.net.ssl.SSLContext (e.g. built via
+            // SslHelper.createServerSslContext(keystorePath, password), as used by
+            // PoppyDBCLI's --sslKeystore option) into a Netty SslContext for server use.
+            log.info("Using explicitly configured SSLContext for TLS");
+
+            try {
+                return new JdkSslContext(sslContext, false, ClientAuth.NONE);
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                        "Configured SSLContext could not be adapted for server-side TLS: " + e.getMessage(), e);
+            }
         }
 
-        // Build a simple self-signed context for testing
-        // In production, you'd provide proper key/cert files
-        return SslContextBuilder.forServer(
-                getClass().getResourceAsStream("/server.crt"),
-                getClass().getResourceAsStream("/server.key")
-        ).build();
+        // No certificate configured: fall back to a freshly generated self-signed
+        // certificate so SSL-enabled startup doesn't fail outright. This is NOT suitable
+        // for production - configure a real certificate via setSslContext(...) (see
+        // docs/poppydb.md, "SSL/TLS Configuration").
+        log.warn("SSL enabled but no SSLContext configured - generating a self-signed certificate. " +
+                "This is INSECURE and must not be used in production; configure a real certificate " +
+                "via setSslContext(...) or PoppyDBCLI's --sslKeystore option.");
+
+        try {
+            SelfSignedCertificate ssc = new SelfSignedCertificate();
+            return SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "SSL is enabled but no SSLContext was configured, and generating a self-signed " +
+                    "fallback certificate failed. Configure a certificate via setSslContext(...).", e);
+        }
     }
 
     /**
