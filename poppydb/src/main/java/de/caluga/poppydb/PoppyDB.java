@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Async I/O MongoDB-compatible server using Netty.
@@ -92,7 +93,11 @@ public class PoppyDB {
 
     // Replication
     private ReplicationManager replicationManager = null;
-    private volatile ReplicationCoordinator replicationCoordinator = null;
+    // Held behind an AtomicReference (rather than a plain volatile field copied into each
+    // connection at accept time) so every MongoCommandHandler resolves the coordinator live
+    // via a Supplier - onLeadershipChange swaps this reference and every existing connection
+    // (not just newly accepted ones) immediately observes the new value.
+    private final AtomicReference<ReplicationCoordinator> replicationCoordinatorRef = new AtomicReference<>();
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
@@ -189,13 +194,17 @@ public class PoppyDB {
                         pipeline.addLast("decoder", new MongoWireProtocolDecoder());
                         pipeline.addLast("encoder", new MongoWireProtocolEncoder(compressorId));
 
-                        // Command handler - capture current primary state for this connection
-                        // Note: primary/primaryHost are volatile and may change during election
+                        // Command handler - capture current primary state for this connection.
+                        // Note: primary/primaryHost are volatile and may change during election;
+                        // when electionManager is set the handler resolves them live through it
+                        // instead. The replication coordinator is always resolved live through
+                        // replicationCoordinatorRef::get, never captured, so a leadership change
+                        // that happens after this connection was accepted is still observed.
                         pipeline.addLast("commandHandler", new MongoCommandHandler(
                                 driver, cursorManager, messagingOptimizer, msgId,
                                 host, port, rsName, hosts,
                                 primary, primaryHost, compressorId,
-                                replicationCoordinator, electionManager
+                                replicationCoordinatorRef::get, electionManager
                         ));
 
                         // Track the channel
@@ -406,7 +415,7 @@ public class PoppyDB {
             // has caught up before handing leadership over to it (priority takeover).
             electionManager.setLocalSequenceSupplier(driver::getChangeStreamSequence);
             electionManager.setPeerSequenceSupplier(peer -> {
-                ReplicationCoordinator coordinator = replicationCoordinator;
+                ReplicationCoordinator coordinator = replicationCoordinatorRef.get();
                 return coordinator == null ? -1L : coordinator.getAcknowledgedSequence(peer);
             });
 
@@ -440,7 +449,7 @@ public class PoppyDB {
 
         // Initialize replication coordinator for primary nodes in replica sets (static mode only)
         if (!electionEnabled && primary && !rsName.isEmpty() && hosts.size() > 1) {
-            replicationCoordinator = new ReplicationCoordinator(hosts.size());
+            replicationCoordinatorRef.set(new ReplicationCoordinator(hosts.size()));
             log.info("Replication coordinator initialized for {} nodes", hosts.size());
         }
 
@@ -460,9 +469,8 @@ public class PoppyDB {
             primary = true;
             primaryHost = host + ":" + port;
 
-            // Initialize replication coordinator
-            if (replicationCoordinator == null && hosts.size() > 1) {
-                replicationCoordinator = new ReplicationCoordinator(hosts.size());
+            // Initialize replication coordinator (only if not already present)
+            if (hosts.size() > 1 && replicationCoordinatorRef.compareAndSet(null, new ReplicationCoordinator(hosts.size()))) {
                 log.info("Replication coordinator initialized for {} nodes", hosts.size());
             }
 
@@ -476,7 +484,7 @@ public class PoppyDB {
             primary = false;
 
             // Clean up replication coordinator
-            replicationCoordinator = null;
+            replicationCoordinatorRef.set(null);
 
             // Start replication from new primary (will be set by onLeaderDiscovered)
         }
@@ -733,8 +741,9 @@ public class PoppyDB {
         if (replicationManager != null) {
             stats.put("replication", replicationManager.getStats());
         }
-        if (replicationCoordinator != null) {
-            stats.put("replicationCoordinator", replicationCoordinator.getStats());
+        ReplicationCoordinator coordinator = replicationCoordinatorRef.get();
+        if (coordinator != null) {
+            stats.put("replicationCoordinator", coordinator.getStats());
         }
         if (electionManager != null) {
             stats.put("election", electionManager.getStats());
@@ -743,7 +752,7 @@ public class PoppyDB {
     }
 
     public ReplicationCoordinator getReplicationCoordinator() {
-        return replicationCoordinator;
+        return replicationCoordinatorRef.get();
     }
 
     public ElectionManager getElectionManager() {

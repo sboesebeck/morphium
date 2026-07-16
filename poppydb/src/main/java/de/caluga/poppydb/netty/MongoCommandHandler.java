@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Netty handler for processing MongoDB commands.
@@ -168,23 +169,27 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private final boolean primary;
     private final String primaryHost;
     private final int compressorId;
-    private final ReplicationCoordinator replicationCoordinator;
+    // Resolved live at call time (see #replicationCoordinator()) rather than captured once at
+    // connect time: a connection accepted before a leadership change must still observe a
+    // coordinator created (or cleared) by a later election, not the value that existed when
+    // the connection's pipeline was built.
+    private final Supplier<ReplicationCoordinator> replicationCoordinatorSupplier;
     private final ElectionManager electionManager;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
-                               int compressorId, ReplicationCoordinator replicationCoordinator) {
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier) {
         this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
-             compressorId, replicationCoordinator, null);
+             compressorId, replicationCoordinatorSupplier, null);
     }
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
-                               int compressorId, ReplicationCoordinator replicationCoordinator,
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
                                ElectionManager electionManager) {
         this.driver = driver;
         this.cursorManager = cursorManager;
@@ -197,7 +202,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         this.primary = primary;
         this.primaryHost = primaryHost;
         this.compressorId = compressorId;
-        this.replicationCoordinator = replicationCoordinator;
+        this.replicationCoordinatorSupplier = replicationCoordinatorSupplier;
         this.electionManager = electionManager;
     }
 
@@ -747,12 +752,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
-     * Single accessor for the replication coordinator, resolved at call time. Task 5 will
-     * replace the frozen field with a live supplier — keeping every read behind this method
-     * means only this body needs to change.
+     * Single accessor for the replication coordinator, resolved live from the supplier on
+     * every call — never captured once at connect time. This means a leadership change that
+     * happens after this connection was accepted (coordinator created or cleared by
+     * {@code PoppyDB.onLeadershipChange}) is observed immediately, including by connections
+     * that predate the change.
      */
     private ReplicationCoordinator replicationCoordinator() {
-        return replicationCoordinator;
+        return replicationCoordinatorSupplier == null ? null : replicationCoordinatorSupplier.get();
     }
 
     /**
@@ -760,7 +767,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * This is called when a secondary sends its current replication sequence.
      */
     private Map<String, Object> processReplSetProgress(Map<String, Object> doc) {
-        if (replicationCoordinator == null) {
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        if (coordinator == null) {
             // Not a primary with replication enabled
             return Doc.of("ok", 0.0, "errmsg", "not primary or replication not enabled");
         }
@@ -775,7 +783,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         long sequenceNumber = seqObj instanceof Number ? ((Number) seqObj).longValue() : 0;
 
         log.debug("Received replication progress from {}: seq={}", secondaryAddress, sequenceNumber);
-        replicationCoordinator.reportProgress(secondaryAddress, sequenceNumber);
+        coordinator.reportProgress(secondaryAddress, sequenceNumber);
 
         return Doc.of("ok", 1.0);
     }

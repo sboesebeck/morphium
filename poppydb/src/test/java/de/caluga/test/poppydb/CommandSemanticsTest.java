@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -204,6 +206,100 @@ public class CommandSemanticsTest {
                     "aborted fast-path insert must not persist");
         } finally {
             srv.shutdown();
+        }
+    }
+
+    // Scenario 4: the replication coordinator must be resolved live, not frozen at connect
+    // time. A connection opened against a node while it is still a secondary (coordinator ==
+    // null at that moment) must still honor write concern once that node is later elected
+    // primary and a real coordinator is created - the pre-existing connection's handler must
+    // not keep serving the stale (null) reference it captured when the pipeline was built.
+    @Test
+    public void writeConcernHonoredAfterLeadershipChangeOnPreExistingConnection() throws Exception {
+        int p0 = freePort();
+        int p1 = freePort();
+        int p2 = freePort();
+        List<String> hostList = List.of("127.0.0.1:" + p0, "127.0.0.1:" + p1, "127.0.0.1:" + p2);
+
+        // Use a generous idle timeout: this test deliberately holds connections open across a
+        // failover / re-election, which can take several seconds with no traffic on them.
+        List<PoppyDB> servers = new ArrayList<>();
+        for (int p : new int[] {p0, p1, p2}) {
+            servers.add(new PoppyDB(p, "127.0.0.1", 1000, 120));
+        }
+        for (PoppyDB srv : servers) {
+            srv.configureReplicaSet("rs_live_coord", hostList, null, true, null);
+        }
+        for (PoppyDB srv : servers) {
+            srv.start();
+        }
+
+        Map<Integer, Socket> preElectionSockets = new HashMap<>();
+        try {
+            AtomicReference<PoppyDB> oldPrimaryRef = new AtomicReference<>();
+            TestUtils.waitForConditionToBecomeTrue(20000, "No primary elected", () -> {
+                for (PoppyDB srv : servers) {
+                    if (srv.isPrimary()) {
+                        oldPrimaryRef.set(srv);
+                        return true;
+                    }
+                }
+                return false;
+            });
+            PoppyDB oldPrimary = oldPrimaryRef.get();
+            log.info("Initial primary is {}", oldPrimary.getPort());
+
+            // Open connections to the secondaries *before* any re-election. At this moment
+            // each secondary's replicationCoordinator is null, so the handler built for these
+            // connections captures (or, after the fix, resolves via supplier) that null.
+            List<PoppyDB> secondaries = servers.stream().filter(s -> s != oldPrimary).toList();
+            for (PoppyDB s : secondaries) {
+                preElectionSockets.put(s.getPort(), connect(s.getPort()));
+            }
+
+            log.info("Shutting down current primary {} to force a re-election", oldPrimary.getPort());
+            oldPrimary.shutdown();
+
+            AtomicReference<PoppyDB> newPrimaryRef = new AtomicReference<>();
+            TestUtils.waitForConditionToBecomeTrue(20000, "No new primary elected after failover", () -> {
+                for (PoppyDB s : secondaries) {
+                    if (s.isPrimary()) {
+                        newPrimaryRef.set(s);
+                        return true;
+                    }
+                }
+                return false;
+            });
+            PoppyDB newPrimary = newPrimaryRef.get();
+            log.info("New primary is {}", newPrimary.getPort());
+
+            Socket oldSocket = preElectionSockets.get(newPrimary.getPort());
+            assertNotNull(oldSocket, "must have a pre-election connection to the new primary");
+
+            // Unsatisfiable write concern (only 2 nodes remain) over the OLD connection. If the
+            // handler still serves the coordinator reference it captured when the connection
+            // was accepted (null, since the node was a secondary then), the write-concern wait
+            // is silently skipped and no writeConcernError is produced.
+            Map<String, Object> reply = command(oldSocket, Doc.of(
+                    "insert", "sem_live_coord",
+                    "documents", List.of(Doc.of("_id", 1, "v", "x")),
+                    "$db", "semtest",
+                    "writeConcern", Doc.of("w", 5, "wtimeout", 500)));
+            log.info("Insert-with-wc reply on pre-election connection: {}", reply);
+
+            assertEquals(1.0, ok(reply), "insert itself succeeds on the (new) primary");
+            assertNotNull(reply.get("writeConcernError"),
+                    "unsatisfiable write concern must still be honored on a connection that "
+                    + "predates the leadership change - the coordinator must be resolved live, "
+                    + "not frozen at connect time");
+        } finally {
+            for (Socket sock : preElectionSockets.values()) {
+                try {
+                    sock.close();
+                } catch (Exception ignored) {
+                }
+            }
+            shutdownAll(servers);
         }
     }
 }
