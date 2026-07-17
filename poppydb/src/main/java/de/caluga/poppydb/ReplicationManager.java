@@ -76,6 +76,14 @@ public class ReplicationManager {
     private final AtomicBoolean watchLive = new AtomicBoolean(false);
     private final AtomicBoolean initialSyncStarted = new AtomicBoolean(false);
     private volatile Thread initialSyncThread;
+    //   watchGeneration       - bumped every time a watch cursor registers on the primary (the
+    //                           registration callback). The snapshot captures it before the copy;
+    //                           if it changes (or watchLive drops) before the copy finishes, the
+    //                           watch died and was re-established "from now" (no resumeAfter while
+    //                           initial sync is incomplete) mid-copy, so writes in the gap between
+    //                           the old watch's death and the new watch's registration are lost and
+    //                           the snapshot must be redone. Package-private for the seam test.
+    final AtomicLong watchGeneration = new AtomicLong(0);
 
     // Progress reporting interval - balanced for good throughput and write concern latency
     // 50ms gives good responsiveness while not overwhelming the primary with reports
@@ -658,12 +666,29 @@ public class ReplicationManager {
                     if (!running.get()) {
                         return;
                     }
+                    // Capture the generation of the watch we are about to copy under. If it changes
+                    // (or watchLive drops) before the copy finishes, the watch died mid-copy and a
+                    // replacement started "from now" with no resume point, losing the writes in the
+                    // gap -- we must redo the snapshot under the new watch.
+                    long watchGen = watchGeneration.get();
 
                     try {
                         // Start each attempt from a clean local slate so a retry after a
                         // partially-successful copy doesn't fail on already-copied documents.
                         clearLocalDatabases();
                         performInitialSync();
+
+                        // Guard: if the watch died or was re-established during the copy, the snapshot
+                        // may be missing writes that fell into the gap. Discard it and retry under the
+                        // new watch instead of opening the gate on a lossy snapshot.
+                        if (watchInvalidatedDuringSnapshot(watchGen)) {
+                            log.warn("Watch changed during initial sync (captured gen {}, now {}, live {}); "
+                                    + "redoing snapshot in {}ms to avoid a lost-write gap",
+                                    watchGen, watchGeneration.get(), watchLive.get(), backoffMs);
+                            Thread.sleep(backoffMs);
+                            backoffMs = Math.min(backoffMs * 2, 30_000);
+                            continue;
+                        }
 
                         // Success: open the gate. The batch processor now drains the events
                         // buffered during the snapshot (idempotent replay) and all subsequent live
@@ -689,6 +714,27 @@ public class ReplicationManager {
         }, "PoppyDB-InitialSync");
         initialSyncThread.setDaemon(true);
         initialSyncThread.start();
+    }
+
+    /**
+     * True when the change-stream watch that the snapshot started copying under is no longer the
+     * live watch: either it dropped ({@code watchLive} is false) or a new watch has since registered
+     * ({@code watchGeneration} advanced past {@code capturedGeneration}). Either way the snapshot may
+     * be missing writes from the gap and must be redone. Package-private so the seam test can drive
+     * the predicate without a live primary.
+     */
+    boolean watchInvalidatedDuringSnapshot(long capturedGeneration) {
+        return !watchLive.get() || watchGeneration.get() != capturedGeneration;
+    }
+
+    /** Test hook: force the watchLive flag. */
+    void setWatchLiveForTest(boolean live) {
+        watchLive.set(live);
+    }
+
+    /** Test hook: simulate a watch (re-)registration bumping the generation. */
+    void bumpWatchGenerationForTest() {
+        watchGeneration.incrementAndGet();
     }
 
     /**
@@ -818,8 +864,13 @@ public class ReplicationManager {
                 .setPipeline(List.of())  // Empty = watch everything
                 // Fires once the watch cursor is established on the primary. From that point the
                 // stream captures every subsequent write, so the initial-sync snapshot can safely
-                // start copying without losing writes that happen during the copy.
-                .setRegistrationCallback(() -> watchLive.set(true))
+                // start copying without losing writes that happen during the copy. Bump the
+                // generation FIRST so a snapshot that captures the generation the instant it sees
+                // watchLive observes the value belonging to this watch (not a stale one).
+                .setRegistrationCallback(() -> {
+                    watchGeneration.incrementAndGet();
+                    watchLive.set(true);
+                })
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long cursorId) {
