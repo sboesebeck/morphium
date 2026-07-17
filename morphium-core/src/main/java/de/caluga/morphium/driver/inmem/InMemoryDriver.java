@@ -3133,8 +3133,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         List<Map<String, Object>> data = getCollection(db, collection);
+        CompiledQuery compiled = CompiledQuery.compile(query);
         for (Map<String, Object> doc : data) {
-            if (QueryHelper.matchesQuery(query, doc, null)) {
+            if (compiled.matches(doc)) {
                 return true;  // Stop at first match
             }
         }
@@ -3348,11 +3349,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             Iterator<Map<String, Object>> sourceIterator = indexSortIterator != null ? indexSortIterator : data.iterator();
 
+            // Compile once per operation (query is fully finalized above - $text rewrite etc. is
+            // done) instead of re-interpreting it for every candidate document in the loop below.
+            CompiledQuery compiledQuery = CompiledQuery.compile(query, collation);
+
             while (sourceIterator.hasNext()) {
                 Map<String, Object> o = sourceIterator.next();
 
                 // Check match FIRST on original document - no copy needed for non-matches
-                if (!QueryHelper.matchesQuery(query, o, collation)) {
+                if (!compiledQuery.matches(o)) {
                     continue;
                 }
 
@@ -4001,9 +4006,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             long cnt = 0;
+            CompiledQuery compiledQuery = CompiledQuery.compile(query, collation == null ? null : collation.toQueryObject());
 
             for (Map<String, Object> o : data) {
-                if (QueryHelper.matchesQuery(query, o, collation == null ? null : collation.toQueryObject())) {
+                if (compiledQuery.matches(o)) {
                     cnt++;
                 }
             }
