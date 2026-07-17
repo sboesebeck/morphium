@@ -87,6 +87,33 @@ public class CollectionIndexStore {
     }
 
     /**
+     * Bulk-seeds the built-in unique {@code _id_} index from a collection's existing documents.
+     *
+     * <p>Needed by {@link InMemoryDriver} when it (re)builds a persistent store over an
+     * already-populated collection: {@link #addIndex} seeds the <em>secondary</em> indexes, but the
+     * {@code _id_} index is created empty by the constructor and is otherwise only ever filled
+     * incrementally by {@link #onInsert}. A from-scratch rebuild (forced by an index add/drop,
+     * collection rename, transaction commit, or drop - see {@code invalidateIndexStore}) therefore
+     * has to seed it explicitly here, or every {@code _id} equality lookup (e.g. {@code findById},
+     * the messaging lock-then-refetch cycle) would silently return nothing for every document that
+     * already existed before the rebuild. Validate-then-nothing-special: a genuine collection never
+     * holds two documents with the same {@code _id}, so a duplicate here signals a corrupt caller.
+     *
+     * @throws MorphiumDriverException carrying MongoDB duplicate-key shape (code {@code 11000}) if
+     *                                 two documents share an {@code _id}
+     */
+    public void seedIdIndex(Iterable<Map<String, Object>> existingDocs) {
+        IndexEntry idEntry = indexesByName.get(ID_INDEX_NAME);
+        for (Map<String, Object> doc : existingDocs) {
+            IndexKey key = IndexKey.extract(doc, idEntry.definition);
+            if (idEntry.hasBucket(key)) {
+                throw duplicateKeyException(ID_INDEX_NAME, key);
+            }
+            idEntry.add(key, doc);
+        }
+    }
+
+    /**
      * Drops an index by name. A no-op if no such index exists.
      *
      * @throws IllegalArgumentException if {@code name} is the {@code _id} index - it always exists

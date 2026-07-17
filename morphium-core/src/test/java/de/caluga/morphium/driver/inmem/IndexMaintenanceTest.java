@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -175,5 +176,34 @@ public class IndexMaintenanceTest {
 
         assertEquals(1, drv.find(db, coll, Doc.of("counter", n), null, null, 0, 0).size());
         assertTrue(drv.find(db, coll, Doc.of("counter", 0), null, null, 0, 0).isEmpty());
+    }
+
+    /**
+     * Regression guard for the Task 4 messaging breakage: a from-scratch rebuild of a collection's
+     * persistent store (forced here by adding a second index, exactly as {@code ensureIndicesFor}
+     * does) must seed the built-in unique {@code _id_} index from the documents that already exist -
+     * otherwise every {@code _id} equality lookup silently returns nothing for pre-existing
+     * documents, which is what made exclusive messaging (lock-then-refetch-by-_id) hang forever.
+     */
+    @Test
+    void idLookupStillWorksAfterAStoreRebuildOverExistingDocuments() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection();
+        new InsertMongoCommand(drv).setDb(db).setColl(coll)
+                .setDocuments(List.of(Doc.of("counter", 1))).execute();
+        Object id = drv.find(db, coll, Doc.of("counter", 1), null, null, 0, 0).get(0).get("_id");
+        assertNotNull(id, "sanity: inserted document has an _id");
+
+        // Adding an index invalidates the persistent store; the next access rebuilds it from
+        // scratch over the now-populated collection - the exact path that used to drop the _id_
+        // index contents.
+        drv.createIndex(db, coll, Doc.of("other", 1), Doc.of("name", "other_1"));
+
+        long fullScansBefore = drv.fullScans;
+        long indexHitsBefore = drv.indexHits;
+        List<Map<String, Object>> byId = drv.find(db, coll, Doc.of("_id", id), null, null, 0, 0);
+        assertEquals(1, byId.size(),
+                "an _id lookup must still find a document that existed before the store was rebuilt");
+        assertEquals(indexHitsBefore + 1, drv.indexHits, "the _id lookup must stay index-backed");
+        assertEquals(fullScansBefore, drv.fullScans, "an _id lookup must not fall back to a full scan");
     }
 }

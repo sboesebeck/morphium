@@ -3738,6 +3738,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
+        // addIndex() above seeds only the SECONDARY indexes; the store's built-in unique _id_ index
+        // (the isDefaultIdDefinition skip) is created empty and, from here on, maintained only
+        // incrementally by onInsert/onUpdate/onRemove. A rebuild over an already-populated
+        // collection (createIndex/dropIndexes/rename/commit/drop all force one via
+        // invalidateIndexStore) must therefore seed the _id_ index from the current documents too -
+        // otherwise every _id equality lookup (findById, messaging's lock-then-refetch) would
+        // silently return nothing for documents that existed before the rebuild.
+        store.seedIdIndex(docs);
+
         return store;
     }
 
