@@ -135,6 +135,22 @@ public class CollectionIndexStore {
     }
 
     /**
+     * Same as {@link #definitions()}, but keyed by each index's internal store name - the same
+     * name {@link #rangeScan}/{@link #orderedScan} address. {@link #definitions()} alone drops
+     * that association, which a caller needs when it has to locate and scan a *specific* index
+     * (e.g. {@code InMemoryDriver}'s TTL expiry-queue bootstrap, which must find the TTL field's
+     * own secondary index by its {@link IndexDefinition#expireAfterSeconds()} and then range-scan
+     * it by name).
+     */
+    public Map<String, IndexDefinition> definitionsByName() {
+        Map<String, IndexDefinition> out = new LinkedHashMap<>(indexesByName.size());
+        for (Map.Entry<String, IndexEntry> e : indexesByName.entrySet()) {
+            out.put(e.getKey(), e.getValue().definition);
+        }
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
      * Adds {@code doc} to every index. Validate-then-apply across all indexes: unique keys are
      * checked first, and only if every check passes is {@code doc} actually inserted into any
      * index's structures.

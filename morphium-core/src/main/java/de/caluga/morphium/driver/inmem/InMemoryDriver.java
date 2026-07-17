@@ -206,6 +206,27 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     long indexStoreRebuilds;
 
+    /**
+     * Counts documents actually re-checked by {@link #sweepTtlQueue} - one increment per popped
+     * queue entry evaluated against its live document, regardless of whether it turned out stale
+     * or genuinely due for deletion. Package-private test hook (Phase B2, Task 4): a queue-driven
+     * sweep over a large collection with only a handful of due documents must touch O(#due)
+     * documents, never scan the whole collection - this counter is how a test proves that without
+     * reaching into {@link #ttlQueueByCollection} directly.
+     */
+    long ttlEntriesChecked;
+
+    /**
+     * Counts JOL {@code sizeOf} measurements taken for capped-collection byte-counter bookkeeping
+     * (see {@link #cappedOnInsert} and the incoming-batch measurement in {@link #insert}).
+     * Package-private test hook (Phase B2, Task 4): the counter-based eviction loop must measure
+     * each existing document's size exactly once, at its own insertion, and the incoming batch
+     * exactly once per {@code insert} call - never again while evicting older documents to make
+     * room. A test can insert a batch that triggers many evictions and assert this counter grew by
+     * only the batch size (+1), not by the eviction count.
+     */
+    long cappedSizeOfCalls;
+
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final AtomicLong changeStreamSequence = new AtomicLong();
@@ -243,6 +264,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private volatile long lastGlobalDropSequence = 0;
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
+    // Phase B2 Task 4: running byte counter per capped collection, fed by cappedOnInsert/
+    // cappedOnRemove so eviction compares against a counter instead of re-measuring the whole
+    // collection with JOL on every eviction iteration. The per-document size is measured exactly
+    // once (at insertion) and cached here, keyed by document IDENTITY rather than equals/hashCode
+    // - documents are mutated in place elsewhere in this driver (see CollectionIndexStore's class
+    // Javadoc), so an equals-based cache key would silently go stale the moment any field changed
+    // after insertion. An IdentityHashMap keyed on the live Map reference is immune to that and is
+    // simpler than reserving a magic field inside the stored document itself (which would leak
+    // into serialization/change-stream events). Not internally synchronized - like
+    // CollectionIndexStore, every mutating call is made under the owning collection's write lock.
+    private final Map<String, IdentityHashMap<Map<String, Object>, Long>> cappedDocSizesByCollection = new ConcurrentHashMap<>();
+    private final Map<String, AtomicLong> cappedCurrentBytesByCollection = new ConcurrentHashMap<>();
     private final List<WatchMonitor> monitors = new CopyOnWriteArrayList<>();
     private final BlockingQueue<Runnable> eventQueue = new LinkedBlockingDeque<>();
     private final java.util.concurrent.ConcurrentLinkedQueue<Map<String, Object>> commandResults = new java.util.concurrent.ConcurrentLinkedQueue<>();
@@ -306,6 +339,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.expireAfterSeconds = expireAfterSeconds;
         }
     }
+
+    // Phase B2 Task 4: per-collection expiry queue, ordered by absolute expiry instant, so the
+    // periodic sweep (see sweepTtlQueue) only ever touches documents that are actually due instead
+    // of scanning the whole collection. Fed by ttlEnqueue at every insert/update of a TTL-indexed
+    // collection's document, bootstrapped from a range scan of the TTL field's own secondary index
+    // by ttlBootstrapQueue (called from createIndex). Not internally synchronized (same discipline
+    // as CollectionIndexStore and the capped byte maps above): every mutating access - add, poll,
+    // peek, or the map's own put - happens under the owning collection's lock (read lock is enough
+    // for a peek, since it still excludes a concurrent writer's write lock).
+    private final Map<String, PriorityQueue<TtlQueueEntry>> ttlQueueByCollection = new ConcurrentHashMap<>();
+
+    /**
+     * One pending expiry: the absolute instant (epoch millis) a document was due to expire at,
+     * computed from its TTL field's value at the time this entry was queued, plus the raw
+     * {@code _id} it refers to. A popped entry is only a *candidate* - {@link #sweepTtlQueue}
+     * re-checks it against the live document before deleting anything, since the field may have
+     * been updated (and a fresh entry enqueued) after this one was queued.
+     */
+    private static final class TtlQueueEntry implements Comparable<TtlQueueEntry> {
+        final long expiryEpochMs;
+        final Object docId;
+
+        TtlQueueEntry(long expiryEpochMs, Object docId) {
+            this.expiryEpochMs = expiryEpochMs;
+            this.docId = docId;
+        }
+
+        @Override
+        public int compareTo(TtlQueueEntry o) {
+            return Long.compare(expiryEpochMs, o.expiryEpochMs);
+        }
+    }
+
     private String replicaSetName;
     private boolean replicaSetEnabled = false;
     private final AtomicInteger activeConnections = new AtomicInteger(0);
@@ -566,7 +632,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         database.clear();
         indicesByDbCollection.clear();
         cappedCollections.clear();
+        cappedDocSizesByCollection.clear();
+        cappedCurrentBytesByCollection.clear();
         collectionsWithTtlIndex.clear();
+        ttlQueueByCollection.clear();
         indexStoreByCollection.clear();
 
         for (var m : monitors) {
@@ -1328,8 +1397,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 database.get(cmd.getDb()).put(target, col);
             } finally {
                 invalidateIndexStore(cmd.getDb(), origin);
+                // Same pre-existing-gap reasoning as the index store above applies to the TTL
+                // queue: origin's entries self-heal on the next sweep tick anyway (the collection
+                // no longer exists under that name), but target's document list was just replaced
+                // wholesale - discard rather than leave it referencing pre-rename documents.
+                invalidateTtlQueue(cmd.getDb(), origin);
                 if (!origin.equals(target)) {
                     invalidateIndexStore(cmd.getDb(), target);
+                    invalidateTtlQueue(cmd.getDb(), target);
                     secondLock.writeLock().unlock();
                 }
             }
@@ -2101,6 +2176,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // references to documents that were just physically removed - a persistent store never
             // self-heals the way Task 3's rebuild-on-miss cache eventually would have.
             invalidateIndexStore(cmd.getDb(), cmd.getColl());
+            // Same reasoning applies to the TTL expiry queue and the capped byte counter: every
+            // document they reference/count was just wiped out from under them.
+            invalidateTtlQueue(cmd.getDb(), cmd.getColl());
+            cappedDrop(cmd.getDb(), cmd.getColl());
         } finally {
             lock.writeLock().unlock();
         }
@@ -2486,73 +2565,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // Check if collection still exists
                     if (!database.containsKey(db) || !database.get(db).containsKey(coll)) {
                         collectionsWithTtlIndex.remove(key);
-                        continue;
-                    }
-
-                    // Live list reference - only mutated below under the write lock. The scan
-                    // itself iterates a snapshot (see below), never this list directly.
-                    List<Map<String, Object>> collectionData = getCollection(db, coll);
-                    // Snapshot for the lock-free scan: collection storage is a plain ArrayList now
-                    // (was CopyOnWriteArrayList), so iterating the live list without the lock would
-                    // race with concurrent writers and throw ConcurrentModificationException.
-                    List<Map<String, Object>> scanSnapshot = snapshot(db, coll);
-                    if (scanSnapshot.isEmpty()) {
+                        invalidateTtlQueue(db, coll);
                         continue;
                     }
 
                     try {
-                        long thresholdMs = System.currentTimeMillis() - (ttlInfo.expireAfterSeconds * 1000L);
-                        Date threshold = new Date(thresholdMs);
-                        List<Map<String, Object>> toRemove = new ArrayList<>();
-
-                        for (Map<String, Object> existing : scanSnapshot) {
-                            Object val = existing.get(ttlInfo.fieldName);
-
-                            if (val == null) {
-                                continue;
-                            }
-
-                            boolean expired;
-                            if (val instanceof Date) {
-                                expired = !((Date) val).after(threshold);
-                            } else if (val instanceof Number) {
-                                expired = ((Number) val).longValue() <= thresholdMs;
-                            } else {
-                                // Fallback for non-standard types
-                                expired = QueryHelper.matchesQuery(
-                                                          Doc.of(ttlInfo.fieldName, Doc.of("$lte", threshold)), existing, null);
-                            }
-
-                            if (expired) {
-                                toRemove.add(existing);
-                            }
-                        }
-
-                        if (!toRemove.isEmpty()) {
-                            // TTL expiry mutates the collection outside the normal insert/update/
-                            // delete driver entry points, and historically did so without taking
-                            // the collection's write lock at all - safe for the old
-                            // CopyOnWriteArrayList-only removal, since COWAL tolerates lock-free
-                            // concurrent iteration/mutation by design. CollectionIndexStore is NOT
-                            // internally synchronized (see its class Javadoc) - mutating its
-                            // HashMap/TreeMap buckets here while a concurrent reader iterates them
-                            // under only a read lock would be unsafe. So this sweep now takes the
-                            // write lock like every other mutation path, purely to make the
-                            // incremental onRemove() calls below safe.
-                            java.util.concurrent.locks.ReadWriteLock ttlLock = getCollectionLock(db, coll);
-                            ttlLock.writeLock().lock();
-                            try {
-                                // Ensure the store exists BEFORE the removal below - see
-                                // getIndexStore's lifecycle contract.
-                                CollectionIndexStore indexStore = getIndexStore(db, coll);
-                                for (Map<String, Object> o : toRemove) {
-                                    collectionData.remove(o);
-                                    indexStore.onRemove(o);
-                                }
-                            } finally {
-                                ttlLock.writeLock().unlock();
-                            }
-                        }
+                        sweepTtlQueue(db, coll, key, ttlInfo);
                     } catch (Exception e) {
                         log.error("Error processing TTL for {}", key, e);
                     }
@@ -2561,6 +2579,248 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 log.error("Error in TTL expiration check", e);
             }
         }, 100, expireCheck, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Queue-driven TTL sweep (Phase B2, Task 4): pops only DUE entries off {@code coll}'s expiry
+     * queue instead of scanning every live document - the queue is a min-heap ordered by absolute
+     * expiry instant (see {@link TtlQueueEntry}), so the moment the head is not yet due, nothing
+     * else in the queue can be either. Net effect: this sweep touches O(#due documents), never the
+     * whole collection, however large it grows.
+     *
+     * <p>Every popped entry is only a <em>candidate</em> - it is re-checked against the live
+     * document's <em>current</em> TTL field value before anything is deleted. The field may have
+     * changed since the entry was queued (the update path always pushes a fresh entry rather than
+     * trying to find and remove the old one - see {@link #ttlEnqueue}), so a popped entry whose
+     * recomputed expiry no longer matches what it was queued with is simply stale and is discarded
+     * without deleting the document. A popped entry whose {@code _id} no longer resolves to any
+     * live document (deleted through some other path) is discarded the same way.
+     *
+     * <p>Deletion itself reuses the exact incremental-maintenance mechanics every other write path
+     * uses (remove from the live list, {@code indexStore.onRemove}, capped byte-counter upkeep) -
+     * not a rebuild of anything. A cheap read-lock peek first (mirroring every other lock-light
+     * check in this class) avoids taking the write lock at all on ticks where nothing is due yet.
+     */
+    private void sweepTtlQueue(String db, String coll, String key, TtlIndexInfo ttlInfo)
+    throws MorphiumDriverException {
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, coll);
+        long now = System.currentTimeMillis();
+
+        lock.readLock().lock();
+        boolean dueWork;
+        try {
+            PriorityQueue<TtlQueueEntry> queue = ttlQueueByCollection.get(key);
+            dueWork = queue == null || (!queue.isEmpty() && queue.peek().expiryEpochMs <= now);
+        } finally {
+            lock.readLock().unlock();
+        }
+        if (!dueWork) {
+            return;
+        }
+
+        lock.writeLock().lock();
+        try {
+            PriorityQueue<TtlQueueEntry> queue = ttlQueueByCollection.get(key);
+            if (queue == null) {
+                // No queue yet - a structural change (drop/rename/transaction commit) discarded it
+                // since it was last built, or this collection's TTL index predates this driver
+                // instance. Bootstrap lazily, same rebuild-on-miss contract as getIndexStore.
+                ttlBootstrapQueue(db, coll, ttlInfo);
+                queue = ttlQueueByCollection.get(key);
+            }
+
+            if (queue.isEmpty()) {
+                return;
+            }
+
+            CollectionIndexStore indexStore = getIndexStore(db, coll);
+            List<Map<String, Object>> collectionData = getCollection(db, coll);
+
+            while (!queue.isEmpty() && queue.peek().expiryEpochMs <= now) {
+                TtlQueueEntry due = queue.poll();
+                ttlEntriesChecked++;
+                List<Map<String, Object>> live = indexStore.equalityLookup(CollectionIndexStore.ID_INDEX_NAME,
+                                                  IndexKey.of(List.of(due.docId)));
+                if (live.isEmpty()) {
+                    continue; // already gone through some other path - stale, discard
+                }
+                Map<String, Object> doc = live.get(0);
+                Long currentFieldEpochMs = ttlComputeFieldEpochMs(doc.get(ttlInfo.fieldName));
+                if (currentFieldEpochMs == null) {
+                    continue; // TTL field removed/unset since this entry was queued - stale
+                }
+                long currentExpiryEpochMs = currentFieldEpochMs + ttlInfo.expireAfterSeconds * 1000L;
+                if (currentExpiryEpochMs != due.expiryEpochMs) {
+                    // The field's value changed after this entry was queued - the update path
+                    // already pushed a fresh entry reflecting the new expiry; this one is stale.
+                    continue;
+                }
+
+                collectionData.remove(doc);
+                indexStore.onRemove(doc);
+                cappedOnRemove(db, coll, doc);
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Converts a TTL field's raw stored value into an absolute epoch-millis instant, or
+     * {@code null} if the value is absent or not a recognised temporal/numeric type (nothing to
+     * schedule/compare). Mirrors the exact semantics the old full-scan sweep used for {@code Date}
+     * and {@code Number} fields (a raw {@code Number} is treated as already being epoch millis,
+     * not seconds - matching this driver's historical TTL behaviour), and additionally recognises
+     * serialised {@code LocalDateTime}/{@code Instant} forms via
+     * {@link QueryHelper#toTemporalNumber} for the exotic-type fallback the old sweep's
+     * {@code matchesQuery}-based fallback could never actually match anyway (it compared against a
+     * {@code java.util.Date} threshold, which {@code toTemporalNumber} does not recognise either -
+     * that comparison always silently returned {@code false}).
+     */
+    private static Long ttlComputeFieldEpochMs(Object fieldValue) {
+        if (fieldValue == null) {
+            return null;
+        }
+        if (fieldValue instanceof Date d) {
+            return d.getTime();
+        }
+        if (fieldValue instanceof Number n) {
+            return n.longValue();
+        }
+        Long nanos = QueryHelper.toTemporalNumber(fieldValue);
+        return nanos == null ? null : nanos / 1_000_000L;
+    }
+
+    /**
+     * Enqueues {@code doc}'s current TTL-field value onto its collection's expiry queue, if that
+     * collection has a TTL index and the field currently resolves to a computable instant. Called
+     * under the collection's write lock at every point that can create a document or change an
+     * existing one's fields (insert, replace, {@code $set}/etc. update) - see the call sites in
+     * {@code storeInternal}, {@code insert}, and {@code updateInternal}. Never tries to find and
+     * remove a document's OLD queue entry: {@link #sweepTtlQueue} re-checks a popped entry against
+     * the live document and silently discards it if stale, which is cheaper than a queue-wide
+     * search here and keeps this a pure O(1) push.
+     */
+    private void ttlEnqueue(String db, String collection, Map<String, Object> doc) {
+        TtlIndexInfo ttlInfo = collectionsWithTtlIndex.get(db + "." + collection);
+        if (ttlInfo == null) {
+            return;
+        }
+        Long fieldEpochMs = ttlComputeFieldEpochMs(doc.get(ttlInfo.fieldName));
+        if (fieldEpochMs == null) {
+            return;
+        }
+        long expiryEpochMs = fieldEpochMs + ttlInfo.expireAfterSeconds * 1000L;
+        ttlQueueByCollection.computeIfAbsent(db + "." + collection, k -> new PriorityQueue<>())
+        .add(new TtlQueueEntry(expiryEpochMs, doc.get("_id")));
+    }
+
+    /**
+     * Seeds {@code db.collection}'s expiry queue from a range scan of the TTL field's own
+     * secondary index in the persistent {@link CollectionIndexStore} - the bootstrap half of Task
+     * 4, called from {@link #createIndex} right after a TTL index is registered (and, defensively,
+     * from {@link #sweepTtlQueue} if a queue was discarded by a structural change and never
+     * rebuilt). Must be called under the collection's write lock, same as every other queue
+     * mutation - the store lookup below may trigger a first-touch (or post-{@code
+     * invalidateIndexStore}) rebuild, which itself requires at least the read lock.
+     */
+    private void ttlBootstrapQueue(String db, String collection, TtlIndexInfo ttlInfo) throws MorphiumDriverException {
+        CollectionIndexStore store = getIndexStore(db, collection);
+        String ttlIndexName = null;
+        for (Map.Entry<String, IndexDefinition> e : store.definitionsByName().entrySet()) {
+            if (e.getValue().expireAfterSeconds() != null) {
+                ttlIndexName = e.getKey();
+                break;
+            }
+        }
+
+        PriorityQueue<TtlQueueEntry> queue = new PriorityQueue<>();
+        if (ttlIndexName != null) {
+            Iterator<Map<String, Object>> it = store.orderedScan(ttlIndexName, false);
+            while (it.hasNext()) {
+                Map<String, Object> doc = it.next();
+                Long fieldEpochMs = ttlComputeFieldEpochMs(doc.get(ttlInfo.fieldName));
+                if (fieldEpochMs != null) {
+                    queue.add(new TtlQueueEntry(fieldEpochMs + ttlInfo.expireAfterSeconds * 1000L, doc.get("_id")));
+                }
+            }
+        }
+        ttlQueueByCollection.put(db + "." + collection, queue);
+    }
+
+    /**
+     * Discards {@code db.collection}'s expiry queue, mirroring {@link #invalidateIndexStore}'s
+     * discard-and-rebuild-on-next-access pattern: called at every structural change (drop, clear,
+     * rename, transaction commit replacing a collection's document list) where queued entries
+     * could otherwise point at stale expiry times. The next TTL sweep tick that finds a missing
+     * queue for a still-TTL-indexed collection rebuilds it lazily via {@link #ttlBootstrapQueue} -
+     * same lazy-rebuild contract as the index store, so callers here don't need the write lock (a
+     * freshly discarded queue is always a safe state to leave behind).
+     */
+    private void invalidateTtlQueue(String db, String collection) {
+        ttlQueueByCollection.remove(db + "." + collection);
+    }
+
+    /**
+     * Current cached byte total for a capped collection's live documents, or 0 if untracked.
+     * Package-private (rather than private) so same-package tests can calibrate a size cap
+     * against this driver's own JOL measurements instead of guessing document sizes.
+     */
+    long cappedCurrentBytes(String db, String collection) {
+        AtomicLong counter = cappedCurrentBytesByCollection.get(db + "." + collection);
+        return counter == null ? 0L : counter.get();
+    }
+
+    /**
+     * Measures {@code doc} with JOL exactly once and adds it to the running byte counter for
+     * {@code db.collection}, caching the measured size (keyed by identity - see
+     * {@link #cappedDocSizesByCollection}) so a later {@link #cappedOnRemove} can subtract it
+     * without re-measuring. A no-op for a non-capped collection. Must be called under the
+     * collection's write lock, at the point {@code doc} is physically added to its live document
+     * list.
+     */
+    private void cappedOnInsert(String db, String collection, Map<String, Object> doc) {
+        if (!isCapped(db, collection)) {
+            return;
+        }
+        String key = db + "." + collection;
+        cappedSizeOfCalls++;
+        long sz = VM.current().sizeOf(doc);
+        cappedDocSizesByCollection.computeIfAbsent(key, k -> new IdentityHashMap<>()).put(doc, sz);
+        cappedCurrentBytesByCollection.computeIfAbsent(key, k -> new AtomicLong()).addAndGet(sz);
+    }
+
+    /**
+     * Subtracts {@code doc}'s previously-cached size (if any) from {@code db.collection}'s running
+     * byte counter and drops the cache entry. A no-op if {@code doc} was never measured (not a
+     * capped collection, or measured under a since-cleared cache - see {@link #cappedDrop}). Must
+     * be called under the collection's write lock, at every point {@code doc} is physically removed
+     * from its live document list (eviction, ordinary delete, TTL expiry).
+     */
+    private void cappedOnRemove(String db, String collection, Map<String, Object> doc) {
+        IdentityHashMap<Map<String, Object>, Long> sizes = cappedDocSizesByCollection.get(db + "." + collection);
+        if (sizes == null) {
+            return;
+        }
+        Long sz = sizes.remove(doc);
+        if (sz != null) {
+            AtomicLong counter = cappedCurrentBytesByCollection.get(db + "." + collection);
+            if (counter != null) {
+                counter.addAndGet(-sz);
+            }
+        }
+    }
+
+    /**
+     * Drops {@code db.collection}'s entire capped byte-counter state (cached per-doc sizes and the
+     * running total). Used wherever a collection's whole document list is discarded at once (drop,
+     * clear) rather than document-by-document - cheaper than, and equivalent to, calling
+     * {@link #cappedOnRemove} for every document.
+     */
+    private void cappedDrop(String db, String collection) {
+        String key = db + "." + collection;
+        cappedDocSizesByCollection.remove(key);
+        cappedCurrentBytesByCollection.remove(key);
     }
 
     public int getExpireCheck() {
@@ -4240,26 +4500,49 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // batch - those evictions must be reflected in the index store too, or evicted docs
             // would keep "existing" forever from an index-backed find/count's point of view.
             List<Map<String, Object>> evicted = new ArrayList<>();
-            if (cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(collection)) {
-                while (!collectionData.isEmpty() && cappedCollections.get(db).get(collection).containsKey("max")
-                        && cappedCollections.get(db).get(collection).get("max") < collectionData.size() + objs.size()) {
-                    evicted.add(collectionData.remove(0));
-                }
-                while (collectionData.size() > 0 && cappedCollections.get(db).get(collection)
-                        .get("size") < VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs)) {
-                    evicted.add(collectionData.remove(0));
+            if (isCapped(db, collection)) {
+                Map<String, Integer> cappedInfo = cappedCollections.get(db).get(collection);
+
+                if (cappedInfo.containsKey("max")) {
+                    while (!collectionData.isEmpty() && cappedInfo.get("max") < collectionData.size() + objs.size()) {
+                        Map<String, Object> ev = collectionData.remove(0);
+                        evicted.add(ev);
+                        cappedOnRemove(db, collection, ev);
+                    }
                 }
 
-                while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("max")
-                        && collectionData.size() + objs.size() > cappedCollections.get(db).get(collection).get("max")) {
-                    objs.remove(0);
+                if (cappedInfo.containsKey("size")) {
+                    // Running byte counter (Phase B2, Task 4): each existing document's size was
+                    // measured exactly ONCE, at its own insertion (see cappedOnInsert), and kept
+                    // here as a running total - so this loop is a pure counter comparison plus an
+                    // O(1) cache lookup per iteration, never a JOL re-measure of the whole
+                    // collection. The old code called VM.current().sizeOf(collectionData) on every
+                    // spin of this loop, making a single capped insert that triggers many
+                    // evictions quadratic in collection size. The incoming batch is measured
+                    // exactly once, up front - none of its documents have a cached size yet, since
+                    // they are not part of the collection (or its cache) until actually inserted
+                    // below.
+                    cappedSizeOfCalls++;
+                    long incomingBytes = VM.current().sizeOf(objs);
+                    long sizeCap = cappedInfo.get("size");
+                    while (!collectionData.isEmpty() && cappedCurrentBytes(db, collection) + incomingBytes > sizeCap) {
+                        Map<String, Object> ev = collectionData.remove(0);
+                        evicted.add(ev);
+                        cappedOnRemove(db, collection, ev);
+                    }
                 }
 
-                while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("size")
-                        && VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs.size()) > cappedCollections
-                        .get(db).get(collection).get("size")) {
-                    objs.remove(0);
+                if (cappedInfo.containsKey("max")) {
+                    while (!objs.isEmpty() && collectionData.size() + objs.size() > cappedInfo.get("max")) {
+                        objs.remove(0);
+                    }
                 }
+                // The old byte-capped trim of the incoming batch compared against
+                // VM.current().sizeOf(objs.size()) - an autoboxed Integer, not the batch itself -
+                // and so never measured anything meaningful in practice. Deleted rather than
+                // "fixed" (Task 4): if an incoming batch alone still exceeds the byte cap after
+                // every existing document has been evicted, it is simply over the cap, the same
+                // way a batch already left alone once it fits within "max" above.
             }
 
             // Incremental index maintenance (Phase B1, Task 4) - replaces the old full
@@ -4299,6 +4582,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
                 collectionData.add(o);
                 insertedDocs.add(o);
+                cappedOnInsert(db, collection, o);
+                ttlEnqueue(db, collection, o);
             }
             objs = insertedDocs;
 
@@ -4393,6 +4678,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // pre-check (removed) was pure redundant work.
                 indexStore.onInsert(o);
                 getCollection(db, collection).add(o);
+                cappedOnInsert(db, collection, o);
+                ttlEnqueue(db, collection, o);
                 pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
                 inserted++;
                 continue;
@@ -4410,6 +4697,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // very same object already referenced by its buckets, which does not hold here).
                 indexStore.onRemove(previous);
                 indexStore.onInsert(o);
+                cappedOnRemove(db, collection, previous);
                 upd++;
                 pendingNotifications.add(new PendingNotification(db, collection, "replace", o, null, null, previous));
             } else {
@@ -4418,6 +4706,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 inserted++;
             }
             getCollection(db, collection).add(o);
+            cappedOnInsert(db, collection, o);
+            ttlEnqueue(db, collection, o);
         }
 
         ret.put("matched", upd);
@@ -4942,6 +5232,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             obj.putAll(original);
                             throw ex;
                         }
+                        // The TTL field's value may have changed with the rest of the document -
+                        // always push a fresh queue entry rather than trying to find/remove the
+                        // old one (see ttlEnqueue's own Javadoc for why that's cheaper).
+                        ttlEnqueue(db, collection, obj);
                     }
                     continue;  // Skip to next document, no need to process as update operators
                 }
@@ -5371,6 +5665,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         obj.putAll(original);
                         throw ex;
                     }
+                    // The TTL field's value may have changed with the rest of the document -
+                    // always push a fresh queue entry rather than trying to find/remove the old
+                    // one (see ttlEnqueue's own Javadoc for why that's cheaper).
+                    ttlEnqueue(db, collection, obj);
                     // original is already a deepClone from line above, no need to
                     // deep-copy again; notifyWatchers -> shallowCopyAndNormalizeDocument
                     // will create its own shallow copy for the change stream event
@@ -6304,6 +6602,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // indexDataByDBCollection bucket cleanup.
                 for (Map<String, Object> doc : deletedDocs) {
                     indexStore.onRemove(doc);
+                    cappedOnRemove(db, collection, doc);
                 }
             }
 
@@ -6405,6 +6704,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // Remove from TTL tracking
             collectionsWithTtlIndex.remove(db + "." + collection);
+            invalidateTtlQueue(db, collection);
+            cappedDrop(db, collection);
         } finally {
             // The collection is gone: drop its persistent index store outright rather than
             // leaving a dead entry around forever. The next getIndexStore() call for this
@@ -7066,6 +7367,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         // Track TTL index for efficient expiration checking
+        TtlIndexInfo ttlInfo = null;
         if (options != null && options.containsKey("expireAfterSeconds")) {
             // Get the field name (should be single field for TTL index)
             String fieldName = null;
@@ -7078,7 +7380,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (fieldName != null) {
                 Object expireVal = options.get("expireAfterSeconds");
                 int expireSeconds = (expireVal instanceof Number) ? ((Number) expireVal).intValue() : 0;
-                collectionsWithTtlIndex.put(db + "." + collection, new TtlIndexInfo(fieldName, expireSeconds));
+                ttlInfo = new TtlIndexInfo(fieldName, expireSeconds);
+                collectionsWithTtlIndex.put(db + "." + collection, ttlInfo);
             }
         }
 
@@ -7095,6 +7398,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // trying to patch it in place) - see getIndexStore's Javadoc. The next read/write rebuilds
         // it from the now-current index definitions and the collection's current documents.
         invalidateIndexStore(db, collection);
+
+        if (ttlInfo != null) {
+            // Bootstrap (Phase B2 Task 4): seed the expiry queue from a range scan of the TTL
+            // field's own secondary index rather than a full collection scan - see
+            // ttlBootstrapQueue. Under the collection's write lock so no concurrent insert/update
+            // (ttlEnqueue, same lock discipline) races the seed.
+            java.util.concurrent.locks.ReadWriteLock ttlBootstrapLock = getCollectionLock(db, collection);
+            ttlBootstrapLock.writeLock().lock();
+            try {
+                ttlBootstrapQueue(db, collection, ttlInfo);
+            } finally {
+                ttlBootstrapLock.writeLock().unlock();
+            }
+        }
     }
 
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing)
@@ -7362,6 +7679,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         indicesByDbCollection.get(dbName).remove(collName);
                     }
                     collectionsWithTtlIndex.remove(dbName + "." + collName);
+                    invalidateTtlQueue(dbName, collName);
                 } else {
                     database.putIfAbsent(dbName, new ConcurrentHashMap<>());
                     database.get(dbName).put(collName, snapDb.get(collName));
@@ -7373,8 +7691,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // getIndexStore() call rebuilds it in one addIndex-style bulk pass over the
                 // now-committed documents. Transactions are rare, so this full rebuild (same cost
                 // as the store's very first lazy build) is acceptable here even though every other
-                // write path now maintains its store incrementally.
+                // write path now maintains its store incrementally. The TTL expiry queue gets the
+                // same treatment for the same reason - its entries were built against pre-commit
+                // documents and cannot be assumed valid against whatever the transaction committed.
                 invalidateIndexStore(dbName, collName);
+                invalidateTtlQueue(dbName, collName);
                 lock.writeLock().unlock();
             }
         }
