@@ -227,6 +227,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     long cappedSizeOfCalls;
 
+    /**
+     * Counts full, unconditional {@code deepClone(obj)} before-image snapshots taken by
+     * {@link #updateInternal} for a single matched document. Package-private test hook (Phase B2,
+     * Task 7): a matched document only needs this expensive whole-document snapshot when its
+     * before-image can escape the write lock - i.e. when a change-stream subscriber exists for the
+     * namespace ({@link #hasSubscribers}) or a transaction is active on the thread (both consumers
+     * read the snapshot asynchronously/after rollback, so it must be fully independent of the live
+     * document - see {@link #buildPartialBeforeImage} for why a cheaper partial snapshot is unsafe
+     * there). Every other matched document takes the cheap {@link #buildPartialBeforeImage} path
+     * instead, which never increments this counter - this is how a test proves "no full clone per
+     * document" for a plain update with no watchers and no transaction.
+     */
+    long fullBeforeImageCloneCount;
+
+    /** Public accessor for {@link #fullBeforeImageCloneCount}, for tests outside this package. */
+    public long getFullBeforeImageCloneCount() {
+        return fullBeforeImageCloneCount;
+    }
+
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final AtomicLong changeStreamSequence = new AtomicLong();
@@ -3913,6 +3932,91 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
+     * Cheap alternative to {@link #deepClone} for {@code updateInternal}'s before-image, used
+     * whenever that before-image never needs to escape the current write-lock-held loop iteration
+     * (Phase B2, Task 7 - see the {@code needsFullBeforeImage} comment at the call site).
+     *
+     * <p>Every top-level key of {@code obj} is present in the result - {@code touchedTopLevelKeys}
+     * (the top-level keys the pending update operators are about to write) get an independent
+     * {@link #deepCopyValue} copy of their current value; every other key is shared by reference
+     * with {@code obj}. This is safe and sufficient for both of this before-image's synchronous
+     * consumers:
+     * <ul>
+     *   <li>{@code CollectionIndexStore.onUpdate(before, after)} extracts values via
+     *       {@code IndexKey.extract}, field by field. A field the update does not touch resolves to
+     *       exactly the same (unchanged) value whether read from the shared reference or a fresh
+     *       copy - the field genuinely has not changed. A field the update does touch resolves to
+     *       its true pre-mutation value because that key was independently copied before any
+     *       operator ran.</li>
+     *   <li>The unique-violation revert ({@code obj.clear(); obj.putAll(original)}) restores
+     *       {@code obj} to its exact pre-mutation shape: touched keys get their independently-copied
+     *       original values back, untouched keys were never modified in the first place, and any
+     *       brand-new key an operator added (not present in {@code obj} before mutation, so not
+     *       copied into the result here either) is dropped by the {@code clear()}.</li>
+     * </ul>
+     *
+     * <p><b>Not safe for the asynchronous change-stream notification path</b> (the reason
+     * {@code needsFullBeforeImage} also gates on {@link #hasSubscribers}): {@code notifyWatchers}
+     * runs after the collection's write lock has been released (to avoid deadlocks - see
+     * {@code update()}), so an untouched key's shared reference could be mutated in place by a
+     * different, concurrently-arriving write to the very same document before the notification is
+     * built. A real independent {@link #deepClone} is required whenever the before-image might be
+     * read outside this synchronous window.
+     */
+    private static Map<String, Object> buildPartialBeforeImage(Map<String, Object> obj,
+            Set<String> touchedTopLevelKeys) {
+        Map<String, Object> before = new HashMap<>(obj);
+        for (String key : touchedTopLevelKeys) {
+            if (before.containsKey(key)) {
+                before.put(key, deepCopyValue(before.get(key)));
+            }
+            // Absent: an operator is about to introduce this key for the first time - there is
+            // nothing to snapshot, and its absence here is itself the correct pre-mutation state
+            // (the clear()+putAll() revert path drops it, matching "never existed before").
+        }
+        return before;
+    }
+
+    /**
+     * Collects the top-level field names {@code op}'s update operators are about to write, so
+     * {@link #buildPartialBeforeImage} knows which of {@code obj}'s top-level entries need an
+     * independent copy before mutation (Phase B2, Task 7). A dotted path (e.g. {@code "a.b.c"})
+     * contributes only its first segment ({@code "a"}): every operator that walks a dotted path
+     * mutates the existing nested Map in place (see {@code applySetFields}/{@code unsetPath}), so
+     * protecting the whole top-level subtree the path starts under is what actually isolates the
+     * before-image from that in-place mutation - a copy scoped to just the leaf would still share
+     * the mutated intermediate Map. {@code $rename}'s value is itself a (possibly dotted) target
+     * field path, not a literal value, so it contributes its own top-level segment too.
+     */
+    private static Set<String> collectTouchedTopLevelKeys(Map<String, Object> op) {
+        Set<String> touched = new HashSet<>();
+        for (Map.Entry<String, Object> opEntry : op.entrySet()) {
+            Object cmdObj = opEntry.getValue();
+            if (!(cmdObj instanceof Map)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cmd = (Map<String, Object>) cmdObj;
+            for (String field : cmd.keySet()) {
+                touched.add(topLevelSegment(field));
+            }
+            if ("$rename".equals(opEntry.getKey())) {
+                for (Object target : cmd.values()) {
+                    if (target instanceof String targetPath) {
+                        touched.add(topLevelSegment(targetPath));
+                    }
+                }
+            }
+        }
+        return touched;
+    }
+
+    private static String topLevelSegment(String path) {
+        int dot = path.indexOf('.');
+        return dot < 0 ? path : path.substring(0, dot);
+    }
+
+    /**
      * Deep copy with retry logic for handling concurrent modifications.
      * Uses exponential backoff with a maximum number of retries.
      */
@@ -5202,11 +5306,42 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // (keyed by db+"."+collection) store itself.
             CollectionIndexStore indexStore = getIndexStore(db, collection);
 
+            // Phase B2, Task 7: the before-image only needs to be an unconditional, fully
+            // independent deepClone(obj) when it can be observed OUTSIDE this write-lock-held,
+            // single-threaded loop iteration - i.e. handed to a change-stream subscriber (dispatched
+            // asynchronously, after the write lock is released - see update()/findAndOneAndUpdate())
+            // or kept around for a transaction. Everywhere else (the common case: no watchers, no
+            // transaction) a much cheaper buildPartialBeforeImage suffices - see its Javadoc for why
+            // it is still exactly as correct for onUpdate and for the synchronous unique-violation
+            // revert below. Computed once per update() call, not per matched document: hasSubscribers
+            // and isTransactionInProgress are both call-invariant for the duration of this loop.
+            boolean needsFullBeforeImage = hasSubscribers(db, collection) || isTransactionInProgress();
+            // Precompute once (not per document, not per isReplacement branch): the top-level keys
+            // the update operators are actually going to touch. A full-document replacement touches
+            // everything, so that branch uses the document's own (pre-mutation) key set instead - see
+            // the per-document isReplacement check below.
+            Set<String> touchedTopLevelKeys = (needsFullBeforeImage || isReplacement) ? null
+                                              : collectTouchedTopLevelKeys(op);
+
             for (Map<String, Object> obj : lst) {
-                // keep a deep copy to detect if the object actually changed
-                Map<String, Object> original = deepClone(obj);
-                if (original == null) {
-                    original = new HashMap<>(obj); // fallback
+                // keep a before-image to detect if the object actually changed, to hand to
+                // CollectionIndexStore.onUpdate, and to revert an in-place mutation if onUpdate
+                // rejects it (unique violation) - see the needsFullBeforeImage comment above for why
+                // the strategy differs.
+                Map<String, Object> original;
+                if (needsFullBeforeImage) {
+                    original = deepClone(obj);
+                    if (original == null) {
+                        original = new HashMap<>(obj); // fallback
+                    }
+                    fullBeforeImageCloneCount++;
+                } else if (isReplacement) {
+                    // The whole document is about to be replaced (obj.clear() below) - every
+                    // top-level key is "touched", so build the partial image against the document's
+                    // own current key set (captured now, before any mutation).
+                    original = buildPartialBeforeImage(obj, obj.keySet());
+                } else {
+                    original = buildPartialBeforeImage(obj, touchedTopLevelKeys);
                 }
 
                 // Handle replacement document: replace entire document except _id
