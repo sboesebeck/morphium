@@ -263,7 +263,14 @@ public final class IndexKey {
                     + " values but the index only has " + fields.size() + " fields: " + fields);
         }
         List<Object> values = new ArrayList<>(fields.size());
-        values.addAll(prefixValues);
+        // Same normalization as of()/extract() - stored keys hold the normalized form, so a
+        // synthetic bound built from a raw query value (e.g. a MorphiumId) MUST normalize too,
+        // or the bound sorts outside the real key range and the range scan silently returns a
+        // wrong (possibly empty, possibly inverted) slice. All three key-construction paths go
+        // through normalizeIdValue so they cannot drift.
+        for (Object v : prefixValues) {
+            values.add(normalizeIdValue(v));
+        }
 
         for (int i = prefixValues.size(); i < fields.size(); i++) {
             int direction = def.direction(fields.get(i));

@@ -102,6 +102,98 @@ public class InMemoryDriverIndexPlanningTest {
     }
 
     @Test
+    void renameOntoCollectionInvalidatesItsCachedPlanIndexes() throws Exception {
+        // Target collection: indexed on counter, populated, and queried once so the
+        // single-index plan cache holds a store built over the OLD documents.
+        InMemoryDriver drv = freshDriverWithIndexedCollection(50);
+        List<Map<String, Object>> before = drv.find(db, coll, de.caluga.morphium.driver.Doc.of("counter", 7), null, null, 0, 0);
+        assertEquals(1, before.size(), "sanity: old doc must be found before the rename");
+
+        // Source collection with entirely different counter values.
+        String source = "renamesrc";
+        List<Map<String, Object>> srcDocs = new ArrayList<>();
+        for (int i = 100_000; i < 100_010; i++) {
+            srcDocs.add(de.caluga.morphium.driver.Doc.of("counter", i));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(source).setDocuments(srcDocs).execute();
+
+        // Rename source ONTO the (existing) target - replaces target's document list.
+        drv.runCommand(new de.caluga.morphium.driver.commands.RenameCollectionCommand(drv)
+                .setDb(db).setColl(source).setTo(coll));
+
+        // Queries against the target must now reflect the renamed-in documents, not a
+        // stale cached index over the old ones.
+        List<Map<String, Object>> newDoc = drv.find(db, coll, de.caluga.morphium.driver.Doc.of("counter", 100_005), null, null, 0, 0);
+        assertEquals(1, newDoc.size(), "renamed-in document must be findable after the rename");
+
+        List<Map<String, Object>> oldDoc = drv.find(db, coll, de.caluga.morphium.driver.Doc.of("counter", 7), null, null, 0, 0);
+        assertTrue(oldDoc.isEmpty(), "pre-rename document must be gone after the rename");
+    }
+
+    @Test
+    void rangeQueryWithMorphiumIdEqualityPrefixFindsMatchingDocs() throws Exception {
+        // Owner-ref + timestamp shape: compound index [ref, ts], equality on a MorphiumId
+        // ref plus $gt range on ts. Stored keys normalize MorphiumId/ObjectId to String -
+        // the synthetic range bounds must apply the SAME normalization or the subMap slice
+        // misses every real key (silently dropping matching docs from the prefilter).
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("ref", 1, "ts", 1)))
+                .execute();
+
+        de.caluga.morphium.driver.MorphiumId owner = new de.caluga.morphium.driver.MorphiumId();
+        de.caluga.morphium.driver.MorphiumId other = new de.caluga.morphium.driver.MorphiumId();
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            docs.add(Doc.of("ref", owner, "ts", i));
+        }
+        docs.add(Doc.of("ref", other, "ts", 8));
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        List<Map<String, Object>> result = drv.find(db, coll,
+                Doc.of("ref", owner, "ts", Doc.of("$gt", 5)), null, null, 0, 0);
+
+        assertEquals(5, result.size(), "must find exactly the owner's docs with ts 6..10");
+        for (Map<String, Object> d : result) {
+            assertEquals(owner.toString(), d.get("ref").toString());
+            assertTrue(((Number) d.get("ts")).intValue() > 5);
+        }
+    }
+
+    @Test
+    void dropAndRecreateServesFreshIndexData() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(50);
+        // populate the plan-index cache
+        assertEquals(1, drv.find(db, coll, Doc.of("counter", 7), null, null, 0, 0).size());
+
+        drv.drop(db, coll, null);
+
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("counter", 1)))
+                .execute();
+        new InsertMongoCommand(drv).setDb(db).setColl(coll)
+                .setDocuments(List.of(Doc.of("counter", 999))).execute();
+
+        assertTrue(drv.find(db, coll, Doc.of("counter", 7), null, null, 0, 0).isEmpty(),
+                "old doc must be gone after drop+recreate");
+        assertEquals(1, drv.find(db, coll, Doc.of("counter", 999), null, null, 0, 0).size(),
+                "new doc must be served from fresh index data");
+    }
+
+    @Test
+    void emptyQueryCountIncrementsFullScans() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(10);
+
+        long fullScansBefore = drv.fullScans;
+        long count = drv.count(db, coll, Doc.of(), null, null);
+
+        assertEquals(10, count);
+        assertEquals(fullScansBefore + 1, drv.fullScans,
+                "empty-query count must count as a full scan, same as empty-query find");
+    }
+
+    @Test
     void findRemainsCorrectAfterUpdateChangesTheIndexedField() throws Exception {
         InMemoryDriver drv = freshDriverWithIndexedCollection(50);
 

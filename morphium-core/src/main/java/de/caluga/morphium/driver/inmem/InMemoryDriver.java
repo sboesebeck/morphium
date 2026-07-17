@@ -1306,8 +1306,34 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // cmd.getClass().getSimpleName() + ")");
         String target = cmd.getTo();
         String origin = cmd.getColl();
-        var col = database.get(cmd.getDb()).remove(origin);
-        database.get(cmd.getDb()).put(target, col);
+        // This path historically took no locks at all. It mutates BOTH collections' document
+        // lists (origin disappears, target's list is replaced wholesale), so take both
+        // collections' write locks like every other mutation path - in a deterministic
+        // (lexicographic) order so two concurrent renames touching the same pair cannot
+        // deadlock - and bump both epochs before releasing, so cached plan indexes (see
+        // getDataFromIndex) built over the pre-rename documents are invalidated.
+        String first = origin.compareTo(target) <= 0 ? origin : target;
+        String second = origin.compareTo(target) <= 0 ? target : origin;
+        java.util.concurrent.locks.ReadWriteLock firstLock = getCollectionLock(cmd.getDb(), first);
+        java.util.concurrent.locks.ReadWriteLock secondLock = getCollectionLock(cmd.getDb(), second);
+        firstLock.writeLock().lock();
+        try {
+            if (!origin.equals(target)) {
+                secondLock.writeLock().lock();
+            }
+            try {
+                var col = database.get(cmd.getDb()).remove(origin);
+                database.get(cmd.getDb()).put(target, col);
+            } finally {
+                bumpCollectionEpoch(cmd.getDb(), origin);
+                if (!origin.equals(target)) {
+                    bumpCollectionEpoch(cmd.getDb(), target);
+                    secondLock.writeLock().unlock();
+                }
+            }
+        } finally {
+            firstLock.writeLock().unlock();
+        }
         int ret = commandNumber.incrementAndGet();
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "msg", "renamed " + origin + " to " + target)));
         return ret;
@@ -3756,6 +3782,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         lock.readLock().lock();
         try {
             if (query == null || query.isEmpty()) {
+                // Consistent with find(): an empty query counts as a full scan (even though
+                // size() is O(1) here, the counter tracks "no index consulted", not cost).
+                fullScans++;
                 return getCollection(db, collection).size();
             }
 
@@ -6065,7 +6094,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Remove from TTL tracking
             collectionsWithTtlIndex.remove(db + "." + collection);
         } finally {
-            bumpCollectionEpoch(db, collection);
+            // The collection is gone: instead of bumping its epoch (which would leave both
+            // maps holding entries for a dead collection forever), remove its plan-index cache
+            // entries and its epoch entry outright. Removal is a strictly stronger
+            // invalidation than a bump - the next read misses the cache and rebuilds from
+            // whatever (empty or re-created) collection exists then.
+            String cachePrefix = db + "." + collection + "#";
+            planIndexCache.keySet().removeIf(key -> key.startsWith(cachePrefix));
+            collectionEpoch.remove(db + "." + collection);
             lock.writeLock().unlock();
         }
         // Purge history for this collection BEFORE advancing the sequence counter.
