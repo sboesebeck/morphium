@@ -29,6 +29,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Netty handler for processing MongoDB commands.
@@ -62,6 +64,43 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
     );
 
+    // Control-plane / handshake / session / election commands that are handled with their
+    // own explicit switch case and must NOT go through the data-command middleware
+    // (preDispatch). Everything not listed here is treated as a data command: it runs the
+    // shared primary/readPreference/transaction checks before dispatch, whether it takes the
+    // fast path or the generic path. Keep this in sync with the non-data cases in
+    // processOpMsg's switch (all lower-cased).
+    private static final Set<String> CONTROL_COMMANDS = Set.of(
+            "getcmdlineopts", "buildinfo", "ismaster", "hello",
+            "getfreemonitoringstatus", "ping",
+            "registermessagingcollection", "unregistermessagingsubscriber", "getmessagingstats",
+            "listdatabases", "endsessions", "startsession", "refreshsessions",
+            "aborttransaction", "committransaction", "getmore", "killcursors",
+            "getlog", "getparameter", "replsetprogress",
+            "requestvote", "appendentries", "replsetgetstatus", "replsetstepdown", "replsetfreeze"
+    );
+
+    /**
+     * Outcome of the shared pre-dispatch middleware. When {@link #errorResponse} is non-null
+     * the caller must send it and stop; otherwise dispatch proceeds.
+     */
+    private static final class CheckResult {
+        static final CheckResult PROCEED = new CheckResult(null);
+        final Map<String, Object> errorResponse;
+
+        private CheckResult(Map<String, Object> errorResponse) {
+            this.errorResponse = errorResponse;
+        }
+
+        static CheckResult reject(Map<String, Object> errorResponse) {
+            return new CheckResult(errorResponse);
+        }
+
+        boolean rejected() {
+            return errorResponse != null;
+        }
+    }
+
     // Track cursors created by this channel so we can kill them on disconnect
     private final Set<Long> channelCursors = ConcurrentHashMap.newKeySet();
 
@@ -74,13 +113,50 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         final String collection;
         final List<Map<String, Object>> remaining;
         final int batchSize;
+        volatile long lastAccessed;
 
         FindCursorState(String db, String collection, List<Map<String, Object>> remaining, int batchSize) {
             this.db = db;
             this.collection = collection;
             this.remaining = remaining;
             this.batchSize = batchSize;
+            this.lastAccessed = System.currentTimeMillis();
         }
+    }
+
+    /** Idle time after which an unexhausted find cursor is reaped (MongoDB default cursorTimeoutMillis = 10 min). */
+    private static final long FIND_CURSOR_TTL_MS = 10 * 60 * 1000L;
+
+    // Single shared daemon thread that reaps idle find cursors. There is no pre-existing
+    // server-wide scheduler reachable from this static context, so a dedicated one is used.
+    private static final java.util.concurrent.ScheduledExecutorService CURSOR_SWEEPER =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "PoppyDB-cursor-sweeper");
+                t.setDaemon(true);
+                return t;
+            });
+
+    static {
+        CURSOR_SWEEPER.scheduleWithFixedDelay(MongoCommandHandler::sweepIdleFindCursors,
+                1, 1, java.util.concurrent.TimeUnit.MINUTES);
+    }
+
+    private static void sweepIdleFindCursors() {
+        long cutoff = System.currentTimeMillis() - FIND_CURSOR_TTL_MS;
+        int removed = 0;
+        for (var e : findCursors.entrySet()) {
+            if (e.getValue().lastAccessed < cutoff && findCursors.remove(e.getKey(), e.getValue())) {
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            log.debug("Cursor sweeper reaped {} idle find cursor(s)", removed);
+        }
+    }
+
+    /** Test/monitoring hook: number of currently open server-side find cursors (across all channels). */
+    public static int openFindCursors() {
+        return findCursors.size();
     }
 
     private final InMemoryDriver driver;
@@ -94,24 +170,43 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private final boolean primary;
     private final String primaryHost;
     private final int compressorId;
-    private final ReplicationCoordinator replicationCoordinator;
+    // Resolved live at call time (see #replicationCoordinator()) rather than captured once at
+    // connect time: a connection accepted before a leadership change must still observe a
+    // coordinator created (or cleared) by a later election, not the value that existed when
+    // the connection's pipeline was built.
+    private final Supplier<ReplicationCoordinator> replicationCoordinatorSupplier;
     private final ElectionManager electionManager;
+    // Resolved live per command: true while this node is a secondary (re-)running its initial sync
+    // and therefore possibly serving from a half-cleared local database. Such a node is RECOVERING
+    // and must reject data-plane traffic. Never captured once — a resync that starts after this
+    // connection was accepted must still be observed.
+    private final BooleanSupplier secondarySyncingSupplier;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
-                               int compressorId, ReplicationCoordinator replicationCoordinator) {
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier) {
         this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
-             compressorId, replicationCoordinator, null);
+             compressorId, replicationCoordinatorSupplier, null, () -> false);
     }
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
-                               int compressorId, ReplicationCoordinator replicationCoordinator,
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
                                ElectionManager electionManager) {
+        this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
+             compressorId, replicationCoordinatorSupplier, electionManager, () -> false);
+    }
+
+    public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               MessagingOptimizer messagingOptimizer,
+                               AtomicInteger msgId, String host, int port, String rsName,
+                               List<String> hosts, boolean primary, String primaryHost,
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
+                               ElectionManager electionManager, BooleanSupplier secondarySyncingSupplier) {
         this.driver = driver;
         this.cursorManager = cursorManager;
         this.messagingOptimizer = messagingOptimizer;
@@ -123,8 +218,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         this.primary = primary;
         this.primaryHost = primaryHost;
         this.compressorId = compressorId;
-        this.replicationCoordinator = replicationCoordinator;
+        this.replicationCoordinatorSupplier = replicationCoordinatorSupplier;
         this.electionManager = electionManager;
+        this.secondarySyncingSupplier = secondarySyncingSupplier == null ? () -> false : secondarySyncingSupplier;
     }
 
     @Override
@@ -176,7 +272,22 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof OpQuery) {
             processOpQuery(ctx, (OpQuery) msg);
         } else if (msg instanceof OpMsg) {
-            processOpMsg(ctx, (OpMsg) msg);
+            try {
+                processOpMsg(ctx, (OpMsg) msg);
+            } finally {
+                // The driver's transaction context is a ThreadLocal that preDispatch/
+                // setupTransactionContext (and start/abort/commit) install on THIS Netty
+                // event-loop thread for the duration of the command. Many channels are
+                // multiplexed onto the same event-loop thread, so it MUST be cleared once the
+                // command has been dispatched — otherwise the next command from another channel
+                // handled on this thread would inherit this client's open-transaction snapshot
+                // (its plain writes joining, and being rolled back with, that transaction). The
+                // per-command re-install from the channel attribute makes an unconditional clear
+                // here safe. Data commands run synchronously on this thread (so the context is
+                // read before this runs); async continuations (getMore/aggregate) execute on
+                // other threads that never inherit this ThreadLocal.
+                driver.setTransactionContext(null);
+            }
         } else {
             log.warn("Unsupported message type: {}", msg.getClass().getSimpleName());
             sendError(ctx, msg.getMessageId(), "Unsupported operation");
@@ -227,6 +338,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
         log.debug("Handling command {}", cmd);
+
+        // Shared command middleware: run the primary-rejection, read-preference and
+        // transaction-context checks once, before any dispatch variant (the fast-path
+        // executors below or the generic processDefaultCommandAsync path). Control-plane
+        // commands (hello/ping/election/cursor & session management) are exempt.
+        if (!CONTROL_COMMANDS.contains(cmd.toLowerCase())) {
+            CheckResult check = preDispatch(ctx, cmd, doc);
+            if (check.rejected()) {
+                sendResponse(ctx, requestId, check.errorResponse);
+                return;
+            }
+        }
 
         Map<String, Object> answer;
 
@@ -384,6 +507,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 return; // Async response
         }
 
+        // Shared write-concern handling for fast-path writes (insert/update/delete/
+        // createIndexes). When w>1 this waits for replication off the I/O thread and sends
+        // the response itself; otherwise we send it here synchronously.
+        if (WRITE_COMMANDS.contains(cmd.toLowerCase())
+                && postWrite(ctx, doc, cmd, answer, requestId)) {
+            return; // response will be sent asynchronously after the replication wait
+        }
+
         sendResponse(ctx, requestId, answer);
     }
 
@@ -419,6 +550,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         } else if (findCursors.containsKey(cursorId)) {
             // Server-side find cursor — return next batch from pre-fetched results
             FindCursorState state = findCursors.get(cursorId);
+            state.lastAccessed = System.currentTimeMillis();
             int count = Math.min(state.batchSize, state.remaining.size());
             List<Map<String, Object>> batch = new ArrayList<>(state.remaining.subList(0, count));
             state.remaining.subList(0, count).clear();
@@ -483,50 +615,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private void processDefaultCommandAsync(ChannelHandlerContext ctx, Map<String, Object> doc,
                                             String cmd, int requestId) {
         try {
-            boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
-
-            // Reject writes to secondaries (use dynamic election state if available)
-            boolean isPrimary = isCurrentPrimary();
-            if (!isPrimary && isWriteCommand &&
-                    !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
-                // Include primary host so client can redirect
-                String currentPrimary = getCurrentPrimaryHost();
-                Map<String, Object> errorResponse = Doc.of(
-                    "ok", 0.0,
-                    "errmsg", "not primary",
-                    "code", 10107,
-                    "codeName", "NotWritablePrimary"
-                );
-                if (currentPrimary != null) {
-                    errorResponse.put("primaryHost", currentPrimary);
-                }
-                sendResponse(ctx, requestId, errorResponse);
-                return;
-            }
-
-            // Check read preference for read commands on secondaries
-            // If read preference requires primary, reject on secondaries to ensure consistency
-            if (!isPrimary && !isWriteCommand) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
-                if (readPref != null) {
-                    String mode = (String) readPref.get("mode");
-                    if ("primary".equalsIgnoreCase(mode)) {
-                        String currentPrimary = getCurrentPrimaryHost();
-                        Map<String, Object> errorResponse = Doc.of(
-                            "ok", 0.0,
-                            "errmsg", "not primary and read preference is primary",
-                            "code", 10107,
-                            "codeName", "NotPrimaryNoSecondaryOk"
-                        );
-                        if (currentPrimary != null) {
-                            errorResponse.put("primaryHost", currentPrimary);
-                        }
-                        sendResponse(ctx, requestId, errorResponse);
-                        return;
-                    }
-                }
-            }
+            // The primary/readPreference/transaction middleware (preDispatch) has already
+            // run in processOpMsg before this generic path was chosen — do not repeat it here.
 
             // Check for change stream aggregation
             if (doc.containsKey("pipeline")) {
@@ -539,9 +629,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                     }
                 }
             }
-
-            // Set up transaction context
-            setupTransactionContext(ctx, doc);
 
             // Execute command
             int cmdMsgId = driver.runCommand(new GenericCommand(driver).fromMap(doc));
@@ -570,34 +657,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 setupTailableCursor(doc, answer);
             }
 
-            // Handle write concern for write commands on primary - ASYNC to not block Netty I/O
-            if (isWriteCommand && isCurrentPrimary() && replicationCoordinator != null) {
-                long writeSeq = driver.getChangeStreamSequence();
-                int w = getWriteConcernW(doc);
-                long wtimeout = getWriteConcernTimeout(doc);
-
-                if (w > 1) {
-                    // Wait for replication on a separate thread to not block Netty I/O
-                    final Map<String, Object> finalAnswer = answer;
-                    log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
-                    COMMAND_EXECUTOR.execute(() -> {
-                        try {
-                            boolean acknowledged = replicationCoordinator.waitForReplication(writeSeq, w, wtimeout);
-                            if (!acknowledged) {
-                                finalAnswer.put("writeConcernError", Doc.of(
-                                    "code", 64,
-                                    "codeName", "WriteConcernFailed",
-                                    "errmsg", "waiting for replication timed out",
-                                    "errInfo", Doc.of("wtimeout", true)
-                                ));
-                            }
-                        } finally {
-                            // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
-                            ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
-                        }
-                    });
-                    return; // Response will be sent asynchronously
-                }
+            // Shared write-concern handling (w>1 waits for replication off the I/O thread
+            // and sends the response itself).
+            if (WRITE_COMMANDS.contains(cmd.toLowerCase())
+                    && postWrite(ctx, doc, cmd, answer, requestId)) {
+                return; // Response will be sent asynchronously
             }
 
             // No replication wait needed - send response immediately
@@ -619,11 +683,141 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
+     * Shared command middleware run before every dispatch variant (the fast-path executors
+     * and the generic {@link #processDefaultCommandAsync}). In order:
+     * <ol>
+     *   <li>reject client writes on a non-primary — except replication-applied writes, which
+     *       carry {@code $fromPrimary} (in practice these bypass this handler entirely and
+     *       apply straight to the local driver, so the flag is a defensive guard);</li>
+     *   <li>reject primary-only reads on a non-primary;</li>
+     *   <li>establish the per-channel transaction context for the command.</li>
+     * </ol>
+     * Returns {@link CheckResult#PROCEED} when dispatch may continue, or a rejection carrying
+     * the error response the caller must send.
+     */
+    @SuppressWarnings("unchecked")
+    private CheckResult preDispatch(ChannelHandlerContext ctx, String cmd, Map<String, Object> doc) {
+        boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
+        boolean isPrimary = isCurrentPrimary();
+
+        // (0) A secondary that is (re-)running its initial sync is RECOVERING: its local database
+        // may be half-cleared (clearLocalDatabases runs at the start of every snapshot and on a
+        // resync), so a plain read would see empty/partial data with no signal, and a client write
+        // would land on data that is about to be overwritten by the snapshot. Reject ALL data-plane
+        // traffic with NotPrimaryOrSecondary (13436), exactly like a real RECOVERING member.
+        // Replication-applied writes carry $fromPrimary and are exempt (in practice they bypass this
+        // handler entirely); control-plane commands never reach preDispatch, so elections and
+        // replSet traffic keep flowing.
+        if (secondarySyncingSupplier.getAsBoolean() && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
+            return CheckResult.reject(Doc.of(
+                "ok", 0.0,
+                "errmsg", "node is recovering",
+                "code", 13436,
+                "codeName", "NotPrimaryOrSecondary"
+            ));
+        }
+
+        // (1) Reject writes to secondaries (use dynamic election state if available).
+        // Replication-applied writes are flagged $fromPrimary and must pass through.
+        if (!isPrimary && isWriteCommand && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
+            String currentPrimary = getCurrentPrimaryHost();
+            Map<String, Object> errorResponse = Doc.of(
+                "ok", 0.0,
+                "errmsg", "not primary",
+                "code", 10107,
+                "codeName", "NotWritablePrimary"
+            );
+            if (currentPrimary != null) {
+                errorResponse.put("primaryHost", currentPrimary);
+            }
+            return CheckResult.reject(errorResponse);
+        }
+
+        // (2) Reject primary-only reads on secondaries to ensure consistency.
+        if (!isPrimary && !isWriteCommand) {
+            Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
+            if (readPref != null && "primary".equalsIgnoreCase((String) readPref.get("mode"))) {
+                String currentPrimary = getCurrentPrimaryHost();
+                Map<String, Object> errorResponse = Doc.of(
+                    "ok", 0.0,
+                    "errmsg", "not primary and read preference is primary",
+                    "code", 10107,
+                    "codeName", "NotPrimaryNoSecondaryOk"
+                );
+                if (currentPrimary != null) {
+                    errorResponse.put("primaryHost", currentPrimary);
+                }
+                return CheckResult.reject(errorResponse);
+            }
+        }
+
+        // (3) Establish transaction context (start or join) for this command.
+        setupTransactionContext(ctx, doc);
+        return CheckResult.PROCEED;
+    }
+
+    /**
+     * Shared write-concern handling for both dispatch paths, called after a successful write.
+     * If the effective write concern requires replication acknowledgement (w &gt; 1) this waits
+     * off the Netty I/O thread and sends the response itself, returning {@code true}. Otherwise
+     * it returns {@code false} and the caller sends the response synchronously.
+     *
+     * <p>The replication coordinator is resolved through {@link #replicationCoordinator()} at
+     * call time so a later switch to a live supplier needs no change here.
+     */
+    private boolean postWrite(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+                              Map<String, Object> answer, int requestId) {
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        if (coordinator == null || !isCurrentPrimary()) {
+            return false;
+        }
+
+        int w = getWriteConcernW(doc);
+        if (w <= 1) {
+            return false;
+        }
+
+        long writeSeq = driver.getChangeStreamSequence();
+        long wtimeout = getWriteConcernTimeout(doc);
+        final Map<String, Object> finalAnswer = answer;
+        log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
+        COMMAND_EXECUTOR.execute(() -> {
+            try {
+                boolean acknowledged = coordinator.waitForReplication(writeSeq, w, wtimeout);
+                if (!acknowledged) {
+                    finalAnswer.put("writeConcernError", Doc.of(
+                        "code", 64,
+                        "codeName", "WriteConcernFailed",
+                        "errmsg", "waiting for replication timed out",
+                        "errInfo", Doc.of("wtimeout", true)
+                    ));
+                }
+            } finally {
+                // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
+                ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Single accessor for the replication coordinator, resolved live from the supplier on
+     * every call — never captured once at connect time. This means a leadership change that
+     * happens after this connection was accepted (coordinator created or cleared by
+     * {@code PoppyDB.onLeadershipChange}) is observed immediately, including by connections
+     * that predate the change.
+     */
+    private ReplicationCoordinator replicationCoordinator() {
+        return replicationCoordinatorSupplier == null ? null : replicationCoordinatorSupplier.get();
+    }
+
+    /**
      * Process replication progress report from a secondary.
      * This is called when a secondary sends its current replication sequence.
      */
     private Map<String, Object> processReplSetProgress(Map<String, Object> doc) {
-        if (replicationCoordinator == null) {
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        if (coordinator == null) {
             // Not a primary with replication enabled
             return Doc.of("ok", 0.0, "errmsg", "not primary or replication not enabled");
         }
@@ -638,7 +832,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         long sequenceNumber = seqObj instanceof Number ? ((Number) seqObj).longValue() : 0;
 
         log.debug("Received replication progress from {}: seq={}", secondaryAddress, sequenceNumber);
-        replicationCoordinator.reportProgress(secondaryAddress, sequenceNumber);
+        coordinator.reportProgress(secondaryAddress, sequenceNumber);
 
         return Doc.of("ok", 1.0);
     }
@@ -727,6 +921,27 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private Map<String, Object> processChangeStream(Map<String, Object> doc) {
         try {
             WatchCommand wcmd = new WatchCommand(driver).fromMap(doc);
+
+            // Resume-after-disconnect: a PoppyDB secondary resuming its replication watch tags its
+            // resumeAfter token with "poppyResumeSequence" (its lastAppliedSequence). Only these
+            // replication resumes are gated here — ordinary change streams (e.g. messaging) that use
+            // resumeAfter without the marker keep their previous behaviour. If the primary's replay
+            // buffer can no longer cover the gap after that sequence, answer with an explicit
+            // ChangeStreamHistoryLost error instead of a silently-truncated replay, so the secondary
+            // distinguishes "window lost" and falls back to a full re-sync.
+            Map<String, Object> resumeAfter = wcmd.getResumeAfter();
+            if (resumeAfter != null && resumeAfter.get("poppyResumeSequence") instanceof Number seqNum) {
+                long resumeSeq = seqNum.longValue();
+                if (!driver.canResumeChangeStream(resumeSeq)) {
+                    log.warn("Resume window lost for secondary (resume sequence {} no longer buffered) — signalling re-sync", resumeSeq);
+                    return Doc.of(
+                        "ok", 0.0,
+                        "code", 286,
+                        "codeName", "ChangeStreamHistoryLost",
+                        "errmsg", "resume window lost: sequence " + resumeSeq + " is no longer in the replay buffer");
+                }
+            }
+
             long cursorId = cursorManager.createWatchCursor(driver, wcmd);
             channelCursors.add(cursorId);
 
@@ -973,7 +1188,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         // don't set setName, hosts, or secondary — only writablePrimary
         if (rsName != null && !rsName.isEmpty()) {
             res.setWritablePrimary(isPrimary);
-            res.setSecondary(!isPrimary);
+            // A secondary that is (re-)running its initial sync is RECOVERING, not a usable
+            // secondary: advertise secondary:false so drivers do not route reads to it.
+            res.setSecondary(!isPrimary && !secondarySyncingSupplier.getAsBoolean());
             res.setSetName(rsName);
             res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
             res.setMe(myAddress);
@@ -1399,9 +1616,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Channel inactive, cleaning up ({} cursors to kill)", channelCursors.size());
-        // Kill all cursors owned by this channel to prevent thread/subscription leaks
+        // Kill all cursors owned by this channel to prevent thread/subscription leaks.
+        // A cursor is either a watch/tailable cursor (owned by cursorManager) or a
+        // server-side find cursor (in the static findCursors map) — clean up both, since
+        // an unexhausted find cursor would otherwise leak permanently on disconnect.
         for (Long cursorId : channelCursors) {
-            if (cursorManager.killCursor(cursorId)) {
+            if (findCursors.remove(cursorId) != null) {
+                log.debug("Removed orphaned find cursor {} on channel disconnect", cursorId);
+            } else if (cursorManager.killCursor(cursorId)) {
                 log.debug("Killed orphaned cursor {} on channel disconnect", cursorId);
             }
         }

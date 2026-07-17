@@ -178,10 +178,33 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // Change stream infrastructure (per driver instance)
     private final Map<String, CopyOnWriteArrayList<ChangeStreamSubscription>> changeStreamSubscribers = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<ChangeStreamEventInfo> changeStreamHistory = new ConcurrentLinkedDeque<>();
+    // Bounded in-memory replay buffer for change events, keyed by (monotonic, per-driver) sequence
+    // token. Acts as a ring buffer: on overflow the oldest event is evicted (pollFirst). It backs
+    // resume-after-disconnect: a change stream that reconnects with resumeAfter replays the still
+    // buffered events after its token (see replayHistory / canResumeChangeStream). The default keeps
+    // the historical core behaviour; PoppyDB raises it on its primary driver so the replay window is
+    // large enough to resume a secondary after a realistic outage instead of forcing a full re-sync.
     private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
+    private volatile int changeStreamHistoryLimit = CHANGE_STREAM_HISTORY_LIMIT;
+    // Tracks changeStreamHistory.size() so the ring-buffer bound check on the hot write path does not
+    // pay ConcurrentLinkedDeque.size()'s O(n) traversal (at the 100_000 PoppyDB bound that was ~200k
+    // node walks per write). Maintained alongside every add/poll/removeIf/clear on the deque.
+    // Best-effort under concurrent mutation: the counter and the deque are not updated atomically, so
+    // a concurrent add/poll can transiently drift this from the deque's true size. On the PoppyDB
+    // primary all buffer mutations come from a single writer thread, and any drift is transient and
+    // self-correcting — it only loosens the eviction bound slightly and never corrupts the deque.
+    private final AtomicInteger changeStreamHistorySize = new AtomicInteger();
     // Track the sequence number at the time of the last drop per namespace (db.collection or db).
     // replayHistory skips events older than this to prevent stale events from being replayed.
     private final ConcurrentHashMap<String, Long> lastDropSequence = new ConcurrentHashMap<>();
+    // Sequence of the most recent purge-causing drop across ALL namespaces. A drop removes the
+    // dropped namespace's events from the replay buffer INCLUDING the drop notification itself, so
+    // a consumer resuming from a token before the drop would replay a gap-free window that hides the
+    // drop entirely (it would keep serving a dropped collection forever). canResumeChangeStream
+    // consults this so any resume whose token predates a drop becomes an explicit window-lost →
+    // re-sync. Cluster-wide (global) because PoppyDB's replication watch is cluster-level; a global
+    // check is at worst conservative for a single-namespace change stream.
+    private volatile long lastGlobalDropSequence = 0;
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
     private final List<WatchMonitor> monitors = new CopyOnWriteArrayList<>();
@@ -517,8 +540,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         monitors.clear();
         changeStreamSubscribers.clear();
         changeStreamHistory.clear();
+        changeStreamHistorySize.set(0);
         changeStreamSequence.set(0);
         lastDropSequence.clear();
+        lastGlobalDropSequence = 0;
         eventQueue.clear();
         cursors.clear();
         commandResults.clear();
@@ -3715,6 +3740,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         lock.writeLock().lock();
         List<Map<String, Object>> writeErrors;
         try {
+            markCollectionTouched(db, collection);
             int errors = 0;
             objs = new ArrayList<>(objs);
             writeErrors = new ArrayList<>();
@@ -3921,6 +3947,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Integer> result;
         try {
+            markCollectionTouched(db, collection);
             result = storeInternal(db, collection, objs, wc, pendingNotifications);
         } finally {
             lock.writeLock().unlock();
@@ -4008,6 +4035,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             currentTransaction.get().getDatabase().putIfAbsent(db, new ConcurrentHashMap<>());
             // noinspection unchecked
             return (Map<String, List<Map<String, Object>>>) currentTransaction.get().getDatabase().get(db);
+        }
+    }
+
+    /**
+     * Records that the current transaction (if any) wrote to the given collection. Only touched
+     * collections are merged back into the live database on commit, so concurrent non-transactional
+     * writes to collections the transaction never touched are not clobbered. No-op outside a
+     * transaction.
+     */
+    private void markCollectionTouched(String db, String collection) {
+        InMemTransactionContext ctx = currentTransaction.get();
+        if (ctx != null) {
+            ctx.getTouchedCollections().add(db + "/" + collection);
         }
     }
 
@@ -4102,6 +4142,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Object> result;
         try {
+            markCollectionTouched(db, collection);
             result = updateInternal(db, collection, query, sort, op, multiple, upsert, collation, wc,
                                     pendingNotifications);
         } finally {
@@ -4992,9 +5033,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         changeStreamHistory.addLast(eventInfo);
+        changeStreamHistorySize.incrementAndGet();
 
-        while (changeStreamHistory.size() > CHANGE_STREAM_HISTORY_LIMIT) {
-            changeStreamHistory.pollFirst();
+        while (changeStreamHistorySize.get() > changeStreamHistoryLimit) {
+            if (changeStreamHistory.pollFirst() != null) {
+                changeStreamHistorySize.decrementAndGet();
+            } else {
+                break; // deque already empty
+            }
         }
 
         if (!hasSubscribers(db, collection)) {
@@ -5176,6 +5222,77 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         subscription.deactivate();
+    }
+
+    /**
+     * Maximum number of change events retained in the replay buffer (ring buffer). Once this many
+     * events have accumulated the oldest is evicted, so a resume token older than the oldest retained
+     * event can no longer be replayed.
+     */
+    public int getChangeStreamHistoryLimit() {
+        return changeStreamHistoryLimit;
+    }
+
+    /**
+     * Set the replay-buffer bound. PoppyDB uses this to size its primary's replay window. Shrinking
+     * the limit immediately trims the oldest buffered events down to the new bound.
+     */
+    public void setChangeStreamHistoryLimit(int limit) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("changeStreamHistoryLimit must be >= 1");
+        }
+        this.changeStreamHistoryLimit = limit;
+        while (changeStreamHistorySize.get() > limit) {
+            if (changeStreamHistory.pollFirst() != null) {
+                changeStreamHistorySize.decrementAndGet();
+            } else {
+                break; // deque already empty
+            }
+        }
+    }
+
+    /**
+     * Decide whether a change stream that has consumed up to {@code resumeToken} can be resumed
+     * losslessly from the current replay buffer, i.e. whether every event after {@code resumeToken}
+     * is still buffered (or there is nothing after it).
+     *
+     * <p>This is the conservative miss-detection behind resume-after-disconnect. It returns
+     * {@code false} — signalling the caller to fall back to a full re-sync — whenever the buffer
+     * cannot prove a clean, gap-free resume:
+     * <ul>
+     *   <li>{@code resumeToken > newest}: the token is beyond anything this driver ever emitted.
+     *       This happens when the primary process restarted (its per-driver sequence counter reset
+     *       to 0) or the token comes from a different primary's sequence space — never resumable.</li>
+     *   <li>buffer empty while {@code resumeToken < newest}: the events after the token were already
+     *       evicted (or purged by a drop) — the window is lost.</li>
+     *   <li>oldest retained token {@code > resumeToken + 1}: there is a gap between the token and the
+     *       oldest event still buffered — the window is lost.</li>
+     * </ul>
+     * Returns {@code true} when {@code resumeToken == newest} (the consumer is fully caught up,
+     * nothing to replay) or the oldest retained event is contiguous with {@code resumeToken + 1}.
+     *
+     * <p>Sequence tokens are globally monotonic per driver across all namespaces, so this global
+     * check matches the cluster-wide replication watch used by PoppyDB secondaries.
+     */
+    public boolean canResumeChangeStream(long resumeToken) {
+        long newest = changeStreamSequence.get();
+        if (resumeToken > newest) {
+            return false; // token from a reset/foreign sequence space — cannot resume
+        }
+        if (lastGlobalDropSequence > resumeToken) {
+            // A drop happened after this token; its notification (and the dropped namespace's
+            // events) were purged from the buffer, so the window is not losslessly replayable —
+            // force a re-sync so the consumer actually learns about the drop.
+            return false;
+        }
+        if (resumeToken == newest) {
+            return true;  // fully caught up, nothing to replay
+        }
+        ChangeStreamEventInfo oldest = changeStreamHistory.peekFirst();
+        if (oldest == null) {
+            return false; // nothing buffered but events exist after the token — window lost
+        }
+        return oldest.token <= resumeToken + 1;
     }
 
     private void replayHistory(ChangeStreamSubscription subscription, long startingToken) {
@@ -5709,6 +5826,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         try {
+            markCollectionTouched(db, collection);
             List<Map<String, Object>> toDel = new ArrayList<>(
                             find(db, collection, query, null, UtilsMap.of("_id", 1), collation, 0, multiple ? 0 : 1, true));
 
@@ -5811,6 +5929,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         try {
+            markCollectionTouched(db, collection);
             getDB(db).remove(collection);
 
             if (indexDataByDBCollection.containsKey(db)) {
@@ -5829,16 +5948,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Purge history for this collection BEFORE advancing the sequence counter.
         // This removes all old events first, preventing any stale entries from
         // surviving the sequence boundary if removeIf misses concurrent additions.
-        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
+        changeStreamHistory.removeIf(e -> {
+            if (db.equals(e.db) && collection.equals(e.collection)) {
+                changeStreamHistorySize.decrementAndGet();
+                return true;
+            }
+            return false;
+        });
         // Advance the sequence counter and record it as the drop boundary.
         // Any events with tokens <= this value are from before the drop.
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db + "." + collection, dropBoundary);
+        if (dropBoundary > lastGlobalDropSequence) {
+            lastGlobalDropSequence = dropBoundary;
+        }
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         notifyWatchers(db, collection, "drop", null);
         // Second purge: removes the drop notification event itself and any
         // events added by async dispatchers between the first purge and now.
-        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
+        changeStreamHistory.removeIf(e -> {
+            if (db.equals(e.db) && collection.equals(e.collection)) {
+                changeStreamHistorySize.decrementAndGet();
+                return true;
+            }
+            return false;
+        });
     }
 
     public synchronized void drop(String db, WriteConcern wc) {
@@ -5854,7 +5988,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db, dropBoundary);
-        changeStreamHistory.removeIf(e -> db.equals(e.db));
+        if (dropBoundary > lastGlobalDropSequence) {
+            lastGlobalDropSequence = dropBoundary;
+        }
+        changeStreamHistory.removeIf(e -> {
+            if (db.equals(e.db)) {
+                changeStreamHistorySize.decrementAndGet();
+                return true;
+            }
+            return false;
+        });
         notifyWatchers(db, null, "drop", null);
     }
 
@@ -6137,6 +6280,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Object> result;
         try {
+            markCollectionTouched(db, col);
             // Use internal flag to skip lock acquisition in find() and update()
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
             if (ret.isEmpty() && !upsert) {
@@ -6206,6 +6350,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Object> result;
         try {
+            markCollectionTouched(db, col);
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
             if (ret.isEmpty()) {
                 return null;
@@ -6782,22 +6927,58 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         InMemTransactionContext ctx = currentTransaction.get();
-        // replace full database state with transaction snapshot
-        database.clear();
-        // noinspection unchecked
-        database.putAll(ctx.getDatabase());
-        // rebuild index data to reflect committed dataset
-        indexDataByDBCollection.clear();
-        for (var dbName : database.keySet()) {
-            for (var collName : database.get(dbName).keySet()) {
-                try {
-                    updateIndexData(dbName, collName, null);
-                } catch (Exception e) {
-                    // swallow to avoid breaking commit; indexes will be lazily rebuilt
+        // Merge back ONLY the collections the transaction actually wrote to. Collections the
+        // transaction never touched are left as-is in the live database, so concurrent
+        // non-transactional writes to them (possibly on other threads while the transaction was
+        // open) are preserved instead of being clobbered by the start-of-transaction snapshot.
+        //
+        // Merge granularity is per-collection last-writer-wins: for a touched collection the
+        // transaction's whole version replaces the live one, so a concurrent write to the SAME
+        // collection during the transaction is overwritten by the commit. Full row-level conflict
+        // detection is out of scope here.
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, List<Map<String, Object>>>> snapshot =
+            (Map<String, Map<String, List<Map<String, Object>>>>) ctx.getDatabase();
+
+        // Clear the current transaction first so getCollectionLock/index helpers below operate on
+        // the live database rather than routing back into the (about-to-be-discarded) snapshot.
+        currentTransaction.set(null);
+
+        for (String key : ctx.getTouchedCollections()) {
+            int sep = key.indexOf('/');
+            String dbName = key.substring(0, sep);
+            String collName = key.substring(sep + 1);
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(dbName, collName);
+            lock.writeLock().lock();
+            try {
+                Map<String, List<Map<String, Object>>> snapDb = snapshot.get(dbName);
+                if (snapDb == null || !snapDb.containsKey(collName)) {
+                    // Collection was dropped within the transaction: remove it from the live state
+                    // and purge its index structures (mirrors drop()).
+                    if (database.containsKey(dbName)) {
+                        database.get(dbName).remove(collName);
+                    }
+                    if (indexDataByDBCollection.containsKey(dbName)) {
+                        indexDataByDBCollection.get(dbName).remove(collName);
+                    }
+                    if (indicesByDbCollection.containsKey(dbName)) {
+                        indicesByDbCollection.get(dbName).remove(collName);
+                    }
+                    collectionsWithTtlIndex.remove(dbName + "." + collName);
+                } else {
+                    database.putIfAbsent(dbName, new ConcurrentHashMap<>());
+                    database.get(dbName).put(collName, snapDb.get(collName));
+                    try {
+                        // Rebuild only this collection's index data to reflect the committed dataset.
+                        updateIndexData(dbName, collName, null);
+                    } catch (Exception e) {
+                        // swallow to avoid breaking commit; indexes will be lazily rebuilt
+                    }
                 }
+            } finally {
+                lock.writeLock().unlock();
             }
         }
-        currentTransaction.set(null);
     }
 
     public void abortTransaction() {

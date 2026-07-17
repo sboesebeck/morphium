@@ -13,7 +13,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Driver: configurable `appName` in the connection handshake
 New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as `client.application.name` in the `hello` handshake. Set it per service to tell instances apart in `db.currentOp()`, server logs and profiler output (MongoDB truncates values over 128 bytes). Third-party `MorphiumDriver` implementations keep compiling — the new interface methods are defaults.
 
+### Changed
+
+#### InMemoryDriver: O(1) change-stream replay-buffer bound
+The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size()` — O(n), ~200k node traversals per write at PoppyDB's 100k-event replay bound. The deque size is now tracked in an `AtomicInteger`; eviction semantics are unchanged.
+
 ### Fixed
+
+#### PoppyDB: replication is now lossless and order-preserving
+The secondary's replication pipeline had several correctness defects that could silently lose or reorder data: the initial sync copied the snapshot *before* opening the change-stream watch (writes during the copy were lost), replication batches applied all inserts before updates/deletes (a delete-then-reinsert of the same document within one batch ended up applying insert-then-delete — the document wrongly disappeared), failed bulk applies still acknowledged their sequences to the primary, and bulk-insert `writeErrors` from the InMemoryDriver were silently treated as success. All of this is fixed: the watch now starts before the snapshot and buffered events are replayed afterwards; a snapshot is redone if the watch dies mid-copy (with in-thread backoff so a failing snapshot cannot leave the node permanently ungated); batches preserve global event order and only bundle contiguous same-collection insert runs; sequences are acknowledged only after a successful apply, and failed bulks are replayed as idempotent per-document upserts. A secondary also rejects data-plane traffic (RECOVERING) while its initial sync is running, and change-stream resume across a namespace/db drop is refused instead of silently skipping the drop.
+
+#### PoppyDB: election-mode followers never started replicating
+`ElectionManager.handleAppendEntries` stored the incoming leader before the "only on actual change" check compared against it, so `onLeaderDiscovered` never fired and a follower brought up via `--rs-seed` never started its ReplicationManager. The primary consequently saw no secondaries and every `w>1` write failed with `writeConcernError: no secondaries available`. Present since the anti-flapping change (2026-03-30); it became visible only now that write concern is actually enforced (below). Followers now start replication on the first heartbeat from a new leader.
+
+#### PoppyDB: primary/readPreference/transaction/write-concern semantics enforced on the command fast path
+Direct-dispatched commands (insert/find/update/delete/count/distinct/createIndexes) bypassed the not-primary rejection, `$readPreference` check, transaction-context setup and the write-concern replication wait — a secondary silently accepted fast-path writes, and `w`/`wtimeout` were ignored for them. A shared `preDispatch()`/`postWrite()` pair now runs before/after every dispatch variant, the replication coordinator is resolved live instead of being frozen per connection (stale after elections), and the per-connection transaction context is cleared after each command.
+
+#### PoppyDB: TLS support was non-functional
+An explicitly configured `SSLContext` was ignored (warn-logged), after which the server tried to load the non-existent classpath resources `/server.crt`/`/server.key` and failed with an NPE — SSL-enabled PoppyDB could never start. The configured context is now honored (adapted via the non-deprecated `JdkSslContext` constructor), with a WARN-logged self-signed certificate as dev/test fallback.
+
+#### PoppyDB: find cursors leaked on client disconnect
+`channelInactive` never cleaned up open find cursors, and watch/tailable event queues were unbounded. Cursors are now cleaned up on disconnect, idle cursors expire via TTL, and event queues are bounded.
+
+#### Driver: client-side wire compression (snappy/zlib) broke every connection
+`SingleMongoConnection.sendQuery()` gave the `OP_COMPRESSED` envelope a *fresh* request id while the reply matcher waited for the inner message's id. Any server replying to the envelope id — per spec the requestID of the original message, which PoppyDB and real MongoDB both do — triggered `connection out of sync` on every reply, killing the connection and eventually removing the host from the pool (`No such host`). Client-side compression now works against PoppyDB and MongoDB; server-side-only compression was unaffected.
+
+#### InMemoryDriver: transaction commit no longer clobbers concurrent writes
+`commitTransaction` replaced the *entire* database with the transaction's start snapshot, silently discarding every write other threads committed to unrelated collections while the transaction was open. Commit now merges back only the collections the transaction actually touched.
 
 #### PooledDriver: empty hosts map is re-seeded from the host seed — driver no longer permanently dead after a full replica-set outage (#233)
 When every replica-set member was unreachable long enough (rolling restart with overlapping windows, short network partition), `onConnectionError` evicted all hosts and the driver had no way back: the heartbeat only iterates the hosts map, and `handleHelloResult` — the only place re-adding hosts — only runs from heartbeat threads. Every operation failed with `No primary node found - not connected yet?` until the application was restarted, even though the cluster was healthy again (observed in production on morphium 6.1.8, 2026-07-16; the defect existed unchanged on develop). The heartbeat now re-seeds the hosts map from the configured host seed when it finds it empty, restarting the normal discovery cycle.

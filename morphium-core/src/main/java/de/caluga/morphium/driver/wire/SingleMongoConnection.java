@@ -581,7 +581,9 @@ public class SingleMongoConnection implements MongoConnection {
                 byte[] data = q.getPayload();
                 opc.setCompressedMessage(data);
                 opc.setSize(data.length + 4);
-                opc.setMessageId(msgId.incrementAndGet());
+                // per spec the OP_COMPRESSED header carries the requestID of the original
+                // message - a fresh id would make the server reply to an id nobody waits for
+                opc.setMessageId(q.getMessageId());
                 opc.setUncompressedSize(data.length);
                 // log.info(Utils.getHex(opc.bytes()));
                 out.write(opc.bytes());

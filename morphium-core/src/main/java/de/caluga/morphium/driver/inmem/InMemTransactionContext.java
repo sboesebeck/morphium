@@ -1,7 +1,9 @@
 package de.caluga.morphium.driver.inmem;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.wire.MorphiumTransactionContextImpl;
@@ -16,12 +18,23 @@ import de.caluga.morphium.driver.wire.MorphiumTransactionContextImpl;
 public class InMemTransactionContext implements MorphiumTransactionContext {
     private Map database;
 
+    /**
+     * Keys ({@code db + "/" + collection}) of the collections this transaction actually wrote to.
+     * On commit only these collections are merged back into the live database, so concurrent
+     * non-transactional writes to collections the transaction never touched are preserved.
+     */
+    private final Set<String> touchedCollections = ConcurrentHashMap.newKeySet();
+
     public Map getDatabase() {
         return database;
     }
 
     public void setDatabase(Map database) {
         this.database = database;
+    }
+
+    public Set<String> getTouchedCollections() {
+        return touchedCollections;
     }
 
     @Override

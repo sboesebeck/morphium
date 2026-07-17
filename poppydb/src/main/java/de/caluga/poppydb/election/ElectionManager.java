@@ -625,6 +625,9 @@ public class ElectionManager {
         try {
             long requestTerm = request.getTerm();
             long myTerm = currentTerm.get();
+            // capture before any mutation below - becomeFollower() and the heartbeat
+            // handling both overwrite currentLeader, which would hide the change
+            String previousLeader = currentLeader;
 
             log.trace("{} received appendEntries from {} (term={}, myTerm={})",
                     myAddress, request.getLeaderId(), requestTerm, myTerm);
@@ -658,11 +661,13 @@ public class ElectionManager {
             // Reset election timer
             resetElectionTimer();
 
-            // Notify of leader discovery — only on actual change to prevent flapping
+            // Notify of leader discovery — only on actual change to prevent flapping.
+            // Compare against the leader known BEFORE this request: currentLeader has
+            // already been updated above, comparing against it never fired the callback,
+            // so election-mode followers never started replication.
             if (onLeaderDiscovered != null) {
                 String leader = request.getLeaderId();
-                if (leader != null && !leader.equals(currentLeader)) {
-                    currentLeader = leader;
+                if (leader != null && !leader.equals(previousLeader)) {
                     scheduler.execute(() -> onLeaderDiscovered.accept(leader));
                 }
             }

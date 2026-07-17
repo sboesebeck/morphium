@@ -7,8 +7,13 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.IdentityCipherSuiteFilter;
+import io.netty.handler.ssl.JdkSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -32,6 +37,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Async I/O MongoDB-compatible server using Netty.
@@ -86,8 +92,14 @@ public class PoppyDB {
     private volatile long lastDumpTime = 0;
 
     // Replication
-    private ReplicationManager replicationManager = null;
-    private volatile ReplicationCoordinator replicationCoordinator = null;
+    // volatile: mutated under synchronized on the election/leadership paths but read unsynchronized
+    // from Netty event-loop threads via the isSecondarySyncing() supplier passed to each handler.
+    private volatile ReplicationManager replicationManager = null;
+    // Held behind an AtomicReference (rather than a plain volatile field copied into each
+    // connection at accept time) so every MongoCommandHandler resolves the coordinator live
+    // via a Supplier - onLeadershipChange swaps this reference and every existing connection
+    // (not just newly accepted ones) immediately observes the new value.
+    private final AtomicReference<ReplicationCoordinator> replicationCoordinatorRef = new AtomicReference<>();
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
@@ -104,7 +116,14 @@ public class PoppyDB {
         driver.connect();
         // Enable server mode to prevent internal Morphium instances from shutting down the driver
         driver.setServerMode(true);
+        // Size the change-event replay buffer for replication resume-after-disconnect: a reconnecting
+        // secondary replays events after its last-applied sequence from this buffer instead of doing a
+        // full re-sync. Bound: 100_000 events (ring buffer, oldest evicted on overflow).
+        driver.setChangeStreamHistoryLimit(REPLICATION_REPLAY_BUFFER_EVENTS);
     }
+
+    /** Primary replay-buffer bound (events) backing replication resume-after-disconnect. */
+    static final int REPLICATION_REPLAY_BUFFER_EVENTS = 100_000;
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds) {
         this(port, host, maxConnections, idleTimeoutSeconds, OpCompressed.COMPRESSOR_NOOP);
@@ -184,13 +203,18 @@ public class PoppyDB {
                         pipeline.addLast("decoder", new MongoWireProtocolDecoder());
                         pipeline.addLast("encoder", new MongoWireProtocolEncoder(compressorId));
 
-                        // Command handler - capture current primary state for this connection
-                        // Note: primary/primaryHost are volatile and may change during election
+                        // Command handler - capture current primary state for this connection.
+                        // Note: primary/primaryHost are volatile and may change during election;
+                        // when electionManager is set the handler resolves them live through it
+                        // instead. The replication coordinator is always resolved live through
+                        // replicationCoordinatorRef::get, never captured, so a leadership change
+                        // that happens after this connection was accepted is still observed.
                         pipeline.addLast("commandHandler", new MongoCommandHandler(
                                 driver, cursorManager, messagingOptimizer, msgId,
                                 host, port, rsName, hosts,
                                 primary, primaryHost, compressorId,
-                                replicationCoordinator, electionManager
+                                replicationCoordinatorRef::get, electionManager,
+                                PoppyDB.this::isSecondarySyncing
                         ));
 
                         // Track the channel
@@ -276,19 +300,54 @@ public class PoppyDB {
         log.info("PoppyDB shutdown complete");
     }
 
+    @SuppressWarnings("deprecation") // SelfSignedCertificate is deprecated by Netty but is
+    // an intentional, WARN-logged test/dev-only fallback here - see below.
     private io.netty.handler.ssl.SslContext buildSslContext() throws Exception {
         if (sslContext != null) {
-            // Use provided SSLContext - need to extract key/cert
-            // For now, use default
-            log.warn("Custom SSLContext not fully supported yet, using self-signed");
+            // Adapt the caller-provided javax.net.ssl.SSLContext (e.g. built via
+            // SslHelper.createServerSslContext(keystorePath, password), as used by
+            // PoppyDBCLI's --sslKeystore option) into a Netty SslContext for server use.
+            log.info("Using explicitly configured SSLContext for TLS");
+
+            try {
+                // Netty's 3-arg JdkSslContext(SSLContext, boolean, ClientAuth) constructor is
+                // deprecated in favor of this 8-arg one. This call reproduces the exact
+                // defaults the deprecated constructor used internally: no explicit cipher
+                // list, IdentityCipherSuiteFilter, the default ALPN negotiator (selected by
+                // passing a null ApplicationProtocolConfig), no protocol override, no
+                // startTLS - verified against the netty-handler bytecode on the classpath.
+                return new JdkSslContext(
+                        sslContext,
+                        false,
+                        null,
+                        IdentityCipherSuiteFilter.INSTANCE,
+                        (ApplicationProtocolConfig) null,
+                        ClientAuth.NONE,
+                        null,
+                        false
+                );
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                        "Configured SSLContext could not be adapted for server-side TLS: " + e.getMessage(), e);
+            }
         }
 
-        // Build a simple self-signed context for testing
-        // In production, you'd provide proper key/cert files
-        return SslContextBuilder.forServer(
-                getClass().getResourceAsStream("/server.crt"),
-                getClass().getResourceAsStream("/server.key")
-        ).build();
+        // No certificate configured: fall back to a freshly generated self-signed
+        // certificate so SSL-enabled startup doesn't fail outright. This is NOT suitable
+        // for production - configure a real certificate via setSslContext(...) (see
+        // docs/poppydb.md, "SSL/TLS Configuration").
+        log.warn("SSL enabled but no SSLContext configured - generating a self-signed certificate. " +
+                "This is INSECURE and must not be used in production; configure a real certificate " +
+                "via setSslContext(...) or PoppyDBCLI's --sslKeystore option.");
+
+        try {
+            SelfSignedCertificate ssc = new SelfSignedCertificate();
+            return SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "SSL is enabled but no SSLContext was configured, and generating a self-signed " +
+                    "fallback certificate failed. Configure a certificate via setSslContext(...).", e);
+        }
     }
 
     /**
@@ -366,7 +425,7 @@ public class PoppyDB {
             // has caught up before handing leadership over to it (priority takeover).
             electionManager.setLocalSequenceSupplier(driver::getChangeStreamSequence);
             electionManager.setPeerSequenceSupplier(peer -> {
-                ReplicationCoordinator coordinator = replicationCoordinator;
+                ReplicationCoordinator coordinator = replicationCoordinatorRef.get();
                 return coordinator == null ? -1L : coordinator.getAcknowledgedSequence(peer);
             });
 
@@ -400,7 +459,7 @@ public class PoppyDB {
 
         // Initialize replication coordinator for primary nodes in replica sets (static mode only)
         if (!electionEnabled && primary && !rsName.isEmpty() && hosts.size() > 1) {
-            replicationCoordinator = new ReplicationCoordinator(hosts.size());
+            replicationCoordinatorRef.set(new ReplicationCoordinator(hosts.size()));
             log.info("Replication coordinator initialized for {} nodes", hosts.size());
         }
 
@@ -420,9 +479,8 @@ public class PoppyDB {
             primary = true;
             primaryHost = host + ":" + port;
 
-            // Initialize replication coordinator
-            if (replicationCoordinator == null && hosts.size() > 1) {
-                replicationCoordinator = new ReplicationCoordinator(hosts.size());
+            // Initialize replication coordinator (only if not already present)
+            if (hosts.size() > 1 && replicationCoordinatorRef.compareAndSet(null, new ReplicationCoordinator(hosts.size()))) {
                 log.info("Replication coordinator initialized for {} nodes", hosts.size());
             }
 
@@ -436,7 +494,7 @@ public class PoppyDB {
             primary = false;
 
             // Clean up replication coordinator
-            replicationCoordinator = null;
+            replicationCoordinatorRef.set(null);
 
             // Start replication from new primary (will be set by onLeaderDiscovered)
         }
@@ -648,6 +706,17 @@ public class PoppyDB {
         }
     }
 
+    /**
+     * True when this node is a secondary that is currently (re-)running its initial sync and may
+     * therefore hold a half-cleared local database. Resolved live per command by the command
+     * handler so it can reject data-plane traffic (RECOVERING) while syncing. A primary has no
+     * replication manager, so this is false there.
+     */
+    private boolean isSecondarySyncing() {
+        ReplicationManager rm = replicationManager;
+        return rm != null && rm.isSyncing();
+    }
+
     public int dumpNow() throws IOException {
         if (dumpDirectory == null) {
             throw new IOException("Dump directory not configured");
@@ -693,8 +762,9 @@ public class PoppyDB {
         if (replicationManager != null) {
             stats.put("replication", replicationManager.getStats());
         }
-        if (replicationCoordinator != null) {
-            stats.put("replicationCoordinator", replicationCoordinator.getStats());
+        ReplicationCoordinator coordinator = replicationCoordinatorRef.get();
+        if (coordinator != null) {
+            stats.put("replicationCoordinator", coordinator.getStats());
         }
         if (electionManager != null) {
             stats.put("election", electionManager.getStats());
@@ -703,7 +773,12 @@ public class PoppyDB {
     }
 
     public ReplicationCoordinator getReplicationCoordinator() {
-        return replicationCoordinator;
+        return replicationCoordinatorRef.get();
+    }
+
+    /** Test hook: the secondary-side replication manager (null on a node that is currently primary). */
+    ReplicationManager getReplicationManagerForTest() {
+        return replicationManager;
     }
 
     public ElectionManager getElectionManager() {
