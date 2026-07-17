@@ -34,7 +34,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("inmemory")
 public class CompiledQueryTest {
 
-    private record Case(String description, Map<String, Object> query, Map<String, Object> doc, boolean expected) {}
+    private record Case(String description, Map<String, Object> query, Map<String, Object> doc, boolean expected,
+                        Map<String, Object> collation) {
+        // Convenience constructor: the vast majority of rows use no collation (null).
+        Case(String description, Map<String, Object> query, Map<String, Object> doc, boolean expected) {
+            this(description, query, doc, expected, null);
+        }
+    }
 
     @TestFactory
     List<DynamicTest> operatorMatrix() {
@@ -43,8 +49,8 @@ public class CompiledQueryTest {
 
         for (Case c : cases) {
             tests.add(DynamicTest.dynamicTest(c.description(), () -> {
-                boolean interpreted = QueryHelper.matchesQueryInterpreted(c.query(), c.doc(), null);
-                boolean compiled = CompiledQuery.compile(c.query()).matches(c.doc());
+                boolean interpreted = QueryHelper.matchesQueryInterpreted(c.query(), c.doc(), c.collation());
+                boolean compiled = CompiledQuery.compile(c.query(), c.collation()).matches(c.doc());
 
                 assertEquals(c.expected(), interpreted, () -> "interpreter diverged from expected for: " + c.description());
                 assertEquals(c.expected(), compiled, () -> "compiled diverged from expected for: " + c.description());
@@ -212,9 +218,25 @@ public class CompiledQueryTest {
         cases.add(new Case("nested $and/$or combo", Doc.of("$and", List.of(Doc.of("a", 1), Doc.of("$or", List.of(Doc.of("b", 9), Doc.of("c", 3))))),
                             Doc.of("a", 1, "b", 2, "c", 3), true));
 
-        // ---------------------------------------------------------------- $expr
+        // ---------------------------------------------------------------- $expr (top-level)
         cases.add(new Case("$expr true", Doc.of("$expr", Doc.of("$gt", List.of("$a", "$b"))), Doc.of("a", 5, "b", 2), true));
         cases.add(new Case("$expr false", Doc.of("$expr", Doc.of("$gt", List.of("$a", "$b"))), Doc.of("a", 1, "b", 2), false));
+
+        // ---------------------------------------------------------------- $expr (FIELD-level, hand-compiled)
+        // The interpreter's field-level $expr casts the operand directly to Expr (no Expr.parse) -
+        // this is the shape produced by the aggregation $match rewrite path, i.e. an already-parsed
+        // Expr instance. CompiledQuery hand-compiles this branch (HAND_COMPILED_OPS), so it needs
+        // its own differential coverage rather than piggy-backing on top-level $expr.
+        cases.add(new Case("field-level $expr true (pre-parsed Expr operand)",
+                            Doc.of("ignoredField", Doc.of("$expr", de.caluga.morphium.aggregation.Expr.gt(
+                                    de.caluga.morphium.aggregation.Expr.field("a"),
+                                    de.caluga.morphium.aggregation.Expr.field("b")))),
+                            Doc.of("a", 5, "b", 2), true));
+        cases.add(new Case("field-level $expr false (pre-parsed Expr operand)",
+                            Doc.of("ignoredField", Doc.of("$expr", de.caluga.morphium.aggregation.Expr.gt(
+                                    de.caluga.morphium.aggregation.Expr.field("a"),
+                                    de.caluga.morphium.aggregation.Expr.field("b")))),
+                            Doc.of("a", 1, "b", 2), false));
 
         // ---------------------------------------------------------------- $type
         cases.add(new Case("$type string match", Doc.of("a", Doc.of("$type", "string")), Doc.of("a", "x"), true));
@@ -242,6 +264,20 @@ public class CompiledQueryTest {
         cases.add(new Case("dotted eq null matches missing path", Doc.of("a.b", null), Doc.of("a", Doc.of("c", 1)), true));
         cases.add(new Case("dotted eq non-null vs missing path -> false", Doc.of("a.b", 1), Doc.of("a", Doc.of("c", 1)), false));
         cases.add(new Case("$exists false semantics differ from eq-null (field present as null)", Doc.of("a", Doc.of("$exists", false)), Doc.of("a", null), false));
+
+        // ---------------------------------------------------------------- KNOWN-DIVERGENCE #2:
+        // empty-but-non-null collation resolves a real ROOT Collator ONLY in the non-dotted
+        // implicit-eq branch (interpreter checks `collation != null` there, not `!isEmpty()`).
+        // These rows run with collation = new HashMap<>() (non-null, empty) on that exact path;
+        // CompiledQuery must mirror the interpreter (asserted via c.collation() threading above).
+        // Ctx.collUnchecked is what makes this pass on the compiled side.
+        Map<String, Object> emptyCollation = new java.util.HashMap<>();
+        cases.add(new Case("empty-non-null collation, non-dotted implicit-eq string match",
+                           Doc.of("name", "bob"), Doc.of("name", "bob"), true, emptyCollation));
+        cases.add(new Case("empty-non-null collation, non-dotted implicit-eq string mismatch",
+                           Doc.of("name", "bob"), Doc.of("name", "alice"), false, emptyCollation));
+        cases.add(new Case("empty-non-null collation, non-dotted implicit-eq against list field (collated contains)",
+                           Doc.of("tags", "x"), Doc.of("tags", List.of("x", "y")), true, emptyCollation));
 
         // ---------------------------------------------------------------- map-field / array-index query corner
         Map<String, Object> mapFieldQuery = new LinkedHashMap<>();

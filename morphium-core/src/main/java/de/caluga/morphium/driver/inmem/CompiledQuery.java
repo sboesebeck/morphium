@@ -98,6 +98,18 @@ public final class CompiledQuery {
      * fresh (uncached) - collation is a second dynamic axis on top of the query map identity, and
      * caching by query-identity alone would silently reuse the wrong collation for a differently
      * collated call using the same query map instance.
+     *
+     * <p>INVARIANT: the identity key assumes a query map is NOT mutated in place after its first
+     * compile - otherwise the cached compilation would go stale while the key still matches. All
+     * known callers treat a query map as immutable for the lifetime of one operation. The driver
+     * hot paths (find/count/existsMatchingDocument) do not even reach this cache - they call
+     * {@link #compile} explicitly per operation - so only the incidental external callers
+     * (aggregator $match, TTL fallback, $pull, elemMatch projection) rely on this invariant.
+     *
+     * <p>The get-then-put below is intentionally unsynchronized across the gap: under concurrent
+     * misses for the same key two threads may both compile and both put, but compilation is pure
+     * and deterministic, so the race is benign (one redundant compile, last write wins, identical
+     * result either way).
      */
     static boolean matchesQueryCached(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (collation != null && !collation.isEmpty()) {
