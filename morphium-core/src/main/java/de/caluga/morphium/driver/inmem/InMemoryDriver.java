@@ -2088,13 +2088,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private int runCommand(ClearCollectionCommand cmd) {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
-        database.get(cmd.getDb()).get(cmd.getColl()).clear();
-        // Pre-existing gap, not introduced here: this path has never taken the collection's write
-        // lock. It must still invalidate the persistent index store (rather than leave it
-        // untouched), or the store would keep serving references to documents that were just
-        // physically removed - worse than doing nothing, since a persistent store never
-        // self-heals the way Task 3's rebuild-on-miss cache eventually would have.
-        invalidateIndexStore(cmd.getDb(), cmd.getColl());
+        // Take the collection WRITE lock around the structural clear, like every other mutation
+        // path. Storage is a plain ArrayList now (was CopyOnWriteArrayList): an unlocked clear()
+        // structurally modifies the live list and would race a concurrent snapshot() copy under
+        // only the read lock (read lock does not exclude an unlocked writer), throwing
+        // ConcurrentModificationException / ArrayIndexOutOfBoundsException inside the copy.
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(cmd.getDb(), cmd.getColl());
+        lock.writeLock().lock();
+        try {
+            database.get(cmd.getDb()).get(cmd.getColl()).clear();
+            // Must still invalidate the persistent index store, or it would keep serving
+            // references to documents that were just physically removed - a persistent store never
+            // self-heals the way Task 3's rebuild-on-miss cache eventually would have.
+            invalidateIndexStore(cmd.getDb(), cmd.getColl());
+        } finally {
+            lock.writeLock().unlock();
+        }
         int ret = commandNumber.incrementAndGet();
         addResult(ret, prepareResult(Doc.of("ok", 1.0)));
         return ret;
