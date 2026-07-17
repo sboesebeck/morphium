@@ -4041,10 +4041,37 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             for (Map<String, Object> ev : evicted) {
                 indexStore.onRemove(ev);
             }
-            for (Map<String, Object> o : objs) {
-                indexStore.onInsert(o);
+
+            // Intra-batch unique-key collisions (Phase B1, Task 5): the two pre-checks above only
+            // catch a duplicate against an already-COMMITTED document; a duplicate _id or unique
+            // secondary-index value between two documents newly arriving in THIS SAME batch only
+            // surfaces here, when the second occurrence's onInsert sees the first occurrence's
+            // freshly-added index entry. This must mirror the committed-conflict pre-check's
+            // writeErrors+skip semantics, not throw - an uncaught throw here would both silently
+            // drop every writeError already accumulated above and (for ordered:true) abandon the
+            // per-doc atomicity the store already guarantees. ordered:true stops at the first
+            // failure (earlier docs stay persisted, later docs are never even attempted, matching
+            // MongoDB); ordered:false keeps going and only the offending doc is skipped.
+            List<Map<String, Object>> insertedDocs = new ArrayList<>(objs.size());
+            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
+                Map<String, Object> o = objs.get(objIdx);
+                try {
+                    indexStore.onInsert(o);
+                } catch (MorphiumDriverException ex) {
+                    writeErrors.add(Doc.of(
+                        "index", objIdx,
+                        "code", ex.getMongoCode() == null ? 11000 : ex.getMongoCode(),
+                        "errmsg", ex.getMessage()
+                    ));
+                    if (ordered) {
+                        break;
+                    }
+                    continue;
+                }
                 collectionData.add(o);
+                insertedDocs.add(o);
             }
+            objs = insertedDocs;
 
         } finally {
             lock.writeLock().unlock();
@@ -4139,8 +4166,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
                 o.put("_id", new MorphiumId());
-                // enforce unique indexes before insert
-                enforceUniqueOrThrow(db, collection, o);
+                // Unique enforcement (Phase B1, Task 5): CollectionIndexStore.onInsert is the
+                // single source of truth for uniqueness now - it already throws a MongoDB-shaped
+                // duplicate-key exception, so the old separate enforceUniqueOrThrow() scan-based
+                // pre-check (removed) was pure redundant work.
                 indexStore.onInsert(o);
                 getCollection(db, collection).add(o);
                 pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
@@ -4159,14 +4188,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // as a remove-then-insert (CollectionIndexStore.onUpdate assumes "after" is the
                 // very same object already referenced by its buckets, which does not hold here).
                 indexStore.onRemove(previous);
-                // enforce unique indexes before replacing
-                enforceUniqueOrThrow(db, collection, o);
                 indexStore.onInsert(o);
                 upd++;
                 pendingNotifications.add(new PendingNotification(db, collection, "replace", o, null, null, previous));
             } else {
-                // unique check for insert
-                enforceUniqueOrThrow(db, collection, o);
                 indexStore.onInsert(o);
                 pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
                 inserted++;
@@ -4677,16 +4702,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
 
                     if (!insert) {
-                        // Keep the index store in sync with the in-place replacement. NOTE: unlike
-                        // the legacy enforceUniqueOrThrow() call below (used by the $operator
-                        // branch), this branch previously ran NO uniqueness validation at all on a
-                        // full-document replace - a pre-existing gap. CollectionIndexStore.onUpdate
-                        // enforces uniqueness as an inherent part of its contract, so wiring it in
-                        // here (required to keep indexes correct - skipping it would leave the
-                        // store permanently stale for every replaced document) also newly rejects a
+                        // Keep the index store in sync with the in-place replacement. NOTE: this
+                        // branch previously ran NO uniqueness validation at all on a full-document
+                        // replace - a pre-existing gap. CollectionIndexStore.onUpdate enforces
+                        // uniqueness as an inherent part of its contract, so wiring it in here
+                        // (required to keep indexes correct - skipping it would leave the store
+                        // permanently stale for every replaced document) also newly rejects a
                         // replace that violates a unique index, where it previously silently
                         // succeeded. This is a deliberate, flagged behavior change - see the Task 4
-                        // report - not a silent Task 5 unique-semantics redesign.
+                        // report - not a silent Task 5 unique-semantics redesign. (The sibling
+                        // $-operator branch below used to run a separate, now-removed
+                        // enforceUniqueOrThrow() pre-check; both branches now rely solely on the
+                        // store, which is the single source of truth for uniqueness - Task 5.)
                         try {
                             indexStore.onUpdate(original, obj);
                         } catch (MorphiumDriverException ex) {
@@ -5107,16 +5134,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
 
                 if (!insert) {
-                    // enforce uniqueness after modification; rollback if violation
+                    // Enforce uniqueness after modification; rollback if violation. "obj" was
+                    // mutated in place above (same live reference the store's buckets already
+                    // hold), so this is exactly the onUpdate(before, after) shape the store
+                    // expects - onUpdate is the sole uniqueness check here (Phase B1, Task 5;
+                    // the old separate enforceUniqueOrThrow() scan-based pre-check was removed
+                    // as redundant). onUpdate's own CALLER OBLIGATION ON FAILURE (see
+                    // CollectionIndexStore.onUpdate's Javadoc) requires reverting the in-place
+                    // mutation if it throws, which the catch below does.
                     try {
-                        enforceUniqueOrThrow(db, collection, obj);
-                        // Incremental index maintenance (Phase B1, Task 4): "obj" was mutated
-                        // in place above (same live reference the store's buckets already hold),
-                        // so this is exactly the onUpdate(before, after) shape the store expects.
-                        // Same try/catch as enforceUniqueOrThrow above: onUpdate's own CALLER
-                        // OBLIGATION ON FAILURE (see CollectionIndexStore.onUpdate's Javadoc)
-                        // requires reverting the in-place mutation if it throws, which the shared
-                        // catch below already does.
                         indexStore.onUpdate(original, obj);
                     } catch (MorphiumDriverException ex) {
                         // rollback
@@ -6359,47 +6385,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
         return textFields;
-    }
-
-    @SuppressWarnings("unchecked")
-    private void enforceUniqueOrThrow(String db, String collection, Map<String, Object> doc)
-    throws MorphiumDriverException {
-        List<Map<String, Object>> indexes = getIndexes(db, collection);
-        if (indexes == null)
-            return;
-        for (var idx : indexes) {
-            Object opt = idx.get("$options");
-            if (!(opt instanceof Map))
-                continue;
-            Map<String, Object> options = (Map<String, Object>) opt;
-            if (!Boolean.TRUE.equals(options.get("unique")) && !(options.get("unique") instanceof String
-                    && "true".equalsIgnoreCase((String) options.get("unique")))) {
-                continue;
-            }
-            // build equality query for all index keys present in doc
-            Doc q = new Doc();
-            boolean hasAll = true;
-            for (var e : idx.entrySet()) {
-                if (e.getKey().startsWith("$"))
-                    continue;
-                Object v = doc.get(e.getKey());
-                if (v == null) {
-                    hasAll = false;
-                    break;
-                }
-                q.put(e.getKey(), v);
-            }
-            if (!hasAll || q.isEmpty())
-                continue;
-            List<Map<String, Object>> matches = find(db, collection, q, null, null, 0, 0);
-            for (var m : matches) {
-                Object mid = m.get("_id");
-                Object did = doc.get("_id");
-                if (did == null || mid == null || !mid.toString().equals(did.toString())) {
-                    throw new MorphiumDriverException("Duplicate key for unique index: " + options.get("name"), null);
-                }
-            }
-        }
     }
 
     public List<String> getCollectionNames(String db) {
