@@ -6703,6 +6703,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Acquire write lock for this collection to block all reads and other writes
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
+        List<PendingNotification> pendingNotifications = new ArrayList<>();
+        Map<String, Object> result;
         try {
             markCollectionTouched(db, collection);
             List<Map<String, Object>> toDel = new ArrayList<>(
@@ -6752,17 +6754,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            // Notify watchers for each deleted document
-            // Note: With CopyOnWriteArrayList, read starvation is not an issue even when
-            // notifying inside the lock, and the event dispatcher is async anyway
+            // Collect notifications for each deleted document; dispatch after the write lock is
+            // released (see below) to avoid blocking concurrent readers/writers for the duration
+            // of synchronous change-stream dispatch.
             for (Map<String, Object> doc : deletedDocs) {
-                notifyWatchers(db, collection, "delete", doc, null, null, doc);
+                pendingNotifications.add(new PendingNotification(db, collection, "delete", doc, null, null, doc));
             }
 
-            return Doc.of("n", deleted, "ok", 1.0);
+            result = Doc.of("n", deleted, "ok", 1.0);
         } finally {
             lock.writeLock().unlock();
         }
+        // Notify watchers AFTER releasing the write lock to prevent deadlocks
+        for (PendingNotification notification : pendingNotifications) {
+            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
+                           notification.updatedFields, notification.removedFields, notification.beforeDocument);
+        }
+        return result;
     }
 
     private List<Map<String, Object>> getCollection(String db, String collection) throws MorphiumDriverException {
