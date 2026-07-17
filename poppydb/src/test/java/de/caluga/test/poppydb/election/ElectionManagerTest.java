@@ -150,6 +150,62 @@ public class ElectionManagerTest {
     }
 
     @Test
+    void testLeaderDiscoveryFiresOnFirstHeartbeat() throws Exception {
+        log.info("Testing onLeaderDiscovered fires on first heartbeat (and only on change)");
+
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(5000)
+                .setElectionTimeoutMaxMs(10000);
+
+        List<String> hosts = List.of("localhost:27017", "localhost:27018", "localhost:27019");
+        ElectionManager manager = new ElectionManager("localhost:27017", hosts, config);
+        managers.add(manager);
+
+        List<String> discovered = new ArrayList<>();
+        CountDownLatch discoveredLatch = new CountDownLatch(1);
+        manager.setOnLeaderDiscovered(leader -> {
+            synchronized (discovered) {
+                discovered.add(leader);
+            }
+            discoveredLatch.countDown();
+        });
+
+        manager.start();
+
+        // First heartbeat from the leader: term 1 > term 0 takes the becomeFollower()
+        // path which also updates currentLeader - the callback must still fire,
+        // otherwise a follower never learns about the leader and never replicates
+        manager.handleAppendEntries(AppendEntriesRequest.heartbeat(1, "localhost:27018", 0, 0, 0));
+        assertTrue(discoveredLatch.await(1, TimeUnit.SECONDS),
+                "onLeaderDiscovered must fire on the first heartbeat from a new leader");
+
+        // Repeated heartbeats from the same leader must NOT re-fire (anti-flapping)
+        for (int i = 0; i < 5; i++) {
+            manager.handleAppendEntries(AppendEntriesRequest.heartbeat(1, "localhost:27018", 0, 0, 0));
+        }
+        Thread.sleep(100);
+        synchronized (discovered) {
+            assertEquals(List.of("localhost:27018"), discovered,
+                    "same leader must not re-trigger discovery");
+        }
+
+        // A different leader (higher term) must fire again
+        CountDownLatch newLeaderLatch = new CountDownLatch(1);
+        manager.setOnLeaderDiscovered(leader -> {
+            synchronized (discovered) {
+                discovered.add(leader);
+            }
+            newLeaderLatch.countDown();
+        });
+        manager.handleAppendEntries(AppendEntriesRequest.heartbeat(2, "localhost:27019", 0, 0, 0));
+        assertTrue(newLeaderLatch.await(1, TimeUnit.SECONDS),
+                "onLeaderDiscovered must fire when the leader changes");
+        synchronized (discovered) {
+            assertEquals(List.of("localhost:27018", "localhost:27019"), discovered);
+        }
+    }
+
+    @Test
     void testHeartbeatResetsElectionTimer() throws Exception {
         log.info("Testing heartbeat resets election timer");
 
