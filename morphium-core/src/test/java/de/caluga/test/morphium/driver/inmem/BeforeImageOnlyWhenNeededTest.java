@@ -273,4 +273,60 @@ public class BeforeImageOnlyWhenNeededTest {
         assertEquals(1, byTakenEmail.size());
         assertEquals(2, byTakenEmail.get(0).get("_id"));
     }
+
+    @Test
+    void uniqueViolationOnNoClonePathRevertsInPlaceNestedMapAndArrayMutations() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        String coll = "hotPathNestedRevert";
+        createUniqueIndex(drv, coll, "email");
+        // Doc 1 carries a NESTED sub-document and an existing ARRAY - the two container shapes that
+        // update operators mutate IN PLACE (applySetFields walks into the existing nested Map;
+        // $push appends to the existing List). buildPartialBeforeImage must deep-copy the WHOLE
+        // top-level subtree these paths start under ("nested", "tags"), not just the leaf, or the
+        // revert below would restore a before-image that still shares - and therefore still shows -
+        // the in-place mutation. This is the exact desync the "whole top-level subtree" widening
+        // exists to prevent; it is proven here directly on the no-watcher/no-tx no-clone path.
+        drv.insert(db, coll, List.of(
+                Doc.of("_id", 1, "email", "a@x.de",
+                        "nested", Doc.of("inner", Doc.of("val", "orig")),
+                        "tags", new ArrayList<>(List.of("x", "y"))),
+                Doc.of("_id", 2, "email", "b@x.de")), null, true);
+        assertFalse(drv.isTransactionInProgress());
+
+        long clonesBefore = drv.getFullBeforeImageCloneCount();
+        boolean threw = false;
+        try {
+            drv.update(db, coll, Doc.of("_id", 1), null,
+                    Doc.of("$set", Doc.of("email", "b@x.de", "nested.inner.val", "mutated"),
+                            "$push", Doc.of("tags", "z")),
+                    false, false, null, null);
+            fail("Expected duplicate key enforcement");
+        } catch (MorphiumDriverException ex) {
+            threw = true;
+            assertEquals(11000, ex.getMongoCode());
+        }
+        assertTrue(threw);
+        assertEquals(clonesBefore, drv.getFullBeforeImageCloneCount(),
+                "the revert must go through the partial before-image (no-clone) path, not the full-clone path");
+
+        Map<String, Object> doc1 = drv.find(db, coll, Doc.of("_id", 1), null, null, 0, 1).get(0);
+        assertEquals("a@x.de", doc1.get("email"), "email must be fully reverted");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nested = (Map<String, Object>) doc1.get("nested");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inner = (Map<String, Object>) nested.get("inner");
+        assertEquals("orig", inner.get("val"),
+                "the in-place dotted-path mutation into the nested Map must be fully reverted");
+
+        @SuppressWarnings("unchecked")
+        List<Object> tags = (List<Object>) doc1.get("tags");
+        assertEquals(List.of("x", "y"), tags,
+                "the element pushed into the existing array must NOT survive the revert");
+
+        assertEquals(1, drv.find(db, coll, Doc.of("email", "a@x.de"), null, null, 0, 10).size());
+        List<Map<String, Object>> byTakenEmail = drv.find(db, coll, Doc.of("email", "b@x.de"), null, null, 0, 10);
+        assertEquals(1, byTakenEmail.size());
+        assertEquals(2, byTakenEmail.get(0).get("_id"));
+    }
 }
