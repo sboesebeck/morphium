@@ -330,6 +330,101 @@ public class InMemoryDriverIndexPlanningTest {
     }
 
     @Test
+    void indexSortWithLimitOnlyTouchesAboutLimitManyIndexEntries() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("counter", 1)))
+                .execute();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 0; i < 50_000; i++) {
+            docs.add(Doc.of("counter", i));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        CollectionIndexStore store = drv.getIndexStore(db, coll);
+        long scannedBefore = store.scannedEntries;
+
+        List<Map<String, Object>> result = drv.find(db, coll, Doc.of(), Doc.of("counter", 1), null, 2, 10);
+
+        assertEquals(10, result.size());
+        assertEquals(2, ((Number) result.get(0).get("counter")).intValue());
+        long scanned = store.scannedEntries - scannedBefore;
+        assertTrue(scanned <= 20,
+                "an index-order sort with skip=2/limit=10 over 50k entries must be lazy and touch only ~12 entries, but scanned " + scanned);
+    }
+
+    @Test
+    void mixedDirectionCompoundIndexServesExactReverseSort() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("a", 1, "b", -1)))
+                .execute();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            docs.add(Doc.of("a", i % 4, "b", i % 7));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        long indexSortsBefore = drv.indexSorts;
+
+        // Exact reverse of (a:1, b:-1) is (a:-1, b:1) - a single reverse scan of the index.
+        List<Map<String, Object>> result = drv.find(db, coll, Doc.of(), Doc.of("a", -1, "b", 1), null, 0, 0);
+
+        assertEquals(200, result.size());
+        for (int i = 1; i < result.size(); i++) {
+            int prevA = ((Number) result.get(i - 1).get("a")).intValue();
+            int curA = ((Number) result.get(i).get("a")).intValue();
+            assertTrue(prevA >= curA, "a must be non-increasing");
+            if (prevA == curA) {
+                int prevB = ((Number) result.get(i - 1).get("b")).intValue();
+                int curB = ((Number) result.get(i).get("b")).intValue();
+                assertTrue(prevB <= curB, "b must be non-decreasing within equal a");
+            }
+        }
+        assertEquals(indexSortsBefore + 1, drv.indexSorts,
+                "the exact per-field reverse of a mixed-direction compound index must be reverse-scan eligible");
+    }
+
+    @Test
+    void mixedDirectionCompoundIndexRejectsPartiallyReversedSort() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("a", 1, "b", -1)))
+                .execute();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            docs.add(Doc.of("a", i % 4, "b", i % 7));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        long indexSortsBefore = drv.indexSorts;
+
+        // (a:-1, b:-1) reverses a but NOT b relative to (a:1, b:-1) - no single directional
+        // scan of that index realizes it, so the fallback sort must be used (and stay correct).
+        List<Map<String, Object>> result = drv.find(db, coll, Doc.of(), Doc.of("a", -1, "b", -1), null, 0, 0);
+
+        assertEquals(200, result.size());
+        for (int i = 1; i < result.size(); i++) {
+            int prevA = ((Number) result.get(i - 1).get("a")).intValue();
+            int curA = ((Number) result.get(i).get("a")).intValue();
+            assertTrue(prevA >= curA, "a must be non-increasing");
+            if (prevA == curA) {
+                int prevB = ((Number) result.get(i - 1).get("b")).intValue();
+                int curB = ((Number) result.get(i).get("b")).intValue();
+                assertTrue(prevB >= curB, "b must be non-increasing within equal a");
+            }
+        }
+        assertEquals(indexSortsBefore, drv.indexSorts,
+                "a partially-reversed sort spec must NOT be index-order eligible");
+    }
+
+    @Test
     void findRemainsCorrectAfterUpdateChangesTheIndexedField() throws Exception {
         InMemoryDriver drv = freshDriverWithIndexedCollection(50);
 

@@ -45,6 +45,16 @@ public class CollectionIndexStore {
 
     private final Map<String, IndexEntry> indexesByName = new LinkedHashMap<>();
 
+    /**
+     * Counts index entries actually yielded by {@link #orderedScan}/{@link #rangeScan} iterators
+     * (one increment per document handed out by {@code next()}). Package-private test hook (Phase
+     * B1, Task 6): an index-order sort with {@code limit} must only ever touch about
+     * {@code skip + limit} entries of a large index - this counter is how a test proves the scan
+     * iterators are genuinely lazy and never materialize the whole range up front. Not atomic,
+     * same single-threaded-under-collection-lock reasoning as every other member here.
+     */
+    long scannedEntries;
+
     public CollectionIndexStore() {
         Map<String, Object> idIndexMap = new LinkedHashMap<>();
         idIndexMap.put("_id", 1);
@@ -202,6 +212,9 @@ public class CollectionIndexStore {
      * Scans the named index between {@code from} and {@code to} (each bound optional - pass
      * {@code null} for an open end), honouring {@code fromInclusive}/{@code toInclusive}, in the
      * index's natural order or reversed if {@code descending}.
+     *
+     * <p>The returned iterator is <b>lazy</b> - see {@link #orderedScan} for the shared validity
+     * contract (only valid under the collection lock, invalidated by any store mutation).
      */
     public Iterator<Map<String, Object>> rangeScan(String indexName, IndexKey from, boolean fromInclusive,
             IndexKey to, boolean toInclusive, boolean descending) {
@@ -219,20 +232,60 @@ public class CollectionIndexStore {
         return flatten(view, descending);
     }
 
-    /** Every document in the named index, in the index's natural order or reversed. */
+    /**
+     * Every document in the named index, in the index's natural order or reversed.
+     *
+     * <p>The returned iterator is <b>lazy</b>: it streams the live {@code TreeMap} bucket
+     * structures on demand instead of materializing the whole range up front (an earlier version
+     * copied every scanned entry into a list before returning - that eager copy defeated the whole
+     * point of limit-driven consumers, which want to stop after {@code skip + limit} entries of a
+     * potentially huge index). The flip side is a validity contract, which is really just this
+     * class's general thread-safety contract applied to a longer-lived object: the iterator is
+     * only valid while the owning collection's lock (see the class Javadoc) is held continuously
+     * from the call until the last {@code next()}, and any mutation of this store invalidates it
+     * (a structural change to the underlying {@code TreeMap} fails fast with
+     * {@code ConcurrentModificationException}; an in-bucket-only change may not be detected).
+     * {@code InMemoryDriver.find} complies: it consumes scan iterators fully inside the region
+     * where it holds the collection's read lock, and never mutates while reading.
+     */
     public Iterator<Map<String, Object>> orderedScan(String indexName, boolean descending) {
         IndexEntry entry = requireEntry(indexName);
         return flatten(entry.ordered, descending);
     }
 
-    private static Iterator<Map<String, Object>> flatten(NavigableMap<IndexKey, ArrayList<Map<String, Object>>> view,
+    /**
+     * Lazily streams every document of {@code view}'s buckets in key order ({@code descending}
+     * walks the {@code descendingMap} view - both directions are O(1) to set up). One
+     * {@link #scannedEntries} increment per document actually handed out by {@code next()}, which
+     * is what makes the counter a faithful "entries touched" measure for laziness tests.
+     */
+    private Iterator<Map<String, Object>> flatten(NavigableMap<IndexKey, ArrayList<Map<String, Object>>> view,
             boolean descending) {
         NavigableMap<IndexKey, ArrayList<Map<String, Object>>> ordered = descending ? view.descendingMap() : view;
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (List<Map<String, Object>> bucket : ordered.values()) {
-            result.addAll(bucket);
-        }
-        return result.iterator();
+        Iterator<ArrayList<Map<String, Object>>> buckets = ordered.values().iterator();
+
+        return new Iterator<>() {
+            private Iterator<Map<String, Object>> currentBucket = Collections.emptyIterator();
+
+            @Override
+            public boolean hasNext() {
+                // Empty buckets are removed eagerly (see IndexEntry.remove), but stay defensive:
+                // skip any empty bucket rather than reporting a phantom element.
+                while (!currentBucket.hasNext() && buckets.hasNext()) {
+                    currentBucket = buckets.next().iterator();
+                }
+                return currentBucket.hasNext();
+            }
+
+            @Override
+            public Map<String, Object> next() {
+                if (!hasNext()) {
+                    throw new java.util.NoSuchElementException();
+                }
+                scannedEntries++;
+                return currentBucket.next();
+            }
+        };
     }
 
     private IndexEntry requireEntry(String indexName) {
