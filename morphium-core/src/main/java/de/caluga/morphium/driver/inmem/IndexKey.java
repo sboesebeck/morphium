@@ -35,6 +35,30 @@ public final class IndexKey {
         }
     };
 
+    /**
+     * Sentinel that compares below every other value (including {@link #MISSING}), regardless of
+     * field type. Only used to build synthetic range bounds via {@link #prefixLow}/
+     * {@link #prefixHigh} - never produced by {@link #extract}.
+     */
+    private static final Object NEGATIVE_INFINITY = new Object() {
+        @Override
+        public String toString() {
+            return "IndexKey.NEGATIVE_INFINITY";
+        }
+    };
+
+    /**
+     * Sentinel that compares above every other value, regardless of field type. Only used to build
+     * synthetic range bounds via {@link #prefixLow}/{@link #prefixHigh} - never produced by
+     * {@link #extract}.
+     */
+    private static final Object POSITIVE_INFINITY = new Object() {
+        @Override
+        public String toString() {
+            return "IndexKey.POSITIVE_INFINITY";
+        }
+    };
+
     private final List<Object> values;
 
     private IndexKey(List<Object> values) {
@@ -125,6 +149,9 @@ public final class IndexKey {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static int compareSingleValue(Object a, Object b) {
+        if (a == NEGATIVE_INFINITY || b == NEGATIVE_INFINITY || a == POSITIVE_INFINITY || b == POSITIVE_INFINITY) {
+            return compareInfinitySentinel(a, b);
+        }
         if (a == MISSING && b == MISSING) {
             return 0;
         }
@@ -159,6 +186,58 @@ public final class IndexKey {
         // Incomparable/mixed types: fall back to a stable, deterministic order by runtime type
         // name rather than throwing, so the comparator remains total.
         return a.getClass().getName().compareTo(b.getClass().getName());
+    }
+
+    private static int compareInfinitySentinel(Object a, Object b) {
+        if (a == b) {
+            return 0;
+        }
+        if (a == NEGATIVE_INFINITY || b == POSITIVE_INFINITY) {
+            return -1;
+        }
+        return 1;
+    }
+
+    /**
+     * Builds a synthetic {@link IndexKey} that sorts at or below every real key extracted via
+     * {@code def} whose leading fields equal {@code prefixValues}, in {@code def}'s TreeMap
+     * iteration order (i.e. after each field's direction has been applied by
+     * {@link #comparator}). Trailing fields beyond {@code prefixValues} are padded with a
+     * sentinel chosen per-field so the direction multiplication still yields the lowest possible
+     * position - see {@link #POSITIVE_INFINITY}/{@link #NEGATIVE_INFINITY}.
+     *
+     * <p>Intended as the inclusive lower bound for a prefix range scan over a compound index, e.g.
+     * {@code rangeScan(name, IndexKey.prefixLow(def, List.of(5)), true,
+     * IndexKey.prefixHigh(def, List.of(5)), true, false)} to scan every entry whose first field is
+     * {@code 5}.
+     */
+    public static IndexKey prefixLow(IndexDefinition def, List<Object> prefixValues) {
+        return buildPrefixBound(def, prefixValues, true);
+    }
+
+    /**
+     * Same as {@link #prefixLow}, but builds the upper bound instead - sorts at or above every
+     * real key sharing the given prefix.
+     */
+    public static IndexKey prefixHigh(IndexDefinition def, List<Object> prefixValues) {
+        return buildPrefixBound(def, prefixValues, false);
+    }
+
+    private static IndexKey buildPrefixBound(IndexDefinition def, List<Object> prefixValues, boolean low) {
+        List<String> fields = def.fields();
+        List<Object> values = new ArrayList<>(fields.size());
+        values.addAll(prefixValues);
+
+        for (int i = prefixValues.size(); i < fields.size(); i++) {
+            int direction = def.direction(fields.get(i));
+            // Want the padded field to end up "lowest" (for prefixLow) or "highest" (for
+            // prefixHigh) once the comparator multiplies by direction. For direction == 1 that
+            // means using the sentinel directly; for direction == -1 it flips.
+            boolean useRawLow = low == (direction == 1);
+            values.add(useRawLow ? NEGATIVE_INFINITY : POSITIVE_INFINITY);
+        }
+
+        return new IndexKey(Collections.unmodifiableList(values));
     }
 
     @Override
