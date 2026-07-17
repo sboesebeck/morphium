@@ -3142,6 +3142,61 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return false;
     }
 
+    /**
+     * Builds the in-memory (non-index-backed) multi-field sort comparator used by find()'s full
+     * sort fallback and its bounded top-N heap. Ascending per field unless the field's sort spec
+     * is a negative Integer; nulls sort first; a non-Integer sort spec falls back to comparing
+     * the collator against the documents' toString() (matches the pre-existing behaviour).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Comparator<Map<String, Object>> buildSortComparator(Map<String, Object> sort, Collator coll) {
+        return (o1, o2) -> {
+            for (String f : sort.keySet()) {
+                if (o1.get(f) == null && o2.get(f) == null) {
+                    continue;
+                }
+
+                if (o1.get(f) == null && o2.get(f) != null) {
+                    return -1;
+                }
+
+                if (o1.get(f) != null && o2.get(f) == null) {
+                    return 1;
+                }
+
+                if (sort.get(f) instanceof Integer) {
+                    if (coll != null) {
+                        var r = (coll.compare(o1.get(f).toString(), o2.get(f).toString()))
+                                * ((Integer) sort.get(f));
+
+                        if (r == 0) {
+                            continue;
+                        }
+
+                        return r;
+                    }
+
+                    var r = ((Comparable) o1.get(f)).compareTo(o2.get(f)) * ((Integer) sort.get(f));
+
+                    if (r == 0) {
+                        continue;
+                    }
+
+                    return r;
+                } else {
+                    var r = (coll.compare(o1.toString(), o2.toString()));
+
+                    if (r == 0) {
+                        continue;
+                    }
+
+                    return r;
+                }
+            }
+            return 0;
+        };
+    }
+
     @SuppressWarnings({ "RedundantThrows", "UnusedParameters", "unchecked" })
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query,
                                            Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip,
@@ -3273,8 +3328,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            List<Map<String, Object>> data = null;
-
             // The single place the null/empty distinction is encoded (see getDataFromIndex's
             // Javadoc): null means no index was usable at all, so scan everything; a non-null
             // (possibly empty) list means an index plan already ran and IS the final candidate
@@ -3286,72 +3339,81 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } else {
                 indexHits++;
             }
-            if (indexSortIterator == null) {
-                // Full scan: iterate a snapshot rather than the live ArrayList. The read lock is
-                // already held here (or the write lock, for internal=true calls) so snapshot()'s
-                // own read-lock acquisition is a benign reentry/downgrade.
-                data = partialHitData == null ? snapshot(db, collection) : partialHitData;
-            } else {
-                indexSorts++;
-            }
+
             List<Map<String, Object>> ret = new ArrayList<>();
             int matched = 0;
 
-            if (indexSortIterator == null && sort != null) {
-                Collator coll = QueryHelper.getCollator(collation);
-                data.sort((o1, o2) -> {
-                    for (String f : sort.keySet()) {
-                        if (o1.get(f) == null && o2.get(f) == null) {
-                            continue;
-                        }
-
-                        if (o1.get(f) == null && o2.get(f) != null) {
-                            return -1;
-                        }
-
-                        if (o1.get(f) != null && o2.get(f) == null) {
-                            return 1;
-                        }
-
-                        // noinspection unchecked
-                        if (sort.get(f) instanceof Integer) {
-                            if (coll != null) {
-                                var r = (coll.compare(o1.get(f).toString(), o2.get(f).toString()))
-                                        * ((Integer) sort.get(f));
-
-                                if (r == 0) {
-                                    continue;
-                                }
-
-                                return r;
-                            }
-
-                            var r = ((Comparable) o1.get(f)).compareTo(o2.get(f)) * ((Integer) sort.get(f));
-
-                            if (r == 0) {
-                                continue;
-                            }
-
-                            return r;
-                        } else {
-                            var r = (coll.compare(o1.toString(), o2.toString()));
-
-                            if (r == 0) {
-                                continue;
-                            }
-
-                            return r;
-                        }
-                    }
-                    return 0;
-                });
-            }
-
-            Iterator<Map<String, Object>> sourceIterator = indexSortIterator != null ? indexSortIterator : data.iterator();
-
             // Compile once per operation (query is fully finalized above - $text rewrite etc. is
-            // done) instead of re-interpreting it for every candidate document in the loop below.
+            // done) instead of re-interpreting it for every candidate document below - shared by
+            // every path (index-ordered iterator, heap top-N, full sort, plain streaming).
             CompiledQuery compiledQuery = CompiledQuery.compile(query, collation);
+
+            Iterator<Map<String, Object>> sourceIterator;
+
+            if (indexSortIterator != null) {
+                indexSorts++;
+                sourceIterator = indexSortIterator;
+            } else if (sort != null && limit > 0) {
+                // Top-N heap (Phase B2, Task 3): sort is set, limit > 0, and no index services the
+                // sort (the index-ordered branch above already returned otherwise). Running a full
+                // Collections.sort over every candidate (O(n log n)) just to keep skip+limit of
+                // them is wasteful for large collections - instead stream the candidates ONCE
+                // through the compiled predicate and keep only the best `skip + limit` in a bounded
+                // heap (capacity = skip + limit), giving O(n log(skip+limit)) instead of O(n log n).
+                //
+                // The heap's OWN comparator is the sort comparator INVERTED, so the heap's head
+                // (peek/poll) is always the WORST of the currently-kept documents - a candidate
+                // that beats the head evicts it, and a candidate that doesn't beat the head can be
+                // discarded in O(1) without touching the heap at all. Draining the heap via
+                // repeated poll() therefore yields worst-first order, so the drain below fills an
+                // array back-to-front to land on the normal ascending (best-first) order.
+                //
+                // Not stable: like MongoDB itself, this sort gives no ordering guarantee among
+                // documents that compare equal under `sort` (MongoDB documents no stability
+                // guarantee for non-$natural sorts either), and heap-based selection can reorder
+                // such ties differently than a full sort would.
+                Collator coll = QueryHelper.getCollator(collation);
+                Comparator<Map<String, Object>> sortComparator = buildSortComparator(sort, coll);
+                int capacity = skip + limit;
+                PriorityQueue<Map<String, Object>> heap = new PriorityQueue<>(capacity, sortComparator.reversed());
+                Iterable<Map<String, Object>> candidates = partialHitData != null ? partialHitData : getCollection(db, collection);
+
+                for (Map<String, Object> o : candidates) {
+                    if (!compiledQuery.matches(o)) {
+                        continue;
+                    }
+
+                    if (heap.size() < capacity) {
+                        heap.offer(o);
+                    } else if (sortComparator.compare(o, heap.peek()) < 0) {
+                        heap.poll();
+                        heap.offer(o);
+                    }
+                }
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object>[] ordered = new Map[heap.size()];
+
+                for (int i = ordered.length - 1; i >= 0; i--) {
+                    ordered[i] = heap.poll();
+                }
+
+                sourceIterator = Arrays.asList(ordered).iterator();
+            } else if (sort != null) {
+                // Unbounded sort (limit <= 0, so there is no window to bound a heap to) - fall back
+                // to a full sort of the candidate set, unchanged from before Phase B2 Task 3.
+                Collator coll = QueryHelper.getCollator(collation);
+                List<Map<String, Object>> data = partialHitData == null ? snapshot(db, collection) : partialHitData;
+                data.sort(buildSortComparator(sort, coll));
+                sourceIterator = data.iterator();
+            } else {
+                // No sort at all: stream candidates directly through the compiled predicate below,
+                // without an up-front full-collection copy. The read lock is already held for the
+                // remainder of this method (or the write lock, for internal=true calls - see
+                // getCollection's Javadoc), so iterating the live list here is exactly as safe as
+                // snapshot()'s own momentary read-lock reentry, just without paying for the copy.
+                sourceIterator = (partialHitData != null ? partialHitData : getCollection(db, collection)).iterator();
+            }
 
             while (sourceIterator.hasNext()) {
                 Map<String, Object> o = sourceIterator.next();
