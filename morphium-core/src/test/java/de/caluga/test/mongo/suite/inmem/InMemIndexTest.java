@@ -25,10 +25,6 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
 //        assertThat(idx.size()).isGreaterThan(1); //_id index + indexes for str_value etc.
 //        List<Map<String, Object>> indexDefinition = ((InMemoryDriver) morphium.getDriver()).getIndexes(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class));
 //        assertThat(indexDefinition.size()).isGreaterThan(0);
-//        Map idIndex = ((InMemoryDriver) morphium.getDriver()).getIndexDataForCollection(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class), "_id");
-//        assertEquals(100,idIndex.size());
-//        Map counterIndex = ((InMemoryDriver) morphium.getDriver()).getIndexDataForCollection(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class), "counter");
-//        assertEquals(100,idIndex.size());
     }
 
 
