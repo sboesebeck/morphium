@@ -401,7 +401,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         GZIPOutputStream gzip = new GZIPOutputStream(out);
         InMemDumpContainer d = new InMemDumpContainer();
         d.setCreated(System.currentTimeMillis());
-        d.setData(getDatabase(db));
+        // Per-collection snapshot under the read locks: the serializer walks every list, which is
+        // no longer safe over the live ArrayList storage (was CopyOnWriteArrayList).
+        d.setData(snapshotDatabase(db));
         d.setDb(db);
         Map<String, Object> ser = mapper.serialize(d);
         OutputStreamWriter wr = new OutputStreamWriter(gzip);
@@ -417,25 +419,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * Dump a single database to file without requiring a Morphium instance.
      * Useful for PoppyDB persistence.
      *
-     * This method creates a shallow snapshot of the database structure to minimize
-     * blocking time, then serializes it. The actual document data uses CopyOnWriteArrayList
-     * so iteration is safe even with concurrent modifications.
+     * This method creates a shallow snapshot of each collection under its read lock to minimize
+     * blocking time, then serializes the copies so iteration stays safe even while other threads
+     * mutate the live collection lists.
      */
     public void dumpToFile(String db, File f) throws IOException {
         ObjectMapperImpl mapper = new ObjectMapperImpl();
         MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
         mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
 
-        // Create a snapshot of the database structure
-        // Documents are stored in CopyOnWriteArrayList, so iteration is thread-safe
-        Map<String, List<Map<String, Object>>> dbData = getDatabase(db);
-        if (dbData == null) {
+        // Snapshot each collection's document list under its read lock. Collection storage is a
+        // plain ArrayList now (was CopyOnWriteArrayList), so the serializer below must walk stable
+        // copies rather than the live lists to avoid ConcurrentModificationException.
+        Map<String, List<Map<String, Object>>> snapshot = snapshotDatabase(db);
+        if (snapshot == null) {
             log.debug("Database '{}' not found, skipping dump", db);
             return;
         }
-
-        // Shallow copy of collection map to avoid ConcurrentModificationException
-        Map<String, List<Map<String, Object>>> snapshot = new ConcurrentHashMap<>(dbData);
 
         try (FileOutputStream fos = new FileOutputStream(f);
             GZIPOutputStream gzip = new GZIPOutputStream(fos);
@@ -2480,8 +2480,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         continue;
                     }
 
+                    // Live list reference - only mutated below under the write lock. The scan
+                    // itself iterates a snapshot (see below), never this list directly.
                     List<Map<String, Object>> collectionData = getCollection(db, coll);
-                    if (collectionData.isEmpty()) {
+                    // Snapshot for the lock-free scan: collection storage is a plain ArrayList now
+                    // (was CopyOnWriteArrayList), so iterating the live list without the lock would
+                    // race with concurrent writers and throw ConcurrentModificationException.
+                    List<Map<String, Object>> scanSnapshot = snapshot(db, coll);
+                    if (scanSnapshot.isEmpty()) {
                         continue;
                     }
 
@@ -2490,8 +2496,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         Date threshold = new Date(thresholdMs);
                         List<Map<String, Object>> toRemove = new ArrayList<>();
 
-                        // Iterate directly - CopyOnWriteArrayList is safe for concurrent reads
-                        for (Map<String, Object> existing : collectionData) {
+                        for (Map<String, Object> existing : scanSnapshot) {
                             Object val = existing.get(ttlInfo.fieldName);
 
                             if (val == null) {
@@ -2690,16 +2695,30 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Map<String, Map<String, List<Map<String, Object>>>> source) {
         Map<String, Map<String, List<Map<String, Object>>>> clone = new ConcurrentHashMap<>();
         for (Map.Entry<String, Map<String, List<Map<String, Object>>>> dbEntry : source.entrySet()) {
+            String dbName = dbEntry.getKey();
             Map<String, List<Map<String, Object>>> dbClone = new ConcurrentHashMap<>();
             for (Map.Entry<String, List<Map<String, Object>>> collEntry : dbEntry.getValue().entrySet()) {
-                // Use CopyOnWriteArrayList to allow lock-free reads
-                List<Map<String, Object>> collClone = new CopyOnWriteArrayList<>();
-                for (Map<String, Object> doc : collEntry.getValue()) {
+                String collName = collEntry.getKey();
+                // Collection storage is a plain ArrayList now (was CopyOnWriteArrayList): take a
+                // shallow copy of the live list under the collection read lock BEFORE deep-copying
+                // its documents, otherwise a concurrent append would corrupt this lock-free walk
+                // with a ConcurrentModificationException. Only startTransaction() calls this, always
+                // with the live `database`, so the entry keys are real db/collection names.
+                java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(dbName, collName);
+                List<Map<String, Object>> src;
+                lock.readLock().lock();
+                try {
+                    src = new ArrayList<>(collEntry.getValue());
+                } finally {
+                    lock.readLock().unlock();
+                }
+                List<Map<String, Object>> collClone = new ArrayList<>(src.size());
+                for (Map<String, Object> doc : src) {
                     collClone.add(deepCopyDoc(doc));
                 }
-                dbClone.put(collEntry.getKey(), collClone);
+                dbClone.put(collName, collClone);
             }
-            clone.put(dbEntry.getKey(), dbClone);
+            clone.put(dbName, dbClone);
         }
         return clone;
     }
@@ -3258,7 +3277,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 indexHits++;
             }
             if (indexSortIterator == null) {
-                data = partialHitData == null ? new ArrayList<>(getCollection(db, collection)) : partialHitData;
+                // Full scan: iterate a snapshot rather than the live ArrayList. The read lock is
+                // already held here (or the write lock, for internal=true calls) so snapshot()'s
+                // own read-lock acquisition is a benign reentry/downgrade.
+                data = partialHitData == null ? snapshot(db, collection) : partialHitData;
             } else {
                 indexSorts++;
             }
@@ -6224,9 +6246,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private List<Map<String, Object>> getCollection(String db, String collection) throws MorphiumDriverException {
         Map<String, List<Map<String, Object>>> dbMap = getDB(db);
         if (!dbMap.containsKey(collection)) {
-            // Use CopyOnWriteArrayList to allow lock-free reads during write operations
-            // This prevents read starvation under heavy write loads
-            dbMap.put(collection, new CopyOnWriteArrayList<>());
+            // Plain ArrayList storage: every mutation of this list happens under the collection's
+            // WRITE lock and every whole-list iteration happens under its READ lock (or over an
+            // explicit snapshot() taken under that read lock). This replaced CopyOnWriteArrayList,
+            // whose per-add array copy made single-doc inserts O(n) (O(n^2) to fill a collection);
+            // ArrayList.add is amortised O(1). Lock-free full-list iteration is therefore no longer
+            // safe - readers that used to rely on COW copy-on-iterate now go through snapshot().
+            dbMap.put(collection, new ArrayList<>());
 
             try {
                 createIndex(db, collection, Doc.of("_id", 1), Doc.of("name", "_id_1"));
@@ -6236,6 +6262,56 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return dbMap.get(collection);
+    }
+
+    /**
+     * Returns a shallow, point-in-time copy of a collection's document list, taken under the
+     * collection's READ lock. Every reader that iterates a whole collection WITHOUT already holding
+     * that collection's lock MUST iterate this snapshot rather than the live list from
+     * {@link #getCollection}: the live list is a plain {@link ArrayList} now (was
+     * {@link CopyOnWriteArrayList}), so lock-free iteration over it races with concurrent appends
+     * and throws {@link java.util.ConcurrentModificationException}.
+     *
+     * <p>The copy holds the same live document references (shallow) - callers needing isolated
+     * documents must clone them. Safe to call while already holding the read or write lock for the
+     * same collection: the underlying {@link java.util.concurrent.locks.ReentrantReadWriteLock}
+     * permits read reentry and write-to-read downgrade.
+     */
+    private List<Map<String, Object>> snapshot(String db, String collection) throws MorphiumDriverException {
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
+        lock.readLock().lock();
+        try {
+            return new ArrayList<>(getCollection(db, collection));
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Builds a map of {collection -> shallow snapshot list} for a whole database, each collection
+     * copied under its own READ lock. Used by the lock-free dump/backup paths so the serializer
+     * iterates stable copies instead of the live {@link ArrayList}s.
+     */
+    private Map<String, List<Map<String, Object>>> snapshotDatabase(String db) {
+        Map<String, List<Map<String, Object>>> live = getDatabase(db);
+        if (live == null) {
+            return null;
+        }
+        Map<String, List<Map<String, Object>>> snap = new ConcurrentHashMap<>();
+        for (String coll : new ArrayList<>(live.keySet())) {
+            List<Map<String, Object>> collList = live.get(coll);
+            if (collList == null) {
+                continue;
+            }
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, coll);
+            lock.readLock().lock();
+            try {
+                snap.put(coll, new ArrayList<>(collList));
+            } finally {
+                lock.readLock().unlock();
+            }
+        }
+        return snap;
     }
 
     public void drop(String db, String collection, WriteConcern wc) {
