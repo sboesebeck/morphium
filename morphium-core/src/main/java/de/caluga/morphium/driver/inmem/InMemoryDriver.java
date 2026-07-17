@@ -186,6 +186,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // large enough to resume a secondary after a realistic outage instead of forcing a full re-sync.
     private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
     private volatile int changeStreamHistoryLimit = CHANGE_STREAM_HISTORY_LIMIT;
+    // Tracks changeStreamHistory.size() so the ring-buffer bound check on the hot write path does not
+    // pay ConcurrentLinkedDeque.size()'s O(n) traversal (at the 100_000 PoppyDB bound that was ~200k
+    // node walks per write). Maintained alongside every add/poll/removeIf/clear on the deque.
+    private final AtomicInteger changeStreamHistorySize = new AtomicInteger();
     // Track the sequence number at the time of the last drop per namespace (db.collection or db).
     // replayHistory skips events older than this to prevent stale events from being replayed.
     private final ConcurrentHashMap<String, Long> lastDropSequence = new ConcurrentHashMap<>();
@@ -524,6 +528,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         monitors.clear();
         changeStreamSubscribers.clear();
         changeStreamHistory.clear();
+        changeStreamHistorySize.set(0);
         changeStreamSequence.set(0);
         lastDropSequence.clear();
         eventQueue.clear();
@@ -5015,9 +5020,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         changeStreamHistory.addLast(eventInfo);
+        changeStreamHistorySize.incrementAndGet();
 
-        while (changeStreamHistory.size() > changeStreamHistoryLimit) {
-            changeStreamHistory.pollFirst();
+        while (changeStreamHistorySize.get() > changeStreamHistoryLimit) {
+            if (changeStreamHistory.pollFirst() != null) {
+                changeStreamHistorySize.decrementAndGet();
+            } else {
+                break; // deque already empty
+            }
         }
 
         if (!hasSubscribers(db, collection)) {
@@ -5219,8 +5229,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             throw new IllegalArgumentException("changeStreamHistoryLimit must be >= 1");
         }
         this.changeStreamHistoryLimit = limit;
-        while (changeStreamHistory.size() > limit) {
-            changeStreamHistory.pollFirst();
+        while (changeStreamHistorySize.get() > limit) {
+            if (changeStreamHistory.pollFirst() != null) {
+                changeStreamHistorySize.decrementAndGet();
+            } else {
+                break; // deque already empty
+            }
         }
     }
 
@@ -5915,7 +5929,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Purge history for this collection BEFORE advancing the sequence counter.
         // This removes all old events first, preventing any stale entries from
         // surviving the sequence boundary if removeIf misses concurrent additions.
-        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
+        changeStreamHistory.removeIf(e -> {
+            if (db.equals(e.db) && collection.equals(e.collection)) {
+                changeStreamHistorySize.decrementAndGet();
+                return true;
+            }
+            return false;
+        });
         // Advance the sequence counter and record it as the drop boundary.
         // Any events with tokens <= this value are from before the drop.
         long dropBoundary = changeStreamSequence.addAndGet(100);
@@ -5924,7 +5944,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         notifyWatchers(db, collection, "drop", null);
         // Second purge: removes the drop notification event itself and any
         // events added by async dispatchers between the first purge and now.
-        changeStreamHistory.removeIf(e -> db.equals(e.db) && collection.equals(e.collection));
+        changeStreamHistory.removeIf(e -> {
+            if (db.equals(e.db) && collection.equals(e.collection)) {
+                changeStreamHistorySize.decrementAndGet();
+                return true;
+            }
+            return false;
+        });
     }
 
     public synchronized void drop(String db, WriteConcern wc) {
@@ -5940,7 +5966,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db, dropBoundary);
-        changeStreamHistory.removeIf(e -> db.equals(e.db));
+        changeStreamHistory.removeIf(e -> {
+            if (db.equals(e.db)) {
+                changeStreamHistorySize.decrementAndGet();
+                return true;
+            }
+            return false;
+        });
         notifyWatchers(db, null, "drop", null);
     }
 

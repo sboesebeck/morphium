@@ -900,6 +900,11 @@ public class ReplicationManager {
      * 286) sent when its replay buffer can no longer cover the gap after our last-applied sequence.
      */
     private boolean isResumeWindowLost(MorphiumDriverException e) {
+        // Prefer the structured error code (286 = ChangeStreamHistoryLost); fall back to the message
+        // text when the code did not survive the driver surface.
+        if (e.getMongoCode() instanceof Number code && code.intValue() == 286) {
+            return true;
+        }
         String msg = e.getMessage();
         return msg != null && (msg.contains("resume window lost") || msg.contains("ChangeStreamHistoryLost"));
     }
