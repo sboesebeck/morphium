@@ -213,6 +213,59 @@ public class IndexKeyTest {
     }
 
     @Test
+    void comparatorOrdersMapEncodedLocalDateTimeChronologically() {
+        // stored LocalDateTime values are serialised as {sec: epochSecond, n: nano}
+        Map<String, Object> indexMap = new LinkedHashMap<>();
+        indexMap.put("ts", 1);
+        IndexDefinition def = IndexDefinition.fromIndexMap(indexMap);
+
+        IndexKey earlier = IndexKey.of(List.of(Map.of("sec", 1000L, "n", 0)));
+        IndexKey later = IndexKey.of(List.of(Map.of("sec", 2000L, "n", 500)));
+
+        var cmp = IndexKey.comparator(def);
+        assertTrue(cmp.compare(earlier, later) < 0, "earlier {sec,n} timestamp must sort first");
+        assertTrue(cmp.compare(later, earlier) > 0, "later {sec,n} timestamp must sort last");
+
+        List<IndexKey> keys = new ArrayList<>(List.of(later, earlier));
+        Collections.sort(keys, cmp);
+        assertEquals(List.of(earlier, later), keys);
+    }
+
+    @Test
+    void comparatorOrdersMapEncodedInstantChronologically() {
+        // stored Instant values are serialised as {type: "instant", seconds, nanos}
+        Map<String, Object> indexMap = new LinkedHashMap<>();
+        indexMap.put("ts", 1);
+        IndexDefinition def = IndexDefinition.fromIndexMap(indexMap);
+
+        IndexKey earlier = IndexKey.of(List.of(Map.of("type", "instant", "seconds", 1000L, "nanos", 0)));
+        IndexKey later = IndexKey.of(List.of(Map.of("type", "instant", "seconds", 1000L, "nanos", 999)));
+
+        var cmp = IndexKey.comparator(def);
+        assertTrue(cmp.compare(earlier, later) < 0, "earlier instant must sort first");
+        assertTrue(cmp.compare(later, earlier) > 0, "later instant must sort last");
+        assertFalse(cmp.compare(earlier, later) == 0, "different instants must not compare equal");
+    }
+
+    @Test
+    void comparatorFallbackForIncomparableTypesIsDeterministicAndAntisymmetric() {
+        Map<String, Object> indexMap = new LinkedHashMap<>();
+        indexMap.put("v", 1);
+        IndexDefinition def = IndexDefinition.fromIndexMap(indexMap);
+
+        IndexKey stringKey = IndexKey.of(List.of("abc"));
+        IndexKey intKey = IndexKey.of(List.of(42));
+
+        var cmp = IndexKey.comparator(def);
+        int forward = cmp.compare(stringKey, intKey);
+        int backward = cmp.compare(intKey, stringKey);
+
+        assertTrue(forward != 0, "incomparable types must not compare equal");
+        assertTrue(Integer.signum(forward) == -Integer.signum(backward), "fallback must be antisymmetric");
+        assertEquals(forward, cmp.compare(stringKey, intKey), "fallback must be deterministic");
+    }
+
+    @Test
     void directionThrowsForUnknownField() {
         IndexDefinition def = IndexDefinition.fromIndexMap(Map.of("a", 1));
         assertThrows(IllegalArgumentException.class, () -> def.direction("b"));

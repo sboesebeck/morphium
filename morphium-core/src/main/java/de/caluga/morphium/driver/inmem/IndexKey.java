@@ -51,9 +51,12 @@ public final class IndexKey {
      * dotted paths (e.g. {@code "a.b.c"}) the same way a plain nested-map lookup would. Absent
      * fields and explicit {@code null}s both become {@link #MISSING}.
      *
-     * <p>Arrays are not expanded into multiple keys: if a path resolves to a {@code List}, that
-     * list itself becomes the extracted value, exactly as MongoDB stores a scalar. Per-element
-     * multikey indexing (one index entry per array element) is out of scope here.
+     * <p>Arrays are not expanded into multiple keys: if a path's <em>terminal</em> segment
+     * resolves to a {@code List}, that list itself becomes the extracted value, exactly as
+     * MongoDB stores a scalar. A {@code List} encountered <em>mid-path</em> (e.g. {@code "a.b"}
+     * where {@code a} is an array of sub-documents) is NOT traversed - the walk stops and the
+     * field extracts as {@link #MISSING}. Per-element multikey indexing (one index entry per
+     * array element) is out of scope here.
      * // Phase B follow-up: multikey indexes
      */
     public static IndexKey extract(Map<String, Object> doc, IndexDefinition def) {
@@ -97,6 +100,10 @@ public final class IndexKey {
      *       is applied) - matching MongoDB's null/missing-sorts-first behaviour;</li>
      *   <li>numbers are unified via {@link Number#doubleValue()} so {@code int}/{@code long}/
      *       {@code double} compare purely by magnitude, never by type;</li>
+     *   <li>temporal values are normalised via {@code QueryHelper.toTemporalNumber} - raw
+     *       {@code java.time} objects and their serialised Map forms ({@code {sec,n}} for
+     *       LocalDateTime, {@code {type:"instant",seconds,nanos}} for Instant) all compare
+     *       chronologically as epoch nanos;</li>
      *   <li>same-family {@link Comparable} values (e.g. two Strings) compare naturally;</li>
      *   <li>otherwise-incomparable types fall back to ordering by runtime type name, so the
      *       comparator stays a total order instead of throwing {@link ClassCastException}.</li>
@@ -130,6 +137,15 @@ public final class IndexKey {
 
         if (a instanceof Number && b instanceof Number) {
             return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+        }
+
+        // Temporal types, same normalisation QueryHelper uses for $lt/$gt: raw java.time
+        // objects and their serialised forms ({sec,n} / {type:"instant",seconds,nanos} Maps)
+        // all unify to epoch nanos so date/TTL index keys order chronologically.
+        Long aTemporal = QueryHelper.toTemporalNumber(a);
+        Long bTemporal = QueryHelper.toTemporalNumber(b);
+        if (aTemporal != null && bTemporal != null) {
+            return Long.compare(aTemporal, bTemporal);
         }
 
         if (a instanceof Comparable && b instanceof Comparable) {
