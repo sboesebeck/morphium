@@ -1,5 +1,8 @@
 package de.caluga.morphium.driver.inmem;
 
+import de.caluga.morphium.driver.MorphiumId;
+import org.bson.types.ObjectId;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -65,9 +68,18 @@ public final class IndexKey {
         this.values = values;
     }
 
-    /** Wraps an explicit list of already-extracted values as an {@link IndexKey}. */
+    /**
+     * Wraps an explicit list of already-extracted values as an {@link IndexKey}. Each value is
+     * passed through {@link #normalizeIdValue} first, so a caller building a key from a raw query
+     * value (e.g. a {@code MorphiumId}) still lands in the same bucket as a document whose stored
+     * {@code _id} is the driver's internal {@code ObjectId} representation.
+     */
     public static IndexKey of(List<Object> values) {
-        return new IndexKey(Collections.unmodifiableList(new ArrayList<>(values)));
+        List<Object> normalized = new ArrayList<>(values.size());
+        for (Object v : values) {
+            normalized.add(normalizeIdValue(v));
+        }
+        return new IndexKey(Collections.unmodifiableList(normalized));
     }
 
     /**
@@ -110,7 +122,22 @@ public final class IndexKey {
             current = map.get(segment);
         }
 
-        return current == null ? MISSING : current;
+        return current == null ? MISSING : normalizeIdValue(current);
+    }
+
+    /**
+     * {@code MorphiumId} (Morphium's own {@code _id} wrapper type) and {@code ObjectId} (the raw
+     * BSON type the in-memory driver actually stores documents' {@code _id} under - see {@code
+     * InMemoryDriver.find}'s {@code !internal} branch, which only converts to {@code MorphiumId}
+     * on the way OUT to external callers) represent the same value but are different classes with
+     * no cross-type {@code equals()}. {@code QueryHelper.matchesQuery} already treats them as
+     * interchangeable by comparing {@code toString()} (both render the same 24-hex-digit form).
+     * {@link IndexKey} must do the same normalization - otherwise a query built with a {@code
+     * MorphiumId} (as every ORM-level {@code _id} lookup is) would never hash/compare equal to a
+     * stored document's {@code ObjectId}, silently missing every {@code _id} index lookup.
+     */
+    private static Object normalizeIdValue(Object v) {
+        return (v instanceof MorphiumId || v instanceof ObjectId) ? v.toString() : v;
     }
 
     /**

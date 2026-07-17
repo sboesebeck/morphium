@@ -170,6 +170,44 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // List<Map<String, Object>>>>>> indexDataByDBCollection = new
     // ConcurrentHashMap<>();
     private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+
+    /**
+     * Read-path index usage counters (Phase B1, Task 3) - incremented once per {@code find}/
+     * {@code count} call, based on whether the final candidate selection used a
+     * {@link CollectionIndexStore}-backed {@link IndexPlanner} plan ({@code indexHits}) or fell
+     * back to a full collection scan ({@code fullScans}). Package-private for tests; seed for a
+     * later {@code explain()}. Not atomic - see {@link #getDataFromIndex} for why that's
+     * acceptable for now.
+     */
+    long fullScans;
+    long indexHits;
+
+    /**
+     * Per-collection "something changed" epoch for the {@link IndexPlanner} read-path cache (see
+     * {@link #getDataFromIndex}). Bumped at every mutation entry point that takes the collection's
+     * write lock, plus the TTL-expiry background sweep (which mutates a collection's document list
+     * without going through that lock). A single, deliberately coarse counter per collection -
+     * bumping it invalidates every cached single-index store for that collection, not just the one
+     * a given write actually touched. That's a correctness-safe simplification (never stale, only
+     * ever "unnecessarily" rebuilt) chosen over trying to track which index a write affected.
+     */
+    private final Map<String, AtomicLong> collectionEpoch = new ConcurrentHashMap<>();
+
+    /** One cached single-index {@link CollectionIndexStore} per (collection, index name), see {@link #getDataFromIndex}. */
+    private final Map<String, CachedPlanIndex> planIndexCache = new ConcurrentHashMap<>();
+
+    private record CachedPlanIndex(long epoch, CollectionIndexStore store) {
+    }
+
+    private void bumpCollectionEpoch(String db, String collection) {
+        collectionEpoch.computeIfAbsent(db + "." + collection, k -> new AtomicLong()).incrementAndGet();
+    }
+
+    private long currentCollectionEpoch(String db, String collection) {
+        AtomicLong epoch = collectionEpoch.get(db + "." + collection);
+        return epoch == null ? 0L : epoch.get();
+    }
+
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final AtomicLong changeStreamSequence = new AtomicLong();
@@ -532,6 +570,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         indicesByDbCollection.clear();
         cappedCollections.clear();
         collectionsWithTtlIndex.clear();
+        planIndexCache.clear();
+        collectionEpoch.clear();
 
         for (var m : monitors) {
             m.signalAll();
@@ -2454,6 +2494,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 collectionData.remove(o);
                             }
                             updateIndexData(db, coll, null);
+                            // TTL expiry mutates the collection outside the normal write-lock
+                            // path (see the other bumpCollectionEpoch call sites) - bump here too
+                            // so the IndexPlanner read-path cache (getDataFromIndex) doesn't keep
+                            // serving stale single-index stores that still contain the expired docs.
+                            bumpCollectionEpoch(db, coll);
                         }
                     } catch (Exception e) {
                         log.error("Error processing TTL for {}", key, e);
@@ -3040,7 +3085,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             lock.readLock().lock();
         }
         try {
-            List<Map<String, Object>> partialHitData = new ArrayList<>();
+            // null = no index consulted / not indexable -> caller must full-scan.
+            // non-null (possibly empty) = an index was consulted and this IS the final candidate
+            // set - see getDataFromIndex's Javadoc for why an empty result here is NOT a signal
+            // to fall back to a full scan.
+            List<Map<String, Object>> partialHitData = null;
 
             if (query == null) {
                 query = Doc.of();
@@ -3108,6 +3157,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // For $or queries, using index candidates is only safe if ALL branches can be served
                     // by an index, otherwise we would miss matches from non-indexable branches.
                     boolean allIndexable = true;
+                    List<Map<String, Object>> collected = new ArrayList<>();
 
                     for (Map<String, Object> subquery : m) {
                         List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
@@ -3117,22 +3167,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             break;
                         }
 
-                        partialHitData.addAll(dataFromIndex);
+                        collected.addAll(dataFromIndex);
                     }
 
-                    if (!allIndexable) {
-                        partialHitData = null; // fall back to full scan for correctness
-                    }
+                    partialHitData = allIndexable ? collected : null; // null = fall back to full scan for correctness
                 }
             } else {
                 partialHitData = getDataFromIndex(db, collection, query);
             }
             List<Map<String, Object>> data;
 
-            if (partialHitData == null || partialHitData.isEmpty()) {
+            // The single place the null/empty distinction is encoded (see getDataFromIndex's
+            // Javadoc): null means no index was usable at all, so scan everything; a non-null
+            // (possibly empty) list means an index plan already ran and IS the final candidate
+            // set - an empty list here is a genuine "no matches", not "try again with a scan".
+            if (partialHitData == null) {
                 data = new ArrayList<>(getCollection(db, collection));
+                fullScans++;
             } else {
                 data = partialHitData;
+                indexHits++;
             }
             List<Map<String, Object>> ret = new ArrayList<>();
             int matched = 0;
@@ -3567,80 +3621,132 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return new ArrayList<>();
     }
 
-    private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) {
-        List<Map<String, Object>> ret = null;
-        int bucketId = 0;
-        StringBuilder fieldList = new StringBuilder();
+    private static IndexDefinition planDefinition(IndexPlanner.IndexPlan plan) {
+        if (plan instanceof IndexPlanner.EqualityLookup eq) {
+            return eq.def();
+        }
+        if (plan instanceof IndexPlanner.RangeScan rs) {
+            return rs.def();
+        }
+        if (plan instanceof IndexPlanner.InUnion in) {
+            return in.def();
+        }
+        throw new IllegalStateException("FullScan has no definition");
+    }
 
-        // Check if this is a simple equality query (no operators like $gt, $in, etc.)
-        // Operator queries have Map values, equality queries have direct values
-        boolean isSimpleEqualityQuery = true;
-        for (Object value : query.values()) {
-            if (value instanceof Map) {
-                // This is an operator query like {field: {$gt: 5}}
-                isSimpleEqualityQuery = false;
-                break;
+    /**
+     * Executes a non-{@link IndexPlanner.FullScan} plan against {@code store}, returning the
+     * candidate documents (never {@code null} - see {@link #getDataFromIndex} for the null/empty
+     * distinction). {@link IndexPlanner.InUnion} results are deduplicated by reference identity,
+     * since a repeated {@code $in} value produces the same key twice.
+     */
+    private List<Map<String, Object>> executeIndexPlan(CollectionIndexStore store, IndexPlanner.IndexPlan plan) {
+        if (plan instanceof IndexPlanner.EqualityLookup eq) {
+            return store.equalityLookup(eq.def().name(), eq.key());
+        }
+        if (plan instanceof IndexPlanner.RangeScan rs) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            Iterator<Map<String, Object>> it = store.rangeScan(rs.def().name(), rs.from(), rs.fromInclusive(),
+                    rs.to(), rs.toInclusive(), rs.descending());
+            while (it.hasNext()) {
+                result.add(it.next());
             }
+            return result;
+        }
+        if (plan instanceof IndexPlanner.InUnion in) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (IndexKey key : in.keys()) {
+                for (Map<String, Object> doc : store.equalityLookup(in.def().name(), key)) {
+                    if (seen.add(doc)) {
+                        result.add(doc);
+                    }
+                }
+            }
+            return result;
+        }
+        // FullScan - the caller (getDataFromIndex) never invokes this method for that case, but
+        // stay defensive rather than throw.
+        return null;
+    }
+
+    /**
+     * Candidate selection for {@code find}/{@code count}: plans {@code query} via {@link
+     * IndexPlanner} against the collection's index <em>definitions</em> (cheap - no document
+     * access) and, only for a non-{@link IndexPlanner.FullScan} plan, executes it against a
+     * single-index {@link CollectionIndexStore} - built fresh from the live documents on a cache
+     * miss, or reused from {@link #planIndexCache} on a hit.
+     *
+     * <p><b>Interim strategy (Task 3 of the index redesign).</b> There is no incremental
+     * (on-write) index maintenance yet ({@code CollectionIndexStore.onInsert}/{@code onUpdate}/
+     * {@code onRemove} are never called here) - Task 4 owns that. What this method DOES cache,
+     * to make repeated point-lookup-style queries (e.g. 10k single-document finds in a loop, one
+     * of Task 3's own regression tests) usable rather than O(n) per call: one single-index {@link
+     * CollectionIndexStore} per (collection, index name), tagged with the collection's current
+     * {@link #collectionEpoch}. A cached store is reused verbatim while the epoch hasn't moved;
+     * any mutation bumps the epoch (see {@link #bumpCollectionEpoch}, called right before every
+     * write-lock release - not on acquisition, so it also covers any caching a mutation's OWN
+     * internal reads did against the pre-mutation state - plus the TTL-expiry sweep), which makes
+     * every cached store for that collection miss on the very next read and get rebuilt from the
+     * then-current documents. This is
+     * deliberately coarse - one write invalidates ALL cached indexes for its collection, not just
+     * the one it touched - trading a few unnecessary rebuilds for a single, easy-to-audit
+     * invalidation signal instead of tracking per-index staleness. Because a cache MISS always
+     * rebuilds from the live document list (never touches a stale copy) and a cache HIT is only
+     * ever served for an epoch that has seen no mutation since, the store is never stale to begin
+     * with - so {@link CollectionIndexStore#onUpdate}'s CALLER OBLIGATION (about desyncing a store
+     * incrementally updated in place) is moot here: this method never calls {@code onUpdate} at
+     * all, incrementally or otherwise.
+     *
+     * <p><b>The single place the null/empty distinction is encoded</b> (per the invariant
+     * documented on {@link IndexPlanner}): this method returns {@code null} to mean "no index
+     * available - the caller must scan the whole collection", and a possibly-<em>empty</em>
+     * non-null {@link List} to mean "an index was consulted and this is the full, correct
+     * candidate set" - including the empty list, which callers must treat as the final (empty)
+     * result and must NOT reinterpret as "index couldn't help, fall back to a full scan". That
+     * reinterpretation was the driver's original bug: a plan result is a conservative prefilter
+     * (see {@link IndexPlanner}'s class Javadoc), so an empty prefilter can only mean the true
+     * result is also empty - scanning the rest of the collection could never find more.
+     */
+    private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) throws MorphiumDriverException {
+        List<Map<String, Object>> indexDescriptors = getIndexes(db, collection);
+        if (indexDescriptors == null || indexDescriptors.size() <= 1) {
+            return null; // only the default _id index exists - never worth planning
         }
 
-        // For operator queries, index bucket lookup won't work - return null to use full scan
-        if (!isSimpleEqualityQuery) {
+        List<IndexDefinition> defs = new ArrayList<>(indexDescriptors.size());
+        for (Map<String, Object> descriptor : indexDescriptors) {
+            defs.add(IndexDefinition.fromIndexMap(descriptor));
+        }
+
+        IndexPlanner.IndexPlan plan = IndexPlanner.plan(query, defs);
+        if (plan instanceof IndexPlanner.FullScan) {
             return null;
         }
 
-        for (Map<String, Object> idx : getIndexes(db, collection)) {
-            if (idx.size() > query.size()) {
-                continue;
-            } // index has more fields
-
-            boolean found = true;
-            // values.clear();
-            bucketId = 0;
-            fieldList.setLength(0);
-
-            for (String k : query.keySet()) {
-                if (!idx.containsKey(k)) {
-                    found = false;
-                    break;
-                }
-
-                Object value = query.get(k);
-                bucketId = iterateBucketId(bucketId, value);
-                fieldList.append(k);
+        IndexDefinition chosenDef = planDefinition(plan);
+        long epoch = currentCollectionEpoch(db, collection);
+        String cacheKey = db + "." + collection + "#" + chosenDef.name();
+        CachedPlanIndex cached = planIndexCache.get(cacheKey);
+        CollectionIndexStore store;
+        if (cached != null && cached.epoch() == epoch) {
+            store = cached.store();
+        } else {
+            List<Map<String, Object>> docs = getCollection(db, collection);
+            store = new CollectionIndexStore();
+            try {
+                store.addIndex(chosenDef, docs);
+            } catch (MorphiumDriverException e) {
+                // Existing docs already violate this (supposedly unique) index - extremely
+                // unlikely since the driver enforces uniqueness on write. Be defensive: no usable
+                // store, fall back to a full scan for this read; don't cache the failure.
+                log.warn("Could not build in-memory index '{}' for read planning on {}.{}, falling back to a full scan: {}",
+                        chosenDef.name(), db, collection, e.getMessage());
+                return null;
             }
-
-            if (found) {
-                // all keys in this index are found in query
-                String fields = fieldList.toString();
-                Map<Integer, List<Map<String, Object>>> indexDataForCollection = getIndexDataForCollection(db,
-                    collection, fields);
-                ret = indexDataForCollection.get(bucketId);
-                if (ret != null && ret.size() > 0) {
-                    // Direct bucket hit - for simple equality queries, filter by exact value match
-                    // This handles hash collisions without full matchesQuery overhead
-                    List<Map<String, Object>> filtered = new ArrayList<>();
-                    for (Map<String, Object> doc : ret) {
-                        boolean matches = true;
-                        for (Map.Entry<String, Object> qe : query.entrySet()) {
-                            Object docVal = doc.get(qe.getKey());
-                            Object queryVal = qe.getValue();
-                            if (!Objects.equals(docVal, queryVal)) {
-                                matches = false;
-                                break;
-                            }
-                        }
-                        if (matches) {
-                            filtered.add(doc);
-                        }
-                    }
-                    ret = filtered.isEmpty() ? null : filtered;
-                } else {
-                    ret = null;
-                }
-                break;
-            }
+            planIndexCache.put(cacheKey, new CachedPlanIndex(epoch, store));
         }
-        return ret;
+        return executeIndexPlan(store, plan);
     }
 
     public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp)
@@ -3649,11 +3755,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.readLock().lock();
         try {
-            List<Map<String, Object>> data = getCollection(db, collection);
-
-            if (query.isEmpty()) {
-                return data.size();
+            if (query == null || query.isEmpty()) {
+                return getCollection(db, collection).size();
             }
+
+            // Same null/empty candidate-selection reasoning as find() - see getDataFromIndex's
+            // Javadoc: null means scan everything, a non-null (possibly empty) list is already
+            // the final candidate set.
+            List<Map<String, Object>> candidates = getDataFromIndex(db, collection, query);
+            List<Map<String, Object>> data;
+            if (candidates == null) {
+                data = getCollection(db, collection);
+                fullScans++;
+            } else {
+                data = candidates;
+                indexHits++;
+            }
+
             long cnt = 0;
 
             for (Map<String, Object> o : data) {
@@ -3882,6 +4000,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
         } finally {
+            bumpCollectionEpoch(db, collection);
             lock.writeLock().unlock();
         }
 
@@ -3950,6 +4069,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             markCollectionTouched(db, collection);
             result = storeInternal(db, collection, objs, wc, pendingNotifications);
         } finally {
+            bumpCollectionEpoch(db, collection);
             lock.writeLock().unlock();
         }
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
@@ -4146,6 +4266,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             result = updateInternal(db, collection, query, sort, op, multiple, upsert, collation, wc,
                                     pendingNotifications);
         } finally {
+            bumpCollectionEpoch(db, collection);
             lock.writeLock().unlock();
         }
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
@@ -5903,6 +6024,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             return Doc.of("n", deleted, "ok", 1.0);
         } finally {
+            bumpCollectionEpoch(db, collection);
             lock.writeLock().unlock();
         }
     }
@@ -5943,6 +6065,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Remove from TTL tracking
             collectionsWithTtlIndex.remove(db + "." + collection);
         } finally {
+            bumpCollectionEpoch(db, collection);
             lock.writeLock().unlock();
         }
         // Purge history for this collection BEFORE advancing the sequence counter.
@@ -5985,6 +6108,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (indicesByDbCollection.containsKey(db)) {
             indicesByDbCollection.remove(db);
         }
+
+        String dbPrefix = db + ".";
+        planIndexCache.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        collectionEpoch.keySet().removeIf(key -> key.startsWith(dbPrefix));
 
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db, dropBoundary);
@@ -6319,6 +6446,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 result = before;
             }
         } finally {
+            bumpCollectionEpoch(db, col);
             lock.writeLock().unlock();
         }
         // Notify watchers AFTER releasing the write lock
@@ -6363,6 +6491,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             storeInternal(db, col, Collections.singletonList(replacement), null, pendingNotifications);
             result = replacement;
         } finally {
+            bumpCollectionEpoch(db, col);
             lock.writeLock().unlock();
         }
         // Notify watchers AFTER releasing the write lock
@@ -6976,6 +7105,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 }
             } finally {
+                bumpCollectionEpoch(dbName, collName);
                 lock.writeLock().unlock();
             }
         }
