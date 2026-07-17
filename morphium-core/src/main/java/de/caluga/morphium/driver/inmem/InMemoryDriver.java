@@ -164,14 +164,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, Map<String, List<Map<String, Object>>>> indicesByDbCollection = new ConcurrentHashMap<>();
 
     /**
-     * Map DB->Collection->FieldNames->Keys....
-     */
-    // private final Map<String, Map<String, Map<String, Map<IndexKey,
-    // List<Map<String, Object>>>>>> indexDataByDBCollection = new
-    // ConcurrentHashMap<>();
-    private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
-
-    /**
      * Read-path index usage counters (Phase B1, Task 3) - incremented once per {@code find}/
      * {@code count} call, based on whether the final candidate selection used a
      * {@link CollectionIndexStore}-backed {@link IndexPlanner} plan ({@code indexHits}) or fell
@@ -572,7 +564,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void resetData() {
         log.info("resetData() called - clearing all data. Database had {} databases", database.size());
         database.clear();
-        indexDataByDBCollection.clear();
         indicesByDbCollection.clear();
         cappedCollections.clear();
         collectionsWithTtlIndex.clear();
@@ -4021,16 +4012,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
-    // public Map<IndexKey, List<Map<String, Object>>>
-    // getIndexDataForCollection(String db, String collection, String fields) {
-    public Map<Integer, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection,
-            String fields) {
-        indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
-        indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-        indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new HashMap<>());
-        return indexDataByDBCollection.get(db).get(collection).get(fields);
-    }
-
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
                                             Map<String, Object> wc) throws MorphiumDriverException {
@@ -4216,14 +4197,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return writeErrors;
-    }
-
-    private Integer iterateBucketId(int bucketId, Object o) {
-        if (o == null) {
-            return bucketId + 1;
-        }
-
-        return (bucketId + o.hashCode());
     }
 
     private static boolean truthy(Object v) {
@@ -6255,10 +6228,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             markCollectionTouched(db, collection);
             getDB(db).remove(collection);
 
-            if (indexDataByDBCollection.containsKey(db)) {
-                indexDataByDBCollection.get(db).remove(collection);
-            }
-
             if (indicesByDbCollection.containsKey(db)) {
                 indicesByDbCollection.get(db).remove(collection);
             }
@@ -6304,10 +6273,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public synchronized void drop(String db, WriteConcern wc) {
         database.remove(db);
-
-        if (indexDataByDBCollection.containsKey(db)) {
-            indexDataByDBCollection.remove(db);
-        }
 
         if (indicesByDbCollection.containsKey(db)) {
             indicesByDbCollection.remove(db);
@@ -6946,12 +6911,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        // updateIndexData() used to run here to (re)build the legacy indexDataByDBCollection
-        // bucket structure. Nothing reads that structure anymore after Task 3's read-path switch
-        // to CollectionIndexStore (grepped: only CollStatsCommand's cosmetic sizeOf() reporting
-        // does, which degrades gracefully to near-zero rather than breaking - see the Task 4
-        // report), so Task 4 stops maintaining it here too; Task 7 deletes the now fully dead
-        // indexDataByDBCollection/updateIndexData/getIndexDataForCollection/iterateBucketId code.
+        // The legacy indexDataByDBCollection bucket structure (and updateIndexData/
+        // getIndexDataForCollection/iterateBucketId, which only ever maintained or read it) used to
+        // be rebuilt here. Removed in Phase B1 Task 7: nothing read it anymore after Task 3's
+        // read-path switch to CollectionIndexStore (CollStatsCommand's cosmetic sizeOf() reporting
+        // was the last reader, migrated off it in Task 4).
         // getCollection() is still called - not for its (unused) return value, but for its side
         // effect of materializing the collection's (possibly still-empty) document list, matching
         // MongoDB's "creating an index also creates the collection" behavior.
@@ -6960,43 +6924,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // trying to patch it in place) - see getIndexStore's Javadoc. The next read/write rebuilds
         // it from the now-current index definitions and the collection's current documents.
         invalidateIndexStore(db, collection);
-    }
-
-    private void updateIndexData(String db, String collection, Map<String, Object> options)
-    throws MorphiumDriverException {
-        // TODO: deal with options!
-        StringBuilder b = new StringBuilder();
-        indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
-        indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-
-        // Build new index data structure instead of clearing (to avoid race conditions)
-        Map<String, Map<Integer, List<Map<String, Object>>>> newIndexData = new ConcurrentHashMap<>();
-
-        for (Map<String, Object> doc : getCollection(db, collection)) {
-            for (Map<String, Object> idx : getIndexes(db, collection)) {
-                b.setLength(0);
-                int bucketId = 0;
-
-                for (String k : idx.keySet()) {
-                    if (k.equals("$options")) {
-                        continue;
-                    }
-
-                    bucketId = iterateBucketId(bucketId, doc.get(k));
-                    b.append(k);
-                }
-
-                String fieldKey = b.toString();
-                newIndexData.putIfAbsent(fieldKey, new ConcurrentHashMap<>());
-                Map<Integer, List<Map<String, Object>>> index = newIndexData.get(fieldKey);
-                // Use ArrayList for better write performance - collection lock provides thread safety
-                index.putIfAbsent(bucketId, new ArrayList<>());
-                index.get(bucketId).add(doc);
-            }
-        }
-
-        // Atomically replace the old index data with the new one
-        indexDataByDBCollection.get(db).put(collection, newIndexData);
     }
 
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing)
