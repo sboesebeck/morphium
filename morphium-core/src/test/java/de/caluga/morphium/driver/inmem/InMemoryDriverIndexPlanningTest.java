@@ -425,6 +425,44 @@ public class InMemoryDriverIndexPlanningTest {
     }
 
     @Test
+    void orQueryWithOverlappingIndexableBranchesReturnsEachDocOnce() throws Exception {
+        // Both $or branches are individually index-backed ("counter" and "strValue" each have
+        // their own single-field index), so getDataFromIndex's $or handling accumulates
+        // candidates from each branch separately. A document satisfying BOTH branches (counter=5
+        // AND strValue="x") is returned by both branch lookups - the same live doc reference -
+        // and must be deduplicated, exactly like IndexPlanner.InUnion already does for $in.
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("counter", 1)))
+                .addIndex(new IndexDescription().setKey(Doc.of("strValue", 1)))
+                .execute();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        docs.add(Doc.of("counter", 5, "strValue", "x")); // matches BOTH $or branches
+        docs.add(Doc.of("counter", 5, "strValue", "y")); // matches only the counter branch
+        docs.add(Doc.of("counter", 1, "strValue", "x")); // matches only the strValue branch
+        docs.add(Doc.of("counter", 2, "strValue", "z")); // matches neither branch
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        List<Map<String, Object>> result = drv.find(db, coll,
+                Doc.of("$or", List.of(Doc.of("counter", 5), Doc.of("strValue", "x"))), null, null, 0, 0);
+
+        assertEquals(3, result.size(), "doc matching both $or branches must be returned exactly once, not twice");
+
+        long doubleMatchCount = result.stream()
+                .filter(d -> ((Number) d.get("counter")).intValue() == 5 && "x".equals(d.get("strValue")))
+                .count();
+        assertEquals(1, doubleMatchCount, "the doc matching both branches must appear exactly once");
+
+        // Negative control: docs matching only ONE branch must still be present.
+        assertTrue(result.stream().anyMatch(d -> ((Number) d.get("counter")).intValue() == 5 && "y".equals(d.get("strValue"))),
+                "doc matching only the counter branch must still be present");
+        assertTrue(result.stream().anyMatch(d -> ((Number) d.get("counter")).intValue() == 1 && "x".equals(d.get("strValue"))),
+                "doc matching only the strValue branch must still be present");
+    }
+
+    @Test
     void findRemainsCorrectAfterUpdateChangesTheIndexedField() throws Exception {
         InMemoryDriver drv = freshDriverWithIndexedCollection(50);
 

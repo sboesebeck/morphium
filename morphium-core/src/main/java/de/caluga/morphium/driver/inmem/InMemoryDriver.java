@@ -3197,6 +3197,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // by an index, otherwise we would miss matches from non-indexable branches.
                     boolean allIndexable = true;
                     List<Map<String, Object>> collected = new ArrayList<>();
+                    // A document satisfying more than one $or branch is returned - as the same live
+                    // doc reference - by each branch's index lookup; dedup by identity so it ends up
+                    // in the result exactly once, same as IndexPlanner.InUnion does for repeated $in
+                    // values (see executeIndexPlan).
+                    Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
 
                     for (Map<String, Object> subquery : m) {
                         List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
@@ -3206,7 +3211,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             break;
                         }
 
-                        collected.addAll(dataFromIndex);
+                        for (Map<String, Object> doc : dataFromIndex) {
+                            if (seen.add(doc)) {
+                                collected.add(doc);
+                            }
+                        }
                     }
 
                     partialHitData = allIndexable ? collected : null; // null = fall back to full scan for correctness
