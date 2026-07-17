@@ -108,24 +108,68 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private static final AtomicLong FIND_CURSOR_SEQ = new AtomicLong(1_000_000);
     private static final ConcurrentHashMap<Long, FindCursorState> findCursors = new ConcurrentHashMap<>();
 
+    /**
+     * A server-side find cursor no longer pins the full (possibly huge) result remainder in
+     * memory. Instead it retains a bounded window of at most {@code MAX_RETAINED_BATCHES ×
+     * batchSize} documents, plus the query/sort/projection and a skip offset. When the window
+     * drains, {@link #refillFindCursorWindow} RE-EXECUTES the find with an advanced skip/limit
+     * to fetch the next window (see brief for the rationale: the InMemoryDriver itself only
+     * returns full lists, so a truly lazy driver-level cursor is out of scope here — this is
+     * the pragmatic bound at the handler level).
+     *
+     * <p>Correctness caveat: because each refill is a fresh query rather than a continuation of
+     * a stable snapshot, concurrent writes between getMore calls can shift the skip window —
+     * documents inserted/deleted ahead of the cursor's position can cause a later window to
+     * skip or (rarely) repeat documents. This mirrors MongoDB's own cursor semantics on
+     * unclustered collections, which are likewise not snapshot-isolated against concurrent
+     * writes; it is not a new weakness introduced by bounding retention.
+     */
     private static class FindCursorState {
         final String db;
         final String collection;
-        final List<Map<String, Object>> remaining;
+        final Map<String, Object> filter;
+        final Map<String, Object> sort;
+        final Map<String, Object> projection;
         final int batchSize;
+        // true if the original find had a positive (non-zero) limit; caps how many more
+        // documents may ever be pulled in via refills, independent of what's left to match.
+        final boolean hasLimit;
+        // Bounded window of not-yet-delivered documents, refilled on demand. Never exceeds
+        // MAX_RETAINED_BATCHES * batchSize documents.
+        final List<Map<String, Object>> remaining;
+        // Offset to resume the query from on the next refill.
+        int nextSkip;
+        // Remaining document budget when hasLimit is true; refills stop once this hits zero.
+        int remainingLimit;
         volatile long lastAccessed;
 
-        FindCursorState(String db, String collection, List<Map<String, Object>> remaining, int batchSize) {
+        FindCursorState(String db, String collection, Map<String, Object> filter, Map<String, Object> sort,
+                         Map<String, Object> projection, List<Map<String, Object>> remaining, int batchSize,
+                         int nextSkip, boolean hasLimit, int remainingLimit) {
             this.db = db;
             this.collection = collection;
+            this.filter = filter;
+            this.sort = sort;
+            this.projection = projection;
             this.remaining = remaining;
             this.batchSize = batchSize;
+            this.nextSkip = nextSkip;
+            this.hasLimit = hasLimit;
+            this.remainingLimit = remainingLimit;
             this.lastAccessed = System.currentTimeMillis();
         }
     }
 
     /** Idle time after which an unexhausted find cursor is reaped (MongoDB default cursorTimeoutMillis = 10 min). */
     private static final long FIND_CURSOR_TTL_MS = 10 * 60 * 1000L;
+
+    /**
+     * Default retained-window size, expressed as a multiple of the client's batchSize. A cursor
+     * never retains more than {@code MAX_RETAINED_BATCHES × batchSize} documents at once —
+     * bounding memory for large finds (e.g. a 1M-doc find with batchSize 100 previously pinned
+     * ~1M documents per open cursor; now it pins at most 100 × 100 = 10,000).
+     */
+    private static final int MAX_RETAINED_BATCHES = 10;
 
     // Single shared daemon thread that reaps idle find cursors. There is no pre-existing
     // server-wide scheduler reachable from this static context, so a dedicated one is used.
@@ -157,6 +201,19 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     /** Test/monitoring hook: number of currently open server-side find cursors (across all channels). */
     public static int openFindCursors() {
         return findCursors.size();
+    }
+
+    /**
+     * Test/monitoring hook: number of documents currently retained in memory for a server-side
+     * find cursor's bounded window (never the full remainder — see {@link FindCursorState}).
+     * Returns -1 if no such cursor is open. Public (rather than package-private) because the
+     * test that exercises it, {@code CursorLifecycleTest}, lives in a different package
+     * ({@code de.caluga.test.poppydb}); this mirrors the existing {@link #openFindCursors()}
+     * hook's visibility.
+     */
+    public static int retainedFindCursorDocs(long cursorId) {
+        FindCursorState state = findCursors.get(cursorId);
+        return state == null ? -1 : state.remaining.size();
     }
 
     private final InMemoryDriver driver;
@@ -548,15 +605,27 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
             });
         } else if (findCursors.containsKey(cursorId)) {
-            // Server-side find cursor — return next batch from pre-fetched results
+            // Server-side find cursor — return next batch from the retained (bounded) window.
+            // Invariant: whenever a cursor is present in findCursors, state.remaining is
+            // non-empty (established at creation in processFindDirect, maintained below).
             FindCursorState state = findCursors.get(cursorId);
             state.lastAccessed = System.currentTimeMillis();
+
             int count = Math.min(state.batchSize, state.remaining.size());
             List<Map<String, Object>> batch = new ArrayList<>(state.remaining.subList(0, count));
             state.remaining.subList(0, count).clear();
 
-            long returnCursorId = state.remaining.isEmpty() ? 0L : cursorId;
             if (state.remaining.isEmpty()) {
+                // Window boundary: refill now to distinguish "truly exhausted" from "more
+                // documents exist beyond this window" before deciding whether to close the
+                // cursor. Refilling here (rather than waiting for the client's next getMore)
+                // avoids both a spurious id:0 close that would drop remaining documents and
+                // a spurious extra empty round-trip.
+                refillFindCursorWindow(state);
+            }
+
+            long returnCursorId = state.remaining.isEmpty() ? 0L : cursorId;
+            if (returnCursorId == 0L) {
                 findCursors.remove(cursorId);
                 channelCursors.remove(cursorId);
             }
@@ -1687,22 +1756,60 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
 
         if (filter == null) filter = Doc.of();
-        var results = driver.find(db, coll, filter, sort, projection, skip, limit);
 
-        // Respect batchSize: if set, only return that many in firstBatch
-        // and register a cursor for the rest (like MongoDB does)
-        if (batchSize > 0 && results.size() > batchSize) {
-            List<Map<String, Object>> firstBatch = new ArrayList<>(results.subList(0, batchSize));
-            List<Map<String, Object>> remaining = new ArrayList<>(results.subList(batchSize, results.size()));
-            long cursorId = FIND_CURSOR_SEQ.incrementAndGet();
-            findCursors.put(cursorId, new FindCursorState(db, coll, remaining, batchSize));
-            channelCursors.add(cursorId);
+        if (batchSize > 0) {
+            // Bounded-retention path: fetch only one window (firstBatch + a retained tail of
+            // at most MAX_RETAINED_BATCHES batches) instead of the full matching result set.
+            // When the window drains, getMore re-executes this same query with an advanced
+            // skip (see refillFindCursorWindow) rather than holding the remainder in memory.
+            int windowSize = MAX_RETAINED_BATCHES * batchSize;
+            int fetchLimit = batchSize + windowSize;
+            if (limit > 0) fetchLimit = Math.min(fetchLimit, limit);
+            var window = driver.find(db, coll, filter, sort, projection, skip, fetchLimit);
+
+            if (window.size() > batchSize) {
+                List<Map<String, Object>> firstBatch = new ArrayList<>(window.subList(0, batchSize));
+                List<Map<String, Object>> retained = new ArrayList<>(window.subList(batchSize, window.size()));
+                long cursorId = FIND_CURSOR_SEQ.incrementAndGet();
+                int nextSkip = skip + window.size();
+                boolean hasLimit = limit > 0;
+                int remainingLimit = hasLimit ? Math.max(0, limit - window.size()) : 0;
+                findCursors.put(cursorId, new FindCursorState(db, coll, filter, sort, projection,
+                        retained, batchSize, nextSkip, hasLimit, remainingLimit));
+                channelCursors.add(cursorId);
+                return Doc.of("ok", 1.0, "cursor",
+                        Doc.of("firstBatch", firstBatch, "id", cursorId, "ns", db + "." + coll));
+            }
+
             return Doc.of("ok", 1.0, "cursor",
-                    Doc.of("firstBatch", firstBatch, "id", cursorId, "ns", db + "." + coll));
+                    Doc.of("firstBatch", window, "id", 0L, "ns", db + "." + coll));
         }
 
+        // No batchSize requested — single-shot fetch of the full (limit-bounded) result set,
+        // returned inline with no server-side cursor (unchanged from prior behaviour).
+        var results = driver.find(db, coll, filter, sort, projection, skip, limit);
         return Doc.of("ok", 1.0, "cursor",
                 Doc.of("firstBatch", results, "id", 0L, "ns", db + "." + coll));
+    }
+
+    /**
+     * Re-executes {@code state}'s query with an advanced skip offset to refill its retained
+     * window once it has drained. No-op if the document budget from an original positive
+     * {@code limit} has already been exhausted. See {@link FindCursorState} for the
+     * concurrent-write caveat this re-execution carries.
+     */
+    private void refillFindCursorWindow(FindCursorState state) {
+        if (state.hasLimit && state.remainingLimit <= 0) {
+            return;
+        }
+        int windowSize = MAX_RETAINED_BATCHES * state.batchSize;
+        int fetchLimit = state.hasLimit ? Math.min(windowSize, state.remainingLimit) : windowSize;
+        if (fetchLimit <= 0) return;
+        List<Map<String, Object>> refill = driver.find(state.db, state.collection, state.filter,
+                state.sort, state.projection, state.nextSkip, fetchLimit);
+        state.nextSkip += refill.size();
+        if (state.hasLimit) state.remainingLimit -= refill.size();
+        state.remaining.addAll(refill);
     }
 
     @SuppressWarnings("unchecked")

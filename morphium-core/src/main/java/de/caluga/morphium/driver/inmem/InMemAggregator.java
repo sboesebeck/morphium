@@ -375,15 +375,20 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     @Override
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
-            new Thread(this::doAggregation);
+            morphium.queueTask(this::doAggregation);
         } else {
             morphium.queueTask(() -> {
+                long start = System.currentTimeMillis();
+
                 try {
-                    long start = System.currentTimeMillis();
                     List<R> result = deserializeList();
                     callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, InMemAggregator.this);
-                } catch (MorphiumDriverException e) {
+                } catch (Exception e) {
+                    // Previously this logged and returned without ever calling the callback, so
+                    // a caller waiting on onOperationSucceeded/onOperationError would hang forever
+                    // on failure. Always call back - with the error - so the caller can react.
                     log.error("Aggregation failed", e);
+                    callback.onOperationError(AsyncOperationType.READ, null, System.currentTimeMillis() - start, e.getMessage(), e, null, InMemAggregator.this);
                 }
             });
         }
@@ -408,7 +413,26 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
-        //TODO implement
+        if (callback == null) {
+            // Fire-and-forget: still run off the caller's thread via the driver's executor.
+            morphium.queueTask(this::aggregateMap);
+            return;
+        }
+
+        morphium.queueTask(() -> {
+            long start = System.currentTimeMillis();
+
+            try {
+                List<Map<String, Object>> result = aggregateMap();
+                callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, InMemAggregator.this);
+            } catch (Exception e) {
+                // Must always call back - success or failure - never complete silently: a caller
+                // blocking on the callback (e.g. via a CountDownLatch) must not hang forever
+                // because a stage/expression error was swallowed here.
+                log.error("Aggregation failed", e);
+                callback.onOperationError(AsyncOperationType.READ, null, System.currentTimeMillis() - start, e.getMessage(), e, null, InMemAggregator.this);
+            }
+        });
     }
 
     @Override
@@ -962,6 +986,18 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
+    /**
+     * Builds a MorphiumDriverException shaped like a real mongod command error (numeric
+     * mongoCode + message), so that stage/expression failures surface to callers (including
+     * over the wire, e.g. PoppyDB) as a proper command error instead of being logged and
+     * swallowed into an empty/partial result.
+     */
+    private MorphiumDriverException mongoCommandError(int code, String message) {
+        MorphiumDriverException ex = new MorphiumDriverException(message);
+        ex.setMongoCode(code);
+        return ex;
+    }
+
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> execStep(Map<String, Object> step, List<Map<String, Object >> data) {
         if (step.keySet().size() != 1) {
@@ -1332,9 +1368,29 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     }
                                     break;
 
-                                case "$accumulator":
                                 case "$stdDevPop":
-                                case "$stdDevSamp":
+                                case "$stdDevSamp": {
+                                    // Collect the raw (unfiltered) per-document values for this group/field;
+                                    // the actual pop/samp math runs once, after all documents have been seen,
+                                    // in the finalize pass below (two-pass algorithm - see Expr.computeStdDevPop/Samp).
+                                    String calcKey = "$_calc_" + fld;
+                                    res.get(id).putIfAbsent(calcKey, new ArrayList<>());
+                                    @SuppressWarnings("unchecked")
+                                    List<Object> rawValues = (List<Object>) res.get(id).get(calcKey);
+                                    Object rawSpec = ((Map<?, ?>) opValue).get(op);
+
+                                    if (rawSpec instanceof String && rawSpec.toString().startsWith("$")) {
+                                        rawValues.add(o.get(rawSpec.toString().substring(1)));
+                                    } else if (rawSpec instanceof Expr) {
+                                        rawValues.add(((Expr) rawSpec).evaluate(o));
+                                    } else {
+                                        rawValues.add(rawSpec);
+                                    }
+
+                                    break;
+                                }
+
+                                case "$accumulator":
                                     throw new RuntimeException(op + " not implemented yet,sorry");
 
                                 default:
@@ -1345,17 +1401,56 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             Expr expr = Expr.parse(opMap);
                                             res.get(id).put(fld, expr.evaluate(o));
                                         } catch (Exception e) {
-                                            //swallow
+                                            // Previously this silently dropped the field and only logged
+                                            // "unknown accumulator" (log.error ran unconditionally, even on
+                                            // success). A $group field must be an accumulator expression; if it
+                                            // isn't one we recognize AND it doesn't parse/evaluate as a generic
+                                            // expression either, that's the same condition real mongod reports as
+                                            // "unknown group operator" (Location15952) - surface it the same way
+                                            // instead of returning a document with the field missing.
+                                            throw mongoCommandError(15952, "unknown group operator '" + op + "'");
                                         }
+                                    } else {
+                                        throw mongoCommandError(15952, "unknown group operator '" + op + "'");
                                     }
 
-                                    log.error("unknown accumulator " + op);
                                     break;
                             }
                         } else if (opValue instanceof String && opValue.toString().startsWith("$")) {
                             opValue = o.get(opValue.toString().substring(1));
                             res.get(id).put(fld, opValue);
                         }
+                    }
+                }
+
+                // Finalize two-pass accumulators ($stdDevPop/$stdDevSamp): now that every document
+                // has been folded into res, replace each group's temporary raw-value list with the
+                // actual computed standard deviation and drop the internal "$_calc_" bookkeeping key.
+                for (String fld : group.keySet()) {
+                    if (fld.equals("_id")) {
+                        continue;
+                    }
+
+                    Object opValue = group.get(fld);
+
+                    if (!(opValue instanceof Map)) {
+                        continue;
+                    }
+
+                    String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().orElse(null);
+
+                    if (!"$stdDevPop".equals(op) && !"$stdDevSamp".equals(op)) {
+                        continue;
+                    }
+
+                    String calcKey = "$_calc_" + fld;
+
+                    for (Map<String, Object> groupResult : res.values()) {
+                        Object calc = groupResult.remove(calcKey);
+                        @SuppressWarnings("unchecked")
+                        List<Object> rawValues = calc instanceof List ? (List<Object>) calc : Collections.emptyList();
+                        Double stdDev = "$stdDevPop".equals(op) ? Expr.computeStdDevPop(rawValues) : Expr.computeStdDevSamp(rawValues);
+                        groupResult.put(fld, stdDev);
                     }
                 }
 
@@ -2206,7 +2301,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$collStats":
             case "$listSessions":
             default:
-                log.error("unhandled Aggregation stage " + stage);
+                // Previously this only logged and fell through, returning whatever partial `ret`
+                // had been built up (typically empty) as if the stage had produced no documents.
+                // A real mongod rejects an unrecognized/unimplemented pipeline stage outright
+                // (Unrecognized pipeline stage name, code 40324) - surface the same shape of
+                // error here instead of silently completing with an empty/wrong result.
+                throw mongoCommandError(40324, "Unrecognized pipeline stage name: '" + stage + "'");
         }
 
         return ret;

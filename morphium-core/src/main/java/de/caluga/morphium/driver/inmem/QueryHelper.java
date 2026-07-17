@@ -66,7 +66,7 @@ public class QueryHelper {
         "$textSearch"
     );
 
-    private static boolean isKnownOperator(String op) {
+    static boolean isKnownOperator(String op) {
         return KNOWN_OPERATORS.contains(op);
     }
 
@@ -142,8 +142,29 @@ public class QueryHelper {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Public entry point. Delegates to a compiled, cached predicate (see {@link CompiledQuery})
+     * instead of re-interpreting the query document-by-document. The interpreter itself lives on
+     * as {@link #matchesQueryInterpreted} - it is the differential-testing oracle CompiledQuery is
+     * validated against, and driver hot paths should compile once per operation via
+     * {@link CompiledQuery#compile(Map, Map)} rather than calling this per document.
+     */
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
+        if (query == null || query.isEmpty()) {
+            return true;
+        }
+
+        return CompiledQuery.matchesQueryCached(query, toCheck, collation);
+    }
+
+    /**
+     * Reference interpreter for {@link #matchesQuery}. Kept intact (this phase) as the
+     * differential-testing oracle for {@link CompiledQuery} - do not delete or "fix" it, even
+     * where its behavior looks wrong vs real MongoDB; any such divergence is intentionally
+     * mirrored by CompiledQuery and flagged at the call site instead.
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean matchesQueryInterpreted(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
         }
@@ -215,7 +236,7 @@ public class QueryHelper {
                                     // Non-$exists queries on array elements - handle normally
                                     Object arrayElement = checkList.get(idx);
                                     if (arrayElement instanceof Map) {
-                                        if (!matchesQuery((Map<String, Object>) indexQuery, (Map<String, Object>) arrayElement, collation)) {
+                                        if (!matchesQueryInterpreted((Map<String, Object>) indexQuery, (Map<String, Object>) arrayElement, collation)) {
                                             allMatched = false;
                                             break;
                                         }
@@ -223,7 +244,7 @@ public class QueryHelper {
                                         // For primitive array elements, create synthetic document
                                         Map<String, Object> syntheticDoc = Map.of("value", arrayElement);
                                         Map<String, Object> elementQuery = Map.of("value", indexQuery);
-                                        if (!matchesQuery(elementQuery, syntheticDoc, collation)) {
+                                        if (!matchesQueryInterpreted(elementQuery, syntheticDoc, collation)) {
                                             allMatched = false;
                                             break;
                                         }
@@ -279,7 +300,7 @@ public class QueryHelper {
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
-                            if (!matchesQuery(q, toCheck, collation)) {
+                            if (!matchesQueryInterpreted(q, toCheck, collation)) {
                                 return false;
                             }
                         }
@@ -293,7 +314,7 @@ public class QueryHelper {
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
-                            if (matchesQuery(q, toCheck, collation)) {
+                            if (matchesQueryInterpreted(q, toCheck, collation)) {
                                 return true;
                             }
                         }
@@ -303,7 +324,7 @@ public class QueryHelper {
 
                 case "$not": {
                         //noinspection unchecked
-                        return (!matchesQuery((Map<String, Object>) query.get(keyQuery), toCheck, collation));
+                        return (!matchesQueryInterpreted((Map<String, Object>) query.get(keyQuery), toCheck, collation));
                     }
 
                 case "$nor": {
@@ -312,7 +333,7 @@ public class QueryHelper {
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
-                            if (matchesQuery(q, toCheck, collation)) {
+                            if (matchesQueryInterpreted(q, toCheck, collation)) {
                                 return false;
                             }
                         }
@@ -386,7 +407,7 @@ public class QueryHelper {
      * short-circuit the outer loop, skipping remaining fields).
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static boolean matchesFieldCondition(String keyQuery,
+    static boolean matchesFieldCondition(String keyQuery,
                                                   Map<String, Object> query,
                                                   Map<String, Object> toCheck,
                                                   Map<String, Object> collation) {
@@ -415,7 +436,7 @@ public class QueryHelper {
                                 Map<String, Object> singleQuery = new LinkedHashMap<>();
                                 singleQuery.put(keyQuery, singleCommand);
 
-                                if (!matchesQuery(singleQuery, toCheck, collation)) {
+                                if (!matchesQueryInterpreted(singleQuery, toCheck, collation)) {
                                     return false;
                                 }
                             }
@@ -755,7 +776,7 @@ public class QueryHelper {
                                 // Wrap the $not content back into a field query so matchesQuery
                                 // can apply it against the correct field value.
                                 Map<String, Object> notInner = (Map<String, Object>) commandMap.get(commandKey);
-                                return !(matchesQuery(Map.of(keyQuery, notInner), toCheck, collation));
+                                return !(matchesQueryInterpreted(Map.of(keyQuery, notInner), toCheck, collation));
 
                             case "$regex":
                             case "$regularExpression":
@@ -1110,7 +1131,7 @@ public class QueryHelper {
                                         o = Doc.of("value", o);
                                     }
 
-                                    if (matchesQuery(queryMap, (Map<String, Object>) o, null) || matchesQuery(Doc.of("value", queryMap), (Map<String, Object>) o, null)) {
+                                    if (matchesQueryInterpreted(queryMap, (Map<String, Object>) o, null) || matchesQueryInterpreted(Doc.of("value", queryMap), (Map<String, Object>) o, null)) {
                                         return true;
                                     }
                                 }
@@ -1282,7 +1303,7 @@ public class QueryHelper {
                     }
     }
 
-    private static boolean matchesJsonSchema(Map<String, Object> schema, Map<String, Object> document) {
+    static boolean matchesJsonSchema(Map<String, Object> schema, Map<String, Object> document) {
         if (schema == null) {
             return true;
         }
@@ -2279,7 +2300,7 @@ public class QueryHelper {
         return false;
     }
 
-    private static LookupResult resolveValuesForPath(Object current, String[] path, int position) {
+    static LookupResult resolveValuesForPath(Object current, String[] path, int position) {
         LookupResult result = new LookupResult();
 
         if (position >= path.length) {
@@ -2398,7 +2419,7 @@ public class QueryHelper {
         return true;
     }
 
-    private static boolean compareValues(Object left, Object right, Collator coll) {
+    static boolean compareValues(Object left, Object right, Collator coll) {
         Object normalizedLeft = normalizeId(left);
         Object normalizedRight = normalizeId(right);
 
@@ -2417,7 +2438,7 @@ public class QueryHelper {
         return normalizedLeft.equals(normalizedRight);
     }
 
-    private static Object normalizeId(Object value) {
+    static Object normalizeId(Object value) {
         if (value instanceof MorphiumId || value instanceof ObjectId) {
             return value == null ? null : value.toString();
         }
@@ -2433,7 +2454,7 @@ public class QueryHelper {
      * Accept all of them instead of hard-casting to List.
      */
     @SuppressWarnings("unchecked")
-    private static List<Object> asValueList(Object value) {
+    static List<Object> asValueList(Object value) {
         if (value instanceof List) {
             return (List<Object>) value;
         }
@@ -2466,19 +2487,19 @@ public class QueryHelper {
         throw new IllegalArgumentException("$in/$nin requires an array operand");
     }
 
-    private static boolean isValueList(Object value) {
+    static boolean isValueList(Object value) {
         return value instanceof List
                || value instanceof Iterable
                || value != null && value.getClass().isArray();
     }
 
-    private static final class LookupResult {
+    static final class LookupResult {
         boolean pathExists;
         final List<Object> values = new ArrayList<>();
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {
+    static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
         }
@@ -2513,7 +2534,7 @@ public class QueryHelper {
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean compareGreaterThan(Object left, Object right, int offset, Collator coll) {
+    static boolean compareGreaterThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
         }
@@ -2625,7 +2646,7 @@ public class QueryHelper {
         return null;
     }
 
-    private static Pattern buildRegexPattern(Map<String, Object> commandMap, int baseFlags) {
+    static Pattern buildRegexPattern(Map<String, Object> commandMap, int baseFlags) {
         int flags = baseFlags;
         Object regexObject = commandMap.get("$regex");
 
@@ -2661,7 +2682,7 @@ public class QueryHelper {
         return Pattern.compile(pattern, flags);
     }
 
-    private static int applyRegexOptions(String options, int flags) {
+    static int applyRegexOptions(String options, int flags) {
         String opt = options.toLowerCase(Locale.ROOT);
 
         if (opt.contains("i")) {
@@ -2683,7 +2704,7 @@ public class QueryHelper {
         return flags;
     }
 
-    private static boolean matchesType(Object value, MongoType type) {
+    static boolean matchesType(Object value, MongoType type) {
         if (value == null) {
             return type.equals(MongoType.NULL);
         }
@@ -2739,7 +2760,7 @@ public class QueryHelper {
         return false;
     }
 
-    private static boolean fieldExists(Map<String, Object> document, String fieldPath) {
+    static boolean fieldExists(Map<String, Object> document, String fieldPath) {
         if (document == null || fieldPath == null) {
             return false;
         }
@@ -2802,7 +2823,7 @@ public class QueryHelper {
         return false;
     }
 
-    private static String convertSnakeToCamelCase(String fieldPath) {
+    static String convertSnakeToCamelCase(String fieldPath) {
         if (!fieldPath.contains("_")) {
             return fieldPath;
         }
@@ -2836,7 +2857,7 @@ public class QueryHelper {
         return result.toString();
     }
 
-    private static String convertCamelToSnakeCase(String fieldPath) {
+    static String convertCamelToSnakeCase(String fieldPath) {
         String[] parts = fieldPath.split("\\.");
         StringBuilder result = new StringBuilder();
 
@@ -2875,7 +2896,7 @@ public class QueryHelper {
      * If fields is empty, searches all string fields in the document.
      */
     @SuppressWarnings("unchecked")
-    private static boolean matchesTextSearch(Object textSearchParams, Map<String, Object> toCheck) {
+    static boolean matchesTextSearch(Object textSearchParams, Map<String, Object> toCheck) {
         if (!(textSearchParams instanceof Map)) {
             return false;
         }
@@ -3009,7 +3030,7 @@ public class QueryHelper {
         return null;
     }
 
-    private static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {
+    static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {
         System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
         ScriptEngineManager mgr = new ScriptEngineManager();
         ScriptEngine engine = mgr.getEngineByExtension("js");

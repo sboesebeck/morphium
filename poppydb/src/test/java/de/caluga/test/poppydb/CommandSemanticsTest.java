@@ -371,4 +371,75 @@ public class CommandSemanticsTest {
             }
         }
     }
+
+    // Scenario 6 (Task 6 / B2g): the aggregate command path used to swallow stage/expression
+    // errors inside InMemAggregator - an unrecognized pipeline stage or an unknown $group
+    // accumulator operator was logged and then quietly completed with an empty (or partial)
+    // cursor. A real mongod rejects both outright. Verify PoppyDB now surfaces the same shape
+    // of command error (ok:0 + errmsg + code) over the wire instead of a fake-empty result.
+    @Test
+    public void aggregateUnrecognizedStage_isCommandErrorNotEmptyResult() throws Exception {
+        int port = freePort();
+        PoppyDB srv = new PoppyDB(port, "127.0.0.1", 1000, 10); // standalone primary
+        try {
+            srv.start();
+            TestUtils.waitForConditionToBecomeTrue(10000, "server not up", srv::isRunning);
+
+            try (Socket sock = connect(port)) {
+                assertEquals(1.0, ok(command(sock, Doc.of(
+                        "insert", "sem_agg",
+                        "documents", List.of(Doc.of("_id", 1, "v", 3)),
+                        "$db", "semtest"))), "seed insert must succeed");
+
+                Map<String, Object> reply = command(sock, Doc.of(
+                        "aggregate", "sem_agg",
+                        "pipeline", List.of(Doc.of("$notARealStage", Doc.of("x", 1))),
+                        "cursor", Doc.of(),
+                        "$db", "semtest"));
+                log.info("Unrecognized-stage aggregate reply: {}", reply);
+
+                assertEquals(0.0, ok(reply), "unrecognized pipeline stage must be an error, not an empty cursor");
+                assertNotNull(reply.get("errmsg"), "reply must carry an error message");
+                Object code = reply.get("code");
+                assertNotNull(code, "reply must carry the real mongo error code");
+                assertEquals(40324, ((Number) code).intValue(), "expected Unrecognized pipeline stage name (40324)");
+            }
+        } finally {
+            srv.shutdown();
+        }
+    }
+
+    @Test
+    public void aggregateUnknownGroupOperator_isCommandErrorNotEmptyResult() throws Exception {
+        int port = freePort();
+        PoppyDB srv = new PoppyDB(port, "127.0.0.1", 1000, 10); // standalone primary
+        try {
+            srv.start();
+            TestUtils.waitForConditionToBecomeTrue(10000, "server not up", srv::isRunning);
+
+            try (Socket sock = connect(port)) {
+                assertEquals(1.0, ok(command(sock, Doc.of(
+                        "insert", "sem_agg2",
+                        "documents", List.of(Doc.of("_id", 1, "v", 3)),
+                        "$db", "semtest"))), "seed insert must succeed");
+
+                Map<String, Object> reply = command(sock, Doc.of(
+                        "aggregate", "sem_agg2",
+                        "pipeline", List.of(Doc.of("$group", Doc.of(
+                                "_id", null,
+                                "broken", Doc.of("$bogusAccumulator", "$v")))),
+                        "cursor", Doc.of(),
+                        "$db", "semtest"));
+                log.info("Unknown-group-operator aggregate reply: {}", reply);
+
+                assertEquals(0.0, ok(reply), "unknown group operator must be an error, not an empty cursor");
+                assertNotNull(reply.get("errmsg"), "reply must carry an error message");
+                Object code = reply.get("code");
+                assertNotNull(code, "reply must carry the real mongo error code");
+                assertEquals(15952, ((Number) code).intValue(), "expected unknown group operator (15952)");
+            }
+        } finally {
+            srv.shutdown();
+        }
+    }
 }

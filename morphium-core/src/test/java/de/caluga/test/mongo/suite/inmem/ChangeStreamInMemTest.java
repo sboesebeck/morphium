@@ -278,6 +278,53 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void changeStreamDeleteTest() throws Exception {
+        // Behavioral guard for the delete-path notification fix: a delete must still dispatch a
+        // "delete" change-stream event with the correct documentKey/fullDocument even though
+        // notifyWatchers is now invoked AFTER the collection write lock is released.
+        morphium.dropCollection(UncachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
+
+        UncachedObject obj = new UncachedObject("to-delete", 55);
+        morphium.store(obj);
+        TestUtils.waitForConditionToBecomeTrue(10000, "store not visible",
+            () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(obj.getMorphiumId()).countAll() == 1);
+
+        ChangeStreamMonitor monitor = new ChangeStreamMonitor(morphium, UncachedObject.class);
+        AtomicReference<ChangeStreamEvent> deleteEvent = new AtomicReference<>();
+        monitor.addListener(evt -> {
+            if (evt.getOperationType().equals("drop")) return true;
+            printevent(evt);
+
+            if ("delete".equals(evt.getOperationType())) {
+                deleteEvent.set(evt);
+                return false;
+            }
+
+            return true;
+        });
+        monitor.start(); // blocks until watch cursor is established
+
+        try {
+            morphium.delete(morphium.createQueryFor(UncachedObject.class).f("_id").eq(obj.getMorphiumId()));
+            TestUtils.waitForConditionToBecomeTrue(10000, "did not receive delete change-stream event",
+                () -> deleteEvent.get() != null);
+        } finally {
+            monitor.terminate();
+        }
+
+        ChangeStreamEvent evt = deleteEvent.get();
+        assertNotNull(evt, "no delete change-stream event received");
+        assertEquals("delete", evt.getOperationType());
+        assertNotNull(evt.getDocumentKey(), "documentKey missing on delete event");
+
+        Map<String, Object> fullDocument = evt.getFullDocument();
+        assertNotNull(fullDocument, "fullDocument missing on delete event");
+        assertEquals(55, ((Number) fullDocument.get("counter")).intValue());
+        assertEquals("to-delete", fullDocument.get("str_value"));
+    }
+
+    @Test
     public void changeStreamResumeAfterTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
