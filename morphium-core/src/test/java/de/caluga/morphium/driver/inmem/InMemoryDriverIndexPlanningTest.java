@@ -194,6 +194,142 @@ public class InMemoryDriverIndexPlanningTest {
     }
 
     @Test
+    void findAllSortedByIndexedFieldAscendingUsesIndexOrder() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("counter", 1)))
+                .execute();
+
+        // Insert in reverse order so a correct result can only come from actually sorting
+        // (by index order or otherwise) - insertion order alone would be wrong.
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 49_999; i >= 0; i--) {
+            docs.add(Doc.of("counter", i));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        long indexSortsBefore = drv.indexSorts;
+
+        List<Map<String, Object>> result = drv.find(db, coll, Doc.of(), Doc.of("counter", 1), null, 0, 10);
+
+        assertEquals(10, result.size());
+        for (int i = 0; i < 10; i++) {
+            assertEquals(i, ((Number) result.get(i).get("counter")).intValue(), "result must be the first 10 counters in ascending order");
+        }
+        assertEquals(indexSortsBefore + 1, drv.indexSorts, "index-order ascending sort must increment indexSorts");
+    }
+
+    @Test
+    void findAllSortedByIndexedFieldDescendingUsesReverseIndexScan() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("counter", 1)))
+                .execute();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 0; i < 50_000; i++) {
+            docs.add(Doc.of("counter", i));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        long indexSortsBefore = drv.indexSorts;
+
+        List<Map<String, Object>> result = drv.find(db, coll, Doc.of(), Doc.of("counter", -1), null, 0, 10);
+
+        assertEquals(10, result.size());
+        for (int i = 0; i < 10; i++) {
+            assertEquals(49_999 - i, ((Number) result.get(i).get("counter")).intValue(),
+                    "descending sort on an ascending index must scan it in reverse");
+        }
+        assertEquals(indexSortsBefore + 1, drv.indexSorts, "index-order descending sort must increment indexSorts");
+    }
+
+    @Test
+    void findSortedByUnindexedFieldFallsBackAndStaysCorrect() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(200);
+        // "counter" is indexed; "other" (derived, non-monotonic w.r.t. counter) is not.
+        for (int i = 0; i < 200; i++) {
+            new de.caluga.morphium.driver.commands.UpdateMongoCommand(drv).setDb(db).setColl(coll)
+                    .addUpdate(Doc.of("q", Doc.of("counter", i), "u", Doc.of("$set", Doc.of("other", (i * 37) % 200))))
+                    .execute();
+        }
+
+        long indexSortsBefore = drv.indexSorts;
+
+        List<Map<String, Object>> result = drv.find(db, coll, Doc.of(), Doc.of("other", 1), null, 0, 0);
+
+        assertEquals(200, result.size());
+        for (int i = 1; i < result.size(); i++) {
+            int prev = ((Number) result.get(i - 1).get("other")).intValue();
+            int cur = ((Number) result.get(i).get("other")).intValue();
+            assertTrue(prev <= cur, "fallback sort on unindexed field must still be correctly ordered");
+        }
+        assertEquals(indexSortsBefore, drv.indexSorts, "sort on an unindexed field must NOT use the index-order fast path");
+    }
+
+    @Test
+    void findSortedByCompoundIndexPrefixUsesIndexOrder() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("group", 1, "counter", 1)))
+                .execute();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 0; i < 300; i++) {
+            docs.add(Doc.of("group", (299 - i) % 5, "counter", i));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        long indexSortsBefore = drv.indexSorts;
+
+        // Sort spec is just the compound index's leading field - a valid prefix.
+        List<Map<String, Object>> result = drv.find(db, coll, Doc.of(), Doc.of("group", 1), null, 0, 0);
+
+        assertEquals(300, result.size());
+        for (int i = 1; i < result.size(); i++) {
+            int prev = ((Number) result.get(i - 1).get("group")).intValue();
+            int cur = ((Number) result.get(i).get("group")).intValue();
+            assertTrue(prev <= cur, "result must be non-decreasing on the sorted prefix field");
+        }
+        assertEquals(indexSortsBefore + 1, drv.indexSorts, "a sort spec that is a prefix of a compound index must use index order");
+    }
+
+    @Test
+    void sameIndexFilterAndSortWithSkipCountsOnlyMatchingDocs() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("counter", 1)))
+                .execute();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            // Every other document fails the (non-indexed) "flag" predicate - the index-order
+            // scan must skip those without letting them count against `skip`.
+            docs.add(Doc.of("counter", i, "flag", i % 2 == 0));
+        }
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        long indexSortsBefore = drv.indexSorts;
+        long indexHitsBefore = drv.indexHits;
+
+        // Filter plans a RangeScan on the SAME "counter" index used for the sort; "flag" is a
+        // pure post-filter predicate applied per document during the index-order scan.
+        List<Map<String, Object>> result = drv.find(db, coll,
+                Doc.of("counter", Doc.of("$gte", 0), "flag", true), Doc.of("counter", 1), null, 3, 4);
+
+        // Matching docs (flag=true) have counters 0,2,4,6,...,48 - skip the first 3 (0,2,4),
+        // then take 4: 6,8,10,12.
+        assertEquals(4, result.size());
+        assertEquals(List.of(6, 8, 10, 12), result.stream().map(d -> ((Number) d.get("counter")).intValue()).toList());
+        assertEquals(indexSortsBefore + 1, drv.indexSorts, "same-index filter+sort combination must use index order");
+        assertEquals(indexHitsBefore + 1, drv.indexHits, "the filter's own RangeScan plan must still count as an index hit");
+    }
+
+    @Test
     void findRemainsCorrectAfterUpdateChangesTheIndexedField() throws Exception {
         InMemoryDriver drv = freshDriverWithIndexedCollection(50);
 

@@ -183,6 +183,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     long indexHits;
 
     /**
+     * Read-path sort counter (Phase B1, Task 6) - incremented once per {@code find} call whose
+     * {@code sort} was served directly from a {@link CollectionIndexStore} index in index order
+     * ({@link #planIndexOrderedIterator}), instead of the in-memory {@code List.sort} fallback.
+     * Independent of {@link #fullScans}/{@link #indexHits}, which continue to reflect whether the
+     * FILTER itself used an index - a sort can use the index-order fast path even when the filter
+     * fell back to a full scan (the index-order iterator then simply stands in for "every
+     * document", visited in index order instead of collection order).
+     */
+    long indexSorts;
+
+    /**
      * One persistent {@link CollectionIndexStore} per collection ({@code db + "." + collection}),
      * replacing Task 3's rebuild-on-miss {@code planIndexCache}/{@code collectionEpoch}. Every
      * mutation path now maintains its collection's store incrementally
@@ -3212,23 +3223,49 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } else {
                 partialHitData = getDataFromIndex(db, collection, query);
             }
-            List<Map<String, Object>> data;
+            // Index-backed sort (Phase B1, Task 6): when `sort` is a prefix of some index (in
+            // matching or exactly-reversed direction) AND the filter's own plan is either a
+            // FullScan or targets that SAME index, the whole filter+sort+skip+limit dance below
+            // can be driven straight off that index's ordered/range iterator instead of copying
+            // the collection and Collections.sort-ing it - see planIndexOrderedIterator's
+            // Javadoc for the exact eligibility rule. Deliberately recomputed from `query` here
+            // (rather than reusing partialHitData) because $and/$or's elaborate per-subquery
+            // handling above has no single IndexPlan to report; IndexPlanner.plan conservatively
+            // collapses any top-level $-operator query to FullScan, which is always a safe (if
+            // occasionally less selective) choice for this eligibility check - matchesQuery below
+            // still re-validates every candidate regardless of how it was reached.
+            Iterator<Map<String, Object>> indexSortIterator = null;
+            if (sort != null && !sort.isEmpty() && QueryHelper.getCollator(collation) == null) {
+                CollectionIndexStore indexStore = getIndexStore(db, collection);
+                Collection<IndexDefinition> defs = indexStore.definitions();
+                if (defs.size() > 1) {
+                    IndexPlanner.IndexPlan filterPlan = IndexPlanner.plan(query, defs);
+                    indexSortIterator = planIndexOrderedIterator(indexStore, defs, filterPlan, sort);
+                }
+            }
+
+            List<Map<String, Object>> data = null;
 
             // The single place the null/empty distinction is encoded (see getDataFromIndex's
             // Javadoc): null means no index was usable at all, so scan everything; a non-null
             // (possibly empty) list means an index plan already ran and IS the final candidate
             // set - an empty list here is a genuine "no matches", not "try again with a scan".
+            // fullScans/indexHits always reflect the FILTER's own plan (partialHitData), even when
+            // indexSortIterator below replaces WHERE the driver actually reads documents from.
             if (partialHitData == null) {
-                data = new ArrayList<>(getCollection(db, collection));
                 fullScans++;
             } else {
-                data = partialHitData;
                 indexHits++;
+            }
+            if (indexSortIterator == null) {
+                data = partialHitData == null ? new ArrayList<>(getCollection(db, collection)) : partialHitData;
+            } else {
+                indexSorts++;
             }
             List<Map<String, Object>> ret = new ArrayList<>();
             int matched = 0;
 
-            if (sort != null) {
+            if (indexSortIterator == null && sort != null) {
                 Collator coll = QueryHelper.getCollator(collation);
                 data.sort((o1, o2) -> {
                     for (String f : sort.keySet()) {
@@ -3278,9 +3315,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 });
             }
 
-            // noinspection ForLoopReplaceableByForEach
-            for (int i = 0; i < data.size(); i++) {
-                Map<String, Object> o = data.get(i);
+            Iterator<Map<String, Object>> sourceIterator = indexSortIterator != null ? indexSortIterator : data.iterator();
+
+            while (sourceIterator.hasNext()) {
+                Map<String, Object> o = sourceIterator.next();
 
                 // Check match FIRST on original document - no copy needed for non-matches
                 if (!QueryHelper.matchesQuery(query, o, collation)) {
@@ -3769,6 +3807,99 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // FullScan - the caller (getDataFromIndex) never invokes this method for that case, but
         // stay defensive rather than throw.
         return null;
+    }
+
+    /**
+     * Index-backed sort eligibility + iterator construction (Phase B1, Task 6). Tries every index
+     * definition and returns an iterator over the first one whose fields, in declaration order,
+     * cover {@code sort} as a prefix (see {@link #sortScanDirection}) AND for which {@code
+     * filterPlan} is either {@link IndexPlanner.FullScan} (no index narrowed the filter, so this
+     * index's full ordered range stands in for "every document", just visited in index order) or
+     * itself targets that very index (an {@link IndexPlanner.EqualityLookup} or
+     * {@link IndexPlanner.RangeScan} whose {@code def()} is the same object as the candidate -
+     * both are derived from the very same {@code defs} collection, so reference equality is exact,
+     * not approximate). Returns {@code null} when no index qualifies - the caller must fall back
+     * to the existing {@code List.sort} path unchanged.
+     *
+     * <p>{@link IndexPlanner.InUnion} is deliberately never fused with a sort here: a union of
+     * point lookups on possibly-scattered keys is not a single contiguous index-order range, so a
+     * candidate index only reachable via an {@code InUnion} filter plan is skipped in favor of the
+     * next candidate (or the fallback, if none qualifies) rather than mixing orders.
+     *
+     * <p>The returned iterator yields every document in the chosen index (or index range) in the
+     * exact order {@code find} must apply {@code matchesQuery} against - callers still run the
+     * full predicate per document; this method only ever narrows WHERE/WHAT ORDER documents are
+     * read from, matching the {@link IndexPlanner} candidate-prefilter invariant.
+     */
+    private Iterator<Map<String, Object>> planIndexOrderedIterator(CollectionIndexStore store,
+            Collection<IndexDefinition> defs, IndexPlanner.IndexPlan filterPlan, Map<String, Object> sort) {
+        for (IndexDefinition def : defs) {
+            Boolean descending = sortScanDirection(def, sort);
+            if (descending == null) {
+                continue;
+            }
+
+            if (filterPlan instanceof IndexPlanner.FullScan) {
+                return store.orderedScan(def.name(), descending);
+            }
+            if (filterPlan instanceof IndexPlanner.EqualityLookup eq && eq.def() == def) {
+                return store.equalityLookup(def.name(), eq.key()).iterator();
+            }
+            if (filterPlan instanceof IndexPlanner.RangeScan rs && rs.def() == def) {
+                return store.rangeScan(def.name(), rs.from(), rs.fromInclusive(), rs.to(), rs.toInclusive(), descending);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether {@code sort}'s fields, in iteration order, are a prefix of {@code def}'s fields -
+     * and if so, whether the index must be walked forward ({@code false}) or in reverse
+     * ({@code true}) to realize {@code sort}'s requested directions.
+     *
+     * <p>Every sort field must line up positionally with {@code def.fields()} starting at index 0
+     * (a genuine prefix, not an arbitrary subset), and every field's direction relationship to the
+     * index's own direction must agree across the whole prefix - either every sort field matches
+     * its index field's direction exactly (forward scan), or every one is the exact opposite
+     * (reverse scan). A mixed prefix (e.g. field 1 matches but field 2 is reversed) cannot be
+     * realized by a single directional scan of one index and returns {@code null}, same as any
+     * other disqualifying shape (sort longer than the index, a field name mismatch, or a
+     * non-1/-1 direction value).
+     *
+     * @return {@code Boolean.FALSE} for a forward (ascending index-order) scan, {@code
+     *         Boolean.TRUE} for a reverse scan, or {@code null} if {@code def} cannot serve
+     *         {@code sort} at all
+     */
+    private static Boolean sortScanDirection(IndexDefinition def, Map<String, Object> sort) {
+        List<String> indexFields = def.fields();
+        if (sort.size() > indexFields.size()) {
+            return null;
+        }
+
+        Integer relation = null; // +1: sort direction matches the index's own direction; -1: exact reverse
+        int i = 0;
+        for (Map.Entry<String, Object> e : sort.entrySet()) {
+            if (!indexFields.get(i).equals(e.getKey())) {
+                return null;
+            }
+            if (!(e.getValue() instanceof Number)) {
+                return null;
+            }
+            int sortDir = ((Number) e.getValue()).intValue();
+            if (sortDir != 1 && sortDir != -1) {
+                return null;
+            }
+
+            int indexDir = def.direction(indexFields.get(i));
+            int rel = (sortDir == indexDir) ? 1 : -1;
+            if (relation == null) {
+                relation = rel;
+            } else if (!relation.equals(rel)) {
+                return null;
+            }
+            i++;
+        }
+        return relation != null && relation == -1;
     }
 
     /**
