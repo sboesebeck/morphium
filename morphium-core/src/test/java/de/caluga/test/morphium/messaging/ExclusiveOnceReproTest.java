@@ -28,6 +28,9 @@ import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
  * change-stream stall/watchdog), a second instance re-locks, sees empty processed_by and processes again.
  */
 @Tag("messaging")
+// pooled-only repro (lock-loss needs a real server); "external" keeps it out of inmem-phase
+// runs where getMorphiumInstancesPooledOnly() yields no arguments and JUnit errors out
+@Tag("external")
 public class ExclusiveOnceReproTest extends MultiDriverTestBase {
 
     @ParameterizedTest
