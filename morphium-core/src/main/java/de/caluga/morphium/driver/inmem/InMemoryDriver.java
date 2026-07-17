@@ -2234,7 +2234,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             addResult(ret, prepareResult(Doc.of("cursor", cursor)));
             return ret;
         } catch (Exception e) {
-            addResult(ret, prepareResult(Doc.of("ok", 0.0, "errmsg", "aggregate failed: " + e.getMessage())));
+            // Surface stage/expression failures as a MongoDB-shaped command error (ok:0 +
+            // errmsg, plus the real mongo error code when the aggregator identified one, e.g.
+            // 40324 unrecognized pipeline stage, 15952 unknown group operator) instead of an
+            // empty cursor - callers (including PoppyDB clients over the wire) must be able to
+            // tell an aggregate() that failed apart from one that legitimately found no data.
+            Doc errDoc = Doc.of("ok", 0.0, "errmsg", "aggregate failed: " + e.getMessage());
+
+            if (e instanceof MorphiumDriverException mde && mde.getMongoCode() != null) {
+                errDoc.put("code", mde.getMongoCode());
+            }
+
+            addResult(ret, prepareResult(errDoc));
             return ret;
         }
     }

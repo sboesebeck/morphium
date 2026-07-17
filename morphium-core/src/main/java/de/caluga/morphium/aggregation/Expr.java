@@ -2203,7 +2203,7 @@ public abstract class Expr {
         return new OpExprNoList("stdDevPop", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                return computeStdDevPop(asCollection(eval(e, context)));
             }
         };
     }
@@ -2212,7 +2212,13 @@ public abstract class Expr {
         return new OpExpr("stdDevPop", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                List<Object> values = new ArrayList<>();
+
+                for (Expr expr : e) {
+                    values.add(eval(expr, context));
+                }
+
+                return computeStdDevPop(values);
             }
         };
     }
@@ -2221,7 +2227,7 @@ public abstract class Expr {
         return new OpExprNoList("stdDevSamp", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                return computeStdDevSamp(asCollection(eval(e, context)));
             }
         };
     }
@@ -2230,9 +2236,116 @@ public abstract class Expr {
         return new OpExpr("stdDevSamp", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                List<Object> values = new ArrayList<>();
+
+                for (Expr expr : e) {
+                    values.add(eval(expr, context));
+                }
+
+                return computeStdDevSamp(values);
             }
         };
+    }
+
+    /**
+     * Wraps a single evaluated value into a one-element collection so the single-argument
+     * $stdDevPop/$stdDevSamp form (which usually receives an array, e.g. a field reference
+     * to an array field) also works when the expression evaluates to a scalar or to null.
+     */
+    private static Collection<?> asCollection(Object value) {
+        if (value instanceof Collection) {
+            return (Collection<?>) value;
+        }
+
+        if (value == null) {
+            return Collections.emptyList();
+        }
+
+        return Collections.singletonList(value);
+    }
+
+    /**
+     * Population standard deviation ($stdDevPop) over a set of raw values.
+     *
+     * MongoDB semantics (https://www.mongodb.com/docs/manual/reference/operator/aggregation/stdDevPop/):
+     * non-numeric and missing values are ignored; if no numeric values remain, the result is
+     * {@code null}.
+     *
+     * Implementation note: two-pass algorithm (first pass computes the mean, second pass sums
+     * the squared deviations from that mean). Chosen over Welford's single-pass, streaming
+     * algorithm because the in-memory driver already materializes every group's raw values
+     * before finalizing the accumulator, so the numerical-stability benefit of Welford's
+     * method isn't needed here and the two-pass form is simpler to read/verify.
+     */
+    public static Double computeStdDevPop(Collection<?> rawValues) {
+        List<Double> numbers = numericValuesOf(rawValues);
+
+        if (numbers.isEmpty()) {
+            return null;
+        }
+
+        double mean = meanOf(numbers);
+        double sumSquaredDiff = sumSquaredDiffOf(numbers, mean);
+        return Math.sqrt(sumSquaredDiff / numbers.size());
+    }
+
+    /**
+     * Sample standard deviation ($stdDevSamp) over a set of raw values.
+     *
+     * MongoDB semantics (https://www.mongodb.com/docs/manual/reference/operator/aggregation/stdDevSamp/):
+     * non-numeric and missing values are ignored; with fewer than two numeric values the
+     * sample standard deviation is undefined and the result is {@code null}.
+     *
+     * Same two-pass algorithm as {@link #computeStdDevPop(Collection)}, dividing the sum of
+     * squared deviations by (n - 1) instead of n (Bessel's correction).
+     */
+    public static Double computeStdDevSamp(Collection<?> rawValues) {
+        List<Double> numbers = numericValuesOf(rawValues);
+
+        if (numbers.size() < 2) {
+            return null;
+        }
+
+        double mean = meanOf(numbers);
+        double sumSquaredDiff = sumSquaredDiffOf(numbers, mean);
+        return Math.sqrt(sumSquaredDiff / (numbers.size() - 1));
+    }
+
+    private static List<Double> numericValuesOf(Collection<?> rawValues) {
+        List<Double> numbers = new ArrayList<>();
+
+        if (rawValues == null) {
+            return numbers;
+        }
+
+        for (Object v : rawValues) {
+            if (v instanceof Number) {
+                numbers.add(((Number) v).doubleValue());
+            }
+            //non-numeric / missing values are ignored, per MongoDB $stdDevPop/$stdDevSamp semantics
+        }
+
+        return numbers;
+    }
+
+    private static double meanOf(List<Double> numbers) {
+        double sum = 0.0;
+
+        for (double d : numbers) {
+            sum += d;
+        }
+
+        return sum / numbers.size();
+    }
+
+    private static double sumSquaredDiffOf(List<Double> numbers, double mean) {
+        double sum = 0.0;
+
+        for (double d : numbers) {
+            sum += (d - mean) * (d - mean);
+        }
+
+        return sum;
     }
 
     public static Expr sum(Expr e) {
