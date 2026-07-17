@@ -255,7 +255,22 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof OpQuery) {
             processOpQuery(ctx, (OpQuery) msg);
         } else if (msg instanceof OpMsg) {
-            processOpMsg(ctx, (OpMsg) msg);
+            try {
+                processOpMsg(ctx, (OpMsg) msg);
+            } finally {
+                // The driver's transaction context is a ThreadLocal that preDispatch/
+                // setupTransactionContext (and start/abort/commit) install on THIS Netty
+                // event-loop thread for the duration of the command. Many channels are
+                // multiplexed onto the same event-loop thread, so it MUST be cleared once the
+                // command has been dispatched — otherwise the next command from another channel
+                // handled on this thread would inherit this client's open-transaction snapshot
+                // (its plain writes joining, and being rolled back with, that transaction). The
+                // per-command re-install from the channel attribute makes an unconditional clear
+                // here safe. Data commands run synchronously on this thread (so the context is
+                // read before this runs); async continuations (getMore/aggregate) execute on
+                // other threads that never inherit this ThreadLocal.
+                driver.setTransactionContext(null);
+            }
         } else {
             log.warn("Unsupported message type: {}", msg.getClass().getSimpleName());
             sendError(ctx, msg.getMessageId(), "Unsupported operation");

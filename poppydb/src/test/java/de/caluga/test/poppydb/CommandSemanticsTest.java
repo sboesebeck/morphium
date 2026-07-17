@@ -302,4 +302,75 @@ public class CommandSemanticsTest {
             shutdownAll(servers);
         }
     }
+
+    // Scenario 5: the per-command transaction context must be cleared from the shared Netty
+    // event-loop thread after each command completes. Otherwise a second connection multiplexed
+    // onto the same event-loop thread inherits the first connection's open-transaction snapshot,
+    // and its plain (non-transactional) write is swallowed when the first connection aborts.
+    //
+    // Forcing a single Netty worker thread makes both connections deterministically share one
+    // event loop, so the leak (if present) reproduces every run.
+    @Test
+    public void plainInsertNotSwallowedByAnotherConnectionsTransaction() throws Exception {
+        String prevWorkers = System.getProperty("morphiumserver.workerThreads");
+        System.setProperty("morphiumserver.workerThreads", "1");
+        int port = freePort();
+        PoppyDB srv = new PoppyDB(port, "127.0.0.1", 1000, 10); // standalone primary
+        try {
+            srv.start();
+            TestUtils.waitForConditionToBecomeTrue(10000, "server not up", srv::isRunning);
+            try (Socket txnConn = connect(port); Socket plainConn = connect(port)) {
+                // Connection A opens a transaction and inserts a doc inside it (never committed).
+                Map<String, Object> lsid = Doc.of("id", "sem-tx-leak");
+                Map<String, Object> startTxn = Doc.of(
+                        "insert", "sem_leak",
+                        "documents", List.of(Doc.of("_id", "inTxn", "v", "a")),
+                        "$db", "semtest",
+                        "lsid", lsid,
+                        "txnNumber", 1L,
+                        "autocommit", false);
+                startTxn.put("startTransaction", true);
+                assertEquals(1.0, ok(command(txnConn, startTxn)),
+                        "transactional insert must be accepted");
+
+                // Connection B (no session) inserts a plain doc. If the event-loop thread still
+                // carries connection A's transaction context, this write joins A's snapshot.
+                Map<String, Object> plainInsert = command(plainConn, Doc.of(
+                        "insert", "sem_leak",
+                        "documents", List.of(Doc.of("_id", "plain", "v", "b")),
+                        "$db", "semtest"));
+                assertEquals(1.0, ok(plainInsert),
+                        "plain insert on the second connection must be accepted");
+
+                // Connection A aborts. This must discard only A's own doc, not B's plain write.
+                assertEquals(1.0, ok(command(txnConn, Doc.of(
+                        "abortTransaction", 1,
+                        "lsid", lsid,
+                        "txnNumber", 1L,
+                        "autocommit", false,
+                        "$db", "admin"))), "abortTransaction must succeed");
+
+                // B's plain doc must have been committed to the real database and survive the abort.
+                Map<String, Object> plainCount = command(plainConn, Doc.of(
+                        "count", "sem_leak", "query", Doc.of("_id", "plain"), "$db", "semtest"));
+                assertEquals(1.0, ok(plainCount), "count must succeed");
+                assertEquals(1, ((Number) plainCount.get("n")).intValue(),
+                        "the second connection's plain insert must be visible after the first "
+                        + "connection aborts its transaction (not swallowed by a leaked tx context)");
+
+                // A's own transactional doc must not persist after the abort.
+                Map<String, Object> txnCount = command(plainConn, Doc.of(
+                        "count", "sem_leak", "query", Doc.of("_id", "inTxn"), "$db", "semtest"));
+                assertEquals(0, ((Number) txnCount.get("n")).intValue(),
+                        "the aborted transactional insert must not persist");
+            }
+        } finally {
+            srv.shutdown();
+            if (prevWorkers == null) {
+                System.clearProperty("morphiumserver.workerThreads");
+            } else {
+                System.setProperty("morphiumserver.workerThreads", prevWorkers);
+            }
+        }
+    }
 }
