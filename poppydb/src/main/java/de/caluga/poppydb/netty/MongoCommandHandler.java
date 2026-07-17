@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -175,6 +176,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // the connection's pipeline was built.
     private final Supplier<ReplicationCoordinator> replicationCoordinatorSupplier;
     private final ElectionManager electionManager;
+    // Resolved live per command: true while this node is a secondary (re-)running its initial sync
+    // and therefore possibly serving from a half-cleared local database. Such a node is RECOVERING
+    // and must reject data-plane traffic. Never captured once — a resync that starts after this
+    // connection was accepted must still be observed.
+    private final BooleanSupplier secondarySyncingSupplier;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
                                MessagingOptimizer messagingOptimizer,
@@ -182,7 +188,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                                List<String> hosts, boolean primary, String primaryHost,
                                int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier) {
         this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
-             compressorId, replicationCoordinatorSupplier, null);
+             compressorId, replicationCoordinatorSupplier, null, () -> false);
     }
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
@@ -191,6 +197,16 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                                List<String> hosts, boolean primary, String primaryHost,
                                int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
                                ElectionManager electionManager) {
+        this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
+             compressorId, replicationCoordinatorSupplier, electionManager, () -> false);
+    }
+
+    public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               MessagingOptimizer messagingOptimizer,
+                               AtomicInteger msgId, String host, int port, String rsName,
+                               List<String> hosts, boolean primary, String primaryHost,
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
+                               ElectionManager electionManager, BooleanSupplier secondarySyncingSupplier) {
         this.driver = driver;
         this.cursorManager = cursorManager;
         this.messagingOptimizer = messagingOptimizer;
@@ -204,6 +220,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         this.compressorId = compressorId;
         this.replicationCoordinatorSupplier = replicationCoordinatorSupplier;
         this.electionManager = electionManager;
+        this.secondarySyncingSupplier = secondarySyncingSupplier == null ? () -> false : secondarySyncingSupplier;
     }
 
     @Override
@@ -683,6 +700,23 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
         boolean isPrimary = isCurrentPrimary();
 
+        // (0) A secondary that is (re-)running its initial sync is RECOVERING: its local database
+        // may be half-cleared (clearLocalDatabases runs at the start of every snapshot and on a
+        // resync), so a plain read would see empty/partial data with no signal, and a client write
+        // would land on data that is about to be overwritten by the snapshot. Reject ALL data-plane
+        // traffic with NotPrimaryOrSecondary (13436), exactly like a real RECOVERING member.
+        // Replication-applied writes carry $fromPrimary and are exempt (in practice they bypass this
+        // handler entirely); control-plane commands never reach preDispatch, so elections and
+        // replSet traffic keep flowing.
+        if (secondarySyncingSupplier.getAsBoolean() && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
+            return CheckResult.reject(Doc.of(
+                "ok", 0.0,
+                "errmsg", "node is recovering",
+                "code", 13436,
+                "codeName", "NotPrimaryOrSecondary"
+            ));
+        }
+
         // (1) Reject writes to secondaries (use dynamic election state if available).
         // Replication-applied writes are flagged $fromPrimary and must pass through.
         if (!isPrimary && isWriteCommand && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
@@ -1154,7 +1188,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         // don't set setName, hosts, or secondary — only writablePrimary
         if (rsName != null && !rsName.isEmpty()) {
             res.setWritablePrimary(isPrimary);
-            res.setSecondary(!isPrimary);
+            // A secondary that is (re-)running its initial sync is RECOVERING, not a usable
+            // secondary: advertise secondary:false so drivers do not route reads to it.
+            res.setSecondary(!isPrimary && !secondarySyncingSupplier.getAsBoolean());
             res.setSetName(rsName);
             res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
             res.setMe(myAddress);

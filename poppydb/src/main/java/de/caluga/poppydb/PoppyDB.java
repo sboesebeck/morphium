@@ -92,7 +92,9 @@ public class PoppyDB {
     private volatile long lastDumpTime = 0;
 
     // Replication
-    private ReplicationManager replicationManager = null;
+    // volatile: mutated under synchronized on the election/leadership paths but read unsynchronized
+    // from Netty event-loop threads via the isSecondarySyncing() supplier passed to each handler.
+    private volatile ReplicationManager replicationManager = null;
     // Held behind an AtomicReference (rather than a plain volatile field copied into each
     // connection at accept time) so every MongoCommandHandler resolves the coordinator live
     // via a Supplier - onLeadershipChange swaps this reference and every existing connection
@@ -211,7 +213,8 @@ public class PoppyDB {
                                 driver, cursorManager, messagingOptimizer, msgId,
                                 host, port, rsName, hosts,
                                 primary, primaryHost, compressorId,
-                                replicationCoordinatorRef::get, electionManager
+                                replicationCoordinatorRef::get, electionManager,
+                                PoppyDB.this::isSecondarySyncing
                         ));
 
                         // Track the channel
@@ -701,6 +704,17 @@ public class PoppyDB {
             replicationManager.stop();
             replicationManager = null;
         }
+    }
+
+    /**
+     * True when this node is a secondary that is currently (re-)running its initial sync and may
+     * therefore hold a half-cleared local database. Resolved live per command by the command
+     * handler so it can reject data-plane traffic (RECOVERING) while syncing. A primary has no
+     * replication manager, so this is false there.
+     */
+    private boolean isSecondarySyncing() {
+        ReplicationManager rm = replicationManager;
+        return rm != null && rm.isSyncing();
     }
 
     public int dumpNow() throws IOException {

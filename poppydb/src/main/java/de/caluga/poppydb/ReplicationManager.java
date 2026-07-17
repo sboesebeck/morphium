@@ -1244,6 +1244,18 @@ public class ReplicationManager {
     }
 
     /**
+     * True while this secondary is (re-)running its initial sync and therefore may hold a
+     * half-cleared / partial local database ({@link #clearLocalDatabases()} runs at the start of the
+     * snapshot and again on a {@link #triggerResync}). A node in this state is the PoppyDB equivalent
+     * of MongoDB's RECOVERING member: it must not serve data-plane reads or writes. Returns false
+     * once the initial sync has completed and the local database is a consistent replica, and false
+     * after {@link #stop()} (running == false).
+     */
+    public boolean isSyncing() {
+        return running.get() && !initialSyncComplete.get();
+    }
+
+    /**
      * Get the number of change events applied.
      */
     public long getEventsApplied() {

@@ -3,6 +3,8 @@ package de.caluga.poppydb;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.ServerSocket;
@@ -20,6 +22,8 @@ import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
+import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 /**
@@ -202,6 +206,173 @@ public class InitialSyncTest {
             if (writerThread != null) {
                 writerThread.join(2000);
             }
+            if (writer != null) {
+                writer.close();
+            }
+            secondary.shutdown();
+            primary.shutdown();
+        }
+    }
+
+    private static final AtomicInteger MSG_ID = new AtomicInteger(1);
+
+    /** Send one OP_MSG command over a raw socket to a node and return the reply's first document. */
+    private Map<String, Object> command(Socket sock, Map<String, Object> cmd) throws Exception {
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(MSG_ID.incrementAndGet());
+        msg.setFlags(0);
+        msg.setFirstDoc(cmd);
+        sock.getOutputStream().write(msg.bytes());
+        sock.getOutputStream().flush();
+        OpMsg reply = (OpMsg) WireProtocolMessage.parseFromStream(sock.getInputStream());
+        return reply.getFirstDoc();
+    }
+
+    private int codeOf(Map<String, Object> reply) {
+        Object c = reply.get("code");
+        return c instanceof Number ? ((Number) c).intValue() : -1;
+    }
+
+    private double okOf(Map<String, Object> reply) {
+        Object v = reply.get("ok");
+        return v instanceof Number ? ((Number) v).doubleValue() : 0.0;
+    }
+
+    /**
+     * A secondary that is (re-)running its initial sync is RECOVERING: it may serve from a
+     * half-cleared local database, so it must reject data-plane reads with NotPrimaryOrSecondary
+     * (13436) rather than silently returning empty/partial results. Once the initial sync has
+     * completed the same read must succeed.
+     */
+    @Test
+    public void readsRejectedWhileSecondaryIsSyncing() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+        PoppyDB primary = new PoppyDB(port1, "localhost", 20, 5);
+        PoppyDB secondary = new PoppyDB(port2, "localhost", 20, 5);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2);
+        var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
+        primary.configureReplicaSet("rsRecovering", hosts, prio);
+        secondary.configureReplicaSet("rsRecovering", hosts, prio);
+
+        Morphium writer = null;
+        try {
+            startServer(primary, port1);
+            long primaryDeadline = System.currentTimeMillis() + 15_000;
+            while (!primary.isPrimary() && System.currentTimeMillis() < primaryDeadline) {
+                Thread.sleep(50);
+            }
+            assertTrue(primary.isPrimary(), "node1 must become primary");
+
+            MorphiumConfig cfg = new MorphiumConfig();
+            cfg.clusterSettings().setHostSeed("localhost:" + port1);
+            cfg.connectionSettings().setDatabase(DB);
+            cfg.connectionSettings().setMaxConnections(10);
+            cfg.cacheSettings().setBufferedWritesEnabled(false);
+            writer = new Morphium(cfg);
+
+            // Large snapshot so the secondary's initial sync takes long enough to observe the
+            // RECOVERING window deterministically.
+            for (int c = 0; c < COLLECTIONS; c++) {
+                List<UncachedObject> batch = new ArrayList<>(PRESEED_PER_COLLECTION);
+                for (int i = 0; i < PRESEED_PER_COLLECTION; i++) {
+                    batch.add(new UncachedObject("preseed-" + c + "-" + i, i));
+                }
+                writer.storeList(batch, coll(c));
+            }
+
+            // Start a background poller that connects to the secondary's port the instant it is up
+            // and hammers a data-plane read continuously, so it catches the (short) RECOVERING
+            // window that opens when the secondary begins its initial sync. Polling from an
+            // already-established socket is essential: the sync of a 50k snapshot lasts only a few
+            // hundred ms, far too short to be caught by connecting a fresh socket after the fact.
+            AtomicBoolean sawRecovering = new AtomicBoolean(false);
+            AtomicBoolean pollerStop = new AtomicBoolean(false);
+            Thread poller = new Thread(() -> {
+                long connectDeadline = System.currentTimeMillis() + 30_000;
+                Socket sock = null;
+                try {
+                    while (sock == null && System.currentTimeMillis() < connectDeadline && !pollerStop.get()) {
+                        try {
+                            Socket s = new Socket();
+                            s.connect(new InetSocketAddress("localhost", port2), 250);
+                            s.setSoTimeout(15000);
+                            sock = s;
+                        } catch (Exception e) {
+                            Thread.sleep(10);
+                        }
+                    }
+                    if (sock == null) {
+                        return;
+                    }
+                    while (!pollerStop.get() && !sawRecovering.get()) {
+                        Map<String, Object> reply = command(sock, Doc.of(
+                                "count", coll(0), "query", Doc.of(), "$db", DB));
+                        if (codeOf(reply) == 13436) {
+                            sawRecovering.set(true);
+                            return;
+                        }
+                    }
+                } catch (Exception e) {
+                    // socket reset during shutdown etc. — nothing to do
+                } finally {
+                    if (sock != null) {
+                        try {
+                            sock.close();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }, "recovering-poller");
+            poller.setDaemon(true);
+            poller.start();
+
+            // Bring up the secondary; it starts initial sync from the primary.
+            startServer(secondary, port2);
+
+            // Wait until the poller observed the RECOVERING rejection, or the sync completed.
+            long deadline = System.currentTimeMillis() + 60_000;
+            while (System.currentTimeMillis() < deadline
+                    && !sawRecovering.get() && !initialSyncComplete(secondary)) {
+                Thread.sleep(2);
+            }
+            pollerStop.set(true);
+            poller.join(5000);
+            log.info("RECOVERING poll: sawRecovering={}", sawRecovering.get());
+            assertTrue(sawRecovering.get(),
+                    "a data-plane read against a syncing secondary must be rejected with 13436 "
+                    + "(NotPrimaryOrSecondary / node is recovering)");
+
+            // Wait for the initial sync to complete, then the same read must succeed.
+            long syncDeadline = System.currentTimeMillis() + 60_000;
+            boolean syncComplete = false;
+            while (System.currentTimeMillis() < syncDeadline) {
+                if (initialSyncComplete(secondary)) {
+                    syncComplete = true;
+                    break;
+                }
+                Thread.sleep(50);
+            }
+            assertTrue(syncComplete, "secondary initial sync must complete within 60s");
+
+            try (Socket sock = new Socket()) {
+                sock.connect(new InetSocketAddress("localhost", port2), 2000);
+                sock.setSoTimeout(15000);
+                // Give the accessor a beat to reflect completion, then the read must be served.
+                Map<String, Object> reply = null;
+                long readDeadline = System.currentTimeMillis() + 10_000;
+                while (System.currentTimeMillis() < readDeadline) {
+                    reply = command(sock, Doc.of("count", coll(0), "query", Doc.of(), "$db", DB));
+                    if (okOf(reply) == 1.0) {
+                        break;
+                    }
+                    Thread.sleep(20);
+                }
+                assertEquals(1.0, okOf(reply), "read on a fully-synced secondary must succeed");
+                assertFalse(codeOf(reply) == 13436,
+                        "a fully-synced secondary must not report RECOVERING");
+            }
+        } finally {
             if (writer != null) {
                 writer.close();
             }
