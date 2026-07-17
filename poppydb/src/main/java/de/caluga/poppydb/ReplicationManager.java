@@ -360,12 +360,19 @@ public class ReplicationManager {
                 // than a strict insert -- the same replay-idempotency rule the
                 // initial-sync path needs (see task 8). Documents that already landed
                 // are harmlessly re-written to the same content; documents that didn't
-                // land yet get created. applyChangeEvent only advances
-                // lastAppliedSequence per event, and only on success, so events that
-                // don't conflict still get applied and correctly acknowledged, while a
+                // land yet get created. applyChangeEvent advances lastAppliedSequence per
+                // event and only on success, so it acts as a poison-skip watermark: a
                 // genuinely poison event (e.g. a real, still-unresolved unique-index
-                // conflict) fails on its own without blocking the rest of the run or
-                // falsely advancing the sequence past it.
+                // conflict) fails on its own without blocking the rest of the run, and the
+                // events that follow it in the run still apply and advance the watermark.
+                // NOTE this means a poison event that is NOT the trailing (highest-sequence)
+                // event of the run does get skipped over: a later successful event pushes
+                // lastAppliedSequence past the poison's sequence, so the poison is
+                // effectively dropped rather than retried. The "no false advance" guarantee
+                // therefore only holds for a trailing conflict; a mid-run poison is skipped.
+                // That is the intended trade-off -- we prefer forward progress and
+                // eventual convergence (the primary is the source of truth) over stalling
+                // the whole stream on one unresolved conflict.
                 for (Map<String, Object> event : events) {
                     applyChangeEvent(event, true);
                 }

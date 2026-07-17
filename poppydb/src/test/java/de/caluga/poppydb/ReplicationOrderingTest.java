@@ -296,21 +296,27 @@ public class ReplicationOrderingTest {
 
     /**
      * (b) Regression test for review issue #2 ("fallback replay can permanently stall
-     * the sequence when the bulk landed partially"): applyBulkInserts' fallback must
-     * stay correct even when the failed/partially-failed bulk command already durably
-     * wrote some of the run's documents -- its atomicity is only guaranteed for the
-     * ordered-_id-duplicate-throws-before-any-write case, not in general (a
-     * writeErrors-only partial failure, like issue #1, is a concrete counterexample).
+     * the sequence when the bulk fails after landing part of the run"): applyBulkInserts'
+     * per-event fallback must converge the run and leave the watermark at the last
+     * successfully-applied event, never at the batch max when the highest-sequence event
+     * never applied.
      *
-     * This models a run where two of three events replay against already-landed
-     * documents (harmless idempotent no-ops -- one because it's an exact resubmit, one
-     * because the bulk call itself already wrote it before reporting writeErrors for
-     * the third), and the third is a genuinely new document with a persistent
-     * unique-index conflict against a *different*, already-existing document. That
-     * conflict must fail on its own without blocking the rest of the run, converging
-     * everything else and leaving lastAppliedSequence at the last successfully-covered
-     * sequence -- not the batch max, which belongs to the event that never actually
-     * applied.
+     * Actual mechanism exercised here (verified against InMemoryDriver's behaviour): the run
+     * is [id=2 (already exists), id=3 (new), id=6 (new, but its email collides with the
+     * already-present id=5)]. When the collection has a unique SECONDARY index, InMemoryDriver
+     * does NOT throw on the run's conflicts -- it commits the non-conflicting document and
+     * returns the rest as writeErrors. So the initial bulk PARTIALLY LANDS: it durably writes
+     * id=3 (index 1) and reports writeErrors for id=2 (index 0, _id duplicate) and id=6
+     * (index 2, email unique conflict). applyBulkInserts treats any writeErrors as a whole-bulk
+     * failure and re-runs every event through the idempotent per-event fallback: id=2 and id=3
+     * become harmless upsert no-ops (both already present), while id=6's genuine, persistent
+     * unique-index conflict fails on its own without blocking the rest. Everything applicable
+     * converges and lastAppliedSequence stops at id=3's sequence (the last successfully-applied
+     * event), not id=6's (the batch max, which never applied).
+     *
+     * This is precisely the "bulk atomicity is not guaranteed in general" case: a partial
+     * writeErrors failure durably lands some of the run before failing, which is why the
+     * fallback must be an idempotent replay rather than a naive full re-insert.
      */
     @Test
     public void partiallyLandedRunConvergesAndSequenceStopsAtLastSuccess() throws Exception {
@@ -351,15 +357,15 @@ public class ReplicationOrderingTest {
             assertEquals(1, found1.size());
             assertEquals("e1@example.com", found1.get(0).get("email"));
 
-            // id=2 is unchanged (harmless self-replay, whether re-applied via the
-            // fallback or already written by the initial bulk call).
+            // id=2 is unchanged: it already existed, so the bulk reported it as a writeError
+            // (index 0) and the per-event fallback re-applied it as a harmless upsert no-op.
             List<Map<String, Object>> found2 = drv.find("testdb", "coll", Doc.of("_id", 2), null, null, 0, 10);
             assertEquals(1, found2.size());
             assertEquals("e2@example.com", found2.get(0).get("email"));
 
-            // id=3 is newly created -- written directly by the initial (partially-
-            // successful) bulk call, then safely re-applied (idempotent no-op) by the
-            // fallback replay.
+            // id=3 is present -- durably written by the initial bulk (index 1 committed while
+            // id=2 and id=6 were reported as writeErrors), then re-applied as an idempotent
+            // no-op by the fallback replay.
             List<Map<String, Object>> found3 = drv.find("testdb", "coll", Doc.of("_id", 3), null, null, 0, 10);
             assertEquals(1, found3.size());
 

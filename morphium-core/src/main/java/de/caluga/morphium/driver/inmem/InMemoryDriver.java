@@ -189,6 +189,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // Tracks changeStreamHistory.size() so the ring-buffer bound check on the hot write path does not
     // pay ConcurrentLinkedDeque.size()'s O(n) traversal (at the 100_000 PoppyDB bound that was ~200k
     // node walks per write). Maintained alongside every add/poll/removeIf/clear on the deque.
+    // Best-effort under concurrent mutation: the counter and the deque are not updated atomically, so
+    // a concurrent add/poll can transiently drift this from the deque's true size. On the PoppyDB
+    // primary all buffer mutations come from a single writer thread, and any drift is transient and
+    // self-correcting — it only loosens the eviction bound slightly and never corrupts the deque.
     private final AtomicInteger changeStreamHistorySize = new AtomicInteger();
     // Track the sequence number at the time of the last drop per namespace (db.collection or db).
     // replayHistory skips events older than this to prevent stale events from being replayed.
