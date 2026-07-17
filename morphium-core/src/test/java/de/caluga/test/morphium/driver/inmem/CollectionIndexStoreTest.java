@@ -198,8 +198,15 @@ public class CollectionIndexStoreTest {
                 () -> store.onUpdate(beforeB, docB));
         assertEquals(11000, ((Number) ex.getMongoCode()).intValue());
 
-        // must remain consistent: docB is still findable under its old key "b" (nothing was moved)
-        assertEquals(List.of(docA), store.equalityLookup("u_1", IndexKey.of(List.of("a"))));
+        // The store's actual guarantee after the throw: buckets are untouched. docB is still
+        // registered under its OLD key "b" and NOT under the new key "a" - even though the
+        // caller's in-place mutation left docB's field reading "a". Per the onUpdate contract
+        // the CALLER must now revert that mutation (or validate before mutating); the store
+        // itself cannot heal the doc-vs-bucket mismatch.
+        assertEquals(List.of(docA), store.equalityLookup("u_1", IndexKey.of(List.of("a"))),
+                "new key must hold only the pre-existing winner, not the losing doc");
+        assertEquals(List.of(docB), store.equalityLookup("u_1", IndexKey.of(List.of("b"))),
+                "losing doc must still be reachable under its old key - buckets untouched");
     }
 
     // ---------------------------------------------------------------- rangeScan / orderedScan
@@ -255,6 +262,29 @@ public class CollectionIndexStoreTest {
         Iterator<Map<String, Object>> it = store.rangeScan("a_1_b_1", from, true, to, true, false);
         List<Object> ids = collectField(it, "_id");
         assertEquals(List.of(3, 4, 2), ids, "must scan exactly the a==5 entries, ordered by b");
+    }
+
+    @Test
+    void rangeScanWithPrefixBoundsCoversDescendingTrailingField() {
+        // trailing field sorted descending (b: -1) - exercises the direction flip in
+        // IndexKey.prefixLow/prefixHigh's sentinel padding
+        CollectionIndexStore store = new CollectionIndexStore();
+        IndexDefinition def = compoundIndex("a_1_b_-1", "a", 1, "b", -1);
+        store.addIndex(def, List.of());
+
+        store.onInsert(doc(1, "a", 4, "b", 9));
+        store.onInsert(doc(2, "a", 5, "b", 1));
+        store.onInsert(doc(3, "a", 5, "b", 3));
+        store.onInsert(doc(4, "a", 5, "b", 2));
+        store.onInsert(doc(5, "a", 6, "b", 0));
+
+        IndexKey from = IndexKey.prefixLow(def, List.of(5));
+        IndexKey to = IndexKey.prefixHigh(def, List.of(5));
+
+        Iterator<Map<String, Object>> it = store.rangeScan("a_1_b_-1", from, true, to, true, false);
+        List<Object> bValues = collectField(it, "b");
+        assertEquals(List.of(3, 2, 1), bValues,
+                "must scan exactly the a==5 entries, with b in the index's descending order");
     }
 
     // ---------------------------------------------------------------- misc

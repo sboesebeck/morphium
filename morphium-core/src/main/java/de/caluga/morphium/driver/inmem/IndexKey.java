@@ -210,6 +210,9 @@ public final class IndexKey {
      * {@code rangeScan(name, IndexKey.prefixLow(def, List.of(5)), true,
      * IndexKey.prefixHigh(def, List.of(5)), true, false)} to scan every entry whose first field is
      * {@code 5}.
+     *
+     * @throws IllegalArgumentException if {@code prefixValues} has more values than {@code def}
+     *                                  has fields
      */
     public static IndexKey prefixLow(IndexDefinition def, List<Object> prefixValues) {
         return buildPrefixBound(def, prefixValues, true);
@@ -218,6 +221,9 @@ public final class IndexKey {
     /**
      * Same as {@link #prefixLow}, but builds the upper bound instead - sorts at or above every
      * real key sharing the given prefix.
+     *
+     * @throws IllegalArgumentException if {@code prefixValues} has more values than {@code def}
+     *                                  has fields
      */
     public static IndexKey prefixHigh(IndexDefinition def, List<Object> prefixValues) {
         return buildPrefixBound(def, prefixValues, false);
@@ -225,6 +231,10 @@ public final class IndexKey {
 
     private static IndexKey buildPrefixBound(IndexDefinition def, List<Object> prefixValues, boolean low) {
         List<String> fields = def.fields();
+        if (prefixValues.size() > fields.size()) {
+            throw new IllegalArgumentException("Prefix has " + prefixValues.size()
+                    + " values but the index only has " + fields.size() + " fields: " + fields);
+        }
         List<Object> values = new ArrayList<>(fields.size());
         values.addAll(prefixValues);
 

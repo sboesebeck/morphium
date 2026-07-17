@@ -266,6 +266,17 @@ public class IndexKeyTest {
     }
 
     @Test
+    void prefixBoundsRejectMorePrefixValuesThanIndexFields() {
+        Map<String, Object> indexMap = new LinkedHashMap<>();
+        indexMap.put("a", 1);
+        indexMap.put("b", 1);
+        IndexDefinition def = IndexDefinition.fromIndexMap(indexMap);
+
+        assertThrows(IllegalArgumentException.class, () -> IndexKey.prefixLow(def, List.of(1, 2, 3)));
+        assertThrows(IllegalArgumentException.class, () -> IndexKey.prefixHigh(def, List.of(1, 2, 3)));
+    }
+
+    @Test
     void directionThrowsForUnknownField() {
         IndexDefinition def = IndexDefinition.fromIndexMap(Map.of("a", 1));
         assertThrows(IllegalArgumentException.class, () -> def.direction("b"));

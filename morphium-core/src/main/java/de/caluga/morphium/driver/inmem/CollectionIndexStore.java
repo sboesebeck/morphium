@@ -138,9 +138,20 @@ public class CollectionIndexStore {
      * all. Validate-then-apply: unique keys for changed indexes are checked first, and only if
      * every check passes are any structures mutated.
      *
+     * <p><b>CALLER OBLIGATION ON FAILURE - read before wiring this into the driver.</b> When this
+     * method throws, the store's buckets are untouched: the document is still registered under its
+     * OLD keys and not under the new ones. But if the caller has already mutated the live document
+     * in place before calling (the driver's usual pattern), the doc's <em>fields</em> now carry
+     * the NEW values while the <em>index</em> still files it under the OLD keys - a mismatch the
+     * store cannot detect or heal by itself, which silently corrupts every subsequent index lookup
+     * for that document. Therefore, if {@code onUpdate} throws, the caller MUST either revert the
+     * in-place mutation of the document (restore the {@code before} state), or avoid the problem
+     * entirely by validating against the store BEFORE mutating the document. Failing to do so
+     * permanently desyncs index and data.
+     *
      * @throws MorphiumDriverException carrying MongoDB duplicate-key shape (code {@code 11000})
      *                                 if a changed key collides with a different existing document
-     *                                 in some unique index
+     *                                 in some unique index; see the caller obligation above
      */
     public void onUpdate(Map<String, Object> before, Map<String, Object> after) {
         List<IndexEntry> changedEntries = new ArrayList<>();
