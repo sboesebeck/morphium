@@ -2550,8 +2550,11 @@ public class QueryHelper {
      * then toTemporalLong (LocalDate, LocalTime), then plain Number extraction.
      * This allows comparisons between raw java.time objects (from query filters)
      * and their serialised forms (stored as Map or Long in documents).
+     *
+     * <p>Package-private so {@link IndexKey}'s comparator can share the exact same
+     * temporal normalisation instead of duplicating it.
      */
-    private static Long toTemporalNumber(Object value) {
+    static Long toTemporalNumber(Object value) {
         Long result = toEpochNanos(value);
         if (result != null) return result;
         result = toTemporalLong(value);

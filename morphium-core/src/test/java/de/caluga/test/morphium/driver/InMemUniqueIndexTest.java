@@ -57,7 +57,15 @@ public class InMemUniqueIndexTest {
             upd.execute();
             fail("Expected duplicate key enforcement on update");
         } catch (MorphiumDriverException ex) {
-            assertTrue(ex.getMessage() == null || ex.getMessage().contains("Duplicate") || ex.getCause() != null);
+            // Phase B1, Task 5: the scan-based enforceUniqueOrThrow() pre-check (message
+            // "Duplicate key for unique index: ...", capital D) that this assertion originally
+            // pinned was removed as redundant - CollectionIndexStore.onUpdate is now the sole
+            // uniqueness check for this path and throws its own MongoDB-shaped duplicate-key
+            // exception ("E11000 duplicate key error index: ...", lowercase). The functional
+            // behavior (update rejected, MorphiumDriverException thrown) is unchanged; only the
+            // message wording differs, so assert on the MongoDB-conform signal (code 11000)
+            // instead of message text.
+            assertEquals(11000, ex.getMongoCode());
         }
     }
 }

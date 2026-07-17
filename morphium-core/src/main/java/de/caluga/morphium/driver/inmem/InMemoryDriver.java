@@ -164,12 +164,48 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, Map<String, List<Map<String, Object>>>> indicesByDbCollection = new ConcurrentHashMap<>();
 
     /**
-     * Map DB->Collection->FieldNames->Keys....
+     * Read-path index usage counters (Phase B1, Task 3) - incremented once per {@code find}/
+     * {@code count} call, based on whether the final candidate selection used a
+     * {@link CollectionIndexStore}-backed {@link IndexPlanner} plan ({@code indexHits}) or fell
+     * back to a full collection scan ({@code fullScans}). Package-private for tests; seed for a
+     * later {@code explain()}. Not atomic - see {@link #getDataFromIndex} for why that's
+     * acceptable for now.
      */
-    // private final Map<String, Map<String, Map<String, Map<IndexKey,
-    // List<Map<String, Object>>>>>> indexDataByDBCollection = new
-    // ConcurrentHashMap<>();
-    private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+    long fullScans;
+    long indexHits;
+
+    /**
+     * Read-path sort counter (Phase B1, Task 6) - incremented once per {@code find} call whose
+     * {@code sort} was served directly from a {@link CollectionIndexStore} index in index order
+     * ({@link #planIndexOrderedIterator}), instead of the in-memory {@code List.sort} fallback.
+     * Independent of {@link #fullScans}/{@link #indexHits}, which continue to reflect whether the
+     * FILTER itself used an index - a sort can use the index-order fast path even when the filter
+     * fell back to a full scan (the index-order iterator then simply stands in for "every
+     * document", visited in index order instead of collection order).
+     */
+    long indexSorts;
+
+    /**
+     * One persistent {@link CollectionIndexStore} per collection ({@code db + "." + collection}),
+     * replacing Task 3's rebuild-on-miss {@code planIndexCache}/{@code collectionEpoch}. Every
+     * mutation path now maintains its collection's store incrementally
+     * ({@code onInsert}/{@code onUpdate}/{@code onRemove}) instead of invalidating a cache that
+     * gets rebuilt from scratch on the next read - see {@link #getIndexStore} for the lifecycle
+     * contract every write path must follow.
+     */
+    private final Map<String, CollectionIndexStore> indexStoreByCollection = new ConcurrentHashMap<>();
+
+    /**
+     * Counts {@link #buildIndexStore} calls - i.e. full, from-scratch {@code addIndex} rebuilds of
+     * a collection's persistent index store. Package-private test hook (Phase B1, Task 4): a
+     * healthy write-heavy workload builds a collection's store once (or a handful of times, across
+     * structural index changes / transaction commits / renames) and then only ever calls
+     * incremental {@code onInsert}/{@code onUpdate}/{@code onRemove} - this counter is how a test
+     * proves "no full rebuild per write" without reaching into {@link #indexStoreByCollection}
+     * directly.
+     */
+    long indexStoreRebuilds;
+
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final AtomicLong changeStreamSequence = new AtomicLong();
@@ -528,10 +564,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void resetData() {
         log.info("resetData() called - clearing all data. Database had {} databases", database.size());
         database.clear();
-        indexDataByDBCollection.clear();
         indicesByDbCollection.clear();
         cappedCollections.clear();
         collectionsWithTtlIndex.clear();
+        indexStoreByCollection.clear();
 
         for (var m : monitors) {
             m.signalAll();
@@ -1266,8 +1302,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // cmd.getClass().getSimpleName() + ")");
         String target = cmd.getTo();
         String origin = cmd.getColl();
-        var col = database.get(cmd.getDb()).remove(origin);
-        database.get(cmd.getDb()).put(target, col);
+        // This path historically took no locks at all. It mutates BOTH collections' document
+        // lists (origin disappears, target's list is replaced wholesale), so take both
+        // collections' write locks like every other mutation path - in a deterministic
+        // (lexicographic) order so two concurrent renames touching the same pair cannot
+        // deadlock - and invalidate both persistent index stores before releasing, so a
+        // subsequent read rebuilds rather than serving one built over the pre-rename documents.
+        //
+        // Index DEFINITIONS are not moved from origin to target (a pre-existing gap, confirmed in
+        // Task 3's review and left as-is here): the target's store rebuilds using whatever indexes
+        // are already registered under the TARGET name in indicesByDbCollection, applied to the
+        // newly-renamed-in documents. Rebuilding the target store from live docs (rather than
+        // trying to carry over origin's index definitions) is the documented, acceptable choice.
+        String first = origin.compareTo(target) <= 0 ? origin : target;
+        String second = origin.compareTo(target) <= 0 ? target : origin;
+        java.util.concurrent.locks.ReadWriteLock firstLock = getCollectionLock(cmd.getDb(), first);
+        java.util.concurrent.locks.ReadWriteLock secondLock = getCollectionLock(cmd.getDb(), second);
+        firstLock.writeLock().lock();
+        try {
+            if (!origin.equals(target)) {
+                secondLock.writeLock().lock();
+            }
+            try {
+                var col = database.get(cmd.getDb()).remove(origin);
+                database.get(cmd.getDb()).put(target, col);
+            } finally {
+                invalidateIndexStore(cmd.getDb(), origin);
+                if (!origin.equals(target)) {
+                    invalidateIndexStore(cmd.getDb(), target);
+                    secondLock.writeLock().unlock();
+                }
+            }
+        } finally {
+            firstLock.writeLock().unlock();
+        }
         int ret = commandNumber.incrementAndGet();
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "msg", "renamed " + origin + " to " + target)));
         return ret;
@@ -1799,11 +1867,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             indexesForCollection.removeAll(toRemove);
             droppedCount = toRemove.size();
-
-            // Clear index data
-            if (indexDataByDBCollection.containsKey(db) && indexDataByDBCollection.get(db).containsKey(coll)) {
-                indexDataByDBCollection.get(db).get(coll).clear();
-            }
+            // Structural index change - see createIndex()'s matching invalidateIndexStore call
+            // for why a full invalidate-and-lazily-rebuild (rather than store.removeIndex() calls
+            // here) is the chosen approach; this path pre-dates Task 4 and has never taken the
+            // collection's write lock, so mutating the store's structures directly here would not
+            // be safe against a concurrent reader.
+            invalidateIndexStore(db, coll);
 
             log.info("Dropped {} indexes from {}.{}", droppedCount, db, coll);
         } else {
@@ -1828,21 +1897,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (toRemove != null) {
                 indexesForCollection.remove(toRemove);
                 droppedCount = 1;
-
-                // Remove index data for this specific index
-                // Key fields are stored at top level (all entries except $options)
-                if (indexDataByDBCollection.containsKey(db)
-                        && indexDataByDBCollection.get(db).containsKey(coll)) {
-                    StringBuilder fields = new StringBuilder();
-                    for (var entry : toRemove.entrySet()) {
-                        if (entry.getKey().startsWith("$")) continue;  // Skip $options
-                        if (fields.length() > 0) fields.append(",");
-                        fields.append(entry.getKey());
-                    }
-                    if (fields.length() > 0) {
-                        indexDataByDBCollection.get(db).get(coll).remove(fields.toString());
-                    }
-                }
+                invalidateIndexStore(db, coll);
 
                 log.info("Dropped index {} from {}.{}", indexName, db, coll);
             } else {
@@ -2014,8 +2069,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (var idx : indexes) {
             String idxName = (String) ((Map) idx.get("$options")).get("name");
             indexDetails.put(idxName, idx);
-            long sz = VM.current().sizeOf(indexDataByDBCollection.get(cmd.getDb()).get(cmd.getColl()))
-                      + VM.current().sizeOf(idx);
+            // Used to add sizeOf(indexDataByDBCollection...) here too - that structure is no
+            // longer maintained (Task 4 stopped writing to it once nothing read it anymore after
+            // Task 3's read-path switch to CollectionIndexStore), and querying it now would NPE
+            // since the per-db/per-collection entries are never created. This is a cosmetic
+            // stats-reporting number, not a correctness-critical read.
+            long sz = VM.current().sizeOf(idx);
             indexSizes.put(idxName, sz);
             totalSize += sz;
         }
@@ -2030,6 +2089,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
         database.get(cmd.getDb()).get(cmd.getColl()).clear();
+        // Pre-existing gap, not introduced here: this path has never taken the collection's write
+        // lock. It must still invalidate the persistent index store (rather than leave it
+        // untouched), or the store would keep serving references to documents that were just
+        // physically removed - worse than doing nothing, since a persistent store never
+        // self-heals the way Task 3's rebuild-on-miss cache eventually would have.
+        invalidateIndexStore(cmd.getDb(), cmd.getColl());
         int ret = commandNumber.incrementAndGet();
         addResult(ret, prepareResult(Doc.of("ok", 1.0)));
         return ret;
@@ -2450,10 +2515,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         }
 
                         if (!toRemove.isEmpty()) {
-                            for (Map<String, Object> o : toRemove) {
-                                collectionData.remove(o);
+                            // TTL expiry mutates the collection outside the normal insert/update/
+                            // delete driver entry points, and historically did so without taking
+                            // the collection's write lock at all - safe for the old
+                            // CopyOnWriteArrayList-only removal, since COWAL tolerates lock-free
+                            // concurrent iteration/mutation by design. CollectionIndexStore is NOT
+                            // internally synchronized (see its class Javadoc) - mutating its
+                            // HashMap/TreeMap buckets here while a concurrent reader iterates them
+                            // under only a read lock would be unsafe. So this sweep now takes the
+                            // write lock like every other mutation path, purely to make the
+                            // incremental onRemove() calls below safe.
+                            java.util.concurrent.locks.ReadWriteLock ttlLock = getCollectionLock(db, coll);
+                            ttlLock.writeLock().lock();
+                            try {
+                                // Ensure the store exists BEFORE the removal below - see
+                                // getIndexStore's lifecycle contract.
+                                CollectionIndexStore indexStore = getIndexStore(db, coll);
+                                for (Map<String, Object> o : toRemove) {
+                                    collectionData.remove(o);
+                                    indexStore.onRemove(o);
+                                }
+                            } finally {
+                                ttlLock.writeLock().unlock();
                             }
-                            updateIndexData(db, coll, null);
                         }
                     } catch (Exception e) {
                         log.error("Error processing TTL for {}", key, e);
@@ -3040,7 +3124,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             lock.readLock().lock();
         }
         try {
-            List<Map<String, Object>> partialHitData = new ArrayList<>();
+            // null = no index consulted / not indexable -> caller must full-scan.
+            // non-null (possibly empty) = an index was consulted and this IS the final candidate
+            // set - see getDataFromIndex's Javadoc for why an empty result here is NOT a signal
+            // to fall back to a full scan.
+            List<Map<String, Object>> partialHitData = null;
 
             if (query == null) {
                 query = Doc.of();
@@ -3108,6 +3196,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // For $or queries, using index candidates is only safe if ALL branches can be served
                     // by an index, otherwise we would miss matches from non-indexable branches.
                     boolean allIndexable = true;
+                    List<Map<String, Object>> collected = new ArrayList<>();
+                    // A document satisfying more than one $or branch is returned - as the same live
+                    // doc reference - by each branch's index lookup; dedup by identity so it ends up
+                    // in the result exactly once, same as IndexPlanner.InUnion does for repeated $in
+                    // values (see executeIndexPlan).
+                    Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
 
                     for (Map<String, Object> subquery : m) {
                         List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
@@ -3117,27 +3211,61 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             break;
                         }
 
-                        partialHitData.addAll(dataFromIndex);
+                        for (Map<String, Object> doc : dataFromIndex) {
+                            if (seen.add(doc)) {
+                                collected.add(doc);
+                            }
+                        }
                     }
 
-                    if (!allIndexable) {
-                        partialHitData = null; // fall back to full scan for correctness
-                    }
+                    partialHitData = allIndexable ? collected : null; // null = fall back to full scan for correctness
                 }
             } else {
                 partialHitData = getDataFromIndex(db, collection, query);
             }
-            List<Map<String, Object>> data;
+            // Index-backed sort (Phase B1, Task 6): when `sort` is a prefix of some index (in
+            // matching or exactly-reversed direction) AND the filter's own plan is either a
+            // FullScan or targets that SAME index, the whole filter+sort+skip+limit dance below
+            // can be driven straight off that index's ordered/range iterator instead of copying
+            // the collection and Collections.sort-ing it - see planIndexOrderedIterator's
+            // Javadoc for the exact eligibility rule. Deliberately recomputed from `query` here
+            // (rather than reusing partialHitData) because $and/$or's elaborate per-subquery
+            // handling above has no single IndexPlan to report; IndexPlanner.plan conservatively
+            // collapses any top-level $-operator query to FullScan, which is always a safe (if
+            // occasionally less selective) choice for this eligibility check - matchesQuery below
+            // still re-validates every candidate regardless of how it was reached.
+            Iterator<Map<String, Object>> indexSortIterator = null;
+            if (sort != null && !sort.isEmpty() && QueryHelper.getCollator(collation) == null) {
+                CollectionIndexStore indexStore = getIndexStore(db, collection);
+                Collection<IndexDefinition> defs = indexStore.definitions();
+                if (defs.size() > 1) {
+                    IndexPlanner.IndexPlan filterPlan = IndexPlanner.plan(query, defs);
+                    indexSortIterator = planIndexOrderedIterator(indexStore, defs, filterPlan, sort);
+                }
+            }
 
-            if (partialHitData == null || partialHitData.isEmpty()) {
-                data = new ArrayList<>(getCollection(db, collection));
+            List<Map<String, Object>> data = null;
+
+            // The single place the null/empty distinction is encoded (see getDataFromIndex's
+            // Javadoc): null means no index was usable at all, so scan everything; a non-null
+            // (possibly empty) list means an index plan already ran and IS the final candidate
+            // set - an empty list here is a genuine "no matches", not "try again with a scan".
+            // fullScans/indexHits always reflect the FILTER's own plan (partialHitData), even when
+            // indexSortIterator below replaces WHERE the driver actually reads documents from.
+            if (partialHitData == null) {
+                fullScans++;
             } else {
-                data = partialHitData;
+                indexHits++;
+            }
+            if (indexSortIterator == null) {
+                data = partialHitData == null ? new ArrayList<>(getCollection(db, collection)) : partialHitData;
+            } else {
+                indexSorts++;
             }
             List<Map<String, Object>> ret = new ArrayList<>();
             int matched = 0;
 
-            if (sort != null) {
+            if (indexSortIterator == null && sort != null) {
                 Collator coll = QueryHelper.getCollator(collation);
                 data.sort((o1, o2) -> {
                     for (String f : sort.keySet()) {
@@ -3187,9 +3315,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 });
             }
 
-            // noinspection ForLoopReplaceableByForEach
-            for (int i = 0; i < data.size(); i++) {
-                Map<String, Object> o = data.get(i);
+            Iterator<Map<String, Object>> sourceIterator = indexSortIterator != null ? indexSortIterator : data.iterator();
+
+            while (sourceIterator.hasNext()) {
+                Map<String, Object> o = sourceIterator.next();
 
                 // Check match FIRST on original document - no copy needed for non-matches
                 if (!QueryHelper.matchesQuery(query, o, collation)) {
@@ -3567,80 +3696,251 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return new ArrayList<>();
     }
 
-    private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) {
-        List<Map<String, Object>> ret = null;
-        int bucketId = 0;
-        StringBuilder fieldList = new StringBuilder();
+    /**
+     * Returns the persistent {@link CollectionIndexStore} for {@code db.collection}, building it
+     * on first access from every currently defined non-{@code _id} index
+     * ({@link #isDefaultIdDefinition}) and the collection's current documents
+     * ({@link CollectionIndexStore#addIndex}). Once built, a store lives forever (until an
+     * invalidating structural change - see {@link #invalidateIndexStore}) and is kept in sync by
+     * every write path calling {@code onInsert}/{@code onUpdate}/{@code onRemove} on it directly,
+     * which is why - unlike Task 3's rebuild-on-miss cache - there is no epoch/version check here.
+     *
+     * <p><b>Lifecycle contract for write paths.</b> A mutation entry point MUST call this method
+     * (or otherwise be sure the store already exists) BEFORE mutating the collection's document
+     * list, THEN mutate the list, THEN apply the matching incremental operation. Fetching the
+     * store AFTER the mutation would, on the (one-time) first-touch build, scan the
+     * already-mutated documents - so the subsequent incremental call would double-apply an insert,
+     * or hand {@code onUpdate} a "before" image it never actually saw. See the write-path call
+     * sites ({@code insert}, {@code storeInternal}, {@code updateInternal}, {@code delete}, the TTL
+     * sweep) for the pattern in practice.
+     *
+     * <p>Not internally synchronized - a caller needs only the collection's READ lock to call this
+     * method for the lazy build (two racing builds under a read lock are equally valid snapshots of
+     * an unchanging, lock-protected document list, so a benign duplicate build is possible but never
+     * incorrect), but MUST hold the WRITE lock before calling any mutating
+     * {@link CollectionIndexStore} method on the object this returns.
+     */
+    /* package-private */ CollectionIndexStore getIndexStore(String db, String collection) throws MorphiumDriverException {
+        String key = db + "." + collection;
+        CollectionIndexStore existing = indexStoreByCollection.get(key);
+        if (existing != null) {
+            return existing;
+        }
+        CollectionIndexStore built = buildIndexStore(db, collection);
+        CollectionIndexStore prev = indexStoreByCollection.putIfAbsent(key, built);
+        return prev != null ? prev : built;
+    }
 
-        // Check if this is a simple equality query (no operators like $gt, $in, etc.)
-        // Operator queries have Map values, equality queries have direct values
-        boolean isSimpleEqualityQuery = true;
-        for (Object value : query.values()) {
-            if (value instanceof Map) {
-                // This is an operator query like {field: {$gt: 5}}
-                isSimpleEqualityQuery = false;
-                break;
+    private CollectionIndexStore buildIndexStore(String db, String collection) throws MorphiumDriverException {
+        indexStoreRebuilds++;
+        CollectionIndexStore store = new CollectionIndexStore();
+        List<Map<String, Object>> indexDescriptors = getIndexes(db, collection);
+        List<Map<String, Object>> docs = getCollection(db, collection);
+
+        if (indexDescriptors != null) {
+            for (Map<String, Object> descriptor : indexDescriptors) {
+                IndexDefinition def = IndexDefinition.fromIndexMap(descriptor);
+                if (isDefaultIdDefinition(def)) {
+                    continue; // the store already carries its own unique _id_ index
+                }
+                store.addIndex(def, docs);
             }
         }
 
-        // For operator queries, index bucket lookup won't work - return null to use full scan
-        if (!isSimpleEqualityQuery) {
+        // addIndex() above seeds only the SECONDARY indexes; the store's built-in unique _id_ index
+        // (the isDefaultIdDefinition skip) is created empty and, from here on, maintained only
+        // incrementally by onInsert/onUpdate/onRemove. A rebuild over an already-populated
+        // collection (createIndex/dropIndexes/rename/commit/drop all force one via
+        // invalidateIndexStore) must therefore seed the _id_ index from the current documents too -
+        // otherwise every _id equality lookup (findById, messaging's lock-then-refetch) would
+        // silently return nothing for documents that existed before the rebuild.
+        store.seedIdIndex(docs);
+
+        return store;
+    }
+
+    /**
+     * True for the default, driver-generated {@code {_id: 1}} descriptor every collection carries
+     * in {@link #getIndexes} (name {@code "_id_1"}, not unique - see {@link #getIndexes}). The
+     * {@link CollectionIndexStore} already has its own unique {@code _id_} index built in, so this
+     * redundant descriptor must be skipped when seeding a store from {@link #getIndexes}, or
+     * {@code _id} lookups would plan against two competing definitions for the same field.
+     */
+    private static boolean isDefaultIdDefinition(IndexDefinition def) {
+        return def.fields().size() == 1 && "_id".equals(def.fields().get(0));
+    }
+
+    /**
+     * Drops the persistent index store for {@code db.collection}, if any. The next
+     * {@link #getIndexStore} call rebuilds it from whatever indexes/documents exist at that point.
+     * Used for structural changes a store cannot patch incrementally: an index being added/removed,
+     * a collection/database drop, a collection rename, or a transaction commit replacing a
+     * collection's document list wholesale (see each call site's own comment for why a full rebuild
+     * is the right, and cheap-enough, answer there).
+     */
+    private void invalidateIndexStore(String db, String collection) {
+        indexStoreByCollection.remove(db + "." + collection);
+    }
+
+    /**
+     * Executes a non-{@link IndexPlanner.FullScan} plan against {@code store}, returning the
+     * candidate documents (never {@code null} - see {@link #getDataFromIndex} for the null/empty
+     * distinction). {@link IndexPlanner.InUnion} results are deduplicated by reference identity,
+     * since a repeated {@code $in} value produces the same key twice.
+     */
+    private List<Map<String, Object>> executeIndexPlan(CollectionIndexStore store, IndexPlanner.IndexPlan plan) {
+        if (plan instanceof IndexPlanner.EqualityLookup eq) {
+            return store.equalityLookup(eq.def().name(), eq.key());
+        }
+        if (plan instanceof IndexPlanner.RangeScan rs) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            Iterator<Map<String, Object>> it = store.rangeScan(rs.def().name(), rs.from(), rs.fromInclusive(),
+                    rs.to(), rs.toInclusive(), rs.descending());
+            while (it.hasNext()) {
+                result.add(it.next());
+            }
+            return result;
+        }
+        if (plan instanceof IndexPlanner.InUnion in) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (IndexKey key : in.keys()) {
+                for (Map<String, Object> doc : store.equalityLookup(in.def().name(), key)) {
+                    if (seen.add(doc)) {
+                        result.add(doc);
+                    }
+                }
+            }
+            return result;
+        }
+        // FullScan - the caller (getDataFromIndex) never invokes this method for that case, but
+        // stay defensive rather than throw.
+        return null;
+    }
+
+    /**
+     * Index-backed sort eligibility + iterator construction (Phase B1, Task 6). Tries every index
+     * definition and returns an iterator over the first one whose fields, in declaration order,
+     * cover {@code sort} as a prefix (see {@link #sortScanDirection}) AND for which {@code
+     * filterPlan} is either {@link IndexPlanner.FullScan} (no index narrowed the filter, so this
+     * index's full ordered range stands in for "every document", just visited in index order) or
+     * itself targets that very index (an {@link IndexPlanner.EqualityLookup} or
+     * {@link IndexPlanner.RangeScan} whose {@code def()} is the same object as the candidate -
+     * both are derived from the very same {@code defs} collection, so reference equality is exact,
+     * not approximate). Returns {@code null} when no index qualifies - the caller must fall back
+     * to the existing {@code List.sort} path unchanged.
+     *
+     * <p>{@link IndexPlanner.InUnion} is deliberately never fused with a sort here: a union of
+     * point lookups on possibly-scattered keys is not a single contiguous index-order range, so a
+     * candidate index only reachable via an {@code InUnion} filter plan is skipped in favor of the
+     * next candidate (or the fallback, if none qualifies) rather than mixing orders.
+     *
+     * <p>The returned iterator yields every document in the chosen index (or index range) in the
+     * exact order {@code find} must apply {@code matchesQuery} against - callers still run the
+     * full predicate per document; this method only ever narrows WHERE/WHAT ORDER documents are
+     * read from, matching the {@link IndexPlanner} candidate-prefilter invariant.
+     */
+    private Iterator<Map<String, Object>> planIndexOrderedIterator(CollectionIndexStore store,
+            Collection<IndexDefinition> defs, IndexPlanner.IndexPlan filterPlan, Map<String, Object> sort) {
+        for (IndexDefinition def : defs) {
+            Boolean descending = sortScanDirection(def, sort);
+            if (descending == null) {
+                continue;
+            }
+
+            if (filterPlan instanceof IndexPlanner.FullScan) {
+                return store.orderedScan(def.name(), descending);
+            }
+            if (filterPlan instanceof IndexPlanner.EqualityLookup eq && eq.def() == def) {
+                return store.equalityLookup(def.name(), eq.key()).iterator();
+            }
+            if (filterPlan instanceof IndexPlanner.RangeScan rs && rs.def() == def) {
+                return store.rangeScan(def.name(), rs.from(), rs.fromInclusive(), rs.to(), rs.toInclusive(), descending);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether {@code sort}'s fields, in iteration order, are a prefix of {@code def}'s fields -
+     * and if so, whether the index must be walked forward ({@code false}) or in reverse
+     * ({@code true}) to realize {@code sort}'s requested directions.
+     *
+     * <p>Every sort field must line up positionally with {@code def.fields()} starting at index 0
+     * (a genuine prefix, not an arbitrary subset), and every field's direction relationship to the
+     * index's own direction must agree across the whole prefix - either every sort field matches
+     * its index field's direction exactly (forward scan), or every one is the exact opposite
+     * (reverse scan). A mixed prefix (e.g. field 1 matches but field 2 is reversed) cannot be
+     * realized by a single directional scan of one index and returns {@code null}, same as any
+     * other disqualifying shape (sort longer than the index, a field name mismatch, or a
+     * non-1/-1 direction value).
+     *
+     * @return {@code Boolean.FALSE} for a forward (ascending index-order) scan, {@code
+     *         Boolean.TRUE} for a reverse scan, or {@code null} if {@code def} cannot serve
+     *         {@code sort} at all
+     */
+    private static Boolean sortScanDirection(IndexDefinition def, Map<String, Object> sort) {
+        List<String> indexFields = def.fields();
+        if (sort.size() > indexFields.size()) {
             return null;
         }
 
-        for (Map<String, Object> idx : getIndexes(db, collection)) {
-            if (idx.size() > query.size()) {
-                continue;
-            } // index has more fields
-
-            boolean found = true;
-            // values.clear();
-            bucketId = 0;
-            fieldList.setLength(0);
-
-            for (String k : query.keySet()) {
-                if (!idx.containsKey(k)) {
-                    found = false;
-                    break;
-                }
-
-                Object value = query.get(k);
-                bucketId = iterateBucketId(bucketId, value);
-                fieldList.append(k);
+        Integer relation = null; // +1: sort direction matches the index's own direction; -1: exact reverse
+        int i = 0;
+        for (Map.Entry<String, Object> e : sort.entrySet()) {
+            if (!indexFields.get(i).equals(e.getKey())) {
+                return null;
+            }
+            if (!(e.getValue() instanceof Number)) {
+                return null;
+            }
+            int sortDir = ((Number) e.getValue()).intValue();
+            if (sortDir != 1 && sortDir != -1) {
+                return null;
             }
 
-            if (found) {
-                // all keys in this index are found in query
-                String fields = fieldList.toString();
-                Map<Integer, List<Map<String, Object>>> indexDataForCollection = getIndexDataForCollection(db,
-                    collection, fields);
-                ret = indexDataForCollection.get(bucketId);
-                if (ret != null && ret.size() > 0) {
-                    // Direct bucket hit - for simple equality queries, filter by exact value match
-                    // This handles hash collisions without full matchesQuery overhead
-                    List<Map<String, Object>> filtered = new ArrayList<>();
-                    for (Map<String, Object> doc : ret) {
-                        boolean matches = true;
-                        for (Map.Entry<String, Object> qe : query.entrySet()) {
-                            Object docVal = doc.get(qe.getKey());
-                            Object queryVal = qe.getValue();
-                            if (!Objects.equals(docVal, queryVal)) {
-                                matches = false;
-                                break;
-                            }
-                        }
-                        if (matches) {
-                            filtered.add(doc);
-                        }
-                    }
-                    ret = filtered.isEmpty() ? null : filtered;
-                } else {
-                    ret = null;
-                }
-                break;
+            int indexDir = def.direction(indexFields.get(i));
+            int rel = (sortDir == indexDir) ? 1 : -1;
+            if (relation == null) {
+                relation = rel;
+            } else if (!relation.equals(rel)) {
+                return null;
             }
+            i++;
         }
-        return ret;
+        return relation != null && relation == -1;
+    }
+
+    /**
+     * Candidate selection for {@code find}/{@code count}: consults the collection's persistent
+     * {@link CollectionIndexStore} (see {@link #getIndexStore} - built once, then maintained
+     * incrementally by every write path, never rebuilt here) and plans {@code query} via
+     * {@link IndexPlanner} against its definitions. Only for a non-{@link IndexPlanner.FullScan}
+     * plan does this actually execute against the store's data.
+     *
+     * <p><b>The single place the null/empty distinction is encoded</b> (per the invariant
+     * documented on {@link IndexPlanner}): this method returns {@code null} to mean "no index
+     * available - the caller must scan the whole collection", and a possibly-<em>empty</em>
+     * non-null {@link List} to mean "an index was consulted and this is the full, correct
+     * candidate set" - including the empty list, which callers must treat as the final (empty)
+     * result and must NOT reinterpret as "index couldn't help, fall back to a full scan". That
+     * reinterpretation was the driver's original bug: a plan result is a conservative prefilter
+     * (see {@link IndexPlanner}'s class Javadoc), so an empty prefilter can only mean the true
+     * result is also empty - scanning the rest of the collection could never find more.
+     */
+    private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) throws MorphiumDriverException {
+        CollectionIndexStore store = getIndexStore(db, collection);
+        Collection<IndexDefinition> defs = store.definitions();
+        if (defs.size() <= 1) {
+            return null; // only the default _id index exists - never worth planning
+        }
+
+        IndexPlanner.IndexPlan plan = IndexPlanner.plan(query, defs);
+        if (plan instanceof IndexPlanner.FullScan) {
+            return null;
+        }
+
+        return executeIndexPlan(store, plan);
     }
 
     public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp)
@@ -3649,11 +3949,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.readLock().lock();
         try {
-            List<Map<String, Object>> data = getCollection(db, collection);
-
-            if (query.isEmpty()) {
-                return data.size();
+            if (query == null || query.isEmpty()) {
+                // Consistent with find(): an empty query counts as a full scan (even though
+                // size() is O(1) here, the counter tracks "no index consulted", not cost).
+                fullScans++;
+                return getCollection(db, collection).size();
             }
+
+            // Same null/empty candidate-selection reasoning as find() - see getDataFromIndex's
+            // Javadoc: null means scan everything, a non-null (possibly empty) list is already
+            // the final candidate set.
+            List<Map<String, Object>> candidates = getDataFromIndex(db, collection, query);
+            List<Map<String, Object>> data;
+            if (candidates == null) {
+                data = getCollection(db, collection);
+                fullScans++;
+            } else {
+                data = candidates;
+                indexHits++;
+            }
+
             long cnt = 0;
 
             for (Map<String, Object> o : data) {
@@ -3713,16 +4028,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.readLock().unlock();
         }
-    }
-
-    // public Map<IndexKey, List<Map<String, Object>>>
-    // getIndexDataForCollection(String db, String collection, String fields) {
-    public Map<Integer, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection,
-            String fields) {
-        indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
-        indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-        indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new HashMap<>());
-        return indexDataByDBCollection.get(db).get(collection).get(fields);
     }
 
     @SuppressWarnings("unchecked")
@@ -3798,6 +4103,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // Get collection once and create snapshot for duplicate checking
             var collectionData = getCollection(db, collection);
+            // Fetch/build the persistent index store BEFORE any mutation of collectionData below -
+            // see getIndexStore's lifecycle contract: a first-touch build must see the pre-insert
+            // document list, or the later onInsert calls would double-count the new docs.
+            CollectionIndexStore indexStore = getIndexStore(db, collection);
 
             // Build HashSet of existing _ids for O(1) lookup instead of O(N) nested loop
             Set<Object> existingIds = new HashSet<>();
@@ -3828,14 +4137,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             objs.removeAll(idDuplicates);
             // collectionData already retrieved above
+            // Capped collections may evict existing documents to make room for the incoming
+            // batch - those evictions must be reflected in the index store too, or evicted docs
+            // would keep "existing" forever from an index-backed find/count's point of view.
+            List<Map<String, Object>> evicted = new ArrayList<>();
             if (cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(collection)) {
                 while (!collectionData.isEmpty() && cappedCollections.get(db).get(collection).containsKey("max")
                         && cappedCollections.get(db).get(collection).get("max") < collectionData.size() + objs.size()) {
-                    collectionData.remove(0);
+                    evicted.add(collectionData.remove(0));
                 }
                 while (collectionData.size() > 0 && cappedCollections.get(db).get(collection)
                         .get("size") < VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs)) {
-                    collectionData.remove(0);
+                    evicted.add(collectionData.remove(0));
                 }
 
                 while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("max")
@@ -3849,37 +4162,46 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     objs.remove(0);
                 }
             }
-            collectionData.addAll(objs);
 
-            for (int i = 0; i < objs.size(); i++) {
-                Map<String, Object> o = objs.get(i);
-                List<Map<String, Object>> idx = indexes;
-                // Ensure index data structures exist before accessing them
-                indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
-                indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-                Map<String, Map<Integer, List<Map<String, Object>>>> indexData = indexDataByDBCollection.get(db)
-                    .get(collection);
-
-                for (Map<String, Object> ix : idx) {
-                    int bucketId = 0;
-                    StringBuilder fieldNames = new StringBuilder();
-
-                    for (String k : ix.keySet()) {
-                        bucketId = iterateBucketId(bucketId, o.get(k));
-                        fieldNames.append(k);
-                    }
-
-                    String fn = fieldNames.toString();
-                    indexData.putIfAbsent(fn, new HashMap<>());
-                    indexData.get(fn).putIfAbsent(bucketId, new ArrayList<>());
-                    indexData.get(fn).get(bucketId).add(o);
-                }
-                // _id index
-                int buckedId = iterateBucketId(0, o.get("_id"));
-                indexData.putIfAbsent("_id", new HashMap<>());
-                indexData.get("_id").putIfAbsent(buckedId, new ArrayList<>());
-                indexData.get("_id").get(buckedId).add(o);
+            // Incremental index maintenance (Phase B1, Task 4) - replaces the old full
+            // indexDataByDBCollection bucket population. Evictions first, then the new docs, one
+            // at a time in lockstep with the physical add so a thrown unique-key violation never
+            // leaves collectionData and the index store out of sync (see getIndexStore's
+            // lifecycle contract).
+            for (Map<String, Object> ev : evicted) {
+                indexStore.onRemove(ev);
             }
+
+            // Intra-batch unique-key collisions (Phase B1, Task 5): the two pre-checks above only
+            // catch a duplicate against an already-COMMITTED document; a duplicate _id or unique
+            // secondary-index value between two documents newly arriving in THIS SAME batch only
+            // surfaces here, when the second occurrence's onInsert sees the first occurrence's
+            // freshly-added index entry. This must mirror the committed-conflict pre-check's
+            // writeErrors+skip semantics, not throw - an uncaught throw here would both silently
+            // drop every writeError already accumulated above and (for ordered:true) abandon the
+            // per-doc atomicity the store already guarantees. ordered:true stops at the first
+            // failure (earlier docs stay persisted, later docs are never even attempted, matching
+            // MongoDB); ordered:false keeps going and only the offending doc is skipped.
+            List<Map<String, Object>> insertedDocs = new ArrayList<>(objs.size());
+            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
+                Map<String, Object> o = objs.get(objIdx);
+                try {
+                    indexStore.onInsert(o);
+                } catch (MorphiumDriverException ex) {
+                    writeErrors.add(Doc.of(
+                        "index", objIdx,
+                        "code", ex.getMongoCode() == null ? 11000 : ex.getMongoCode(),
+                        "errmsg", ex.getMessage()
+                    ));
+                    if (ordered) {
+                        break;
+                    }
+                    continue;
+                }
+                collectionData.add(o);
+                insertedDocs.add(o);
+            }
+            objs = insertedDocs;
 
         } finally {
             lock.writeLock().unlock();
@@ -3893,14 +4215,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return writeErrors;
-    }
-
-    private Integer iterateBucketId(int bucketId, Object o) {
-        if (o == null) {
-            return bucketId + 1;
-        }
-
-        return (bucketId + o.hashCode());
     }
 
     private static boolean truthy(Object v) {
@@ -3967,12 +4281,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int upd = 0;
         int inserted = 0;
         int total = objs.size();
+        // Ensure the store exists before any of the mutations below - see getIndexStore's
+        // lifecycle contract (a first-touch build must see the pre-mutation document list).
+        CollectionIndexStore indexStore = getIndexStore(db, collection);
 
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
                 o.put("_id", new MorphiumId());
-                // enforce unique indexes before insert
-                enforceUniqueOrThrow(db, collection, o);
+                // Unique enforcement (Phase B1, Task 5): CollectionIndexStore.onInsert is the
+                // single source of truth for uniqueness now - it already throws a MongoDB-shaped
+                // duplicate-key exception, so the old separate enforceUniqueOrThrow() scan-based
+                // pre-check (removed) was pure redundant work.
+                indexStore.onInsert(o);
                 getCollection(db, collection).add(o);
                 pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
                 inserted++;
@@ -3985,37 +4305,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // and shallowCopyAndNormalizeDocument in notifyWatchers will copy it
                 Map<String, Object> previous = srch.get(0);
                 getCollection(db, collection).remove(previous);
-                // enforce unique indexes before replacing
-                enforceUniqueOrThrow(db, collection, o);
+                // "o" is a brand new Map instance, not the same live reference as "previous" -
+                // this is a replace-by-_id, not an in-place mutation, so the store must see it
+                // as a remove-then-insert (CollectionIndexStore.onUpdate assumes "after" is the
+                // very same object already referenced by its buckets, which does not hold here).
+                indexStore.onRemove(previous);
+                indexStore.onInsert(o);
                 upd++;
                 pendingNotifications.add(new PendingNotification(db, collection, "replace", o, null, null, previous));
             } else {
-                // unique check for insert
-                enforceUniqueOrThrow(db, collection, o);
+                indexStore.onInsert(o);
                 pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
                 inserted++;
             }
             getCollection(db, collection).add(o);
-            List<Map<String, Object>> idx = getIndexes(db, collection);
-            // Map<String, Object> indexValues = new HashMap<>();
-            int bucketId = 0;
-            StringBuilder fields = new StringBuilder();
-
-            for (Map<String, Object> i : idx) {
-                for (String k : i.keySet()) {
-                    // indexValues.put(k, o.get(k));
-                    bucketId = iterateBucketId(bucketId, o.get(k));
-                    fields.append(k);
-                }
-
-                // IndexKey key = new IndexKey(indexValues);
-                indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
-                indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-                indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields.toString(), new HashMap<>());
-                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).putIfAbsent(bucketId,
-                                       new ArrayList<>());
-                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).get(bucketId).add(o);
-            }
         }
 
         ret.put("matched", upd);
@@ -4493,6 +4796,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // Check if this is a replacement document (no $ operators) vs an update document (has $ operators)
             boolean isReplacement = op.keySet().stream().noneMatch(k -> k.startsWith("$"));
+            // Fetch/build the store BEFORE any obj below gets mutated in place - see
+            // getIndexStore's lifecycle contract. The upsert-insert path does not need this: its
+            // physical insert happens later via storeInternal(), which fetches/maintains the same
+            // (keyed by db+"."+collection) store itself.
+            CollectionIndexStore indexStore = getIndexStore(db, collection);
 
             for (Map<String, Object> obj : lst) {
                 // keep a deep copy to detect if the object actually changed
@@ -4513,6 +4821,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     if (!obj.equals(original)) {
                         modified.add(obj.get("_id"));
                         modifiedCount++;
+                    }
+
+                    if (!insert) {
+                        // Keep the index store in sync with the in-place replacement. NOTE: this
+                        // branch previously ran NO uniqueness validation at all on a full-document
+                        // replace - a pre-existing gap. CollectionIndexStore.onUpdate enforces
+                        // uniqueness as an inherent part of its contract, so wiring it in here
+                        // (required to keep indexes correct - skipping it would leave the store
+                        // permanently stale for every replaced document) also newly rejects a
+                        // replace that violates a unique index, where it previously silently
+                        // succeeded. This is a deliberate, flagged behavior change - see the Task 4
+                        // report - not a silent Task 5 unique-semantics redesign. (The sibling
+                        // $-operator branch below used to run a separate, now-removed
+                        // enforceUniqueOrThrow() pre-check; both branches now rely solely on the
+                        // store, which is the single source of truth for uniqueness - Task 5.)
+                        try {
+                            indexStore.onUpdate(original, obj);
+                        } catch (MorphiumDriverException ex) {
+                            obj.clear();
+                            obj.putAll(original);
+                            throw ex;
+                        }
                     }
                     continue;  // Skip to next document, no need to process as update operators
                 }
@@ -4926,9 +5256,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
 
                 if (!insert) {
-                    // enforce uniqueness after modification; rollback if violation
+                    // Enforce uniqueness after modification; rollback if violation. "obj" was
+                    // mutated in place above (same live reference the store's buckets already
+                    // hold), so this is exactly the onUpdate(before, after) shape the store
+                    // expects - onUpdate is the sole uniqueness check here (Phase B1, Task 5;
+                    // the old separate enforceUniqueOrThrow() scan-based pre-check was removed
+                    // as redundant). onUpdate's own CALLER OBLIGATION ON FAILURE (see
+                    // CollectionIndexStore.onUpdate's Javadoc) requires reverting the in-place
+                    // mutation if it throws, which the catch below does.
                     try {
-                        enforceUniqueOrThrow(db, collection, obj);
+                        indexStore.onUpdate(original, obj);
                     } catch (MorphiumDriverException ex) {
                         // rollback
                         obj.clear();
@@ -4953,8 +5290,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 }
             }
-            indexDataByDBCollection.get(db).remove(collection);
-            updateIndexData(db, collection, null);
             Doc res = Doc.of("n", (Object) matchedCount, "nModified", modifiedCount, "modified", modifiedCount);
             if (!upsertedIds.isEmpty()) {
                 res.put("upsertedIds", upsertedIds);
@@ -5843,6 +6178,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             List<Map<String, Object>> collectionData = getCollection(db, collection);
+            // Ensure the store exists BEFORE the removal below - see getIndexStore's lifecycle
+            // contract.
+            CollectionIndexStore indexStore = getIndexStore(db, collection);
             List<Map<String, Object>> deletedDocs = new ArrayList<>(toDel.size());
 
             // Find documents to delete (CopyOnWriteArrayList doesn't support Iterator.remove)
@@ -5863,34 +6201,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             int deleted = deletedDocs.size();
             if (deleted > 0) {
                 collectionData.removeAll(deletedDocs);
-            }
-
-            // Clean up index data in batch
-            if (deleted > 0 && indexDataByDBCollection.containsKey(db)
-                    && indexDataByDBCollection.get(db).containsKey(collection)) {
-                // Rebuild the ID set for index cleanup
-                Set<Object> deletedIds = new HashSet<>(deleted);
+                // Incremental index maintenance (Phase B1, Task 4) - replaces the old
+                // indexDataByDBCollection bucket cleanup.
                 for (Map<String, Object> doc : deletedDocs) {
-                    Object id = doc.get("_id");
-                    deletedIds.add(id instanceof ObjectId || id instanceof MorphiumId ? id.toString() : id);
-                }
-
-                for (String keys : indexDataByDBCollection.get(db).get(collection).keySet()) {
-                    Map<Integer, List<Map<String, Object>>> indexData = indexDataByDBCollection.get(db).get(collection).get(keys);
-                    if (indexData != null) {
-                        for (List<Map<String, Object>> bucket : indexData.values()) {
-                            // Collect items to remove (bucket might be ArrayList, so Iterator.remove is safe)
-                            List<Map<String, Object>> toRemove = new ArrayList<>();
-                            for (Map<String, Object> obj : bucket) {
-                                Object objId = obj.get("_id");
-                                Object lookupId = objId instanceof ObjectId || objId instanceof MorphiumId ? objId.toString() : objId;
-                                if (deletedIds.contains(lookupId)) {
-                                    toRemove.add(obj);
-                                }
-                            }
-                            bucket.removeAll(toRemove);
-                        }
-                    }
+                    indexStore.onRemove(doc);
                 }
             }
 
@@ -5932,10 +6246,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             markCollectionTouched(db, collection);
             getDB(db).remove(collection);
 
-            if (indexDataByDBCollection.containsKey(db)) {
-                indexDataByDBCollection.get(db).remove(collection);
-            }
-
             if (indicesByDbCollection.containsKey(db)) {
                 indicesByDbCollection.get(db).remove(collection);
             }
@@ -5943,6 +6253,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Remove from TTL tracking
             collectionsWithTtlIndex.remove(db + "." + collection);
         } finally {
+            // The collection is gone: drop its persistent index store outright rather than
+            // leaving a dead entry around forever. The next getIndexStore() call for this
+            // collection (re-created or not) rebuilds from scratch.
+            invalidateIndexStore(db, collection);
             lock.writeLock().unlock();
         }
         // Purge history for this collection BEFORE advancing the sequence counter.
@@ -5978,13 +6292,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public synchronized void drop(String db, WriteConcern wc) {
         database.remove(db);
 
-        if (indexDataByDBCollection.containsKey(db)) {
-            indexDataByDBCollection.remove(db);
-        }
-
         if (indicesByDbCollection.containsKey(db)) {
             indicesByDbCollection.remove(db);
         }
+
+        String dbPrefix = db + ".";
+        indexStoreByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
 
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db, dropBoundary);
@@ -6186,47 +6499,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
         return textFields;
-    }
-
-    @SuppressWarnings("unchecked")
-    private void enforceUniqueOrThrow(String db, String collection, Map<String, Object> doc)
-    throws MorphiumDriverException {
-        List<Map<String, Object>> indexes = getIndexes(db, collection);
-        if (indexes == null)
-            return;
-        for (var idx : indexes) {
-            Object opt = idx.get("$options");
-            if (!(opt instanceof Map))
-                continue;
-            Map<String, Object> options = (Map<String, Object>) opt;
-            if (!Boolean.TRUE.equals(options.get("unique")) && !(options.get("unique") instanceof String
-                    && "true".equalsIgnoreCase((String) options.get("unique")))) {
-                continue;
-            }
-            // build equality query for all index keys present in doc
-            Doc q = new Doc();
-            boolean hasAll = true;
-            for (var e : idx.entrySet()) {
-                if (e.getKey().startsWith("$"))
-                    continue;
-                Object v = doc.get(e.getKey());
-                if (v == null) {
-                    hasAll = false;
-                    break;
-                }
-                q.put(e.getKey(), v);
-            }
-            if (!hasAll || q.isEmpty())
-                continue;
-            List<Map<String, Object>> matches = find(db, collection, q, null, null, 0, 0);
-            for (var m : matches) {
-                Object mid = m.get("_id");
-                Object did = doc.get("_id");
-                if (did == null || mid == null || !mid.toString().equals(did.toString())) {
-                    throw new MorphiumDriverException("Duplicate key for unique index: " + options.get("name"), null);
-                }
-            }
-        }
     }
 
     public List<String> getCollectionNames(String db) {
@@ -6657,44 +6929,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        updateIndexData(db, collection, options);
-    }
-
-    private void updateIndexData(String db, String collection, Map<String, Object> options)
-    throws MorphiumDriverException {
-        // TODO: deal with options!
-        StringBuilder b = new StringBuilder();
-        indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
-        indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-
-        // Build new index data structure instead of clearing (to avoid race conditions)
-        Map<String, Map<Integer, List<Map<String, Object>>>> newIndexData = new ConcurrentHashMap<>();
-
-        for (Map<String, Object> doc : getCollection(db, collection)) {
-            for (Map<String, Object> idx : getIndexes(db, collection)) {
-                b.setLength(0);
-                int bucketId = 0;
-
-                for (String k : idx.keySet()) {
-                    if (k.equals("$options")) {
-                        continue;
-                    }
-
-                    bucketId = iterateBucketId(bucketId, doc.get(k));
-                    b.append(k);
-                }
-
-                String fieldKey = b.toString();
-                newIndexData.putIfAbsent(fieldKey, new ConcurrentHashMap<>());
-                Map<Integer, List<Map<String, Object>>> index = newIndexData.get(fieldKey);
-                // Use ArrayList for better write performance - collection lock provides thread safety
-                index.putIfAbsent(bucketId, new ArrayList<>());
-                index.get(bucketId).add(doc);
-            }
-        }
-
-        // Atomically replace the old index data with the new one
-        indexDataByDBCollection.get(db).put(collection, newIndexData);
+        // The legacy indexDataByDBCollection bucket structure (and updateIndexData/
+        // getIndexDataForCollection/iterateBucketId, which only ever maintained or read it) used to
+        // be rebuilt here. Removed in Phase B1 Task 7: nothing read it anymore after Task 3's
+        // read-path switch to CollectionIndexStore (CollStatsCommand's cosmetic sizeOf() reporting
+        // was the last reader, migrated off it in Task 4).
+        // getCollection() is still called - not for its (unused) return value, but for its side
+        // effect of materializing the collection's (possibly still-empty) document list, matching
+        // MongoDB's "creating an index also creates the collection" behavior.
+        getCollection(db, collection);
+        // A structural index change invalidates the persistent index store outright (rather than
+        // trying to patch it in place) - see getIndexStore's Javadoc. The next read/write rebuilds
+        // it from the now-current index definitions and the collection's current documents.
+        invalidateIndexStore(db, collection);
     }
 
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing)
@@ -6958,9 +7205,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     if (database.containsKey(dbName)) {
                         database.get(dbName).remove(collName);
                     }
-                    if (indexDataByDBCollection.containsKey(dbName)) {
-                        indexDataByDBCollection.get(dbName).remove(collName);
-                    }
                     if (indicesByDbCollection.containsKey(dbName)) {
                         indicesByDbCollection.get(dbName).remove(collName);
                     }
@@ -6968,14 +7212,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 } else {
                     database.putIfAbsent(dbName, new ConcurrentHashMap<>());
                     database.get(dbName).put(collName, snapDb.get(collName));
-                    try {
-                        // Rebuild only this collection's index data to reflect the committed dataset.
-                        updateIndexData(dbName, collName, null);
-                    } catch (Exception e) {
-                        // swallow to avoid breaking commit; indexes will be lazily rebuilt
-                    }
                 }
             } finally {
+                // The transaction replaced (or removed) this collection's whole document list, so
+                // any prior incremental maintenance on its persistent index store no longer applies
+                // - invalidate rather than try to diff the pre- and post-commit states. The next
+                // getIndexStore() call rebuilds it in one addIndex-style bulk pass over the
+                // now-committed documents. Transactions are rare, so this full rebuild (same cost
+                // as the store's very first lazy build) is acceptable here even though every other
+                // write path now maintains its store incrementally.
+                invalidateIndexStore(dbName, collName);
                 lock.writeLock().unlock();
             }
         }
