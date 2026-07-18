@@ -94,6 +94,40 @@ public class InMemTransactionIsolationTest {
         }
     }
 
+    /**
+     * Twin entry point for whole-DB drop: {@code drop(String, WriteConcern)} is independently
+     * public and directly callable (not only reachable via DropDatabaseMongoCommand's runCommand
+     * dispatch) - e.g. CanResumeChangeStreamDropTest calls {@code drv.drop(db, null)} directly,
+     * and InMemAggregator casts to InMemoryDriver and calls it too. It must carry the identical
+     * guard as the wire-command path above, since both are independently reachable and either one
+     * left unguarded would let a caller silently corrupt the transaction snapshot.
+     */
+    @Test
+    void directDropMethodInsideTransactionThrowsDataIntactAndTransactionStaysUsable() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        try {
+            drv.store("testdb", "txcoll", List.of(Doc.of("_id", 1, "v", "before")), null);
+
+            drv.startTransaction(false);
+            MorphiumDriverException ex = assertThrows(MorphiumDriverException.class, () -> drv.drop("testdb", null));
+            assertTrue(ex.getMessage().toLowerCase().contains("dropdatabase"), "message should name the operation: " + ex.getMessage());
+            assertTrue(ex.getMessage().toLowerCase().contains("transaction"), "message should mention transaction: " + ex.getMessage());
+
+            // data intact immediately after the throw, still inside the (unaborted) transaction
+            assertEquals(1, drv.find("testdb", "txcoll", Doc.of(), null, null, 0, 0).size());
+
+            // transaction context is not corrupted: a subsequent write in the SAME transaction works
+            drv.store("testdb", "txcoll", List.of(Doc.of("_id", 2, "v", "tx-write")), null);
+            drv.commitTransaction();
+
+            // commit succeeded and both original + post-rejection write are visible
+            assertEquals(2, drv.find("testdb", "txcoll", Doc.of(), null, null, 0, 0).size());
+        } finally {
+            drv.shutdown(true);
+        }
+    }
+
     @Test
     void renameCollectionInsideTransactionThrowsDataIntactAndTransactionStaysUsable() throws Exception {
         InMemoryDriver drv = new InMemoryDriver();

@@ -6922,6 +6922,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public synchronized void drop(String db, WriteConcern wc) {
+        // This is a second, independently-reachable public entry point for whole-DB drop -
+        // callable directly (not only via DropDatabaseMongoCommand's runCommand dispatch), e.g.
+        // CanResumeChangeStreamDropTest calls drv.drop(db, null) directly, and InMemAggregator
+        // casts to InMemoryDriver and calls it too. It mutates `database` directly, invisible to
+        // a transaction's snapshot, exactly like the wire-command path guarded above - so it
+        // needs the identical guard, checked first, before any mutation.
+        if (isTransactionInProgress()) {
+            throw new MorphiumDriverException("dropDatabase not supported inside a transaction");
+        }
         database.remove(db);
 
         if (indicesByDbCollection.containsKey(db)) {
