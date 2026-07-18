@@ -796,6 +796,19 @@ public class SingleMongoConnection implements MongoConnection {
             long cursorId = Long.parseLong(cursor.get("id").toString());
             command.setMetaData("cursor", cursorId);
 
+            // PoppyDB-specific, best-effort: some servers (PoppyDB primaries) piggyback their
+            // current change-stream sequence on the initial aggregate response, following the
+            // same convention as the "poppyResumeSequence" resumeAfter marker. A real MongoDB
+            // server never sends this field, so it is simply absent there. Stash it as generic
+            // command metadata (same mechanism as "cursor"/"server" above) so callers with access
+            // to this command instance - e.g. a registrationCallback - can read the primary's
+            // sequence at the exact moment the watch was established, without widening the
+            // registrationCallback's Runnable signature.
+            Object primarySequence = reply.getFirstDoc().get("poppyPrimarySequence");
+            if (primarySequence != null) {
+                command.setMetaData("poppyPrimarySequence", primarySequence);
+            }
+
             // Call registration callback once the watch cursor is established
             // This signals to ChangeStreamMonitor that the watch is ready to receive events
             if (!registrationCallbackCalled && command.getRegistrationCallback() != null) {

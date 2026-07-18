@@ -28,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
@@ -104,65 +103,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // Track cursors created by this channel so we can kill them on disconnect
     private final Set<Long> channelCursors = ConcurrentHashMap.newKeySet();
 
-    // Server-side find cursors: cursorId → remaining documents + metadata
-    private static final AtomicLong FIND_CURSOR_SEQ = new AtomicLong(1_000_000);
-    private static final ConcurrentHashMap<Long, FindCursorState> findCursors = new ConcurrentHashMap<>();
-
-    /**
-     * A server-side find cursor no longer pins the full (possibly huge) result remainder in
-     * memory. Instead it retains a bounded window of at most {@code MAX_RETAINED_BATCHES ×
-     * batchSize} documents, plus the query/sort/projection and a skip offset. When the window
-     * drains, {@link #refillFindCursorWindow} RE-EXECUTES the find with an advanced skip/limit
-     * to fetch the next window (see brief for the rationale: the InMemoryDriver itself only
-     * returns full lists, so a truly lazy driver-level cursor is out of scope here — this is
-     * the pragmatic bound at the handler level).
-     *
-     * <p>Correctness caveat: because each refill is a fresh query rather than a continuation of
-     * a stable snapshot, concurrent writes between getMore calls can shift the skip window —
-     * documents inserted/deleted ahead of the cursor's position can cause a later window to
-     * skip or (rarely) repeat documents. This mirrors MongoDB's own cursor semantics on
-     * unclustered collections, which are likewise not snapshot-isolated against concurrent
-     * writes; it is not a new weakness introduced by bounding retention.
-     */
-    private static class FindCursorState {
-        final String db;
-        final String collection;
-        final Map<String, Object> filter;
-        final Map<String, Object> sort;
-        final Map<String, Object> projection;
-        final int batchSize;
-        // true if the original find had a positive (non-zero) limit; caps how many more
-        // documents may ever be pulled in via refills, independent of what's left to match.
-        final boolean hasLimit;
-        // Bounded window of not-yet-delivered documents, refilled on demand. Never exceeds
-        // MAX_RETAINED_BATCHES * batchSize documents.
-        final List<Map<String, Object>> remaining;
-        // Offset to resume the query from on the next refill.
-        int nextSkip;
-        // Remaining document budget when hasLimit is true; refills stop once this hits zero.
-        int remainingLimit;
-        volatile long lastAccessed;
-
-        FindCursorState(String db, String collection, Map<String, Object> filter, Map<String, Object> sort,
-                         Map<String, Object> projection, List<Map<String, Object>> remaining, int batchSize,
-                         int nextSkip, boolean hasLimit, int remainingLimit) {
-            this.db = db;
-            this.collection = collection;
-            this.filter = filter;
-            this.sort = sort;
-            this.projection = projection;
-            this.remaining = remaining;
-            this.batchSize = batchSize;
-            this.nextSkip = nextSkip;
-            this.hasLimit = hasLimit;
-            this.remainingLimit = remainingLimit;
-            this.lastAccessed = System.currentTimeMillis();
-        }
-    }
-
-    /** Idle time after which an unexhausted find cursor is reaped (MongoDB default cursorTimeoutMillis = 10 min). */
-    private static final long FIND_CURSOR_TTL_MS = 10 * 60 * 1000L;
-
     /**
      * Default retained-window size, expressed as a multiple of the client's batchSize. A cursor
      * never retains more than {@code MAX_RETAINED_BATCHES × batchSize} documents at once —
@@ -171,53 +111,16 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      */
     private static final int MAX_RETAINED_BATCHES = 10;
 
-    // Single shared daemon thread that reaps idle find cursors. There is no pre-existing
-    // server-wide scheduler reachable from this static context, so a dedicated one is used.
-    private static final java.util.concurrent.ScheduledExecutorService CURSOR_SWEEPER =
-            Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "PoppyDB-cursor-sweeper");
-                t.setDaemon(true);
-                return t;
-            });
-
-    static {
-        CURSOR_SWEEPER.scheduleWithFixedDelay(MongoCommandHandler::sweepIdleFindCursors,
-                1, 1, java.util.concurrent.TimeUnit.MINUTES);
-    }
-
-    private static void sweepIdleFindCursors() {
-        long cutoff = System.currentTimeMillis() - FIND_CURSOR_TTL_MS;
-        int removed = 0;
-        for (var e : findCursors.entrySet()) {
-            if (e.getValue().lastAccessed < cutoff && findCursors.remove(e.getKey(), e.getValue())) {
-                removed++;
-            }
-        }
-        if (removed > 0) {
-            log.debug("Cursor sweeper reaped {} idle find cursor(s)", removed);
-        }
-    }
-
-    /** Test/monitoring hook: number of currently open server-side find cursors (across all channels). */
-    public static int openFindCursors() {
-        return findCursors.size();
-    }
-
-    /**
-     * Test/monitoring hook: number of documents currently retained in memory for a server-side
-     * find cursor's bounded window (never the full remainder — see {@link FindCursorState}).
-     * Returns -1 if no such cursor is open. Public (rather than package-private) because the
-     * test that exercises it, {@code CursorLifecycleTest}, lives in a different package
-     * ({@code de.caluga.test.poppydb}); this mirrors the existing {@link #openFindCursors()}
-     * hook's visibility.
-     */
-    public static int retainedFindCursorDocs(long cursorId) {
-        FindCursorState state = findCursors.get(cursorId);
-        return state == null ? -1 : state.remaining.size();
-    }
+    // Server-side find cursors are owned per PoppyDB instance via findCursorRegistry (see
+    // field below) — NOT JVM-static. A JVM-static map/sweeper here would let multiple PoppyDB
+    // instances in one test JVM observe each other's cursors (see FindCursorRegistry javadoc).
 
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
+    // Per-PoppyDB-instance registry of server-side find cursors (and their idle-sweeper). Handed
+    // in by PoppyDB at construction time, exactly like cursorManager above — see
+    // FindCursorRegistry's javadoc for why this must not be JVM-static.
+    private final FindCursorRegistry findCursorRegistry;
     private final MessagingOptimizer messagingOptimizer;
     private final AtomicInteger msgId;
     private final String host;
@@ -240,25 +143,28 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private final BooleanSupplier secondarySyncingSupplier;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               FindCursorRegistry findCursorRegistry,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
                                int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier) {
-        this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
-             compressorId, replicationCoordinatorSupplier, null, () -> false);
+        this(driver, cursorManager, findCursorRegistry, messagingOptimizer, msgId, host, port, rsName, hosts,
+             primary, primaryHost, compressorId, replicationCoordinatorSupplier, null, () -> false);
     }
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               FindCursorRegistry findCursorRegistry,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
                                int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
                                ElectionManager electionManager) {
-        this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
-             compressorId, replicationCoordinatorSupplier, electionManager, () -> false);
+        this(driver, cursorManager, findCursorRegistry, messagingOptimizer, msgId, host, port, rsName, hosts,
+             primary, primaryHost, compressorId, replicationCoordinatorSupplier, electionManager, () -> false);
     }
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               FindCursorRegistry findCursorRegistry,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
@@ -266,6 +172,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                                ElectionManager electionManager, BooleanSupplier secondarySyncingSupplier) {
         this.driver = driver;
         this.cursorManager = cursorManager;
+        this.findCursorRegistry = findCursorRegistry;
         this.messagingOptimizer = messagingOptimizer;
         this.msgId = msgId;
         this.host = host;
@@ -604,11 +511,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 final Map<String, Object> finalAnswer = answer;
                 ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
             });
-        } else if (findCursors.containsKey(cursorId)) {
+        } else if (findCursorRegistry.containsKey(cursorId)) {
             // Server-side find cursor — return next batch from the retained (bounded) window.
-            // Invariant: whenever a cursor is present in findCursors, state.remaining is
+            // Invariant: whenever a cursor is present in findCursorRegistry, state.remaining is
             // non-empty (established at creation in processFindDirect, maintained below).
-            FindCursorState state = findCursors.get(cursorId);
+            FindCursorRegistry.FindCursorState state = findCursorRegistry.get(cursorId);
             state.lastAccessed = System.currentTimeMillis();
 
             int count = Math.min(state.batchSize, state.remaining.size());
@@ -626,7 +533,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             long returnCursorId = state.remaining.isEmpty() ? 0L : cursorId;
             if (returnCursorId == 0L) {
-                findCursors.remove(cursorId);
+                findCursorRegistry.remove(cursorId);
                 channelCursors.remove(cursorId);
             }
 
@@ -662,7 +569,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         List<Long> notFound = new ArrayList<>();
 
         for (Long cursorId : cursorsToKill) {
-            if (findCursors.remove(cursorId) != null) {
+            if (findCursorRegistry.remove(cursorId) != null) {
                 killed.add(cursorId);
                 channelCursors.remove(cursorId);
             } else if (cursorManager.killCursor(cursorId)) {
@@ -810,7 +717,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 Map<String, Object> errorResponse = Doc.of(
                     "ok", 0.0,
                     "errmsg", "not primary and read preference is primary",
-                    "code", 10107,
+                    "code", 13435,
                     "codeName", "NotPrimaryNoSecondaryOk"
                 );
                 if (currentPrimary != null) {
@@ -1014,6 +921,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             long cursorId = cursorManager.createWatchCursor(driver, wcmd);
             channelCursors.add(cursorId);
 
+            // Read the current sequence right after the subscription is registered (inside
+            // createWatchCursor, above) so no write after this point can be missed: any write
+            // racing with subscription either lands before this read (its token <= this value,
+            // and it is still delivered live through the subscription that was already active) or
+            // after it (its token is necessarily greater, so it is not covered by this value and
+            // will simply be delivered live too). Piggyback it on the initial aggregate response,
+            // following the same wire convention as the "poppyResumeSequence" resumeAfter marker,
+            // so a PoppyDB secondary can seed its idle-window resume point (see ReplicationManager)
+            // instead of silently starting "from now" after a gap with zero applied events.
+            long primarySequenceAtRegistration = driver.getChangeStreamSequence();
+
             // Register as messaging cursor if this is a registered messaging collection
             if (messagingOptimizer != null &&
                 messagingOptimizer.isMessagingCollection(wcmd.getDb(), wcmd.getColl())) {
@@ -1026,7 +944,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             var initialCursor = Doc.of("firstBatch", List.of(),
                     "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", cursorId);
-            return Doc.of("ok", 1.0, "cursor", initialCursor);
+            return Doc.of("ok", 1.0, "cursor", initialCursor,
+                    "poppyPrimarySequence", primarySequenceAtRegistration);
         } catch (Exception e) {
             log.error("Error setting up change stream: {}", e.getMessage(), e);
             return Doc.of("ok", 0.0, "errmsg", e.getMessage());
@@ -1687,10 +1606,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         log.debug("Channel inactive, cleaning up ({} cursors to kill)", channelCursors.size());
         // Kill all cursors owned by this channel to prevent thread/subscription leaks.
         // A cursor is either a watch/tailable cursor (owned by cursorManager) or a
-        // server-side find cursor (in the static findCursors map) — clean up both, since
-        // an unexhausted find cursor would otherwise leak permanently on disconnect.
+        // server-side find cursor (in this instance's findCursorRegistry) — clean up both,
+        // since an unexhausted find cursor would otherwise leak permanently on disconnect.
         for (Long cursorId : channelCursors) {
-            if (findCursors.remove(cursorId) != null) {
+            if (findCursorRegistry.remove(cursorId) != null) {
                 log.debug("Removed orphaned find cursor {} on channel disconnect", cursorId);
             } else if (cursorManager.killCursor(cursorId)) {
                 log.debug("Killed orphaned cursor {} on channel disconnect", cursorId);
@@ -1770,11 +1689,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             if (window.size() > batchSize) {
                 List<Map<String, Object>> firstBatch = new ArrayList<>(window.subList(0, batchSize));
                 List<Map<String, Object>> retained = new ArrayList<>(window.subList(batchSize, window.size()));
-                long cursorId = FIND_CURSOR_SEQ.incrementAndGet();
+                long cursorId = findCursorRegistry.nextCursorId();
                 int nextSkip = skip + window.size();
                 boolean hasLimit = limit > 0;
                 int remainingLimit = hasLimit ? Math.max(0, limit - window.size()) : 0;
-                findCursors.put(cursorId, new FindCursorState(db, coll, filter, sort, projection,
+                findCursorRegistry.put(cursorId, new FindCursorRegistry.FindCursorState(db, coll, filter, sort, projection,
                         retained, batchSize, nextSkip, hasLimit, remainingLimit));
                 channelCursors.add(cursorId);
                 return Doc.of("ok", 1.0, "cursor",
@@ -1795,10 +1714,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     /**
      * Re-executes {@code state}'s query with an advanced skip offset to refill its retained
      * window once it has drained. No-op if the document budget from an original positive
-     * {@code limit} has already been exhausted. See {@link FindCursorState} for the
-     * concurrent-write caveat this re-execution carries.
+     * {@code limit} has already been exhausted. See {@link FindCursorRegistry.FindCursorState}
+     * for the concurrent-write caveat this re-execution carries.
      */
-    private void refillFindCursorWindow(FindCursorState state) {
+    private void refillFindCursorWindow(FindCursorRegistry.FindCursorState state) {
         if (state.hasLimit && state.remainingLimit <= 0) {
             return;
         }

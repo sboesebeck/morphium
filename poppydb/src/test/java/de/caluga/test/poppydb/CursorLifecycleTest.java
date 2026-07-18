@@ -26,7 +26,6 @@ import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.poppydb.PoppyDB;
-import de.caluga.poppydb.netty.MongoCommandHandler;
 
 /**
  * Verifies that server-side find cursors are cleaned up when a client disconnects
@@ -39,7 +38,7 @@ import de.caluga.poppydb.netty.MongoCommandHandler;
  * one reply and then drop the connection with the cursor still populated.
  */
 @Tag("server")
-@Disabled("Disabled by default - runs local PoppyDB which is flaky with parallel tests. Run manually or with --include-tags server")
+@Disabled("Disabled by default - starts real PoppyDB server(s) and is flaky under parallel test runs. Run manually with -Djunit.jupiter.conditions.deactivate=org.junit.*DisabledCondition (see ci/CLAUDE-testvm.md).")
 public class CursorLifecycleTest {
     private static final Logger log = LoggerFactory.getLogger(CursorLifecycleTest.class);
     private static final AtomicInteger PORT = new AtomicInteger(18500);
@@ -74,7 +73,7 @@ public class CursorLifecycleTest {
         var srv = new PoppyDB(port, "localhost", 20, 60);
         startServer(srv, port);
 
-        int baseline = MongoCommandHandler.openFindCursors();
+        int baseline = srv.openFindCursors();
 
         // Insert 10 documents via the driver, then close it. The data lives in the
         // server's shared in-memory database independent of the connection.
@@ -115,7 +114,7 @@ public class CursorLifecycleTest {
             long cursorId = ((Number) cursor.get("id")).longValue();
             assertNotEquals(0L, cursorId, "batchSize:1 over 10 docs must leave an open server cursor");
 
-            assertEquals(baseline + 1, MongoCommandHandler.openFindCursors(),
+            assertEquals(baseline + 1, srv.openFindCursors(),
                     "server should hold exactly one extra open find cursor after batched find");
         } finally {
             raw.close();
@@ -124,11 +123,11 @@ public class CursorLifecycleTest {
         // Client disconnected without exhausting / killing the cursor; channelInactive
         // must drop the leaked cursor back to baseline.
         long deadline = System.currentTimeMillis() + 5_000;
-        while (MongoCommandHandler.openFindCursors() > baseline
+        while (srv.openFindCursors() > baseline
                 && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
         }
-        assertEquals(baseline, MongoCommandHandler.openFindCursors(),
+        assertEquals(baseline, srv.openFindCursors(),
                 "find cursor must be removed on client disconnect");
 
         srv.shutdown();
@@ -207,7 +206,7 @@ public class CursorLifecycleTest {
                 seenSeq.add(((Number) d.get("seq")).intValue());
             }
 
-            int retained = MongoCommandHandler.retainedFindCursorDocs(cursorId);
+            int retained = srv.retainedFindCursorDocs(cursorId);
             assertTrue(retained >= 0 && retained <= maxRetainedDocs,
                     "cursor must retain at most maxRetainedBatches*batchSize=" + maxRetainedDocs
                             + " docs right after find, was " + retained);
@@ -232,7 +231,7 @@ public class CursorLifecycleTest {
 
                 cursorId = ((Number) gmCursor.get("id")).longValue();
                 if (cursorId != 0L) {
-                    int r = MongoCommandHandler.retainedFindCursorDocs(cursorId);
+                    int r = srv.retainedFindCursorDocs(cursorId);
                     assertTrue(r >= 0 && r <= maxRetainedDocs,
                             "cursor must retain at most maxRetainedBatches*batchSize=" + maxRetainedDocs
                                     + " docs at all times, was " + r);
@@ -250,5 +249,80 @@ public class CursorLifecycleTest {
         }
 
         srv.shutdown();
+    }
+
+    /**
+     * Phase C hardening (Task 5): the find-cursor registry must be owned per PoppyDB instance,
+     * not JVM-static. Before this was fixed, {@code MongoCommandHandler} held {@code findCursors}
+     * and the sweeper as {@code static} fields, so two PoppyDB instances running in the same test
+     * JVM shared cursor state — a cursor opened on instance A was visible in instance B's
+     * {@code openFindCursors()} count. This test starts two independent PoppyDB instances, opens
+     * an unexhausted server-side find cursor on instance A only, and asserts instance B's count
+     * never moves off its own baseline while instance A's does. It FAILS against the old static
+     * registry (B would observe A's cursor) and PASSES once the registry is per-instance.
+     */
+    @Test
+    public void findCursorsAreIsolatedPerInstance() throws Exception {
+        int portA = nextPort();
+        int portB = nextPort();
+        var srvA = new PoppyDB(portA, "localhost", 20, 60);
+        var srvB = new PoppyDB(portB, "localhost", 20, 60);
+        startServer(srvA, portA);
+        startServer(srvB, portB);
+
+        try {
+            int baselineA = srvA.openFindCursors();
+            int baselineB = srvB.openFindCursors();
+
+            // Insert 10 documents into instance A only.
+            SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
+            drv.setHostSeed("localhost:" + portA);
+            drv.setMaxConnections(5);
+            drv.setHeartbeatFrequency(1000);
+            drv.setMaxWaitTime(0);
+            drv.connect();
+            try {
+                MongoConnection con = drv.getConnection();
+                List<Map<String, Object>> docs = new ArrayList<>();
+                for (int i = 0; i < 10; i++) {
+                    docs.add(Doc.of("_id", i, "value", "v" + i));
+                }
+                new InsertMongoCommand(con).setDb("test").setColl("cursorisolation").setDocuments(docs).execute();
+            } finally {
+                drv.close();
+            }
+
+            // Raw find with batchSize:1 against instance A -> leaves an open server-side
+            // cursor with the remaining 9 docs, without ever touching instance B.
+            Socket raw = new Socket();
+            raw.connect(new InetSocketAddress("localhost", portA), 2000);
+            raw.setSoTimeout(5000);
+            try {
+                OpMsg find = new OpMsg();
+                find.setMessageId(1);
+                find.setFlags(0);
+                find.setFirstDoc(Doc.of("find", "cursorisolation", "filter", Doc.of(),
+                        "batchSize", 1, "$db", "test"));
+                raw.getOutputStream().write(find.bytes());
+                raw.getOutputStream().flush();
+
+                OpMsg reply = (OpMsg) WireProtocolMessage.parseFromStream(raw.getInputStream());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
+                assertNotEquals(null, cursor, "find reply must contain a cursor document");
+                long cursorId = ((Number) cursor.get("id")).longValue();
+                assertNotEquals(0L, cursorId, "batchSize:1 over 10 docs must leave an open server cursor");
+
+                assertEquals(baselineA + 1, srvA.openFindCursors(),
+                        "instance A must hold exactly one extra open find cursor after its batched find");
+                assertEquals(baselineB, srvB.openFindCursors(),
+                        "instance B must NOT observe instance A's find cursor (registries must be per-instance)");
+            } finally {
+                raw.close();
+            }
+        } finally {
+            srvA.shutdown();
+            srvB.shutdown();
+        }
     }
 }

@@ -2,6 +2,7 @@ package de.caluga.test.poppydb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -36,7 +37,7 @@ import de.caluga.test.mongo.suite.base.TestUtils;
  * writes to the primary or auto-draining cursors.
  */
 @Tag("server")
-@Disabled("Disabled by default - runs local PoppyDB replica sets which are flaky under parallel tests. Run manually or with --include-tags server")
+@Disabled("Disabled by default - starts real PoppyDB server(s) and is flaky under parallel test runs. Run manually with -Djunit.jupiter.conditions.deactivate=org.junit.*DisabledCondition (see ci/CLAUDE-testvm.md).")
 public class CommandSemanticsTest {
     private static final Logger log = LoggerFactory.getLogger(CommandSemanticsTest.class);
     private static final AtomicInteger MSG_ID = new AtomicInteger(1);
@@ -161,6 +162,53 @@ public class CommandSemanticsTest {
                 assertNotNull(reply.get("writeConcernError"),
                         "unsatisfiable write concern must produce a writeConcernError on the fast path "
                         + "instead of an immediate OK");
+            }
+        } finally {
+            shutdownAll(servers);
+        }
+    }
+
+    // Scenario 2b (Task 4b / Phase C hardening): scenario 2 above only proves the NEGATIVE
+    // write-concern path (an unsatisfiable w rejects with writeConcernError). This is the
+    // missing POSITIVE path: on a healthy 2-node RS, w:2 must actually WAIT for the
+    // secondary's ack before the client sees success - not just happen to succeed because
+    // nothing failed. Proven the simple way (per the task brief): query the secondary
+    // directly, synchronously, immediately after the primary's reply comes back - no sleep,
+    // no poll/retry. If the fast path only waited on the primary and acked early, this read
+    // would be flaky/fail because the secondary would not reliably have the document yet.
+    @Test
+    public void writeConcernW2WaitsForSecondaryAckOnHealthyTwoNodeSet() throws Exception {
+        List<PoppyDB> servers = startReplicaSet(freePort(), freePort());
+        try {
+            PoppyDB primary = servers.stream().filter(PoppyDB::isPrimary).findFirst()
+                    .orElseThrow(() -> new AssertionError("no primary found"));
+            PoppyDB secondary = servers.stream().filter(s -> !s.isPrimary()).findFirst()
+                    .orElseThrow(() -> new AssertionError("no secondary found"));
+            log.info("Using primary on port {}, secondary on port {}", primary.getPort(), secondary.getPort());
+
+            try (Socket primarySock = connect(primary.getPort());
+                    Socket secondarySock = connect(secondary.getPort())) {
+                Map<String, Object> reply = command(primarySock, Doc.of(
+                        "insert", "sem_w2",
+                        "documents", List.of(Doc.of("_id", 1, "v", "x")),
+                        "$db", "semtest",
+                        "writeConcern", Doc.of("w", 2, "wtimeout", 5000)));
+                log.info("Insert-with-w2 reply: {}", reply);
+
+                assertEquals(1.0, ok(reply), "insert with a satisfiable w:2 must succeed on the primary");
+                assertNull(reply.get("writeConcernError"),
+                        "w:2 is satisfiable on a healthy 2-node set - no writeConcernError expected, got: "
+                        + reply.get("writeConcernError"));
+
+                // The critical positive assertion: the secondary must already have the exact
+                // document by the time the client received the reply - proving w:2 waited for
+                // the secondary's ack rather than acking as soon as the primary wrote locally.
+                Map<String, Object> secondaryCount = command(secondarySock, Doc.of(
+                        "count", "sem_w2", "query", Doc.of("_id", 1), "$db", "semtest"));
+                assertEquals(1.0, ok(secondaryCount), "count must succeed on secondary");
+                assertEquals(1, ((Number) secondaryCount.get("n")).intValue(),
+                        "w:2 ack must mean the secondary already has the document by the time the "
+                        + "client receives the reply, not just the primary");
             }
         } finally {
             shutdownAll(servers);
@@ -406,6 +454,145 @@ public class CommandSemanticsTest {
             }
         } finally {
             srv.shutdown();
+        }
+    }
+
+    // Scenario 7 (Task 1 / Phase C hardening): a secondary must reject a primary-only read
+    // (readPreference mode:"primary") with the real mongod error pair - NotPrimaryNoSecondaryOk
+    // (13435) - not NotWritablePrimary (10107), which is a different error reserved for rejected
+    // writes (see scenario 1 above).
+    @Test
+    public void secondaryRejectsPrimaryReadPreferenceRead_withNotPrimaryNoSecondaryOk() throws Exception {
+        List<PoppyDB> servers = startReplicaSet(freePort(), freePort(), freePort());
+        try {
+            PoppyDB secondary = servers.stream().filter(s -> !s.isPrimary()).findFirst()
+                    .orElseThrow(() -> new AssertionError("no secondary found"));
+            log.info("Using secondary on port {}", secondary.getPort());
+
+            // "hello" is a control-plane command (bypasses preDispatch entirely), so it is a safe
+            // probe for the secondary's initial-sync state. Wait until it reports secondary:true
+            // (initial sync complete) - otherwise the RECOVERING check ((0) in preDispatch, added
+            // in ea1baa4b) fires first and rejects with NotPrimaryOrSecondary (13436) instead of
+            // reaching the readPreference check this test targets.
+            TestUtils.waitForConditionToBecomeTrue(20000, "secondary did not finish initial sync", () -> {
+                try (Socket probe = connect(secondary.getPort())) {
+                    Map<String, Object> hello = command(probe, Doc.of("hello", 1, "$db", "admin"));
+                    return Boolean.TRUE.equals(hello.get("secondary"));
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+
+            try (Socket sock = connect(secondary.getPort())) {
+                Map<String, Object> reply = command(sock, Doc.of(
+                        "find", "sem_rp",
+                        "filter", Doc.of(),
+                        "$db", "semtest",
+                        "$readPreference", Doc.of("mode", "primary")));
+                log.info("Primary-read-preference-on-secondary reply: {}", reply);
+
+                assertEquals(0.0, ok(reply), "secondary must reject a primary-only read (ok:0)");
+                Object code = reply.get("code");
+                assertNotNull(code, "reply must carry a not-primary error code");
+                assertEquals(13435, ((Number) code).intValue(), "expected NotPrimaryNoSecondaryOk (13435)");
+                assertEquals("NotPrimaryNoSecondaryOk", reply.get("codeName"),
+                        "codeName must match the real mongod NotPrimaryNoSecondaryOk error");
+            }
+        } finally {
+            shutdownAll(servers);
+        }
+    }
+
+    // Scenario 8 (Phase C hardening, Task 6): "explain" must be read-classified in preDispatch -
+    // it is deliberately absent from both CONTROL_COMMANDS (so the primary/read-preference/
+    // transaction middleware still runs for it, unlike hello/ping/election traffic) and
+    // WRITE_COMMANDS (so a plain, no-readPreference explain is treated as a read and a secondary
+    // may serve it directly, exactly like find/count) - see MongoCommandHandler.preDispatch. A
+    // secondary rejecting this with NotWritablePrimary (10107) would mean explain got
+    // misclassified as a write; this proves the opposite.
+    //
+    // Also exercises explain's wire-protocol round trip end to end - this is what actually reaches
+    // ExplainCommand.fromMap()'s raw-map path (PoppyDB's GenericCommand dispatch), unlike the
+    // driver-level ExplainCommandTest, which goes through FindCommand#explain/
+    // CountMongoCommand#explain's direct field setters and never calls fromMap() at all.
+    //
+    // NOTE: index *metadata* is not part of ReplicationManager's replication stream (only
+    // document data is - see performInitialSync/syncCollection and watchForChanges, neither of
+    // which touches createIndexes/listIndexes) - a pre-existing gap outside this task's scope.
+    // The seed documents are inserted on the primary and awaited on the secondary the normal way;
+    // the index itself is created directly on each node's own driver (standing in for the missing
+    // index-metadata replication) so this test's actual target - explain's read-classification and
+    // wire round trip on a secondary - isn't blocked by that unrelated gap.
+    @Test
+    public void secondaryServesPlainExplainAsARead() throws Exception {
+        List<PoppyDB> servers = startReplicaSet(freePort(), freePort(), freePort());
+        try {
+            PoppyDB primary = servers.stream().filter(PoppyDB::isPrimary).findFirst()
+                    .orElseThrow(() -> new AssertionError("no primary found"));
+            PoppyDB secondary = servers.stream().filter(s -> !s.isPrimary()).findFirst()
+                    .orElseThrow(() -> new AssertionError("no secondary found"));
+            log.info("Using primary on port {}, secondary on port {}", primary.getPort(), secondary.getPort());
+
+            TestUtils.waitForConditionToBecomeTrue(20000, "secondary did not finish initial sync", () -> {
+                try (Socket probe = connect(secondary.getPort())) {
+                    Map<String, Object> hello = command(probe, Doc.of("hello", 1, "$db", "admin"));
+                    return Boolean.TRUE.equals(hello.get("secondary"));
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+
+            Map<String, Object> indexKey = Doc.of("counter", 1);
+            Map<String, Object> indexOptions = Doc.of("name", "counter_1");
+            primary.getDriver().createIndex("semtest", "sem_explain", indexKey, indexOptions);
+            secondary.getDriver().createIndex("semtest", "sem_explain", indexKey, indexOptions);
+
+            try (Socket primarySock = connect(primary.getPort())) {
+                assertEquals(1.0, ok(command(primarySock, Doc.of(
+                        "insert", "sem_explain",
+                        "documents", List.of(Doc.of("_id", 1, "counter", 42), Doc.of("_id", 2, "counter", 7)),
+                        "$db", "semtest"))), "seed insert on primary must succeed");
+            }
+
+            // Wait for the seed documents to replicate to the secondary before explaining there.
+            TestUtils.waitForConditionToBecomeTrue(20000, "seed documents never replicated to the secondary", () -> {
+                try (Socket sock = connect(secondary.getPort())) {
+                    Map<String, Object> count = command(sock, Doc.of("count", "sem_explain", "query", Doc.of(), "$db", "semtest"));
+                    return ok(count) == 1.0 && ((Number) count.get("n")).intValue() == 2;
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+
+            Map<String, Object> reply;
+            try (Socket sock = connect(secondary.getPort())) {
+                reply = command(sock, Doc.of(
+                        "explain", Doc.of(
+                                "find", "sem_explain",
+                                "filter", Doc.of("counter", 42)),
+                        "verbosity", "executionStats",
+                        "$db", "semtest"));
+            }
+            log.info("Indexed explain-on-secondary reply: {}", reply);
+            assertEquals(1.0, ok(reply), "a secondary must serve a plain (non-primary-readPreference) explain");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> queryPlanner = (Map<String, Object>) reply.get("queryPlanner");
+            assertNotNull(queryPlanner, "explain reply must carry queryPlanner");
+            assertEquals("semtest.sem_explain", queryPlanner.get("namespace"),
+                    "namespace must name the real wrapped collection, not the wrapped command map's toString()");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> winningPlan = (Map<String, Object>) queryPlanner.get("winningPlan");
+            assertEquals("IXSCAN", winningPlan.get("stage"));
+            assertEquals("counter_1", winningPlan.get("indexName"));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> executionStats = (Map<String, Object>) reply.get("executionStats");
+            assertNotNull(executionStats, "executionStats verbosity must carry executionStats");
+            assertEquals(1, ((Number) executionStats.get("nReturned")).intValue());
+        } finally {
+            shutdownAll(servers);
         }
     }
 

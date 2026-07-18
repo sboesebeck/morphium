@@ -38,9 +38,26 @@ public class ReplicationManager {
     private final AtomicLong lastEventTime = new AtomicLong(0);
     private final AtomicLong lastAppliedSequence = new AtomicLong(0);
     private final AtomicLong lastReportedSequence = new AtomicLong(0);
+    // The primary's own change-stream sequence as observed at the most recent watch
+    // registration (piggybacked on the wire as "poppyPrimarySequence", mirroring how
+    // "poppyResumeSequence" rides the resumeAfter token in the other direction - see
+    // watchForChanges()). Updated on every successful registration, independent of whether any
+    // events are ever applied during that session. Two purposes: (1) seeds lastAppliedSequence
+    // when it is still 0 so an idle session (zero applied events) still has a correct resume
+    // point on the next reconnect instead of silently starting "from now"; (2) exposed via
+    // getLastKnownPrimarySequence() so callers (e.g. a replicationLagEvents metric) can compare
+    // it against lastAppliedSequence without needing their own copy of the wire plumbing.
+    private final AtomicLong lastKnownPrimarySequence = new AtomicLong(0);
     // Number of times the primary signalled "resume window lost" and we fell back to a full re-sync.
     // Exposed for tests/metrics to distinguish a clean resume (0) from a re-sync fallback.
     private final AtomicLong resyncCount = new AtomicLong(0);
+    // Wall-clock time (System.currentTimeMillis()) of the previous resync, used to detect resyncs
+    // repeating faster than the buffer can absorb (see triggerResync()). 0 = no resync yet.
+    private final AtomicLong lastResyncTimestamp = new AtomicLong(0);
+    // If a second resync happens within this window of the previous one, the replay buffer is not
+    // keeping up with the sustained write rate x sync duration - log a WARN so an operator can size
+    // the buffer (see docs/poppydb.md "Replication buffer sizing").
+    private static final long RESYNC_WARN_WINDOW_MS = TimeUnit.MINUTES.toMillis(10);
     // Test hook: when true the replication loop severs its connection and stops reconnecting,
     // simulating a network partition between this secondary and the primary.
     private final AtomicBoolean pausedForTest = new AtomicBoolean(false);
@@ -864,20 +881,27 @@ public class ReplicationManager {
         MongoConnection con = primaryMorphium.getDriver().getPrimaryConnection(null);
         WatchCommand cmd = null;
         try {
-            cmd = new WatchCommand(con)
+            // Built as its own effectively-final local (rather than assigned straight into the
+            // outer `cmd`) so the registration callback below can close over it and read back the
+            // "poppyPrimarySequence" metadata that SingleMongoConnection.watch() stashes on it the
+            // moment the cursor is established (see that class for the wire read). `cmd` still
+            // gets assigned the same instance right after, for the finally block's release.
+            final WatchCommand watchCmd = new WatchCommand(con)
                 .setDb("admin")  // Watch at cluster level
                 .setMaxTimeMS(500)  // 500ms timeout - low latency for messaging tests
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
-                .setPipeline(List.of())  // Empty = watch everything
-                // Fires once the watch cursor is established on the primary. From that point the
-                // stream captures every subsequent write, so the initial-sync snapshot can safely
-                // start copying without losing writes that happen during the copy. Bump the
-                // generation FIRST so a snapshot that captures the generation the instant it sees
-                // watchLive observes the value belonging to this watch (not a stale one).
-                .setRegistrationCallback(() -> {
-                    watchGeneration.incrementAndGet();
-                    watchLive.set(true);
-                })
+                .setPipeline(List.of());  // Empty = watch everything
+            // Fires once the watch cursor is established on the primary. From that point the
+            // stream captures every subsequent write, so the initial-sync snapshot can safely
+            // start copying without losing writes that happen during the copy. Bump the
+            // generation FIRST so a snapshot that captures the generation the instant it sees
+            // watchLive observes the value belonging to this watch (not a stale one).
+            watchCmd.setRegistrationCallback(() -> {
+                watchGeneration.incrementAndGet();
+                watchLive.set(true);
+                recordPrimarySequenceAtRegistration(watchCmd);
+            });
+            cmd = watchCmd
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long cursorId) {
@@ -954,6 +978,49 @@ public class ReplicationManager {
     }
 
     /**
+     * Records the primary's change-stream sequence as observed at watch registration (see the
+     * "poppyPrimarySequence" wire field written by MongoCommandHandler.processChangeStream and read
+     * back by SingleMongoConnection.watch() into this command's metadata).
+     *
+     * <p>Fixes the idle-window resume hole: after a completed initial sync during which ZERO
+     * events were applied, {@code lastAppliedSequence} stays at its initial 0, so a later
+     * reconnect's {@code resumeSeq > 0} check (see {@link #watchForChanges()}) fails and the new
+     * watch silently starts "from now" - silently dropping every write that happened during the
+     * gap. Seeding {@code lastAppliedSequence} here with the primary's sequence at THIS
+     * registration closes that hole: any write after this point necessarily gets a token greater
+     * than the seeded value (the primary's sequence counter only increases), so it is never missed
+     * by a subsequent resumeAfter built from this seed, and nothing before this point needs
+     * replaying (there is nothing this secondary hasn't already covered - either the initial-sync
+     * snapshot captured it, or the secondary didn't exist yet).
+     *
+     * <p>Guarded with compareAndSet(0, ...) rather than an unconditional set: once any real event
+     * is applied, {@code lastAppliedSequence} advances past this seed via the normal
+     * updateAndGet(Math::max) path (see applyChangeEvent) and must never be pulled back down or
+     * jumped forward past events that are still buffered/pending application - only a still-virgin
+     * (0) value is safe to seed.
+     *
+     * <p>{@code lastKnownPrimarySequence} is updated unconditionally on every registration
+     * (independent of the guard above) so it always reflects the most recently observed primary
+     * sequence - exposed via {@link #getLastKnownPrimarySequence()} for callers such as a
+     * replication-lag metric that need it regardless of whether it was actually used to seed the
+     * resume point.
+     */
+    private void recordPrimarySequenceAtRegistration(WatchCommand watchCmd) {
+        Map<String, Object> metaData = watchCmd.getMetaData();
+        Object raw = metaData == null ? null : metaData.get("poppyPrimarySequence");
+        if (!(raw instanceof Number n)) {
+            // Not a PoppyDB primary (or an older one without this field) - nothing to seed.
+            return;
+        }
+        long primarySeq = n.longValue();
+        lastKnownPrimarySequence.set(primarySeq);
+        if (lastAppliedSequence.compareAndSet(0, primarySeq)) {
+            log.debug("Seeded lastAppliedSequence with primary sequence {} at watch registration "
+                    + "(idle-window resume point)", primarySeq);
+        }
+    }
+
+    /**
      * Recognise the primary's explicit "resume window lost" signal (ChangeStreamHistoryLost, code
      * 286) sent when its replay buffer can no longer cover the gap after our last-applied sequence.
      */
@@ -977,6 +1044,13 @@ public class ReplicationManager {
      */
     private void triggerResync(long fromSequence) {
         long n = resyncCount.incrementAndGet();
+        long now = System.currentTimeMillis();
+        long previous = lastResyncTimestamp.getAndSet(now);
+        if (previous != 0 && (now - previous) <= RESYNC_WARN_WINDOW_MS) {
+            log.warn("replication cannot keep up — buffer sizes bound write rate × sync duration "
+                    + "(resync #{} came {} ms after the previous one, within the {}-minute window)",
+                    n, now - previous, TimeUnit.MILLISECONDS.toMinutes(RESYNC_WARN_WINDOW_MS));
+        }
         log.warn("Primary signalled resume window lost at sequence {} — falling back to full re-sync (#{})",
                 fromSequence, n);
         applying.set(false);            // close the apply gate until the new snapshot completes
@@ -1281,9 +1355,20 @@ public class ReplicationManager {
         stats.put("lastEventTime", lastEventTime.get());
         stats.put("lastAppliedSequence", lastAppliedSequence.get());
         stats.put("lastReportedSequence", lastReportedSequence.get());
+        stats.put("lastKnownPrimarySequence", lastKnownPrimarySequence.get());
         stats.put("resyncCount", resyncCount.get());
         stats.put("primaryHost", primaryHost + ":" + primaryPort);
         stats.put("myAddress", myAddress);
+        stats.put("eventQueueSize", eventQueue.size());
+        stats.put("eventQueueCapacity", EVENT_QUEUE_CAPACITY);
+        // How many events behind the secondary is, based on the primary's sequence at the most
+        // recent watch registration (Task 2b's exchange - see getLastKnownPrimarySequence()).
+        // Clamped to 0: once live events keep flowing past that registration-time snapshot,
+        // lastAppliedSequence naturally overtakes it between registrations, which is progress, not
+        // negative lag.
+        stats.put("replicationLagEvents",
+                Math.max(0, getLastKnownPrimarySequence() - getLastAppliedSequence()));
+        stats.put("watchGeneration", watchGeneration.get());
         return stats;
     }
 
@@ -1292,5 +1377,17 @@ public class ReplicationManager {
      */
     public long getLastAppliedSequence() {
         return lastAppliedSequence.get();
+    }
+
+    /**
+     * The primary's change-stream sequence as observed at the most recent watch registration (see
+     * {@link #recordPrimarySequenceAtRegistration(WatchCommand)}). Updated on every successful
+     * registration regardless of whether it was actually used to seed {@link #lastAppliedSequence}.
+     * Intended for a replication-lag metric ({@code lastKnownPrimarySequence - getLastAppliedSequence()}
+     * approximates how many sequence numbers this secondary is behind); 0 until the first
+     * registration completes.
+     */
+    public long getLastKnownPrimarySequence() {
+        return lastKnownPrimarySequence.get();
     }
 }

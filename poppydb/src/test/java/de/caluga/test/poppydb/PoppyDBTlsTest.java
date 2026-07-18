@@ -16,6 +16,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +30,7 @@ import de.caluga.poppydb.PoppyDB;
  * used for the handshake rather than silently ignored.
  */
 @Tag("server")
+@Disabled("Disabled by default - starts real PoppyDB server(s) and is flaky under parallel test runs. Run manually with -Djunit.jupiter.conditions.deactivate=org.junit.*DisabledCondition (see ci/CLAUDE-testvm.md).")
 public class PoppyDBTlsTest {
 
     private int nextPort() throws Exception {
