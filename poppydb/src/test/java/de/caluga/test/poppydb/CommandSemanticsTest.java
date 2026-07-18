@@ -2,6 +2,7 @@ package de.caluga.test.poppydb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -161,6 +162,53 @@ public class CommandSemanticsTest {
                 assertNotNull(reply.get("writeConcernError"),
                         "unsatisfiable write concern must produce a writeConcernError on the fast path "
                         + "instead of an immediate OK");
+            }
+        } finally {
+            shutdownAll(servers);
+        }
+    }
+
+    // Scenario 2b (Task 4b / Phase C hardening): scenario 2 above only proves the NEGATIVE
+    // write-concern path (an unsatisfiable w rejects with writeConcernError). This is the
+    // missing POSITIVE path: on a healthy 2-node RS, w:2 must actually WAIT for the
+    // secondary's ack before the client sees success - not just happen to succeed because
+    // nothing failed. Proven the simple way (per the task brief): query the secondary
+    // directly, synchronously, immediately after the primary's reply comes back - no sleep,
+    // no poll/retry. If the fast path only waited on the primary and acked early, this read
+    // would be flaky/fail because the secondary would not reliably have the document yet.
+    @Test
+    public void writeConcernW2WaitsForSecondaryAckOnHealthyTwoNodeSet() throws Exception {
+        List<PoppyDB> servers = startReplicaSet(freePort(), freePort());
+        try {
+            PoppyDB primary = servers.stream().filter(PoppyDB::isPrimary).findFirst()
+                    .orElseThrow(() -> new AssertionError("no primary found"));
+            PoppyDB secondary = servers.stream().filter(s -> !s.isPrimary()).findFirst()
+                    .orElseThrow(() -> new AssertionError("no secondary found"));
+            log.info("Using primary on port {}, secondary on port {}", primary.getPort(), secondary.getPort());
+
+            try (Socket primarySock = connect(primary.getPort());
+                    Socket secondarySock = connect(secondary.getPort())) {
+                Map<String, Object> reply = command(primarySock, Doc.of(
+                        "insert", "sem_w2",
+                        "documents", List.of(Doc.of("_id", 1, "v", "x")),
+                        "$db", "semtest",
+                        "writeConcern", Doc.of("w", 2, "wtimeout", 5000)));
+                log.info("Insert-with-w2 reply: {}", reply);
+
+                assertEquals(1.0, ok(reply), "insert with a satisfiable w:2 must succeed on the primary");
+                assertNull(reply.get("writeConcernError"),
+                        "w:2 is satisfiable on a healthy 2-node set - no writeConcernError expected, got: "
+                        + reply.get("writeConcernError"));
+
+                // The critical positive assertion: the secondary must already have the exact
+                // document by the time the client received the reply - proving w:2 waited for
+                // the secondary's ack rather than acking as soon as the primary wrote locally.
+                Map<String, Object> secondaryCount = command(secondarySock, Doc.of(
+                        "count", "sem_w2", "query", Doc.of("_id", 1), "$db", "semtest"));
+                assertEquals(1.0, ok(secondaryCount), "count must succeed on secondary");
+                assertEquals(1, ((Number) secondaryCount.get("n")).intValue(),
+                        "w:2 ack must mean the secondary already has the document by the time the "
+                        + "client receives the reply, not just the primary");
             }
         } finally {
             shutdownAll(servers);

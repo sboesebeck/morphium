@@ -1388,6 +1388,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public int runCommand(RenameCollectionCommand cmd) {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
+        // renameCollection mutates the `database` map directly (origin removed, target's
+        // list replaced wholesale), invisible to a transaction's snapshot. Full
+        // tx-awareness for this whole-collection-map mutation is out of scope - reject
+        // it outright while a transaction is active on this thread, before touching any
+        // state, so the transaction remains fully usable afterwards (commit/abort still
+        // work, matching MongoDB's own ban on DDL inside multi-document transactions).
+        if (isTransactionInProgress()) {
+            throw new MorphiumDriverException("renameCollection not supported inside a transaction");
+        }
         String target = cmd.getTo();
         String origin = cmd.getColl();
         // This path historically took no locks at all. It mutates BOTH collections' document
@@ -1890,6 +1899,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DropDatabaseMongoCommand cmd) {
+        // dropDatabase mutates the `database` map directly, invisible to a transaction's
+        // snapshot. Full tx-awareness for this whole-DB mutation is out of scope - reject
+        // it outright while a transaction is active on this thread, before touching any
+        // state, so the transaction remains fully usable afterwards (commit/abort still
+        // work, matching MongoDB's own ban on DDL inside multi-document transactions).
+        if (isTransactionInProgress()) {
+            throw new MorphiumDriverException("dropDatabase not supported inside a transaction");
+        }
         log.info("InMemoryDriver: dropDatabase command for db='{}' (databases before: {})",
                  cmd.getDb(), database.keySet());
         int ret = commandNumber.incrementAndGet();
@@ -2182,6 +2199,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private int runCommand(ClearCollectionCommand cmd) {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
+        // This structurally clears the collection's document list directly, invisible to a
+        // transaction's snapshot. Full tx-awareness for this whole-collection mutation is
+        // out of scope - reject it outright while a transaction is active on this thread,
+        // before touching any state, so the transaction remains fully usable afterwards
+        // (commit/abort still work, matching MongoDB's own ban on DDL inside
+        // multi-document transactions).
+        if (isTransactionInProgress()) {
+            throw new MorphiumDriverException("clear not supported inside a transaction");
+        }
         // Take the collection WRITE lock around the structural clear, like every other mutation
         // path. Storage is a plain ArrayList now (was CopyOnWriteArrayList): an unlocked clear()
         // structurally modifies the live list and would race a concurrent snapshot() copy under
