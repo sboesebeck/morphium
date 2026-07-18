@@ -503,6 +503,99 @@ public class CommandSemanticsTest {
         }
     }
 
+    // Scenario 8 (Phase C hardening, Task 6): "explain" must be read-classified in preDispatch -
+    // it is deliberately absent from both CONTROL_COMMANDS (so the primary/read-preference/
+    // transaction middleware still runs for it, unlike hello/ping/election traffic) and
+    // WRITE_COMMANDS (so a plain, no-readPreference explain is treated as a read and a secondary
+    // may serve it directly, exactly like find/count) - see MongoCommandHandler.preDispatch. A
+    // secondary rejecting this with NotWritablePrimary (10107) would mean explain got
+    // misclassified as a write; this proves the opposite.
+    //
+    // Also exercises explain's wire-protocol round trip end to end - this is what actually reaches
+    // ExplainCommand.fromMap()'s raw-map path (PoppyDB's GenericCommand dispatch), unlike the
+    // driver-level ExplainCommandTest, which goes through FindCommand#explain/
+    // CountMongoCommand#explain's direct field setters and never calls fromMap() at all.
+    //
+    // NOTE: index *metadata* is not part of ReplicationManager's replication stream (only
+    // document data is - see performInitialSync/syncCollection and watchForChanges, neither of
+    // which touches createIndexes/listIndexes) - a pre-existing gap outside this task's scope.
+    // The seed documents are inserted on the primary and awaited on the secondary the normal way;
+    // the index itself is created directly on each node's own driver (standing in for the missing
+    // index-metadata replication) so this test's actual target - explain's read-classification and
+    // wire round trip on a secondary - isn't blocked by that unrelated gap.
+    @Test
+    public void secondaryServesPlainExplainAsARead() throws Exception {
+        List<PoppyDB> servers = startReplicaSet(freePort(), freePort(), freePort());
+        try {
+            PoppyDB primary = servers.stream().filter(PoppyDB::isPrimary).findFirst()
+                    .orElseThrow(() -> new AssertionError("no primary found"));
+            PoppyDB secondary = servers.stream().filter(s -> !s.isPrimary()).findFirst()
+                    .orElseThrow(() -> new AssertionError("no secondary found"));
+            log.info("Using primary on port {}, secondary on port {}", primary.getPort(), secondary.getPort());
+
+            TestUtils.waitForConditionToBecomeTrue(20000, "secondary did not finish initial sync", () -> {
+                try (Socket probe = connect(secondary.getPort())) {
+                    Map<String, Object> hello = command(probe, Doc.of("hello", 1, "$db", "admin"));
+                    return Boolean.TRUE.equals(hello.get("secondary"));
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+
+            Map<String, Object> indexKey = Doc.of("counter", 1);
+            Map<String, Object> indexOptions = Doc.of("name", "counter_1");
+            primary.getDriver().createIndex("semtest", "sem_explain", indexKey, indexOptions);
+            secondary.getDriver().createIndex("semtest", "sem_explain", indexKey, indexOptions);
+
+            try (Socket primarySock = connect(primary.getPort())) {
+                assertEquals(1.0, ok(command(primarySock, Doc.of(
+                        "insert", "sem_explain",
+                        "documents", List.of(Doc.of("_id", 1, "counter", 42), Doc.of("_id", 2, "counter", 7)),
+                        "$db", "semtest"))), "seed insert on primary must succeed");
+            }
+
+            // Wait for the seed documents to replicate to the secondary before explaining there.
+            TestUtils.waitForConditionToBecomeTrue(20000, "seed documents never replicated to the secondary", () -> {
+                try (Socket sock = connect(secondary.getPort())) {
+                    Map<String, Object> count = command(sock, Doc.of("count", "sem_explain", "query", Doc.of(), "$db", "semtest"));
+                    return ok(count) == 1.0 && ((Number) count.get("n")).intValue() == 2;
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+
+            Map<String, Object> reply;
+            try (Socket sock = connect(secondary.getPort())) {
+                reply = command(sock, Doc.of(
+                        "explain", Doc.of(
+                                "find", "sem_explain",
+                                "filter", Doc.of("counter", 42)),
+                        "verbosity", "executionStats",
+                        "$db", "semtest"));
+            }
+            log.info("Indexed explain-on-secondary reply: {}", reply);
+            assertEquals(1.0, ok(reply), "a secondary must serve a plain (non-primary-readPreference) explain");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> queryPlanner = (Map<String, Object>) reply.get("queryPlanner");
+            assertNotNull(queryPlanner, "explain reply must carry queryPlanner");
+            assertEquals("semtest.sem_explain", queryPlanner.get("namespace"),
+                    "namespace must name the real wrapped collection, not the wrapped command map's toString()");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> winningPlan = (Map<String, Object>) queryPlanner.get("winningPlan");
+            assertEquals("IXSCAN", winningPlan.get("stage"));
+            assertEquals("counter_1", winningPlan.get("indexName"));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> executionStats = (Map<String, Object>) reply.get("executionStats");
+            assertNotNull(executionStats, "executionStats verbosity must carry executionStats");
+            assertEquals(1, ((Number) executionStats.get("nReturned")).intValue());
+        } finally {
+            shutdownAll(servers);
+        }
+    }
+
     @Test
     public void aggregateUnknownGroupOperator_isCommandErrorNotEmptyResult() throws Exception {
         int port = freePort();

@@ -186,6 +186,155 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     long indexSorts;
 
     /**
+     * Slow-query log threshold in milliseconds (Phase C, Task 6 - "Slow-Query-Metriken"):
+     * {@code find}/{@code count}/{@code aggregate} calls whose own execution takes at least this
+     * long get a WARN log line (namespace, sanitized filter shape, plan stage, docs examined) and
+     * bump {@link #slowQueries} (+ the matching per-stage counter below). Configurable via the
+     * {@code morphium.inmem.slowQueryThresholdMs} system property (read once at class-load time as
+     * the default for every new driver instance); {@link #setSlowQueryThresholdMillis} overrides it
+     * per instance, primarily for tests that want every query to qualify.
+     */
+    private static final long DEFAULT_SLOW_QUERY_THRESHOLD_MS =
+            Long.getLong("morphium.inmem.slowQueryThresholdMs", 100L);
+    private volatile long slowQueryThresholdMillis = DEFAULT_SLOW_QUERY_THRESHOLD_MS;
+
+    /**
+     * Slow-query counters (Phase C, Task 6), exposed via {@link #getStats()}. {@link #slowQueries}
+     * is the total count; {@link #slowQueriesCollScan}/{@link #slowQueriesIxscan} split that total
+     * by the winning plan's stage at the time the slow call was recorded - same COLLSCAN/IXSCAN
+     * vocabulary as {@code explain()}'s {@code winningPlan.stage}.
+     */
+    long slowQueries;
+    long slowQueriesCollScan;
+    long slowQueriesIxscan;
+
+    public long getSlowQueryThresholdMillis() {
+        return slowQueryThresholdMillis;
+    }
+
+    /** Test/ops hook: override the slow-query threshold for this driver instance. */
+    public void setSlowQueryThresholdMillis(long slowQueryThresholdMillis) {
+        this.slowQueryThresholdMillis = slowQueryThresholdMillis;
+    }
+
+    /**
+     * Read-only snapshot of this driver's query-planning and slow-query counters (Phase C, Task 6).
+     * Not atomic across keys - same caveat as the individual counters it reads (see
+     * {@link #fullScans}'s Javadoc) - good enough for monitoring/diagnostics, not for billing.
+     */
+    public Map<String, Object> getStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("fullScans", fullScans);
+        stats.put("indexHits", indexHits);
+        stats.put("indexSorts", indexSorts);
+        stats.put("slowQueries", slowQueries);
+        stats.put("slowQueriesCollScan", slowQueriesCollScan);
+        stats.put("slowQueriesIxscan", slowQueriesIxscan);
+        stats.put("slowQueryThresholdMillis", slowQueryThresholdMillis);
+        return stats;
+    }
+
+    /**
+     * Sanitizes a query/filter down to its structural "shape" for safe logging: every {@link Map}
+     * key (field name or {@code $}-operator alike) is preserved, every scalar leaf value is
+     * replaced with {@code "?"}, and {@link List} elements are sanitized element-wise (so e.g. an
+     * {@code $in} array's length is visible but its values are not). Used exclusively by the
+     * slow-query WARN below - never logs an actual filter value.
+     */
+    private static Object sanitizeQueryShape(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> shape = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                shape.put(String.valueOf(e.getKey()), sanitizeQueryShape(e.getValue()));
+            }
+            return shape;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> shape = new ArrayList<>(list.size());
+            for (Object o : list) {
+                shape.add(sanitizeQueryShape(o));
+            }
+            return shape;
+        }
+        return "?";
+    }
+
+    /**
+     * Records a {@code find}/{@code count}/{@code aggregate} call's timing against
+     * {@link #slowQueryThresholdMillis}; below the threshold this is a no-op. On a hit, increments
+     * {@link #slowQueries} (+ the per-stage counter matching {@code stage}) and emits a single WARN
+     * line carrying the namespace, the query's sanitized shape (see {@link #sanitizeQueryShape}, no
+     * values), the winning plan's stage ({@code COLLSCAN}/{@code IXSCAN}), and {@code docsExamined}.
+     */
+    private void recordSlowQueryIfNeeded(String db, String collection, Map<String, Object> query,
+            String stage, long docsExamined, long elapsedMillis) {
+        if (elapsedMillis < slowQueryThresholdMillis) {
+            return;
+        }
+
+        slowQueries++;
+        if ("IXSCAN".equals(stage)) {
+            slowQueriesIxscan++;
+        } else {
+            slowQueriesCollScan++;
+        }
+
+        if (log.isWarnEnabled()) {
+            log.warn("Slow query on {}.{}: tookMs={}, stage={}, docsExamined={}, filterShape={}",
+                    db, collection, elapsedMillis, stage, docsExamined,
+                    Utils.toJsonString(sanitizeQueryShape(query == null ? Doc.of() : query)));
+        }
+    }
+
+    /**
+     * {@code aggregate}'s slow-query variant of {@link #recordSlowQueryIfNeeded}: aggregation
+     * pipelines have no single {@link IndexPlanner.IndexPlan} the way find/count do, so this makes
+     * a best-effort call using only the pipeline's leading {@code $match} stage (if any) - the one
+     * shape {@link IndexPlanner} can reason about. No leading {@code $match}, or a leading
+     * {@code $match} the planner can't use, is logged as {@code COLLSCAN} over the whole
+     * collection, same as an un-indexed find. Never lets a diagnostics failure fail the aggregate
+     * itself - any exception while building the stage/docsExamined estimate is swallowed (logged at
+     * debug) rather than propagated.
+     */
+    private void recordAggregateSlowQueryIfNeeded(String db, String collection, List<Map<String, Object>> pipeline,
+            long elapsedMillis) {
+        if (elapsedMillis < slowQueryThresholdMillis) {
+            return;
+        }
+
+        try {
+            String stage = "COLLSCAN";
+            Map<String, Object> matchFilter = null;
+            long docsExamined = getCollection(db, collection).size();
+
+            if (pipeline != null && !pipeline.isEmpty()) {
+                Object firstMatch = pipeline.get(0).get("$match");
+                if (firstMatch instanceof Map<?, ?>) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> filter = (Map<String, Object>) firstMatch;
+                    matchFilter = filter;
+                    CollectionIndexStore store = getIndexStore(db, collection);
+                    Collection<IndexDefinition> defs = store.definitions();
+                    if (!filter.isEmpty() && defs.size() > 1) {
+                        IndexPlanner.IndexPlan plan = IndexPlanner.plan(filter, defs);
+                        if (!(plan instanceof IndexPlanner.FullScan)) {
+                            stage = "IXSCAN";
+                            List<Map<String, Object>> candidates = executeIndexPlan(store, plan);
+                            if (candidates != null) {
+                                docsExamined = candidates.size();
+                            }
+                        }
+                    }
+                }
+            }
+
+            recordSlowQueryIfNeeded(db, collection, matchFilter, stage, docsExamined, elapsedMillis);
+        } catch (Exception e) {
+            log.debug("Failed to record slow-aggregate diagnostics for {}.{}", db, collection, e);
+        }
+    }
+
+    /**
      * One persistent {@link CollectionIndexStore} per collection ({@code db + "." + collection}),
      * replacing Task 3's rebuild-on-miss {@code planIndexCache}/{@code collectionEpoch}. Every
      * mutation path now maintains its collection's store incrementally
@@ -989,34 +1138,73 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 0;
     }
 
+    /**
+     * MongoDB-shaped {@code explain} for the two inner command shapes it wraps here, {@code find}
+     * and {@code count} (Phase C, Task 6). {@code cmd.getCommand()} is the wrapped command's own
+     * {@code asMap()} - e.g. {@code {find: "coll", filter: {...}, sort: {...}, ...}} or
+     * {@code {count: "coll", query: {...}}}, see {@link FindCommand#explain} /
+     * {@link CountMongoCommand#explain} - so the inner command's own key (its
+     * {@code getCommandName()}) doubles as the shape discriminator.
+     *
+     * <p>{@code queryPlanner.winningPlan.stage} is derived straight from B1's {@link IndexPlanner}:
+     * {@link IndexPlanner.FullScan} maps to {@code COLLSCAN}; every other plan type maps to
+     * {@code IXSCAN} plus the winning index's {@code indexName}/{@code keyPattern} -
+     * {@link IndexPlanner.InUnion} included (a bounded union of point lookups on a single index is
+     * still one index scan, not a multi-plan shape - see the class Javadoc's InUnion decision).
+     *
+     * <p>{@code verbosity: executionStats} actually runs the query ({@link #find}/{@link #count})
+     * to get a real {@code nReturned}, and separately consults the same plan (via
+     * {@link #executeIndexPlan}, or the raw collection size for a {@link IndexPlanner.FullScan}) to
+     * report {@code totalDocsExamined}/{@code totalKeysExamined} - see {@code buildExecutionStats}.
+     */
     @SuppressWarnings("unchecked")
-    public int runCommand(ExplainCommand cmd) {
+    public int runCommand(ExplainCommand cmd) throws MorphiumDriverException {
         int ret = commandNumber.incrementAndGet();
 
-        // Create a basic explain response compatible with MongoDB
-        Map<String, Object> winningPlan = Doc.of(
-                "stage", "COLLSCAN",
-                "direction", "forward");
+        String db = cmd.getDb();
+        String coll = cmd.getColl();
+        Map<String, Object> innerCmd = cmd.getCommand();
+        ExplainCommand.ExplainVerbosity verbosity = cmd.getVerbosity();
 
-        Map<String, Object> queryPlanner = new HashMap<>();
-        queryPlanner.put("namespace", cmd.getDb() + "." + cmd.getColl());
-        queryPlanner.put("indexFilterSet", false);
-        // Try to get the filter from the command, default to empty query if not
-        // available
-        Object parsedQuery = Doc.of();
-        try {
-            Object findCommand = cmd.getCommand().get("find");
-            if (findCommand instanceof Map) {
-                Object filter = ((Map<String, Object>) findCommand).get("filter");
-                if (filter != null) {
-                    parsedQuery = filter;
+        String innerName = null;
+        Map<String, Object> query = Doc.of();
+        Map<String, Object> sort = null;
+        Integer skip = null;
+        Integer limit = null;
+
+        if (innerCmd != null) {
+            if (innerCmd.containsKey("find")) {
+                innerName = "find";
+                Object filter = innerCmd.get("filter");
+                if (filter instanceof Map) {
+                    query = (Map<String, Object>) filter;
+                }
+                Object s = innerCmd.get("sort");
+                if (s instanceof Map) {
+                    sort = (Map<String, Object>) s;
+                }
+                skip = toNullableInt(innerCmd.get("skip"));
+                limit = toNullableInt(innerCmd.get("limit"));
+            } else if (innerCmd.containsKey("count")) {
+                innerName = "count";
+                Object q = innerCmd.get("query");
+                if (q instanceof Map) {
+                    query = (Map<String, Object>) q;
                 }
             }
-        } catch (Exception e) {
-            // Use empty query as fallback
-            parsedQuery = Doc.of();
         }
-        queryPlanner.put("parsedQuery", parsedQuery);
+
+        CollectionIndexStore store = getIndexStore(db, coll);
+        Collection<IndexDefinition> defs = store.definitions();
+        IndexPlanner.IndexPlan plan = (query.isEmpty() || defs.size() <= 1)
+                ? IndexPlanner.FullScan.INSTANCE : IndexPlanner.plan(query, defs);
+
+        Map<String, Object> winningPlan = buildWinningPlan(plan);
+
+        Map<String, Object> queryPlanner = new HashMap<>();
+        queryPlanner.put("namespace", db + "." + coll);
+        queryPlanner.put("indexFilterSet", false);
+        queryPlanner.put("parsedQuery", query);
         queryPlanner.put("queryHash", "InMemoryDriver");
         queryPlanner.put("planCacheKey", "InMemoryDriver");
         queryPlanner.put("maxIndexedOrSolutionsReached", false);
@@ -1025,13 +1213,97 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         queryPlanner.put("winningPlan", winningPlan);
         queryPlanner.put("rejectedPlans", new ArrayList<>());
 
-        Map<String, Object> explainResult = Doc.of(
-                "explainVersion", "1",
-                "queryPlanner", queryPlanner,
-                "ok", 1.0);
+        Map<String, Object> explainResult = new HashMap<>();
+        explainResult.put("explainVersion", "1");
+        explainResult.put("queryPlanner", queryPlanner);
+
+        if (verbosity == ExplainCommand.ExplainVerbosity.executionStats
+                || verbosity == ExplainCommand.ExplainVerbosity.allPlansExecution) {
+            explainResult.put("executionStats",
+                    buildExecutionStats(db, coll, innerName, query, sort, skip, limit, plan, store, winningPlan));
+        }
+
+        explainResult.put("ok", 1.0);
 
         addResult(ret, prepareResult(explainResult));
         return ret;
+    }
+
+    private static Integer toNullableInt(Object o) {
+        return o instanceof Number ? ((Number) o).intValue() : null;
+    }
+
+    /** {@code queryPlanner.winningPlan} for {@link #runCommand(ExplainCommand)} - see its Javadoc. */
+    private Map<String, Object> buildWinningPlan(IndexPlanner.IndexPlan plan) {
+        if (plan instanceof IndexPlanner.EqualityLookup eq) {
+            return ixscanStage(eq.def(), "forward");
+        }
+        if (plan instanceof IndexPlanner.RangeScan rs) {
+            return ixscanStage(rs.def(), rs.descending() ? "backward" : "forward");
+        }
+        if (plan instanceof IndexPlanner.InUnion in) {
+            return ixscanStage(in.def(), "forward");
+        }
+        return Doc.of("stage", "COLLSCAN", "direction", "forward");
+    }
+
+    private Map<String, Object> ixscanStage(IndexDefinition def, String direction) {
+        Map<String, Object> keyPattern = new LinkedHashMap<>();
+        for (String field : def.fields()) {
+            keyPattern.put(field, def.direction(field));
+        }
+        Map<String, Object> stage = new HashMap<>();
+        stage.put("stage", "IXSCAN");
+        stage.put("indexName", def.name());
+        stage.put("keyPattern", keyPattern);
+        stage.put("direction", direction);
+        stage.put("isMultiKey", false);
+        stage.put("isUnique", def.unique());
+        return stage;
+    }
+
+    /**
+     * {@code executionStats} for {@link #runCommand(ExplainCommand)}: {@code nReturned} comes from
+     * actually running the wrapped query ({@link #find}/{@link #count}); {@code totalDocsExamined}/
+     * {@code totalKeysExamined} come from re-consulting {@code plan} directly ({@link #executeIndexPlan}
+     * for an index plan, or the collection's own size for a {@link IndexPlanner.FullScan} - a real
+     * COLLSCAN visits every document) rather than from the driver's cumulative
+     * {@code fullScans}/{@code indexHits} counters, which track call counts, not per-call cardinality.
+     */
+    private Map<String, Object> buildExecutionStats(String db, String coll, String innerName,
+            Map<String, Object> query, Map<String, Object> sort, Integer skip, Integer limit,
+            IndexPlanner.IndexPlan plan, CollectionIndexStore store, Map<String, Object> winningPlan)
+    throws MorphiumDriverException {
+        long startNanos = System.nanoTime();
+        long nReturned;
+        if ("count".equals(innerName)) {
+            nReturned = count(db, coll, query, null, null);
+        } else {
+            List<Map<String, Object>> result = find(db, coll, query, sort, null,
+                    skip != null ? skip : 0, limit != null ? limit : 0);
+            nReturned = result.size();
+        }
+        long executionTimeMillis = Math.max(0, (System.nanoTime() - startNanos) / 1_000_000);
+
+        long docsExamined;
+        long keysExamined;
+        if (plan instanceof IndexPlanner.FullScan) {
+            docsExamined = getCollection(db, coll).size();
+            keysExamined = 0;
+        } else {
+            List<Map<String, Object>> candidates = executeIndexPlan(store, plan);
+            docsExamined = candidates != null ? candidates.size() : 0;
+            keysExamined = plan instanceof IndexPlanner.InUnion in ? in.keys().size() : docsExamined;
+        }
+
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("executionSuccess", true);
+        stats.put("nReturned", nReturned);
+        stats.put("executionTimeMillis", executionTimeMillis);
+        stats.put("totalKeysExamined", keysExamined);
+        stats.put("totalDocsExamined", docsExamined);
+        stats.put("executionStages", winningPlan);
+        return stats;
     }
 
     @SuppressWarnings("unchecked")
@@ -2252,7 +2524,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 agg.getPipeline().addAll(cmd.getPipeline());
             }
 
+            long __slowQueryStartNanos = System.nanoTime();
             List<Map<String, Object>> allResults = agg.aggregateMap();
+            recordAggregateSlowQueryIfNeeded(cmd.getDb(), cmd.getColl(), cmd.getPipeline(),
+                    (System.nanoTime() - __slowQueryStartNanos) / 1_000_000);
 
             int batchSize = 0;
             if (cmd.getBatchSize() != null && cmd.getBatchSize() > 0) {
@@ -3523,6 +3798,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (lock != null) {
             lock.readLock().lock();
         }
+        long __slowQueryStartNanos = System.nanoTime();
         try {
             // null = no index consulted / not indexable -> caller must full-scan.
             // non-null (possibly empty) = an index was consulted and this IS the final candidate
@@ -3841,6 +4117,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
                 }
             }
+
+            long __elapsedMillis = (System.nanoTime() - __slowQueryStartNanos) / 1_000_000;
+            String __stage = partialHitData != null ? "IXSCAN" : "COLLSCAN";
+            long __docsExamined = partialHitData != null ? partialHitData.size() : getCollection(db, collection).size();
+            recordSlowQueryIfNeeded(db, collection, query, __stage, __docsExamined, __elapsedMillis);
+
             return new ArrayList<>(ret);
         } finally {
             if (lock != null) {
@@ -4447,12 +4729,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Acquire read lock for thread-safe iteration
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.readLock().lock();
+        long __slowQueryStartNanos = System.nanoTime();
         try {
             if (query == null || query.isEmpty()) {
                 // Consistent with find(): an empty query counts as a full scan (even though
                 // size() is O(1) here, the counter tracks "no index consulted", not cost).
                 fullScans++;
-                return getCollection(db, collection).size();
+                long __size = getCollection(db, collection).size();
+                recordSlowQueryIfNeeded(db, collection, query, "COLLSCAN", __size,
+                        (System.nanoTime() - __slowQueryStartNanos) / 1_000_000);
+                return __size;
             }
 
             // Same null/empty candidate-selection reasoning as find() - see getDataFromIndex's
@@ -4460,12 +4746,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // the final candidate set.
             List<Map<String, Object>> candidates = getDataFromIndex(db, collection, query);
             List<Map<String, Object>> data;
+            String __stage;
             if (candidates == null) {
                 data = getCollection(db, collection);
                 fullScans++;
+                __stage = "COLLSCAN";
             } else {
                 data = candidates;
                 indexHits++;
+                __stage = "IXSCAN";
             }
 
             long cnt = 0;
@@ -4476,6 +4765,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     cnt++;
                 }
             }
+
+            recordSlowQueryIfNeeded(db, collection, query, __stage, data.size(),
+                    (System.nanoTime() - __slowQueryStartNanos) / 1_000_000);
             return cnt;
         } finally {
             lock.readLock().unlock();

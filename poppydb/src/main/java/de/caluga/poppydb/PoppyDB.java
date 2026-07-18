@@ -787,6 +787,12 @@ public class PoppyDB {
         stats.put("primaryHost", primaryHost);
         stats.put("electionEnabled", electionEnabled);
         stats.putAll(cursorManager.getStats());
+        // Query-planning + slow-query counters (Phase C, Task 6) - fullScans/indexHits/indexSorts
+        // live on the driver (Phase B1/B2), slowQueries/slowQueriesCollScan/slowQueriesIxscan and
+        // the configured threshold were added alongside explain() in this task; nested under
+        // "query" rather than flattened so a future driver stats key can't silently collide with
+        // one of the top-level keys already used above.
+        stats.put("query", driver.getStats());
         if (replicationManager != null) {
             stats.put("replication", replicationManager.getStats());
         }
