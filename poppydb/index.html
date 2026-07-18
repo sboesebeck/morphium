@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -33,7 +33,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -956,6 +956,17 @@
     <span class="md-ellipsis">
       
         Programmatic Replica Set Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replication-buffer-sizing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replication buffer sizing
       
     </span>
   </a>
@@ -2320,6 +2331,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#replication-buffer-sizing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replication buffer sizing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#persistence-periodic-snapshots" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2920,6 +2942,54 @@
 1. Start a primary node
 2. Store initial test data
 3. Start secondary nodes and verify data replication</p>
+<h3 id="replication-buffer-sizing">Replication buffer sizing<a class="headerlink" href="#replication-buffer-sizing" title="Permanent link">&para;</a></h3>
+<p>A secondary that falls behind (network partition, GC pause, slow disk) resumes from its
+last-applied position once it reconnects — but only if the primary's replay buffer still covers
+the gap. If too much has been written while the secondary was disconnected, the primary signals
+"resume window lost" and the secondary falls back to a full initial re-sync instead of a cheap
+incremental resume.</p>
+<p>The rule of thumb: <strong>the replay buffer must be sized to cover the sustainable write rate times the
+worst-case sync/reconnect duration</strong> — <code>buffer size &gt;= write_rate × sync_duration</code>. A buffer sized
+for average load will still force a full re-sync under a burst or a slow reconnect, and if
+re-syncs then start overlapping with new bursts faster than they can complete, replication can
+enter a state where it never catches up (each re-sync itself takes time, during which more writes
+accumulate). This is exactly what <code>ReplicationManager</code> now watches for: if a resync happens more
+than once within a 10-minute window, it logs a WARN —
+<em>"replication cannot keep up — buffer sizes bound write rate × sync duration"</em> — because a single
+isolated re-sync is a normal recovery from a transient outage, but back-to-back re-syncs are a sign
+the buffer (or the sync speed) can no longer absorb the actual write rate.</p>
+<p>Use <code>ReplicationManager.getStats()</code> (nested under <code>PoppyDB.getStats()</code>'s <code>"replication"</code> key) to
+watch this before it becomes an incident:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resyncCount</code></td>
+<td>How many times this secondary has fallen back to a full re-sync.</td>
+</tr>
+<tr>
+<td><code>lastAppliedSequence</code></td>
+<td>The secondary's own last-applied change-stream sequence.</td>
+</tr>
+<tr>
+<td><code>eventQueueSize</code> / <code>eventQueueCapacity</code></td>
+<td>Current depth / configured bound of the secondary's local replication event queue — a queue that is consistently near capacity means the batch processor cannot keep up with incoming events.</td>
+</tr>
+<tr>
+<td><code>replicationLagEvents</code></td>
+<td>The primary's sequence at the most recent watch registration minus <code>lastAppliedSequence</code> — an approximation of how many events behind the secondary was at reconnect time.</td>
+</tr>
+<tr>
+<td><code>watchGeneration</code></td>
+<td>Bumped on every successful watch (re-)registration; a fast-climbing counter indicates a flapping connection.</td>
+</tr>
+</tbody>
+</table>
 <h3 id="persistence-periodic-snapshots">Persistence (Periodic Snapshots)<a class="headerlink" href="#persistence-periodic-snapshots" title="Permanent link">&para;</a></h3>
 <p>PoppyDB can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.</p>
 <p><strong>How it works:</strong>
@@ -3661,7 +3731,7 @@ You can trigger a manual dump at any time using the <code>dumpNow()</code> metho
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
