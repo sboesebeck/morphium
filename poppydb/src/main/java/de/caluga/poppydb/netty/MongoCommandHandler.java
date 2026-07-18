@@ -1014,6 +1014,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             long cursorId = cursorManager.createWatchCursor(driver, wcmd);
             channelCursors.add(cursorId);
 
+            // Read the current sequence right after the subscription is registered (inside
+            // createWatchCursor, above) so no write after this point can be missed: any write
+            // racing with subscription either lands before this read (its token <= this value,
+            // and it is still delivered live through the subscription that was already active) or
+            // after it (its token is necessarily greater, so it is not covered by this value and
+            // will simply be delivered live too). Piggyback it on the initial aggregate response,
+            // following the same wire convention as the "poppyResumeSequence" resumeAfter marker,
+            // so a PoppyDB secondary can seed its idle-window resume point (see ReplicationManager)
+            // instead of silently starting "from now" after a gap with zero applied events.
+            long primarySequenceAtRegistration = driver.getChangeStreamSequence();
+
             // Register as messaging cursor if this is a registered messaging collection
             if (messagingOptimizer != null &&
                 messagingOptimizer.isMessagingCollection(wcmd.getDb(), wcmd.getColl())) {
@@ -1026,7 +1037,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             var initialCursor = Doc.of("firstBatch", List.of(),
                     "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", cursorId);
-            return Doc.of("ok", 1.0, "cursor", initialCursor);
+            return Doc.of("ok", 1.0, "cursor", initialCursor,
+                    "poppyPrimarySequence", primarySequenceAtRegistration);
         } catch (Exception e) {
             log.error("Error setting up change stream: {}", e.getMessage(), e);
             return Doc.of("ok", 0.0, "errmsg", e.getMessage());

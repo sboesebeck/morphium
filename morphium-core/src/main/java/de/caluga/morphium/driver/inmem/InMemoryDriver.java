@@ -280,7 +280,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // consults this so any resume whose token predates a drop becomes an explicit window-lost →
     // re-sync. Cluster-wide (global) because PoppyDB's replication watch is cluster-level; a global
     // check is at worst conservative for a single-namespace change stream.
-    private volatile long lastGlobalDropSequence = 0;
+    private final AtomicLong lastGlobalDropSequence = new AtomicLong(0);
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
     // Phase B2 Task 4: running byte counter per capped collection, fed by cappedOnInsert/
@@ -667,7 +667,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistorySize.set(0);
         changeStreamSequence.set(0);
         lastDropSequence.clear();
-        lastGlobalDropSequence = 0;
+        lastGlobalDropSequence.set(0);
         eventQueue.clear();
         cursors.clear();
         commandResults.clear();
@@ -6157,7 +6157,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (resumeToken > newest) {
             return false; // token from a reset/foreign sequence space — cannot resume
         }
-        if (lastGlobalDropSequence > resumeToken) {
+        if (lastGlobalDropSequence.get() > resumeToken) {
             // A drop happened after this token; its notification (and the dropped namespace's
             // events) were purged from the buffer, so the window is not losslessly replayable —
             // force a re-sync so the consumer actually learns about the drop.
@@ -6881,9 +6881,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // Any events with tokens <= this value are from before the drop.
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db + "." + collection, dropBoundary);
-        if (dropBoundary > lastGlobalDropSequence) {
-            lastGlobalDropSequence = dropBoundary;
-        }
+        lastGlobalDropSequence.accumulateAndGet(dropBoundary, Math::max);
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         notifyWatchers(db, collection, "drop", null);
         // Second purge: removes the drop notification event itself and any
@@ -6909,9 +6907,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         long dropBoundary = changeStreamSequence.addAndGet(100);
         lastDropSequence.put(db, dropBoundary);
-        if (dropBoundary > lastGlobalDropSequence) {
-            lastGlobalDropSequence = dropBoundary;
-        }
+        lastGlobalDropSequence.accumulateAndGet(dropBoundary, Math::max);
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db)) {
                 changeStreamHistorySize.decrementAndGet();
