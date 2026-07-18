@@ -51,6 +51,13 @@ public class ReplicationManager {
     // Number of times the primary signalled "resume window lost" and we fell back to a full re-sync.
     // Exposed for tests/metrics to distinguish a clean resume (0) from a re-sync fallback.
     private final AtomicLong resyncCount = new AtomicLong(0);
+    // Wall-clock time (System.currentTimeMillis()) of the previous resync, used to detect resyncs
+    // repeating faster than the buffer can absorb (see triggerResync()). 0 = no resync yet.
+    private final AtomicLong lastResyncTimestamp = new AtomicLong(0);
+    // If a second resync happens within this window of the previous one, the replay buffer is not
+    // keeping up with the sustained write rate x sync duration - log a WARN so an operator can size
+    // the buffer (see docs/poppydb.md "Replication buffer sizing").
+    private static final long RESYNC_WARN_WINDOW_MS = TimeUnit.MINUTES.toMillis(10);
     // Test hook: when true the replication loop severs its connection and stops reconnecting,
     // simulating a network partition between this secondary and the primary.
     private final AtomicBoolean pausedForTest = new AtomicBoolean(false);
@@ -1037,6 +1044,13 @@ public class ReplicationManager {
      */
     private void triggerResync(long fromSequence) {
         long n = resyncCount.incrementAndGet();
+        long now = System.currentTimeMillis();
+        long previous = lastResyncTimestamp.getAndSet(now);
+        if (previous != 0 && (now - previous) <= RESYNC_WARN_WINDOW_MS) {
+            log.warn("replication cannot keep up — buffer sizes bound write rate × sync duration "
+                    + "(resync #{} came {} ms after the previous one, within the {}-minute window)",
+                    n, now - previous, TimeUnit.MILLISECONDS.toMinutes(RESYNC_WARN_WINDOW_MS));
+        }
         log.warn("Primary signalled resume window lost at sequence {} — falling back to full re-sync (#{})",
                 fromSequence, n);
         applying.set(false);            // close the apply gate until the new snapshot completes
@@ -1345,6 +1359,16 @@ public class ReplicationManager {
         stats.put("resyncCount", resyncCount.get());
         stats.put("primaryHost", primaryHost + ":" + primaryPort);
         stats.put("myAddress", myAddress);
+        stats.put("eventQueueSize", eventQueue.size());
+        stats.put("eventQueueCapacity", EVENT_QUEUE_CAPACITY);
+        // How many events behind the secondary is, based on the primary's sequence at the most
+        // recent watch registration (Task 2b's exchange - see getLastKnownPrimarySequence()).
+        // Clamped to 0: once live events keep flowing past that registration-time snapshot,
+        // lastAppliedSequence naturally overtakes it between registrations, which is progress, not
+        // negative lag.
+        stats.put("replicationLagEvents",
+                Math.max(0, getLastKnownPrimarySequence() - getLastAppliedSequence()));
+        stats.put("watchGeneration", watchGeneration.get());
         return stats;
     }
 

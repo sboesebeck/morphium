@@ -126,6 +126,36 @@ This is particularly useful for testing scenarios where you want to:
 2. Store initial test data
 3. Start secondary nodes and verify data replication
 
+### Replication buffer sizing
+
+A secondary that falls behind (network partition, GC pause, slow disk) resumes from its
+last-applied position once it reconnects — but only if the primary's replay buffer still covers
+the gap. If too much has been written while the secondary was disconnected, the primary signals
+"resume window lost" and the secondary falls back to a full initial re-sync instead of a cheap
+incremental resume.
+
+The rule of thumb: **the replay buffer must be sized to cover the sustainable write rate times the
+worst-case sync/reconnect duration** — `buffer size >= write_rate × sync_duration`. A buffer sized
+for average load will still force a full re-sync under a burst or a slow reconnect, and if
+re-syncs then start overlapping with new bursts faster than they can complete, replication can
+enter a state where it never catches up (each re-sync itself takes time, during which more writes
+accumulate). This is exactly what `ReplicationManager` now watches for: if a resync happens more
+than once within a 10-minute window, it logs a WARN —
+*"replication cannot keep up — buffer sizes bound write rate × sync duration"* — because a single
+isolated re-sync is a normal recovery from a transient outage, but back-to-back re-syncs are a sign
+the buffer (or the sync speed) can no longer absorb the actual write rate.
+
+Use `ReplicationManager.getStats()` (nested under `PoppyDB.getStats()`'s `"replication"` key) to
+watch this before it becomes an incident:
+
+| Key | Meaning |
+|-----|---------|
+| `resyncCount` | How many times this secondary has fallen back to a full re-sync. |
+| `lastAppliedSequence` | The secondary's own last-applied change-stream sequence. |
+| `eventQueueSize` / `eventQueueCapacity` | Current depth / configured bound of the secondary's local replication event queue — a queue that is consistently near capacity means the batch processor cannot keep up with incoming events. |
+| `replicationLagEvents` | The primary's sequence at the most recent watch registration minus `lastAppliedSequence` — an approximation of how many events behind the secondary was at reconnect time. |
+| `watchGeneration` | Bumped on every successful watch (re-)registration; a fast-climbing counter indicates a flapping connection. |
+
 ### Persistence (Periodic Snapshots)
 
 PoppyDB can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.
