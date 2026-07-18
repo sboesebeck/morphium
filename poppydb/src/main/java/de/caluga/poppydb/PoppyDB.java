@@ -25,6 +25,7 @@ import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.poppydb.election.ElectionConfig;
 import de.caluga.poppydb.election.ElectionManager;
 import de.caluga.poppydb.election.ElectionNetworkClient;
+import de.caluga.poppydb.netty.FindCursorRegistry;
 import de.caluga.poppydb.netty.MongoCommandHandler;
 import de.caluga.poppydb.netty.MongoWireProtocolDecoder;
 import de.caluga.poppydb.netty.MongoWireProtocolEncoder;
@@ -65,6 +66,11 @@ public class PoppyDB {
     // Server state
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
+    // Per-instance registry of server-side find cursors (and their idle-sweeper) — owned by
+    // this PoppyDB instance and handed to every MongoCommandHandler it creates, exactly like
+    // cursorManager above. Must stay per-instance (not JVM-static): multiple PoppyDB instances
+    // running in one test JVM must not see each other's open find cursors.
+    private final FindCursorRegistry findCursorRegistry;
     private final MessagingOptimizer messagingOptimizer;
     private final AtomicInteger msgId = new AtomicInteger(1000);
     private volatile boolean running = false;
@@ -110,6 +116,7 @@ public class PoppyDB {
         this.allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         this.driver = new InMemoryDriver();
         this.cursorManager = new WatchCursorManager();
+        this.findCursorRegistry = new FindCursorRegistry();
         this.messagingOptimizer = new MessagingOptimizer(driver);
         // Wire up messaging optimizer with cursor manager for fast-path notifications
         messagingOptimizer.setWatchCursorManager(cursorManager);
@@ -210,7 +217,7 @@ public class PoppyDB {
                         // replicationCoordinatorRef::get, never captured, so a leadership change
                         // that happens after this connection was accepted is still observed.
                         pipeline.addLast("commandHandler", new MongoCommandHandler(
-                                driver, cursorManager, messagingOptimizer, msgId,
+                                driver, cursorManager, findCursorRegistry, messagingOptimizer, msgId,
                                 host, port, rsName, hosts,
                                 primary, primaryHost, compressorId,
                                 replicationCoordinatorRef::get, electionManager,
@@ -276,6 +283,10 @@ public class PoppyDB {
 
         // Shutdown cursor manager
         cursorManager.shutdown();
+
+        // Shutdown this instance's find-cursor registry sweeper thread — must happen on every
+        // shutdown so sweeper threads don't leak across test instances in the same JVM.
+        findCursorRegistry.shutdown();
 
         // Close all channels
         log.info("Closing {} client connections...", allChannels.size());
@@ -748,6 +759,23 @@ public class PoppyDB {
 
     public int getConnectionCount() {
         return allChannels.size();
+    }
+
+    /**
+     * Test/monitoring hook: number of currently open server-side find cursors on THIS instance
+     * only. Delegates to this instance's own {@link FindCursorRegistry} — see that class'
+     * javadoc for why this must never be a JVM-static count shared across PoppyDB instances.
+     */
+    public int openFindCursors() {
+        return findCursorRegistry.openFindCursors();
+    }
+
+    /**
+     * Test/monitoring hook: number of documents currently retained in memory for a server-side
+     * find cursor's bounded window on THIS instance. Returns -1 if no such cursor is open.
+     */
+    public int retainedFindCursorDocs(long cursorId) {
+        return findCursorRegistry.retainedFindCursorDocs(cursorId);
     }
 
     public Map<String, Object> getStats() {

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -38,6 +39,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  * </ul>
  */
 @Tag("server")
+@Disabled("Disabled by default - starts real PoppyDB server(s) and is flaky under parallel test runs. Run manually with -Djunit.jupiter.conditions.deactivate=org.junit.*DisabledCondition (see ci/CLAUDE-testvm.md).")
 public class ReplicationResumeTest {
 
     private static final Logger log = LoggerFactory.getLogger(ReplicationResumeTest.class);

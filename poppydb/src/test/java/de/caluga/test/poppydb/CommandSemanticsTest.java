@@ -37,7 +37,7 @@ import de.caluga.test.mongo.suite.base.TestUtils;
  * writes to the primary or auto-draining cursors.
  */
 @Tag("server")
-@Disabled("Disabled by default - runs local PoppyDB replica sets which are flaky under parallel tests. Run manually or with --include-tags server")
+@Disabled("Disabled by default - starts real PoppyDB server(s) and is flaky under parallel test runs. Run manually with -Djunit.jupiter.conditions.deactivate=org.junit.*DisabledCondition (see ci/CLAUDE-testvm.md).")
 public class CommandSemanticsTest {
     private static final Logger log = LoggerFactory.getLogger(CommandSemanticsTest.class);
     private static final AtomicInteger MSG_ID = new AtomicInteger(1);
