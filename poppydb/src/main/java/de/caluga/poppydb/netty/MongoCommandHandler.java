@@ -810,7 +810,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 Map<String, Object> errorResponse = Doc.of(
                     "ok", 0.0,
                     "errmsg", "not primary and read preference is primary",
-                    "code", 10107,
+                    "code", 13435,
                     "codeName", "NotPrimaryNoSecondaryOk"
                 );
                 if (currentPrimary != null) {

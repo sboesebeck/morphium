@@ -409,6 +409,52 @@ public class CommandSemanticsTest {
         }
     }
 
+    // Scenario 7 (Task 1 / Phase C hardening): a secondary must reject a primary-only read
+    // (readPreference mode:"primary") with the real mongod error pair - NotPrimaryNoSecondaryOk
+    // (13435) - not NotWritablePrimary (10107), which is a different error reserved for rejected
+    // writes (see scenario 1 above).
+    @Test
+    public void secondaryRejectsPrimaryReadPreferenceRead_withNotPrimaryNoSecondaryOk() throws Exception {
+        List<PoppyDB> servers = startReplicaSet(freePort(), freePort(), freePort());
+        try {
+            PoppyDB secondary = servers.stream().filter(s -> !s.isPrimary()).findFirst()
+                    .orElseThrow(() -> new AssertionError("no secondary found"));
+            log.info("Using secondary on port {}", secondary.getPort());
+
+            // "hello" is a control-plane command (bypasses preDispatch entirely), so it is a safe
+            // probe for the secondary's initial-sync state. Wait until it reports secondary:true
+            // (initial sync complete) - otherwise the RECOVERING check ((0) in preDispatch, added
+            // in ea1baa4b) fires first and rejects with NotPrimaryOrSecondary (13436) instead of
+            // reaching the readPreference check this test targets.
+            TestUtils.waitForConditionToBecomeTrue(20000, "secondary did not finish initial sync", () -> {
+                try (Socket probe = connect(secondary.getPort())) {
+                    Map<String, Object> hello = command(probe, Doc.of("hello", 1, "$db", "admin"));
+                    return Boolean.TRUE.equals(hello.get("secondary"));
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+
+            try (Socket sock = connect(secondary.getPort())) {
+                Map<String, Object> reply = command(sock, Doc.of(
+                        "find", "sem_rp",
+                        "filter", Doc.of(),
+                        "$db", "semtest",
+                        "$readPreference", Doc.of("mode", "primary")));
+                log.info("Primary-read-preference-on-secondary reply: {}", reply);
+
+                assertEquals(0.0, ok(reply), "secondary must reject a primary-only read (ok:0)");
+                Object code = reply.get("code");
+                assertNotNull(code, "reply must carry a not-primary error code");
+                assertEquals(13435, ((Number) code).intValue(), "expected NotPrimaryNoSecondaryOk (13435)");
+                assertEquals("NotPrimaryNoSecondaryOk", reply.get("codeName"),
+                        "codeName must match the real mongod NotPrimaryNoSecondaryOk error");
+            }
+        } finally {
+            shutdownAll(servers);
+        }
+    }
+
     @Test
     public void aggregateUnknownGroupOperator_isCommandErrorNotEmptyResult() throws Exception {
         int port = freePort();
