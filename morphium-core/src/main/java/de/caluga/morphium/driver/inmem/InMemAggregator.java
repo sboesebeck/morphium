@@ -2316,7 +2316,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 break;
 
-            case "$indexStats":
             case "$geoNear":
                 op = step.get(stage);
                 if (op instanceof Map) {
@@ -2355,6 +2354,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     ret = geoResults;
                 }
                 break;
+            // $indexStats previously shared $geoNear's body and silently ran geoNear logic (#243).
+            // It is not implemented by the in-memory driver, so it is grouped with the other
+            // unimplemented stages here and surfaces as a proper command error instead.
+            case "$indexStats":
             case "$collStats":
             case "$listSessions":
             default:
