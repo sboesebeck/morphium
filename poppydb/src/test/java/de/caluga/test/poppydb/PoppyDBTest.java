@@ -36,7 +36,7 @@ import de.caluga.poppydb.PoppyDB;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 @Tag("server")
-@Disabled("Disabled by default - runs local PoppyDB which is flaky with parallel tests. Run manually or with --include-tags server")
+@Disabled("Disabled by default - starts real PoppyDB server(s) and is flaky under parallel test runs. Run manually with -Djunit.jupiter.conditions.deactivate=org.junit.*DisabledCondition (see ci/CLAUDE-testvm.md).")
 public class PoppyDBTest {
     private Logger log = LoggerFactory.getLogger(PoppyDBTest.class);
     private static final AtomicInteger PORT = new AtomicInteger(18000);

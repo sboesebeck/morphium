@@ -2367,11 +2367,41 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DbStatsCommand cmd) {
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        // #247: report stats scoped to the requested database (cmd.getDb()), not a global count of
+        // all databases. Byte-size fields (dataSize/storageSize/indexSize) are reported as 0 because
+        // the in-memory driver does not track document byte sizes on the read path; the meaningful
+        // counts (collections/objects/indexes) are computed from the live structures.
         int ret = commandNumber.incrementAndGet();
+        String db = cmd.getDb();
+        Map<String, List<Map<String, Object>>> dbMap = database.get(db);
+
+        long collections = 0;
+        long objects = 0;
+        if (dbMap != null) {
+            collections = dbMap.size();
+            for (List<Map<String, Object>> coll : dbMap.values()) {
+                objects += coll.size();
+            }
+        }
+
+        long indexes = 0;
+        Map<String, List<Map<String, Object>>> dbIdx = indicesByDbCollection.get(db);
+        if (dbIdx != null) {
+            for (List<Map<String, Object>> idxList : dbIdx.values()) {
+                indexes += idxList.size();
+            }
+        }
+
         var m = prepareResult();
-        m.put("databases", database.size());
+        m.put("db", db);
+        m.put("collections", collections);
+        m.put("objects", objects);
+        m.put("avgObjSize", 0);
+        m.put("dataSize", 0);
+        m.put("storageSize", 0);
+        m.put("indexes", indexes);
+        m.put("indexSize", 0);
+        m.put("scaleFactor", 1);
         addResult(ret, m);
         return ret;
     }
@@ -3194,6 +3224,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * rebuilt lazily from the migrated registration on the next sweep (same contract as getIndexStore).
      */
     private void migrateCollectionBookkeepingOnRename(String db, String origin, String target) {
+        // Index definitions (#248): the target's index store is invalidated right after this and
+        // rebuilds from whatever is registered under the TARGET name - so the origin's definitions
+        // (unique/compound/TTL/sparse/...) must be moved across, or the renamed collection ends up
+        // with no indexes at all.
+        Map<String, List<Map<String, Object>>> dbIdx = indicesByDbCollection.get(db);
+        if (dbIdx != null && dbIdx.containsKey(origin)) {
+            dbIdx.put(target, dbIdx.remove(origin));
+        }
         Map<String, Map<String, Integer>> dbCapped = cappedCollections.get(db);
         if (dbCapped != null && dbCapped.containsKey(origin)) {
             dbCapped.put(target, dbCapped.remove(origin));

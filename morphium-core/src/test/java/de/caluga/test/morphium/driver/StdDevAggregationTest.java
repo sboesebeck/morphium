@@ -362,4 +362,20 @@ public class StdDevAggregationTest {
                 "internal $_calc_ bookkeeping key must not leak into $avg group output, found: " + key);
         }
     }
+
+    // ---- #243: $indexStats must not silently run $geoNear's body ---------------------------
+
+    @Test
+    public void indexStatsStage_throwsCommandError_notSilentlyRunningGeoNear() throws Exception {
+        seed(1, 2, 3);
+
+        Aggregator<StdDevItem, Map> agg = aggregator();
+        // $indexStats used to share $geoNear's case body (distance calc/sort) - same mis-grouped
+        // case-label bug class as #237. It is not implemented, so it must error, not run geoNear.
+        agg.addOperator(UtilsMap.of("$indexStats", new java.util.HashMap<>()));
+
+        MorphiumDriverException ex = assertThrows(MorphiumDriverException.class, agg::aggregateMap);
+        assertEquals(40324, ex.getMongoCode());
+        assertTrue(ex.getMessage().contains("$indexStats"), "error must name the stage: " + ex.getMessage());
+    }
 }

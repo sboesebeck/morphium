@@ -3,9 +3,11 @@ package de.caluga.test.morphium.driver;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.CreateCommand;
+import de.caluga.morphium.driver.commands.DbStatsCommand;
 import de.caluga.morphium.driver.commands.DropIndexesCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.ListIndexesCommand;
 import de.caluga.morphium.driver.commands.RenameCollectionCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import org.junit.jupiter.api.AfterEach;
@@ -98,6 +100,34 @@ public class RenameDropBookkeepingTest {
             "TTL sweep registration must follow the collection to its new name");
         assertFalse(ttlRegistry().containsKey(db + ".ttl_src"),
             "stale origin TTL registration must be removed on rename");
+    }
+
+    @Test
+    public void dbStats_returnsPerDbStatsNotGlobalDatabaseCount() throws Exception {
+        // #247: dbStats must report stats scoped to the requested db, not a global database count.
+        insert("coll_a", 3);
+        insert("coll_b", 2);
+
+        Map<String, Object> stats = new DbStatsCommand(drv).setDb(db).execute();
+
+        assertEquals(db, stats.get("db"), "dbStats must name the requested database");
+        assertEquals(2, ((Number) stats.get("collections")).intValue(), "two collections were created in this db");
+        assertEquals(5, ((Number) stats.get("objects")).intValue(), "total document count across the db's collections");
+        assertFalse(stats.containsKey("databases"),
+            "dbStats must not return a global count of all databases");
+    }
+
+    @Test
+    public void indexDefinitions_migratedOnRename() throws Exception {
+        // #248: a rename must carry the collection's index definitions to the new name.
+        drv.createIndex(db, "idx_src", Doc.of("value", 1), Doc.of("name", "value_1", "unique", true));
+
+        new RenameCollectionCommand(drv).setDb(db).setColl("idx_src").setTo("idx_dst").execute();
+
+        ListIndexesCommand li = new ListIndexesCommand(drv).setDb(db).setColl("idx_dst");
+        List<de.caluga.morphium.IndexDescription> idx = li.execute();
+        boolean hasValueIdx = idx.stream().anyMatch(i -> "value_1".equals(i.getName()));
+        assertTrue(hasValueIdx, "renamed collection must retain its index definitions, got: " + idx);
     }
 
     @Test

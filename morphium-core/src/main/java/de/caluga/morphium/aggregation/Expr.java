@@ -333,7 +333,7 @@ public abstract class Expr {
         return new OpExprNoList("ln", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.log1p(((Number) eval(e, context)).doubleValue());
+                return Math.log(((Number) eval(e, context)).doubleValue());
             }
         };
     }
@@ -636,7 +636,10 @@ public abstract class Expr {
                     }
                 }
 
-                for (int i = startNum; i < endNum; i = i + stepNum) {
+                // Loop must honour the direction: ascending stops at i >= end, descending stops at
+                // i <= end. The old condition (i < end) was always false on the first check for a
+                // descending range, so $range(5,1,-1) wrongly returned an empty list.
+                for (int i = startNum; stepNum > 0 ? i < endNum : i > endNum; i = i + stepNum) {
                     lst.add(i);
                 }
 
@@ -649,7 +652,10 @@ public abstract class Expr {
         return new OpExprNoList("reverseArray", array) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                List lst = (List) eval(array, context);
+                // Copy before reversing: $reverseArray is a pure read and must not mutate the
+                // source list (which may be a live reference into the source document, shared with
+                // other pipeline stages).
+                List lst = new ArrayList((List) eval(array, context));
                 Collections.reverse(lst);
                 return lst;
             }
@@ -2121,7 +2127,21 @@ public abstract class Expr {
         return new OpExprNoList("avg", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return eval(e, context);
+                Object value = eval(e, context);
+                if (value instanceof List) {
+                    // Single-argument form over an array: reduce to the mean of numeric elements
+                    // (mirrors sum(Expr)); returning the array unchanged was a bug (#246).
+                    double sum = 0.0;
+                    int count = 0;
+                    for (Object item : (List<?>) value) {
+                        if (item instanceof Number) {
+                            sum += ((Number) item).doubleValue();
+                            count++;
+                        }
+                    }
+                    return count > 0 ? sum / count : null;
+                }
+                return value;
             }
         };
     }
@@ -2153,8 +2173,24 @@ public abstract class Expr {
     public static Expr max(Expr e) {
         return new OpExprNoList("max", e) {
             @Override
+            @SuppressWarnings("unchecked")
             public Object evaluate(Map<String, Object> context) {
-                return eval(e, context);
+                Object value = eval(e, context);
+                if (value instanceof List) {
+                    // Single-argument form over an array: reduce to the largest element,
+                    // preserving its type (#246). Returning the array unchanged was a bug.
+                    Object max = null;
+                    for (Object item : (List<?>) value) {
+                        if (item == null) {
+                            continue;
+                        }
+                        if (max == null || ((Comparable) max).compareTo(item) < 0) {
+                            max = item;
+                        }
+                    }
+                    return max;
+                }
+                return value;
             }
         };
     }
@@ -2184,8 +2220,24 @@ public abstract class Expr {
     public static Expr min(Expr e) {
         return new OpExprNoList("min", e) {
             @Override
+            @SuppressWarnings("unchecked")
             public Object evaluate(Map<String, Object> context) {
-                return eval(e, context);
+                Object value = eval(e, context);
+                if (value instanceof List) {
+                    // Single-argument form over an array: reduce to the smallest element,
+                    // preserving its type (#246). Returning the array unchanged was a bug.
+                    Object min = null;
+                    for (Object item : (List<?>) value) {
+                        if (item == null) {
+                            continue;
+                        }
+                        if (min == null || ((Comparable) min).compareTo(item) > 0) {
+                            min = item;
+                        }
+                    }
+                    return min;
+                }
+                return value;
             }
         };
     }

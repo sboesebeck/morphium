@@ -28,6 +28,22 @@ import static org.junit.jupiter.api.Assertions.*;
 public class InMemAggregationTests extends MorphiumInMemTestBase {
 
     @Test
+    public void inMemProjectInclusionReturnsOnlySelectedFields() throws Exception {
+        // #240: $project inclusion mode ({field:1}) must restrict output to _id + the listed
+        // fields, not pass the whole document through.
+        morphium.store(new UncachedObject("hello", 42));
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.project("counter"); // -> {counter: 1}
+        List<Map<String, Object>> lst = agg.aggregateMap();
+        assertEquals(1, lst.size());
+        Map<String, Object> doc = lst.get(0);
+        assertTrue(doc.containsKey("counter"), "included field must be present");
+        assertEquals(42, ((Number) doc.get("counter")).intValue());
+        assertFalse(doc.containsKey("str_value"),
+            "non-included field must be dropped in $project inclusion mode");
+    }
+
+    @Test
     public void inMemAggregationSumTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);

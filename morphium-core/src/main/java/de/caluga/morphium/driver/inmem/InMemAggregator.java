@@ -1028,47 +1028,98 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                 break;
 
-            case "$project":
+            case "$project": {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
+                // #240: an explicit inclusion flag ({field:1}/true) on any non-_id field switches
+                // $project into strict inclusion mode - MongoDB then returns ONLY _id plus the listed
+                // and computed fields. Without any such flag we keep the historical lenient behaviour
+                // (clone the document, add computed fields, honour {field:0} exclusions), which
+                // existing computed-only projection pipelines depend on.
+                boolean strictInclusion = false;
+                for (Map.Entry<String, Object> e : op.entrySet()) {
+                    if (!e.getKey().equals("_id") && isProjectInclusionFlag(e.getValue())) {
+                        strictInclusion = true;
+                        break;
+                    }
+                }
+
                 for (Map<String, Object> o : data) {
-                    Map<String, Object> obj = new HashMap<>(o);
-                    ret.add(obj);
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
+                    Map<String, Object> obj;
 
-                    for (String k : op.keySet()) {
-                        Object value = op.get(k);
+                    if (strictInclusion) {
+                        obj = new HashMap<>();
+                        // _id is kept unless explicitly excluded with {_id:0}.
+                        if (!(op.containsKey("_id") && isProjectExclusionFlag(op.get("_id"))) && o.containsKey("_id")) {
+                            obj.put("_id", o.get("_id"));
+                        }
 
-                        if (value instanceof String && ((String) value).startsWith("$")) {
-                            String path = ((String) value).substring(1);
-                            Object v = getByPath(obj, path);
-                            obj.put(k, v);
-                        } else if (value instanceof Expr.ValueExpr) {
-                            Object evaluate = ((Expr) value).evaluate(obj);
+                        for (Map.Entry<String, Object> e : op.entrySet()) {
+                            String k = e.getKey();
+                            Object value = e.getValue();
 
-                            if (Integer.valueOf(0).equals(evaluate)) {
-                                obj.remove(k);
+                            if (k.equals("_id")) {
+                                // Computed _id ({_id:<expr>}/{_id:"$ref"}) still applies; the plain
+                                // 0/1 flag was already handled above.
+                                if (!isProjectInclusionFlag(value) && !isProjectExclusionFlag(value)) {
+                                    obj.put(k, projectComputedValue(value, o));
+                                }
+                                continue;
                             }
-                        } else if (value instanceof Expr) {
-                            Object evaluate = ((Expr) value).evaluate(obj);
-                            obj.put(k, evaluate);
-                        } else if (value instanceof Integer) {
-                            if (((Integer) value) == 0) {
-                                obj.remove(k);
+
+                            if (isProjectInclusionFlag(value)) {
+                                Object v = getByPath(o, k);
+                                if (v != null || o.containsKey(k)) {
+                                    obj.put(k, v);
+                                }
+                            } else if (isProjectExclusionFlag(value)) {
+                                // {field:0} mixed with inclusions is invalid in MongoDB (except _id);
+                                // ignore the exclusion rather than error.
+                            } else {
+                                obj.put(k, projectComputedValue(value, o));
                             }
-                        } else if (value instanceof Map) {
-                            //noinspection unchecked
-                            for (String fld : ((Map<String, Object>) value).keySet()) {
-                                if (obj.get(fld) instanceof Expr) {
-                                    obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
-                                } else {
-                                    log.error("InMemoryAggregation only works with Expr");
+                        }
+                    } else {
+                        obj = new HashMap<>(o);
+
+                        for (String k : op.keySet()) {
+                            Object value = op.get(k);
+
+                            if (value instanceof String && ((String) value).startsWith("$")) {
+                                String path = ((String) value).substring(1);
+                                Object v = getByPath(obj, path);
+                                obj.put(k, v);
+                            } else if (value instanceof Expr.ValueExpr) {
+                                Object evaluate = ((Expr) value).evaluate(obj);
+
+                                if (Integer.valueOf(0).equals(evaluate)) {
+                                    obj.remove(k);
+                                }
+                            } else if (value instanceof Expr) {
+                                Object evaluate = ((Expr) value).evaluate(obj);
+                                obj.put(k, evaluate);
+                            } else if (value instanceof Integer) {
+                                if (((Integer) value) == 0) {
+                                    obj.remove(k);
+                                }
+                            } else if (value instanceof Map) {
+                                //noinspection unchecked
+                                for (String fld : ((Map<String, Object>) value).keySet()) {
+                                    if (obj.get(fld) instanceof Expr) {
+                                        obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
+                                    } else {
+                                        log.error("InMemoryAggregation only works with Expr");
+                                    }
                                 }
                             }
                         }
                     }
+
+                    ret.add(obj);
                 }
 
                 break;
+            }
 
             case "$set":
             case "$addFields":
@@ -2265,7 +2316,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 break;
 
-            case "$indexStats":
             case "$geoNear":
                 op = step.get(stage);
                 if (op instanceof Map) {
@@ -2304,6 +2354,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     ret = geoResults;
                 }
                 break;
+            // $indexStats previously shared $geoNear's body and silently ran geoNear logic (#243).
+            // It is not implemented by the in-memory driver, so it is grouped with the other
+            // unimplemented stages here and surfaces as a proper command error instead.
+            case "$indexStats":
             case "$collStats":
             case "$listSessions":
             default:
@@ -2446,6 +2500,64 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return groupIdSpec;
+    }
+
+    /**
+     * True if a $project spec value is an inclusion flag (1 / true / a ValueExpr evaluating to 1) -
+     * i.e. "keep this field", as opposed to an exclusion (0) or a computed expression. See #240.
+     */
+    private boolean isProjectInclusionFlag(Object v) {
+        if (v instanceof Boolean) {
+            return (Boolean) v;
+        }
+        if (v instanceof Number) {
+            return ((Number) v).doubleValue() != 0.0;
+        }
+        if (v instanceof Expr.ValueExpr) {
+            Object e = ((Expr) v).evaluate(new HashMap<>());
+            if (e instanceof Boolean) {
+                return (Boolean) e;
+            }
+            return e instanceof Number && ((Number) e).doubleValue() != 0.0;
+        }
+        return false;
+    }
+
+    /**
+     * True if a $project spec value is an exclusion flag (0 / false / a ValueExpr evaluating to 0).
+     */
+    private boolean isProjectExclusionFlag(Object v) {
+        if (v instanceof Boolean) {
+            return !((Boolean) v);
+        }
+        if (v instanceof Number) {
+            return ((Number) v).doubleValue() == 0.0;
+        }
+        if (v instanceof Expr.ValueExpr) {
+            Object e = ((Expr) v).evaluate(new HashMap<>());
+            if (e instanceof Boolean) {
+                return !((Boolean) e);
+            }
+            return e instanceof Number && ((Number) e).doubleValue() == 0.0;
+        }
+        return false;
+    }
+
+    /**
+     * Evaluates a non-flag $project value (field reference "$x", an {@link Expr}, or a raw
+     * expression map) against a source document, for strict inclusion mode (#240).
+     */
+    private Object projectComputedValue(Object value, Map<String, Object> o) {
+        if (value instanceof String && ((String) value).startsWith("$")) {
+            return getByPath(o, ((String) value).substring(1));
+        }
+        if (value instanceof Expr) {
+            return ((Expr) value).evaluate(o);
+        }
+        if (value instanceof Map) {
+            return Expr.parse(value).evaluate(o);
+        }
+        return value;
     }
 
     /**
