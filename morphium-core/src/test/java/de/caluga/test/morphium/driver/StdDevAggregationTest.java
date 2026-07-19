@@ -292,4 +292,74 @@ public class StdDevAggregationTest {
         assertEquals(15952, ex.getMongoCode());
         assertTrue(ex.getMessage().contains("$bogusAccumulator"));
     }
+
+    // ---- #237: mis-grouped $bucket case labels no longer silently run $bucket -------------
+
+    @Test
+    public void redactStage_throwsCommandError_notSilentlyRunningBucket() throws Exception {
+        seed(1, 2, 3);
+
+        Aggregator<StdDevItem, Map> agg = aggregator();
+        // $redact used to share the $bucket switch body and silently returned an empty/nonsense
+        // result instead of a real implementation or a proper "unsupported stage" error.
+        agg.addOperator(UtilsMap.of("$redact", "$$KEEP"));
+
+        MorphiumDriverException ex = assertThrows(MorphiumDriverException.class, agg::aggregateMap);
+        assertEquals(40324, ex.getMongoCode());
+        assertTrue(ex.getMessage().contains("$redact"), "error must name the offending stage: " + ex.getMessage());
+    }
+
+    @Test
+    public void unionWithStage_throwsCommandError_notSilentlyRunningBucket() throws Exception {
+        seed(1, 2, 3);
+
+        Aggregator<StdDevItem, Map> agg = aggregator();
+        agg.addOperator(UtilsMap.of("$unionWith", "someOtherCollection"));
+
+        MorphiumDriverException ex = assertThrows(MorphiumDriverException.class, agg::aggregateMap);
+        assertEquals(40324, ex.getMongoCode());
+        assertTrue(ex.getMessage().contains("$unionWith"), "error must name the offending stage: " + ex.getMessage());
+    }
+
+    @Test
+    public void bucketOutputUnknownAccumulator_throwsCommandError_notNull() throws Exception {
+        seed(1, 2, 3);
+
+        Aggregator<StdDevItem, Map> agg = aggregator();
+        // #237 sibling: the $bucket output accumulator helper (computeGroupValue) used to return
+        // null for an unrecognized accumulator operator instead of reporting it.
+        agg.addOperator(UtilsMap.of("$bucket", Doc.of(
+            "groupBy", "$value",
+            "boundaries", java.util.List.of(0, 2, 10),
+            "default", "other",
+            "output", Doc.of("bad", Doc.of("$bogusAccumulator", "$value"))
+        )));
+
+        MorphiumDriverException ex = assertThrows(MorphiumDriverException.class, agg::aggregateMap);
+        assertEquals(15952, ex.getMongoCode());
+        assertTrue(ex.getMessage().contains("$bogusAccumulator"), "error must name the offending accumulator: " + ex.getMessage());
+    }
+
+    // ---- #238: $avg must not leak its internal $_calc_ bookkeeping key into group output --
+
+    @Test
+    public void groupAvg_doesNotLeakCalcBookkeepingKey() throws Exception {
+        seed(2, 4, 6);
+
+        Aggregator<StdDevItem, Map> agg = aggregator();
+        agg.addOperator(UtilsMap.of("$group", Doc.of(
+            "_id", "$grp",
+            "average", Doc.of("$avg", "$value")
+        )));
+
+        List<Map<String, Object>> res = agg.aggregateMap();
+        assertThat(res).hasSize(1);
+        Map<String, Object> group = res.get(0);
+        assertEquals(4.0, ((Number) group.get("average")).doubleValue(), 1e-9);
+
+        for (String key : group.keySet()) {
+            assertFalse(key.startsWith("$_calc_"),
+                "internal $_calc_ bookkeeping key must not leak into $avg group output, found: " + key);
+        }
+    }
 }

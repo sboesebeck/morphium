@@ -1695,6 +1695,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             try {
                 var col = database.get(cmd.getDb()).remove(origin);
                 database.get(cmd.getDb()).put(target, col);
+                if (!origin.equals(target)) {
+                    // Carry the origin's capped and TTL bookkeeping over to the new name. The
+                    // document list moved wholesale (same object references), so the identity-keyed
+                    // capped size cache and the TTL registration stay valid under the target key.
+                    // Without this a renamed capped collection silently stops enforcing its limit and
+                    // a renamed TTL collection stops expiring (#239).
+                    migrateCollectionBookkeepingOnRename(cmd.getDb(), origin, target);
+                }
             } finally {
                 invalidateIndexStore(cmd.getDb(), origin);
                 // Same pre-existing-gap reasoning as the index store above applies to the TTL
@@ -2256,6 +2264,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // collection's write lock, so mutating the store's structures directly here would not
             // be safe against a concurrent reader.
             invalidateIndexStore(db, coll);
+            // Dropping every non-_id index also removes any TTL index, so stop the driver-level TTL
+            // sweep from running on a now-dropped index (#239).
+            if (collectionsWithTtlIndex.remove(db + "." + coll) != null) {
+                invalidateTtlQueue(db, coll);
+            }
 
             log.info("Dropped {} indexes from {}.{}", droppedCount, db, coll);
         } else {
@@ -2281,6 +2294,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 indexesForCollection.remove(toRemove);
                 droppedCount = 1;
                 invalidateIndexStore(db, coll);
+                // If the dropped index is this collection's TTL index, clear its sweep registration
+                // and expiry queue so the driver stops deleting documents by a now-removed index
+                // (#239). Match by the index's single non-$ field against the registered TTL field.
+                TtlIndexInfo ttl = collectionsWithTtlIndex.get(db + "." + coll);
+                if (ttl != null) {
+                    String droppedField = null;
+                    for (String k : toRemove.keySet()) {
+                        if (!k.startsWith("$")) {
+                            droppedField = k;
+                            break;
+                        }
+                    }
+                    if (ttl.fieldName.equals(droppedField)) {
+                        collectionsWithTtlIndex.remove(db + "." + coll);
+                        invalidateTtlQueue(db, coll);
+                    }
+                }
 
                 log.info("Dropped index {} from {}.{}", indexName, db, coll);
             } else {
@@ -3152,6 +3182,36 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         String key = db + "." + collection;
         cappedDocSizesByCollection.remove(key);
         cappedCurrentBytesByCollection.remove(key);
+    }
+
+    /**
+     * Moves a collection's capped and TTL bookkeeping from {@code origin} to {@code target} during a
+     * renameCollection (#239). Callers hold both collections' write locks. The renamed document list
+     * keeps the same object references, so the identity-keyed capped size cache and the running byte
+     * counter stay valid under the new key; the capped config and TTL sweep registration are moved so
+     * the renamed collection keeps enforcing its limit / expiring. The TTL PriorityQueue itself is
+     * NOT moved here - the rename path invalidates the target's queue right after this and it is
+     * rebuilt lazily from the migrated registration on the next sweep (same contract as getIndexStore).
+     */
+    private void migrateCollectionBookkeepingOnRename(String db, String origin, String target) {
+        Map<String, Map<String, Integer>> dbCapped = cappedCollections.get(db);
+        if (dbCapped != null && dbCapped.containsKey(origin)) {
+            dbCapped.put(target, dbCapped.remove(origin));
+        }
+        String originKey = db + "." + origin;
+        String targetKey = db + "." + target;
+        var sizes = cappedDocSizesByCollection.remove(originKey);
+        if (sizes != null) {
+            cappedDocSizesByCollection.put(targetKey, sizes);
+        }
+        var bytes = cappedCurrentBytesByCollection.remove(originKey);
+        if (bytes != null) {
+            cappedCurrentBytesByCollection.put(targetKey, bytes);
+        }
+        TtlIndexInfo ttl = collectionsWithTtlIndex.remove(originKey);
+        if (ttl != null) {
+            collectionsWithTtlIndex.put(targetKey, ttl);
+        }
     }
 
     public int getExpireCheck() {

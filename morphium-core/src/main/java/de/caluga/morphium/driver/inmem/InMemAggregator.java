@@ -1454,6 +1454,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                 }
 
+                // Catch-all: drop any residual "$_calc_" bookkeeping keys before emitting the group
+                // output. Two-pass accumulators ($stdDevPop/$stdDevSamp) consume their own key above;
+                // single-pass ones like $avg keep a running "$_calc_<field>" (sum/count) that must not
+                // leak into the result. Removing by prefix keeps future "$_calc_" accumulators clean too.
+                for (Map<String, Object> groupResult : res.values()) {
+                    groupResult.keySet().removeIf(k -> k.startsWith("$_calc_"));
+                }
+
                 ret.addAll(res.values());
                 break;
 
@@ -1943,13 +1951,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 break;
 
-            case "$planCacheStats":
-            case "$redact":
-            case "$unionWith":
-            case "$currentOp":
-            case "$listLocalSessions":
-            case "$findAndModyfy":
-            case "$update":
+            // NOTE: $planCacheStats/$redact/$unionWith/$currentOp/$listLocalSessions/$findAndModyfy/
+            // $update were previously mis-grouped onto the $bucket case body and silently ran $bucket
+            // logic (or returned an empty result) instead of a real implementation. They are not
+            // implemented by the in-memory driver, so they now fall through to the default case and
+            // surface as a proper "Unrecognized pipeline stage name" command error (code 40324).
             case "$bucket":
                 op = step.get(stage);
 
@@ -2558,7 +2564,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     return new ArrayList<>(uniqueSet);
 
                 default:
-                    return null;
+                    // An unrecognized accumulator operator in a $bucket/$bucketAuto output spec used to
+                    // silently return null (a document with the output field missing/null). Real mongod
+                    // reports this as "unknown group operator" (Location15952) - surface it the same way
+                    // instead of swallowing it.
+                    throw mongoCommandError(15952, "unknown group operator '" + operation + "'");
             }
         }
 
