@@ -20,6 +20,18 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 
 ### Fixed
 
+#### InMemoryDriver: `$project` inclusion mode now restricts output to selected fields (#240)
+`$project` inclusion (`{field: 1}`) was a no-op — only exclusion (`{field: 0}`) removed anything, so field selection (the most common use of `$project`) silently returned the whole document. An explicit inclusion flag now switches `$project` into strict inclusion mode (output starts empty, only `_id` plus listed/computed fields are kept); computed-only projections keep their historical lenient behaviour. Also live inside `$facet`.
+
+#### InMemAggregator: `$indexStats` no longer silently runs `$geoNear` (#243)
+`$indexStats` shared a `case` body with `$geoNear` (distance calc + sort) via mis-grouped labels — the same anti-pattern as #237. It is not implemented, so it now surfaces as a proper command error instead of silently running geoNear logic.
+
+#### Expr: `$avg`/`$max`/`$min` single-arg forms reduce arrays; `$ln`/`$range`/`$reverseArray` fixes (#246, #253)
+The single-argument forms of `$avg`/`$max`/`$min` returned an array argument unchanged instead of reducing it (unlike `$sum`); they now reduce to mean/largest/smallest. `$ln` computed `ln(1+x)` (now `ln(x)`), `$range` returned an empty list for descending ranges (now honours step direction), and `$reverseArray` mutated its source list in place (now copies first).
+
+#### InMemoryDriver: `dbStats` per-database, `renameCollection` keeps index definitions (#247, #248)
+`dbStats` ignored the requested database and returned a global database count; it now returns per-db `collections`/`objects`/`indexes` scoped to the requested db. `renameCollection` dropped all index definitions on the renamed collection (unique/compound/TTL/sparse) — they now migrate to the new name alongside the capped/TTL bookkeeping from #239.
+
 #### InMemoryDriver: aggregation stages that silently ran `$bucket` now error (#237)
 Several pipeline stages (`$planCacheStats`, `$redact`, `$unionWith`, `$currentOp`, `$listLocalSessions`, `$findAndModyfy`, `$update`) shared one `switch` body with `$bucket` via mis-grouped `case` labels, so issuing any of them silently ran `$bucket` logic (or returned an empty result) instead of a real implementation. They are not implemented by the in-memory driver and now surface as an "Unrecognized pipeline stage name" command error (code 40324). The sibling `$bucket`/`$bucketAuto` output-accumulator helper likewise returned `null` for an unknown accumulator operator; it now reports "unknown group operator" (15952).
 
