@@ -1771,22 +1771,140 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 break;
 
             case "$merge": {
-                // $merge is NOT implemented (#241). It used to report success and write nothing at
-                // all to the target collection: every persistence call in the old scaffold was
-                // commented-out dead code, and the surrounding logic could not have produced correct
-                // results either - only whenMatched:merge existed (replace/keepExisting/fail all fell
-                // into an "unknown action" throw), the merge branch let the EXISTING document
-                // override the new pipeline output (MongoDB does the opposite), its _id guard would
-                // have fired for every matched document, the pipeline variant appended to the
-                // aggregation result instead of writing, and `on` had no _id default.
-                //
-                // Failing loudly is the interim contract: silently discarding an entire materialise
-                // step is far worse than an error. The scaffold is removed rather than left in place
-                // because it was actively misleading. See issue #241 for the real implementation.
-                String mergeTarget = String.valueOf(((Map<String, Object>) step.get(stage)).get("into"));
-                throw mongoCommandError(115,
-                    "$merge is not supported by the in-memory driver (target: " + mergeTarget
-                    + ") - it would silently write nothing; see issue #241");
+                // { $merge: {
+                //     into: <collection> -or- { db: <db>, coll: <collection> },
+                //     on: <field> -or- [<field>, ...],                          // default: _id
+                //     whenMatched: replace|keepExisting|merge|fail|<pipeline>,   // default: merge
+                //     whenNotMatched: insert|discard|fail                        // default: insert
+                // } }
+                // $merge is TERMINAL: it writes to the target collection and yields no documents.
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mergeSpec = (Map<String, Object>) step.get(stage);
+                String mergeDb = morphium.getConfig().connectionSettings().getDatabase();
+                String mergeColl;
+
+                if (mergeSpec.get("into") instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> into = (Map<String, Object>) mergeSpec.get("into");
+
+                    if (into.get("db") != null) {
+                        mergeDb = String.valueOf(into.get("db"));
+                    }
+
+                    mergeColl = into.get("coll") == null ? null : String.valueOf(into.get("coll"));
+                } else {
+                    mergeColl = mergeSpec.get("into") == null ? null : String.valueOf(mergeSpec.get("into"));
+                }
+
+                if (mergeColl == null || mergeColl.isEmpty()) {
+                    throw mongoCommandError(51178, "$merge 'into' must name a target collection");
+                }
+
+                // `on` defaults to _id; a single field may be given as a plain string.
+                List<String> onFields = new ArrayList<>();
+                Object onSpec = mergeSpec.get("on");
+
+                if (onSpec instanceof List) {
+                    for (Object onEntry : (List<?>) onSpec) {
+                        onFields.add(String.valueOf(onEntry));
+                    }
+                } else if (onSpec != null) {
+                    onFields.add(String.valueOf(onSpec));
+                }
+
+                if (onFields.isEmpty()) {
+                    onFields.add("_id");
+                }
+
+                // whenMatched as a pipeline is not implemented - it needs the $$new variable bound to
+                // the incoming document. Reject it explicitly rather than silently doing something else.
+                if (mergeSpec.get("whenMatched") instanceof List) {
+                    throw mongoCommandError(51199,
+                        "$merge with a custom whenMatched pipeline is not supported by the in-memory driver");
+                }
+
+                String whenMatched = mergeSpec.get("whenMatched") == null
+                                     ? "merge" : String.valueOf(mergeSpec.get("whenMatched"));
+                String whenNotMatched = mergeSpec.get("whenNotMatched") == null
+                                        ? "insert" : String.valueOf(mergeSpec.get("whenNotMatched"));
+
+                if (!List.of("replace", "keepExisting", "merge", "fail").contains(whenMatched)) {
+                    throw mongoCommandError(51190, "unknown $merge whenMatched action '" + whenMatched + "'");
+                }
+
+                if (!List.of("insert", "discard", "fail").contains(whenNotMatched)) {
+                    throw mongoCommandError(51191, "unknown $merge whenNotMatched action '" + whenNotMatched + "'");
+                }
+
+                InMemoryDriver mergeDriver = (InMemoryDriver) morphium.getDriver();
+
+                for (Map<String, Object> doc : data) {
+                    Map<String, Object> onQuery = new HashMap<>();
+
+                    for (String onField : onFields) {
+                        Object v = getByPath(doc, onField);
+
+                        if (v == null && !doc.containsKey(onField)) {
+                            throw mongoCommandError(51132,
+                                "$merge document is missing the 'on' field '" + onField + "'");
+                        }
+
+                        onQuery.put(onField, v);
+                    }
+
+                    List<Map<String, Object>> matches = mergeDriver.find(mergeDb, mergeColl, onQuery, null, null, 0, 0);
+
+                    if (matches.isEmpty()) {
+                        if ("discard".equals(whenNotMatched)) {
+                            continue;
+                        }
+
+                        if ("fail".equals(whenNotMatched)) {
+                            throw mongoCommandError(13113,
+                                "$merge found no matching document in " + mergeDb + "." + mergeColl
+                                + " and whenNotMatched is 'fail'");
+                        }
+
+                        mergeDriver.store(mergeDb, mergeColl,
+                                          new ArrayList<>(List.of(new HashMap<>(doc))), null);
+                        continue;
+                    }
+
+                    if (matches.size() > 1) {
+                        // MongoDB requires the `on` fields to identify at most one document (enforced
+                        // there by a unique index); refuse rather than picking one arbitrarily.
+                        throw mongoCommandError(51268,
+                            "$merge 'on' fields " + onFields + " matched " + matches.size()
+                            + " documents in " + mergeDb + "." + mergeColl + " - they must be unique");
+                    }
+
+                    Map<String, Object> existing = matches.get(0);
+
+                    if ("keepExisting".equals(whenMatched)) {
+                        continue;
+                    }
+
+                    if ("fail".equals(whenMatched)) {
+                        throw mongoCommandError(13114,
+                            "$merge matched an existing document in " + mergeDb + "." + mergeColl
+                            + " and whenMatched is 'fail'");
+                    }
+
+                    // Both replace and merge keep the TARGET's _id; store() is a replace-by-_id, so
+                    // "merge" has to build the union itself (incoming fields win over existing ones -
+                    // the old scaffold had this precedence inverted).
+                    // "merge" starts from the existing document (target-only fields survive),
+                    // "replace" starts empty (they do not); the incoming fields are layered on top
+                    // either way.
+                    Map<String, Object> toStore = "merge".equals(whenMatched)
+                                                  ? new HashMap<>(existing) : new HashMap<>();
+                    toStore.putAll(doc);
+                    toStore.put("_id", existing.get("_id"));
+                    mergeDriver.store(mergeDb, mergeColl, new ArrayList<>(List.of(toStore)), null);
+                }
+
+                ret = new ArrayList<>();
+                break;
             }
 
             case "$replaceRoot":
