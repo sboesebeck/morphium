@@ -462,11 +462,11 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
 
 
     @Test
-    public void inMemAggregationMerge_failsLoudlyUntilImplemented() throws Exception {
-        // #241: $merge was a silent no-op - it reported ok and wrote nothing to the target
-        // collection. This test previously asserted exactly that (target stays empty), encoding the
-        // bug as expected behaviour. Until $merge is really implemented it must fail loudly instead,
-        // so nobody believes their aggregation results were materialised.
+    public void inMemAggregationMerge() throws Exception {
+        // #241: $merge materialises the pipeline output into the target collection. This test used to
+        // assert the exact opposite (target stays empty) and thereby encoded the silent-no-op bug as
+        // expected behaviour. It covers the fluent builder path and the interaction with a preceding
+        // $unset; the per-action semantics live in InMemMergeStageTest.
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
             morphium.store(u);
@@ -475,11 +475,15 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.unset(UncachedObject.Fields.strValue);
         agg.merge("test", Aggregator.MergeActionWhenMatched.merge, Aggregator.MergeActionWhenNotMatched.insert);
 
-        var ex = assertThrows(de.caluga.morphium.driver.MorphiumDriverException.class, agg::aggregate);
-        assertTrue(ex.getMessage().contains("$merge"), "error must name the stage: " + ex.getMessage());
+        List<Map> lst = agg.aggregate();
+        assertEquals(0, lst.size(), "$merge is terminal and returns no documents");
 
-        // and it must still not have written anything
-        assertEquals(0, morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList().size());
+        List<UncachedObject> merged = morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList();
+        assertEquals(100, merged.size(), "all pipeline documents must be materialised into 'test'");
+
+        for (UncachedObject o : merged) {
+            assertNull(o.getStrValue(), "the preceding $unset must be reflected in the merged document");
+        }
     }
 
     @Test
