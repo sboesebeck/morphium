@@ -5233,7 +5233,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 continue;
             }
 
-            List<Map<String, Object>> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
+            // Must be the LIVE document reference: CollectionIndexStore removes entries by IDENTITY
+            // (IndexEntry.remove compares with ==), while findByFieldValue - used here before -
+            // returns COPIES. The copy never matched, so onRemove left a stale _id entry behind and
+            // the onInsert below then failed with a duplicate-key error: the ordinary
+            // "find it, change it, store it back" round-trip was broken for every existing document.
+            List<Map<String, Object>> srch = indexStore.equalityLookup(CollectionIndexStore.ID_INDEX_NAME,
+                                             IndexKey.of(java.util.Collections.singletonList(o.get("_id"))));
             if (!srch.isEmpty()) {
                 // Capture reference before removing; the object itself is not mutated,
                 // and shallowCopyAndNormalizeDocument in notifyWatchers will copy it
