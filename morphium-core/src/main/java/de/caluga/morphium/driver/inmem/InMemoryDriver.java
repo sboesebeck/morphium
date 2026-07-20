@@ -4822,7 +4822,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return executeIndexPlan(store, plan);
     }
 
+    /**
+     * Overload taking the collation in its raw wire-document form, which is what
+     * {@link QueryHelper#getCollator} actually consumes (locale as String, strength as Integer,
+     * caseFirst as its mongo text). Callers holding a parsed request document - notably PoppyDB's
+     * command fast path (#252) - can pass it straight through; the {@link Collation}-typed overload
+     * above cannot be used for that because Collation.toQueryObject() re-emits enums.
+     */
+    public long countWithCollation(String db, String collection, Map<String, Object> query, Map<String, Object> collationMap, ReadPreference rp)
+    throws MorphiumDriverException {
+        return countInternal(db, collection, query, collationMap, rp);
+    }
+
     public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp)
+    throws MorphiumDriverException {
+        return countInternal(db, collection, query, collation == null ? null : collation.toQueryObject(), rp);
+    }
+
+    private long countInternal(String db, String collection, Map<String, Object> query, Map<String, Object> collation, ReadPreference rp)
     throws MorphiumDriverException {
         // Acquire read lock for thread-safe iteration
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
@@ -4856,7 +4873,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             long cnt = 0;
-            CompiledQuery compiledQuery = CompiledQuery.compile(query, collation == null ? null : collation.toQueryObject());
+            CompiledQuery compiledQuery = CompiledQuery.compile(query, collation);
 
             for (Map<String, Object> o : data) {
                 if (compiledQuery.matches(o)) {
