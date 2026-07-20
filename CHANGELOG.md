@@ -20,6 +20,9 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 
 ### Fixed
 
+#### PoppyDB: wire fast path dropped client options (#244, #252)
+The hot-dispatch handlers bypass the generic command path and hardcoded several options to their defaults instead of reading them from the request, so whether an option was honoured depended on which internal path a request happened to take. `createIndexes` forwarded only `unique`/`name` and silently dropped `expireAfterSeconds` (a TTL index was created but never expired anything), `sparse`, `background`, `hidden` and `partialFilterExpression` — the whole index spec is now forwarded. `insert` hardcoded `ordered=true`, so `ordered:false` stopped at the first failing document instead of continuing; `update`/`delete`/`count`/`distinct` hardcoded `collation` to null, silently falling back to binary comparison. All are now read from the request.
+
 #### InMemoryDriver: update-operator correctness cluster (#249)
 Six update operators silently did nothing, crashed, or applied only part of the requested change while reporting success: `$pull` with `$elemMatch` never removed anything (each array element was wrapped as a pseudo-document, so the `$elemMatch` list check always failed); `$rename` with a dotted source never resolved it and destructively removed the *target* field instead; `$min`/`$max` threw a `NullPointerException` whenever the target field was absent; `$mul` was a no-op on a missing field (MongoDB creates it as `0`); `$currentDate` only ever wrote the first listed field; and `$push`'s `$sort` modifier was never implemented, so arrays kept insertion order.
 
