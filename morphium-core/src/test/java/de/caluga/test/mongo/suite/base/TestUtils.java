@@ -63,7 +63,14 @@ public class TestUtils {
     }
     public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst, WaitCallback statusMessage) {
         Logger log = LoggerFactory.getLogger(TestUtils.class);
-        return waitForConditionToBecomeTrue(maxDuration, (dur, e)-> { log.info(failMessage, e);}, tst, statusMessage, null);
+
+        try {
+            return waitForConditionToBecomeTrue(maxDuration, (dur, e)-> { log.info(failMessage, e);}, tst, statusMessage, null);
+        } catch (AssertionError err) {
+            // Carry the caller's message into the assertion itself - it is what identifies WHICH
+            // condition timed out, and it used to be lost entirely (see the throw site above).
+            throw new AssertionError(failMessage + " - " + err.getMessage(), err);
+        }
     }
     public static long waitForConditionToBecomeTrue(long maxDuration, FailCallback failCB, Condition tst, WaitCallback statusMessage) {
         return waitForConditionToBecomeTrue(maxDuration, failCB, tst, statusMessage, null);
@@ -75,7 +82,20 @@ public class TestUtils {
         try {
             while (!tst.test()) {
                 if (System.currentTimeMillis() - start > maxDuration) {
-                    throw new AssertionError(failCB);
+                    // Used to be `throw new AssertionError(failCB)`, which passed the CALLBACK as the
+                    // detail message: every timeout read "AssertionError: TestUtils$$Lambda/0x...@..."
+                    // and the caller's message was lost, while the callback was never invoked at all.
+                    long waited = System.currentTimeMillis() - start;
+
+                    if (failCB != null) {
+                        try {
+                            failCB.fail(waited, null);
+                        } catch (Exception ignored) {
+                            // a reporting callback must not replace the assertion failure
+                        }
+                    }
+
+                    throw new AssertionError("condition not met within " + maxDuration + "ms (waited " + waited + "ms)");
                 }
 
                 if (statusCB != null && ((System.currentTimeMillis() - start) / 1000) > last) {
