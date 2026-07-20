@@ -143,6 +143,140 @@ public class QueryHelper {
     }
 
     /**
+     * Flattens a legacy-coordinate value into a list of [x,y] points. Accepts either a single
+     * coordinate pair ({@code [x,y]}) or a list of such pairs. Used by the {@code $geoWithin}
+     * shapes (#242).
+     */
+    @SuppressWarnings("rawtypes")
+    private static List<double[]> extractGeoPoints(Object raw) {
+        List<double[]> points = new ArrayList<>();
+
+        if (!(raw instanceof List)) {
+            return points;
+        }
+
+        List list = (List) raw;
+
+        if (list.size() == 2 && list.get(0) instanceof Number && list.get(1) instanceof Number) {
+            points.add(new double[] {((Number) list.get(0)).doubleValue(), ((Number) list.get(1)).doubleValue()});
+            return points;
+        }
+
+        for (Object o : list) {
+            if (o instanceof List) {
+                List p = (List) o;
+
+                if (p.size() >= 2 && p.get(0) instanceof Number && p.get(1) instanceof Number) {
+                    points.add(new double[] {((Number) p.get(0)).doubleValue(), ((Number) p.get(1)).doubleValue()});
+                }
+            }
+        }
+
+        return points;
+    }
+
+    /**
+     * {@code $geoWithin: {$center: [[x,y], r]}} (planar) and {@code $centerSphere: [[lon,lat], rRad]}
+     * (spherical, radius in radians). Every point of the checked value must lie inside the circle,
+     * mirroring the {@code $box} branch's semantics.
+     */
+    @SuppressWarnings("rawtypes")
+    private static boolean geoWithinCircle(Object checkValue, Object shape, boolean spherical) {
+        if (!(shape instanceof List) || ((List) shape).size() < 2) {
+            return false;
+        }
+
+        List shapeList = (List) shape;
+
+        if (!(shapeList.get(0) instanceof List) || !(shapeList.get(1) instanceof Number)) {
+            return false;
+        }
+
+        List centerList = (List) shapeList.get(0);
+
+        if (centerList.size() < 2 || !(centerList.get(0) instanceof Number) || !(centerList.get(1) instanceof Number)) {
+            return false;
+        }
+
+        double cx = ((Number) centerList.get(0)).doubleValue();
+        double cy = ((Number) centerList.get(1)).doubleValue();
+        double radius = ((Number) shapeList.get(1)).doubleValue();
+        List<double[]> points = extractGeoPoints(checkValue);
+
+        if (points.isEmpty()) {
+            return false;
+        }
+
+        for (double[] p : points) {
+            double distance = spherical ? centralAngleRadians(cx, cy, p[0], p[1])
+                              : Math.hypot(p[0] - cx, p[1] - cy);
+
+            if (distance > radius) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Great-circle central angle (in radians) between two lon/lat points - the unit
+     * {@code $centerSphere} expresses its radius in.
+     */
+    private static double centralAngleRadians(double lon1, double lat1, double lon2, double lat2) {
+        double phi1 = Math.toRadians(lat1);
+        double phi2 = Math.toRadians(lat2);
+        double dPhi = phi2 - phi1;
+        double dLambda = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
+                   + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+        return 2 * Math.asin(Math.min(1.0, Math.sqrt(a)));
+    }
+
+    /**
+     * {@code $geoWithin: {$polygon: [[x,y], ...]}} - ray-casting point-in-polygon test. Every point of
+     * the checked value must lie inside the polygon.
+     */
+    private static boolean geoWithinPolygon(Object checkValue, Object shape) {
+        List<double[]> polygon = extractGeoPoints(shape);
+
+        if (polygon.size() < 3) {
+            return false;
+        }
+
+        List<double[]> points = extractGeoPoints(checkValue);
+
+        if (points.isEmpty()) {
+            return false;
+        }
+
+        for (double[] p : points) {
+            if (!pointInPolygon(p[0], p[1], polygon)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean pointInPolygon(double x, double y, List<double[]> polygon) {
+        boolean inside = false;
+
+        for (int i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+            double xi = polygon.get(i)[0];
+            double yi = polygon.get(i)[1];
+            double xj = polygon.get(j)[0];
+            double yj = polygon.get(j)[1];
+
+            if (((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
+        }
+
+        return inside;
+    }
+
+    /**
      * Public entry point. Delegates to a compiled, cached predicate (see {@link CompiledQuery})
      * instead of re-interpreting the query document-by-document. The interpreter itself lives on
      * as {@link #matchesQueryInterpreted} - it is the differential-testing oracle CompiledQuery is
@@ -1066,7 +1200,26 @@ public class QueryHelper {
                                     return true;
                                 }
 
-                                break;
+                                // #242: $center/$centerSphere/$polygon previously matched no branch here
+                                // and fell through to the method's unconditional "return true", so EVERY
+                                // document silently matched. Like $box above, a multi-point field must
+                                // have all of its points inside the shape.
+                                if (geoQuery.containsKey("$center")) {
+                                    return geoWithinCircle(coordToCheckWithin, geoQuery.get("$center"), false);
+                                }
+
+                                if (geoQuery.containsKey("$centerSphere")) {
+                                    return geoWithinCircle(coordToCheckWithin, geoQuery.get("$centerSphere"), true);
+                                }
+
+                                if (geoQuery.containsKey("$polygon")) {
+                                    return geoWithinPolygon(coordToCheckWithin, geoQuery.get("$polygon"));
+                                }
+
+                                // Unknown/unimplemented shape (e.g. GeoJSON $geometry): fail closed rather
+                                // than matching the whole collection.
+                                log.error("Unsupported $geoWithin shape " + geoQuery.keySet() + " - not matching");
+                                return false;
 
                             case "$all":
                                 if (checkValue == null) {

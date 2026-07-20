@@ -514,4 +514,42 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
         assertThrows(IllegalArgumentException.class, () -> QueryHelper.validateQuery(query));
     }
 
+    // #242: $geoWithin with $center/$centerSphere/$polygon used to fall through to an
+    // unconditional "return true", so every document matched regardless of its location.
+
+    @Test
+    public void geoWithinCenter_onlyMatchesPointsInsideTheCircle() {
+        Map<String, Object> query = Doc.of("loc",
+            Doc.of("$geoWithin", Doc.of("$center", List.of(List.of(0.0, 0.0), 5.0))));
+
+        assertTrue(QueryHelper.matchesQuery(query, Doc.of("loc", List.of(1.0, 1.0)), null),
+            "point inside the circle must match");
+        assertFalse(QueryHelper.matchesQuery(query, Doc.of("loc", List.of(10.0, 10.0)), null),
+            "point outside the circle must NOT match");
+    }
+
+    @Test
+    public void geoWithinCenterSphere_onlyMatchesPointsInsideTheSphericalCircle() {
+        // radius is in radians: 0.02 rad is roughly 127km
+        Map<String, Object> query = Doc.of("loc",
+            Doc.of("$geoWithin", Doc.of("$centerSphere", List.of(List.of(0.0, 0.0), 0.02))));
+
+        assertTrue(QueryHelper.matchesQuery(query, Doc.of("loc", List.of(0.5, 0.0)), null),
+            "point inside the spherical circle must match");
+        assertFalse(QueryHelper.matchesQuery(query, Doc.of("loc", List.of(20.0, 20.0)), null),
+            "point outside the spherical circle must NOT match");
+    }
+
+    @Test
+    public void geoWithinPolygon_onlyMatchesPointsInsideThePolygon() {
+        Map<String, Object> query = Doc.of("loc",
+            Doc.of("$geoWithin", Doc.of("$polygon",
+                List.of(List.of(0.0, 0.0), List.of(0.0, 10.0), List.of(10.0, 10.0), List.of(10.0, 0.0)))));
+
+        assertTrue(QueryHelper.matchesQuery(query, Doc.of("loc", List.of(5.0, 5.0)), null),
+            "point inside the polygon must match");
+        assertFalse(QueryHelper.matchesQuery(query, Doc.of("loc", List.of(15.0, 15.0)), null),
+            "point outside the polygon must NOT match");
+    }
+
 }
