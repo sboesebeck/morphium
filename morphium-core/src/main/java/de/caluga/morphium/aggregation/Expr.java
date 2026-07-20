@@ -13,7 +13,10 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoField;
 import java.time.temporal.IsoFields;
 import java.util.*;
 
@@ -1162,32 +1165,32 @@ public abstract class Expr {
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek) {
-        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek));
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "isoWeek", isoWeek));
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek) {
-        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek));
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "isoWeek", isoWeek, "isoDayOfWeek", isoDayOfWeek));
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour) {
-        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek, "hour", hour));
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "isoWeek", isoWeek, "isoDayOfWeek", isoDayOfWeek, "hour", hour));
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min) {
-        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek, "hour", hour, "minute", min));
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "isoWeek", isoWeek, "isoDayOfWeek", isoDayOfWeek, "hour", hour, "minute", min));
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec) {
-        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek, "hour", hour, "minute", min, "second", sec));
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "isoWeek", isoWeek, "isoDayOfWeek", isoDayOfWeek, "hour", hour, "minute", min, "second", sec));
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms) {
-        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek, "hour", hour, "minute", min, "second", sec, "millisecond", ms));
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear, "isoWeek", isoWeek, "isoDayOfWeek", isoDayOfWeek, "hour", hour, "minute", min, "second", sec, "millisecond", ms));
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
         return new MapOpExpr("dateFromParts",
-                             UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek, "hour", hour, "minute", min, "second", sec, "millisecond", ms, "timezone", timeZone));
+                             UtilsMap.of("isoWeekYear", isoWeekYear, "isoWeek", isoWeek, "isoDayOfWeek", isoDayOfWeek, "hour", hour, "minute", min, "second", sec, "millisecond", ms, "timezone", timeZone));
     }
 
     public static Expr dateFromString(Expr dateString, Expr format, Expr timezone, Expr onError, Expr onNull) {
@@ -2573,6 +2576,73 @@ public abstract class Expr {
             }
 
             return ret;
+        }
+
+        /**
+         * MapOpExpr inherits ValueExpr.evaluate(), which returns the operator's own JSON shape.
+         * For $dateFromParts/$isoDateFromParts that is silently wrong - they must construct a Date
+         * (#260). Every other map-form operator keeps the inherited behaviour.
+         */
+        @Override
+        public Object evaluate(Map<String, Object> context) {
+            if ("$dateFromParts".equals(operation)) {
+                // MongoDB has no separate $isoDateFromParts operator - the ISO variant is the same
+                // $dateFromParts distinguished by its isoWeekYear/isoWeek/isoDayOfWeek field names.
+                return evaluateDateFromParts(context, params.containsKey("isoWeekYear"));
+            }
+
+            return super.evaluate(context);
+        }
+
+        private int intPart(Map<String, Object> context, String name, int fallback) {
+            Expr e = params.get(name);
+
+            if (e == null) {
+                return fallback;
+            }
+
+            Object v = e.evaluate(context);
+            return v instanceof Number ? ((Number) v).intValue() : fallback;
+        }
+
+        private Object evaluateDateFromParts(Map<String, Object> context, boolean iso) {
+            // Defaults to UTC, honouring an explicit "timezone" part like real MongoDB.
+            ZoneId zone = ZoneOffset.UTC;
+            Expr tz = params.get("timezone");
+
+            if (tz != null) {
+                Object tzVal = tz.evaluate(context);
+
+                if (tzVal != null) {
+                    zone = ZoneId.of(tzVal.toString());
+                }
+            }
+
+            int hour = intPart(context, "hour", 0);
+            int minute = intPart(context, "minute", 0);
+            int second = intPart(context, "second", 0);
+            int millis = intPart(context, "millisecond", 0);
+
+            if (iso) {
+                // Jan 4th is always in ISO week 1 of its week-based year - anchor there, then move to
+                // the requested ISO week and weekday.
+                LocalDate day = LocalDate.of(intPart(context, "isoWeekYear", 1970), 1, 4)
+                                .with(IsoFields.WEEK_OF_WEEK_BASED_YEAR, intPart(context, "isoWeek", 1))
+                                .with(ChronoField.DAY_OF_WEEK, intPart(context, "isoDayOfWeek", 1));
+                return Date.from(day.atStartOfDay()
+                                 .plusHours(hour).plusMinutes(minute).plusSeconds(second)
+                                 .plusNanos(millis * 1_000_000L)
+                                 .atZone(zone).toInstant());
+            }
+
+            // Built additively from Jan 1st so out-of-range parts roll over, as MongoDB documents
+            // (e.g. month 14 becomes February of the following year).
+            return Date.from(LocalDateTime.of(intPart(context, "year", 1970), 1, 1, 0, 0, 0)
+                             .plusMonths(intPart(context, "month", 1) - 1L)
+                             .plusDays(intPart(context, "day", 1) - 1L)
+                             .plusHours(hour).plusMinutes(minute).plusSeconds(second)
+                             .plusNanos(millis * 1_000_000L)
+                             .atZone(zone).toInstant());
         }
     }
 

@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Tag;
@@ -136,6 +137,38 @@ public class ExprTest {
         assertEquals(15, evalDate(Expr.dayOfMonth(Expr.field("d"))));
         assertEquals(74, evalDate(Expr.dayOfYear(Expr.field("d"))));
         assertEquals(11, evalDate(Expr.week(Expr.field("d"))), "$week is Sunday-based, 0-53");
+    }
+
+    // #260: $dateFromParts/$isoDateFromParts hit the MapOpExpr-without-evaluate() path and returned
+    // their own JSON shape instead of a computed Date.
+
+    @Test
+    public void dateFromParts_computesDate_viaFluentBuilder() {
+        Expr e = Expr.dateFromParts(Expr.intExpr(2026), Expr.intExpr(3), Expr.intExpr(15),
+                Expr.intExpr(13), Expr.intExpr(45), Expr.intExpr(30));
+        Object result = e.evaluate(Doc.of());
+        assertInstanceOf(java.util.Date.class, result,
+            "$dateFromParts must return a Date, not its own JSON shape");
+        assertEquals(java.time.Instant.parse("2026-03-15T13:45:30Z"), ((java.util.Date) result).toInstant());
+    }
+
+    @Test
+    public void dateFromParts_computesDate_viaJsonPipeline() {
+        Expr e = Expr.parse(Doc.of("$dateFromParts", Doc.of("year", 2026, "month", 3, "day", 15)));
+        Object result = e.evaluate(Doc.of());
+        assertInstanceOf(java.util.Date.class, result,
+            "$dateFromParts parsed from JSON must return a Date");
+        assertEquals(java.time.Instant.parse("2026-03-15T00:00:00Z"), ((java.util.Date) result).toInstant());
+    }
+
+    @Test
+    public void isoDateFromParts_computesDate() {
+        // ISO week 11 of 2026, ISO day 7 (Sunday) is 2026-03-15
+        Expr e = Expr.isoDateFromParts(Expr.intExpr(2026), Expr.intExpr(11), Expr.intExpr(7));
+        Object result = e.evaluate(Doc.of());
+        assertInstanceOf(java.util.Date.class, result,
+            "$isoDateFromParts must return a Date, not its own JSON shape");
+        assertEquals(java.time.Instant.parse("2026-03-15T00:00:00Z"), ((java.util.Date) result).toInstant());
     }
 
     @Test
