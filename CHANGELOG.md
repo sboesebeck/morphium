@@ -18,6 +18,11 @@ New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as 
 #### InMemoryDriver: O(1) change-stream replay-buffer bound
 The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size()` — O(n), ~200k node traversals per write at PoppyDB's 100k-event replay bound. The deque size is now tracked in an `AtomicInteger`; eviction semantics are unchanged.
 
+### Changed
+
+#### InMemoryDriver: `$merge` now fails loudly instead of silently writing nothing (#241)
+`$merge` reported success and never touched the target collection — every persistence call was commented-out dead code, so any pipeline materialising results (rollups, denormalised views, ETL-style flows) silently produced no data. **`$merge` is still not implemented** and now raises an explicit command error naming the stage and target, so a discarded materialise step can no longer pass as success. Re-enabling the old calls would not have been enough: only `whenMatched:merge` existed, its precedence was inverted, its `_id` guard would always fire, the pipeline variant appended to the aggregation result instead of writing, and `on` had no `_id` default. See #241 for the real implementation.
+
 ### Fixed
 
 #### PoppyDB: wire fast path dropped client options (#244, #252)
