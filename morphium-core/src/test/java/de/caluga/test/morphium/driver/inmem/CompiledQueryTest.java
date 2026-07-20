@@ -188,7 +188,9 @@ public class CompiledQueryTest {
         // ---------------------------------------------------------------- $size
         cases.add(new Case("$size match", Doc.of("tags", Doc.of("$size", 3)), Doc.of("tags", List.of("a", "b", "c")), true));
         cases.add(new Case("$size mismatch", Doc.of("tags", Doc.of("$size", 3)), Doc.of("tags", List.of("a", "b")), false));
-        cases.add(new Case("$size on missing field == 0", Doc.of("tags", Doc.of("$size", 0)), Doc.of("other", 1), true));
+        // #251: a missing field is not an empty array - MongoDB never matches it against $size.
+        // This case previously encoded the old (wrong) match-everything behaviour.
+        cases.add(new Case("$size on missing field does not match", Doc.of("tags", Doc.of("$size", 0)), Doc.of("other", 1), false));
         cases.add(new Case("$size on non-list -> false", Doc.of("tags", Doc.of("$size", 1)), Doc.of("tags", "x"), false));
 
         // ---------------------------------------------------------------- $elemMatch

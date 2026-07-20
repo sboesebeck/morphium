@@ -5609,6 +5609,66 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         unsetPath(obj, key.split("\\."), 0);
     }
 
+    /**
+     * Sorts an array in place for a {@code $push} {@code $sort} modifier (#249). The spec is either a
+     * number (+/-1, for arrays of scalars) or a document of field/direction pairs (for arrays of
+     * sub-documents), matching MongoDB. Elements that cannot be compared are left in relative order.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void sortPushedArray(List v, Object sortSpec) {
+        Comparator<Object> comparator;
+
+        if (sortSpec instanceof Number) {
+            int dir = ((Number) sortSpec).intValue() < 0 ? -1 : 1;
+            comparator = (a, b) -> dir * compareForSort(a, b);
+        } else if (sortSpec instanceof Map) {
+            Map<String, Object> spec = (Map<String, Object>) sortSpec;
+            comparator = (a, b) -> {
+                for (Map.Entry<String, Object> e : spec.entrySet()) {
+                    int dir = (e.getValue() instanceof Number && ((Number) e.getValue()).intValue() < 0) ? -1 : 1;
+                    Object av = a instanceof Map ? getByPath((Map<String, Object>) a, e.getKey()) : null;
+                    Object bv = b instanceof Map ? getByPath((Map<String, Object>) b, e.getKey()) : null;
+                    int c = dir * compareForSort(av, bv);
+
+                    if (c != 0) {
+                        return c;
+                    }
+                }
+
+                return 0;
+            };
+        } else {
+            return;
+        }
+
+        v.sort(comparator);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private int compareForSort(Object a, Object b) {
+        if (a == null && b == null) {
+            return 0;
+        }
+
+        if (a == null) {
+            return -1;
+        }
+
+        if (b == null) {
+            return 1;
+        }
+
+        if (a instanceof Number && b instanceof Number) {
+            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+        }
+
+        if (a instanceof Comparable && a.getClass().isInstance(b)) {
+            return ((Comparable) a).compareTo(b);
+        }
+
+        return 0;
+    }
+
     @SuppressWarnings("unchecked")
     private void unsetPath(Object current, String[] path, int offset) {
         String segment = path[offset];
@@ -5902,10 +5962,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             break;
 
                         case "$currentDate":
-                            // TODO: Fix it
+
                             // $currentDate: { <field1>: <typeSpecification1>, ... }
-                            // log.info("current date");
-                            obj.put((String) cmd.keySet().toArray()[0], new Date());
+                            // Previously only cmd.keySet().toArray()[0] was written, so every field
+                            // beyond the first was silently dropped (#249). Note: {$type:"timestamp"}
+                            // is accepted but stored as a java.util.Date - the in-memory driver has no
+                            // distinct BSON Timestamp representation.
+                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                setByPath(obj, entry.getKey(), new Date());
+                                modified.add(obj.get("_id"));
+                            }
+
                             break;
 
                         case "$mul":
@@ -5913,6 +5980,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             // $mul: { <field1>: <number1>, ... }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                                 Object value = obj.get(entry.getKey());
+
+                                if (value == null) {
+                                    // MongoDB creates a missing $mul target as 0 rather than treating
+                                    // the whole operation as a no-op (#249). Written directly (not via
+                                    // the multiply branches below) so a non-Integer multiplier cannot
+                                    // provoke a cast mismatch.
+                                    obj.put(entry.getKey(), 0);
+                                    modified.add(obj.get("_id"));
+                                    continue;
+                                }
 
                                 if (value instanceof Integer) {
                                     value = (Integer) value * ((Integer) entry.getValue());
@@ -5941,14 +6018,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         case "$rename":
 
                             // $rename: { <field1>: <newName1>, <field2>: <newName2>, ... }
+                            // Previously this used flat Map.get/put/remove against the literal key, so a
+                            // dotted source ("a.b") never resolved and the code destructively removed the
+                            // TARGET field instead (#249). Source and target are now both resolved as
+                            // paths, and a $rename whose source does not exist is a no-op, as in MongoDB.
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                if (obj.get(entry.getKey()) != null) {
-                                    obj.put((String) entry.getValue(), obj.get(entry.getKey()));
-                                } else {
-                                    obj.remove(entry.getValue());
+                                String source = entry.getKey();
+                                String targetName = String.valueOf(entry.getValue());
+
+                                if (!containsByPath(obj, source)) {
+                                    continue;
                                 }
 
-                                obj.remove(entry.getKey());
+                                Object renamedValue = getByPath(obj, source);
+                                unsetField(obj, source);
+                                setByPath(obj, targetName, renamedValue);
                                 modified.add(obj.get("_id"));
                             }
 
@@ -5958,10 +6042,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                             // $min: { <field1>: <value1>, ... }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                if (entry.getValue() == null) {
+                                    continue;
+                                }
+
                                 Comparable value = (Comparable) obj.get(entry.getKey());
 
+                                // An absent field is seeded with the incoming value (MongoDB semantics);
+                                // the old code called compareTo on null and threw an NPE (#249).
+                                if (value == null) {
+                                    obj.put(entry.getKey(), entry.getValue());
+                                    modified.add(obj.get("_id"));
+                                    continue;
+                                }
+
                                 // noinspection unchecked
-                                if (value.compareTo(entry.getValue()) > 0 && entry.getValue() != null) {
+                                if (value.compareTo(entry.getValue()) > 0) {
                                     modified.add(obj.get("_id"));
                                     obj.put(entry.getKey(), entry.getValue());
                                 }
@@ -5973,10 +6069,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                             // $max: { <field1>: <value1>, ... }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                if (entry.getValue() == null) {
+                                    continue;
+                                }
+
                                 Comparable value = (Comparable) obj.get(entry.getKey());
 
+                                // Absent field: seed with the incoming value instead of NPE'ing (#249).
+                                if (value == null) {
+                                    obj.put(entry.getKey(), entry.getValue());
+                                    modified.add(obj.get("_id"));
+                                    continue;
+                                }
+
                                 // noinspection unchecked
-                                if (value.compareTo(entry.getValue()) < 0 && entry.getValue() != null) {
+                                if (value.compareTo(entry.getValue()) < 0) {
                                     obj.put(entry.getKey(), entry.getValue());
                                     modified.add(obj.get("_id"));
                                 }
@@ -5993,12 +6100,42 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
                             // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                List values = new ArrayList((List) obj.get(entry.getKey()));
-                                Map<String, Object> subquery = Doc.of(entry.getKey(), entry.getValue());
+                                Object rawArray = obj.get(entry.getKey());
+
+                                if (!(rawArray instanceof List)) {
+                                    // Nothing to pull from (absent or non-array field) - the old code
+                                    // wrapped this in new ArrayList((List) null) and threw an NPE.
+                                    continue;
+                                }
+
+                                List values = new ArrayList((List) rawArray);
+                                Object condition = entry.getValue();
+                                // $elemMatch applies its criteria to each array ELEMENT (a sub-document)
+                                // directly. The old code wrapped each element as a single-field pseudo-
+                                // document, which made QueryHelper's $elemMatch List-type check fail for
+                                // every element - so $pull with $elemMatch never removed anything (#249).
+                                Map<String, Object> elemMatchCriteria = null;
+
+                                if (condition instanceof Map && ((Map<?, ?>) condition).size() == 1
+                                        && ((Map<?, ?>) condition).containsKey("$elemMatch")
+                                        && ((Map<?, ?>) condition).get("$elemMatch") instanceof Map) {
+                                    elemMatchCriteria = (Map<String, Object>) ((Map<?, ?>) condition).get("$elemMatch");
+                                }
+
+                                Map<String, Object> subquery = Doc.of(entry.getKey(), condition);
                                 List filteredValues = new ArrayList();
 
                                 for (Object value : values) {
-                                    if (!QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null)) {
+                                    boolean matches;
+
+                                    if (elemMatchCriteria != null) {
+                                        matches = value instanceof Map
+                                                  && QueryHelper.matchesQuery(elemMatchCriteria, (Map<String, Object>) value, null);
+                                    } else {
+                                        matches = QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null);
+                                    }
+
+                                    if (!matches) {
                                         filteredValues.add(value);
                                     }
                                 }
@@ -6128,6 +6265,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 List<Object> valuesToAdd = new ArrayList<>();
                                 Integer position = null;
                                 Integer slice = null;
+                                Object sortSpec = null;
 
                                 if (rawValue instanceof Map valueMap && valueMap.containsKey("$each")) {
                                     Object eachVal = valueMap.get("$each");
@@ -6145,6 +6283,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                     if (valueMap.containsKey("$slice") && valueMap.get("$slice") instanceof Number) {
                                         slice = ((Number) valueMap.get("$slice")).intValue();
+                                    }
+
+                                    // $sort was previously not referenced at all - any $sort modifier was
+                                    // silently ignored and the array kept insertion order (#249).
+                                    if (valueMap.containsKey("$sort")) {
+                                        sortSpec = valueMap.get("$sort");
                                     }
                                 } else if (operand.equals("$pushAll") && rawValue instanceof List) {
                                     valuesToAdd.addAll((List<Object>) rawValue);
@@ -6170,6 +6314,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     }
 
                                     if (!valuesToAdd.isEmpty()) {
+                                        changed = true;
+                                    }
+
+                                    // MongoDB applies the modifiers in the order $each -> $sort -> $slice.
+                                    if (sortSpec != null) {
+                                        sortPushedArray(v, sortSpec);
                                         changed = true;
                                     }
 

@@ -716,8 +716,21 @@ public final class CompiledQuery {
                 int div = ((Number) arr.get(0)).intValue();
                 int rem = ((Number) arr.get(1)).intValue();
                 return doc -> {
-                    Number n = (Number) resolveCheckValue(key, path, doc);
-                    return n.intValue() % div == rem;
+                    Object checkValue = resolveCheckValue(key, path, doc);
+                    // Array-valued fields match per element, like the sibling comparison operators;
+                    // the old code cast straight to Number and threw a ClassCastException (#251).
+                    if (checkValue instanceof List) {
+                        for (Object element : (List<?>) checkValue) {
+                            if (element instanceof Number && ((Number) element).intValue() % div == rem) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                    if (!(checkValue instanceof Number)) {
+                        return false;
+                    }
+                    return ((Number) checkValue).intValue() % div == rem;
                 };
             }
 
@@ -864,17 +877,24 @@ public final class CompiledQuery {
             }
 
             case "$type": {
-                de.caluga.morphium.MongoType type;
-                if (operand instanceof Number) {
-                    type = de.caluga.morphium.MongoType.findByValue(((Number) operand).intValue());
+                // MongoDB also accepts an array of types ("match if the field is any of these"),
+                // which previously fell into the null-type branch and never matched (#251).
+                List<de.caluga.morphium.MongoType> types = new ArrayList<>();
+                if (operand instanceof List) {
+                    for (Object t : (List<?>) operand) {
+                        if (t instanceof Number) {
+                            types.add(de.caluga.morphium.MongoType.findByValue(((Number) t).intValue()));
+                        } else if (t instanceof String) {
+                            types.add(de.caluga.morphium.MongoType.findByTxt((String) t));
+                        }
+                    }
+                } else if (operand instanceof Number) {
+                    types.add(de.caluga.morphium.MongoType.findByValue(((Number) operand).intValue()));
                 } else if (operand instanceof String) {
-                    type = de.caluga.morphium.MongoType.findByTxt((String) operand);
-                } else {
-                    type = null; // interpreter logs an error and returns false
+                    types.add(de.caluga.morphium.MongoType.findByTxt((String) operand));
                 }
-                de.caluga.morphium.MongoType finalType = type;
                 return doc -> {
-                    if (finalType == null) {
+                    if (types.isEmpty()) {
                         return false;
                     }
                     Object checkValue = resolveCheckValue(key, path, doc);
@@ -885,8 +905,10 @@ public final class CompiledQuery {
                         elements.add(checkValue);
                     }
                     for (Object o : elements) {
-                        if (QueryHelper.matchesType(o, finalType)) {
-                            return true;
+                        for (de.caluga.morphium.MongoType t : types) {
+                            if (t != null && QueryHelper.matchesType(o, t)) {
+                                return true;
+                            }
                         }
                     }
                     return false;
@@ -899,12 +921,37 @@ public final class CompiledQuery {
                     if (queryValues == null) {
                         return false;
                     }
+                    // $all with an empty array never matches in MongoDB (#251).
+                    if (queryValues.isEmpty()) {
+                        return false;
+                    }
                     Object checkValue = resolveCheckValue(key, path, doc);
                     if (checkValue == null || !(checkValue instanceof List)) {
                         return false;
                     }
-                    Set<Object> checkSet = new HashSet<>((List<Object>) checkValue);
+                    List<Object> checkList = (List<Object>) checkValue;
+                    Set<Object> checkSet = new HashSet<>(checkList);
                     for (Object o : queryValues) {
+                        // {$all: [{$elemMatch: {...}}]}: each entry is a sub-query evaluated against
+                        // the array's elements, not a literal value looked up by equality (#251).
+                        if (o instanceof Map && ((Map<?, ?>) o).size() == 1
+                                && ((Map<?, ?>) o).get("$elemMatch") instanceof Map) {
+                            Map<String, Object> criteria = (Map<String, Object>) ((Map<?, ?>) o).get("$elemMatch");
+                            boolean anyMatch = false;
+                            for (Object element : checkList) {
+                                Map<String, Object> asDoc = element instanceof Map
+                                    ? (Map<String, Object>) element : Doc.of("value", element);
+                                if (QueryHelper.matchesQueryInterpreted(criteria, asDoc, null)
+                                        || QueryHelper.matchesQueryInterpreted(Doc.of("value", criteria), asDoc, null)) {
+                                    anyMatch = true;
+                                    break;
+                                }
+                            }
+                            if (!anyMatch) {
+                                return false;
+                            }
+                            continue;
+                        }
                         if (!checkSet.contains(o)) {
                             return false;
                         }
@@ -917,7 +964,8 @@ public final class CompiledQuery {
                 return doc -> {
                     Object checkValue = resolveCheckValue(key, path, doc);
                     if (checkValue == null) {
-                        return operand.equals(0);
+                        // A missing field is not an empty array - it never matches $size (#251).
+                        return false;
                     }
                     if (!(checkValue instanceof List)) {
                         return false;

@@ -20,6 +20,21 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 
 ### Fixed
 
+#### InMemoryDriver: update-operator correctness cluster (#249)
+Six update operators silently did nothing, crashed, or applied only part of the requested change while reporting success: `$pull` with `$elemMatch` never removed anything (each array element was wrapped as a pseudo-document, so the `$elemMatch` list check always failed); `$rename` with a dotted source never resolved it and destructively removed the *target* field instead; `$min`/`$max` threw a `NullPointerException` whenever the target field was absent; `$mul` was a no-op on a missing field (MongoDB creates it as `0`); `$currentDate` only ever wrote the first listed field; and `$push`'s `$sort` modifier was never implemented, so arrays kept insertion order.
+
+#### InMemoryDriver: `$geoWithin` with `$center`/`$centerSphere`/`$polygon` matched every document (#242)
+Only `$box` had an implementation; the other shapes matched no branch and fell through to an unconditional `return true`, so those queries silently returned the entire unfiltered collection. All three are now implemented (planar circle, great-circle central angle, ray-casting point-in-polygon), and an unknown shape now fails closed instead of matching everything.
+
+#### InMemoryDriver: query-operator correctness cluster (#251)
+`$size` matched documents whose field is entirely absent; `$all` with an empty array matched everything (MongoDB matches nothing) and `$all`+`$elemMatch` never matched at all; `$mod` threw a `ClassCastException` on array-valued fields instead of matching per element; `$type` ignored the array-of-types form; and the bits operators' `byte[]` mask decoder ran its loop backwards, throwing `ArrayIndexOutOfBoundsException` on multi-byte masks and silently decoding single-byte masks to zero. Fixed in both the interpreter and `CompiledQuery`, which carries its own copies of these operators.
+
+#### Expr: date operators use UTC, 1-based `$month`, real ISO week fields (#250)
+All date-component operators used the JVM's default timezone, so results depended on the deployment environment; they now evaluate in UTC as MongoDB documents. `$month` was 0-based, `$isoWeek` returned the week-of-*month*, `$isoWeekYear` returned a week number instead of a year, and `$isoDayOfWeek` used Java's Sunday=1 numbering instead of ISO Monday=1. `$week` additionally followed the JVM locale's week rules and now implements MongoDB's Sunday-based 0-53 definition.
+
+#### Expr: `$dateFromParts` returned its JSON shape instead of a date (#260)
+`$dateFromParts` was a `MapOpExpr`, which never overrides `evaluate()`, so evaluating it returned the operator's own `{"$dateFromParts": {...}}` map instead of a `Date` — silently, via both the JSON pipeline and the fluent builder. It now constructs the date (UTC by default, honouring an explicit `timezone`, with MongoDB's out-of-range rollover). The `isoDateFromParts(...)` builders, which mapped the ISO week to `month` and the ISO weekday to `day`, are fixed too.
+
 #### InMemoryDriver: `$project` inclusion mode now restricts output to selected fields (#240)
 `$project` inclusion (`{field: 1}`) was a no-op — only exclusion (`{field: 0}`) removed anything, so field selection (the most common use of `$project`) silently returned the whole document. An explicit inclusion flag now switches `$project` into strict inclusion mode (output starts empty, only `_id` plus listed/computed fields are kept); computed-only projections keep their historical lenient behaviour. Also live inside `$facet`.
 
