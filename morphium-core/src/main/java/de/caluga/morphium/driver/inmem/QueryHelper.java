@@ -764,11 +764,28 @@ public class QueryHelper {
                                 return false;
 
                             case "$mod":
-                                Number n = (Number) checkValue;
-                                List arr = (List) commandMap.get(commandKey);
-                                int div = ((Number) arr.get(0)).intValue();
-                                int rem = ((Number) arr.get(1)).intValue();
-                                return n.intValue() % div == rem;
+                                List modArr = (List) commandMap.get(commandKey);
+                                int div = ((Number) modArr.get(0)).intValue();
+                                int rem = ((Number) modArr.get(1)).intValue();
+
+                                // Array-valued fields match per element, like the sibling comparison
+                                // operators. The old code cast straight to Number and threw a
+                                // ClassCastException on a List (#251).
+                                if (checkValue instanceof List) {
+                                    for (Object element : (List) checkValue) {
+                                        if (element instanceof Number && ((Number) element).intValue() % div == rem) {
+                                            return true;
+                                        }
+                                    }
+
+                                    return false;
+                                }
+
+                                if (!(checkValue instanceof Number)) {
+                                    return false;
+                                }
+
+                                return ((Number) checkValue).intValue() % div == rem;
 
                             case "$ne":
                                 if (checkValue instanceof List) {
@@ -1020,14 +1037,27 @@ public class QueryHelper {
                                 }
 
                             case "$type":
-                                MongoType type = null;
+                                Object typeSpec = commandMap.get(commandKey);
+                                List<MongoType> types = new ArrayList<>();
 
-                                if (commandMap.get(commandKey) instanceof Number) {
-                                    type = MongoType.findByValue(((Number) commandMap.get(commandKey)).intValue());
-                                } else if (commandMap.get(commandKey) instanceof String) {
-                                    type = MongoType.findByTxt((String) commandMap.get(commandKey));
+                                if (typeSpec instanceof List) {
+                                    // MongoDB's array form: match if the field is ANY of the listed
+                                    // types. This previously fell into the else-branch below and always
+                                    // returned false (#251).
+                                    for (Object t : (List) typeSpec) {
+                                        if (t instanceof Number) {
+                                            types.add(MongoType.findByValue(((Number) t).intValue()));
+                                        } else if (t instanceof String) {
+                                            types.add(MongoType.findByTxt((String) t));
+                                        }
+                                    }
+                                } else if (typeSpec instanceof Number) {
+                                    types.add(MongoType.findByValue(((Number) typeSpec).intValue()));
+                                } else if (typeSpec instanceof String) {
+                                    types.add(MongoType.findByTxt((String) typeSpec));
                                 } else {
-                                    log.error("Type specification needs to be either int or string -" + " not " + commandMap.get(commandKey).getClass().getName());
+                                    log.error("Type specification needs to be an int, a string or an array of those - not "
+                                              + (typeSpec == null ? "null" : typeSpec.getClass().getName()));
                                     return false;
                                 }
 
@@ -1040,8 +1070,10 @@ public class QueryHelper {
                                 }
 
                                 for (Object o : elements) {
-                                    if (matchesType(o, type)) {
-                                        return true;
+                                    for (MongoType t : types) {
+                                        if (t != null && matchesType(o, t)) {
+                                            return true;
+                                        }
                                     }
                                 }
 
@@ -1239,9 +1271,43 @@ public class QueryHelper {
                                 List toCheckValList = (List) checkValue;
                                 List queryValues = (List) commandMap.get(commandKey);
 
+                                // $all with an empty array never matches in MongoDB. The old code's loop
+                                // body simply never ran and fell through to "return true" (#251).
+                                if (queryValues.isEmpty()) {
+                                    return false;
+                                }
+
                                 // Optimize: use HashSet for O(1) lookups instead of O(n) List.contains()
                                 Set<Object> checkSet = new HashSet<>(toCheckValList);
+
                                 for (Object o : queryValues) {
+                                    // {$all: [{$elemMatch: {...}}, ...]}: each entry is a sub-query to be
+                                    // evaluated against the array's elements. The old code looked the
+                                    // literal {$elemMatch:...} map up by equality in checkSet, so this
+                                    // combination never matched anything (#251).
+                                    if (o instanceof Map && ((Map<?, ?>) o).size() == 1
+                                            && ((Map<?, ?>) o).get("$elemMatch") instanceof Map) {
+                                        Map<String, Object> criteria = (Map<String, Object>) ((Map<?, ?>) o).get("$elemMatch");
+                                        boolean anyMatch = false;
+
+                                        for (Object element : toCheckValList) {
+                                            Map<String, Object> asDoc = element instanceof Map
+                                                                        ? (Map<String, Object>) element : Doc.of("value", element);
+
+                                            if (matchesQueryInterpreted(criteria, asDoc, null)
+                                                    || matchesQueryInterpreted(Doc.of("value", criteria), asDoc, null)) {
+                                                anyMatch = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (!anyMatch) {
+                                            return false;
+                                        }
+
+                                        continue;
+                                    }
+
                                     if (!checkSet.contains(o)) {
                                         return false;
                                     }
@@ -1251,7 +1317,9 @@ public class QueryHelper {
 
                             case "$size":
                                 if (checkValue == null) {
-                                    return commandMap.get(commandKey).equals(0);
+                                    // A missing field is not an empty array - MongoDB never matches it
+                                    // against $size (the old code matched it against $size: 0) (#251).
+                                    return false;
                                 }
 
                                 if (!(checkValue instanceof List)) {
@@ -1316,8 +1384,13 @@ public class QueryHelper {
                                     // long
                                     var bits = 0;
 
-                                    for (int idx = b.length - 1; idx > 0; idx++) {
-                                        value = value | (b[idx] << bits);
+                                    // Walk from the least significant (last) byte down to index 0. The
+                                    // old loop counted UP from b.length-1, so a multi-byte mask threw
+                                    // an ArrayIndexOutOfBoundsException and a single-byte mask never
+                                    // entered the loop at all, silently decoding to 0 (#251).
+                                    // The & 0xFF keeps a high-bit byte from sign-extending.
+                                    for (int idx = b.length - 1; idx >= 0; idx--) {
+                                        value = value | ((b[idx] & 0xFFL) << bits);
                                         bits += 8;
                                     }
                                 }

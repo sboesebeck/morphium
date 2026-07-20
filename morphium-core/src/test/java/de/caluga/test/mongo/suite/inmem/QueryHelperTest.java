@@ -514,6 +514,77 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
         assertThrows(IllegalArgumentException.class, () -> QueryHelper.validateQuery(query));
     }
 
+    // #251: query-operator correctness cluster.
+
+    @Test
+    public void size_doesNotMatchMissingField() {
+        Map<String, Object> query = Doc.of("tags", Doc.of("$size", 0));
+
+        assertTrue(QueryHelper.matchesQuery(query, Doc.of("tags", List.of()), null),
+            "an explicitly empty array has size 0");
+        assertFalse(QueryHelper.matchesQuery(query, Doc.of("other", 1), null),
+            "a missing field is not an empty array and must not match $size: 0");
+    }
+
+    @Test
+    public void allWithEmptyArray_matchesNothing() {
+        Map<String, Object> query = Doc.of("tags", Doc.of("$all", List.of()));
+
+        assertFalse(QueryHelper.matchesQuery(query, Doc.of("tags", List.of("a", "b")), null),
+            "$all with an empty array never matches in MongoDB");
+    }
+
+    @Test
+    public void allWithElemMatch_evaluatesTheSubQuery() {
+        Map<String, Object> query = Doc.of("results",
+            Doc.of("$all", List.of(Doc.of("$elemMatch", Doc.of("score", 8)))));
+
+        assertTrue(QueryHelper.matchesQuery(query,
+                Doc.of("results", List.of(Doc.of("score", 8), Doc.of("score", 3))), null),
+            "$all + $elemMatch must evaluate the sub-query against the array elements");
+        assertFalse(QueryHelper.matchesQuery(query,
+                Doc.of("results", List.of(Doc.of("score", 3))), null),
+            "no element matches the $elemMatch criteria");
+    }
+
+    @Test
+    public void mod_onArrayField_matchesPerElement() {
+        Map<String, Object> query = Doc.of("vals", Doc.of("$mod", List.of(4, 0)));
+
+        assertTrue(QueryHelper.matchesQuery(query, Doc.of("vals", List.of(3, 8)), null),
+            "$mod on an array field matches if any element matches (like the other comparison ops)");
+        assertFalse(QueryHelper.matchesQuery(query, Doc.of("vals", List.of(3, 5)), null),
+            "no element is divisible by 4");
+    }
+
+    @Test
+    public void type_acceptsArrayOfTypes() {
+        // 2 = string, 16 = 32-bit int
+        Map<String, Object> query = Doc.of("f", Doc.of("$type", List.of(2, 16)));
+
+        assertTrue(QueryHelper.matchesQuery(query, Doc.of("f", "hello"), null),
+            "$type with an array matches if the field is any of the listed types");
+        assertTrue(QueryHelper.matchesQuery(query, Doc.of("f", 42), null));
+        assertFalse(QueryHelper.matchesQuery(query, Doc.of("f", 1.5), null),
+            "a double is neither a string nor a 32-bit int");
+    }
+
+    @Test
+    public void bitsOperators_decodeByteArrayMasks() {
+        // single byte: mask 0x01 -> bit 0
+        assertTrue(QueryHelper.matchesQuery(
+                Doc.of("f", Doc.of("$bitsAnySet", new byte[] {1})), Doc.of("f", 1), null),
+            "a single-byte mask must decode to its value, not silently to zero");
+
+        // two bytes, big-endian: {0x01, 0x00} -> 256
+        assertTrue(QueryHelper.matchesQuery(
+                Doc.of("f", Doc.of("$bitsAnySet", new byte[] {1, 0})), Doc.of("f", 256), null),
+            "a multi-byte mask must decode without going out of bounds");
+        assertFalse(QueryHelper.matchesQuery(
+                Doc.of("f", Doc.of("$bitsAnySet", new byte[] {1, 0})), Doc.of("f", 1), null),
+            "bit 0 is not set in a 0x0100 mask");
+    }
+
     // #242: $geoWithin with $center/$centerSphere/$polygon used to fall through to an
     // unconditional "return true", so every document matched regardless of its location.
 
