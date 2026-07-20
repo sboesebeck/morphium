@@ -18,7 +18,15 @@ New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as 
 #### InMemoryDriver: O(1) change-stream replay-buffer bound
 The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size()` — O(n), ~200k node traversals per write at PoppyDB's 100k-event replay bound. The deque size is now tracked in an `AtomicInteger`; eviction semantics are unchanged.
 
+### Changed
+
+#### InMemoryDriver: `$merge` now fails loudly instead of silently writing nothing (#241)
+`$merge` reported success and never touched the target collection — every persistence call was commented-out dead code, so any pipeline materialising results (rollups, denormalised views, ETL-style flows) silently produced no data. **`$merge` is still not implemented** and now raises an explicit command error naming the stage and target, so a discarded materialise step can no longer pass as success. Re-enabling the old calls would not have been enough: only `whenMatched:merge` existed, its precedence was inverted, its `_id` guard would always fire, the pipeline variant appended to the aggregation result instead of writing, and `on` had no `_id` default. See #241 for the real implementation.
+
 ### Fixed
+
+#### PoppyDB: wire fast path dropped client options (#244, #252)
+The hot-dispatch handlers bypass the generic command path and hardcoded several options to their defaults instead of reading them from the request, so whether an option was honoured depended on which internal path a request happened to take. `createIndexes` forwarded only `unique`/`name` and silently dropped `expireAfterSeconds` (a TTL index was created but never expired anything), `sparse`, `background`, `hidden` and `partialFilterExpression` — the whole index spec is now forwarded. `insert` hardcoded `ordered=true`, so `ordered:false` stopped at the first failing document instead of continuing; `update`/`delete`/`count`/`distinct` hardcoded `collation` to null, silently falling back to binary comparison. All are now read from the request.
 
 #### InMemoryDriver: update-operator correctness cluster (#249)
 Six update operators silently did nothing, crashed, or applied only part of the requested change while reporting success: `$pull` with `$elemMatch` never removed anything (each array element was wrapped as a pseudo-document, so the `$elemMatch` list check always failed); `$rename` with a dotted source never resolved it and destructively removed the *target* field instead; `$min`/`$max` threw a `NullPointerException` whenever the target field was absent; `$mul` was a no-op on a missing field (MongoDB creates it as `0`); `$currentDate` only ever wrote the first listed field; and `$push`'s `$sort` modifier was never implemented, so arrays kept insertion order.

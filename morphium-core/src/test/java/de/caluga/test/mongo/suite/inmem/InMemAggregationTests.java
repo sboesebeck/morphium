@@ -462,7 +462,11 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
 
 
     @Test
-    public void inMemAggregationMerge() throws Exception {
+    public void inMemAggregationMerge_failsLoudlyUntilImplemented() throws Exception {
+        // #241: $merge was a silent no-op - it reported ok and wrote nothing to the target
+        // collection. This test previously asserted exactly that (target stays empty), encoding the
+        // bug as expected behaviour. Until $merge is really implemented it must fail loudly instead,
+        // so nobody believes their aggregation results were materialised.
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
             morphium.store(u);
@@ -470,18 +474,12 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.unset(UncachedObject.Fields.strValue);
         agg.merge("test", Aggregator.MergeActionWhenMatched.merge, Aggregator.MergeActionWhenNotMatched.insert);
-        List<Map> lst = agg.aggregate();
-        assert (lst.size() == 0);
 
-        List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList();
-        assertEquals(0, l.size());
-        //checking stored after $unset
-        long lastCounter = -1;
-        for (UncachedObject o : l) {
-            assertNull (o.getStrValue());
-            assertNotEquals(lastCounter, o.getCounter());
-            lastCounter = o.getCounter();
-        }
+        var ex = assertThrows(de.caluga.morphium.driver.MorphiumDriverException.class, agg::aggregate);
+        assertTrue(ex.getMessage().contains("$merge"), "error must name the stage: " + ex.getMessage());
+
+        // and it must still not have written anything
+        assertEquals(0, morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList().size());
     }
 
     @Test

@@ -1639,13 +1639,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // is configured to use the same PoppyDB that runs in-process.
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processInsertDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest (no server/socket needed)
+    Map<String, Object> processInsertDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("insert");
         List<Map<String, Object>> docs = (List<Map<String, Object>>) doc.get("documents");
         if (docs == null) docs = List.of();
+        // The fast path used the 4-arg overload, which hardcodes ordered=true - a client's
+        // ordered:false (continue past individual failures) was silently ignored (#252).
+        boolean ordered = !(Boolean.FALSE.equals(doc.get("ordered")));
         try {
-            var writeErrors = driver.insert(db, coll, docs, null);
+            var writeErrors = driver.insert(db, coll, docs, null, ordered);
             Map<String, Object> answer = Doc.of("ok", 1.0, "n", docs.size());
             if (writeErrors != null && !writeErrors.isEmpty()) {
                 answer.put("writeErrors", writeErrors);
@@ -1748,7 +1752,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             boolean multi = Boolean.TRUE.equals(upd.get("multi"));
             boolean upsert = Boolean.TRUE.equals(upd.get("upsert"));
             try {
-                var result = driver.update(db, coll, q, null, u, multi, upsert, null, null);
+                // The per-update collation was hardcoded to null here (#252).
+                var result = driver.update(db, coll, q, null, u, multi, upsert,
+                                           (Map<String, Object>) upd.get("collation"), null);
                 if (result != null) {
                     totalN += result.getOrDefault("n", 0) instanceof Number ? ((Number) result.get("n")).intValue() : 0;
                     totalModified += result.getOrDefault("nModified", 0) instanceof Number ? ((Number) result.get("nModified")).intValue() : 0;
@@ -1780,7 +1786,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processDeleteDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processDeleteDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("delete");
         List<Map<String, Object>> deletes = (List<Map<String, Object>>) doc.get("deletes");
@@ -1791,7 +1798,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> q = (Map<String, Object>) del.get("q");
             int limit = del.get("limit") instanceof Number ? ((Number) del.get("limit")).intValue() : 0;
             try {
-                var result = driver.delete(db, coll, q, null, limit != 1, null, null);
+                // The per-delete collation was hardcoded to null here (#252).
+                var result = driver.delete(db, coll, q, null, limit != 1,
+                                           (Map<String, Object>) del.get("collation"), null);
                 if (result != null && result.get("n") instanceof Number) {
                     totalDeleted += ((Number) result.get("n")).intValue();
                 }
@@ -1803,12 +1812,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processCountDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processCountDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("count");
         Map<String, Object> query = (Map<String, Object>) doc.get("query");
         if (query == null) query = Doc.of();
-        long n = driver.count(db, coll, query, (de.caluga.morphium.Collation) null, null);
+        // The client's collation was hardcoded to null here (#252).
+        long n = driver.countWithCollation(db, coll, query, (Map<String, Object>) doc.get("collation"), null);
         // Return as int to match MongoDB wire protocol (CountMongoCommand.getCount casts to Integer)
         return Doc.of("ok", 1.0, "n", (int) n);
     }
@@ -1820,21 +1831,27 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         String key = (String) doc.get("key");
         Map<String, Object> query = (Map<String, Object>) doc.get("query");
         if (query == null) query = Doc.of();
-        var values = driver.distinct(db, coll, key, query, null);
+        // The client's collation was hardcoded to null here (#252).
+        var values = driver.distinct(db, coll, key, query, (Map<String, Object>) doc.get("collation"));
         return Doc.of("ok", 1.0, "values", values);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processCreateIndexesDirect(Map<String, Object> doc) {
+    // package-private: exercised directly by CreateIndexesFastPathTest (no server/socket needed)
+    Map<String, Object> processCreateIndexesDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("createIndexes");
         List<Map<String, Object>> indexes = (List<Map<String, Object>>) doc.get("indexes");
         if (indexes != null) {
             for (var idx : indexes) {
                 Map<String, Object> key = (Map<String, Object>) idx.get("key");
-                Map<String, Object> options = new HashMap<>();
-                if (idx.containsKey("unique")) options.put("unique", idx.get("unique"));
-                if (idx.containsKey("name")) options.put("name", idx.get("name"));
+                // Forward the WHOLE index spec (minus the key itself) rather than hand-picking
+                // unique/name: expireAfterSeconds (TTL), sparse, background, hidden and
+                // partialFilterExpression were silently dropped, so e.g. a TTL index was created but
+                // never expired anything (#244). Copying wholesale also means any option the generic
+                // command path gains in future does not need this fast path updated separately.
+                Map<String, Object> options = new HashMap<>(idx);
+                options.remove("key");
                 driver.createIndex(db, coll, key, options);
             }
         }

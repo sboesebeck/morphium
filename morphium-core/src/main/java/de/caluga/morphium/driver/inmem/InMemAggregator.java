@@ -1770,173 +1770,24 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 ret = o.subList(0, size);
                 break;
 
-            case "$merge":
-                //{ $merge: {
-                //     into: <collection> -or- { db: <db>, coll: <collection> },
-                //     on: <identifier field> -or- [ <identifier field1>, ...],  // Optional
-                //     let: <variables>,                                         // Optional
-                //     whenMatched: <replace|keepExisting|merge|fail|pipeline>,  // Optional
-                //     whenNotMatched: <insert|discard|fail>                     // Optional
-                //} }
-                @SuppressWarnings("unchecked")
-                Map setting = ((Map<String, Object>) step.get(stage));
-                String db = morphium.getConfig().connectionSettings().getDatabase();
-                String coll = "";
-
-                if (setting.get("into") instanceof Map) {
-                    //noinspection unchecked
-                    db = (String)((Map<String, Object>) setting.get("into")).get("db");
-                    //noinspection unchecked
-                    coll = (String)((Map<String, Object>) setting.get("into")).get("coll");
-                } else {
-                    coll = (String)(setting.get("into"));
-                }
-
-                if (setting.containsKey("on")) {
-                    //merge
-                    //need to lookup each entry, match it to on field
-                    @SuppressWarnings("unchecked")
-                    List<String> on = (List<String>)(setting.get("on"));
-                    MergeActionWhenNotMatched notMatched = MergeActionWhenNotMatched.insert;
-                    MergeActionWhenMatched matched = MergeActionWhenMatched.merge;
-                    List<Map<String, Object>> mergePipeline = null;
-
-                    if (setting.containsKey("whenMatched")) {
-                        if (setting.get("whenMatched") instanceof Map) {
-                            //noinspection unchecked
-                            mergePipeline = (List<Map<String, Object>>) setting.get("whenMatched");
-                        } else {
-                            matched = MergeActionWhenMatched.valueOf((String) setting.get("whenMatched"));
-                        }
-                    }
-
-                    if (setting.containsKey("whenNotMatched")) {
-                        notMatched = MergeActionWhenNotMatched.valueOf((String) setting.get("whenNotMatched"));
-                    }
-
-                    for (Map<String, Object> doc : data) {
-                            Map<String, Object> q = new HashMap<>();
-
-                            for (String onfld : on) {
-                                q.put(onfld, doc.get(onfld));
-                            }
-
-                            List<Map<String, Object>> toMergeTo = null;         //morphium.getDriver().find(db, coll, q, null, null, 0, -1, 100, null, null, null);
-
-                            if (toMergeTo == null || toMergeTo.size() == 0) {
-                                //not matched
-                                switch (notMatched) {
-                                    case fail:
-                                        throw new MorphiumDriverException("Aggregation merge step failed - no doc matched!");
-
-                                    case discard:
-                                        continue;
-
-                                    case insert:
-                                        //morphium.getDriver().store(db, coll, Collections.singletonList(doc), null);
-                                        break;
-
-                                    default:
-                                        throw new IllegalArgumentException("unknown whenNotMatched action " + notMatched);
-                                }
-                            } else if (toMergeTo.size() > 1) {
-                                throw new MorphiumDriverException("Aggregation merge step failed - on fields query returned more than one value. On-Fields are not unique");
-                            } else {
-                                Map<String, Object> mergeObject = toMergeTo.get(0);
-
-                                switch (matched) {
-                                    case merge:
-                                        if (mergePipeline != null) {
-                                            //need to run through pipeline....
-                                            for (Map<String, Object> mergePipelineStep : mergePipeline) {
-                                                String s = mergePipelineStep.keySet().stream().findFirst().get();
-
-                                                switch (s) {
-                                                    case "$set":
-                                                    case "$addFields":
-                                                        break;
-
-                                                    case "$unset":
-                                                        Map<String, Object> newO = new HashMap<>(doc);
-
-                                                        if (mergePipelineStep.get(s) instanceof List) {
-                                                            @SuppressWarnings("unchecked")
-                                                            List<String> flds = (List<String>) mergePipelineStep.get(s);
-
-                                                            for (String f : flds) {
-                                                                newO.remove(f);
-                                                            }
-                                                        } else {
-                                                            newO.remove(mergePipelineStep.get(s));
-                                                        }
-
-                                                        ret.add(newO);
-                                                        break;
-
-                                                    case "$project":
-                                                        break;
-
-                                                    case "$replaceRoot":
-                                                    case "$replaceWith":
-                                                        Object newRoot;
-
-                                                        if (mergePipelineStep.get(s) instanceof Map) {
-                                                            newRoot = ((Map) mergePipelineStep.get(s)).get("newRoot");
-                                                        } else {
-                                                            newRoot = mergePipelineStep.get(s);
-                                                        }
-
-                                                        if (newRoot instanceof String) {
-                                                            if (newRoot.toString().startsWith("$")) {
-                                                                //fieldRef
-                                                                //noinspection unchecked
-                                                                ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
-                                                            } else {
-                                                                throw new IllegalArgumentException("cannot replace root with single value");
-                                                            }
-                                                        } else {
-                                                            //parse expr!!!!!
-                                                            Expr expr = Expr.parse(newRoot);
-                                                            //noinspection unchecked
-                                                            ret.add((Map<String, Object>) expr.evaluate(doc));
-                                                        }
-
-                                                        break;
-
-                                                    default:
-                                                        throw new MorphiumDriverException("Aggregation error: unknown aggregation step in merge pipeline " + s);
-                                                }
-                                            }
-                                        } else {
-                                            if (mergeObject.containsKey("_id")) {
-                                                throw new MorphiumDriverException("Aggregation merge failure: referenced object keeps _id!");
-                                            }
-
-                                            //just merge
-                                            Map<String, Object> newDoc = new HashMap<>(doc);
-                                            newDoc.putAll(mergeObject);
-                                            //                                            morphium.getDriver().store(db, coll, Collections.singletonList(mergeObject), null);
-                                        }
-
-                                        break;
-
-                                    case fail:
-                                    case replace:
-                                    case keepExisting:
-                                    default:
-                                        throw new IllegalArgumentException("unknown whenMatched action " + matched);
-                                }
-                            }
-                    }
-                } else {
-                    //                    try {
-                    //                        morphium.getDriver().store(db, coll, data, null);
-                    //                    } catch (MorphiumDriverException e) {
-                    //                        log.error("Something went wrong with $merge", e);
-                    //                    }
-                }
-
-                break;
+            case "$merge": {
+                // $merge is NOT implemented (#241). It used to report success and write nothing at
+                // all to the target collection: every persistence call in the old scaffold was
+                // commented-out dead code, and the surrounding logic could not have produced correct
+                // results either - only whenMatched:merge existed (replace/keepExisting/fail all fell
+                // into an "unknown action" throw), the merge branch let the EXISTING document
+                // override the new pipeline output (MongoDB does the opposite), its _id guard would
+                // have fired for every matched document, the pipeline variant appended to the
+                // aggregation result instead of writing, and `on` had no _id default.
+                //
+                // Failing loudly is the interim contract: silently discarding an entire materialise
+                // step is far worse than an error. The scaffold is removed rather than left in place
+                // because it was actively misleading. See issue #241 for the real implementation.
+                String mergeTarget = String.valueOf(((Map<String, Object>) step.get(stage)).get("into"));
+                throw mongoCommandError(115,
+                    "$merge is not supported by the in-memory driver (target: " + mergeTarget
+                    + ") - it would silently write nothing; see issue #241");
+            }
 
             case "$replaceRoot":
             case "$replaceWith":
