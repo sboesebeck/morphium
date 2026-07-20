@@ -89,6 +89,55 @@ public class ExprTest {
         assertEquals(java.util.List.of(5, 4, 3, 2), res);
     }
 
+    // #250: date accessors must evaluate in UTC (MongoDB's default), $month is 1-12, and the ISO
+    // operators must use real ISO-8601 week-date fields.
+    //
+    // Reference instant: 2026-03-15T13:45:30.500Z — a Sunday, day-of-year 74.
+    // 2026-01-01 is a Thursday, so ISO week 1 is Mon 2025-12-29..Sun 2026-01-04 and 2026-03-15 is
+    // the last day of ISO week 11. MongoDB's Sunday-based $week: first Sunday is Jan 4, so
+    // ((74-4)/7)+1 = 11.
+
+    private java.util.Date refInstant() {
+        return java.util.Date.from(java.time.Instant.parse("2026-03-15T13:45:30.500Z"));
+    }
+
+    private int evalDate(Expr e) {
+        return ((Number) e.evaluate(Doc.of("d", refInstant()))).intValue();
+    }
+
+    @Test
+    public void dateAccessors_useUtcNotJvmDefaultTimezone() {
+        assertEquals(13, evalDate(Expr.hour(Expr.field("d"))), "$hour must be evaluated in UTC");
+        assertEquals(45, evalDate(Expr.minute(Expr.field("d"))));
+        assertEquals(30, evalDate(Expr.second(Expr.field("d"))));
+        assertEquals(500, evalDate(Expr.millisecond(Expr.field("d"))));
+    }
+
+    @Test
+    public void month_isOneBased() {
+        assertEquals(3, evalDate(Expr.month(Expr.field("d"))), "$month is 1-12 in MongoDB, not 0-based");
+    }
+
+    @Test
+    public void isoDayOfWeek_isMondayOneToSundaySeven() {
+        assertEquals(7, evalDate(Expr.isoDayOfWeek(Expr.field("d"))), "Sunday is 7 in ISO numbering");
+        assertEquals(1, evalDate(Expr.dayOfWeek(Expr.field("d"))), "$dayOfWeek keeps Sunday=1");
+    }
+
+    @Test
+    public void isoWeek_and_isoWeekYear_useIsoWeekDateFields() {
+        assertEquals(11, evalDate(Expr.isoWeek(Expr.field("d"))), "$isoWeek is the ISO week-of-year");
+        assertEquals(2026, evalDate(Expr.isoWeekYear(Expr.field("d"))), "$isoWeekYear is a 4-digit year");
+    }
+
+    @Test
+    public void remainingDateAccessors_matchReferenceInstant() {
+        assertEquals(2026, evalDate(Expr.year(Expr.field("d"))));
+        assertEquals(15, evalDate(Expr.dayOfMonth(Expr.field("d"))));
+        assertEquals(74, evalDate(Expr.dayOfYear(Expr.field("d"))));
+        assertEquals(11, evalDate(Expr.week(Expr.field("d"))), "$week is Sunday-based, 0-53");
+    }
+
     @Test
     public void reverseArray_doesNotMutateSource() {
         java.util.List<Object> source = new java.util.ArrayList<>(java.util.List.of(1, 2, 3));

@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.temporal.IsoFields;
 import java.util.*;
 
 @SuppressWarnings("unchecked")
@@ -1083,7 +1086,9 @@ public abstract class Expr {
         return new OpExprNoList("dayOfMonth", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1103,7 +1108,9 @@ public abstract class Expr {
         return new OpExprNoList("dayOfWeek", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1199,7 +1206,9 @@ public abstract class Expr {
         return new OpExprNoList("dayOfYear", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1219,7 +1228,9 @@ public abstract class Expr {
         return new OpExprNoList("hour", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1239,7 +1250,9 @@ public abstract class Expr {
         return new OpExprNoList("isoDayOfWeek", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1250,7 +1263,9 @@ public abstract class Expr {
                     throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
                 }
 
-                return cal.get(Calendar.DAY_OF_WEEK);
+                // Calendar.DAY_OF_WEEK is Sunday=1..Saturday=7 (identical to the non-ISO $dayOfWeek).
+                // MongoDB's $isoDayOfWeek is ISO-8601: Monday=1..Sunday=7 (#250).
+                return LocalDate.ofInstant(cal.toInstant(), ZoneOffset.UTC).getDayOfWeek().getValue();
             }
         };
     }
@@ -1259,7 +1274,9 @@ public abstract class Expr {
         return new OpExprNoList("isoWeek", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1270,7 +1287,9 @@ public abstract class Expr {
                     throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
                 }
 
-                return cal.get(Calendar.WEEK_OF_MONTH);
+                // Was Calendar.WEEK_OF_MONTH (1-5), a structurally different value from the ISO-8601
+                // week-of-year (1-53) that $isoWeek is documented to return (#250).
+                return LocalDate.ofInstant(cal.toInstant(), ZoneOffset.UTC).get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
             }
         };
     }
@@ -1279,7 +1298,9 @@ public abstract class Expr {
         return new OpExprNoList("isoWeekYear", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1290,7 +1311,9 @@ public abstract class Expr {
                     throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
                 }
 
-                return cal.get(Calendar.WEEK_OF_YEAR);
+                // Was Calendar.WEEK_OF_YEAR, i.e. a week number (1-53) where $isoWeekYear is
+                // documented to return a 4-digit ISO week-based year, e.g. 2026 (#250).
+                return LocalDate.ofInstant(cal.toInstant(), ZoneOffset.UTC).get(IsoFields.WEEK_BASED_YEAR);
             }
         };
     }
@@ -1299,7 +1322,9 @@ public abstract class Expr {
         return new OpExprNoList("millisecond", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1319,7 +1344,9 @@ public abstract class Expr {
         return new OpExprNoList("minute", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1339,7 +1366,9 @@ public abstract class Expr {
         return new OpExprNoList("month", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1350,7 +1379,8 @@ public abstract class Expr {
                     throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
                 }
 
-                return cal.get(Calendar.MONTH);
+                // Calendar.MONTH is 0-based; MongoDB's $month is 1-12 (#250).
+                return cal.get(Calendar.MONTH) + 1;
             }
         };
     }
@@ -1359,7 +1389,9 @@ public abstract class Expr {
         return new OpExprNoList("second", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1389,7 +1421,9 @@ public abstract class Expr {
         return new OpExprNoList("week", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
@@ -1400,7 +1434,15 @@ public abstract class Expr {
                     throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
                 }
 
-                return cal.get(Calendar.WEEK_OF_YEAR);
+                // MongoDB's $week is Sunday-based and 0-53: week 1 starts on the year's first Sunday,
+                // and the days before it are week 0. Calendar.WEEK_OF_YEAR follows the JVM locale's
+                // week rules instead, so this was both wrong and locale-dependent.
+                LocalDate day = LocalDate.ofInstant(cal.toInstant(), ZoneOffset.UTC);
+                int dayOfYear = day.getDayOfYear();
+                // getDayOfWeek(): Monday=1..Sunday=7 -> days from Jan 1 to the first Sunday
+                int jan1Dow = day.withDayOfYear(1).getDayOfWeek().getValue();
+                int firstSundayDayOfYear = 1 + ((7 - jan1Dow) % 7);
+                return dayOfYear < firstSundayDayOfYear ? 0 : ((dayOfYear - firstSundayDayOfYear) / 7) + 1;
             }
         };
     }
@@ -1409,7 +1451,9 @@ public abstract class Expr {
         return new OpExprNoList("year", date) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                GregorianCalendar cal = new GregorianCalendar();
+                // MongoDB's date operators default to UTC; the JVM default zone made results depend
+                // on the deployment environment (#250).
+                GregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
                 Object val = eval(date, context);
 
                 if (val instanceof Date) {
