@@ -1825,16 +1825,21 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processCreateIndexesDirect(Map<String, Object> doc) {
+    // package-private: exercised directly by CreateIndexesFastPathTest (no server/socket needed)
+    Map<String, Object> processCreateIndexesDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("createIndexes");
         List<Map<String, Object>> indexes = (List<Map<String, Object>>) doc.get("indexes");
         if (indexes != null) {
             for (var idx : indexes) {
                 Map<String, Object> key = (Map<String, Object>) idx.get("key");
-                Map<String, Object> options = new HashMap<>();
-                if (idx.containsKey("unique")) options.put("unique", idx.get("unique"));
-                if (idx.containsKey("name")) options.put("name", idx.get("name"));
+                // Forward the WHOLE index spec (minus the key itself) rather than hand-picking
+                // unique/name: expireAfterSeconds (TTL), sparse, background, hidden and
+                // partialFilterExpression were silently dropped, so e.g. a TTL index was created but
+                // never expired anything (#244). Copying wholesale also means any option the generic
+                // command path gains in future does not need this fast path updated separately.
+                Map<String, Object> options = new HashMap<>(idx);
+                options.remove("key");
                 driver.createIndex(db, coll, key, options);
             }
         }
