@@ -14,10 +14,11 @@ import de.caluga.morphium.messaging.MultiCollectionMessaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The messaging fallback poll is liveness-gated: a topic whose change streams demonstrably
- * receive server replies (heartbeat stamped on every batch, empty ones included) is NOT
- * polled at all - the poll only runs when a stream cannot vouch for itself. This test
- * verifies the wiring end to end: once the watch loop runs, the topic reports live.
+ * Change-stream liveness: the watch loop stamps a heartbeat on every server reply (empty
+ * batches included). The fallback poll uses it to react immediately when a stream falls
+ * silent (the regular interval poll always runs - requeued messages produce no stream
+ * event). This test verifies the wiring end to end: once the watch loop runs, the topic
+ * reports live.
  */
 @Tag("core")
 public class MessagingFallbackLivenessTest {
@@ -57,8 +58,7 @@ public class MessagingFallbackLivenessTest {
         }
 
         assertThat(messaging.topicStreamsLive("liveness_topic"))
-                .as("watch loop is running and stamping heartbeats - the topic must report live, "
-                        + "suppressing the fallback poll")
+                .as("watch loop is running and stamping heartbeats - the topic must report live")
                 .isTrue();
     }
 
@@ -82,7 +82,7 @@ public class MessagingFallbackLivenessTest {
             }
 
             assertThat(single.changeStreamsLive())
-                    .as("message + lock stream heartbeats are running - fallback poll must be gated off")
+                    .as("message + lock stream heartbeats are running - both streams must report live")
                     .isTrue();
         } finally {
             single.terminate();

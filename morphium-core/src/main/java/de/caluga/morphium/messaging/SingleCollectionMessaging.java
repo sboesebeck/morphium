@@ -692,8 +692,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     /**
      * Whether BOTH change streams (message collection + lock collection) are provably alive
      * and in sync: their watch loops receive a server reply at least every maxTimeMS (empty
-     * batch heartbeat). While this is true the fallback poll is skipped entirely; a silent
-     * stream triggers an immediate poll. Public also for diagnostics/monitoring.
+     * batch heartbeat). A stream falling silent triggers an immediate fallback poll instead
+     * of waiting for the regular interval. Public also for diagnostics/monitoring.
      */
     public boolean changeStreamsLive() {
         return changeStreamMonitor != null && changeStreamMonitor.isStreamLive()
@@ -829,11 +829,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // always run this find in addition to changestream
         try {
             AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
-            // Liveness-gated safety net: the watch loop receives a server reply at least every
-            // maxTimeMS (empty batch heartbeat), so while BOTH monitors (messages + locks) are
-            // provably alive and in sync, no fallback poll is needed at all. A stream falling
-            // silent triggers an immediate poll, then one per messagingFallbackPollInterval
-            // while it stays suspect.
+            // Safety-net poll runs every messagingFallbackPollInterval regardless of stream
+            // health (see the poll conditions below for why). Stream liveness - the watch loop
+            // receives a server reply at least every maxTimeMS (empty batch heartbeat) - is
+            // used to poll IMMEDIATELY when a stream falls silent, instead of on the timer.
             final AtomicLong lastFallbackPoll = new AtomicLong(0);
             final AtomicBoolean streamsWereLive = new AtomicBoolean(false);
             decouplePool.scheduleWithFixedDelay(() -> {
@@ -849,24 +848,22 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // Poll when:
                     // 1. requestPoll > 0 (lock deleted / watch re-established, messages likely available)
                     // 2. change streams disabled (always poll)
-                    // 3. fallback: a change stream cannot vouch for itself (no fresh heartbeat) -
-                    //    poll immediately on the live->silent transition, then per interval
+                    // 3. fallback: every messagingFallbackPollInterval - ALWAYS, even while the
+                    //    streams are live: messages can (re-)appear without any matching stream
+                    //    event (e.g. requeueing by clearing processedBy via a plain DB update)
+                    //    and must be found before their TTL expires. Liveness only ADDS urgency:
+                    //    a stream falling silent is polled immediately instead of on the timer.
                     boolean shouldFallbackPoll = false;
 
                     if (useChangeStream) {
                         boolean live = changeStreamsLive();
+                        boolean justTurnedSuspect = streamsWereLive.getAndSet(live) && !live;
+                        long now = System.currentTimeMillis();
 
-                        if (live) {
-                            streamsWereLive.set(true);
-                        } else {
-                            boolean justTurnedSuspect = streamsWereLive.getAndSet(false);
-                            long now = System.currentTimeMillis();
-
-                            if (justTurnedSuspect
-                                    || now - lastFallbackPoll.get() >= settings.getMessagingFallbackPollInterval()) {
-                                lastFallbackPoll.set(now);
-                                shouldFallbackPoll = true;
-                            }
+                        if (justTurnedSuspect
+                                || now - lastFallbackPoll.get() >= settings.getMessagingFallbackPollInterval()) {
+                            lastFallbackPoll.set(now);
+                            shouldFallbackPoll = true;
                         }
                     }
 

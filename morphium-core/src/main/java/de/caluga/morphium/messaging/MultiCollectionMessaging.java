@@ -195,25 +195,21 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     pollTrigger.get(name).set(0);
                 }
             }
-            // Safety-net fallback polling when change streams are enabled - liveness-gated.
-            // The watch loop receives a server reply at least every maxTimeMS (an empty batch
-            // when there are no events) and stamps its time on the WatchCommand. A topic whose
-            // streams are provably alive and in sync needs NO poll at all: the resume token
-            // advances with every batch, events cannot silently go missing. When a stream
-            // falls silent, the topic is polled IMMEDIATELY (faster than any timer) and then
-            // every messagingFallbackPollInterval while it stays suspect - tune that below
-            // your shortest application message TTL.
+            // Safety-net fallback polling when change streams are enabled.
+            // The regular interval poll must ALWAYS run, even while streams are provably live:
+            // messages can (re-)appear without any matching stream event - e.g. requeueing by
+            // clearing processedBy via a plain DB update (the pipelines match insert /
+            // lock_released only) - and must be found within the poll interval, before their
+            // TTL expires. Stream liveness (heartbeat stamped on every watch reply) only ADDS
+            // urgency: a stream falling silent is polled IMMEDIATELY instead of on the timer.
             if (isUseChangeStream() && running.get()) {
                 long fallbackNow = System.currentTimeMillis();
 
                 for (var topicName : monitorsByTopic.keySet()) {
                     try {
-                        if (topicStreamsLive(topicName)) {
-                            fallbackStreamWasLive.put(topicName, Boolean.TRUE);
-                            continue;
-                        }
-
-                        boolean justTurnedSuspect = Boolean.TRUE.equals(fallbackStreamWasLive.put(topicName, Boolean.FALSE));
+                        boolean live = topicStreamsLive(topicName);
+                        boolean wasLive = Boolean.TRUE.equals(fallbackStreamWasLive.put(topicName, live));
+                        boolean justTurnedSuspect = wasLive && !live;
                         Long lastPoll = fallbackLastPoll.get(topicName);
 
                         if (justTurnedSuspect || lastPoll == null
@@ -221,8 +217,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                             fallbackLastPoll.put(topicName, fallbackNow);
                             int rescued = pollAndProcess(topicName);
 
-                            if (rescued > 0) {
-                                log.info("Fallback poll picked up {} message(s) for topic '{}' although change streams are enabled - a stream event may have been lost", rescued, topicName);
+                            if (rescued > 0 && !live) {
+                                log.info("Fallback poll picked up {} message(s) for topic '{}' while its change stream was silent", rescued, topicName);
                             }
                         }
                     } catch (Exception e) {
