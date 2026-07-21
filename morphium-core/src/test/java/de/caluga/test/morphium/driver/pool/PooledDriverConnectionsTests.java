@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
@@ -46,13 +47,14 @@ public class PooledDriverConnectionsTests {
             Thread.sleep(100);
         }
 
-        Thread.sleep(2000);
         log.info("connected...");
-
-        for (var e : drv.getNumConnectionsByHost().entrySet()) {
-            // At least 1 connection per host (may have fewer to secondaries depending on timing)
-            assertTrue(e.getValue() >= 1, "num connections to " + e.getKey() + " should be at least 1, but was " + e.getValue());
-        }
+        // The pool fills its per-host minimum asynchronously - wait for the condition instead
+        // of sleeping a fixed time and point-asserting (that exact pattern was flaky under
+        // full parallel-phase load: 2s were not always enough).
+        TestUtils.waitForConditionToBecomeTrue(15000,
+            "pool did not reach >=1 connection per host: " + drv.getNumConnectionsByHost(),
+            () -> !drv.getNumConnectionsByHost().isEmpty()
+                && drv.getNumConnectionsByHost().values().stream().allMatch(v -> v >= 1));
 
         log.info("Properly connected...");
         // for (int i = 0; i < 15; i++) {
@@ -110,22 +112,16 @@ public class PooledDriverConnectionsTests {
 
         log.info("Waiting for pool to be cleared afer idleTime...");
 
-
-        for (int i = 0; i < drv.getMaxConnectionLifetime() / 1000 + 3; i++) {
-            var m = new HashMap<String, Integer>(drv.getNumConnectionsByHost());
-
-            for (var e : m.entrySet()) {
-                log.info("Connections to " + e.getKey() + ": " + e.getValue());
-            }
-
-            Thread.sleep(1000);
-        }
-
-        var m = new HashMap<String, Integer>(drv.getNumConnectionsByHost());
-
-        for (var e : m.entrySet()) {
-            assertEquals(2, e.getValue(), "num connections to " + e.getKey() + " wrong!");
-        }
+        // The idle reaper trims the pool back to the per-host minimum asynchronously, and the
+        // ConnectionWaiter refills after trimming - both together converge on exactly 2, but
+        // any point-in-time snapshot can legitimately read 0..N in between. Waiting a fixed
+        // maxConnectionLifetime and then point-asserting was the flaky pattern (seen as
+        // 'expected 2 but was 0' under parallel-phase load). Wait for convergence instead.
+        TestUtils.waitForConditionToBecomeTrue(drv.getMaxConnectionLifetime() + 30000,
+            "pool did not converge to 2 connections per host: " + drv.getNumConnectionsByHost(),
+            () -> !drv.getNumConnectionsByHost().isEmpty()
+                && drv.getNumConnectionsByHost().values().stream().allMatch(v -> v == 2),
+            dur -> log.info("still waiting for pool convergence: " + drv.getNumConnectionsByHost()));
 
         log.info("Statistics: ");
 
