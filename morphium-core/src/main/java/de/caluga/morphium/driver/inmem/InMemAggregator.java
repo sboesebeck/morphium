@@ -2323,12 +2323,40 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     ret = geoResults;
                 }
                 break;
+            case "$documents":
+                ret = stageDocuments(step.get(stage));
+                break;
+
+            case "$densify":
+                ret = stageDensify(asSpecMap(stage, step.get(stage)), data);
+                break;
+
+            case "$fill":
+                ret = stageFill(asSpecMap(stage, step.get(stage)), data);
+                break;
+
+            case "$setWindowFields":
+                ret = stageSetWindowFields(asSpecMap(stage, step.get(stage)), data);
+                break;
+
+            case "$out":
+                ret = stageOut(step.get(stage), data);
+                break;
+
+            case "$collStats":
+                ret = stageCollStats(asSpecMap(stage, step.get(stage)));
+                break;
+
+            case "$listSessions":
+                // The in-memory driver keeps no server-side session catalogue, so an empty result
+                // set is the honest answer (a real mongod without sessions reports the same).
+                ret = new ArrayList<>();
+                break;
+
             // $indexStats previously shared $geoNear's body and silently ran geoNear logic (#243).
             // It is not implemented by the in-memory driver, so it is grouped with the other
             // unimplemented stages here and surfaces as a proper command error instead.
             case "$indexStats":
-            case "$collStats":
-            case "$listSessions":
             default:
                 // Previously this only logged and fell through, returning whatever partial `ret`
                 // had been built up (typically empty) as if the stage had produced no documents.
@@ -2917,5 +2945,947 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return cur;
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // #254: $documents / $densify / $fill / $setWindowFields / $out / $collStats
+    // ---------------------------------------------------------------------------------------
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asSpecMap(String stage, Object spec) {
+        if (!(spec instanceof Map)) {
+            throw mongoCommandError(40272, "the " + stage + " stage specification must be an object");
+        }
+
+        return (Map<String, Object>) spec;
+    }
+
+    /**
+     * $documents: a literal document source. It replaces whatever the collection scan provided,
+     * so pipelines can run without any backing collection (MongoDB restricts this stage to
+     * db-level aggregations; the in-memory driver simply ignores the collection input instead).
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> stageDocuments(Object spec) {
+        Object docs = spec instanceof Expr ? ((Expr) spec).evaluate(new HashMap<>()) : spec;
+
+        if (!(docs instanceof List)) {
+            throw mongoCommandError(5858203, "$documents must evaluate to an array of objects");
+        }
+
+        List<Map<String, Object>> ret = new ArrayList<>();
+
+        for (Object entry : (List<?>) docs) {
+            Object resolved = entry instanceof Expr ? ((Expr) entry).evaluate(new HashMap<>()) : entry;
+
+            if (!(resolved instanceof Map)) {
+                throw mongoCommandError(5858203, "$documents must evaluate to an array of objects");
+            }
+
+            Map<String, Object> doc = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Object> e : ((Map<String, Object>) resolved).entrySet()) {
+                // literals built through the fluent API may carry Expr values - resolve them
+                // without a document context (there is no input document to refer to)
+                doc.put(e.getKey(), e.getValue() instanceof Expr ? ((Expr) e.getValue()).evaluate(new HashMap<>()) : e.getValue());
+            }
+
+            ret.add(doc);
+        }
+
+        return ret;
+    }
+
+    /**
+     * $out: REPLACE the target collection with the pipeline result. Implemented as clear + write
+     * through the driver's own primitives so index definitions, capped/TTL bookkeeping and
+     * changestream watchers on the target stay intact (a drop would discard them). Terminal
+     * stage - returns no documents.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> stageOut(Object spec, List<Map<String, Object>> data) {
+        String outDb = morphium.getConfig().connectionSettings().getDatabase();
+        String outColl = null;
+
+        if (spec instanceof Map) {
+            Map<String, Object> m = (Map<String, Object>) spec;
+
+            if (m.get("db") != null) {
+                outDb = String.valueOf(m.get("db"));
+            }
+
+            outColl = m.get("coll") == null ? null : String.valueOf(m.get("coll"));
+        } else if (spec != null) {
+            outColl = String.valueOf(spec);
+        }
+
+        if (outColl == null || outColl.isEmpty()) {
+            throw mongoCommandError(16994, "$out requires a target collection name");
+        }
+
+        InMemoryDriver drv = (InMemoryDriver) morphium.getDriver();
+        drv.delete(outDb, outColl, new HashMap<>(), null, true, null, null);
+
+        if (!data.isEmpty()) {
+            List<Map<String, Object>> copies = new ArrayList<>();
+
+            for (Map<String, Object> doc : data) {
+                copies.add(new HashMap<>(doc));
+            }
+
+            drv.store(outDb, outColl, copies, null);
+        }
+
+        return new ArrayList<>();
+    }
+
+    /**
+     * $collStats as a pipeline stage. Counts are real; byte-size fields are reported as 0 by the
+     * same precedent as the dbStats command - the in-memory driver does not track document byte
+     * sizes. Latency/queryExec counters are structurally present but zeroed (nothing is metered).
+     */
+    private List<Map<String, Object>> stageCollStats(Map<String, Object> spec) {
+        Set<String> known = Set.of("latencyStats", "storageStats", "count", "queryExecStats");
+
+        for (String k : spec.keySet()) {
+            if (!known.contains(k)) {
+                throw mongoCommandError(40415, "BSON field '$collStats." + k + "' is an unknown field.");
+            }
+        }
+
+        String db = morphium.getConfig().connectionSettings().getDatabase();
+        String coll = getCollectionName();
+        InMemoryDriver drv = (InMemoryDriver) morphium.getDriver();
+        long count = drv.find(db, coll, new HashMap<>(), null, null, 0, 0).size();
+
+        Map<String, Object> statsDoc = new LinkedHashMap<>();
+        statsDoc.put("ns", db + "." + coll);
+        statsDoc.put("host", "inMem");
+        statsDoc.put("localTime", new Date());
+
+        if (spec.containsKey("latencyStats")) {
+            Map<String, Object> latency = new LinkedHashMap<>();
+
+            for (String op : List.of("reads", "writes", "commands", "transactions")) {
+                latency.put(op, Doc.of("latency", 0L, "ops", 0L));
+            }
+
+            statsDoc.put("latencyStats", latency);
+        }
+
+        if (spec.containsKey("storageStats")) {
+            Map<String, Object> storage = new LinkedHashMap<>();
+            storage.put("size", 0);
+            storage.put("count", count);
+            storage.put("avgObjSize", 0);
+            storage.put("storageSize", 0);
+            storage.put("freeStorageSize", 0);
+            storage.put("capped", false);
+            storage.put("totalIndexSize", 0);
+            storage.put("totalSize", 0);
+            statsDoc.put("storageStats", storage);
+        }
+
+        if (spec.containsKey("count")) {
+            statsDoc.put("count", count);
+        }
+
+        if (spec.containsKey("queryExecStats")) {
+            statsDoc.put("queryExecStats", Doc.of("collectionScans", Doc.of("total", 0L, "nonTailable", 0L)));
+        }
+
+        List<Map<String, Object>> ret = new ArrayList<>();
+        ret.add(statsDoc);
+        return ret;
+    }
+
+    // ---- $densify -------------------------------------------------------------------------
+
+    private static final Map<String, Long> DENSIFY_UNIT_MILLIS = Map.of(
+        "millisecond", 1L, "second", 1000L, "minute", 60000L, "hour", 3600000L,
+        "day", 86400000L, "week", 604800000L);
+    private static final Map<String, Integer> DENSIFY_UNIT_MONTHS = Map.of(
+        "month", 1, "quarter", 3, "year", 12);
+    // hard cap so a huge range/tiny step cannot OOM the JVM - real mongod streams, we materialize
+    private static final int DENSIFY_MAX_GENERATED = 500_000;
+
+    /**
+     * $densify: fills gaps in a numeric or date sequence. Covers the documented core: explicit
+     * [lower, upper) bounds, "partition" and "full" bounds, partitionByFields, and date steps
+     * with a unit (fixed-length units plus month/quarter/year via calendar arithmetic).
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> stageDensify(Map<String, Object> spec, List<Map<String, Object>> data) {
+        Object fieldSpec = spec.get("field");
+
+        if (!(fieldSpec instanceof String) || ((String) fieldSpec).isEmpty()) {
+            throw mongoCommandError(5733201, "$densify requires 'field' to be a non-empty string");
+        }
+
+        String field = (String) fieldSpec;
+
+        if (!(spec.get("range") instanceof Map)) {
+            throw mongoCommandError(5733201, "$densify requires a 'range' object");
+        }
+
+        Map<String, Object> range = (Map<String, Object>) spec.get("range");
+        Object stepSpec = range.get("step");
+
+        if (!(stepSpec instanceof Number) || ((Number) stepSpec).doubleValue() <= 0) {
+            throw mongoCommandError(5733303, "$densify range.step must be a strictly positive number");
+        }
+
+        double step = ((Number) stepSpec).doubleValue();
+        String unit = range.get("unit") == null ? null : String.valueOf(range.get("unit"));
+
+        if (unit != null && !DENSIFY_UNIT_MILLIS.containsKey(unit) && !DENSIFY_UNIT_MONTHS.containsKey(unit)) {
+            throw mongoCommandError(5733201, "$densify range.unit '" + unit + "' is not a valid time unit");
+        }
+
+        if (unit != null && DENSIFY_UNIT_MONTHS.containsKey(unit) && step != Math.rint(step)) {
+            throw mongoCommandError(5733303, "$densify range.step must be a whole number for unit '" + unit + "'");
+        }
+
+        Object bounds = range.get("bounds");
+        boolean fullBounds = "full".equals(bounds);
+        boolean partitionBounds = "partition".equals(bounds);
+        List<?> explicitBounds = bounds instanceof List ? (List<?>) bounds : null;
+
+        if (!fullBounds && !partitionBounds && (explicitBounds == null || explicitBounds.size() != 2)) {
+            throw mongoCommandError(5733201, "$densify range.bounds must be 'full', 'partition' or a [lower, upper] array");
+        }
+
+        List<String> partitionFields = new ArrayList<>();
+
+        if (spec.get("partitionByFields") instanceof List) {
+            for (Object p : (List<?>) spec.get("partitionByFields")) {
+                partitionFields.add(String.valueOf(p));
+            }
+        }
+
+        // determine the value kind (numeric vs date) from the data - it decides how to step
+        boolean sawNumber = false;
+        boolean sawDate = false;
+        Object globalMin = null;
+        Object globalMax = null;
+
+        for (Map<String, Object> doc : data) {
+            Object v = getByPath(doc, field);
+
+            if (v == null) {
+                continue;
+            }
+
+            if (v instanceof Number) {
+                sawNumber = true;
+            } else if (v instanceof Date) {
+                sawDate = true;
+            } else {
+                throw mongoCommandError(5733201, "$densify field '" + field + "' must contain only numeric or date values");
+            }
+
+            if (globalMin == null || densifyCompare(v, globalMin) < 0) {
+                globalMin = v;
+            }
+
+            if (globalMax == null || densifyCompare(v, globalMax) > 0) {
+                globalMax = v;
+            }
+        }
+
+        if (sawNumber && sawDate) {
+            throw mongoCommandError(5733201, "$densify field '" + field + "' mixes numeric and date values");
+        }
+
+        if (explicitBounds != null) {
+            for (Object b : explicitBounds) {
+                if (b instanceof Number) {
+                    sawNumber = true;
+                } else if (b instanceof Date) {
+                    sawDate = true;
+                } else {
+                    throw mongoCommandError(5733201, "$densify range.bounds values must be numeric or dates");
+                }
+            }
+
+            if (sawNumber && sawDate) {
+                throw mongoCommandError(5733201, "$densify range.bounds type must match the field type");
+            }
+        }
+
+        if (sawNumber && unit != null) {
+            throw mongoCommandError(5733201, "$densify range.unit is only valid for date values");
+        }
+
+        if (sawDate && unit == null) {
+            throw mongoCommandError(5733201, "$densify on a date field requires range.unit");
+        }
+
+        // group into partitions, keeping encounter order
+        Map<List<Object>, List<Map<String, Object>>> partitions = new LinkedHashMap<>();
+
+        for (Map<String, Object> doc : data) {
+            List<Object> key = new ArrayList<>();
+
+            for (String pf : partitionFields) {
+                key.add(canonPartitionValue(getByPath(doc, pf)));
+            }
+
+            partitions.computeIfAbsent(key, k -> new ArrayList<>()).add(doc);
+        }
+
+        if (partitions.isEmpty() && explicitBounds != null && partitionFields.isEmpty()) {
+            // no input at all, but explicit bounds still define what to generate
+            partitions.put(new ArrayList<>(), new ArrayList<>());
+        }
+
+        List<Map<String, Object>> ret = new ArrayList<>();
+        int generatedTotal = 0;
+
+        for (Map.Entry<List<Object>, List<Map<String, Object>>> part : partitions.entrySet()) {
+            List<Map<String, Object>> docs = part.getValue();
+            List<Map<String, Object>> withField = new ArrayList<>();
+            Object min = null;
+            Object max = null;
+
+            for (Map<String, Object> doc : docs) {
+                Object v = getByPath(doc, field);
+
+                if (v == null) {
+                    // docs without the densify field pass through untouched
+                    ret.add(doc);
+                    continue;
+                }
+
+                withField.add(doc);
+
+                if (min == null || densifyCompare(v, min) < 0) {
+                    min = v;
+                }
+
+                if (max == null || densifyCompare(v, max) > 0) {
+                    max = v;
+                }
+            }
+
+            Object lower;
+            Object upper;
+            boolean upperExclusive;
+
+            if (explicitBounds != null) {
+                lower = explicitBounds.get(0);
+                upper = explicitBounds.get(1);
+                upperExclusive = true;
+            } else if (partitionBounds) {
+                lower = min;
+                upper = max;
+                upperExclusive = false;
+            } else { // full
+                lower = globalMin;
+                upper = globalMax;
+                upperExclusive = false;
+            }
+
+            List<Map<String, Object>> merged = new ArrayList<>(withField);
+
+            if (lower != null && upper != null) {
+                Set<Object> existing = new HashSet<>();
+
+                for (Map<String, Object> doc : withField) {
+                    existing.add(canonPartitionValue(getByPath(doc, field)));
+                }
+
+                for (long k = 0; ; k++) {
+                    Object value = densifyAdvance(lower, step, unit, k);
+                    int cmp = densifyCompare(value, upper);
+
+                    if (upperExclusive ? cmp >= 0 : cmp > 0) {
+                        break;
+                    }
+
+                    if (!existing.contains(canonPartitionValue(value))) {
+                        if (++generatedTotal > DENSIFY_MAX_GENERATED) {
+                            throw mongoCommandError(5733201,
+                                "$densify would generate more than " + DENSIFY_MAX_GENERATED
+                                + " documents - refusing (range too large for the given step)");
+                        }
+
+                        Map<String, Object> gen = new LinkedHashMap<>();
+
+                        for (int i = 0; i < partitionFields.size(); i++) {
+                            setNestedValue(gen, partitionFields.get(i), part.getKey().get(i));
+                        }
+
+                        setNestedValue(gen, field, value);
+                        merged.add(gen);
+                    }
+                }
+            }
+
+            merged.sort((a, b) -> densifyCompare(getByPath(a, field), getByPath(b, field)));
+            ret.addAll(merged);
+        }
+
+        return ret;
+    }
+
+    private int densifyCompare(Object a, Object b) {
+        if (a instanceof Number && b instanceof Number) {
+            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+        }
+
+        if (a instanceof Date && b instanceof Date) {
+            return Long.compare(((Date) a).getTime(), ((Date) b).getTime());
+        }
+
+        throw mongoCommandError(5733201, "$densify cannot compare values of different types");
+    }
+
+    /** lower + k*step, in the value domain: plain numbers, fixed-length time units or months. */
+    private Object densifyAdvance(Object lower, double step, String unit, long k) {
+        if (lower instanceof Number) {
+            double v = ((Number) lower).doubleValue() + k * step;
+
+            // keep whole-number progressions integral so generated values look like the input
+            if (v == Math.rint(v) && !Double.isInfinite(v)) {
+                return (long) v;
+            }
+
+            return v;
+        }
+
+        Date d = (Date) lower;
+
+        if (DENSIFY_UNIT_MILLIS.containsKey(unit)) {
+            return new Date(d.getTime() + (long)(k * step * DENSIFY_UNIT_MILLIS.get(unit)));
+        }
+
+        // month-based units have no fixed length - use calendar arithmetic in UTC
+        long months = (long) step * DENSIFY_UNIT_MONTHS.get(unit) * k;
+        return Date.from(java.time.ZonedDateTime.ofInstant(d.toInstant(), java.time.ZoneOffset.UTC)
+                         .plusMonths(months).toInstant());
+    }
+
+    /** Normalizes values used as partition/set keys so 1, 1L and 1.0 land in the same bucket. */
+    private Object canonPartitionValue(Object v) {
+        if (v instanceof Number) {
+            return ((Number) v).doubleValue();
+        }
+
+        if (v instanceof Date) {
+            return ((Date) v).getTime();
+        }
+
+        return v;
+    }
+
+    // ---- $fill ----------------------------------------------------------------------------
+
+    /**
+     * $fill: fills null/missing values. Covers the documented core: "value" (an expression
+     * evaluated against the document), method "locf" (last observed carried forward) and method
+     * "linear" (interpolation along a single numeric sortBy field), with partitionBy/
+     * partitionByFields and sortBy.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> stageFill(Map<String, Object> spec, List<Map<String, Object>> data) {
+        if (!(spec.get("output") instanceof Map) || ((Map<String, Object>) spec.get("output")).isEmpty()) {
+            throw mongoCommandError(6050200, "$fill requires a non-empty 'output' object");
+        }
+
+        Map<String, Object> output = (Map<String, Object>) spec.get("output");
+        Map<String, Object> sortBy = spec.get("sortBy") instanceof Map ? (Map<String, Object>) spec.get("sortBy") : null;
+
+        for (Map.Entry<String, Object> e : output.entrySet()) {
+            if (!(e.getValue() instanceof Map)) {
+                throw mongoCommandError(6050200, "$fill output." + e.getKey() + " must be an object with 'value' or 'method'");
+            }
+
+            Map<String, Object> fieldSpec = (Map<String, Object>) e.getValue();
+            boolean hasValue = fieldSpec.containsKey("value");
+            Object method = fieldSpec.get("method");
+
+            if (hasValue == (method != null)) {
+                throw mongoCommandError(6050200, "$fill output." + e.getKey() + " must specify exactly one of 'value' or 'method'");
+            }
+
+            if (method != null) {
+                if (!"locf".equals(method) && !"linear".equals(method)) {
+                    throw mongoCommandError(6050200, "unknown $fill method '" + method + "' - only 'locf' and 'linear' are supported");
+                }
+
+                if (sortBy == null || sortBy.isEmpty()) {
+                    throw mongoCommandError(6050201, "$fill method '" + method + "' requires sortBy");
+                }
+
+                if ("linear".equals(method) && sortBy.size() != 1) {
+                    throw mongoCommandError(6050202, "$fill method 'linear' requires sortBy on exactly one field");
+                }
+            }
+        }
+
+        List<List<Map<String, Object>>> partitions =
+            partitionForWindowing(data, spec.get("partitionBy"), (List<Object>) spec.get("partitionByFields"));
+        List<Map<String, Object>> ret = new ArrayList<>();
+
+        for (List<Map<String, Object>> partition : partitions) {
+            List<Map<String, Object>> docs = new ArrayList<>();
+
+            for (Map<String, Object> d : partition) {
+                docs.add(new LinkedHashMap<>(d));
+            }
+
+            applySortBy(docs, sortBy);
+
+            for (Map.Entry<String, Object> e : output.entrySet()) {
+                String field = e.getKey();
+                Map<String, Object> fieldSpec = (Map<String, Object>) e.getValue();
+
+                if (fieldSpec.containsKey("value")) {
+                    for (Map<String, Object> doc : docs) {
+                        if (getByPath(doc, field) == null) {
+                            setNestedValue(doc, field, projectComputedValue(fieldSpec.get("value"), doc));
+                        }
+                    }
+                } else if ("locf".equals(fieldSpec.get("method"))) {
+                    Object last = null;
+
+                    for (Map<String, Object> doc : docs) {
+                        Object v = getByPath(doc, field);
+
+                        if (v != null) {
+                            last = v;
+                        } else if (last != null) {
+                            setNestedValue(doc, field, last);
+                        }
+                        // nothing observed yet -> leading nulls stay null
+                    }
+                } else { // linear
+                    fillLinear(docs, field, sortBy.keySet().iterator().next());
+                }
+            }
+
+            ret.addAll(docs);
+        }
+
+        return ret;
+    }
+
+    /** Linear interpolation between the surrounding non-null values along the sort field. */
+    private void fillLinear(List<Map<String, Object>> docs, String field, String sortField) {
+        int prevKnown = -1;
+
+        for (int i = 0; i < docs.size(); i++) {
+            Object v = getByPath(docs.get(i), field);
+
+            if (v == null) {
+                continue;
+            }
+
+            if (!(v instanceof Number)) {
+                throw mongoCommandError(6050202, "$fill method 'linear' requires numeric values in field '" + field + "'");
+            }
+
+            if (prevKnown >= 0 && i - prevKnown > 1) {
+                double v0 = ((Number) getByPath(docs.get(prevKnown), field)).doubleValue();
+                double v1 = ((Number) v).doubleValue();
+                Object s0raw = getByPath(docs.get(prevKnown), sortField);
+                Object s1raw = getByPath(docs.get(i), sortField);
+
+                if (!(s0raw instanceof Number) || !(s1raw instanceof Number)) {
+                    throw mongoCommandError(6050202, "$fill method 'linear' requires a numeric sortBy field");
+                }
+
+                double s0 = ((Number) s0raw).doubleValue();
+                double s1 = ((Number) s1raw).doubleValue();
+
+                for (int j = prevKnown + 1; j < i; j++) {
+                    Object sjRaw = getByPath(docs.get(j), sortField);
+
+                    if (!(sjRaw instanceof Number)) {
+                        throw mongoCommandError(6050202, "$fill method 'linear' requires a numeric sortBy field");
+                    }
+
+                    double sj = ((Number) sjRaw).doubleValue();
+                    // degenerate sort distance would divide by zero - fall back to the left value
+                    double filled = s1 == s0 ? v0 : v0 + (v1 - v0) * (sj - s0) / (s1 - s0);
+                    setNestedValue(docs.get(j), field, filled);
+                }
+            }
+
+            prevKnown = i;
+        }
+        // nulls before the first / after the last known value stay null by definition
+    }
+
+    // ---- $setWindowFields -----------------------------------------------------------------
+
+    private static final Set<String> SWF_ACCUMULATORS =
+        Set.of("$sum", "$avg", "$min", "$max", "$count", "$push", "$first", "$last");
+    private static final Set<String> SWF_RANK_FAMILY = Set.of("$rank", "$denseRank", "$documentNumber");
+
+    /**
+     * $setWindowFields: the common core - partitionBy, sortBy, documents-windows, and the window
+     * functions $sum/$avg/$min/$max/$count/$push/$first/$last/$rank/$denseRank/$documentNumber/
+     * $shift. Range/time windows and every other window function (e.g. $derivative, $integral,
+     * $expMovingAvg, $covariance*, $linearFill) are rejected with a command error - never
+     * silently wrong results.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> stageSetWindowFields(Map<String, Object> spec, List<Map<String, Object>> data) {
+        if (!(spec.get("output") instanceof Map) || ((Map<String, Object>) spec.get("output")).isEmpty()) {
+            throw mongoCommandError(5397900, "$setWindowFields requires a non-empty 'output' object");
+        }
+
+        Map<String, Object> output = (Map<String, Object>) spec.get("output");
+        Map<String, Object> sortBy = spec.get("sortBy") instanceof Map ? (Map<String, Object>) spec.get("sortBy") : null;
+        List<List<Map<String, Object>>> partitions = partitionForWindowing(data, spec.get("partitionBy"), null);
+        List<Map<String, Object>> ret = new ArrayList<>();
+
+        for (List<Map<String, Object>> partition : partitions) {
+            List<Map<String, Object>> docs = new ArrayList<>();
+
+            for (Map<String, Object> d : partition) {
+                docs.add(new LinkedHashMap<>(d));
+            }
+
+            applySortBy(docs, sortBy);
+            int n = docs.size();
+
+            for (Map.Entry<String, Object> e : output.entrySet()) {
+                String outField = e.getKey();
+
+                if (!(e.getValue() instanceof Map)) {
+                    throw mongoCommandError(5397900, "$setWindowFields output." + outField + " must be an object");
+                }
+
+                Map<String, Object> fieldSpec = (Map<String, Object>) e.getValue();
+                String fn = null;
+
+                for (String k : fieldSpec.keySet()) {
+                    if ("window".equals(k)) {
+                        continue;
+                    }
+
+                    if (fn != null) {
+                        throw mongoCommandError(5397900,
+                            "$setWindowFields output." + outField + " must contain exactly one window function");
+                    }
+
+                    fn = k;
+                }
+
+                if (fn == null) {
+                    throw mongoCommandError(5397900,
+                        "$setWindowFields output." + outField + " must contain a window function");
+                }
+
+                Object arg = fieldSpec.get(fn);
+                Object windowSpec = fieldSpec.get("window");
+
+                if (SWF_RANK_FAMILY.contains(fn) || "$shift".equals(fn)) {
+                    if (windowSpec != null) {
+                        throw mongoCommandError(5371601, fn + " does not accept a 'window' specification");
+                    }
+
+                    if (sortBy == null || sortBy.isEmpty()) {
+                        throw mongoCommandError(5371602, fn + " requires a sortBy");
+                    }
+
+                    for (int i = 0; i < n; i++) {
+                        setNestedValue(docs.get(i), outField, rankOrShiftValue(fn, arg, docs, i, sortBy));
+                    }
+                } else if (SWF_ACCUMULATORS.contains(fn)) {
+                    for (int i = 0; i < n; i++) {
+                        int[] w = documentsWindow(windowSpec, i, n);
+                        setNestedValue(docs.get(i), outField, windowAccumulate(fn, arg, docs, w[0], w[1]));
+                    }
+                } else {
+                    throw mongoCommandError(5397901,
+                        "window function '" + fn + "' is not supported by the in-memory driver");
+                }
+            }
+
+            ret.addAll(docs);
+        }
+
+        return ret;
+    }
+
+    /**
+     * Resolves a documents-window spec to inclusive index bounds [lo, hi] around position i;
+     * lo &gt; hi denotes an empty window. Default (no window) is the whole partition.
+     */
+    @SuppressWarnings("unchecked")
+    private int[] documentsWindow(Object windowSpec, int i, int n) {
+        if (windowSpec == null) {
+            return new int[] {0, n - 1};
+        }
+
+        if (!(windowSpec instanceof Map)) {
+            throw mongoCommandError(5397903, "'window' must be an object");
+        }
+
+        Map<String, Object> w = (Map<String, Object>) windowSpec;
+
+        if (w.containsKey("range")) {
+            throw mongoCommandError(5397902,
+                "range windows are not supported by the in-memory driver - only documents windows");
+        }
+
+        Object docsBounds = w.get("documents");
+
+        if (!(docsBounds instanceof List) || ((List<?>) docsBounds).size() != 2) {
+            throw mongoCommandError(5397903, "window.documents must be a [lower, upper] array");
+        }
+
+        int lo = windowBound(((List<?>) docsBounds).get(0), i, n, true);
+        int hi = windowBound(((List<?>) docsBounds).get(1), i, n, false);
+        return new int[] {Math.max(lo, 0), Math.min(hi, n - 1)};
+    }
+
+    private int windowBound(Object bound, int i, int n, boolean isLower) {
+        if ("unbounded".equals(bound)) {
+            return isLower ? 0 : n - 1;
+        }
+
+        if ("current".equals(bound)) {
+            return i;
+        }
+
+        if (bound instanceof Number && ((Number) bound).doubleValue() == Math.rint(((Number) bound).doubleValue())) {
+            long off = ((Number) bound).longValue();
+            long idx = i + off;
+            return (int) Math.max(Math.min(idx, Integer.MAX_VALUE), Integer.MIN_VALUE + 1);
+        }
+
+        throw mongoCommandError(5397903,
+            "window.documents bounds must be 'unbounded', 'current' or an integer, got: " + bound);
+    }
+
+    /** $rank/$denseRank/$documentNumber/$shift over the sorted partition. */
+    @SuppressWarnings("unchecked")
+    private Object rankOrShiftValue(String fn, Object arg, List<Map<String, Object>> docs, int i, Map<String, Object> sortBy) {
+        switch (fn) {
+            case "$documentNumber":
+                return i + 1;
+
+            case "$rank": {
+                // ties (equal sortBy tuple) share the rank of their first occurrence
+                int r = i;
+
+                while (r > 0 && sortTupleEquals(docs.get(r - 1), docs.get(i), sortBy)) {
+                    r--;
+                }
+
+                return r + 1;
+            }
+
+            case "$denseRank": {
+                int rank = 1;
+
+                for (int j = 1; j <= i; j++) {
+                    if (!sortTupleEquals(docs.get(j - 1), docs.get(j), sortBy)) {
+                        rank++;
+                    }
+                }
+
+                return rank;
+            }
+
+            case "$shift": {
+                if (!(arg instanceof Map)) {
+                    throw mongoCommandError(5397900, "$shift requires an object with 'output', 'by' and optional 'default'");
+                }
+
+                Map<String, Object> shift = (Map<String, Object>) arg;
+                Object bySpec = shift.get("by");
+
+                if (!(bySpec instanceof Number)) {
+                    throw mongoCommandError(5397900, "$shift requires an integer 'by'");
+                }
+
+                int idx = i + ((Number) bySpec).intValue();
+
+                if (idx >= 0 && idx < docs.size()) {
+                    return projectComputedValue(shift.get("output"), docs.get(idx));
+                }
+
+                // out of the partition: the default expression may not reference document fields
+                Object def = shift.get("default");
+                return def == null ? null : projectComputedValue(def, new HashMap<>());
+            }
+
+            default:
+                throw mongoCommandError(5397901, "window function '" + fn + "' is not supported by the in-memory driver");
+        }
+    }
+
+    private boolean sortTupleEquals(Map<String, Object> a, Map<String, Object> b, Map<String, Object> sortBy) {
+        for (String k : sortBy.keySet()) {
+            if (compareSortValues(getByPath(a, k), getByPath(b, k)) != 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Accumulator-style window functions over the inclusive index window [lo, hi]. */
+    private Object windowAccumulate(String fn, Object arg, List<Map<String, Object>> docs, int lo, int hi) {
+        switch (fn) {
+            case "$count": {
+                return Math.max(hi - lo + 1, 0);
+            }
+
+            case "$first":
+                return lo > hi ? null : projectComputedValue(arg, docs.get(lo));
+
+            case "$last":
+                return lo > hi ? null : projectComputedValue(arg, docs.get(hi));
+
+            case "$push": {
+                List<Object> values = new ArrayList<>();
+
+                for (int j = lo; j <= hi; j++) {
+                    values.add(projectComputedValue(arg, docs.get(j)));
+                }
+
+                return values;
+            }
+
+            case "$sum":
+            case "$avg": {
+                double sum = 0;
+                int count = 0;
+
+                for (int j = lo; j <= hi; j++) {
+                    Object v = projectComputedValue(arg, docs.get(j));
+
+                    if (v instanceof Number) {
+                        sum += ((Number) v).doubleValue();
+                        count++;
+                    }
+                }
+
+                if ("$sum".equals(fn)) {
+                    return sum;
+                }
+
+                return count == 0 ? null : sum / count;
+            }
+
+            case "$min":
+            case "$max": {
+                Object best = null;
+
+                for (int j = lo; j <= hi; j++) {
+                    Object v = projectComputedValue(arg, docs.get(j));
+
+                    if (v == null) {
+                        // $min/$max ignore null/missing, like their accumulator counterparts
+                        continue;
+                    }
+
+                    if (best == null) {
+                        best = v;
+                        continue;
+                    }
+
+                    int cmp = compareSortValues(v, best);
+
+                    if ("$min".equals(fn) ? cmp < 0 : cmp > 0) {
+                        best = v;
+                    }
+                }
+
+                return best;
+            }
+
+            default:
+                throw mongoCommandError(5397901, "window function '" + fn + "' is not supported by the in-memory driver");
+        }
+    }
+
+    // ---- shared windowing helpers ---------------------------------------------------------
+
+    /**
+     * Splits documents into partitions (encounter order preserved): by a partitionBy expression,
+     * by a partitionByFields list, or a single partition when neither is given.
+     */
+    private List<List<Map<String, Object>>> partitionForWindowing(List<Map<String, Object>> data,
+            Object partitionBy, List<Object> partitionByFields) {
+        Map<Object, List<Map<String, Object>>> partitions = new LinkedHashMap<>();
+
+        for (Map<String, Object> doc : data) {
+            Object key;
+
+            if (partitionBy != null) {
+                key = canonPartitionValue(projectComputedValue(partitionBy, doc));
+            } else if (partitionByFields != null && !partitionByFields.isEmpty()) {
+                List<Object> tuple = new ArrayList<>();
+
+                for (Object f : partitionByFields) {
+                    tuple.add(canonPartitionValue(getByPath(doc, String.valueOf(f))));
+                }
+
+                key = tuple;
+            } else {
+                key = Boolean.TRUE;
+            }
+
+            partitions.computeIfAbsent(key, k -> new ArrayList<>()).add(doc);
+        }
+
+        return new ArrayList<>(partitions.values());
+    }
+
+    /** Stable in-place sort by a {field: 1|-1} spec; a null/empty spec keeps the input order. */
+    private void applySortBy(List<Map<String, Object>> docs, Map<String, Object> sortBy) {
+        if (sortBy == null || sortBy.isEmpty()) {
+            return;
+        }
+
+        docs.sort((a, b) -> {
+            for (Map.Entry<String, Object> e : sortBy.entrySet()) {
+                int c = compareSortValues(getByPath(a, e.getKey()), getByPath(b, e.getKey()));
+
+                if (e.getValue() instanceof Number && ((Number) e.getValue()).intValue() < 0) {
+                    c = -c;
+                }
+
+                if (c != 0) {
+                    return c;
+                }
+            }
+
+            return 0;
+        });
+    }
+
+    /** Null-safe, numeric-aware comparison (nulls first, mirroring MongoDB's sort of missing). */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private int compareSortValues(Object a, Object b) {
+        if (a == null && b == null) {
+            return 0;
+        }
+
+        if (a == null) {
+            return -1;
+        }
+
+        if (b == null) {
+            return 1;
+        }
+
+        if (a instanceof Number && b instanceof Number) {
+            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+        }
+
+        if (a instanceof Comparable && a.getClass().isAssignableFrom(b.getClass())) {
+            return ((Comparable) a).compareTo(b);
+        }
+
+        return String.valueOf(a).compareTo(String.valueOf(b));
     }
 }
