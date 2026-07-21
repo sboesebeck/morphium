@@ -279,7 +279,9 @@ public class AggregationExprTest  {
     public void testMap() {
         Expr e = map(arrayExpr(string("value"), intExpr(42)), string("name"), gt(field("name"), intExpr(42)));
         log.info(Utils.toJsonString(e.toQueryObject()));
-        assert(Utils.toJsonString(e.toQueryObject()).equals("{ \"$map\" :  [  [ \"value\", 42], \"name\", { \"$gt\" :  [ \"$name\", 42] } ] } "));
+        // real MongoDB only accepts the document form {input, as, in} - the old array
+        // serialization was rejected by the server (#255)
+        assert(Utils.toJsonString(e.toQueryObject()).equals("{ \"$map\" : { \"input\" :  [ \"value\", 42], \"as\" : \"name\", \"in\" : { \"$gt\" :  [ \"$name\", 42] }  }  } "));
     }
 
     @Test
@@ -810,7 +812,8 @@ public class AggregationExprTest  {
     public void testDegreesToRadian() {
         Expr e = degreesToRadian(intExpr(230));
         log.info(Utils.toJsonString(e.toQueryObject()));
-        assert(Utils.toJsonString(e.toQueryObject()).equals("{ \"$degreesToRadian\" : 230 } "));
+        // the operator was misspelled - MongoDB knows only $degreesToRadians (#255)
+        assert(Utils.toJsonString(e.toQueryObject()).equals("{ \"$degreesToRadians\" : 230 } "));
     }
 
     @Test
