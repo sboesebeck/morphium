@@ -18,13 +18,12 @@ import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * #245: the entire server-side auth surface of InMemoryDriver (saslStart, X.509 authenticate,
- * createUser, createRole) consisted of empty stubs that queued no result - which the dispatch
- * machinery resolved to {ok:1.0}. Every client "authenticated" successfully with any or no
- * credentials, and createUser/createRole reported success while creating nothing.
- *
- * Until real authentication lands (phase D), these commands must FAIL LOUDLY: ok:0 with an
- * unmistakable error, so nobody mistakes the dispatch default for working auth.
+ * #245: the server-side auth surface of InMemoryDriver used to consist of empty stubs that
+ * queued no result - which the dispatch machinery resolved to {ok:1.0}: every client
+ * "authenticated" successfully with any or no credentials. SCRAM verification and createUser
+ * are real now (see InMemScramAuthTest); everything still unimplemented (X.509, createRole)
+ * or invalid (bad createUser, auth for unknown users) must FAIL LOUDLY - never resolve to
+ * the silent dispatch-default success again.
  */
 @Tag("inmemory")
 public class InMemAuthStubTest {
@@ -44,21 +43,28 @@ public class InMemAuthStubTest {
         }
     }
 
-    private void assertHonestFailure(int requestId, String cmdName) throws Exception {
+    private Map<String, Object> resultOf(int requestId, String cmdName) throws Exception {
         assertThat(requestId).as(cmdName + " must queue a real result (stub returned 0)").isGreaterThan(0);
 
         Map<String, Object> result = drv.readSingleAnswer(requestId);
         assertThat(result).as(cmdName + " result").isNotNull();
         assertThat(result.get("ok")).as(cmdName + " must not report success").isEqualTo(0.0);
         assertThat((Integer) result.get("code")).as(cmdName + " must carry an error code").isNotNull();
-        assertThat(result.get("errmsg").toString().toLowerCase())
+        return result;
+    }
+
+    private void assertHonestFailure(int requestId, String cmdName) throws Exception {
+        assertThat(resultOf(requestId, cmdName).get("errmsg").toString().toLowerCase())
                 .as(cmdName + " error must be unmistakable")
                 .containsAnyOf("not supported", "not implemented");
     }
 
     @Test
-    public void saslStartFailsLoudly() throws Exception {
-        assertHonestFailure(drv.runCommand(new SaslAuthCommand(null).setDb("admin")), "saslStart");
+    public void directTypedSaslStartPointsToTheWirePath() throws Exception {
+        // the real conversation runs via the generic dispatch (raw payload needed) - a direct
+        // typed call cannot carry it and must fail with a pointer, never silently succeed
+        Map<String, Object> result = resultOf(drv.runCommand(new SaslAuthCommand(null).setDb("admin")), "saslStart (typed)");
+        assertThat(result.get("errmsg").toString()).contains("generic");
     }
 
     @Test
@@ -67,8 +73,10 @@ public class InMemAuthStubTest {
     }
 
     @Test
-    public void createUserFailsLoudly() throws Exception {
-        assertHonestFailure(drv.runCommand(new CreateUserAdminCommand(null).setDb("admin")), "createUser");
+    public void createUserWithoutPasswordFailsLoudly() throws Exception {
+        Map<String, Object> result = resultOf(
+                drv.runCommand(new CreateUserAdminCommand(null).setUserName("nopwd").setDb("admin")), "createUser");
+        assertThat(result.get("errmsg").toString()).contains("pwd");
     }
 
     @Test
@@ -77,11 +85,15 @@ public class InMemAuthStubTest {
     }
 
     @Test
-    public void saslStartViaGenericDispatchFailsLoudly() throws Exception {
-        // the path PoppyDB's wire handler takes: generic command resolved via the command cache
+    public void saslStartForUnknownUserFailsWithAuthenticationFailed() throws Exception {
+        // the path PoppyDB's wire handler takes: generic command with the raw SASL payload
         GenericCommand cmd = new GenericCommand(drv);
-        cmd.fromMap(Doc.of("saslStart", 1, "mechanism", "SCRAM-SHA-256", "$db", "admin"));
+        cmd.fromMap(Doc.of("saslStart", 1, "mechanism", "SCRAM-SHA-256",
+                "payload", "n,,n=ghost,r=clientnonce123".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                "$db", "admin"));
 
-        assertHonestFailure(drv.runCommand(cmd), "saslStart (generic dispatch)");
+        Map<String, Object> result = resultOf(drv.runCommand(cmd), "saslStart (generic dispatch)");
+        assertThat((Integer) result.get("code")).isEqualTo(18);
+        assertThat(result.get("errmsg").toString()).contains("Authentication failed");
     }
 }
