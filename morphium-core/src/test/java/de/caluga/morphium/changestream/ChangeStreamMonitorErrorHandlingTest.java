@@ -73,4 +73,73 @@ public class ChangeStreamMonitorErrorHandlingTest {
             new MorphiumDriverException("No such host: serv-msg1:27017"));
         assertFalse(cont, "stopped monitor must not continue");
     }
+
+    // --- stream-state handling -------------------------------------------------------------
+    // "cursor is null" means the watch read a full reply that was NOT a watch reply - the
+    // connection delivered someone else's (stale) answer. Releasing such a connection back
+    // to the pool poisons the next borrower (seen 2026-07-20 as "Illegal opcode" during an
+    // unrelated write). The monitor must close it so the pool discards it.
+
+    private java.util.concurrent.atomic.AtomicBoolean injectTrackingConnection() throws Exception {
+        var closed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        var con = new de.caluga.morphium.driver.wire.SingleMongoConnection() {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+            @Override
+            public boolean isConnected() {
+                return !closed.get();
+            }
+        };
+        var f = ChangeStreamMonitor.class.getDeclaredField("activeConnection");
+        f.setAccessible(true);
+        f.set(monitor, con);
+        return closed;
+    }
+
+    @Test
+    public void closesConnectionWhenReplyWasNotAWatchReply() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("Could not watch - cursor is null"));
+
+        assertTrue(cont, "must still retry");
+        assertTrue(closed.get(), "connection with unknown stream state must be closed, not pooled");
+    }
+
+    @Test
+    public void closesConnectionOnNullReply() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("Could not watch - reply is null"));
+
+        assertTrue(cont, "must still retry");
+        assertTrue(closed.get(), "connection with unknown stream state must be closed, not pooled");
+    }
+
+    @Test
+    public void closesConnectionOnUnclassifiedError() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("something completely unexpected"));
+
+        assertTrue(cont, "must still retry");
+        assertTrue(closed.get(), "unknown error - connection state unknown - close to be safe");
+    }
+
+    @Test
+    public void keepsConnectionOnHistoryLost() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("PlanExecutor error during aggregation :: caused by :: ChangeStreamHistoryLost"));
+
+        assertTrue(cont, "must retry with fresh stream");
+        assertFalse(closed.get(),
+            "history-lost is a proper server error reply - the stream is aligned, connection is fine");
+    }
 }

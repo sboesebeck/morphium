@@ -436,15 +436,25 @@ public class SingleMongoConnection implements MongoConnection {
                 stats.get(REPLY_RECEIVED).incrementAndGet();
                 return msg;
             } catch (SocketTimeoutException ste) {
+                // Raw SocketTimeoutException from parseFromStream means 0 bytes were consumed:
+                // the stream is still message-aligned, retrying the read is safe.
                 if (System.currentTimeMillis() >= deadline) {
-                    log.debug("socket timeout - deadline reached, returning null to allow continuation check");
+                    // No reply within the caller's total timeout. A late reply may still arrive
+                    // on this connection - the next user would read a stale answer (watch() reads
+                    // without responseTo verification!). Close instead of handing back a landmine.
+                    log.debug("socket timeout - deadline reached, closing connection");
+                    close();
                     return null;
                 }
                 log.debug("socket timeout - retrying until deadline");
             } catch (Exception e) {
-                if (e.getCause() instanceof SocketTimeoutException) {
+                // MorphiumDriverNetworkException is always fatal for this connection, even with a
+                // SocketTimeoutException cause: parseFromStream wraps a mid-message timeout that
+                // way ("stream desynchronized") - retrying the parse would read payload as header.
+                if (!(e instanceof MorphiumDriverNetworkException) && e.getCause() instanceof SocketTimeoutException) {
                     if (System.currentTimeMillis() >= deadline) {
-                        log.debug("socket timeout - deadline reached, returning null to allow continuation check");
+                        log.debug("socket timeout - deadline reached, closing connection");
+                        close();
                         return null;
                     }
                     log.debug("socket timeout - retrying until deadline");
