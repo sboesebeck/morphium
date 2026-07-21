@@ -2153,6 +2153,38 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         long timestamp;
     }
 
+    /**
+     * Failure-path-only diagnostics for the recurring answer-timeout flakies (BasicJMSTests
+     * et al., 2026-07-21): query the collection state once and name the failing stage -
+     * request never processed (delivery/processing), processed without an answer (answer
+     * never sent), or answer stored but not delivered back (answer delivery).
+     */
+    private void logAnswerTimeoutDiagnostics(Msg theMessage, long timeoutInMs) {
+        try {
+            Msg orig = morphium.createQueryFor(Msg.class, getCollectionName())
+                .f("_id").eq(theMessage.getMsgId()).get();
+            long answers = morphium.createQueryFor(Msg.class, getCollectionName())
+                .f(Msg.Fields.inAnswerTo).eq(theMessage.getMsgId()).countAll();
+            String verdict;
+
+            if (answers > 0) {
+                verdict = "answer(s) stored but not delivered back to this instance (answer delivery failed)";
+            } else if (orig == null) {
+                verdict = "request gone (deleted/expired) and no answer stored";
+            } else if (orig.getProcessedBy() == null || orig.getProcessedBy().isEmpty()) {
+                verdict = "request still unprocessed (delivery to/processing by the consumer failed)";
+            } else {
+                verdict = "request processed by " + orig.getProcessedBy() + " but no answer stored (answer never sent)";
+            }
+
+            log.error("answer timeout diagnostics for {}/{} after {}ms (instance {}): request={}, answers stored={} -> {}",
+                theMessage.getTopic(), theMessage.getMsgId(), timeoutInMs, getSenderId(),
+                orig == null ? "GONE" : "present, processedBy=" + orig.getProcessedBy(), answers, verdict);
+        } catch (Exception e) {
+            log.error("answer timeout diagnostics failed", e);
+        }
+    }
+
     @Override
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
         if (!running) {
@@ -2170,9 +2202,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             sendMessage(theMessage);
             T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
 
-            if (null == firstAnswer && throwExceptionOnTimeout) {
-                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/"
-                                                  + requestMsgId + " in time (" + timeoutInMs + "ms)");
+            if (null == firstAnswer) {
+                logAnswerTimeoutDiagnostics(theMessage, timeoutInMs);
+
+                if (throwExceptionOnTimeout) {
+                    throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/"
+                                                      + requestMsgId + " in time (" + timeoutInMs + "ms)");
+                }
             }
 
             return firstAnswer;
@@ -2219,6 +2255,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                 // Did not receive any message in time
                 if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
+                    logAnswerTimeoutDiagnostics(theMessage, timeout);
                     throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic()
                                                       + "/" + requestMsgId + "in time (" + timeout + ")");
                 }
