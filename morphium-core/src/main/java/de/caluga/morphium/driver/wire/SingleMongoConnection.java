@@ -743,6 +743,7 @@ public class SingleMongoConnection implements MongoConnection {
         boolean registrationCallbackCalled = false;
 
         long watchIterations = 0;
+        try {
         while (true) {
             watchIterations++;
             OpMsg reply = null;
@@ -850,6 +851,20 @@ public class SingleMongoConnection implements MongoConnection {
                 }
             }
 
+            // The server sends postBatchResumeToken with EVERY reply, including empty batches.
+            // It is the only token a consumer has while no events flow - exactly the situation
+            // in which a dying watch would otherwise restart at "now" and lose the gap. Only
+            // adopt it for fully processed batches (shouldExit means we broke out mid-batch,
+            // the token would skip the events we did not deliver).
+            if (!shouldExit) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> postBatchResumeToken = (Map<String, Object>) cursor.get("postBatchResumeToken");
+
+                if (postBatchResumeToken != null) {
+                    lastResumeToken[0] = postBatchResumeToken;
+                }
+            }
+
             if (shouldExit || !command.getCb().isContinued()) {
                 log.debug("WATCH: exiting loop - shouldExit={}, isContinued={}", shouldExit, command.getCb().isContinued());
                 String coll = command.getColl();
@@ -897,6 +912,15 @@ public class SingleMongoConnection implements MongoConnection {
                 msg = startMsg;
                 msg.setMessageId(msgId.incrementAndGet());
                 sendQuery(msg);
+            }
+        }
+        } finally {
+            // Publish the freshest resume token on EVERY exit - normal stop, grace timeout or
+            // network death. Without this, a consumer that never received an event has no token
+            // at all and its restart begins at "now", silently dropping everything written
+            // while the watch was down.
+            if (lastResumeToken[0] != null) {
+                command.setResumeAfter(lastResumeToken[0]);
             }
         }
     }

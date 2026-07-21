@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,6 +47,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private MorphiumDriver dedicatedConnection;
     private final CountDownLatch watchStartedLatch = new CountDownLatch(1);
     private final AtomicBoolean watchStartedSignaled = new AtomicBoolean(false);
+    private final List<Runnable> watchEstablishedListeners = new CopyOnWriteArrayList<>();
     private volatile WatchCommand activeWatch;
     private volatile de.caluga.morphium.driver.wire.MongoConnection activeConnection;
     // Resume token tracking to prevent duplicate events on watch restart
@@ -301,6 +303,24 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     }
 
     /**
+     * Adopts the resume token the (possibly dead) watch published on its command. watch()
+     * updates the command's resumeAfter on every exit with its freshest token - including the
+     * postBatchResumeToken of empty batches, which is the ONLY token available to a consumer
+     * that never received an event. Since run() builds a new WatchCommand for every retry,
+     * skipping this adoption would restart such a consumer at "now" and silently lose every
+     * event written during the retry gap. package-private for testing.
+     */
+    void adoptResumeTokenFrom(de.caluga.morphium.driver.commands.WatchCommand watch) {
+        if (watch == null) {
+            return;
+        }
+        Map<String, Object> token = watch.getResumeAfter();
+        if (token != null) {
+            lastResumeToken = token;
+        }
+    }
+
+    /**
      * Closes the connection the watch loop was using. Called for errors after which the
      * connection's stream state is unknown (wrong/missing reply, unclassified failure):
      * releasing such a connection back to the pool would hand a desynced stream to the
@@ -447,6 +467,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     break;
                 }
             } finally {
+                // the dying watch may know a fresher resume token than our event callbacks do
+                adoptResumeTokenFrom(watch);
                 boolean connectionReleased = false;
                 if (watch != null && watch.getConnection() != null) {
                     watch.releaseConnection();
@@ -479,6 +501,29 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         if (watchStartedSignaled.compareAndSet(false, true)) {
             watchStartedLatch.countDown();
         }
+
+        // Notify on EVERY (re-)establishment, not just the first: consumers like messaging
+        // use this to poll for documents written while the stream was down - the change
+        // stream itself cannot deliver those when no resume token was available.
+        if (running) {
+            for (Runnable r : watchEstablishedListeners) {
+                try {
+                    r.run();
+                } catch (Exception e) {
+                    log.warn("watch-established listener failed", e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Registers a callback invoked every time the change stream watch is (re-)established,
+     * including after connection loss and retry. Unlike {@link #awaitReady}, this fires on
+     * every establishment - use it to catch up on events that occurred while the stream
+     * was down (e.g. by polling the collection once).
+     */
+    public void addWatchEstablishedListener(Runnable listener) {
+        watchEstablishedListeners.add(listener);
     }
 
     @Override

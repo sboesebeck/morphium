@@ -96,11 +96,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private String senderId;
 
     private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
-    private final AtomicInteger fallbackPollCounter = new AtomicInteger(0);
     // track when a topic was paused, to report elapsed pause time on unpause
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
-    // Fallback poll runs every FALLBACK_POLL_INTERVAL_MS instead of every pause cycle
-    private static final long FALLBACK_POLL_INTERVAL_MS = 1000; // 1 second — faster recovery after lock release
+    // Fallback poll runs every FALLBACK_POLL_INTERVAL_MS instead of every pause cycle.
+    // 10s: this is a pure safety net - deterministic catch-up happens via the
+    // watch-established listeners (poll on change stream re-establishment) and the lock
+    // monitor's targeted re-polls. Keep it coarse to bound the query load per topic.
+    private static final long FALLBACK_POLL_INTERVAL_MS = 10_000;
     private volatile long lastFallbackPollTime = 0;
 
     private ScheduledThreadPoolExecutor decouplePool;
@@ -197,7 +199,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // Safety-net fallback polling when change streams are enabled.
             // Primary message delivery is via change streams; lock releases trigger targeted re-polls
             // via the shared lock monitor. This fallback only catches edge cases (network glitches, etc.).
-            if (isUseChangeStream() && running.get() && (fallbackPollCounter.incrementAndGet() % 500 == 0)) {
+            // Time-based on purpose: the previous counter-based gate (every 500th tick of the
+            // messagingPollPause scheduler) effectively polled every ~2 minutes - far beyond
+            // any caller's wait timeout when a change stream event was lost.
+            long fallbackNow = System.currentTimeMillis();
+            if (isUseChangeStream() && running.get() && fallbackNow - lastFallbackPollTime >= FALLBACK_POLL_INTERVAL_MS) {
+                lastFallbackPollTime = fallbackNow;
                 // log.debug("Running fallback poll for {} topics", monitorsByTopic.size());
                 for (var topicName : monitorsByTopic.keySet()) {
                     try {
@@ -238,6 +245,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                                                  .of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
             directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
                 morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
+            // catch up on DMs (incl. answers) inserted while the stream was down
+            directMessagesMonitor.addWatchEstablishedListener(() -> {
+                pollTrigger.putIfAbsent("dm_all", new AtomicInteger(0));
+                pollTrigger.get("dm_all").incrementAndGet();
+            });
             directMessagesMonitor.addListener((evt) -> {
                 // Skip processing if not running - but always return true to keep listener registered
                 if (!running.get()) {
@@ -1261,6 +1273,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), false,
             effectiveSettings.getMessagingPollPause(),
             pipeline);
+        // Whenever the watch is (re-)established, poll once: messages inserted while the
+        // stream was down are invisible to the new stream (it starts at "now" unless a resume
+        // token was available) - without this, they wait for the coarse fallback poll.
+        cm.addWatchEstablishedListener(() -> {
+            pollTrigger.putIfAbsent(n, new AtomicInteger(0));
+            pollTrigger.get(n).incrementAndGet();
+        });
         cm.addListener((evt) -> {
             // CRITICAL: Always return true to keep the listener registered
             if (!running.get()) {
@@ -1446,6 +1465,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))
         );
         sharedLockMonitor = new ChangeStreamMonitor(morphium, pipeline);
+        // a lock release deleted while this stream was down would never trigger its re-poll -
+        // on every (re-)establishment, re-poll all subscribed topics once to close the gap
+        sharedLockMonitor.addWatchEstablishedListener(() -> {
+            for (var topicName : monitorsByTopic.keySet()) {
+                pollTrigger.putIfAbsent(topicName, new AtomicInteger(0));
+                pollTrigger.get(topicName).incrementAndGet();
+            }
+        });
         sharedLockMonitor.addListener((evt) -> {
             if (!running.get()) return true;
 
