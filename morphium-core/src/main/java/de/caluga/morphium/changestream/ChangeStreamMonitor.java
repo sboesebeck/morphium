@@ -257,10 +257,17 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
         if (e.getMessage() == null) {
             log.warn("Restarting changestream", e);
+            closeActiveConnectionQuietly();
         } else if (e.getMessage().contains("reply is null")) {
-            log.warn("Reply is null - cannot watch - retrying");
+            // no reply although the server must answer within maxTimeMS - a late reply may
+            // still be in flight on this connection; pooling it would poison the next borrower
+            log.warn("Reply is null - cannot watch - closing connection and retrying");
+            closeActiveConnectionQuietly();
         } else if (e.getMessage().contains("cursor is null")) {
-            log.warn("Cursor is null - cannot watch - retrying");
+            // a full reply arrived but it was not a watch reply: this connection delivered
+            // someone else's (stale) answer - its stream state is unknown, do not pool it
+            log.warn("Cursor is null - cannot watch - closing connection and retrying");
+            closeActiveConnectionQuietly();
         } else if (e.getMessage().contains("ChangeStreamHistoryLost") || e.getMessage().contains("resume point may no longer be in the oplog")) {
             // Oplog has rolled past our resume point - discard token and start fresh
             log.warn("Oplog rolled past resume point for changestream '{}' - discarding resume token and restarting fresh", collectionName);
@@ -285,9 +292,30 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 return false;
             }
             log.warn("Error in changestream monitor - restarting", e);
+            // unclassified error: the connection's stream state is unknown - close to be safe,
+            // the pool discards closed connections and creates a replacement
+            closeActiveConnectionQuietly();
             sleepBeforeRetry();
         }
         return true;
+    }
+
+    /**
+     * Closes the connection the watch loop was using. Called for errors after which the
+     * connection's stream state is unknown (wrong/missing reply, unclassified failure):
+     * releasing such a connection back to the pool would hand a desynced stream to the
+     * next borrower (seen as "Illegal opcode" on unrelated commands). The pool discards
+     * closed connections on release and replaces them.
+     */
+    private void closeActiveConnectionQuietly() {
+        var con = activeConnection;
+        if (con != null) {
+            try {
+                con.close();
+            } catch (Exception ignore) {
+                // best effort - may already be closed
+            }
+        }
     }
 
     private void sleepBeforeRetry() {
