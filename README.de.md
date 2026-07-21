@@ -74,6 +74,7 @@ PoppyDB und Morphium Messaging sind **aufeinander optimiert** — beide Seiten e
 - ✅ **CLI-Tooling**: `poppydb-6.2.4-cli.jar` für Standalone-Deployment
 - ✅ **Replica-Set-Emulation**: Cluster-Verhalten testen ohne echtes MongoDB
 - ✅ **Snapshot-Persistenz**: `--dump-dir` / `--dump-interval` zum Sichern der Daten über Neustarts
+- ✅ **Opt-in-Authentifizierung & TLS** (6.3.0): Echtes SCRAM-SHA-1/-256 (`--auth`, `--rootUser`) plus SSL/TLS (`--ssl`) — Standard-Clients wie mongosh authentifizieren sich exakt wie gegen echtes MongoDB
 
 ### MorphiumDriverException ist jetzt unchecked
 `MorphiumDriverException` erbt von `RuntimeException` — konsistent mit dem MongoDB Java Driver. Eliminiert 40+ Boilerplate `catch-wrap-rethrow`-Blöcke.

@@ -14,6 +14,7 @@ PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InM
 - ✅ **No Installation** - Pure Java, runs anywhere
 - ✅ **Perfect for CI/CD** - No Docker or MongoDB installation required
 - ✅ **Integration Testing** - Test multi-language microservices together
+- ✅ **Opt-in Authentication & TLS** - Real SCRAM-SHA-1/-256 auth (`--auth`) and SSL/TLS encrypted connections (`--ssl`)
 
 ## Quick Start
 
@@ -70,6 +71,9 @@ You can configure the PoppyDB using the following command-line arguments:
 | `--ssl`, `--tls` | Enable SSL/TLS encrypted connections. | disabled |
 | `--sslKeystore <path>` | Path to JKS or PKCS12 keystore file containing server certificate. | |
 | `--sslKeystorePassword <pw>` | Password for the keystore. | |
+| `--auth` | Require SCRAM authentication (SCRAM-SHA-1 / SCRAM-SHA-256). Unauthenticated connections may only run the handshake/SASL/ping commands. | disabled |
+| `--rootUser <name>` | Initial admin user, created at startup if absent. Required for a fresh `--auth` server — there is no localhost exception. | |
+| `--rootPassword <pw>` | Password for the initial admin user. | |
 | `-d`, `--dump-dir <path>` | Directory for periodic database dumps. Enables persistence. | |
 | `--dump-interval <seconds>` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
 | `-h`, `--help` | Print this help message and exit. | |
@@ -260,6 +264,59 @@ server.setSslEnabled(true);
 
 server.start();
 ```
+
+### Authentication (`--auth`)
+
+PoppyDB supports real SCRAM authentication (SCRAM-SHA-1 and SCRAM-SHA-256, RFC 5802/7677) with
+users stored mongod-shaped in `admin.system.users`. Enforcement is **strictly opt-in**: without
+`--auth` the server stays completely open (unchanged test/dev behavior). With `--auth`, a
+connection may only run the handshake, SASL, `logout`, `ping` and `buildInfo` commands until it
+completes a SCRAM exchange — everything else is rejected with code 13 `Unauthorized`.
+
+**Quick Start with authentication:**
+
+```bash
+# There is no localhost exception - configure the initial admin user at startup:
+java -jar poppydb-cli.jar -p 27018 \
+  --auth --rootUser admin --rootPassword s3cr3t
+```
+
+```bash
+# Unauthenticated access is rejected:
+mongosh "mongodb://localhost:27018/test" --eval 'db.coll.find()'
+# MongoServerError: command find requires authentication
+
+# Standard clients authenticate as against real MongoDB:
+mongosh "mongodb://admin:s3cr3t@localhost:27018/test?authSource=admin"
+
+# Create additional users the normal way:
+mongosh "mongodb://admin:s3cr3t@localhost:27018/admin?authSource=admin" \
+  --eval 'db.createUser({user: "app", pwd: "apppass", roles: []})'
+```
+
+Morphium clients simply set credentials as usual (`authDb`/user/password in the connection
+settings) — the driver performs the SCRAM handshake automatically on connect.
+
+**Combine with TLS** for encrypted, authenticated deployments:
+```bash
+java -jar poppydb-cli.jar -p 27018 --auth --rootUser admin --rootPassword s3cr3t \
+  --ssl --sslKeystore server.jks --sslKeystorePassword changeit
+```
+
+**Programmatic configuration:**
+```java
+PoppyDB server = new PoppyDB(27018, "localhost", 100, 10);
+server.setAuthRequired(true);
+server.setRootUser("admin", "s3cr3t");   // created at startup if absent
+server.start();
+```
+
+**Current limitations:**
+- Authorization is authentication-only: a logged-in user may run any command — roles are
+  stored (`createUser`'s `roles` field, `createRole` is not implemented) but not evaluated.
+- X.509 client-certificate authentication is not supported (fails honestly with code 18).
+- Passwords travel SCRAM-hashed, never in the clear — but combine `--auth` with `--ssl` when
+  crossing untrusted networks to also encrypt the data itself.
 
 **SSL with Docker:**
 ```dockerfile
