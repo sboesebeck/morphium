@@ -465,6 +465,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 return running;
             }
 
+            // Requeue update (processedBy cleared, see pipeline): the message is pending
+            // again but update events carry no fullDocument - trigger a poll to pick it up.
+            if ("update".equals(evt.getOperationType())) {
+                log.debug("CSE: {}: requeue update event received, triggering re-poll", this.id);
+                requestPoll.incrementAndGet();
+                return running;
+            }
+
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
             // Debug: Count ALL change stream events for InMemoryDriver
@@ -729,9 +737,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        // Accept "insert" (new messages) and "lock_released" (PoppyDB pushes this when
-        // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
-        in.put("$in", Arrays.asList("insert", "lock_released"));
+        // Accept "insert" (new messages), "lock_released" (PoppyDB pushes this when a lock
+        // is deleted, so we can re-poll for exclusive messages without a separate connection)
+        // and "update" (requeue detection, see the relevance filter below)
+        in.put("$in", Arrays.asList("insert", "lock_released", "update"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
 
@@ -758,9 +767,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             UtilsMap.of(recipientsField, null),
             UtilsMap.of(recipientsField, id)
         ));
+        // Requeue detection: clearing processedBy via a plain DB update makes a message
+        // pending again but produces no insert event. The requeue signature is
+        // updateDescription.updatedFields.processed_by set to an EMPTY array ($size 0) -
+        // normal processing marks use positional keys (processed_by.0, ...) and stay filtered.
+        String processedByField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.processedBy.name());
+        Map<String, Object> requeueRelevant = new LinkedHashMap<>();
+        requeueRelevant.put("operationType", "update");
+        requeueRelevant.put("updateDescription.updatedFields." + processedByField, UtilsMap.of("$size", 0));
         Map<String, Object> relevanceMatch = new LinkedHashMap<>();
         relevanceMatch.put("$or", Arrays.asList(
             UtilsMap.of("operationType", "lock_released"),
+            requeueRelevant,
             insertRelevant
         ));
         pipeline.add(UtilsMap.of("$match", relevanceMatch));

@@ -1307,8 +1307,15 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
         in.put("$in", Arrays.asList("insert", "lock_released"));
         match.put("operationType", in);
+        // Also accept REQUEUE updates: clearing processedBy via a plain DB update makes a
+        // message pending again but produces no insert event. The requeue signature is
+        // updateDescription.updatedFields.processed_by set to an EMPTY array ($size 0) -
+        // normal processing marks use positional keys (processed_by.0, ...) and stay filtered.
+        Map<String, Object> requeue = new LinkedHashMap<>();
+        requeue.put("operationType", "update");
+        requeue.put("updateDescription.updatedFields." + processedByFieldName, UtilsMap.of("$size", 0));
         var pipeline = new ArrayList<Map<String, Object>>();
-        pipeline.add(UtilsMap.of("$match", match));
+        pipeline.add(UtilsMap.of("$match", UtilsMap.of("$or", Arrays.asList(match, requeue))));
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), false,
             effectiveSettings.getMessagingPollPause(),
             pipeline);
@@ -1329,6 +1336,15 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // Trigger a re-poll so exclusive messages can be picked up by another subscriber.
             if ("lock_released".equals(evt.getOperationType())) {
                 log.debug("CSM: Lock released event for topic {}, triggering re-poll", n);
+                pollTrigger.putIfAbsent(n, new AtomicInteger(0));
+                pollTrigger.get(n).incrementAndGet();
+                return true;
+            }
+
+            // Requeue update (processedBy cleared, see pipeline): the message is pending again
+            // but there is no fullDocument here - trigger a poll to pick it up.
+            if ("update".equals(evt.getOperationType())) {
+                log.debug("CSM: Requeue update event for topic {}, triggering re-poll", n);
                 pollTrigger.putIfAbsent(n, new AtomicInteger(0));
                 pollTrigger.get(n).incrementAndGet();
                 return true;
@@ -1380,6 +1396,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             log.info("CSM: Queueing message {} for processing", doc.getMsgId());
 
             Runnable r = () -> {
+                // Only set when the message was actually handed to the listener. Early skips
+                // (already processed by someone else, lock lost, reread failed) must NOT mark
+                // the message "recently completed" - that would make polls ignore it for
+                // RECENTLY_COMPLETED_RETENTION_MS and break requeueing (processedBy cleared
+                // externally while the skip-marker is still active).
+                boolean handledHere = false;
                 try {
                     log.info("CSM-PROC: Starting processing of message {}", doc.getMsgId());
                     // Message already added to processingMessages above
@@ -1429,6 +1451,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                             updateProcessedBy(current);
                         }
                         var ret = l.onMessage(this, current);
+                        handledHere = true;
                         if (!running.get())
                             return;
                         if (ret == null && effectiveSettings.isAutoAnswer()) {
@@ -1468,9 +1491,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     log.error("Error during change event processing", e);
                 } finally {
                     // CRITICAL: Remove from processingMessages in ALL code paths
-                    // This must be in the outer finally to catch early returns
-                    // Move to recentlyCompletedMessages before removing to prevent race conditions
-                    recentlyCompletedMessages.put(doc.getMsgId(), System.currentTimeMillis());
+                    // This must be in the outer finally to catch early returns.
+                    // Only messages that actually reached a listener count as "recently
+                    // completed" - skipped ones must stay findable for polls (requeue!).
+                    if (handledHere) {
+                        recentlyCompletedMessages.put(doc.getMsgId(), System.currentTimeMillis());
+                    }
                     processingMessages.remove(doc.getMsgId());
                 }
             };
