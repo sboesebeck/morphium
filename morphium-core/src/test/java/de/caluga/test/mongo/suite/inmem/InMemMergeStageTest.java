@@ -20,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * implementation - whenMatched (merge/replace/keepExisting/fail), whenNotMatched
  * (insert/discard/fail), the `on` default of _id, ambiguous matches, and $merge being terminal.
  */
-@SuppressWarnings({"rawtypes", "unchecked"})
 @Tag("inmemory")
 public class InMemMergeStageTest extends MorphiumInMemTestBase {
 
@@ -49,6 +48,7 @@ public class InMemMergeStageTest extends MorphiumInMemTestBase {
     }
 
     /** Aggregator over SRC that ends in the given $merge spec. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private Aggregator<Object, Map> mergeAgg(Map<String, Object> mergeSpec) {
         Aggregator<Object, Map> agg = (Aggregator<Object, Map>) drv().createAggregator(morphium, Object.class, Map.class);
         agg.setCollectionName(SRC);

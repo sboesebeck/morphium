@@ -139,7 +139,7 @@ public class TestUtils {
         var stats = m.getDriver().getDriverStats();
 
         for (var e : stats.entrySet()) {
-            log.info(String.format("Stats %s: %f ", e.getKey().name(), e.getValue()));
+            log.info(String.format("Stats %s: %f", e.getKey().name(), e.getValue()));
         }
     }
 
@@ -201,7 +201,7 @@ public class TestUtils {
                 }
             }
         } catch (Exception e) {
-            log.info("Could not clean up: ", e);
+            log.error("Could not clean up", e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
