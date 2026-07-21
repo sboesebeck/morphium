@@ -33,6 +33,9 @@ public class PoppyDBCLI {
 
         // SSL configuration
         boolean sslEnabled = false;
+        boolean authRequired = false;
+        String rootUser = null;
+        String rootPassword = null;
         String keystorePath = null;
         String keystorePassword = null;
 
@@ -113,6 +116,21 @@ public class PoppyDBCLI {
                 case "--tls":
                     sslEnabled = true;
                     idx += 1;
+                    break;
+
+                case "--auth":
+                    authRequired = true;
+                    idx += 1;
+                    break;
+
+                case "--rootUser":
+                    rootUser = args[idx + 1];
+                    idx += 2;
+                    break;
+
+                case "--rootPassword":
+                    rootPassword = args[idx + 1];
+                    idx += 2;
                     break;
 
                 case "--sslKeystore":
@@ -212,6 +230,20 @@ public class PoppyDBCLI {
             srv.setSslEnabled(true);
         }
 
+        // Configure auth enforcement if enabled
+        if (authRequired) {
+            log.info("Auth enforcement enabled (--auth): clients must authenticate via SCRAM");
+            srv.setAuthRequired(true);
+        }
+
+        if (rootUser != null || rootPassword != null) {
+            if (rootUser == null || rootPassword == null) {
+                log.error("--rootUser and --rootPassword must be given together");
+                System.exit(1);
+            }
+            srv.setRootUser(rootUser, rootPassword);
+        }
+
         // Configure persistence if enabled
         if (dumpDir != null) {
             java.io.File dir = new java.io.File(dumpDir);
@@ -278,6 +310,11 @@ public class PoppyDBCLI {
         System.out.println("  --ssl, --tls               : Enable SSL/TLS encrypted connections");
         System.out.println("  --sslKeystore <path>       : Path to JKS or PKCS12 keystore file");
         System.out.println("  --sslKeystorePassword <pw> : Password for the keystore");
+        System.out.println("  --auth                     : Require SCRAM authentication (SCRAM-SHA-1/-256).");
+        System.out.println("                               Unauthenticated connections may only run the");
+        System.out.println("                               handshake/SASL/ping commands.");
+        System.out.println("  --rootUser <name>          : Initial admin user, created at startup if absent");
+        System.out.println("  --rootPassword <pw>        : Password for the initial admin user");
         System.out.println();
         System.out.println("Persistence Options:");
         System.out.println("  -d, --dump-dir <path>      : Directory for periodic database dumps");

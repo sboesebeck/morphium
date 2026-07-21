@@ -69,6 +69,19 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // shared primary/readPreference/transaction checks before dispatch, whether it takes the
     // fast path or the generic path. Keep this in sync with the non-data cases in
     // processOpMsg's switch (all lower-cased).
+    // Commands a connection may run BEFORE authenticating when --auth is enabled: the
+    // handshake, the SASL conversation itself, logout and basic health probes - mirroring
+    // mongod's pre-auth allowance.
+    private static final Set<String> PRE_AUTH_COMMANDS = Set.of(
+            "hello", "ismaster", "saslstart", "saslcontinue", "logout",
+            "ping", "buildinfo", "getcmdlineopts");
+
+    // Auth enforcement state - one handler instance per channel, so these fields ARE the
+    // per-connection authentication state. Enforcement is strictly opt-in via setAuthRequired.
+    private volatile boolean authRequired = false;
+    private volatile String authenticatedUser = null;
+    private volatile String pendingAuthUser = null;
+
     private static final Set<String> CONTROL_COMMANDS = Set.of(
             "getcmdlineopts", "buildinfo", "ismaster", "hello",
             "getfreemonitoringstatus", "ping",
@@ -294,6 +307,24 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         ctx.writeAndFlush(reply);
     }
 
+    /** Enable --auth style enforcement for connections handled by this instance. */
+    public MongoCommandHandler setAuthRequired(boolean authRequired) {
+        this.authRequired = authRequired;
+        return this;
+    }
+
+    /** Best effort: the n= value from the SASL client-first payload; null if unparsable. */
+    private static String extractSaslUser(Object payload) {
+        try {
+            String clientFirst = payload instanceof byte[] b
+                ? new String(b, java.nio.charset.StandardCharsets.UTF_8)
+                : String.valueOf(payload);
+            return de.caluga.morphium.driver.inmem.auth.ScramServerConversation.extractUser(clientFirst);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void processOpMsg(ChannelHandlerContext ctx, OpMsg opMsg) throws Exception {
         Map<String, Object> doc = opMsg.getFirstDoc();
         int requestId = opMsg.getMessageId();
@@ -302,6 +333,29 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
         log.debug("Handling command {}", cmd);
+
+        // Auth enforcement (--auth, strictly opt-in): until this connection completed a SCRAM
+        // exchange, only the handshake/SASL/health commands may run. One handler instance
+        // exists per channel, so authenticatedUser IS the per-connection auth state.
+        if (authRequired && authenticatedUser == null && !PRE_AUTH_COMMANDS.contains(cmd.toLowerCase())) {
+            sendResponse(ctx, requestId, Doc.of(
+                "ok", 0.0,
+                "code", 13,
+                "codeName", "Unauthorized",
+                "errmsg", "command " + cmd + " requires authentication"));
+            return;
+        }
+
+        // remember who is trying to authenticate - promoted to authenticatedUser only when the
+        // driver confirms the SCRAM exchange (see processDefaultCommandAsync)
+        if (cmd.equals("saslStart")) {
+            pendingAuthUser = extractSaslUser(doc.get("payload"));
+        } else if (cmd.equals("logout")) {
+            authenticatedUser = null;
+            pendingAuthUser = null;
+            sendResponse(ctx, requestId, Doc.of("ok", 1.0));
+            return;
+        }
 
         // Shared command middleware: run the primary-rejection, read-preference and
         // transaction-context checks once, before any dispatch variant (the fast-path
@@ -612,6 +666,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             Map<String, Object> answer = Doc.of("ok", 1.0);
             if (result != null) answer.putAll(result);
+
+            // Promote the pending user once the driver confirms the SCRAM exchange succeeded.
+            // done:true covers both skipEmptyExchange and the empty third round trip.
+            if (cmd.equals("saslContinue") && Boolean.TRUE.equals(answer.get("done"))
+                    && Double.valueOf(1.0).equals(answer.get("ok")) && pendingAuthUser != null) {
+                authenticatedUser = pendingAuthUser;
+                pendingAuthUser = null;
+                log.debug("connection authenticated as {}", authenticatedUser);
+            }
 
             // Notify tailable cursors about inserted documents
             if (cmd.equalsIgnoreCase("insert")) {
