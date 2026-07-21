@@ -543,6 +543,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private String replicaSetName;
     private boolean replicaSetEnabled = false;
     private final AtomicInteger activeConnections = new AtomicInteger(0);
+    // "server start" reference for serverStatus.uptime* - reset on every (re)connect because
+    // that is the closest in-memory equivalent to a mongod process start
+    private volatile long serverStartedAt = System.currentTimeMillis();
     private final Deque<Map<String, Object>> oplog = new ConcurrentLinkedDeque<>();
     private static final int OPLOG_MAX = 5000;
     private final AtomicLong oplogInc = new AtomicLong();
@@ -1569,6 +1572,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 (String) cmdMap.get("pwd"), roles, mechanisms);
         }
 
+        // serverStatus and the top-level bulkWrite (MongoDB 8.0 shape) have no typed command
+        // class, so the reflective dispatch below cannot resolve them - answer them from the
+        // raw map here (#257)
+        if (commandName.equals("serverStatus")) {
+            return handleServerStatus();
+        }
+
+        if (commandName.equals("bulkWrite")) {
+            return handleBulkWrite(cmdMap);
+        }
+
         Class <? extends MongoCommand > commandClass = commandsCache.get(commandName);
 
         if (commandName.equals("aggreagate") && cmdMap.containsKey("pipeline")
@@ -1633,6 +1647,222 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Minimal mongod-shaped serverStatus (#257): the fields monitoring tools commonly read.
+     * Byte/gauge values the in-memory driver has no real data for are 0, following the dbStats
+     * precedent; the JVM heap is the only honest memory figure available.
+     */
+    private int handleServerStatus() {
+        int ret = commandNumber.incrementAndGet();
+        String host;
+
+        try {
+            host = java.net.InetAddress.getLocalHost().getHostName();
+        } catch (Exception e) {
+            host = "localhost";
+        }
+
+        long uptimeMillis = Math.max(0, System.currentTimeMillis() - serverStartedAt);
+        Runtime rt = Runtime.getRuntime();
+        var m = prepareResult();
+        m.put("host", host);
+        // same version string PoppyDB's buildInfo reports - clients comparing the two must agree
+        m.put("version", "5.0.0-ALPHA");
+        // "mongod", not an own process name: tooling uses this field to distinguish mongod vs
+        // mongos routing semantics, and the in-memory server behaves like a single mongod
+        m.put("process", "mongod");
+        m.put("pid", ProcessHandle.current().pid());
+        m.put("uptime", uptimeMillis / 1000.0);
+        m.put("uptimeMillis", uptimeMillis);
+        m.put("uptimeEstimate", uptimeMillis / 1000L);
+        m.put("localTime", new Date());
+        int current = activeConnections.get();
+        long totalCreated = stats.containsKey(DriverStatsKey.CONNECTIONS_BORROWED)
+            ? stats.get(DriverStatsKey.CONNECTIONS_BORROWED).longValue() : 0L;
+        // there is no real connection limit in memory - report a mongod-typical headroom so
+        // "available" stays a plausible positive gauge for dashboards
+        m.put("connections", Doc.of("current", current, "available", Math.max(0, 1000000 - current),
+                                    "totalCreated", totalCreated));
+        m.put("mem", Doc.of("bits", 64, "resident", (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024),
+                            "virtual", rt.totalMemory() / (1024 * 1024), "supported", true));
+        addResult(ret, m);
+        return ret;
+    }
+
+    /**
+     * Top-level bulkWrite in the MongoDB 8.0 wire shape (#257): {bulkWrite:1, ops:[...],
+     * nsInfo:[{ns:"db.coll"}], ordered, errorsOnly}. Fans out to the existing single-op
+     * insert/update/delete paths; per-op results (incl. write errors with their op index) are
+     * returned in cursor.firstBatch like mongod. Structural problems (missing arrays, bad
+     * nsInfo reference, unknown op type) fail the whole command; write errors do not.
+     */
+    @SuppressWarnings("unchecked")
+    private int handleBulkWrite(Map<String, Object> cmdMap) {
+        if (!(cmdMap.get("ops") instanceof List) || !(cmdMap.get("nsInfo") instanceof List)) {
+            return errorResult(9, "FailedToParse", "bulkWrite requires 'ops' and 'nsInfo' arrays");
+        }
+
+        List<Map<String, Object>> ops = (List<Map<String, Object>>) cmdMap.get("ops");
+        List<Object> nsInfo = (List<Object>) cmdMap.get("nsInfo");
+        boolean ordered = !Boolean.FALSE.equals(cmdMap.get("ordered"));
+        boolean errorsOnly = Boolean.TRUE.equals(cmdMap.get("errorsOnly"));
+        // parse all namespaces up front - a broken nsInfo entry fails the command before any
+        // op runs, like mongod
+        List<String[]> namespaces = new ArrayList<>();
+
+        for (Object e : nsInfo) {
+            String ns = e instanceof Map ? (String) ((Map<String, Object>) e).get("ns") : null;
+            int dot = ns == null ? -1 : ns.indexOf('.');
+
+            if (dot <= 0 || dot == ns.length() - 1) {
+                return errorResult(73, "InvalidNamespace", "Invalid namespace in nsInfo: " + ns);
+            }
+
+            namespaces.add(new String[] {ns.substring(0, dot), ns.substring(dot + 1)});
+        }
+
+        int nInserted = 0, nMatched = 0, nModified = 0, nUpserted = 0, nDeleted = 0, nErrors = 0;
+        List<Map<String, Object>> opResults = new ArrayList<>();
+
+        for (int idx = 0; idx < ops.size(); idx++) {
+            Map<String, Object> op = ops.get(idx);
+            String opType = op.containsKey("insert") ? "insert"
+                            : op.containsKey("update") ? "update"
+                            : op.containsKey("delete") ? "delete" : null;
+
+            if (opType == null) {
+                return errorResult(9, "FailedToParse",
+                    "bulkWrite op at index " + idx + " must be one of insert/update/delete");
+            }
+
+            Object nsIdx = op.get(opType);
+
+            if (!(nsIdx instanceof Number) || ((Number) nsIdx).intValue() < 0
+                    || ((Number) nsIdx).intValue() >= namespaces.size()) {
+                return errorResult(2, "BadValue",
+                    "bulkWrite op at index " + idx + " references invalid nsInfo index " + nsIdx);
+            }
+
+            String opDb = namespaces.get(((Number) nsIdx).intValue())[0];
+            String opColl = namespaces.get(((Number) nsIdx).intValue())[1];
+            Map<String, Object> collation = op.get("collation") instanceof Map
+                ? (Map<String, Object>) op.get("collation") : null;
+            Map<String, Object> opResult;
+
+            try {
+                switch (opType) {
+                    case "insert": {
+                        if (!(op.get("document") instanceof Map)) {
+                            return errorResult(9, "FailedToParse",
+                                "bulkWrite insert op at index " + idx + " requires a 'document'");
+                        }
+
+                        // ordered=false: each bulkWrite op inserts exactly one document, so the
+                        // batch-internal ordered semantics don't apply - unordered makes insert()
+                        // report duplicates as writeErrors (code 11000) instead of throwing
+                        List<Map<String, Object>> we = insert(opDb, opColl,
+                            List.of((Map<String, Object>) op.get("document")), null, false);
+
+                        if (we.isEmpty()) {
+                            nInserted++;
+                            opResult = Doc.of("ok", 1.0, "idx", idx, "n", 1);
+                        } else {
+                            opResult = bulkWriteErrorOp(idx, we.get(0));
+                        }
+
+                        break;
+                    }
+
+                    case "update": {
+                        if (!(op.get("filter") instanceof Map) || !(op.get("updateMods") instanceof Map)) {
+                            return errorResult(9, "FailedToParse",
+                                "bulkWrite update op at index " + idx + " requires 'filter' and 'updateMods'");
+                        }
+
+                        var res = update(opDb, opColl, (Map<String, Object>) op.get("filter"), null,
+                                (Map<String, Object>) op.get("updateMods"),
+                                Boolean.TRUE.equals(op.get("multi")),
+                                Boolean.TRUE.equals(op.get("upsert")), collation, null);
+
+                        if (res.get("writeErrors") instanceof List && !((List<?>) res.get("writeErrors")).isEmpty()) {
+                            opResult = bulkWriteErrorOp(idx,
+                                ((List<Map<String, Object>>) res.get("writeErrors")).get(0));
+                        } else {
+                            int matched = res.get("n") instanceof Number n ? n.intValue() : 0;
+                            int modified = res.get("nModified") instanceof Number n ? n.intValue() : 0;
+                            List<Object> upsertedIds = res.get("upsertedIds") instanceof List
+                                ? (List<Object>) res.get("upsertedIds") : List.of();
+                            nMatched += matched;
+                            nModified += modified;
+                            nUpserted += upsertedIds.size();
+                            // per-op n includes the upserted document, like mongod
+                            opResult = Doc.of("ok", 1.0, "idx", idx, "n", matched + upsertedIds.size(),
+                                    "nModified", modified);
+
+                            if (!upsertedIds.isEmpty()) {
+                                opResult.put("upserted", Doc.of("_id", upsertedIds.get(0)));
+                            }
+                        }
+
+                        break;
+                    }
+
+                    default: { // delete
+                        if (!(op.get("filter") instanceof Map)) {
+                            return errorResult(9, "FailedToParse",
+                                "bulkWrite delete op at index " + idx + " requires a 'filter'");
+                        }
+
+                        var res = delete (opDb, opColl, (Map<String, Object>) op.get("filter"), null,
+                                Boolean.TRUE.equals(op.get("multi")), collation, null);
+                        int n = res.get("n") instanceof Number num ? num.intValue() : 0;
+                        nDeleted += n;
+                        opResult = Doc.of("ok", 1.0, "idx", idx, "n", n);
+                        break;
+                    }
+                }
+            } catch (RuntimeException e) { // MorphiumDriverException is a RuntimeException
+                // a failing single op is a per-op write error, not a command failure
+                Object code = e instanceof MorphiumDriverException mde && mde.getMongoCode() instanceof Number mc
+                    ? mc.intValue() : 8; // 8 = UnknownError
+                opResult = Doc.of("ok", 0.0, "idx", idx, "n", 0, "code", code,
+                        "errmsg", e.getMessage() == null ? e.toString() : e.getMessage());
+            }
+
+            boolean isError = Double.valueOf(0.0).equals(opResult.get("ok"));
+
+            if (isError) {
+                nErrors++;
+            }
+
+            if (!errorsOnly || isError) {
+                opResults.add(opResult);
+            }
+
+            if (isError && ordered) {
+                break;
+            }
+        }
+
+        int ret = commandNumber.incrementAndGet();
+        var m = prepareResult();
+        m.put("cursor", Doc.of("id", 0L, "firstBatch", opResults, "ns", "admin.$cmd.bulkWrite"));
+        m.put("nErrors", nErrors);
+        m.put("nInserted", nInserted);
+        m.put("nMatched", nMatched);
+        m.put("nModified", nModified);
+        m.put("nUpserted", nUpserted);
+        m.put("nDeleted", nDeleted);
+        addResult(ret, m);
+        return ret;
+    }
+
+    private Map<String, Object> bulkWriteErrorOp(int idx, Map<String, Object> writeError) {
+        return Doc.of("ok", 0.0, "idx", idx, "n", 0,
+                "code", writeError.getOrDefault("code", 8),
+                "errmsg", writeError.getOrDefault("errmsg", "write error"));
     }
 
     private int runCommand(StepDownCommand cmd) {
@@ -2632,12 +2862,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(CurrentOpCommand cmd) {
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
+        // mongod answers {inprog:[...], ok:1} - an idle server is NOT a command failure. The
+        // in-memory driver executes commands synchronously on the caller's thread, so there is
+        // never a sampled in-flight operation to report: an empty inprog is the honest answer.
+        // The former {ok:0.0, errmsg:...} made monitoring tooling read "idle" as "failing" (#257).
         var m = prepareResult();
-        m.put("ok", 0.0);
-        m.put("errmsg", "no running ops in memory");
+        m.put("inprog", new ArrayList<>());
         addResult(ret, m);
         return ret;
     }
@@ -3075,6 +3306,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             initialized.set(true);
             running = true;
+            serverStartedAt = System.currentTimeMillis();
         }
 
         {
