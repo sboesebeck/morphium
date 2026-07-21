@@ -5,6 +5,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.bson.BsonEncoder;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,12 +13,21 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
 @SuppressWarnings("unchecked")
@@ -28,7 +38,9 @@ public abstract class Expr {
     public abstract Object evaluate(Map<String, Object> context);
 
     private static Map parseMap(Map <?, ? > o) {
-        Map<String, Expr> ret = new HashMap<>();
+        // LinkedHashMap: key order carries meaning for some operator documents
+        // (e.g. a multi-field sortBy spec of $sortArray)
+        Map<String, Expr> ret = new LinkedHashMap<>();
 
         for (Map.Entry <?, ? > e : o.entrySet()) {
             ret.put((String) e.getKey(), parse(e.getValue()));
@@ -45,10 +57,20 @@ public abstract class Expr {
             String k = (String)((Map) o).keySet().stream().findFirst().get();
 
             if (!k.startsWith("$")) {
-                throw new IllegalArgumentException("no proper operation " + k);
+                // A map whose first key is not an operator is a document literal in expression
+                // position (e.g. {n: 1} as the sortBy spec of $sortArray) - MongoDB evaluates
+                // each value; failing here made every literal sub-document a parse error.
+                return mapExpr((Map<String, Expr>) parseMap((Map) o));
             }
 
             k = k.replaceAll("\\$", "");
+
+            if (k.equals("map") && ((Map) o).get("$map") instanceof Map) {
+                // Dispatch $map explicitly: the reflective k+"Expr" lookup would also match
+                // mapExpr() (a document literal factory) and the winner would depend on
+                // reflection order.
+                return map((Map) parseMap((Map)((Map) o).get("$map")));
+            }
 
             for (Method m : Expr.class.getDeclaredMethods()) {
                 if (Modifier.isStatic(m.getModifiers())) {
@@ -405,9 +427,41 @@ public abstract class Expr {
         return new OpExprNoList("round", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.round(((Number) eval(e, context)).doubleValue());
+                return roundHalfEven(eval(e, context), 0);
             }
         };
+    }
+
+    public static Expr round(Expr e, Expr place) {
+        return new OpExpr("round", Arrays.asList(e, place)) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object p = eval(place, context);
+                return roundHalfEven(eval(e, context), p == null ? 0 : ((Number) p).intValue());
+            }
+        };
+    }
+
+    /**
+     * MongoDB's $round rounds half to even ("banker's rounding"), unlike Math.round; a
+     * negative place rounds to tens/hundreds/... The result keeps the input's numeric type.
+     */
+    private static Number roundHalfEven(Object v, int place) {
+        if (v == null) {
+            return null;
+        }
+
+        BigDecimal bd = new BigDecimal(v.toString()).setScale(place, RoundingMode.HALF_EVEN);
+
+        if (v instanceof Integer) {
+            return bd.intValue();
+        }
+
+        if (v instanceof Long) {
+            return bd.longValue();
+        }
+
+        return bd.doubleValue();
     }
 
     public static Expr sqrt(Expr e) {
@@ -470,7 +524,31 @@ public abstract class Expr {
         return new OpExpr("arrayToObject", Collections.singletonList(array)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                Object v = eval(array, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                if (!(v instanceof List)) {
+                    throw new IllegalArgumentException("$arrayToObject requires an array, got " + v.getClass().getName());
+                }
+
+                // Two input shapes per MongoDB: [[k, v], ...] or [{k: ..., v: ...}, ...];
+                // later duplicate keys win, as on the server.
+                Map<String, Object> ret = new LinkedHashMap<>();
+
+                for (Object el : (List<?>) v) {
+                    if (el instanceof List && ((List<?>) el).size() == 2) {
+                        ret.put(((List<?>) el).get(0).toString(), ((List<?>) el).get(1));
+                    } else if (el instanceof Map && ((Map<?, ?>) el).containsKey("k") && ((Map<?, ?>) el).containsKey("v")) {
+                        ret.put(((Map<?, ?>) el).get("k").toString(), ((Map<?, ?>) el).get("v"));
+                    } else {
+                        throw new IllegalArgumentException("$arrayToObject: elements must be [k,v] pairs or {k,v} documents");
+                    }
+                }
+
+                return ret;
             }
         };
     }
@@ -528,7 +606,19 @@ public abstract class Expr {
         return new OpExprNoList("first", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null; //does it make sense in this context?
+                // Outside $group, $first is the array operator (MongoDB 4.4+): first element,
+                // null for null/missing input, "missing" (represented as null) for empty arrays.
+                Object v = eval(e, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                if (v instanceof List) {
+                    return ((List<?>) v).isEmpty() ? null : ((List<?>) v).get(0);
+                }
+
+                throw new IllegalArgumentException("$first requires an array outside of $group, got " + v.getClass().getName());
             }
         };
     }
@@ -589,17 +679,73 @@ public abstract class Expr {
         return new OpExprNoList("last", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                // Outside $group, $last is the array operator (MongoDB 4.4+) - see first(Expr).
+                Object v = eval(e, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                if (v instanceof List) {
+                    return ((List<?>) v).isEmpty() ? null : ((List<?>) v).get(((List<?>) v).size() - 1);
+                }
+
+                throw new IllegalArgumentException("$last requires an array outside of $group, got " + v.getClass().getName());
             }
         };
     }
 
     public static Expr map(Expr inputArray, Expr as, Expr in) {
-        return new OpExpr("map", Arrays.asList(inputArray, as, in)) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("input", inputArray);
+
+        if (as != null) {
+            m.put("as", as);
+        }
+
+        m.put("in", in);
+        return map(m);
+    }
+
+    private static Expr map(Map m) {
+        @SuppressWarnings("unchecked")
+        Map<String, Expr> params = (Map<String, Expr>) m;
+        return new MapOpExpr("map", params) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("map not implemented yet,sorry");
-                return null;
+                Object input = params.get("input") == null ? null : eval(params.get("input"), context);
+
+                if (input == null) {
+                    return null;
+                }
+
+                if (!(input instanceof List)) {
+                    throw new IllegalArgumentException("$map: input must resolve to an array, got " + input.getClass().getName());
+                }
+
+                String varName = "this";
+
+                if (params.get("as") != null) {
+                    Object as = eval(params.get("as"), context);
+
+                    if (as != null) {
+                        varName = as.toString().replaceFirst("^\\$\\$", "");
+                    }
+                }
+
+                // Work on a copy so the variable binding never leaks into the caller's context.
+                Map<String, Object> eff = new HashMap<>(context);
+                List<Object> out = new ArrayList<>();
+
+                for (Object el : (List<?>) input) {
+                    // Bind both spellings: programmatic Expr.field("x") resolves "x", the JSON
+                    // variable reference "$$x" resolves via FieldExpr to the key "$x".
+                    eff.put(varName, el);
+                    eff.put("$" + varName, el);
+                    out.add(eval(params.get("in"), eff));
+                }
+
+                return out;
             }
         };
     }
@@ -702,6 +848,203 @@ public abstract class Expr {
                 return lst.subList(0, len);
             }
         };
+    }
+
+    public static Expr sortArray(Expr input, Expr sortBy) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("input", input);
+        m.put("sortBy", sortBy);
+        return sortArray(m);
+    }
+
+    private static Expr sortArray(Map m) {
+        @SuppressWarnings("unchecked")
+        Map<String, Expr> params = (Map<String, Expr>) m;
+        return new MapOpExpr("sortArray", params) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object in = evalParam(params, "input", context);
+
+                if (in == null) {
+                    return null;
+                }
+
+                if (!(in instanceof List)) {
+                    throw new IllegalArgumentException("$sortArray: input must resolve to an array, got " + in.getClass().getName());
+                }
+
+                List<Object> lst = new ArrayList<>((List<?>) in);
+                Object sb = evalParam(params, "sortBy", context);
+                Comparator<Object> cmp;
+
+                if (sb instanceof Map) {
+                    // field spec: {field: 1|-1, ...} - order of the entries is significant
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> spec = (Map<String, Object>) sb;
+                    cmp = (a, b) -> {
+                        for (Map.Entry<String, Object> en : spec.entrySet()) {
+                            int dir = ((Number) en.getValue()).intValue() < 0 ? -1 : 1;
+                            int c = compareValues(pathValue(a, en.getKey()), pathValue(b, en.getKey())) * dir;
+
+                            if (c != 0) {
+                                return c;
+                            }
+                        }
+
+                        return 0;
+                    };
+                } else {
+                    int dir = sb instanceof Number && ((Number) sb).intValue() < 0 ? -1 : 1;
+                    cmp = (a, b) -> compareValues(a, b) * dir;
+                }
+
+                lst.sort(cmp);
+                return lst;
+            }
+        };
+    }
+
+    public static Expr firstN(Expr input, Expr n) {
+        return nOp("firstN", input, n);
+    }
+
+    private static Expr firstN(Map m) {
+        return nOpFromMap("firstN", m);
+    }
+
+    public static Expr lastN(Expr input, Expr n) {
+        return nOp("lastN", input, n);
+    }
+
+    private static Expr lastN(Map m) {
+        return nOpFromMap("lastN", m);
+    }
+
+    public static Expr maxN(Expr input, Expr n) {
+        return nOp("maxN", input, n);
+    }
+
+    private static Expr maxN(Map m) {
+        return nOpFromMap("maxN", m);
+    }
+
+    public static Expr minN(Expr input, Expr n) {
+        return nOp("minN", input, n);
+    }
+
+    private static Expr minN(Map m) {
+        return nOpFromMap("minN", m);
+    }
+
+    private static Expr nOp(String op, Expr input, Expr n) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("n", n);
+        m.put("input", input);
+        return nOpFromMap(op, m);
+    }
+
+    private static Expr nOpFromMap(String op, Map m) {
+        @SuppressWarnings("unchecked")
+        Map<String, Expr> params = (Map<String, Expr>) m;
+        return new MapOpExpr(op, params) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object in = evalParam(params, "input", context);
+
+                if (in == null) {
+                    return null;
+                }
+
+                if (!(in instanceof List)) {
+                    throw new IllegalArgumentException("$" + op + ": input must resolve to an array, got " + in.getClass().getName());
+                }
+
+                Object nVal = evalParam(params, "n", context);
+
+                if (!(nVal instanceof Number) || ((Number) nVal).intValue() < 1) {
+                    throw new IllegalArgumentException("$" + op + ": n must be a positive integer");
+                }
+
+                List<Object> lst = new ArrayList<>((List<?>) in);
+                int n = ((Number) nVal).intValue();
+
+                switch (op) {
+                    case "firstN":
+                        return new ArrayList<>(lst.subList(0, Math.min(n, lst.size())));
+
+                    case "lastN":
+                        return new ArrayList<>(lst.subList(Math.max(0, lst.size() - n), lst.size()));
+
+                    case "maxN":
+                    case "minN":
+                        // MongoDB ignores null/missing elements for $maxN/$minN
+                        lst.removeIf(Objects::isNull);
+                        lst.sort("maxN".equals(op)
+                            ? (a, b) -> compareValues(b, a)
+                            : Expr::compareValues);
+                        return new ArrayList<>(lst.subList(0, Math.min(n, lst.size())));
+
+                    default:
+                        throw new IllegalArgumentException("unknown n-operator " + op);
+                }
+            }
+        };
+    }
+
+    /**
+     * Null-safe evaluation of an optional operator parameter.
+     */
+    private static Object evalParam(Map<String, Expr> params, String key, Map<String, Object> context) {
+        Expr e = params.get(key);
+        return e == null ? null : eval(e, context);
+    }
+
+    /**
+     * Type-tolerant comparison used by $sortArray/$maxN/$minN: nulls sort lowest, numbers
+     * compare numerically across types; otherwise Comparable is used when both sides share
+     * a type, with a deterministic class-name fallback (approximating BSON type ordering).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static int compareValues(Object a, Object b) {
+        if (a == null && b == null) {
+            return 0;
+        }
+
+        if (a == null) {
+            return -1;
+        }
+
+        if (b == null) {
+            return 1;
+        }
+
+        if (a instanceof Number && b instanceof Number) {
+            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+        }
+
+        if (a instanceof Comparable && a.getClass().isInstance(b)) {
+            return ((Comparable) a).compareTo(b);
+        }
+
+        return a.getClass().getName().compareTo(b.getClass().getName());
+    }
+
+    /**
+     * Resolves a (possibly dotted) path inside a document element; used by $sortArray's
+     * field-spec form.
+     */
+    private static Object pathValue(Object doc, String path) {
+        Object cur = doc;
+
+        for (String p : path.split("\\.")) {
+            if (cur instanceof Map) {
+                cur = ((Map<?, ?>) cur).get(p);
+            } else {
+                return null;
+            }
+        }
+
+        return cur;
     }
 
     //Boolean Expression Operators
@@ -1025,8 +1368,22 @@ public abstract class Expr {
         return new OpExprNoList("binarySize", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("binarySize not implemented yet,sorry");
-                return null;
+                Object v = eval(e, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                if (v instanceof String) {
+                    // strings are measured in UTF-8 bytes, without a trailing null byte
+                    return ((String) v).getBytes(StandardCharsets.UTF_8).length;
+                }
+
+                if (v instanceof byte[]) {
+                    return ((byte[]) v).length;
+                }
+
+                throw new IllegalArgumentException("$binarySize requires a string or binData argument, got " + v.getClass().getName());
             }
         };
     }
@@ -1035,8 +1392,18 @@ public abstract class Expr {
         return new OpExprNoList("bsonSize", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("bsonSize not implemented yet,sorry");
-                return null;
+                Object v = eval(e, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                if (v instanceof Map) {
+                    //noinspection unchecked
+                    return BsonEncoder.encodeDocument((Map<String, Object>) v).length;
+                }
+
+                throw new IllegalArgumentException("$bsonSize requires a document argument, got " + v.getClass().getName());
             }
         };
     }
@@ -1414,10 +1781,413 @@ public abstract class Expr {
         return new OpExprNoList("toDate", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("toDate not implemented yet,sorry");
-                return null;
+                return toDateValue(eval(e, context), "$toDate");
             }
         };
+    }
+
+    /**
+     * Shared date coercion for $toDate and the date arithmetic operators: Date passthrough,
+     * epoch millis for numbers, ObjectId timestamp, ISO-8601 strings; null stays null.
+     */
+    private static Date toDateValue(Object val, String op) {
+        if (val == null) {
+            return null;
+        }
+
+        if (val instanceof Date) {
+            return (Date) val;
+        }
+
+        if (val instanceof Number) {
+            return new Date(((Number) val).longValue());
+        }
+
+        if (val instanceof MorphiumId) {
+            return new Date(((MorphiumId) val).getTime());
+        }
+
+        if (val instanceof ObjectId) {
+            return ((ObjectId) val).getDate();
+        }
+
+        if (val instanceof String) {
+            return parseDateString((String) val, op);
+        }
+
+        throw new IllegalArgumentException(op + ": cannot convert " + val.getClass().getName() + " to a date");
+    }
+
+    private static Date parseDateString(String s, String op) {
+        try {
+            return Date.from(Instant.parse(s));
+        } catch (Exception ignored) {
+        }
+
+        try {
+            return Date.from(OffsetDateTime.parse(s).toInstant());
+        } catch (Exception ignored) {
+        }
+
+        try {
+            // date-time without offset is interpreted as UTC, matching MongoDB's default timezone
+            return Date.from(LocalDateTime.parse(s).atZone(ZoneOffset.UTC).toInstant());
+        } catch (Exception ignored) {
+        }
+
+        try {
+            return Date.from(LocalDate.parse(s).atStartOfDay(ZoneOffset.UTC).toInstant());
+        } catch (Exception ignored) {
+        }
+
+        throw new IllegalArgumentException(op + ": cannot parse date string '" + s + "'");
+    }
+
+    public static Expr dateAdd(Expr startDate, Expr unit, Expr amount) {
+        return dateArith("dateAdd", dateArithParams(startDate, unit, amount, null), 1);
+    }
+
+    public static Expr dateAdd(Expr startDate, Expr unit, Expr amount, Expr timezone) {
+        return dateArith("dateAdd", dateArithParams(startDate, unit, amount, timezone), 1);
+    }
+
+    private static Expr dateAdd(Map m) {
+        return dateArith("dateAdd", (Map<String, Expr>) m, 1);
+    }
+
+    public static Expr dateSubtract(Expr startDate, Expr unit, Expr amount) {
+        return dateArith("dateSubtract", dateArithParams(startDate, unit, amount, null), -1);
+    }
+
+    public static Expr dateSubtract(Expr startDate, Expr unit, Expr amount, Expr timezone) {
+        return dateArith("dateSubtract", dateArithParams(startDate, unit, amount, timezone), -1);
+    }
+
+    private static Expr dateSubtract(Map m) {
+        return dateArith("dateSubtract", (Map<String, Expr>) m, -1);
+    }
+
+    private static Map<String, Expr> dateArithParams(Expr startDate, Expr unit, Expr amount, Expr timezone) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("startDate", startDate);
+        m.put("unit", unit);
+        m.put("amount", amount);
+
+        if (timezone != null) {
+            m.put("timezone", timezone);
+        }
+
+        return m;
+    }
+
+    private static Expr dateArith(String opName, Map<String, Expr> params, int sign) {
+        return new MapOpExpr(opName, params) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                String op = "$" + opName;
+                Object start = evalParam(params, "startDate", context);
+                Object unitV = evalParam(params, "unit", context);
+                Object amountV = evalParam(params, "amount", context);
+
+                if (start == null || unitV == null || amountV == null) {
+                    return null;
+                }
+
+                long amount = sign * ((Number) amountV).longValue();
+                ZoneId zone = zoneParam(params, context);
+                ZonedDateTime zdt = toDateValue(start, op).toInstant().atZone(zone);
+
+                switch (unitV.toString()) {
+                    case "year":
+                        zdt = zdt.plusYears(amount);
+                        break;
+
+                    case "quarter":
+                        zdt = zdt.plusMonths(3 * amount);
+                        break;
+
+                    case "month":
+                        zdt = zdt.plusMonths(amount);
+                        break;
+
+                    case "week":
+                        zdt = zdt.plusWeeks(amount);
+                        break;
+
+                    case "day":
+                        zdt = zdt.plusDays(amount);
+                        break;
+
+                    case "hour":
+                        zdt = zdt.plusHours(amount);
+                        break;
+
+                    case "minute":
+                        zdt = zdt.plusMinutes(amount);
+                        break;
+
+                    case "second":
+                        zdt = zdt.plusSeconds(amount);
+                        break;
+
+                    case "millisecond":
+                        zdt = zdt.plus(amount, ChronoUnit.MILLIS);
+                        break;
+
+                    default:
+                        throw new IllegalArgumentException(op + ": unknown unit '" + unitV + "'");
+                }
+
+                return Date.from(zdt.toInstant());
+            }
+        };
+    }
+
+    public static Expr dateDiff(Expr startDate, Expr endDate, Expr unit) {
+        return dateDiff(startDate, endDate, unit, null, null);
+    }
+
+    public static Expr dateDiff(Expr startDate, Expr endDate, Expr unit, Expr timezone, Expr startOfWeek) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("startDate", startDate);
+        m.put("endDate", endDate);
+        m.put("unit", unit);
+
+        if (timezone != null) {
+            m.put("timezone", timezone);
+        }
+
+        if (startOfWeek != null) {
+            m.put("startOfWeek", startOfWeek);
+        }
+
+        return dateDiff(m);
+    }
+
+    private static Expr dateDiff(Map m) {
+        @SuppressWarnings("unchecked")
+        Map<String, Expr> params = (Map<String, Expr>) m;
+        return new MapOpExpr("dateDiff", params) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object sv = evalParam(params, "startDate", context);
+                Object ev = evalParam(params, "endDate", context);
+                Object uv = evalParam(params, "unit", context);
+
+                if (sv == null || ev == null || uv == null) {
+                    return null;
+                }
+
+                String unit = uv.toString();
+                ZoneId zone = zoneParam(params, context);
+                DayOfWeek sow = startOfWeekParam(params, context);
+                // $dateDiff counts unit *boundaries crossed*, not elapsed units: truncate both
+                // ends to the unit first, then take the calendar difference.
+                ZonedDateTime s = truncDate(toDateValue(sv, "$dateDiff").toInstant().atZone(zone), unit, sow, "$dateDiff");
+                ZonedDateTime e = truncDate(toDateValue(ev, "$dateDiff").toInstant().atZone(zone), unit, sow, "$dateDiff");
+
+                switch (unit) {
+                    case "year":
+                        return (long)(e.getYear() - s.getYear());
+
+                    case "quarter":
+                        return (long)((e.getYear() * 4 + (e.getMonthValue() - 1) / 3) - (s.getYear() * 4 + (s.getMonthValue() - 1) / 3));
+
+                    case "month":
+                        return (long)((e.getYear() * 12 + e.getMonthValue()) - (s.getYear() * 12 + s.getMonthValue()));
+
+                    case "week":
+                        return ChronoUnit.DAYS.between(s, e) / 7;
+
+                    case "day":
+                        return ChronoUnit.DAYS.between(s, e);
+
+                    case "hour":
+                        return ChronoUnit.HOURS.between(s, e);
+
+                    case "minute":
+                        return ChronoUnit.MINUTES.between(s, e);
+
+                    case "second":
+                        return ChronoUnit.SECONDS.between(s, e);
+
+                    case "millisecond":
+                        return ChronoUnit.MILLIS.between(s, e);
+
+                    default:
+                        throw new IllegalArgumentException("$dateDiff: unknown unit '" + unit + "'");
+                }
+            }
+        };
+    }
+
+    public static Expr dateTrunc(Expr date, Expr unit) {
+        return dateTrunc(date, unit, null, null, null);
+    }
+
+    public static Expr dateTrunc(Expr date, Expr unit, Expr binSize, Expr timezone, Expr startOfWeek) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("date", date);
+        m.put("unit", unit);
+
+        if (binSize != null) {
+            m.put("binSize", binSize);
+        }
+
+        if (timezone != null) {
+            m.put("timezone", timezone);
+        }
+
+        if (startOfWeek != null) {
+            m.put("startOfWeek", startOfWeek);
+        }
+
+        return dateTrunc(m);
+    }
+
+    private static Expr dateTrunc(Map m) {
+        @SuppressWarnings("unchecked")
+        Map<String, Expr> params = (Map<String, Expr>) m;
+        return new MapOpExpr("dateTrunc", params) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object dv = evalParam(params, "date", context);
+                Object uv = evalParam(params, "unit", context);
+
+                if (dv == null || uv == null) {
+                    return null;
+                }
+
+                String unit = uv.toString();
+                ZoneId zone = zoneParam(params, context);
+                DayOfWeek sow = startOfWeekParam(params, context);
+                Object bsV = evalParam(params, "binSize", context);
+                long binSize = bsV == null ? 1L : ((Number) bsV).longValue();
+
+                if (binSize < 1) {
+                    throw new IllegalArgumentException("$dateTrunc: binSize must be a positive integer");
+                }
+
+                Date dateVal = toDateValue(dv, "$dateTrunc");
+
+                if (binSize == 1) {
+                    return Date.from(truncDate(dateVal.toInstant().atZone(zone), unit, sow, "$dateTrunc").toInstant());
+                }
+
+                // binSize > 1: bins are anchored at MongoDB's reference point 2000-01-01T00:00:00.
+                switch (unit) {
+                    case "year":
+                    case "quarter":
+                    case "month": {
+                        int monthsPerUnit = "year".equals(unit) ? 12 : "quarter".equals(unit) ? 3 : 1;
+                        long binMonths = binSize * monthsPerUnit;
+                        LocalDate ld = dateVal.toInstant().atZone(zone).toLocalDate();
+                        long monthsSinceRef = (ld.getYear() - 2000L) * 12 + (ld.getMonthValue() - 1);
+                        long floored = Math.floorDiv(monthsSinceRef, binMonths) * binMonths;
+                        return Date.from(LocalDate.of(2000, 1, 1).plusMonths(floored).atStartOfDay(zone).toInstant());
+                    }
+
+                    default: {
+                        long unitMs = unitMillis(unit, "$dateTrunc");
+                        LocalDate anchorDay = "week".equals(unit)
+                            ? LocalDate.of(2000, 1, 1).with(TemporalAdjusters.previousOrSame(sow))
+                            : LocalDate.of(2000, 1, 1);
+                        long anchor = anchorDay.atStartOfDay(zone).toInstant().toEpochMilli();
+                        long span = binSize * unitMs;
+                        return new Date(Math.floorDiv(dateVal.getTime() - anchor, span) * span + anchor);
+                    }
+                }
+            }
+        };
+    }
+
+    private static long unitMillis(String unit, String op) {
+        switch (unit) {
+            case "millisecond":
+                return 1L;
+
+            case "second":
+                return 1000L;
+
+            case "minute":
+                return 60_000L;
+
+            case "hour":
+                return 3_600_000L;
+
+            case "day":
+                return 86_400_000L;
+
+            case "week":
+                return 604_800_000L;
+
+            default:
+                throw new IllegalArgumentException(op + ": unknown unit '" + unit + "'");
+        }
+    }
+
+    /**
+     * Truncates to the start of the given unit; used by $dateDiff and $dateTrunc.
+     */
+    private static ZonedDateTime truncDate(ZonedDateTime zdt, String unit, DayOfWeek startOfWeek, String op) {
+        switch (unit) {
+            case "year":
+                return zdt.toLocalDate().withDayOfYear(1).atStartOfDay(zdt.getZone());
+
+            case "quarter": {
+                LocalDate ld = zdt.toLocalDate();
+                return LocalDate.of(ld.getYear(), ((ld.getMonthValue() - 1) / 3) * 3 + 1, 1).atStartOfDay(zdt.getZone());
+            }
+
+            case "month":
+                return zdt.toLocalDate().withDayOfMonth(1).atStartOfDay(zdt.getZone());
+
+            case "week":
+                return zdt.toLocalDate().with(TemporalAdjusters.previousOrSame(startOfWeek)).atStartOfDay(zdt.getZone());
+
+            case "day":
+                return zdt.truncatedTo(ChronoUnit.DAYS);
+
+            case "hour":
+                return zdt.truncatedTo(ChronoUnit.HOURS);
+
+            case "minute":
+                return zdt.truncatedTo(ChronoUnit.MINUTES);
+
+            case "second":
+                return zdt.truncatedTo(ChronoUnit.SECONDS);
+
+            case "millisecond":
+                return zdt.truncatedTo(ChronoUnit.MILLIS);
+
+            default:
+                throw new IllegalArgumentException(op + ": unknown unit '" + unit + "'");
+        }
+    }
+
+    private static ZoneId zoneParam(Map<String, Expr> params, Map<String, Object> context) {
+        // MongoDB's date operators default to UTC unless an explicit timezone is given
+        Object tz = evalParam(params, "timezone", context);
+        return tz == null ? ZoneOffset.UTC : ZoneId.of(tz.toString());
+    }
+
+    private static DayOfWeek startOfWeekParam(Map<String, Expr> params, Map<String, Object> context) {
+        Object v = evalParam(params, "startOfWeek", context);
+
+        if (v == null) {
+            // MongoDB's documented default for $dateDiff/$dateTrunc
+            return DayOfWeek.SUNDAY;
+        }
+
+        String s = v.toString().toLowerCase(Locale.ROOT);
+
+        for (DayOfWeek dow : DayOfWeek.values()) {
+            if (dow.name().toLowerCase(Locale.ROOT).startsWith(s.substring(0, Math.min(3, s.length())))) {
+                return dow;
+            }
+        }
+
+        throw new IllegalArgumentException("unknown startOfWeek '" + v + "'");
     }
 
     public static Expr week(Expr date) {
@@ -1572,8 +2342,16 @@ public abstract class Expr {
         return new OpExpr("setDifference", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                List<Object> a = setOperand(eval(e1, context), "$setDifference");
+                List<Object> b = setOperand(eval(e2, context), "$setDifference");
+
+                if (a == null || b == null) {
+                    return null;
+                }
+
+                List<Object> ret = distinctList(a);
+                ret.removeIf(v -> containsVal(b, v));
+                return ret;
             }
         };
     }
@@ -1584,8 +2362,27 @@ public abstract class Expr {
         return new OpExpr("setEquals", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                List<List<Object>> sets = new ArrayList<>();
+
+                for (Expr el : e) {
+                    List<Object> cur = setOperand(eval(el, context), "$setEquals");
+
+                    if (cur == null) {
+                        throw new IllegalArgumentException("$setEquals requires array arguments");
+                    }
+
+                    sets.add(distinctList(cur));
+                }
+
+                List<Object> first = sets.get(0);
+
+                for (List<Object> distinct : sets) {
+                    if (first.size() != distinct.size() || !distinct.stream().allMatch(v -> containsVal(first, v))) {
+                        return false;
+                    }
+                }
+
+                return true;
             }
         };
     }
@@ -1594,8 +2391,24 @@ public abstract class Expr {
         return new OpExpr("setIntersection", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                List<Object> ret = null;
+
+                for (Expr el : e) {
+                    List<Object> cur = setOperand(eval(el, context), "$setIntersection");
+
+                    if (cur == null) {
+                        return null;
+                    }
+
+                    if (ret == null) {
+                        ret = distinctList(cur);
+                    } else {
+                        List<Object> finalCur = cur;
+                        ret.removeIf(v -> !containsVal(finalCur, v));
+                    }
+                }
+
+                return ret == null ? new ArrayList<>() : ret;
             }
         };
     }
@@ -1604,8 +2417,14 @@ public abstract class Expr {
         return new OpExpr("setIsSubset", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                List<Object> a = setOperand(eval(e1, context), "$setIsSubset");
+                List<Object> b = setOperand(eval(e2, context), "$setIsSubset");
+
+                if (a == null || b == null) {
+                    throw new IllegalArgumentException("$setIsSubset requires array arguments");
+                }
+
+                return a.stream().allMatch(v -> containsVal(b, v));
             }
         };
     }
@@ -1614,16 +2433,69 @@ public abstract class Expr {
         return new OpExpr("setUnion", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                Set set = new HashSet();
+                // The old implementation added each evaluated *array* as a single set element
+                // instead of unioning the elements themselves.
+                List<Object> ret = new ArrayList<>();
 
                 for (Expr el : e) {
-                    //noinspection unchecked
-                    set.add(eval(el, context));
+                    List<Object> cur = setOperand(eval(el, context), "$setUnion");
+
+                    if (cur == null) {
+                        return null;
+                    }
+
+                    for (Object v : cur) {
+                        if (!containsVal(ret, v)) {
+                            ret.add(v);
+                        }
+                    }
                 }
 
-                return set;
+                return ret;
             }
         };
+    }
+
+    private static List<Object> setOperand(Object v, String op) {
+        if (v == null) {
+            return null;
+        }
+
+        if (v instanceof Collection) {
+            return new ArrayList<>((Collection<?>) v);
+        }
+
+        throw new IllegalArgumentException(op + " requires array arguments, got " + v.getClass().getName());
+    }
+
+    private static List<Object> distinctList(Collection<?> c) {
+        List<Object> out = new ArrayList<>();
+
+        for (Object o : c) {
+            if (!containsVal(out, o)) {
+                out.add(o);
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * Set membership with MongoDB's numeric equality: 1 and 1.0 are the same set element.
+     */
+    private static boolean containsVal(Collection<?> c, Object v) {
+        for (Object o : c) {
+            if (Objects.equals(o, v)) {
+                return true;
+            }
+
+            if (o instanceof Number && v instanceof Number
+                    && Double.compare(((Number) o).doubleValue(), ((Number) v).doubleValue()) == 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static Expr concat(Expr... e) {
@@ -1649,8 +2521,17 @@ public abstract class Expr {
         return new OpExpr("indexOfBytes", Arrays.asList(str, substr, start, end)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                return indexOfImpl("$indexOfBytes", true, Arrays.asList(str, substr, start, end), context);
+            }
+        };
+    }
+
+    private static Expr indexOfBytes(List lst) {
+        //noinspection unchecked
+        return new OpExpr("indexOfBytes", lst) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return indexOfImpl("$indexOfBytes", true, lst, context);
             }
         };
     }
@@ -1659,10 +2540,80 @@ public abstract class Expr {
         return new OpExpr("indexOfCP", Arrays.asList(str, substr, start, end)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                return indexOfImpl("$indexOfCP", false, Arrays.asList(str, substr, start, end), context);
             }
         };
+    }
+
+    private static Expr indexOfCP(List lst) {
+        //noinspection unchecked
+        return new OpExpr("indexOfCP", lst) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return indexOfImpl("$indexOfCP", false, lst, context);
+            }
+        };
+    }
+
+    /**
+     * $indexOfBytes/$indexOfCP: index of the first occurrence of a substring within an
+     * optional [start, end) range, counted in UTF-8 bytes or code points. A null string
+     * input yields null (MongoDB semantics); the match must lie entirely inside the range.
+     */
+    private static Object indexOfImpl(String op, boolean bytes, List<Expr> args, Map<String, Object> context) {
+        Object sv = args.get(0) == null ? null : eval(args.get(0), context);
+
+        if (sv == null) {
+            return null;
+        }
+
+        String s = stringArg(op, sv);
+        String sub = stringArg(op, eval(args.get(1), context));
+        int start = args.size() > 2 && args.get(2) != null ? ((Number) eval(args.get(2), context)).intValue() : 0;
+        Integer endArg = args.size() > 3 && args.get(3) != null ? ((Number) eval(args.get(3), context)).intValue() : null;
+
+        if (start < 0) {
+            throw new IllegalArgumentException(op + ": start must be non-negative");
+        }
+
+        if (bytes) {
+            byte[] b = s.getBytes(StandardCharsets.UTF_8);
+            byte[] sb = sub.getBytes(StandardCharsets.UTF_8);
+            int end = endArg == null ? b.length : Math.min(endArg, b.length);
+
+            outer:
+            for (int i = start; i + sb.length <= end; i++) {
+                for (int j = 0; j < sb.length; j++) {
+                    if (b[i + j] != sb[j]) {
+                        continue outer;
+                    }
+                }
+
+                return i;
+            }
+
+            return -1;
+        }
+
+        int n = s.codePointCount(0, s.length());
+        int subCp = sub.codePointCount(0, sub.length());
+        int end = endArg == null ? n : Math.min(endArg, n);
+
+        for (int cp = start; cp + subCp <= end; cp++) {
+            if (s.startsWith(sub, s.offsetByCodePoints(0, cp))) {
+                return cp;
+            }
+        }
+
+        return -1;
+    }
+
+    private static String stringArg(String op, Object v) {
+        if (v instanceof String) {
+            return (String) v;
+        }
+
+        throw new IllegalArgumentException(op + " requires a string argument, got " + (v == null ? "null" : v.getClass().getName()));
     }
 
     //concat
@@ -1730,8 +2681,8 @@ public abstract class Expr {
         return new OpExpr("strLenBytes", Collections.singletonList(str)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                // MongoDB errors (does not return null) when the argument is not a string
+                return stringArg("$strLenBytes", eval(str, context)).getBytes(StandardCharsets.UTF_8).length;
             }
         };
     }
@@ -1756,8 +2707,8 @@ public abstract class Expr {
         return new OpExpr("strLenCP", Collections.singletonList(str)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                String s = stringArg("$strLenCP", eval(str, context));
+                return s.codePointCount(0, s.length());
             }
         };
     }
@@ -1766,8 +2717,12 @@ public abstract class Expr {
         return new OpExpr("strcasecmp", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                // null arguments are coerced to "" like MongoDB's string comparison operators
+                Object v1 = eval(e1, context);
+                Object v2 = eval(e2, context);
+                String s1 = v1 == null ? "" : v1.toString();
+                String s2 = v2 == null ? "" : v2.toString();
+                return Integer.signum(s1.compareToIgnoreCase(s2));
             }
         };
     }
@@ -1788,8 +2743,29 @@ public abstract class Expr {
         return new OpExpr("substrBytes", Arrays.asList(str, index, count)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                String s = stringArg("$substrBytes", eval(str, context));
+                int st = ((Number) eval(index, context)).intValue();
+                int cnt = ((Number) eval(count, context)).intValue();
+
+                if (st < 0 || cnt < 0) {
+                    throw new IllegalArgumentException("$substrBytes: index and count must be non-negative");
+                }
+
+                byte[] b = s.getBytes(StandardCharsets.UTF_8);
+
+                if (st >= b.length) {
+                    return "";
+                }
+
+                int end = Math.min(b.length, st + cnt);
+
+                // UTF-8 continuation bytes are 10xxxxxx; landing on one means the range splits a
+                // multi-byte character, which MongoDB rejects
+                if ((b[st] & 0xC0) == 0x80 || (end < b.length && (b[end] & 0xC0) == 0x80)) {
+                    throw new IllegalArgumentException("$substrBytes: byte range splits a UTF-8 character");
+                }
+
+                return new String(b, st, end - st, StandardCharsets.UTF_8);
             }
         };
     }
@@ -1798,8 +2774,23 @@ public abstract class Expr {
         return new OpExpr("substrCP", Arrays.asList(str, cpIdx, cpCount)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                String s = stringArg("$substrCP", eval(str, context));
+                int st = ((Number) eval(cpIdx, context)).intValue();
+                int cnt = ((Number) eval(cpCount, context)).intValue();
+
+                if (st < 0 || cnt < 0) {
+                    throw new IllegalArgumentException("$substrCP: index and count must be non-negative");
+                }
+
+                int n = s.codePointCount(0, s.length());
+
+                if (st >= n) {
+                    return "";
+                }
+
+                int startChar = s.offsetByCodePoints(0, st);
+                int endChar = s.offsetByCodePoints(startChar, Math.min(cnt, n - st));
+                return s.substring(startChar, endChar);
             }
         };
     }
@@ -1927,11 +2918,49 @@ public abstract class Expr {
         };
     }
 
+    public static Expr sinh(Expr e) {
+        return new OpExprNoList("sinh", e) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object v = eval(e, context);
+                return v == null ? null : Math.sinh(((Number) v).doubleValue());
+            }
+        };
+    }
+
+    public static Expr cosh(Expr e) {
+        return new OpExprNoList("cosh", e) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object v = eval(e, context);
+                return v == null ? null : Math.cosh(((Number) v).doubleValue());
+            }
+        };
+    }
+
+    public static Expr tanh(Expr e) {
+        return new OpExprNoList("tanh", e) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object v = eval(e, context);
+                return v == null ? null : Math.tanh(((Number) v).doubleValue());
+            }
+        };
+    }
+
     public static Expr asinh(Expr e) {
         return new OpExprNoList("asinh", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.sinh(((Number) eval(e, context)).doubleValue());
+                Object v = eval(e, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                // inverse hyperbolic sine; the old implementation computed sinh instead
+                double x = ((Number) v).doubleValue();
+                return Math.log(x + Math.sqrt(x * x + 1));
             }
         };
     }
@@ -1940,37 +2969,78 @@ public abstract class Expr {
         return new OpExprNoList("acosh", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                Object v = eval(e, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                double x = ((Number) v).doubleValue();
+                return Math.log(x + Math.sqrt(x * x - 1));
             }
         };
     }
 
+    public static Expr atanh(Expr e) {
+        return new OpExprNoList("atanh", e) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object v = eval(e, context);
+
+                if (v == null) {
+                    return null;
+                }
+
+                double x = ((Number) v).doubleValue();
+                return 0.5 * Math.log((1 + x) / (1 - x));
+            }
+        };
+    }
+
+    /**
+     * @deprecated MongoDB's $atanh takes exactly one argument - use {@link #atanh(Expr)}.
+     */
+    @Deprecated
     public static Expr atanh(Expr e1, Expr e2) {
         return new OpExpr("atanh", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
-                return 0;
+                // Previously logged and silently returned 0, which is a valid atanh result and
+                // therefore indistinguishable from a correct answer.
+                throw new IllegalArgumentException("$atanh takes exactly one argument");
             }
         };
     }
 
     private static Expr atanh(List lst) {
+        if (lst.size() == 1) {
+            return atanh((Expr) lst.get(0));
+        }
+
         //noinspection unchecked
         return new OpExpr("atanh", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
-                return 0;
+                throw new IllegalArgumentException("$atanh takes exactly one argument");
             }
         };
     }
 
+    /**
+     * @deprecated misspelled - MongoDB's operator is $degreesToRadians; kept for source
+     * compatibility, use {@link #degreesToRadians(Expr)}.
+     */
+    @Deprecated
     public static Expr degreesToRadian(Expr e) {
-        return new OpExprNoList("degreesToRadian", e) {
+        return degreesToRadians(e);
+    }
+
+    public static Expr degreesToRadians(Expr e) {
+        return new OpExprNoList("degreesToRadians", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.toRadians(((Number) eval(e, context)).doubleValue());
+                Object v = eval(e, context);
+                return v == null ? null : Math.toRadians(((Number) v).doubleValue());
             }
         };
     }
@@ -2131,10 +3201,70 @@ public abstract class Expr {
         return new OpExprNoList("type", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return Expr.nullExpr();
+                return bsonTypeName(eval(e, context));
             }
         };
+    }
+
+    /**
+     * BSON type name as returned by MongoDB's $type expression operator. A missing field
+     * cannot be distinguished from an explicit null here, so both report "null" (the server
+     * would report "missing" for absent fields).
+     */
+    private static String bsonTypeName(Object v) {
+        if (v == null) {
+            return "null";
+        }
+
+        if (v instanceof Double || v instanceof Float) {
+            return "double";
+        }
+
+        if (v instanceof String) {
+            return "string";
+        }
+
+        if (v instanceof Map) {
+            return "object";
+        }
+
+        if (v instanceof byte[]) {
+            return "binData";
+        }
+
+        if (v instanceof List || v.getClass().isArray()) {
+            return "array";
+        }
+
+        if (v instanceof MorphiumId || v instanceof ObjectId) {
+            return "objectId";
+        }
+
+        if (v instanceof Boolean) {
+            return "bool";
+        }
+
+        if (v instanceof Date) {
+            return "date";
+        }
+
+        if (v instanceof java.util.regex.Pattern) {
+            return "regex";
+        }
+
+        if (v instanceof Integer || v instanceof Short || v instanceof Byte) {
+            return "int";
+        }
+
+        if (v instanceof Long) {
+            return "long";
+        }
+
+        if (v instanceof BigDecimal) {
+            return "decimal";
+        }
+
+        return v.getClass().getSimpleName();
     }
 
     public static Expr nullExpr() {
@@ -2150,7 +3280,9 @@ public abstract class Expr {
         return new OpExprNoList("addToSet", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                // Accumulator without a group context; returning null here silently produced
+                // wrong pipeline results. The in-memory $group stage handles $addToSet itself.
+                throw new IllegalArgumentException("$addToSet is an accumulator and only valid inside $group / $setWindowFields");
             }
         };
     }
@@ -2293,7 +3425,9 @@ public abstract class Expr {
         return new OpExprNoList("push", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                // Accumulator without a group context; returning null here silently produced
+                // wrong pipeline results. The in-memory $group stage handles $push itself.
+                throw new IllegalArgumentException("$push is an accumulator and only valid inside $group / $setWindowFields");
             }
         };
     }
@@ -2491,6 +3625,140 @@ public abstract class Expr {
         };
     }
 
+    public static Expr rand() {
+        return new MapOpExpr("rand", new LinkedHashMap<>()) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.random();
+            }
+        };
+    }
+
+    private static Expr rand(Map m) {
+        // JSON form is {$rand: {}} - the (empty) parameter document is irrelevant
+        return rand();
+    }
+
+    public static Expr sampleRate(Expr rate) {
+        return new OpExprNoList("sampleRate", rate) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                double r = ((Number) eval(rate, context)).doubleValue();
+
+                if (r < 0 || r > 1) {
+                    throw new IllegalArgumentException("$sampleRate must be between 0 and 1");
+                }
+
+                // Math.random() is in [0,1), so rate 1.0 always matches and 0.0 never does
+                return Math.random() < r;
+            }
+        };
+    }
+
+    public static Expr median(Expr input) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("input", input);
+        m.put("method", string("approximate"));
+        return median(m);
+    }
+
+    private static Expr median(Map m) {
+        @SuppressWarnings("unchecked")
+        Map<String, Expr> params = (Map<String, Expr>) m;
+        return new MapOpExpr("median", params) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List<Double> nums = numericList(evalParam(params, "input", context));
+
+                if (nums == null || nums.isEmpty()) {
+                    return null;
+                }
+
+                Collections.sort(nums);
+                return nearestRank(nums, 0.5);
+            }
+        };
+    }
+
+    public static Expr percentile(Expr input, Expr p) {
+        Map<String, Expr> m = new LinkedHashMap<>();
+        m.put("input", input);
+        m.put("p", p);
+        m.put("method", string("approximate"));
+        return percentile(m);
+    }
+
+    private static Expr percentile(Map m) {
+        @SuppressWarnings("unchecked")
+        Map<String, Expr> params = (Map<String, Expr>) m;
+        return new MapOpExpr("percentile", params) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List<Double> nums = numericList(evalParam(params, "input", context));
+                Object ps = evalParam(params, "p", context);
+
+                if (nums == null || nums.isEmpty() || ps == null) {
+                    return null;
+                }
+
+                if (!(ps instanceof List)) {
+                    throw new IllegalArgumentException("$percentile: p must be an array of numbers");
+                }
+
+                Collections.sort(nums);
+                List<Object> out = new ArrayList<>();
+
+                for (Object p : (List<?>) ps) {
+                    out.add(nearestRank(nums, ((Number) p).doubleValue()));
+                }
+
+                return out;
+            }
+        };
+    }
+
+    /**
+     * Nearest-rank percentile over a pre-sorted list; like MongoDB's 'approximate' method it
+     * always returns an actual input value (no interpolation).
+     */
+    private static Double nearestRank(List<Double> sorted, double p) {
+        int idx = (int) Math.ceil(p * sorted.size()) - 1;
+
+        if (idx < 0) {
+            idx = 0;
+        }
+
+        if (idx >= sorted.size()) {
+            idx = sorted.size() - 1;
+        }
+
+        return sorted.get(idx);
+    }
+
+    /**
+     * Numeric values of an input that may be an array, a scalar or null; non-numeric
+     * elements are ignored like in MongoDB's statistical accumulators.
+     */
+    private static List<Double> numericList(Object v) {
+        if (v == null) {
+            return null;
+        }
+
+        List<Double> out = new ArrayList<>();
+
+        if (v instanceof Collection) {
+            for (Object o : (Collection<?>) v) {
+                if (o instanceof Number) {
+                    out.add(((Number) o).doubleValue());
+                }
+            }
+        } else if (v instanceof Number) {
+            out.add(((Number) v).doubleValue());
+        }
+
+        return out;
+    }
+
     public static Expr let(Map<String, Expr> vars, Expr in) {
         return new ValueExpr() {
             @Override
@@ -2589,6 +3857,13 @@ public abstract class Expr {
                 // MongoDB has no separate $isoDateFromParts operator - the ISO variant is the same
                 // $dateFromParts distinguished by its isoWeekYear/isoWeek/isoDayOfWeek field names.
                 return evaluateDateFromParts(context, params.containsKey("isoWeekYear"));
+            }
+
+            if ("$function".equals(operation) || "$accumulator".equals(operation)) {
+                // Inheriting ValueExpr.evaluate() would silently return the operator's own JSON
+                // shape; running the code would need a server-side JavaScript engine (#255).
+                throw new UnsupportedOperationException(operation
+                    + " is not supported by the in-memory expression engine: it requires a server-side JavaScript engine");
             }
 
             return super.evaluate(context);
