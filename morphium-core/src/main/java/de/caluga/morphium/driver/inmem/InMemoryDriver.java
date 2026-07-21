@@ -1929,6 +1929,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 collation = (Map<String, Object>) update.get("collation");
             }
 
+            // arrayFilters arrive per update-statement on the wire; thread them through to the
+            // update loop so $[<identifier>] paths can be resolved (issue #256)
+            List<Map<String, Object>> arrayFilters = null;
+            if (update.get("arrayFilters") instanceof List) {
+                arrayFilters = (List<Map<String, Object>>) update.get("arrayFilters");
+            }
+
             // Debug type checking
             Object queryObj = update.get("q");
             Object updateObj = update.get("u");
@@ -1942,7 +1949,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) queryObj, null,
-                             (Map<String, Object>) updateObj, multi, upsert, collation, cmd.getWriteConcern());
+                             (Map<String, Object>) updateObj, multi, upsert, collation, cmd.getWriteConcern(),
+                             arrayFilters);
 
             // accumulate matched and modified
             Object m = res.get("n");
@@ -5839,6 +5847,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort,
                                       Map<String, Object> op, boolean multiple, boolean upsert,
                                       Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
+        return update(db, collection, query, sort, op, multiple, upsert, collation, wc, null);
+    }
+
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort,
+                                      Map<String, Object> op, boolean multiple, boolean upsert,
+                                      Map<String, Object> collation, Map<String, Object> wc,
+                                      List<Map<String, Object>> arrayFilters) throws MorphiumDriverException {
         // Acquire write lock for this collection to block all reads and other writes
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
@@ -5847,7 +5862,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         try {
             markCollectionTouched(db, collection);
             result = updateInternal(db, collection, query, sort, op, multiple, upsert, collation, wc,
-                                    pendingNotifications);
+                                    arrayFilters, query, pendingNotifications);
         } finally {
             lock.writeLock().unlock();
         }
@@ -6033,41 +6048,80 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             if (entry.getKey().contains(".")) {
                 String[] path = entry.getKey().split("\\.");
-                var current = obj;
+                Object current = obj;
                 boolean pathError = false;
 
-                // Navigate to parent, creating intermediate documents as needed
+                // Navigate to parent, creating intermediate documents as needed. Containers may
+                // be documents or arrays: numeric segments index into arrays (needed for the
+                // concrete paths produced by positional-operator resolution, e.g. "items.2.qty").
                 for (int i = 0; i < path.length - 1; i++) {
                     String p = path[i];
-                    Object existing = current.get(p);
-                    if (existing != null) {
-                        if (existing instanceof Map) {
-                            current = (Map) existing;
-                        } else {
-                            // Type mismatch - cannot create field in non-document
-                            String errorMsg = String.format(
-                                                              "Cannot create field '%s' in element {%s: %s}",
-                                                              path[i + 1], p, existing);
-                            log.error(errorMsg);
-                            writeErrors.add(Doc.of(
-                                                            "index", 0,
-                                                            "code", 28,
-                                                            "errmsg", errorMsg
-                                            ));
-                            pathError = true;
-                            break;
+                    Object existing;
+
+                    if (current instanceof Map) {
+                        existing = ((Map) current).get(p);
+
+                        if (existing == null) {
+                            existing = Doc.of();
+                            ((Map) current).put(p, existing);
+                        }
+                    } else if (current instanceof List && isArrayIndex(p)) {
+                        List l = (List) current;
+                        int idx = Integer.parseInt(p);
+
+                        // MongoDB pads arrays with nulls when setting beyond the current end
+                        while (l.size() <= idx) {
+                            l.add(null);
+                        }
+
+                        existing = l.get(idx);
+
+                        if (existing == null) {
+                            existing = Doc.of();
+                            l.set(idx, existing);
                         }
                     } else {
-                        // Create intermediate document
-                        Map<String, Object> newDoc = Doc.of();
-                        current.put(p, newDoc);
-                        current = newDoc;
+                        existing = null;
+                    }
+
+                    if (existing instanceof Map || existing instanceof List) {
+                        current = existing;
+                    } else {
+                        // Type mismatch - cannot create field in non-document
+                        String errorMsg = String.format(
+                                                          "Cannot create field '%s' in element {%s: %s}",
+                                                          path[i + 1], p, existing);
+                        log.error(errorMsg);
+                        writeErrors.add(Doc.of(
+                                                        "index", 0,
+                                                        "code", 28,
+                                                        "errmsg", errorMsg
+                                        ));
+                        pathError = true;
+                        break;
                     }
                 }
 
                 if (!pathError) {
                     // Set the final field
-                    current.put(path[path.length - 1], v);
+                    String leaf = path[path.length - 1];
+
+                    if (current instanceof Map) {
+                        ((Map) current).put(leaf, v);
+                    } else if (current instanceof List && isArrayIndex(leaf)) {
+                        List l = (List) current;
+                        int idx = Integer.parseInt(leaf);
+
+                        while (l.size() <= idx) {
+                            l.add(null);
+                        }
+
+                        l.set(idx, v);
+                    } else {
+                        String errorMsg = String.format("Cannot set field '%s' in element of type %s", leaf,
+                                                        current == null ? "null" : current.getClass().getSimpleName());
+                        writeErrors.add(Doc.of("index", 0, "code", 28, "errmsg", errorMsg));
+                    }
                 }
             } else {
                 obj.put(entry.getKey(), v);
@@ -6221,10 +6275,498 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return true;
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Positional update-path support ($, $[], $[<identifier>] + arrayFilters) — issue #256
+    // ------------------------------------------------------------------------------------------
+
+    private static boolean isPositionalSegment(String s) {
+        return "$".equals(s) || (s.startsWith("$[") && s.endsWith("]"));
+    }
+
+    private static boolean hasPositionalSegment(String key) {
+        if (key.indexOf('$') < 0) {
+            return false;
+        }
+
+        for (String s : key.split("\\.")) {
+            if (isPositionalSegment(s)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Path lookup that, unlike {@link #getByPath}, descends into arrays via numeric segments.
+     * Used only by the update path: the query/projection paths have their own (deliberately
+     * unchanged) traversal semantics.
+     */
+    @SuppressWarnings("rawtypes")
+    private Object getByPathArrayAware(Map<String, Object> doc, String path) {
+        Object cur = doc;
+
+        for (String p : path.split("\\.")) {
+            if (cur instanceof Map) {
+                cur = ((Map) cur).get(p);
+            } else if (cur instanceof List && isArrayIndex(p)) {
+                List l = (List) cur;
+                int idx = Integer.parseInt(p);
+                cur = idx < l.size() ? l.get(idx) : null;
+            } else {
+                return null;
+            }
+
+            if (cur == null) {
+                return null;
+            }
+        }
+
+        return cur;
+    }
+
+    /**
+     * Path write that descends into arrays via numeric segments (padding with nulls like
+     * MongoDB) and creates intermediate documents where the path does not exist yet.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void setByPathArrayAware(Map<String, Object> target, String path, Object value) {
+        String[] parts = path.split("\\.");
+        Object cur = target;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            String p = parts[i];
+
+            if (cur instanceof Map) {
+                Map m = (Map) cur;
+                Object n = m.get(p);
+
+                if (!(n instanceof Map) && !(n instanceof List)) {
+                    n = new HashMap<>();
+                    m.put(p, n);
+                }
+
+                cur = n;
+            } else if (cur instanceof List && isArrayIndex(p)) {
+                List l = (List) cur;
+                int idx = Integer.parseInt(p);
+
+                while (l.size() <= idx) {
+                    l.add(null);
+                }
+
+                Object n = l.get(idx);
+
+                if (!(n instanceof Map) && !(n instanceof List)) {
+                    n = new HashMap<>();
+                    l.set(idx, n);
+                }
+
+                cur = n;
+            } else {
+                // cannot navigate — resolved positional paths are always valid, so this only
+                // happens for malformed literal paths; mirror setByPath's silent tolerance
+                return;
+            }
+        }
+
+        String leaf = parts[parts.length - 1];
+
+        if (cur instanceof Map) {
+            ((Map) cur).put(leaf, value);
+        } else if (cur instanceof List && isArrayIndex(leaf)) {
+            List l = (List) cur;
+            int idx = Integer.parseInt(leaf);
+
+            while (l.size() <= idx) {
+                l.add(null);
+            }
+
+            l.set(idx, value);
+        }
+    }
+
+    /**
+     * Field access for update operators: plain keys stay plain map lookups; a literal dotted
+     * key that exists in the document keeps its legacy meaning; otherwise the key is treated
+     * as a (possibly array-indexed) path, matching MongoDB.
+     */
+    private Object readPathValue(Map<String, Object> obj, String key) {
+        if (key.indexOf('.') < 0 || obj.containsKey(key)) {
+            return obj.get(key);
+        }
+
+        return getByPathArrayAware(obj, key);
+    }
+
+    private void writePathValue(Map<String, Object> obj, String key, Object value) {
+        if (key.indexOf('.') < 0 || obj.containsKey(key)) {
+            obj.put(key, value);
+            return;
+        }
+
+        setByPathArrayAware(obj, key, value);
+    }
+
+    /**
+     * Indexes arrayFilters by their identifier (the top-level field-name prefix). Validates
+     * MongoDB's parse-time constraints: every filter needs exactly one identifier, and no two
+     * filters may share one.
+     */
+    private Map<String, Map<String, Object>> parseArrayFilters(List<Map<String, Object>> arrayFilters)
+    throws MorphiumDriverException {
+        if (arrayFilters == null || arrayFilters.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Map<String, Object>> byId = new LinkedHashMap<>();
+
+        for (Map<String, Object> filter : arrayFilters) {
+            Set<String> ids = new LinkedHashSet<>();
+            collectFilterIdentifiers(filter, ids);
+
+            if (ids.isEmpty()) {
+                throw new MorphiumDriverException(
+                                "Cannot use an expression without a top-level field name in arrayFilters");
+            }
+
+            if (ids.size() > 1) {
+                throw new MorphiumDriverException(
+                                "Error parsing array filter: Expected a single top-level field name, found " + ids);
+            }
+
+            String id = ids.iterator().next();
+
+            if (byId.put(id, filter) != null) {
+                throw new MorphiumDriverException(
+                                "Found multiple array filters with the same top-level field name '" + id + "'");
+            }
+        }
+
+        return byId;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectFilterIdentifiers(Map<String, Object> filter, Set<String> ids) {
+        for (Map.Entry<String, Object> e : filter.entrySet()) {
+            String k = e.getKey();
+
+            if (k.startsWith("$")) {
+                // logical operators ($and/$or/$nor) wrap sub-filters that carry the identifier
+                if (e.getValue() instanceof List) {
+                    for (Object branch : (List<Object>) e.getValue()) {
+                        if (branch instanceof Map) {
+                            collectFilterIdentifiers((Map<String, Object>) branch, ids);
+                        }
+                    }
+                }
+            } else {
+                int dot = k.indexOf('.');
+                ids.add(dot < 0 ? k : k.substring(0, dot));
+            }
+        }
+    }
+
+    /** Evaluates one arrayFilters filter document against a single array element. */
+    @SuppressWarnings("unchecked")
+    private boolean matchesArrayFilter(Map<String, Object> filter, String id, Object elem)
+    throws MorphiumDriverException {
+        for (Map.Entry<String, Object> e : filter.entrySet()) {
+            String k = e.getKey();
+
+            if ("$and".equals(k)) {
+                for (Object branch : (List<Object>) e.getValue()) {
+                    if (!matchesArrayFilter((Map<String, Object>) branch, id, elem)) {
+                        return false;
+                    }
+                }
+            } else if ("$or".equals(k)) {
+                boolean any = false;
+
+                for (Object branch : (List<Object>) e.getValue()) {
+                    if (matchesArrayFilter((Map<String, Object>) branch, id, elem)) {
+                        any = true;
+                        break;
+                    }
+                }
+
+                if (!any) {
+                    return false;
+                }
+            } else if ("$nor".equals(k)) {
+                for (Object branch : (List<Object>) e.getValue()) {
+                    if (matchesArrayFilter((Map<String, Object>) branch, id, elem)) {
+                        return false;
+                    }
+                }
+            } else if (k.equals(id)) {
+                // condition on the array element itself
+                if (!QueryHelper.matchesQuery(Doc.of("v", e.getValue()), Doc.of("v", elem), null)) {
+                    return false;
+                }
+            } else if (k.startsWith(id + ".")) {
+                // condition on a sub-field of the (document-valued) array element
+                String sub = k.substring(id.length() + 1);
+
+                if (!(elem instanceof Map)
+                        || !QueryHelper.matchesQuery(Doc.of(sub, e.getValue()), (Map<String, Object>) elem, null)) {
+                    return false;
+                }
+            } else {
+                throw new MorphiumDriverException(
+                                "Unexpected field '" + k + "' in array filter for identifier '" + id + "'");
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Determines the array index the positional operator {@code $} refers to: the first element
+     * matching the query's predicate(s) on the array field. MongoDB derives this from the query
+     * match; we re-evaluate the array-related predicates per element, which is equivalent for
+     * top-level and $and-nested predicates.
+     */
+    @SuppressWarnings("rawtypes")
+    private int findPositionalMatchIndex(Map<String, Object> query, String arrayPath, List arr)
+    throws MorphiumDriverException {
+        List<Map.Entry<String, Object>> predicates = new ArrayList<>();
+        collectArrayPredicates(query, arrayPath, predicates);
+
+        if (predicates.isEmpty()) {
+            throw new MorphiumDriverException(
+                            "The positional operator did not find the match needed from the query (no predicate on '"
+                            + arrayPath + "')");
+        }
+
+        for (int i = 0; i < arr.size(); i++) {
+            boolean all = true;
+
+            for (Map.Entry<String, Object> pred : predicates) {
+                if (!predicateMatchesElement(pred.getKey(), pred.getValue(), arrayPath, arr.get(i))) {
+                    all = false;
+                    break;
+                }
+            }
+
+            if (all) {
+                return i;
+            }
+        }
+
+        throw new MorphiumDriverException("The positional operator did not find the match needed from the query");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectArrayPredicates(Map<String, Object> query, String arrayPath,
+                                        List<Map.Entry<String, Object>> out) {
+        if (query == null) {
+            return;
+        }
+
+        for (Map.Entry<String, Object> e : query.entrySet()) {
+            String k = e.getKey();
+
+            if ("$and".equals(k) && e.getValue() instanceof List) {
+                for (Object branch : (List<Object>) e.getValue()) {
+                    if (branch instanceof Map) {
+                        collectArrayPredicates((Map<String, Object>) branch, arrayPath, out);
+                    }
+                }
+            } else if (k.equals(arrayPath) || k.startsWith(arrayPath + ".")) {
+                out.add(e);
+            }
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private boolean predicateMatchesElement(String qKey, Object qVal, String arrayPath, Object elem) {
+        if (qKey.equals(arrayPath)) {
+            if (qVal instanceof Map && ((Map) qVal).containsKey("$elemMatch")) {
+                Map<String, Object> em = (Map<String, Object>) ((Map) qVal).get("$elemMatch");
+                boolean allOperators = em.keySet().stream().allMatch(k -> k.startsWith("$"));
+
+                if (allOperators) {
+                    // {arr: {$elemMatch: {$gt: 5}}} — conditions on the element value itself
+                    return QueryHelper.matchesQuery(Doc.of("v", em), Doc.of("v", elem), null);
+                }
+
+                return elem instanceof Map && QueryHelper.matchesQuery(em, (Map<String, Object>) elem, null);
+            }
+
+            return QueryHelper.matchesQuery(Doc.of("v", qVal), Doc.of("v", elem), null);
+        }
+
+        // predicate on a sub-field of the (document-valued) element, e.g. {"items.name": "b"}
+        String sub = qKey.substring(arrayPath.length() + 1);
+        return elem instanceof Map && QueryHelper.matchesQuery(Doc.of(sub, qVal), (Map<String, Object>) elem, null);
+    }
+
+    /**
+     * Rewrites all positional field paths of an update-operator document into concrete numeric
+     * paths for one specific document (e.g. {@code items.$[it].qty} → {@code items.0.qty},
+     * {@code items.2.qty}). Non-positional keys are passed through untouched. A filtered
+     * positional segment matching no element simply expands to nothing (MongoDB no-op).
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolvePositionalPaths(Map<String, Object> op, Map<String, Object> doc,
+            Map<String, Object> query, Map<String, Map<String, Object>> filtersById) throws MorphiumDriverException {
+        Map<String, Object> resolved = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Object> opEntry : op.entrySet()) {
+            if (!(opEntry.getValue() instanceof Map)) {
+                resolved.put(opEntry.getKey(), opEntry.getValue());
+                continue;
+            }
+
+            Map<String, Object> cmd = (Map<String, Object>) opEntry.getValue();
+            Map<String, Object> newCmd = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Object> e : cmd.entrySet()) {
+                String key = e.getKey();
+                boolean keyPositional = hasPositionalSegment(key);
+                // $rename values are field names too and MongoDB forbids dynamic ones
+                boolean valuePositional = "$rename".equals(opEntry.getKey())
+                                          && e.getValue() instanceof String
+                                          && hasPositionalSegment((String) e.getValue());
+
+                if (!keyPositional && !valuePositional) {
+                    newCmd.put(key, e.getValue());
+                    continue;
+                }
+
+                if ("$rename".equals(opEntry.getKey())) {
+                    throw new MorphiumDriverException(
+                                    "The source and target field for $rename must not be dynamic: " + key);
+                }
+
+                for (String concrete : expandPositionalKey(doc, key, query, filtersById)) {
+                    newCmd.put(concrete, e.getValue());
+                }
+            }
+
+            resolved.put(opEntry.getKey(), newCmd);
+        }
+
+        return resolved;
+    }
+
+    /**
+     * Expands one positional field path against a concrete document. {@code $} resolves to the
+     * first query-matched element, {@code $[]} to all elements, {@code $[id]} to the elements
+     * matching the corresponding array filter. Positional segments require the array to exist —
+     * like MongoDB, a missing or non-array value is an error, never a silent no-op.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private List<String> expandPositionalKey(Map<String, Object> doc, String key, Map<String, Object> query,
+            Map<String, Map<String, Object>> filtersById) throws MorphiumDriverException {
+        String[] parts = key.split("\\.");
+        List<String> paths = new ArrayList<>();
+        List<Object> values = new ArrayList<>();
+        paths.add("");
+        values.add(doc);
+
+        for (String p : parts) {
+            List<String> nextPaths = new ArrayList<>();
+            List<Object> nextValues = new ArrayList<>();
+
+            for (int c = 0; c < paths.size(); c++) {
+                String pathSoFar = paths.get(c);
+                Object cur = values.get(c);
+                String prefix = pathSoFar.isEmpty() ? "" : pathSoFar + ".";
+
+                if ("$".equals(p)) {
+                    if (!(cur instanceof List)) {
+                        throw pathMustExist(pathSoFar.isEmpty() ? key : pathSoFar);
+                    }
+
+                    List l = (List) cur;
+                    int idx = findPositionalMatchIndex(query, pathSoFar, l);
+                    nextPaths.add(prefix + idx);
+                    nextValues.add(l.get(idx));
+                } else if ("$[]".equals(p)) {
+                    if (!(cur instanceof List)) {
+                        throw pathMustExist(pathSoFar.isEmpty() ? key : pathSoFar);
+                    }
+
+                    List l = (List) cur;
+
+                    for (int i = 0; i < l.size(); i++) {
+                        nextPaths.add(prefix + i);
+                        nextValues.add(l.get(i));
+                    }
+                } else if (p.startsWith("$[") && p.endsWith("]")) {
+                    String id = p.substring(2, p.length() - 1);
+                    Map<String, Object> filter = filtersById.get(id);
+
+                    if (filter == null) {
+                        // normally caught by the up-front validation; kept as a safety net
+                        throw new MorphiumDriverException(
+                                        "No array filter found for identifier '" + id + "' in path '" + key + "'");
+                    }
+
+                    if (!(cur instanceof List)) {
+                        throw pathMustExist(pathSoFar.isEmpty() ? key : pathSoFar);
+                    }
+
+                    List l = (List) cur;
+
+                    for (int i = 0; i < l.size(); i++) {
+                        if (matchesArrayFilter(filter, id, l.get(i))) {
+                            nextPaths.add(prefix + i);
+                            nextValues.add(l.get(i));
+                        }
+                    }
+                } else {
+                    Object next = null;
+
+                    if (cur instanceof Map) {
+                        next = ((Map) cur).get(p);
+                    } else if (cur instanceof List && isArrayIndex(p)) {
+                        List l = (List) cur;
+                        int idx = Integer.parseInt(p);
+                        next = idx < l.size() ? l.get(idx) : null;
+                    }
+
+                    nextPaths.add(prefix + p);
+                    nextValues.add(next);
+                }
+            }
+
+            paths = nextPaths;
+            values = nextValues;
+        }
+
+        return paths;
+    }
+
+    private MorphiumDriverException pathMustExist(String path) {
+        return new MorphiumDriverException(
+                       "The path '" + path + "' must exist in the document in order to apply array updates");
+    }
+
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query,
             Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
             Map<String, Object> collation, Map<String, Object> wc, List<PendingNotification> pendingNotifications)
+    throws MorphiumDriverException {
+        return updateInternal(db, collection, query, sort, op, multiple, upsert, collation, wc, null, query,
+                              pendingNotifications);
+    }
+
+    /**
+     * @param arrayFilters    the update statement's arrayFilters (may be null) — needed to resolve
+     *                        {@code $[<identifier>]} path segments
+     * @param positionalQuery the query used to resolve the positional operator {@code $}. Usually
+     *                        identical to {@code query}, but findAndOneAndUpdate pins {@code query}
+     *                        to the matched _id and must pass the caller's original filter here,
+     *                        because {@code $} is defined by the array predicate of the original query.
+     */
+    @SuppressWarnings({"ConstantConditions", "unchecked"})
+    private Map<String, Object> updateInternal(String db, String collection, Map<String, Object> query,
+            Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
+            Map<String, Object> collation, Map<String, Object> wc, List<Map<String, Object>> arrayFilters,
+            Map<String, Object> positionalQuery, List<PendingNotification> pendingNotifications)
     throws MorphiumDriverException {
         // This method is called with the write lock already held (either by update() or
         // findAndOneAndUpdate())
@@ -6278,6 +6820,46 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // the per-document isReplacement check below.
             Set<String> touchedTopLevelKeys = (needsFullBeforeImage || isReplacement) ? null
                                               : collectTouchedTopLevelKeys(op);
+
+            // Validate positional-path usage and arrayFilters up front, before any document is
+            // touched — MongoDB rejects these at parse time, even when no document matches.
+            boolean updateHasPositional = false;
+            Map<String, Map<String, Object>> filtersById = Map.of();
+            if (isReplacement) {
+                if (arrayFilters != null && !arrayFilters.isEmpty()) {
+                    throw new MorphiumDriverException("arrayFilters may not be specified for replacement-style updates");
+                }
+            } else {
+                Set<String> usedFilterIds = new LinkedHashSet<>();
+                for (Object opCmd : op.values()) {
+                    if (!(opCmd instanceof Map)) {
+                        continue;
+                    }
+                    for (Object k : ((Map<String, Object>) opCmd).keySet()) {
+                        for (String seg : ((String) k).split("\\.")) {
+                            if ("$".equals(seg) || "$[]".equals(seg)) {
+                                updateHasPositional = true;
+                            } else if (seg.startsWith("$[") && seg.endsWith("]")) {
+                                updateHasPositional = true;
+                                usedFilterIds.add(seg.substring(2, seg.length() - 1));
+                            }
+                        }
+                    }
+                }
+                filtersById = parseArrayFilters(arrayFilters);
+                for (String id : usedFilterIds) {
+                    if (!filtersById.containsKey(id)) {
+                        throw new MorphiumDriverException(
+                                        "No array filter found for identifier '" + id + "' in the update");
+                    }
+                }
+                for (String id : filtersById.keySet()) {
+                    if (!usedFilterIds.contains(id)) {
+                        throw new MorphiumDriverException(
+                                        "The array filter for identifier '" + id + "' was not used in the update");
+                    }
+                }
+            }
 
             for (Map<String, Object> obj : lst) {
                 // keep a before-image to detect if the object actually changed, to hand to
@@ -6342,9 +6924,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     continue;  // Skip to next document, no need to process as update operators
                 }
 
-                for (String operand : op.keySet()) {
+                // Positional segments ($, $[], $[id]) depend on the individual document's array
+                // contents, so they are rewritten to concrete numeric paths per document before
+                // the operator dispatch runs.
+                Map<String, Object> docOp = updateHasPositional
+                                            ? resolvePositionalPaths(op, obj, positionalQuery, filtersById)
+                                            : op;
+
+                for (String operand : docOp.keySet()) {
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
+                    Map<String, Object> cmd = (Map<String, Object>) docOp.get(operand);
+
+                    // A filtered positional path matching no array element expands to nothing —
+                    // MongoDB treats that as a successful no-op, not an error.
+                    if (cmd != null && cmd.isEmpty()) {
+                        continue;
+                    }
 
                     switch (operand) {
                         case "$set":
@@ -6380,7 +6975,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                             // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                Object value = obj.get(entry.getKey());
+                                Object value = readPathValue(obj, entry.getKey());
 
                                 if (value == null)
                                     value = 0;
@@ -6427,15 +7022,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     }
                                 }
 
-                                Object currentValue = obj.get(entry.getKey());
+                                Object currentValue = readPathValue(obj, entry.getKey());
                                 if (!Objects.equals(currentValue, value)) {
                                     modified.add(obj.get("_id"));
                                 }
 
                                 if (value != null) {
-                                    obj.put(entry.getKey(), value);
+                                    writePathValue(obj, entry.getKey(), value);
                                 } else {
-                                    obj.remove(entry.getKey());
+                                    unsetField(obj, entry.getKey());
                                 }
                             }
 
@@ -6447,9 +7042,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             // Previously only cmd.keySet().toArray()[0] was written, so every field
                             // beyond the first was silently dropped (#249). Note: {$type:"timestamp"}
                             // is accepted but stored as a java.util.Date - the in-memory driver has no
-                            // distinct BSON Timestamp representation.
+                            // distinct BSON Timestamp representation. writePathValue (not setByPath) so
+                            // concrete numeric paths from positional resolution descend into arrays.
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                setByPath(obj, entry.getKey(), new Date());
+                                writePathValue(obj, entry.getKey(), new Date());
                                 modified.add(obj.get("_id"));
                             }
 
@@ -6459,14 +7055,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                             // $mul: { <field1>: <number1>, ... }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                Object value = obj.get(entry.getKey());
+                                Object value = readPathValue(obj, entry.getKey());
 
                                 if (value == null) {
                                     // MongoDB creates a missing $mul target as 0 rather than treating
                                     // the whole operation as a no-op (#249). Written directly (not via
                                     // the multiply branches below) so a non-Integer multiplier cannot
                                     // provoke a cast mismatch.
-                                    obj.put(entry.getKey(), 0);
+                                    writePathValue(obj, entry.getKey(), 0);
                                     modified.add(obj.get("_id"));
                                     continue;
                                 }
@@ -6481,15 +7077,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     value = (Long) value * ((Long) entry.getValue());
                                 }
 
-                                Object currentValue = obj.get(entry.getKey());
+                                Object currentValue = readPathValue(obj, entry.getKey());
                                 if (!Objects.equals(currentValue, value)) {
                                     modified.add(obj.get("_id"));
                                 }
 
                                 if (value != null) {
-                                    obj.put(entry.getKey(), value);
+                                    writePathValue(obj, entry.getKey(), value);
                                 } else {
-                                    obj.remove(entry.getKey());
+                                    unsetField(obj, entry.getKey());
                                 }
                             }
 
@@ -6526,12 +7122,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     continue;
                                 }
 
-                                Comparable value = (Comparable) obj.get(entry.getKey());
+                                Comparable value = (Comparable) readPathValue(obj, entry.getKey());
 
                                 // An absent field is seeded with the incoming value (MongoDB semantics);
                                 // the old code called compareTo on null and threw an NPE (#249).
                                 if (value == null) {
-                                    obj.put(entry.getKey(), entry.getValue());
+                                    writePathValue(obj, entry.getKey(), entry.getValue());
                                     modified.add(obj.get("_id"));
                                     continue;
                                 }
@@ -6539,7 +7135,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 // noinspection unchecked
                                 if (value.compareTo(entry.getValue()) > 0) {
                                     modified.add(obj.get("_id"));
-                                    obj.put(entry.getKey(), entry.getValue());
+                                    writePathValue(obj, entry.getKey(), entry.getValue());
                                 }
                             }
 
@@ -6553,18 +7149,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     continue;
                                 }
 
-                                Comparable value = (Comparable) obj.get(entry.getKey());
+                                Comparable value = (Comparable) readPathValue(obj, entry.getKey());
 
                                 // Absent field: seed with the incoming value instead of NPE'ing (#249).
                                 if (value == null) {
-                                    obj.put(entry.getKey(), entry.getValue());
+                                    writePathValue(obj, entry.getKey(), entry.getValue());
                                     modified.add(obj.get("_id"));
                                     continue;
                                 }
 
                                 // noinspection unchecked
                                 if (value.compareTo(entry.getValue()) < 0) {
-                                    obj.put(entry.getKey(), entry.getValue());
+                                    writePathValue(obj, entry.getKey(), entry.getValue());
                                     modified.add(obj.get("_id"));
                                 }
                             }
@@ -6580,7 +7176,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
                             // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                Object rawArray = obj.get(entry.getKey());
+                                Object rawArray = readPathValue(obj, entry.getKey());
 
                                 if (!(rawArray instanceof List)) {
                                     // Nothing to pull from (absent or non-array field) - the old code
@@ -6602,7 +7198,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     elemMatchCriteria = (Map<String, Object>) ((Map<?, ?>) condition).get("$elemMatch");
                                 }
 
-                                Map<String, Object> subquery = Doc.of(entry.getKey(), condition);
+                                // dotted keys (e.g. positional-resolved "items.0.tags") cannot serve as
+                                // the synthetic field name — QueryHelper would interpret the dots as a
+                                // path into the synthetic doc
+                                String matchField = entry.getKey().indexOf('.') < 0 ? entry.getKey() : "v";
+                                Map<String, Object> subquery = Doc.of(matchField, condition);
                                 List filteredValues = new ArrayList();
 
                                 for (Object value : values) {
@@ -6612,7 +7212,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         matches = value instanceof Map
                                                   && QueryHelper.matchesQuery(elemMatchCriteria, (Map<String, Object>) value, null);
                                     } else {
-                                        matches = QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null);
+                                        matches = QueryHelper.matchesQuery(subquery, Doc.of(matchField, value), null);
                                     }
 
                                     if (!matches) {
@@ -6627,7 +7227,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     modified.add(obj.get("_id"));
                                 }
 
-                                obj.put(entry.getKey(), filteredValues);
+                                writePathValue(obj, entry.getKey(), filteredValues);
                             }
 
                             break;
@@ -6638,7 +7238,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             // Examples:
                             // $pullAll: { scores: [ 0, 5 ] }
                             for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                List v = new ArrayList((List) obj.get(entry.getKey()));
+                                Object rawList = readPathValue(obj, entry.getKey());
+
+                                if (rawList == null) {
+                                    // missing field: $pullAll is a no-op in MongoDB
+                                    continue;
+                                }
+
+                                List v = new ArrayList((List) rawList);
                                 List objectsToBeDeleted = (List) entry.getValue();
                                 boolean valueIsChanged = objectsToBeDeleted.stream()
                                                          .anyMatch(object -> v.contains(object));
@@ -6648,7 +7255,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 }
 
                                 v.removeAll(objectsToBeDeleted);
-                                obj.put(entry.getKey(), v);
+                                writePathValue(obj, entry.getKey(), v);
                             }
 
                             break;
@@ -6665,7 +7272,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 Object existing;
 
                                 if (field.contains(".")) {
-                                    existing = getByPath(obj, field);
+                                    existing = getByPathArrayAware(obj, field);
                                 } else {
                                     existing = obj.get(field);
                                 }
@@ -6685,7 +7292,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         }
                                         // Update the document with the modified list
                                         if (field.contains(".")) {
-                                            setByPath(obj, field, v);
+                                            setByPathArrayAware(obj, field, v);
                                         } else {
                                             obj.put(field, v);
                                         }
@@ -6712,11 +7319,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 boolean created = false;
 
                                 if (field.contains(".")) {
-                                    Object existing = getByPath(obj, field);
+                                    Object existing = getByPathArrayAware(obj, field);
 
                                     if (existing == null) {
                                         v = new ArrayList<>();
-                                        setByPath(obj, field, v);
+                                        setByPathArrayAware(obj, field, v);
                                         created = true;
                                     } else if (existing instanceof List) {
                                         v = (List) existing;
@@ -6819,6 +7426,81 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 if (changed) {
                                     modified.add(obj.get("_id"));
                                 }
+                            }
+
+                            break;
+
+                        case "$bit":
+
+                            // $bit: { <field>: { <and|or|xor>: <int|long> } }
+                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                String field = entry.getKey();
+
+                                if (!(entry.getValue() instanceof Map)) {
+                                    throw new MorphiumDriverException(
+                                                    "The $bit modifier requires an embedded document: {$bit: {field: {and/or/xor: #}}}");
+                                }
+
+                                Map<String, Object> spec = (Map<String, Object>) entry.getValue();
+
+                                if (spec.isEmpty()) {
+                                    throw new MorphiumDriverException(
+                                                    "You must pass in at least one bit operation to $bit");
+                                }
+
+                                Object current = readPathValue(obj, field);
+
+                                // MongoDB treats a missing field as int 0 and creates it
+                                if (current == null) {
+                                    current = 0;
+                                }
+
+                                if (!(current instanceof Integer) && !(current instanceof Long)) {
+                                    throw new MorphiumDriverException(
+                                                    "Cannot apply $bit to a value of non-integral type: field '" + field + "'");
+                                }
+
+                                for (Map.Entry<String, Object> bitOp : spec.entrySet()) {
+                                    Object operandVal = bitOp.getValue();
+
+                                    if (!(operandVal instanceof Integer) && !(operandVal instanceof Long)) {
+                                        throw new MorphiumDriverException(
+                                                        "The $bit modifier field must be an Integer(32/64 bit integer)");
+                                    }
+
+                                    // any long involved (field or operand) promotes the result to long
+                                    boolean asLong = current instanceof Long || operandVal instanceof Long;
+                                    long cur = ((Number) current).longValue();
+                                    long arg = ((Number) operandVal).longValue();
+                                    long result;
+
+                                    switch (bitOp.getKey()) {
+                                        case "and":
+                                            result = cur & arg;
+                                            break;
+
+                                        case "or":
+                                            result = cur | arg;
+                                            break;
+
+                                        case "xor":
+                                            result = cur ^ arg;
+                                            break;
+
+                                        default:
+                                            throw new MorphiumDriverException(
+                                                            "The $bit modifier only supports 'and', 'or', and 'xor', not: '"
+                                                            + bitOp.getKey() + "'");
+                                    }
+
+                                    current = asLong ? (Object) result : (Object) (int) result;
+                                }
+
+                                Object before = readPathValue(obj, field);
+                                if (!Objects.equals(before, current)) {
+                                    modified.add(obj.get("_id"));
+                                }
+                                writePathValue(obj, field, current);
                             }
 
                             break;
@@ -8229,8 +8911,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // collectUpsertEqualityFields() can seed the new document from its equality predicates.
             Map<String, Object> updateQuery = matchedId != null ? Doc.of("_id", matchedId) : query;
 
+            // Pass the caller's original query as positionalQuery: the pinned _id query carries no
+            // array predicate, so positional-$ updates would otherwise fail to find their match.
             var updateResult = updateInternal(db, col, updateQuery, null, update, false, upsert, collation, null,
-                                              pendingNotifications);
+                                              null, query, pendingNotifications);
 
             // Determine which document to return. Every branch returns a deepClone (or null) so a
             // caller mutating the result cannot corrupt the stored map.
