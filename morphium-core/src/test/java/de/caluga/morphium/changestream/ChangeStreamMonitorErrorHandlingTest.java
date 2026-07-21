@@ -73,4 +73,126 @@ public class ChangeStreamMonitorErrorHandlingTest {
             new MorphiumDriverException("No such host: serv-msg1:27017"));
         assertFalse(cont, "stopped monitor must not continue");
     }
+
+    // --- stream-state handling -------------------------------------------------------------
+    // "cursor is null" means the watch read a full reply that was NOT a watch reply - the
+    // connection delivered someone else's (stale) answer. Releasing such a connection back
+    // to the pool poisons the next borrower (seen 2026-07-20 as "Illegal opcode" during an
+    // unrelated write). The monitor must close it so the pool discards it.
+
+    private java.util.concurrent.atomic.AtomicBoolean injectTrackingConnection() throws Exception {
+        var closed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        var con = new de.caluga.morphium.driver.wire.SingleMongoConnection() {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+            @Override
+            public boolean isConnected() {
+                return !closed.get();
+            }
+        };
+        var f = ChangeStreamMonitor.class.getDeclaredField("activeConnection");
+        f.setAccessible(true);
+        f.set(monitor, con);
+        return closed;
+    }
+
+    @Test
+    public void closesConnectionWhenReplyWasNotAWatchReply() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("Could not watch - cursor is null"));
+
+        assertTrue(cont, "must still retry");
+        assertTrue(closed.get(), "connection with unknown stream state must be closed, not pooled");
+    }
+
+    @Test
+    public void closesConnectionOnNullReply() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("Could not watch - reply is null"));
+
+        assertTrue(cont, "must still retry");
+        assertTrue(closed.get(), "connection with unknown stream state must be closed, not pooled");
+    }
+
+    @Test
+    public void closesConnectionOnUnclassifiedError() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("something completely unexpected"));
+
+        assertTrue(cont, "must still retry");
+        assertTrue(closed.get(), "unknown error - connection state unknown - close to be safe");
+    }
+
+    // --- watch-established notification ----------------------------------------------------
+    // Messaging polls once per (re-)establishment to catch up on messages inserted while the
+    // stream was down. The hook must fire on every establishment, not only the first.
+
+    @Test
+    public void notifiesListenerOnWatchEstablishment() throws Exception {
+        var established = new java.util.concurrent.atomic.AtomicInteger();
+        monitor.addWatchEstablishedListener(established::incrementAndGet);
+
+        monitor.start(); // blocks until the watch is established (up to 2s)
+        try {
+            long until = System.currentTimeMillis() + 2000;
+            while (established.get() == 0 && System.currentTimeMillis() < until) {
+                Thread.sleep(20);
+            }
+            assertTrue(established.get() >= 1, "listener must fire when the watch is established");
+        } finally {
+            monitor.terminate();
+        }
+    }
+
+    // --- resume-token adoption -------------------------------------------------------------
+    // watch() publishes its freshest token (incl. postBatchResumeToken from empty batches) on
+    // the WatchCommand when it dies. The monitor builds a NEW WatchCommand for every retry, so
+    // it must adopt that token - otherwise a consumer that never saw an event restarts at "now"
+    // and loses everything written during the gap.
+
+    private Object monitorToken() throws Exception {
+        var f = ChangeStreamMonitor.class.getDeclaredField("lastResumeToken");
+        f.setAccessible(true);
+        return f.get(monitor);
+    }
+
+    @Test
+    public void adoptsResumeTokenFromDeadWatchCommand() throws Exception {
+        var cmd = new de.caluga.morphium.driver.commands.WatchCommand(null);
+        cmd.setResumeAfter(java.util.Map.of("_data", "TOKEN-FROM-WATCH"));
+
+        monitor.adoptResumeTokenFrom(cmd);
+
+        assertTrue(java.util.Map.of("_data", "TOKEN-FROM-WATCH").equals(monitorToken()),
+            "monitor must resume the next watch from the token the dying watch published");
+    }
+
+    @Test
+    public void adoptionToleratesNullCommandAndNullToken() throws Exception {
+        monitor.adoptResumeTokenFrom(null);
+        assertTrue(monitorToken() == null, "null command must not touch the token");
+
+        monitor.adoptResumeTokenFrom(new de.caluga.morphium.driver.commands.WatchCommand(null));
+        assertTrue(monitorToken() == null, "command without token must not clear an existing one");
+    }
+
+    @Test
+    public void keepsConnectionOnHistoryLost() throws Exception {
+        var closed = injectTrackingConnection();
+
+        boolean cont = monitor.handleWatchError(
+            new MorphiumDriverException("PlanExecutor error during aggregation :: caused by :: ChangeStreamHistoryLost"));
+
+        assertTrue(cont, "must retry with fresh stream");
+        assertFalse(closed.get(),
+            "history-lost is a proper server error reply - the stream is aligned, connection is fine");
+    }
 }

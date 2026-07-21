@@ -437,15 +437,25 @@ public class SingleMongoConnection implements MongoConnection {
                 stats.get(REPLY_RECEIVED).incrementAndGet();
                 return msg;
             } catch (SocketTimeoutException ste) {
+                // Raw SocketTimeoutException from parseFromStream means 0 bytes were consumed:
+                // the stream is still message-aligned, retrying the read is safe.
                 if (System.currentTimeMillis() >= deadline) {
-                    log.debug("socket timeout - deadline reached, returning null to allow continuation check");
+                    // No reply within the caller's total timeout. A late reply may still arrive
+                    // on this connection - the next user would read a stale answer (watch() reads
+                    // without responseTo verification!). Close instead of handing back a landmine.
+                    log.debug("socket timeout - deadline reached, closing connection");
+                    close();
                     return null;
                 }
                 log.debug("socket timeout - retrying until deadline");
             } catch (Exception e) {
-                if (e.getCause() instanceof SocketTimeoutException) {
+                // MorphiumDriverNetworkException is always fatal for this connection, even with a
+                // SocketTimeoutException cause: parseFromStream wraps a mid-message timeout that
+                // way ("stream desynchronized") - retrying the parse would read payload as header.
+                if (!(e instanceof MorphiumDriverNetworkException) && e.getCause() instanceof SocketTimeoutException) {
                     if (System.currentTimeMillis() >= deadline) {
-                        log.debug("socket timeout - deadline reached, returning null to allow continuation check");
+                        log.debug("socket timeout - deadline reached, closing connection");
+                        close();
                         return null;
                     }
                     log.debug("socket timeout - retrying until deadline");
@@ -736,6 +746,7 @@ public class SingleMongoConnection implements MongoConnection {
         boolean registrationCallbackCalled = false;
 
         long watchIterations = 0;
+        try {
         while (true) {
             watchIterations++;
             OpMsg reply = null;
@@ -856,6 +867,20 @@ public class SingleMongoConnection implements MongoConnection {
                 }
             }
 
+            // The server sends postBatchResumeToken with EVERY reply, including empty batches.
+            // It is the only token a consumer has while no events flow - exactly the situation
+            // in which a dying watch would otherwise restart at "now" and lose the gap. Only
+            // adopt it for fully processed batches (shouldExit means we broke out mid-batch,
+            // the token would skip the events we did not deliver).
+            if (!shouldExit) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> postBatchResumeToken = (Map<String, Object>) cursor.get("postBatchResumeToken");
+
+                if (postBatchResumeToken != null) {
+                    lastResumeToken[0] = postBatchResumeToken;
+                }
+            }
+
             if (shouldExit || !command.getCb().isContinued()) {
                 log.debug("WATCH: exiting loop - shouldExit={}, isContinued={}", shouldExit, command.getCb().isContinued());
                 String coll = command.getColl();
@@ -903,6 +928,15 @@ public class SingleMongoConnection implements MongoConnection {
                 msg = startMsg;
                 msg.setMessageId(msgId.incrementAndGet());
                 sendQuery(msg);
+            }
+        }
+        } finally {
+            // Publish the freshest resume token on EVERY exit - normal stop, grace timeout or
+            // network death. Without this, a consumer that never received an event has no token
+            // at all and its restart begins at "now", silently dropping everything written
+            // while the watch was down.
+            if (lastResumeToken[0] != null) {
+                command.setResumeAfter(lastResumeToken[0]);
             }
         }
     }

@@ -21,6 +21,11 @@ public abstract class WireProtocolMessage {
     public static WireProtocolMessage parseFromStream(InputStream in) throws java.net.SocketException, java.net.SocketTimeoutException {
         byte[] inBuffer = new byte[16];
         int numRead;
+        // Bytes of the current message consumed so far. A read timeout with 0 bytes consumed
+        // leaves the stream aligned at a message boundary and is safe to retry. A timeout after
+        // ANY byte was consumed abandons a half-read message: the next parse would read payload
+        // bytes as a header ("Illegal opcode" with ASCII garbage). That connection must die.
+        int consumed = 0;
 
         try {
             if (in == null) {
@@ -32,6 +37,7 @@ public abstract class WireProtocolMessage {
             if (numRead == -1) {
                 return null;
             }
+            consumed = numRead;
 
             while (numRead < 16) {
                 int r = in.read(inBuffer, numRead, 16 - numRead);
@@ -40,6 +46,7 @@ public abstract class WireProtocolMessage {
                     return null;
                 }
                 numRead += r;
+                consumed = numRead;
             }
 
             int size = WireProtocolMessage.readInt(inBuffer, 0);
@@ -78,6 +85,7 @@ public abstract class WireProtocolMessage {
                 log.warn("Connection closed while reading message body (expected {} bytes)", size - 16);
                 return null;
             }
+            consumed = 16 + numRead;
 
             while (numRead < size - 16) {
                 int r = in.read(buf, numRead, size - 16 - numRead);
@@ -87,6 +95,7 @@ public abstract class WireProtocolMessage {
                     return null;
                 }
                 numRead += r;
+                consumed = 16 + numRead;
             }
 
             try {
@@ -97,7 +106,14 @@ public abstract class WireProtocolMessage {
             }
 
         } catch (java.net.SocketTimeoutException ste) {
-            // Propagate timeout exceptions for connection management
+            if (consumed > 0) {
+                // Half-read message abandoned - the stream is no longer message-aligned.
+                // Surface as a fatal network error so the caller closes the connection
+                // instead of retrying the parse or handing the connection back to a pool.
+                throw new MorphiumDriverNetworkException("Stream desynchronized: read timeout after "
+                        + consumed + " bytes of a partially read message - connection must be closed", ste);
+            }
+            // Timeout at a message boundary: nothing consumed, stream still aligned - retryable
             throw ste;
         } catch (java.net.SocketException se) {
             throw se;
