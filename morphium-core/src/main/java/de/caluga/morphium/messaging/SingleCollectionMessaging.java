@@ -1933,6 +1933,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         m.setSender(id);
+
+        // apply the configured default TTL (Msg.preStore would fall back to the hardcoded 30s)
+        if (m.isTimingOut() && m.getTtl() <= 0) {
+            m.setTtl(settings.getMessagingDefaultTtl());
+        }
         m.setSenderHost(hostname);
         try {
             morphium.insert(m, getCollectionName(), cb);

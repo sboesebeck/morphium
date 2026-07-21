@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Driver: configurable `appName` in the connection handshake
 New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as `client.application.name` in the `hello` handshake. Set it per service to tell instances apart in `db.currentOp()`, server logs and profiler output (MongoDB truncates values over 128 bytes). Third-party `MorphiumDriver` implementations keep compiling — the new interface methods are defaults.
 
+#### Messaging: configurable default TTL and fallback-poll cadence
+Two new `MessagingSettings`: `messagingDefaultTtl` (default 30s — the historical hardcoded value) is applied on send to timing-out messages that carry no TTL, and `messagingFallbackPollInterval` (default 10s = default TTL / 3) controls the safety-net poll behind change-stream delivery. Applications using short message TTLs should tune the poll interval below their shortest TTL so a lost change-stream event is rescued before the message expires.
+
 ### Changed
 
 #### InMemoryDriver: O(1) change-stream replay-buffer bound

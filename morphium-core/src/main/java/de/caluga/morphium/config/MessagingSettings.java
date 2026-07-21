@@ -20,6 +20,12 @@ public class MessagingSettings extends Settings {
     private long threadPoolMessagingKeepAliveTime = 2000;
     private int messagingWindowSize = 100;
     private int messagingPollPause = 250;
+    // TTL for messages sent without one (Msg.ttl <= 0 and timingOut).
+    private long messagingDefaultTtl = de.caluga.morphium.messaging.Msg.DEFAULT_TTL_MS;
+    // Cadence of the safety-net fallback poll behind the change-stream delivery. Tune it
+    // below your shortest application message TTL: a message should get at least one or
+    // two rescue polls before it expires.
+    private long messagingFallbackPollInterval = de.caluga.morphium.messaging.Msg.DEFAULT_TTL_MS / 3;
     private String senderId = null;
     private boolean autoAnswer = false;
     private boolean processMultiple = true;
@@ -52,6 +58,20 @@ public class MessagingSettings extends Settings {
     }
     public MessagingSettings setMessagingImplementation(String messagingImplementation) {
         this.messagingImplementation = messagingImplementation;
+        return this;
+    }
+    public long getMessagingDefaultTtl() {
+        return messagingDefaultTtl;
+    }
+    public MessagingSettings setMessagingDefaultTtl(long messagingDefaultTtl) {
+        this.messagingDefaultTtl = messagingDefaultTtl;
+        return this;
+    }
+    public long getMessagingFallbackPollInterval() {
+        return messagingFallbackPollInterval;
+    }
+    public MessagingSettings setMessagingFallbackPollInterval(long messagingFallbackPollInterval) {
+        this.messagingFallbackPollInterval = messagingFallbackPollInterval;
         return this;
     }
     public int getThreadPoolMessagingCoreSize() {

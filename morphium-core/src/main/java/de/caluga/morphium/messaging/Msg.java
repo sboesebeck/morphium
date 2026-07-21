@@ -420,8 +420,10 @@ public class Msg {
 
         if (timingOut) {
             if (ttl == 0) {
+                // last resort for direct morphium.store users - the messaging send paths apply
+                // the configurable messagingDefaultTtl before this hook runs
                 LoggerFactory.getLogger(Msg.class).debug("Defaulting msg ttl to 30sec");
-                ttl = 30000;
+                ttl = DEFAULT_TTL_MS;
             }
 
             if (deleteAt == null) {

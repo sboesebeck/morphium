@@ -98,13 +98,6 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
     // track when a topic was paused, to report elapsed pause time on unpause
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
-    // Fallback poll runs every FALLBACK_POLL_INTERVAL_MS instead of every pause cycle.
-    // Derived from the default message TTL: a message with default TTL gets ~2 rescue
-    // chances before it expires. This is a pure safety net - deterministic catch-up
-    // happens via the watch-established listeners (poll on change stream
-    // re-establishment) and the lock monitor's targeted re-polls, so it stays coarse
-    // to bound the query load per topic.
-    private static final long FALLBACK_POLL_INTERVAL_MS = Msg.DEFAULT_TTL_MS / 3;
     private volatile long lastFallbackPollTime = 0;
 
     private ScheduledThreadPoolExecutor decouplePool;
@@ -203,9 +196,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // via the shared lock monitor. This fallback only catches edge cases (network glitches, etc.).
             // Time-based on purpose: the previous counter-based gate (every 500th tick of the
             // messagingPollPause scheduler) effectively polled every ~2 minutes - far beyond
-            // any caller's wait timeout when a change stream event was lost.
+            // any caller's wait timeout when a change stream event was lost. The cadence is
+            // configurable (messagingFallbackPollInterval, default TTL/3): tune it below your
+            // shortest application message TTL.
             long fallbackNow = System.currentTimeMillis();
-            if (isUseChangeStream() && running.get() && fallbackNow - lastFallbackPollTime >= FALLBACK_POLL_INTERVAL_MS) {
+            if (isUseChangeStream() && running.get() && fallbackNow - lastFallbackPollTime >= effectiveSettings.getMessagingFallbackPollInterval()) {
                 lastFallbackPollTime = fallbackNow;
                 // log.debug("Running fallback poll for {} topics", monitorsByTopic.size());
                 for (var topicName : monitorsByTopic.keySet()) {
@@ -1687,6 +1682,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
+
+        // apply the configured default TTL (Msg.preStore would fall back to the hardcoded 30s)
+        if (m.isTimingOut() && m.getTtl() <= 0) {
+            m.setTtl(effectiveSettings.getMessagingDefaultTtl());
+        }
+
         if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
             try {
                 if (async) {
