@@ -77,6 +77,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private int windowSize = 100;
     private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
+    private ChangeStreamMonitor lockChangeStreamMonitor;
     // Watchdog state for the main change stream — used to detect a stalled cursor
     // (events stop arriving while the fallback poll keeps finding unprocessed messages)
     // and trigger a restart without resume token to jump back to the present.
@@ -669,6 +670,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             ChangeStreamMonitor fresh = new ChangeStreamMonitor(
                     morphium, getCollectionName(), false, changeStreamMaxWait, changeStreamPipeline);
             fresh.addListener(this::onMainCsEvent);
+            // same wiring as the original monitor: catch up once the fresh watch is up
+            fresh.addWatchEstablishedListener(requestPoll::incrementAndGet);
             changeStreamMonitor = fresh;
             fresh.start();
             // Reset markers — give the fresh stream the full threshold before re-evaluating.
@@ -684,6 +687,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      */
     public long getCsStallRestarts() {
         return csStallRestarts.get();
+    }
+
+    /**
+     * Whether BOTH change streams (message collection + lock collection) are provably alive
+     * and in sync: their watch loops receive a server reply at least every maxTimeMS (empty
+     * batch heartbeat). While this is true the fallback poll is skipped entirely; a silent
+     * stream triggers an immediate poll. Public also for diagnostics/monitoring.
+     */
+    public boolean changeStreamsLive() {
+        return changeStreamMonitor != null && changeStreamMonitor.isStreamLive()
+            && lockChangeStreamMonitor != null && lockChangeStreamMonitor.isStreamLive();
     }
 
     /**
@@ -756,6 +770,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         changeStreamPipeline = pipeline;
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, changeStreamMaxWait,
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
+        lockChangeStreamMonitor = lockMonitor;
         lockMonitor.addListener(evt -> {
             // some lock removed
             if (morphium.createQueryFor(Msg.class, getCollectionName()).f("_id").eq(evt.getDocumentKey()).countAll() != 0) {
@@ -766,6 +781,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         });
         changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, changeStreamMaxWait, pipeline);
         changeStreamMonitor.addListener(this::onMainCsEvent);
+        // On every watch (re-)establishment poll once: messages inserted while the stream
+        // was down are invisible to the new stream unless a resume token was available.
+        changeStreamMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
+        // Same for lock releases: a lock deleted during a lock-monitor gap would otherwise
+        // never trigger its re-poll for exclusive messages.
+        lockMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
         // Initialize liveness markers so the watchdog doesn't fire immediately at startup.
         lastCsEventMs = System.currentTimeMillis();
         lastCsRestartMs = lastCsEventMs;
@@ -808,11 +829,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // always run this find in addition to changestream
         try {
             AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
-            // Fallback poll interval when using change streams - poll at least every N pauses
-            // to catch any events that might be missed by the change stream
-            // Test evidence shows changestream catches 100% of messages, so this is just a safety net
-            final int FALLBACK_POLL_INTERVAL = 100; // Poll every 100th pause cycle as fallback (was 10)
-            final AtomicInteger pollCycleCounter = new AtomicInteger(0);
+            // Liveness-gated safety net: the watch loop receives a server reply at least every
+            // maxTimeMS (empty batch heartbeat), so while BOTH monitors (messages + locks) are
+            // provably alive and in sync, no fallback poll is needed at all. A stream falling
+            // silent triggers an immediate poll, then one per messagingFallbackPollInterval
+            // while it stays suspect.
+            final AtomicLong lastFallbackPoll = new AtomicLong(0);
+            final AtomicBoolean streamsWereLive = new AtomicBoolean(false);
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
@@ -824,12 +847,28 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                               cleanupTime - entry.getValue() > MESSAGE_TRACKING_RETENTION_MS);
 
                     // Poll when:
-                    // 1. requestPoll > 0 (lock deleted, new messages likely available)
+                    // 1. requestPoll > 0 (lock deleted / watch re-established, messages likely available)
                     // 2. change streams disabled (always poll)
-                    // 3. fallback: every FALLBACK_POLL_INTERVAL cycles when change streams are enabled
-                    //    to catch any events that might be missed by the change stream
-                    boolean shouldFallbackPoll = useChangeStream &&
-                    (pollCycleCounter.incrementAndGet() % FALLBACK_POLL_INTERVAL == 0);
+                    // 3. fallback: a change stream cannot vouch for itself (no fresh heartbeat) -
+                    //    poll immediately on the live->silent transition, then per interval
+                    boolean shouldFallbackPoll = false;
+
+                    if (useChangeStream) {
+                        boolean live = changeStreamsLive();
+
+                        if (live) {
+                            streamsWereLive.set(true);
+                        } else {
+                            boolean justTurnedSuspect = streamsWereLive.getAndSet(false);
+                            long now = System.currentTimeMillis();
+
+                            if (justTurnedSuspect
+                                    || now - lastFallbackPoll.get() >= settings.getMessagingFallbackPollInterval()) {
+                                lastFallbackPoll.set(now);
+                                shouldFallbackPoll = true;
+                            }
+                        }
+                    }
 
                     if (requestPoll.get() > 0 || !useChangeStream || shouldFallbackPoll) {
                         lastRun.set(System.currentTimeMillis());
@@ -840,10 +879,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         boolean foundBacklog = findMessages();
                         // Watchdog: if the poll picks up unprocessed messages but the change stream
                         // has been silent for too long, the cursor has fallen behind — restart it.
-                        // Threshold = 2 × FALLBACK_POLL_INTERVAL × pause covers two full poll cycles
-                        // before declaring a stall, which avoids false positives from slow networks.
+                        // Threshold = 2 fallback intervals before declaring a stall, which avoids
+                        // false positives from slow networks.
                         if (foundBacklog && useChangeStream) {
-                            restartMainCsIfStalled(2L * FALLBACK_POLL_INTERVAL * pause);
+                            restartMainCsIfStalled(2L * settings.getMessagingFallbackPollInterval());
                         }
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);

@@ -98,7 +98,11 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
     // track when a topic was paused, to report elapsed pause time on unpause
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
-    private volatile long lastFallbackPollTime = 0;
+    // Liveness-gated safety net: per-topic timestamp of the last fallback poll, and whether
+    // the topic's streams were live at the previous check (a live->silent transition
+    // triggers an immediate poll instead of waiting out the interval).
+    private final Map<String, Long> fallbackLastPoll = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> fallbackStreamWasLive = new ConcurrentHashMap<>();
 
     private ScheduledThreadPoolExecutor decouplePool;
     private MessagingRegistry networkRegistry;
@@ -191,21 +195,36 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     pollTrigger.get(name).set(0);
                 }
             }
-            // Safety-net fallback polling when change streams are enabled.
-            // Primary message delivery is via change streams; lock releases trigger targeted re-polls
-            // via the shared lock monitor. This fallback only catches edge cases (network glitches, etc.).
-            // Time-based on purpose: the previous counter-based gate (every 500th tick of the
-            // messagingPollPause scheduler) effectively polled every ~2 minutes - far beyond
-            // any caller's wait timeout when a change stream event was lost. The cadence is
-            // configurable (messagingFallbackPollInterval, default TTL/3): tune it below your
-            // shortest application message TTL.
-            long fallbackNow = System.currentTimeMillis();
-            if (isUseChangeStream() && running.get() && fallbackNow - lastFallbackPollTime >= effectiveSettings.getMessagingFallbackPollInterval()) {
-                lastFallbackPollTime = fallbackNow;
-                // log.debug("Running fallback poll for {} topics", monitorsByTopic.size());
+            // Safety-net fallback polling when change streams are enabled - liveness-gated.
+            // The watch loop receives a server reply at least every maxTimeMS (an empty batch
+            // when there are no events) and stamps its time on the WatchCommand. A topic whose
+            // streams are provably alive and in sync needs NO poll at all: the resume token
+            // advances with every batch, events cannot silently go missing. When a stream
+            // falls silent, the topic is polled IMMEDIATELY (faster than any timer) and then
+            // every messagingFallbackPollInterval while it stays suspect - tune that below
+            // your shortest application message TTL.
+            if (isUseChangeStream() && running.get()) {
+                long fallbackNow = System.currentTimeMillis();
+
                 for (var topicName : monitorsByTopic.keySet()) {
                     try {
-                        pollAndProcess(topicName);
+                        if (topicStreamsLive(topicName)) {
+                            fallbackStreamWasLive.put(topicName, Boolean.TRUE);
+                            continue;
+                        }
+
+                        boolean justTurnedSuspect = Boolean.TRUE.equals(fallbackStreamWasLive.put(topicName, Boolean.FALSE));
+                        Long lastPoll = fallbackLastPoll.get(topicName);
+
+                        if (justTurnedSuspect || lastPoll == null
+                                || fallbackNow - lastPoll >= effectiveSettings.getMessagingFallbackPollInterval()) {
+                            fallbackLastPoll.put(topicName, fallbackNow);
+                            int rescued = pollAndProcess(topicName);
+
+                            if (rescued > 0) {
+                                log.info("Fallback poll picked up {} message(s) for topic '{}' although change streams are enabled - a stream event may have been lost", rescued, topicName);
+                            }
+                        }
                     } catch (Exception e) {
                         log.debug("Error in fallback poll for topic {}", topicName, e);
                     }
@@ -881,9 +900,35 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         }
     }
 
-    private void pollAndProcess(String msgName) {
+    /**
+     * A topic's delivery is provably healthy only if EVERY change stream monitor subscribed
+     * to it reports a fresh server-reply heartbeat - one silent stream means one listener
+     * that may be missing messages, and the fallback poll delivers to all of them.
+     * No monitors (yet) counts as not live, so callers poll conservatively.
+     * Public also for diagnostics/monitoring.
+     */
+    public boolean topicStreamsLive(String topicName) {
+        List<Map<MType, Object>> entries = monitorsByTopic.get(topicName);
+
+        if (entries == null || entries.isEmpty()) {
+            return false;
+        }
+
+        for (var entry : new ArrayList<>(entries)) {
+            var cm = (ChangeStreamMonitor) entry.get(MType.monitor);
+
+            if (cm == null || !cm.isStreamLive()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** @return number of messages picked up (dispatched or answered) by this poll */
+    private int pollAndProcess(String msgName) {
         if (!running.get())
-            return;
+            return 0;
         // log.debug("PollAndProcess for topic {} - processingMessages: {}", msgName, processingMessages.size());
         // Use more efficient query patterns
         List<MorphiumId> processingIds = new ArrayList<>(processingMessages);
@@ -910,7 +955,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         int window = getWindowSize();
         q.limit(window + 1);
         if (!running.get())
-            return;
+            return 0;
         int seen = 0;
         boolean more = false;
         for (Msg m : q.asIterable(window + 1)) {
@@ -1001,6 +1046,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             pollTrigger.get(msgName).incrementAndGet();
         }
 
+        return seen;
     }
 
     private boolean checkDeleteAfterProcessing(Msg message) {

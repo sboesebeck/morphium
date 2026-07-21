@@ -936,6 +936,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return subscription.getCursorId();
             }
 
+            // liveness heartbeat, mirroring the wire driver: a fresh stamp means the watch
+            // is registered and its loop is alive (consumed by ChangeStreamMonitor.isStreamLive)
+            settings.setLastReplyAt(System.currentTimeMillis());
+
             // Use WatchMonitor with ReentrantLock/Condition to avoid pinning virtual threads
             // synchronized blocks pin carrier threads, limiting scalability to ~256 concurrent watches
             while (subscription.isActive()) {
@@ -944,6 +948,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // to periodically check if the callback wants to continue
                 long waitTime = (maxTime != null && maxTime > 0) ? maxTime : 5000;
                 monitor.await(waitTime);
+                settings.setLastReplyAt(System.currentTimeMillis());
 
                 // Check if the callback wants to continue after each wait.
                 // However, we must give pending async events a chance to be delivered first,

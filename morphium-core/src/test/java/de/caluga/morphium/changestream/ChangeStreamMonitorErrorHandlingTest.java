@@ -152,6 +152,45 @@ public class ChangeStreamMonitorErrorHandlingTest {
         }
     }
 
+    // --- stream liveness -------------------------------------------------------------------
+    // The watch loop receives a server reply at least every maxTimeMS (empty batch on no
+    // events) and stamps its time on the WatchCommand. isStreamLive() exposes that heartbeat:
+    // messaging skips its fallback poll for topics whose stream is provably alive and in sync,
+    // and polls immediately when a stream goes silent - instead of blindly polling on a timer.
+
+    private void injectActiveWatch(long lastReplyAt) throws Exception {
+        var cmd = new de.caluga.morphium.driver.commands.WatchCommand(null);
+        cmd.setMaxTimeMS(250);
+        cmd.setLastReplyAt(lastReplyAt);
+        var f = ChangeStreamMonitor.class.getDeclaredField("activeWatch");
+        f.setAccessible(true);
+        f.set(monitor, cmd);
+    }
+
+    @Test
+    public void streamIsNotLiveWithoutAnActiveWatch() {
+        assertFalse(monitor.isStreamLive(), "no active watch - nothing can be live");
+    }
+
+    @Test
+    public void streamIsNotLiveBeforeTheFirstReply() throws Exception {
+        injectActiveWatch(0);
+        assertFalse(monitor.isStreamLive(), "no reply yet - liveness unknown, treat as not live");
+    }
+
+    @Test
+    public void streamIsLiveWithARecentReply() throws Exception {
+        injectActiveWatch(System.currentTimeMillis());
+        assertTrue(monitor.isStreamLive(), "reply just arrived - stream is provably alive");
+    }
+
+    @Test
+    public void streamIsNotLiveWhenRepliesStopped() throws Exception {
+        injectActiveWatch(System.currentTimeMillis() - 60_000);
+        assertFalse(monitor.isStreamLive(),
+            "no reply for a minute although the server must answer within maxTimeMS - suspicious");
+    }
+
     // --- resume-token adoption -------------------------------------------------------------
     // watch() publishes its freshest token (incl. postBatchResumeToken from empty batches) on
     // the WatchCommand when it dies. The monitor builds a NEW WatchCommand for every retry, so

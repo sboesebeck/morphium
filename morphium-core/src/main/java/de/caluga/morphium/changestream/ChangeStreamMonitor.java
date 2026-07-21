@@ -516,6 +516,34 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         }
     }
 
+    // Client-side grace on top of maxWait before a silent stream counts as suspect -
+    // mirrors the read grace the watch loop itself grants (WATCH_READ_GRACE_MS).
+    private static final long LIVENESS_GRACE_MS = 10_000;
+
+    /**
+     * Whether the change stream is provably alive and in sync: the watch loop receives a
+     * server reply at least every maxTimeMS (an empty batch when there are no events) and
+     * stamps its time on the WatchCommand. A fresh stamp means events cannot silently be
+     * missing - the resume token advances with every batch. No active watch, no reply yet,
+     * or a stale stamp all count as NOT live, so consumers (e.g. the messaging fallback
+     * poll) fall back to polling exactly when the stream cannot vouch for itself.
+     */
+    public boolean isStreamLive() {
+        WatchCommand watch = activeWatch;
+
+        if (watch == null) {
+            return false;
+        }
+
+        long last = watch.getLastReplyAt();
+
+        if (last <= 0) {
+            return false;
+        }
+
+        return System.currentTimeMillis() - last <= maxWait + LIVENESS_GRACE_MS;
+    }
+
     /**
      * Registers a callback invoked every time the change stream watch is (re-)established,
      * including after connection loss and retry. Unlike {@link #awaitReady}, this fires on

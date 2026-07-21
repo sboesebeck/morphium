@@ -794,6 +794,10 @@ public class SingleMongoConnection implements MongoConnection {
                 throw new MorphiumDriverNetworkException("watch: no reply within maxTimeMS + grace - connection closed, resume on a fresh connection");
             }
 
+            // liveness heartbeat: the server answers a getMore within maxTimeMS even without
+            // events - a fresh stamp means the stream is provably alive and in sync
+            command.setLastReplyAt(System.currentTimeMillis());
+
             checkForError(reply);
 
             @SuppressWarnings("unchecked")
