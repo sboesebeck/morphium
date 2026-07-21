@@ -1127,20 +1127,42 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 0;
     }
 
+    // ---- server-side auth surface (#245) -------------------------------------------------
+    // InMemoryDriver/PoppyDB perform NO authentication. These used to be empty stubs that
+    // queued no result, which the dispatch machinery resolved to {ok:1.0} - every client
+    // "authenticated" successfully with any or no credentials, and createUser/createRole
+    // reported success while creating nothing. Until real SCRAM verification and a user/role
+    // store exist (phase D), fail loudly so nobody mistakes the dispatch default for
+    // working authentication.
+
+    private int authNotImplemented(String commandName, int code, String codeName, String detail) {
+        int requestId = commandNumber.incrementAndGet();
+        addResult(requestId, prepareResult(Doc.of(
+            "ok", 0.0,
+            "code", code,
+            "codeName", codeName,
+            "errmsg", commandName + " is not supported by InMemoryDriver/PoppyDB: " + detail)));
+        return requestId;
+    }
+
     public int runCommand(CreateUserAdminCommand cmd) {
-        return 0;
+        return authNotImplemented("createUser", 238, "NotImplemented",
+            "no user store exists - the user would NOT be created (auth is not enforced at all)");
     }
 
     public int runCommand(CreateRoleAdminCommand cmd) {
-        return 0;
+        return authNotImplemented("createRole", 238, "NotImplemented",
+            "no role store exists - the role would NOT be created (auth is not enforced at all)");
     }
 
     public int runCommand(SaslAuthCommand cmd) {
-        return 0;
+        return authNotImplemented("saslStart", 18, "AuthenticationFailed",
+            "no credential verification is performed - do not send credentials to this server");
     }
 
     public int runCommand(X509AuthCommand cmd) {
-        return 0;
+        return authNotImplemented("authenticate", 18, "AuthenticationFailed",
+            "no certificate verification is performed - do not use X.509 auth against this server");
     }
 
     /**
