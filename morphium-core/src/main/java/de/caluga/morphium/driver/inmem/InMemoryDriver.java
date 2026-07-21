@@ -1128,26 +1128,192 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     // ---- server-side auth surface (#245) -------------------------------------------------
-    // InMemoryDriver/PoppyDB perform NO authentication. These used to be empty stubs that
-    // queued no result, which the dispatch machinery resolved to {ok:1.0} - every client
-    // "authenticated" successfully with any or no credentials, and createUser/createRole
-    // reported success while creating nothing. Until real SCRAM verification and a user/role
-    // store exist (phase D), fail loudly so nobody mistakes the dispatch default for
-    // working authentication.
+    // Real SCRAM-SHA-1/SCRAM-SHA-256 verification against users stored in admin.system.users
+    // (mongod-shaped documents, created by a working createUser). The wire conversation
+    // (saslStart/saslContinue) is handled as special cases in runCommand(GenericCommand) -
+    // the reflective dispatch cannot carry the raw payload. NOTE: authentication is verified
+    // but NOT ENFORCED - unauthenticated commands still execute (enforcement is a separate
+    // step with an explicit opt-in switch). X.509 and createRole remain honestly unimplemented.
 
-    private int authNotImplemented(String commandName, int code, String codeName, String detail) {
+    private static final String USERS_DB = "admin";
+    private static final String USERS_COLLECTION = "system.users";
+    private static final long SCRAM_CONVERSATION_TTL_MS = 60_000;
+
+    private record ScramConversationState(de.caluga.morphium.driver.inmem.auth.ScramServerConversation conversation,
+                                          boolean skipEmptyExchange, long createdAt) {}
+
+    private final Map<Integer, ScramConversationState> scramConversations = new ConcurrentHashMap<>();
+
+    private int errorResult(int code, String codeName, String errmsg) {
         int requestId = commandNumber.incrementAndGet();
         addResult(requestId, prepareResult(Doc.of(
             "ok", 0.0,
             "code", code,
             "codeName", codeName,
-            "errmsg", commandName + " is not supported by InMemoryDriver/PoppyDB: " + detail)));
+            "errmsg", errmsg)));
         return requestId;
     }
 
+    private int authNotImplemented(String commandName, int code, String codeName, String detail) {
+        return errorResult(code, codeName, commandName + " is not supported by InMemoryDriver/PoppyDB: " + detail);
+    }
+
+    private Map<String, Object> findUserDocument(String authDb, String user) {
+        try {
+            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
+            String id = de.caluga.morphium.driver.inmem.auth.UserDocuments.userId(authDb, user);
+
+            synchronized (users) {
+                for (Map<String, Object> doc : users) {
+                    if (id.equals(doc.get("_id"))) {
+                        return doc;
+                    }
+                }
+            }
+        } catch (MorphiumDriverException e) {
+            log.warn("could not access {}.{}", USERS_DB, USERS_COLLECTION, e);
+        }
+
+        return null;
+    }
+
+    private int createUserInternal(String db, String user, String pwd, List<Object> roles, List<String> mechanisms) {
+        if (findUserDocument(db, user) != null) {
+            return errorResult(51003, "Location51003", "User \"" + user + "@" + db + "\" already exists");
+        }
+
+        try {
+            Map<String, Object> doc = de.caluga.morphium.driver.inmem.auth.UserDocuments
+                .buildUserDocument(db, user, pwd, roles, mechanisms);
+            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
+
+            synchronized (users) {
+                users.add(doc);
+            }
+        } catch (MorphiumDriverException e) {
+            return errorResult(1, "InternalError", "could not store user: " + e.getMessage());
+        }
+
+        int requestId = commandNumber.incrementAndGet();
+        addResult(requestId, prepareResult(Doc.of("ok", 1.0)));
+        return requestId;
+    }
+
+    /** Payload arrives as byte[] from morphium's client, defensively also accept String. */
+    private static String payloadAsString(Object payload) {
+        if (payload instanceof byte[] b) {
+            return new String(b, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return payload == null ? null : payload.toString();
+    }
+
+    int handleSaslStart(Map<String, Object> cmdMap) {
+        // opportunistic purge of abandoned conversations
+        long now = System.currentTimeMillis();
+        scramConversations.entrySet().removeIf(e -> now - e.getValue().createdAt() > SCRAM_CONVERSATION_TTL_MS);
+
+        String mechanism = (String) cmdMap.get("mechanism");
+
+        if (!"SCRAM-SHA-1".equals(mechanism) && !"SCRAM-SHA-256".equals(mechanism)) {
+            return errorResult(2, "BadValue", "Unsupported SASL mechanism " + mechanism
+                + " - InMemoryDriver/PoppyDB supports SCRAM-SHA-1 and SCRAM-SHA-256");
+        }
+
+        String clientFirst = payloadAsString(cmdMap.get("payload"));
+        String authDb = (String) cmdMap.get("$db");
+        boolean skipEmptyExchange = false;
+
+        if (cmdMap.get("options") instanceof Map<?, ?> options) {
+            skipEmptyExchange = Boolean.TRUE.equals(options.get("skipEmptyExchange"));
+        }
+
+        try {
+            String user = de.caluga.morphium.driver.inmem.auth.ScramServerConversation.extractUser(clientFirst);
+            Map<String, Object> userDoc = findUserDocument(authDb, user);
+            var credentials = userDoc == null ? null
+                : de.caluga.morphium.driver.inmem.auth.UserDocuments.extractCredentials(userDoc, mechanism);
+
+            if (credentials == null) {
+                // same answer for unknown user and missing mechanism - no user enumeration
+                log.debug("saslStart for unknown user/mechanism {}@{} ({})", user, authDb, mechanism);
+                return errorResult(18, "AuthenticationFailed", "Authentication failed.");
+            }
+
+            var conversation = new de.caluga.morphium.driver.inmem.auth.ScramServerConversation(credentials);
+            String serverFirst = conversation.handleClientFirst(clientFirst);
+            int conversationId = commandNumber.incrementAndGet();
+            scramConversations.put(conversationId, new ScramConversationState(conversation, skipEmptyExchange, now));
+
+            int requestId = commandNumber.incrementAndGet();
+            addResult(requestId, prepareResult(Doc.of(
+                "conversationId", conversationId,
+                "done", false,
+                "payload", serverFirst.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                "ok", 1.0)));
+            return requestId;
+        } catch (de.caluga.morphium.driver.inmem.auth.ScramServerConversation.AuthenticationFailedException e) {
+            log.debug("saslStart rejected: {}", e.getMessage());
+            return errorResult(18, "AuthenticationFailed", "Authentication failed.");
+        }
+    }
+
+    int handleSaslContinue(Map<String, Object> cmdMap) {
+        Object convIdObj = cmdMap.get("conversationId");
+        Integer conversationId = convIdObj instanceof Number n ? n.intValue() : null;
+        ScramConversationState state = conversationId == null ? null : scramConversations.get(conversationId);
+
+        if (state == null) {
+            return errorResult(17, "ProtocolError", "No SASL session state found");
+        }
+
+        String payload = payloadAsString(cmdMap.get("payload"));
+
+        if (state.conversation().isComplete()) {
+            // third, empty round trip of a client that did not request skipEmptyExchange
+            scramConversations.remove(conversationId);
+            int requestId = commandNumber.incrementAndGet();
+            addResult(requestId, prepareResult(Doc.of(
+                "conversationId", conversationId,
+                "done", true,
+                "payload", new byte[0],
+                "ok", 1.0)));
+            return requestId;
+        }
+
+        try {
+            String serverFinal = state.conversation().handleClientFinal(payload);
+            boolean done = state.skipEmptyExchange();
+
+            if (done) {
+                scramConversations.remove(conversationId);
+            }
+
+            int requestId = commandNumber.incrementAndGet();
+            addResult(requestId, prepareResult(Doc.of(
+                "conversationId", conversationId,
+                "done", done,
+                "payload", serverFinal.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                "ok", 1.0)));
+            return requestId;
+        } catch (de.caluga.morphium.driver.inmem.auth.ScramServerConversation.AuthenticationFailedException e) {
+            scramConversations.remove(conversationId);
+            log.debug("saslContinue rejected: {}", e.getMessage());
+            return errorResult(18, "AuthenticationFailed", "Authentication failed.");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     public int runCommand(CreateUserAdminCommand cmd) {
-        return authNotImplemented("createUser", 238, "NotImplemented",
-            "no user store exists - the user would NOT be created (auth is not enforced at all)");
+        if (cmd.getUserName() == null || cmd.getUserName().isBlank()) {
+            return errorResult(2, "BadValue", "createUser requires a user name");
+        }
+
+        if (cmd.getPwd() == null || cmd.getPwd().isBlank()) {
+            return errorResult(2, "BadValue", "createUser requires a pwd");
+        }
+
+        List<Object> roles = cmd.getRoles() == null ? new ArrayList<>() : new ArrayList<Object>(cmd.getRoles());
+        return createUserInternal(cmd.getDb(), cmd.getUserName(), cmd.getPwd(), roles, cmd.getMechanisms());
     }
 
     public int runCommand(CreateRoleAdminCommand cmd) {
@@ -1155,9 +1321,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             "no role store exists - the role would NOT be created (auth is not enforced at all)");
     }
 
+    /**
+     * Only reachable via a direct typed call - the wire path (saslStart as a generic command)
+     * is special-cased in runCommand(GenericCommand), because the reflective dispatch cannot
+     * carry the raw SASL payload. Keep the honest failure for direct callers.
+     */
     public int runCommand(SaslAuthCommand cmd) {
-        return authNotImplemented("saslStart", 18, "AuthenticationFailed",
-            "no credential verification is performed - do not send credentials to this server");
+        return errorResult(18, "AuthenticationFailed",
+            "saslStart must be sent as a generic wire command - use SaslAuthCommand.execute() (client side) "
+            + "or send saslStart/saslContinue via GenericCommand");
     }
 
     public int runCommand(X509AuthCommand cmd) {
@@ -1369,6 +1541,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                          );
             addResult(requestId, prepareResult(result));
             return requestId;
+        }
+
+        // SASL conversation and createUser arrive in mongod wire shape ({saslStart:1, payload:...},
+        // {createUser:"name", pwd:...}). The reflective dispatch below would lose the raw payload /
+        // the user name (it lives under the command key), so handle them here with the raw map.
+        if (commandName.equals("saslStart")) {
+            return handleSaslStart(cmdMap);
+        }
+
+        if (commandName.equals("saslContinue")) {
+            return handleSaslContinue(cmdMap);
+        }
+
+        if (commandName.equals("createUser")) {
+            String validationError = de.caluga.morphium.driver.inmem.auth.UserDocuments.validateCreateUser(cmdMap);
+
+            if (validationError != null) {
+                return errorResult(2, "BadValue", validationError);
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Object> roles = (List<Object>) cmdMap.get("roles");
+            @SuppressWarnings("unchecked")
+            List<String> mechanisms = (List<String>) cmdMap.get("mechanisms");
+            return createUserInternal((String) cmdMap.get("$db"), (String) cmdMap.get("createUser"),
+                (String) cmdMap.get("pwd"), roles, mechanisms);
         }
 
         Class <? extends MongoCommand > commandClass = commandsCache.get(commandName);

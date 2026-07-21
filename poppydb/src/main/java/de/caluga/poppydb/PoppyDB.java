@@ -90,6 +90,9 @@ public class PoppyDB {
     // SSL configuration
     private boolean sslEnabled = false;
     private SSLContext sslContext = null;
+    private boolean authRequired = false;
+    private String rootUser = null;
+    private String rootPassword = null;
 
     // Persistence configuration
     private File dumpDirectory = null;
@@ -222,7 +225,7 @@ public class PoppyDB {
                                 primary, primaryHost, compressorId,
                                 replicationCoordinatorRef::get, electionManager,
                                 PoppyDB.this::isSecondarySyncing
-                        ));
+                        ).setAuthRequired(authRequired));
 
                         // Track the channel
                         allChannels.add(ch);
@@ -236,6 +239,15 @@ public class PoppyDB {
         running = true;
 
         log.info("PoppyDB started on {}:{} (workers: {})", host, port, workerThreads);
+
+        if (rootUser != null && rootPassword != null) {
+            ensureRootUser();
+        } else if (authRequired) {
+            // users may still exist from a restored dump - but a fresh --auth server without
+            // any user would be permanently unreachable (no localhost exception)
+            log.warn("auth enforcement is enabled but no root user is configured - "
+                + "clients can only authenticate if admin.system.users already contains users");
+        }
 
         // Start dump scheduler if configured
         startDumpScheduler();
@@ -544,6 +556,41 @@ public class PoppyDB {
 
     public void setSslEnabled(boolean sslEnabled) {
         this.sslEnabled = sslEnabled;
+    }
+
+    /** Enable --auth style enforcement: connections must complete a SCRAM exchange first. */
+    public void setAuthRequired(boolean authRequired) {
+        this.authRequired = authRequired;
+    }
+
+    private void ensureRootUser() {
+        try {
+            var cmd = new de.caluga.morphium.driver.commands.auth.CreateUserAdminCommand(null)
+                .setUserName(rootUser)
+                .setPwd(rootPassword);
+            cmd.setDb("admin");
+            var result = driver.readSingleAnswer(driver.runCommand(cmd));
+
+            if (result != null && Double.valueOf(1.0).equals(result.get("ok"))) {
+                log.info("created initial admin user '{}'", rootUser);
+            } else if (result != null && Integer.valueOf(51003).equals(result.get("code"))) {
+                log.debug("initial admin user '{}' already exists", rootUser);
+            } else {
+                log.error("could not create initial admin user '{}': {}", rootUser,
+                    result == null ? "no result" : result.get("errmsg"));
+            }
+        } catch (Exception e) {
+            log.error("could not create initial admin user '{}'", rootUser, e);
+        }
+    }
+
+    /**
+     * Credentials for an initial admin user, created at startup if absent. Without this,
+     * an --auth server would be unreachable (there is no localhost exception).
+     */
+    public void setRootUser(String user, String password) {
+        this.rootUser = user;
+        this.rootPassword = password;
     }
 
     public void setSslContext(SSLContext sslContext) {
