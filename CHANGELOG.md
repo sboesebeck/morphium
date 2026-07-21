@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [6.2.10] - 2026-07-21
+
+### Fixed
+
+#### Driver: mid-message read timeouts desynchronized the wire stream
+A socket timeout that struck after part of a reply had already been read (header consumed, body still in flight — likely under load) left the TCP stream misaligned, and the driver kept using it: `readNextMessage` retried the parse on the same stream, reading payload bytes as a message header (the `Illegal opcode ...` errors, whose "opcode" values decode to ASCII fragments of BSON field names), and returned `null` at its deadline while leaving the half-read connection open for the next pool borrower. Any command on any connection could be hit. `parseFromStream` now distinguishes a timeout at a message boundary (0 bytes consumed — still aligned, retryable as before) from a mid-message timeout, which is surfaced as a fatal network error; the connection is closed instead of retried or pooled. A deadline expiring without any reply also closes the connection now — a late reply would otherwise be delivered to the next borrower (`watch()` reads without `responseTo` verification). `ChangeStreamMonitor` additionally closes, rather than releases, its connection after errors that leave the stream state unknown (a reply without a cursor, unclassified failures); the pool discards closed connections and replaces them.
+
+#### Changestream: events written during a watch restart were lost; messaging could drop messages
+When a change stream died and was re-established, a consumer that had not yet received any event had no resume token, so the new stream started at "now" — every document inserted during the retry gap was silently skipped. For messaging this meant lost messages (observed as a subscriber never seeing a broadcast that was sent ~200ms after its stream went down). `watch()` now captures the cursor's `postBatchResumeToken`, which real MongoDB includes in every reply — also for empty batches — and publishes its freshest token on the `WatchCommand` on every exit; `ChangeStreamMonitor` adopts it for the next attempt, so restarts resume where the dead stream stopped. Messaging additionally polls the affected topic (and the DM collection, and all topics for the shared lock monitor) once every time a watch is (re-)established, deterministically catching up on anything written while the stream was down. The messaging fallback poll, documented as running every second but effectively gated to every ~125 seconds by a tick counter, is time-based now and runs every 10 seconds as a pure safety net behind the event-driven catch-up.
+
 ## [6.2.9] - 2026-07-14
 
 ### Fixed
