@@ -99,10 +99,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     // track when a topic was paused, to report elapsed pause time on unpause
     private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
     // Fallback poll runs every FALLBACK_POLL_INTERVAL_MS instead of every pause cycle.
-    // 10s: this is a pure safety net - deterministic catch-up happens via the
-    // watch-established listeners (poll on change stream re-establishment) and the lock
-    // monitor's targeted re-polls. Keep it coarse to bound the query load per topic.
-    private static final long FALLBACK_POLL_INTERVAL_MS = 10_000;
+    // Derived from the default message TTL: a message with default TTL gets ~2 rescue
+    // chances before it expires. This is a pure safety net - deterministic catch-up
+    // happens via the watch-established listeners (poll on change stream
+    // re-establishment) and the lock monitor's targeted re-polls, so it stays coarse
+    // to bound the query load per topic.
+    private static final long FALLBACK_POLL_INTERVAL_MS = Msg.DEFAULT_TTL_MS / 3;
     private volatile long lastFallbackPollTime = 0;
 
     private ScheduledThreadPoolExecutor decouplePool;

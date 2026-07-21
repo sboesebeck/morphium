@@ -78,6 +78,13 @@ public class Msg {
     @Deprecated(since = "6.3", forRemoval = true)
     private String name;
 
+    /**
+     * TTL applied when the sender does not specify one. Also the reference point for the
+     * messaging fallback-poll cadence: the safety net polls at DEFAULT_TTL_MS / 3, so a
+     * message with this TTL gets roughly two rescue chances before it expires.
+     */
+    public static final long DEFAULT_TTL_MS = 30_000;
+
     public Msg() {
         // msgId = UUID.randomUUID().toString();
         // lockedBy = "ALL";
@@ -85,7 +92,7 @@ public class Msg {
     }
 
     public Msg(String topic, String msg, String value) {
-        this(topic, msg, value, 30000, false);
+        this(topic, msg, value, DEFAULT_TTL_MS, false);
     }
 
     public Msg(String topic, String msg, String value, long ttl) {
