@@ -70,6 +70,9 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 
 ### Fixed
 
+#### BufferedMorphiumWriterImpl: NPE race between write-buffer users and the flusher
+The flush paths remove a type's buffer via `opLog.remove()` without holding the `opLog` monitor, while `addToWriteQueue` and the housekeeping thread re-read `opLog.get(type)` repeatedly between check and use — a concurrent flush in that window turned into an NPE (seen as a BufferedWriterTest failure under parallel-phase load; one code path even caught the NPE with a "can happen" comment instead of fixing the pattern). All check-then-re-get sequences now take a single snapshot reference (`computeIfAbsent` where the entry must exist), and the buffer-full strategies (`WRITE_OLD`/`DEL_OLD`) sort/mutate that snapshot inside the lock instead of re-reading the map outside it.
+
 #### Messaging: answers without an explicit TTL were stored already expired (the BasicJMSTests flaky)
 `Msg.sendAnswer` computed `deleteAt = now + getTtl()` **before** any TTL defaulting ran. An answer created via plain `new Msg()`/`new JMSMessage()` (ttl 0 — the JMS ack pattern) was therefore stored with `deleteAt = now`: the TTL sweeper raced the consumer for the freshly inserted document and won in roughly 1–5% of runs, deleting the answer between its change-stream event and the consumer's reread. The result was the long-hunted answer-timeout flaky (BasicJMSTests et al.) — persistent within a run, because the queued-for-processing marker also blocked the fallback poll from rescuing the vanished message. `sendAnswer` now leaves `deleteAt` unset when no TTL was chosen, so the send path applies `messagingDefaultTtl` first and `preStore` derives `deleteAt` from the *defaulted* TTL. Explicit answer TTLs behave as before. Root-caused via the new processing decision trace: `queued → dequeued → runnable started → reread returned null - message gone` told the whole story.
 

@@ -220,15 +220,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return;
         }
 
-        //        synchronized (opLog) {
-        if (opLog.get(type) == null) {
-            synchronized (opLog) {
-                opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-            }
-        }
+        // The flush paths remove the type's entry via opLog.remove() WITHOUT holding the
+        // opLog monitor - re-reading opLog.get(type) between check and use therefore races
+        // the flusher and NPEs under load (seen in BufferedWriterTest on the parallel-phase
+        // runner). Take ONE atomic snapshot and work with that reference.
+        List<WriteBufferEntry> buffer = opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>()));
 
-        if (size > 0 && opLog.get(type) != null && opLog.get(type).size() >= size) {
-            logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
+        if (size > 0 && buffer.size() >= size) {
+            logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + buffer.size() + " entries now, max is " + size);
             BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().connectionSettings().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
 
             switch (strategy) {
@@ -252,12 +251,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         } catch (InterruptedException e1) {
                         }
 
-                        try {
-                            if (opLog.get(type) == null || opLog.get(type).size() < size) {
-                                break;
-                            }
-                        } catch (NullPointerException e) {
-                            // Can happen - Multithreadded acces...
+                        // deliberate re-read: waiting for the flusher to drain (remove) the entry
+                        List<WriteBufferEntry> current = opLog.get(type);
+
+                        if (current == null || current.size() < size) {
                             break;
                         }
                     }
@@ -266,15 +263,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     // without the lock, other threads could add entries between
                     // the size check above and the add below, exceeding the limit.
                     synchronized (opLog) {
-                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                        opLog.get(type).add(wb);
+                        opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).add(wb);
                     }
                     break;
 
                 case JUST_WARN:
                     synchronized (opLog) {
-                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                        opLog.get(type).add(wb);
+                        opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).add(wb);
                     }
                     break;
 
@@ -288,37 +283,35 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     break;
 
                 case WRITE_OLD:
-                    opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                    opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
-
                     // could have been written in the meantime
                     synchronized (opLog) {
-                        if (opLog.get(type) != null && !opLog.get(type).isEmpty()) {
-                            WriteBufferEntry e = opLog.get(type).remove(0);
+                        List<WriteBufferEntry> current = opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>()));
+                        current.sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
+
+                        if (!current.isEmpty()) {
+                            WriteBufferEntry e = current.remove(0);
                             e.getToRun().queue(ctx);
                         }
 
-                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                        opLog.get(type).add(wb);
+                        current.add(wb);
                     }
 
                     break;
 
                 case DEL_OLD:
-                    opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                    opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
-
                     if (logger.isDebugEnabled()) {
                         logger.debug("Deleting oldest entry");
                     }
 
                     synchronized (opLog) {
-                        if (opLog.get(type) != null && !opLog.get(type).isEmpty()) {
-                            opLog.get(type).remove(0);
+                        List<WriteBufferEntry> current = opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>()));
+                        current.sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
+
+                        if (!current.isEmpty()) {
+                            current.remove(0);
                         }
 
-                        opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-                        opLog.get(type).add(wb);
+                        current.add(wb);
                     }
 
                     return;
@@ -326,8 +319,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
             ctx.execute();
         } else {
-            opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-            opLog.get(type).add(wb);
+            opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).add(wb);
         }
 
         //        }
@@ -791,7 +783,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             List < Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
                             for (Class<?> clz : localBuffer) {
-                                if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
+                                // single snapshot - a concurrent flush can remove the entry
+                                // between two get() calls (same race as in addToWriteQueue)
+                                List<WriteBufferEntry> queued = opLog.get(clz);
+
+                                if (queued == null || queued.isEmpty()) {
                                     continue;
                                 }
 
@@ -814,8 +810,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                     continue;
                                 }
 
-                                // can't be null
-                                if (size > 0 && opLog.get(clz) != null && opLog.get(clz).size() >= size) {
+                                if (size > 0 && queued.size() >= size) {
                                     // size reached!
                                     runIt(clz);
                                     continue;
@@ -852,9 +847,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     try {
                         List<Class<?>> remainingClasses = new ArrayList<>(opLog.keySet());
                         for (Class<?> clz : remainingClasses) {
-                            if (opLog.get(clz) != null && !opLog.get(clz).isEmpty()) {
+                            List<WriteBufferEntry> remaining = opLog.get(clz);
+
+                            if (remaining != null && !remaining.isEmpty()) {
                                 logger.debug("Flushing remaining {} entries for {} on shutdown",
-                                    opLog.get(clz).size(), clz.getSimpleName());
+                                    remaining.size(), clz.getSimpleName());
                                 runIt(clz);
                             }
                         }
@@ -871,13 +868,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     flushQueueToMongo(localQueue);
 
                     if (localQueue != null && !localQueue.isEmpty()) {
-                        if (opLog.get(clz) == null) {
-                            synchronized (opLog) {
-                                opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));
-                            }
-                        }
-
-                        opLog.get(clz).addAll(localQueue);
+                        opLog.computeIfAbsent(clz, k -> Collections.synchronizedList(new ArrayList<>()))
+                        .addAll(localQueue);
                     }
                 }
             };
@@ -1200,10 +1192,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             // flushQueueToMongo removes successfully-written entries from queue.
             // Any remaining entries (didNotWrite) must be re-queued for the next cycle.
             if (!queue.isEmpty()) {
-                synchronized (opLog) {
-                    opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));
-                }
-                opLog.get(clz).addAll(queue);
+                opLog.computeIfAbsent(clz, k -> Collections.synchronizedList(new ArrayList<>())).addAll(queue);
             }
         }
     }
@@ -1218,10 +1207,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         flushQueueToMongo(queue);
 
         if (!queue.isEmpty()) {
-            synchronized (opLog) {
-                opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
-            }
-            opLog.get(type).addAll(queue);
+            opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).addAll(queue);
         }
     }
 
