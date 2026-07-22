@@ -115,12 +115,34 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
     }
 
-    /** all traced processing decisions referencing the given message id (as request or answer target) */
+    /**
+     * All traced processing decisions referencing the given message id - directly, or through a
+     * linked message: an entry like "X (answer to REQ): queued" links answer X to request REQ,
+     * and X's later entries (dequeue/runnable markers, which only know the element id) would
+     * otherwise be invisible when filtering for REQ alone.
+     */
     public List<String> getProcessingDecisions(MorphiumId msgId) {
         String idStr = String.valueOf(msgId);
 
         synchronized (decisionTrace) {
-            return decisionTrace.stream().filter(e -> e.contains(idStr)).collect(Collectors.toList());
+            Set<String> relevantIds = new HashSet<>();
+            relevantIds.add(idStr);
+
+            for (String e : decisionTrace) {
+                if (e.contains(idStr)) {
+                    // entry format: "<ts> <msgId> [(answer to <reqId>)]: <decision>" - the second
+                    // token is the id of the message the decision was about
+                    String[] parts = e.split(" ", 3);
+
+                    if (parts.length >= 2) {
+                        relevantIds.add(parts[1]);
+                    }
+                }
+            }
+
+            return decisionTrace.stream()
+                   .filter(e -> relevantIds.stream().anyMatch(e::contains))
+                   .collect(Collectors.toList());
         }
     }
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();

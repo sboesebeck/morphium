@@ -463,7 +463,16 @@ public class Msg {
         m.setInAnswerTo(this.msgId);
         //m.addRecipient(this.getSender());
         m.addRecipient(this.getSender());
-        m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
+
+        // Only derive deleteAt here when the answer carries an explicit TTL. With ttl still 0
+        // (plain new Msg()/new JMSMessage(), the JMS ack pattern) this used to produce
+        // deleteAt=NOW - the answer was stored already expired and the TTL sweeper raced the
+        // consumer's reread for it (the long-hunted BasicJMSTests flaky). Left null, the send
+        // path applies messagingDefaultTtl and preStore derives deleteAt AFTER that.
+        if (m.getTtl() > 0) {
+            m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
+        }
+
         m.setMsgId(new MorphiumId());
         messaging.sendMessage(m);
     }

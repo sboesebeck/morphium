@@ -95,4 +95,55 @@ public class MessagingDefaultTtlTest {
 
         assertThat(m.getTtl()).as("an explicitly chosen TTL must never be overridden").isEqualTo(5_000L);
     }
+
+    /**
+     * Root cause of the long-hunted BasicJMSTests flaky: sendAnswer computed
+     * {@code deleteAt = now + getTtl()} BEFORE any TTL defaulting ran. An answer created via
+     * plain {@code new Msg()}/{@code new JMSMessage()} (ttl 0, the JMS ack pattern) was stored
+     * with deleteAt=now - the TTL sweeper then raced the consumer for the freshly inserted
+     * document, deleting it before the reread in roughly 1-5% of runs.
+     */
+    @Test
+    public void answerWithoutTtlIsNotDeadOnArrival() throws Exception {
+        messaging = new MultiCollectionMessaging();
+        messaging.init(morphium);
+        messaging.start();
+
+        Msg request = new Msg("ttl_test_topic", "req", "v", 30_000);
+        request.setMsgId(new de.caluga.morphium.driver.MorphiumId());
+        request.setSender("someone-else");
+
+        Msg answer = new Msg();
+        answer.setTopic("ttl_test_topic");
+        answer.setMsg("ack");
+        long before = System.currentTimeMillis();
+        request.sendAnswer(messaging, answer);
+
+        assertThat(answer.getTtl())
+                .as("an answer without explicit TTL must get the messaging default TTL")
+                .isEqualTo(morphium.getConfig().messagingSettings().getMessagingDefaultTtl());
+        assertThat(answer.getDeleteAt().getTime())
+                .as("deleteAt must reflect the defaulted TTL - deleteAt=now made the TTL sweeper race the consumer")
+                .isGreaterThanOrEqualTo(before + morphium.getConfig().messagingSettings().getMessagingDefaultTtl() - 1000);
+    }
+
+    @Test
+    public void answerWithExplicitTtlKeepsIt() throws Exception {
+        messaging = new MultiCollectionMessaging();
+        messaging.init(morphium);
+        messaging.start();
+
+        Msg request = new Msg("ttl_test_topic", "req", "v", 30_000);
+        request.setMsgId(new de.caluga.morphium.driver.MorphiumId());
+        request.setSender("someone-else");
+
+        Msg answer = new Msg("ttl_test_topic", "ack", "v", 7_000);
+        long before = System.currentTimeMillis();
+        request.sendAnswer(messaging, answer);
+
+        assertThat(answer.getTtl()).isEqualTo(7_000L);
+        assertThat(answer.getDeleteAt().getTime())
+                .as("an explicit answer TTL keeps driving deleteAt")
+                .isBetween(before + 6_000L, before + 8_500L);
+    }
 }
