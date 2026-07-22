@@ -186,4 +186,183 @@ public class InMemMergeStageTest extends MorphiumInMemTestBase {
 
         assertEquals(1, target().size(), "into may be given as {db, coll}");
     }
+
+    // ---- whenMatched as a pipeline (#241) ------------------------------------------------
+
+    @Test
+    public void pipelineWhenMatched_setWithNewVariable_combinesExistingAndIncoming() throws Exception {
+        MorphiumId existingId = new MorphiumId();
+        seed(TARGET, Doc.of("_id", existingId, "k", "a", "counter", 10, "keepMe", "yes"));
+        seed(SRC, Doc.of("k", "a", "counter", 5));
+
+        List<Map<String, Object>> pipeline = List.of(
+            Doc.of("$set", Doc.of("counter", Doc.of("$add", List.of("$counter", "$$new.counter")))));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"), "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(1, target().size(), "must update in place, not add a second document");
+        Map<String, Object> doc = target().get(0);
+        assertEquals(15, ((Number) doc.get("counter")).intValue(),
+            "$counter is the existing value, $$new.counter the incoming one - their sum must be stored");
+        assertEquals("yes", doc.get("keepMe"), "$set operates on the existing document, target-only fields survive");
+        assertEquals(existingId, doc.get("_id"), "the target's _id must be preserved");
+    }
+
+    @Test
+    public void pipelineWhenMatched_replaceRootWithNew_behavesLikeReplace() throws Exception {
+        MorphiumId existingId = new MorphiumId();
+        seed(TARGET, Doc.of("_id", existingId, "k", "a", "v", 99, "goneAfterReplace", "x"));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(Doc.of("$replaceRoot", Doc.of("newRoot", "$$new")));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"), "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(1, target().size());
+        Map<String, Object> doc = target().get(0);
+        assertEquals(1, ((Number) doc.get("v")).intValue(), "the incoming document must replace the target");
+        assertFalse(doc.containsKey("goneAfterReplace"), "replaceRoot with $$new must not keep target-only fields");
+        assertEquals(existingId, doc.get("_id"), "the target's _id must be preserved");
+    }
+
+    @Test
+    public void pipelineWhenMatched_replaceWithNew_isEquivalentToReplaceRoot() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 99, "goneAfterReplace", "x"));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(Doc.of("$replaceWith", "$$new"));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"), "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(1, target().size());
+        Map<String, Object> doc = target().get(0);
+        assertEquals(1, ((Number) doc.get("v")).intValue());
+        assertFalse(doc.containsKey("goneAfterReplace"));
+    }
+
+    @Test
+    public void pipelineWhenMatched_unsetAndSet_areApplied() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 99, "tmp", "dropMe"));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(
+            Doc.of("$unset", "tmp"),
+            Doc.of("$set", Doc.of("merged", true, "incomingV", "$$new.v")));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"), "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(1, target().size());
+        Map<String, Object> doc = target().get(0);
+        assertFalse(doc.containsKey("tmp"), "$unset must remove the field");
+        assertEquals(Boolean.TRUE, doc.get("merged"));
+        assertEquals(1, ((Number) doc.get("incomingV")).intValue());
+        assertEquals(99, ((Number) doc.get("v")).intValue(), "fields not touched by the pipeline stay as in the target");
+    }
+
+    @Test
+    public void pipelineWhenMatched_projectInclusion_keepsOnlyListedFields() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 99, "dropped", "x"));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(Doc.of("$project", Doc.of("k", 1, "v", 1)));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"), "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(1, target().size());
+        Map<String, Object> doc = target().get(0);
+        assertEquals("a", doc.get("k"));
+        assertEquals(99, ((Number) doc.get("v")).intValue(), "$project reads from the existing document");
+        assertFalse(doc.containsKey("dropped"), "inclusion projection must drop unlisted fields");
+        assertNotNull(doc.get("_id"), "_id is kept by an inclusion projection");
+    }
+
+    @Test
+    public void pipelineWhenMatched_customLet_bindsVariable() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 99));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(
+            Doc.of("$set", Doc.of("v", Doc.of("$add", List.of("$v", "$$inc")))));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"),
+                        "let", Doc.of("inc", "$v"),
+                        "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(1, target().size());
+        assertEquals(100, ((Number) target().get(0).get("v")).intValue(),
+            "$$inc is the incoming v (1), added to the existing v (99)");
+    }
+
+    @Test
+    public void pipelineWhenMatched_customLetWithRootExpression_seesIncomingDocument() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 99));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(Doc.of("$replaceRoot", Doc.of("newRoot", "$$incoming")));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"),
+                        "let", Doc.of("incoming", "$$ROOT"),
+                        "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(1, target().size());
+        assertEquals(1, ((Number) target().get(0).get("v")).intValue(),
+            "$$ROOT in a let expression is the incoming document");
+    }
+
+    @Test
+    public void pipelineWhenMatched_customLet_newVariableIsUnavailable() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 99));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(Doc.of("$set", Doc.of("x", "$$new.v")));
+        Aggregator<Object, Map> agg = mergeAgg(Doc.of("into", TARGET, "on", List.of("k"),
+                                               "let", Doc.of("inc", "$v"),
+                                               "whenMatched", pipeline));
+
+        var ex = assertThrows(MorphiumDriverException.class, agg::aggregateMap,
+            "a custom let replaces the default {new: $$ROOT}, so $$new must be undefined");
+        assertTrue(ex.getMessage().contains("new"),
+            "error must name the undefined variable: " + ex.getMessage());
+    }
+
+    @Test
+    public void pipelineWhenMatched_unknownStage_throws() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 99));
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        List<Map<String, Object>> pipeline = List.of(Doc.of("$match", Doc.of("v", 1)));
+        Aggregator<Object, Map> agg = mergeAgg(Doc.of("into", TARGET, "on", List.of("k"), "whenMatched", pipeline));
+
+        var ex = assertThrows(MorphiumDriverException.class, agg::aggregateMap,
+            "only $addFields/$set, $project/$unset and $replaceRoot/$replaceWith are allowed");
+        assertTrue(ex.getMessage().contains("$match"),
+            "error must name the offending stage: " + ex.getMessage());
+    }
+
+    @Test
+    public void letWithoutPipelineWhenMatched_throws() throws Exception {
+        seed(SRC, Doc.of("k", "a", "v", 1));
+
+        Aggregator<Object, Map> agg = mergeAgg(Doc.of("into", TARGET, "on", List.of("k"),
+                                               "let", Doc.of("inc", "$v"),
+                                               "whenMatched", "merge"));
+
+        var ex = assertThrows(MorphiumDriverException.class, agg::aggregateMap);
+        assertTrue(ex.getMessage().contains("let"),
+            "let is only allowed when whenMatched is a pipeline: " + ex.getMessage());
+    }
+
+    @Test
+    public void pipelineWhenMatched_unmatchedDocumentsAreInsertedUnchanged() throws Exception {
+        seed(TARGET, Doc.of("k", "a", "v", 10));
+        seed(SRC, Doc.of("k", "a", "v", 1), Doc.of("k", "b", "v", 2));
+
+        List<Map<String, Object>> pipeline = List.of(
+            Doc.of("$set", Doc.of("v", Doc.of("$add", List.of("$v", "$$new.v")))));
+        mergeAgg(Doc.of("into", TARGET, "on", List.of("k"), "whenMatched", pipeline)).aggregateMap();
+
+        assertEquals(2, target().size(), "the unmatched document must be inserted");
+
+        for (Map<String, Object> doc : target()) {
+            if ("a".equals(doc.get("k"))) {
+                assertEquals(11, ((Number) doc.get("v")).intValue(), "matched doc goes through the pipeline");
+            } else {
+                assertEquals("b", doc.get("k"));
+                assertEquals(2, ((Number) doc.get("v")).intValue(), "unmatched doc is inserted as-is, not piped");
+            }
+        }
+    }
 }
