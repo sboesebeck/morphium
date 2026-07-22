@@ -1457,6 +1457,27 @@ public class PooledDriver extends DriverBase {
                 return;
             }
 
+            // Don't pool connections that exceeded their lifetime (or idle time) while borrowed —
+            // pooling them parks already-expired connections until the heartbeat's expiry sweep
+            // runs, which lags behind under load. A borrow burst then keeps the pool far above
+            // its per-host minimum for seconds (the testLotsConnectionPool flaky). Closing on
+            // release matches what the official MongoDB drivers do.
+            long now = System.currentTimeMillis();
+
+            if (c.getCreated() < now - getMaxConnectionLifetime()
+                    || c.getLastUsed() < now - getMaxConnectionIdleTime()) {
+                log.debug("Connection to {} exceeded lifetime/idle time while borrowed - closing instead of pooling", con.getConnectedTo());
+                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                markStatsDirty();
+
+                try {
+                    con.close();
+                } catch (Exception ignored) {
+                }
+
+                return;
+            }
+
             // Return connection to the pool it currently belongs to (may differ from borrowedFrom after failover)
             if (con.getConnectedTo() != null) {
                 Host h = hosts.get(con.getConnectedTo());

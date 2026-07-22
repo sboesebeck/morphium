@@ -70,6 +70,9 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 
 ### Fixed
 
+#### PooledDriver: expired connections were pooled on release instead of closed
+`releaseConnection` returned connections to the pool even when they had exceeded their `maxConnectionLifetime`/`maxConnectionIdleTime` while borrowed — only the heartbeat's expiry sweep removed them, one sweep later. A borrow burst (e.g. 20 connections) therefore parked a mountain of already-expired connections in the pool, and under load the sweep lagged behind, keeping the pool far above its per-host minimum for many seconds (the `testLotsConnectionPool` flaky; diagnosed with the new `PoolConvergenceReproTest` counter telemetry — the pool's bookkeeping itself is drift-free). Expired connections are now closed on release, like the official MongoDB drivers do; the pool converges within one lifetime window even after bursts.
+
 #### BufferedMorphiumWriterImpl: NPE race between write-buffer users and the flusher
 The flush paths remove a type's buffer via `opLog.remove()` without holding the `opLog` monitor, while `addToWriteQueue` and the housekeeping thread re-read `opLog.get(type)` repeatedly between check and use — a concurrent flush in that window turned into an NPE (seen as a BufferedWriterTest failure under parallel-phase load; one code path even caught the NPE with a "can happen" comment instead of fixing the pattern). All check-then-re-get sequences now take a single snapshot reference (`computeIfAbsent` where the entry must exist), and the buffer-full strategies (`WRITE_OLD`/`DEL_OLD`) sort/mutate that snapshot inside the lock instead of re-reading the map outside it.
 
