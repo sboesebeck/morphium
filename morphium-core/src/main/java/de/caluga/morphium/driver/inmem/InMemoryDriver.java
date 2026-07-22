@@ -2274,6 +2274,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     index.put("expireAfterSeconds", opt.get("expireAfterSeconds"));
                 }
 
+                // partialFilterExpression used to be swallowed here, breaking every
+                // listIndexes/createIndexes round trip (PoppyDB index replication, #258)
+                if (opt != null && opt.get("partialFilterExpression") != null) {
+                    index.put("partialFilterExpression", opt.get("partialFilterExpression"));
+                }
+
                 if (opt != null && opt.get("bachground") != null) {
                     index.put("background", opt.get("background"));
                 }

@@ -1,12 +1,17 @@
 package de.caluga.poppydb;
 
+import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.CreateIndexesCommand;
+import de.caluga.morphium.driver.commands.DropIndexesCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.GenericCommand;
+import de.caluga.morphium.driver.commands.ListIndexesCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -70,6 +75,11 @@ public class ReplicationManager {
     private volatile Morphium primaryMorphium;
     private ExecutorService replicationExecutor;
     private ScheduledExecutorService progressReporter;
+    // Periodic index diff (#258): change streams carry no index DDL, so createIndexes/dropIndexes
+    // on the primary are picked up by diffing listIndexes at this interval (and once as part of
+    // every initial sync). 30s of index lag is acceptable - the data plane is not affected.
+    private static final long INDEX_SYNC_INTERVAL_MS = TimeUnit.SECONDS.toMillis(30);
+    private ScheduledExecutorService indexSyncer;
     private volatile long watchCursorId = -1;
 
     // Initial sync state
@@ -180,6 +190,40 @@ public class ReplicationManager {
 
         // Start progress reporter
         startProgressReporter();
+
+        // Start periodic index replication (#258)
+        startIndexSyncer();
+    }
+
+    private void startIndexSyncer() {
+        indexSyncer = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "PoppyDB-IndexSyncer");
+            t.setDaemon(true);
+            return t;
+        });
+
+        indexSyncer.scheduleWithFixedDelay(this::periodicIndexSync,
+                INDEX_SYNC_INTERVAL_MS, INDEX_SYNC_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private void periodicIndexSync() {
+        // The initial sync replicates indexes itself; until it is done (and while partitioned)
+        // there is nothing sensible to diff against.
+        if (!connected.get() || pausedForTest.get() || !initialSyncComplete.get()) {
+            return;
+        }
+
+        Morphium pm = primaryMorphium;
+
+        if (pm == null) {
+            return;
+        }
+
+        try {
+            syncIndexesFrom(pm.getDriver());
+        } catch (Exception e) {
+            log.warn("Periodic index sync failed (will retry in {}ms): {}", INDEX_SYNC_INTERVAL_MS, e.getMessage());
+        }
     }
 
     /**
@@ -510,6 +554,17 @@ public class ReplicationManager {
             progressReporter = null;
         }
 
+        // Stop periodic index replication
+        if (indexSyncer != null) {
+            indexSyncer.shutdownNow();
+            try {
+                indexSyncer.awaitTermination(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            indexSyncer = null;
+        }
+
         if (replicationExecutor != null) {
             replicationExecutor.shutdownNow();
         }
@@ -771,6 +826,122 @@ public class ReplicationManager {
      * at this point -- dropping and re-copying it just rebuilds the snapshot, and the buffered
      * events are still replayed on top of it once the gate opens.
      */
+    /**
+     * Replicate the index definitions of every user database/collection from the given source
+     * driver to the local one (#258). Change streams do not carry index DDL (neither MongoDB's
+     * nor ours), so this runs after the initial-sync snapshot and periodically from
+     * {@code indexSyncLoop} - the periodic diff also picks up createIndexes/dropIndexes that
+     * happened on the primary while this node was disconnected.
+     */
+    void syncIndexesFrom(MorphiumDriver source) throws Exception {
+        for (String dbName : source.listDatabases()) {
+            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
+                continue;
+            }
+
+            for (String collName : source.listCollections(dbName, null)) {
+                if (collName.startsWith("system.")) {
+                    continue;
+                }
+
+                applyIndexDiff(dbName, collName, listIndexesOf(source, dbName, collName));
+            }
+        }
+    }
+
+    /**
+     * Diff the primary's index list for one collection against the local one and converge:
+     * create missing indexes (full spec - unique/TTL/partial/sparse/... survive), drop local
+     * ones the primary no longer has. The {@code _id} index is never touched. The diff is
+     * name-based; MongoDB refuses to change an existing index's options under the same name
+     * anyway (IndexOptionsConflict), so a name match means the spec matches.
+     */
+    void applyIndexDiff(String db, String coll, List<IndexDescription> primaryIndexes) throws Exception {
+        List<IndexDescription> localIndexes = listIndexesOf(localDriver, db, coll);
+        Set<String> localNames = new HashSet<>();
+        Set<String> primaryNames = new HashSet<>();
+
+        for (IndexDescription l : localIndexes) {
+            localNames.add(l.getName());
+        }
+
+        List<Map<String, Object>> toCreate = new ArrayList<>();
+
+        for (IndexDescription p : primaryIndexes) {
+            if (isIdIndex(p)) {
+                continue;
+            }
+
+            primaryNames.add(p.getName());
+
+            if (!localNames.contains(p.getName())) {
+                toCreate.add(p.asMap());
+            }
+        }
+
+        if (!toCreate.isEmpty()) {
+            CreateIndexesCommand createCmd = null;
+
+            try {
+                createCmd = new CreateIndexesCommand(localDriver.getPrimaryConnection(null))
+                .setDb(db).setColl(coll).setIndexes(toCreate);
+                createCmd.execute();
+                log.info("Index replication: created {} index(es) on {}.{}", toCreate.size(), db, coll);
+            } finally {
+                if (createCmd != null) {
+                    createCmd.releaseConnection();
+                }
+            }
+        }
+
+        for (IndexDescription l : localIndexes) {
+            if (isIdIndex(l) || primaryNames.contains(l.getName())) {
+                continue;
+            }
+
+            DropIndexesCommand dropCmd = null;
+
+            try {
+                dropCmd = new DropIndexesCommand(localDriver.getPrimaryConnection(null))
+                .setDb(db).setColl(coll).setIndex(l.getName());
+                dropCmd.execute();
+                log.info("Index replication: dropped stale index {} on {}.{}", l.getName(), db, coll);
+            } finally {
+                if (dropCmd != null) {
+                    dropCmd.releaseConnection();
+                }
+            }
+        }
+    }
+
+    private boolean isIdIndex(IndexDescription idx) {
+        return idx.getKey() != null && idx.getKey().size() == 1 && idx.getKey().containsKey("_id");
+    }
+
+    /** listIndexes against any driver; a missing collection reports no indexes (mongod: code 26) */
+    private List<IndexDescription> listIndexesOf(MorphiumDriver drv, String db, String coll) throws MorphiumDriverException {
+        MongoConnection con = null;
+        ListIndexesCommand cmd = null;
+
+        try {
+            con = drv.getReadConnection(null);
+            cmd = new ListIndexesCommand(con).setDb(db).setColl(coll);
+            return cmd.execute();
+        } catch (MorphiumDriverException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Error: 26")) {
+                return new ArrayList<>();
+            }
+
+            throw e;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (con != null) {
+                drv.releaseConnection(con);
+            }
+        }
+    }
+
     private void clearLocalDatabases() throws Exception {
         for (String dbName : localDriver.listDatabases()) {
             if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
@@ -803,6 +974,12 @@ public class ReplicationManager {
 
             totalDocs += syncDatabase(dbName);
         }
+
+        // Replicate index definitions after the data copy (mongod also builds indexes after
+        // cloning). A failure here fails the initial sync on purpose: the snapshot retry loop
+        // redoes the whole sync, so the node never reports "synced" while missing the primary's
+        // unique/TTL constraints (#258).
+        syncIndexesFrom(primaryMorphium.getDriver());
 
         long duration = System.currentTimeMillis() - startTime;
         log.info("Initial sync complete: {} documents synced in {}ms", totalDocs, duration);

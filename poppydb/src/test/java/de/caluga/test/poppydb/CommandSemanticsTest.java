@@ -516,13 +516,11 @@ public class CommandSemanticsTest {
     // driver-level ExplainCommandTest, which goes through FindCommand#explain/
     // CountMongoCommand#explain's direct field setters and never calls fromMap() at all.
     //
-    // NOTE: index *metadata* is not part of ReplicationManager's replication stream (only
-    // document data is - see performInitialSync/syncCollection and watchForChanges, neither of
-    // which touches createIndexes/listIndexes) - a pre-existing gap outside this task's scope.
-    // The seed documents are inserted on the primary and awaited on the secondary the normal way;
-    // the index itself is created directly on each node's own driver (standing in for the missing
-    // index-metadata replication) so this test's actual target - explain's read-classification and
-    // wire round trip on a secondary - isn't blocked by that unrelated gap.
+    // NOTE: index metadata IS replicated since #258 (initial sync + periodic 30s diff, see
+    // ReplicationManager.syncIndexesFrom), but this index is created only after the secondary's
+    // initial sync - relying on replication here would mean waiting for the periodic diff. The
+    // index is still created directly on each node's own driver so this test's actual target -
+    // explain's read-classification and wire round trip on a secondary - stays fast and focused.
     @Test
     public void secondaryServesPlainExplainAsARead() throws Exception {
         List<PoppyDB> servers = startReplicaSet(freePort(), freePort(), freePort());

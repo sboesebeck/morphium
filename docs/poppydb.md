@@ -130,6 +130,17 @@ This is particularly useful for testing scenarios where you want to:
 2. Store initial test data
 3. Start secondary nodes and verify data replication
 
+### Index replication
+
+Secondaries replicate **index definitions** as well as documents (since 6.3.0, #258): the initial
+sync copies the primary's `listIndexes` output after the data snapshot, and a periodic diff (every
+30s) converges afterwards — indexes created on the primary are created on the secondary with their
+full options (unique, TTL, partial, sparse, ...), and indexes dropped on the primary are dropped
+locally (the `_id` index is never touched). The periodic diff also covers changes the secondary
+missed while disconnected. Change streams carry no index DDL, so index changes can lag up to one
+diff interval behind; document replication is unaffected. After a failover, a promoted secondary
+therefore enforces the same unique constraints and expires TTL documents like the old primary did.
+
 ### Replication buffer sizing
 
 A secondary that falls behind (network partition, GC pause, slow disk) resumes from its
