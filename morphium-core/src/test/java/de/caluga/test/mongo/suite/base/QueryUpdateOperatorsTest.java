@@ -343,4 +343,66 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
         assertNotEquals(0, cnt);
         assertEquals(5, cnt);
     }
+
+    private de.caluga.test.mongo.suite.data.ListContainer storeListContainer(Morphium morphium) {
+        de.caluga.test.mongo.suite.data.ListContainer lc = new de.caluga.test.mongo.suite.data.ListContainer();
+        lc.setName("arrayFilters");
+        lc.addLong(85);
+        lc.addLong(92);
+        lc.addLong(90);
+        morphium.store(lc);
+        return lc;
+    }
+
+    private String longListPath(Morphium morphium) {
+        return morphium.getARHelper().getMongoFieldName(de.caluga.test.mongo.suite.data.ListContainer.class, "longList") + ".$[elem]";
+    }
+
+    private Query<de.caluga.test.mongo.suite.data.ListContainer> lcQuery(Morphium morphium) {
+        return morphium.createQueryFor(de.caluga.test.mongo.suite.data.ListContainer.class)
+               .f(de.caluga.test.mongo.suite.data.ListContainer.Fields.name).eq("arrayFilters");
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testSetWithArrayFilters(Morphium morphium) throws Exception {
+        try (morphium) {
+            storeListContainer(morphium);
+            Query<de.caluga.test.mongo.suite.data.ListContainer> q = lcQuery(morphium)
+                .setArrayFilters(de.caluga.morphium.driver.Doc.of("elem", de.caluga.morphium.driver.Doc.of("$gte", 90)));
+            q.set(longListPath(morphium), 100L, false, false);
+            TestUtils.waitForConditionToBecomeTrue(5000, "arrayFilters $set not applied",
+                () -> List.of(85L, 100L, 100L).equals(lcQuery(morphium).get().getLongList()));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testIncWithArrayFilters(Morphium morphium) throws Exception {
+        try (morphium) {
+            storeListContainer(morphium);
+            Query<de.caluga.test.mongo.suite.data.ListContainer> q = lcQuery(morphium)
+                .setArrayFilters(de.caluga.morphium.driver.Doc.of("elem", de.caluga.morphium.driver.Doc.of("$gte", 90)));
+            q.inc(longListPath(morphium), 5, false, false);
+            TestUtils.waitForConditionToBecomeTrue(5000, "arrayFilters $inc not applied",
+                () -> List.of(85L, 97L, 95L).equals(lcQuery(morphium).get().getLongList()));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testUnsetWithArrayFilters(Morphium morphium) throws Exception {
+        try (morphium) {
+            storeListContainer(morphium);
+            Query<de.caluga.test.mongo.suite.data.ListContainer> q = lcQuery(morphium)
+                .setArrayFilters(de.caluga.morphium.driver.Doc.of("elem", de.caluga.morphium.driver.Doc.of("$gte", 90)));
+            q.unset(longListPath(morphium));
+            // $unset on an array element leaves null in place (MongoDB semantics)
+            TestUtils.waitForConditionToBecomeTrue(5000, "arrayFilters $unset not applied",
+                () -> {
+                    List<Long> l = lcQuery(morphium).get().getLongList();
+                    return l.size() == 3 && l.get(0) == 85L && l.get(1) == null && l.get(2) == null;
+                });
+        }
+    }
 }

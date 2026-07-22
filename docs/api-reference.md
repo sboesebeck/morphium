@@ -232,6 +232,23 @@ public List<Object> distinct(String field)
 public List<T> complexQuery(Map<String, Object> query)
 ```
 
+**Update Operations with arrayFilters (since 6.3.0):**
+
+Filtered positional updates (`$[<identifier>]` paths) are available on all update
+operations of a query — `set`, `inc`, `unset`, `push`, `pull`, ...:
+
+```java
+// Set every list element >= 90 to 100
+morphium.createQueryFor(Measurement.class)
+    .f(Measurement.Fields.sensor).eq("s1")
+    .setArrayFilters(Doc.of("elem", Doc.of("$gte", 90)))
+    .set("values.$[elem]", 100, false, true);
+```
+
+`setArrayFilters` accepts a `List<Map<String, Object>>` or varargs of filter documents;
+each document defines one `$[<identifier>]` placeholder. Paths containing `$` bypass
+property-name translation, so write the MongoDB field names in the path.
+
 ## Aggregation API
 
 ### Aggregator Interface
@@ -273,6 +290,21 @@ public Aggregator<T, R> sort(Map<String, Integer> sort)
 // Skip/Limit stages
 public Aggregator<T, R> skip(int skip)
 public Aggregator<T, R> limit(int limit)
+
+// Gap filling / window functions (since 6.3.0)
+public Aggregator<T, R> documents(List<Map<String, Object>> documents)   // $documents
+public Aggregator<T, R> densify(String field, Number step)               // $densify, "full" bounds
+public Aggregator<T, R> densify(String field, Number step, Object bounds)
+public Aggregator<T, R> densify(String field, Number step, Object bounds,
+                                String unit, List<String> partitionByFields)
+public Aggregator<T, R> fill(Map<String, Object> output)                 // $fill
+public Aggregator<T, R> fill(Map<String, Object> sortBy, Map<String, Object> output)
+public Aggregator<T, R> setWindowFields(Object partitionBy,              // $setWindowFields
+                                        Map<String, Object> sortBy,
+                                        Map<String, Object> output)
+
+// Escape hatch for any other stage
+public Aggregator<T, R> genericStage(String stageName, Object param)
 ```
 
 **Execution:**

@@ -142,10 +142,48 @@ public interface Aggregator<T, R> {
      * @return the aggregator */
     Aggregator<T, R> currentOp(boolean allUsers, boolean idleConnections, boolean idleCursors, boolean idleSessions, boolean localOps);
 
+    /** Adds a $densify stage with "full" bounds.
+     * @param field the field to densify (translated like other typed stage methods)
+     * @param step the increment between generated values
+     * @return the aggregator */
+    Aggregator<T, R> densify(String field, Number step);
+
+    /** Adds a $densify stage.
+     * @param field the field to densify (translated)
+     * @param step the increment between generated values
+     * @param bounds "full", "partition" or a two-element list [lower, upper)
+     * @return the aggregator */
+    Aggregator<T, R> densify(String field, Number step, Object bounds);
+
+    /** Adds a $densify stage with a date unit and/or partitioning.
+     * @param field the field to densify (translated)
+     * @param step the increment between generated values
+     * @param bounds "full", "partition" or a two-element list [lower, upper)
+     * @param unit date unit for the step (e.g. "hour"), null for numeric densification
+     * @param partitionByFields fields to partition by (translated), null for none
+     * @return the aggregator */
+    Aggregator<T, R> densify(String field, Number step, Object bounds, String unit, List<String> partitionByFields);
+
+    /** Adds a $documents stage - replaces the input with the given literal documents.
+     * @param documents the documents the pipeline should operate on
+     * @return the aggregator */
+    Aggregator<T, R> documents(List<Map<String, Object>> documents);
+
     /** Adds a $facet stage using expressions.
      * @param param the facet output field map
      * @return the aggregator */
     Aggregator<T, R> facetExpr(Map<String, Expr> param);
+
+    /** Adds a $fill stage without sort order (only {@code value} fills are possible then).
+     * @param output map of field name (translated) to fill spec: {@code {value: ...}} or {@code {method: "locf"|"linear"}}
+     * @return the aggregator */
+    Aggregator<T, R> fill(Map<String, Object> output);
+
+    /** Adds a $fill stage.
+     * @param sortBy sort spec (field names translated) - required for method-based fills
+     * @param output map of field name (translated) to fill spec: {@code {value: ...}} or {@code {method: "locf"|"linear"}}
+     * @return the aggregator */
+    Aggregator<T, R> fill(Map<String, Object> sortBy, Map<String, Object> output);
 
     /** Adds a $facet stage using sub-pipelines.
      * @param pipeline map of output field names to sub-aggregators
@@ -372,6 +410,14 @@ public interface Aggregator<T, R> {
      * @param param map of field names to set expressions
      * @return the aggregator */
     Aggregator<T, R> set(Map<String, Expr> param);
+
+    /** Adds a $setWindowFields stage.
+     * @param partitionBy partition expression (e.g. a "$field" reference, translated) or null for a single partition
+     * @param sortBy sort spec (field names translated), null if no order is needed
+     * @param output map of output field name to window operator spec, e.g. {@code {total: {$sum: "$value"}}};
+     *               field references inside the specs are translated
+     * @return the aggregator */
+    Aggregator<T, R> setWindowFields(Object partitionBy, Map<String, Object> sortBy, Map<String, Object> output);
 
     /** Adds a $sortByCount stage.
      * @param countBy the expression to count by

@@ -979,6 +979,82 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      * @return
      */
     @Override
+    public Aggregator<T, R> densify(String field, Number step) {
+        return densify(field, step, "full");
+    }
+
+    @Override
+    public Aggregator<T, R> densify(String field, Number step, Object bounds) {
+        return densify(field, step, bounds, null, null);
+    }
+
+    @Override
+    public Aggregator<T, R> densify(String field, Number step, Object bounds, String unit, List<String> partitionByFields) {
+        Map<String, Object> range = new LinkedHashMap<>();
+        range.put("step", step);
+
+        if (unit != null) {
+            range.put("unit", unit);
+        }
+
+        range.put("bounds", bounds);
+        Map<String, Object> spec = new LinkedHashMap<>();
+        spec.put("field", tf(field));
+        spec.put("range", range);
+
+        if (partitionByFields != null) {
+            spec.put("partitionByFields", partitionByFields.stream().map(this::tf).collect(Collectors.toList()));
+        }
+
+        addOperator(UtilsMap.of("$densify", spec));
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> documents(List<Map<String, Object>> documents) {
+        addOperator(UtilsMap.of("$documents", documents));
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> fill(Map<String, Object> output) {
+        return fill(null, output);
+    }
+
+    @Override
+    public Aggregator<T, R> fill(Map<String, Object> sortBy, Map<String, Object> output) {
+        Map<String, Object> spec = new LinkedHashMap<>();
+
+        if (sortBy != null) {
+            spec.put("sortBy", fieldNames.translateKeys(sortBy));
+        }
+
+        spec.put("output", fieldNames.translateKeys(output));
+        addOperator(UtilsMap.of("$fill", spec));
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> setWindowFields(Object partitionBy, Map<String, Object> sortBy, Map<String, Object> output) {
+        boolean translate = isTranslateAggregationFieldNames();
+        Map<String, Object> spec = new LinkedHashMap<>();
+
+        if (partitionBy != null) {
+            Object pb = partitionBy instanceof Expr ? ((Expr) partitionBy).toQueryObject() : partitionBy;
+            spec.put("partitionBy", translate ? fieldNames.translateRefs(pb) : pb);
+        }
+
+        if (sortBy != null) {
+            spec.put("sortBy", fieldNames.translateKeys(sortBy));
+        }
+
+        Map<String, Object> out = fieldNames.translateKeys(output);
+        spec.put("output", translate ? fieldNames.translateRefs(out) : out);
+        addOperator(UtilsMap.of("$setWindowFields", spec));
+        return this;
+    }
+
+    @Override
     public Aggregator<T, R> sortByCount(Expr sortby) {
         addOperator(UtilsMap.of("$sortByCount", sortby.toQueryObject()));
         return this;

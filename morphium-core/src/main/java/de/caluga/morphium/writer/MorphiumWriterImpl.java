@@ -2059,7 +2059,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     upsert,
                                     multiple,
                                     query.getCollation(),
-                                    null,
+                                    query.getArrayFilters(),
                                     null,
                                     (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
                     );
@@ -2196,7 +2196,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (query.getLimit() > 0 && multiple) {
                         for (int i = 0; i < query.getLimit(); i++) {
-                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, false, query.getCollation(), null, null);
+                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, false, query.getCollation(), query.getArrayFilters(), null);
 
                             // settings.releaseConnection();
                             if (settings.getUpdates().size() >= morphium.getConfig().getCursorBatchSize()) {
@@ -2213,7 +2213,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         upsert,
                                         multiple,
                                         query.getCollation(),
-                                        null,
+                                        query.getArrayFilters(),
                                         null,
                                         (!multiple && query.getSort() != null) ? Doc.of(query.getSort()) : null
                         );
@@ -2402,7 +2402,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (multiple && query.getLimit() > 0) {
                         for (int i = 0; i < query.getLimit(); i++) {
-                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, false, query.getCollation(), null, null);
+                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, false, query.getCollation(), query.getArrayFilters(), null);
 
                             if (settings.getUpdates().size() >= morphium.getConfig().getCursorBatchSize()) {
                                 var daa = settings.execute();
@@ -2410,7 +2410,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
                         }
                     } else {
-                        settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), null, null);
+                        settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), query.getArrayFilters(), null);
                     }
 
                     if (settings.getUpdates().size() != 0) {
@@ -2505,7 +2505,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (multiple && query.getLimit() > 0) {
                         for (int i = 0; i < query.getLimit(); i++) {
-                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, false, query.getCollation(), null, null);
+                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, false, query.getCollation(), query.getArrayFilters(), null);
 
                             if (settings.getUpdates().size() >= morphium.getConfig().getCursorBatchSize()) {
                                 var r = settings.execute();
@@ -2514,7 +2514,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
                         }
                     } else {
-                        settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, multiple, query.getCollation(), null, null);
+                        settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, multiple, query.getCollation(), query.getArrayFilters(), null);
                     }
 
                     if (settings.getUpdates().size() != 0) {
@@ -2703,7 +2703,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("Limit on push/pull queries not useful!");
                     }
 
-                    ret = pushIt(push, upsert, multiple, cls, coll, qobj, update, query.getCollation());
+                    ret = pushIt(push, upsert, multiple, cls, coll, qobj, update, query.getCollation(), query.getArrayFilters());
 
                     if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
                         throw new RuntimeException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
@@ -2783,7 +2783,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    private Map<String, Object> pushIt(boolean push, boolean upsert, boolean multiple, Class<?> cls, String coll, Map<String, Object> qobj, Map<String, Object> update, Collation collation) {
+    private Map<String, Object> pushIt(boolean push, boolean upsert, boolean multiple, Class<?> cls, String coll, Map<String, Object> qobj, Map<String, Object> update, Collation collation,
+                                       List<Map<String, Object>> arrayFilters) {
         morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
         Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
 
@@ -2803,7 +2804,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             checkIndexAndCaps(cls, coll, null);
             con = morphium.getDriver().getPrimaryConnection(wc);
             settings = new UpdateMongoCommand(con).setColl(coll).setDb(getDbName()).setWriteConcern(wc != null ? wc.asMap() : null);
-            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, collation, null, null);
+            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, collation, arrayFilters, null);
             var r = settings.execute();
             settings.releaseConnection();
             sumUp(r, result);
@@ -2911,7 +2912,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                         if (multiple && query.getLimit() > 0) {
                             for (int i = 0; i < query.getLimit(); i++) {
-                                settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, false, query.getCollation(), null, null);
+                                settings.addUpdate(Doc.of(qobj), Doc.of(update), null, false, false, query.getCollation(), query.getArrayFilters(), null);
 
                                 if (settings.getUpdates().size() >= morphium.getConfig().getCursorBatchSize()) {
                                     var r = settings.execute();
@@ -2920,7 +2921,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
                             }
                         } else {
-                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), null, null);
+                            settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), query.getArrayFilters(), null);
                         }
 
                         if (settings != null && settings.getUpdates() != null && settings.getUpdates().size() != 0) {
