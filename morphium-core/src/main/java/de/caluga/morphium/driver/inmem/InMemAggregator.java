@@ -3981,14 +3981,20 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     // ---- $setWindowFields -----------------------------------------------------------------
 
     private static final Set<String> SWF_ACCUMULATORS =
-        Set.of("$sum", "$avg", "$min", "$max", "$count", "$push", "$first", "$last");
+        Set.of("$sum", "$avg", "$min", "$max", "$count", "$push", "$first", "$last",
+               "$stdDevPop", "$stdDevSamp", "$covariancePop", "$covarianceSamp",
+               "$firstN", "$lastN", "$minN", "$maxN", "$top", "$bottom", "$topN", "$bottomN");
     private static final Set<String> SWF_RANK_FAMILY = Set.of("$rank", "$denseRank", "$documentNumber");
 
     /**
-     * $setWindowFields: the common core - partitionBy, sortBy, documents-windows, and the window
-     * functions $sum/$avg/$min/$max/$count/$push/$first/$last/$rank/$denseRank/$documentNumber/
-     * $shift. Range/time windows and every other window function (e.g. $derivative, $integral,
-     * $expMovingAvg, $covariance*, $linearFill) are rejected with a command error - never
+     * $setWindowFields: partitionBy, sortBy, documents- and range-windows (range with optional
+     * time unit up to 'week'), and the window functions
+     * $sum/$avg/$min/$max/$count/$push/$first/$last/$stdDevPop/$stdDevSamp/$covariancePop/
+     * $covarianceSamp/$firstN/$lastN/$minN/$maxN/$top/$bottom/$topN/$bottomN (accumulator
+     * family, documents and range windows), $rank/$denseRank/$documentNumber/$shift (need the
+     * stage sortBy, no window), $derivative/$integral (single-field sortBy, optional unit),
+     * and $expMovingAvg/$linearFill/$locf (partition-sequential, no window). Anything else
+     * (e.g. $percentile/$median window state) is rejected with a command error - never
      * silently wrong results.
      */
     @SuppressWarnings("unchecked")
@@ -4055,9 +4061,53 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     for (int i = 0; i < n; i++) {
                         setNestedValue(docs.get(i), outField, rankOrShiftValue(fn, arg, docs, i, sortBy));
                     }
+                } else if ("$expMovingAvg".equals(fn)) {
+                    if (windowSpec != null) {
+                        throw mongoCommandError(5371601, fn + " does not accept a 'window' specification");
+                    }
+
+                    if (sortBy == null || sortBy.isEmpty()) {
+                        throw mongoCommandError(5371602, fn + " requires a sortBy");
+                    }
+
+                    applyExpMovingAvg(swfMapArg(fn, arg, "input"), docs, outField);
+                } else if ("$linearFill".equals(fn) || "$locf".equals(fn)) {
+                    if (windowSpec != null) {
+                        throw mongoCommandError(5371601, fn + " does not accept a 'window' specification");
+                    }
+
+                    if ("$locf".equals(fn)) {
+                        if (sortBy == null || sortBy.isEmpty()) {
+                            throw mongoCommandError(5371602, fn + " requires a sortBy");
+                        }
+
+                        Object carry = null;
+
+                        for (Map<String, Object> doc : docs) {
+                            Object v = projectComputedValue(arg, doc);
+
+                            if (v != null) {
+                                carry = v;
+                            }
+
+                            setNestedValue(doc, outField, carry);
+                        }
+                    } else {
+                        applyLinearFill(arg, docs, outField, sortBy);
+                    }
+                } else if ("$derivative".equals(fn) || "$integral".equals(fn)) {
+                    Map<String, Object> a = swfMapArg(fn, arg, "input");
+                    Long unitMillis = a.get("unit") == null ? null : swfUnitMillis(String.valueOf(a.get("unit")), fn);
+                    String sortField = swfSingleSortField(fn, sortBy);
+
+                    for (int i = 0; i < n; i++) {
+                        int[] w = resolveWindow(windowSpec, docs, i, sortBy);
+                        setNestedValue(docs.get(i), outField,
+                            derivativeOrIntegral(fn, a.get("input"), docs, w[0], w[1], sortField, unitMillis));
+                    }
                 } else if (SWF_ACCUMULATORS.contains(fn)) {
                     for (int i = 0; i < n; i++) {
-                        int[] w = documentsWindow(windowSpec, i, n);
+                        int[] w = resolveWindow(windowSpec, docs, i, sortBy);
                         setNestedValue(docs.get(i), outField, windowAccumulate(fn, arg, docs, w[0], w[1]));
                     }
                 } else {
@@ -4073,11 +4123,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     /**
-     * Resolves a documents-window spec to inclusive index bounds [lo, hi] around position i;
-     * lo &gt; hi denotes an empty window. Default (no window) is the whole partition.
+     * Resolves a window spec (documents or range) to inclusive index bounds [lo, hi] around
+     * position i; lo &gt; hi denotes an empty window. Default (no window) is the whole partition.
      */
     @SuppressWarnings("unchecked")
-    private int[] documentsWindow(Object windowSpec, int i, int n) {
+    private int[] resolveWindow(Object windowSpec, List<Map<String, Object>> docs, int i, Map<String, Object> sortBy) {
+        int n = docs.size();
+
         if (windowSpec == null) {
             return new int[] {0, n - 1};
         }
@@ -4088,11 +4140,112 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
         Map<String, Object> w = (Map<String, Object>) windowSpec;
 
-        if (w.containsKey("range")) {
-            throw mongoCommandError(5397902,
-                "range windows are not supported by the in-memory driver - only documents windows");
+        if (w.containsKey("documents") && w.containsKey("range")) {
+            throw mongoCommandError(5397903, "'window' must contain either 'documents' or 'range', not both");
         }
 
+        if (w.containsKey("range")) {
+            return rangeWindow(w, docs, i, sortBy);
+        }
+
+        if (w.containsKey("unit")) {
+            throw mongoCommandError(5397903, "window.unit is only valid together with a range window");
+        }
+
+        return documentsWindow(w, i, n);
+    }
+
+    /**
+     * Resolves a range-window spec: [lo, hi] are value distances to the current document's
+     * sortBy value (with a unit: a date, distances in unit-milliseconds). Requires an
+     * ascending single-field stage sortBy (mongod code 5339902).
+     */
+    private int[] rangeWindow(Map<String, Object> w, List<Map<String, Object>> docs, int i, Map<String, Object> sortBy) {
+        if (sortBy == null || sortBy.size() != 1) {
+            throw mongoCommandError(5339902, "range-based windows require a sortBy with exactly one field");
+        }
+
+        Map.Entry<String, Object> s = sortBy.entrySet().iterator().next();
+
+        if (!(s.getValue() instanceof Number) || ((Number) s.getValue()).doubleValue() <= 0) {
+            throw mongoCommandError(5339902, "range-based windows require an ascending sortBy");
+        }
+
+        Object bounds = w.get("range");
+
+        if (!(bounds instanceof List) || ((List<?>) bounds).size() != 2) {
+            throw mongoCommandError(5397903, "window.range must be a [lower, upper] array");
+        }
+
+        Long unitMillis = w.get("unit") == null ? null : swfUnitMillis(String.valueOf(w.get("unit")), "window.range");
+        String sortField = s.getKey();
+        double cur = rangeSortValue(docs.get(i), sortField, unitMillis != null);
+        double scale = unitMillis == null ? 1 : unitMillis;
+        double loVal = rangeBound(((List<?>) bounds).get(0), cur, scale, true);
+        double hiVal = rangeBound(((List<?>) bounds).get(1), cur, scale, false);
+        // docs are sorted ascending by the sort field: the window is the contiguous run
+        // of documents whose sort value lies in [cur + lo, cur + hi]
+        int lo = docs.size();
+        int hi = -1;
+
+        for (int j = 0; j < docs.size(); j++) {
+            double v = rangeSortValue(docs.get(j), sortField, unitMillis != null);
+
+            if (v >= loVal && j < lo) {
+                lo = j;
+            }
+
+            if (v <= hiVal) {
+                hi = j;
+            }
+        }
+
+        return new int[] {lo, hi};
+    }
+
+    private double rangeBound(Object bound, double cur, double scale, boolean isLower) {
+        if ("unbounded".equals(bound)) {
+            return isLower ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+        }
+
+        if ("current".equals(bound)) {
+            return cur;
+        }
+
+        if (bound instanceof Number) {
+            return cur + ((Number) bound).doubleValue() * scale;
+        }
+
+        throw mongoCommandError(5397903,
+            "window.range bounds must be 'unbounded', 'current' or a number, got: " + bound);
+    }
+
+    /** The sortBy value of a document inside a range window: a number, or a date with a unit. */
+    private double rangeSortValue(Map<String, Object> doc, String sortField, boolean needsDate) {
+        Object v = getByPath(doc, sortField);
+
+        if (needsDate) {
+            if (v instanceof Date) {
+                return ((Date) v).getTime();
+            }
+
+            throw mongoCommandError(5397905,
+                "range windows with a unit require the sortBy field to hold date values, got: " + v);
+        }
+
+        if (v instanceof Number) {
+            return ((Number) v).doubleValue();
+        }
+
+        throw mongoCommandError(5397905,
+            "range windows require the sortBy field to hold numeric values, got: " + v);
+    }
+
+    /**
+     * Resolves a documents-window spec to inclusive index bounds [lo, hi] around position i;
+     * lo &gt; hi denotes an empty window.
+     */
+    private int[] documentsWindow(Map<String, Object> w, int i, int n) {
         Object docsBounds = w.get("documents");
 
         if (!(docsBounds instanceof List) || ((List<?>) docsBounds).size() != 2) {
@@ -4262,9 +4415,435 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 return best;
             }
 
+            case "$stdDevPop":
+            case "$stdDevSamp": {
+                List<Object> values = new ArrayList<>();
+
+                for (int j = lo; j <= hi; j++) {
+                    values.add(projectComputedValue(arg, docs.get(j)));
+                }
+
+                // non-numeric values are filtered inside the Expr helpers, per mongod semantics
+                return "$stdDevPop".equals(fn) ? Expr.computeStdDevPop(values) : Expr.computeStdDevSamp(values);
+            }
+
+            case "$covariancePop":
+            case "$covarianceSamp": {
+                if (!(arg instanceof List) || ((List<?>) arg).size() != 2) {
+                    throw mongoCommandError(5397900, fn + " requires an array of exactly two expressions");
+                }
+
+                Object xExpr = ((List<?>) arg).get(0);
+                Object yExpr = ((List<?>) arg).get(1);
+                List<double[]> pairs = new ArrayList<>();
+
+                for (int j = lo; j <= hi; j++) {
+                    Object x = projectComputedValue(xExpr, docs.get(j));
+                    Object y = projectComputedValue(yExpr, docs.get(j));
+
+                    if (x instanceof Number && y instanceof Number) {
+                        pairs.add(new double[] {((Number) x).doubleValue(), ((Number) y).doubleValue()});
+                    }
+                }
+
+                int cnt = pairs.size();
+
+                if (cnt == 0 || ("$covarianceSamp".equals(fn) && cnt < 2)) {
+                    return null;
+                }
+
+                double meanX = 0;
+                double meanY = 0;
+
+                for (double[] p : pairs) {
+                    meanX += p[0];
+                    meanY += p[1];
+                }
+
+                meanX /= cnt;
+                meanY /= cnt;
+                double sum = 0;
+
+                for (double[] p : pairs) {
+                    sum += (p[0] - meanX) * (p[1] - meanY);
+                }
+
+                return "$covariancePop".equals(fn) ? sum / cnt : sum / (cnt - 1);
+            }
+
+            case "$firstN":
+            case "$lastN": {
+                Map<String, Object> a = swfMapArg(fn, arg, "n", "input");
+                int count = swfPositiveN(fn, a.get("n"));
+                Object input = a.get("input");
+                List<Object> values = new ArrayList<>();
+
+                if ("$firstN".equals(fn)) {
+                    for (int j = lo; j <= hi && values.size() < count; j++) {
+                        values.add(projectComputedValue(input, docs.get(j)));
+                    }
+                } else {
+                    for (int j = Math.max(lo, hi - count + 1); j <= hi; j++) {
+                        values.add(projectComputedValue(input, docs.get(j)));
+                    }
+                }
+
+                return values;
+            }
+
+            case "$minN":
+            case "$maxN": {
+                Map<String, Object> a = swfMapArg(fn, arg, "n", "input");
+                int count = swfPositiveN(fn, a.get("n"));
+                Object input = a.get("input");
+                List<Object> values = new ArrayList<>();
+
+                for (int j = lo; j <= hi; j++) {
+                    Object v = projectComputedValue(input, docs.get(j));
+
+                    if (v != null) {
+                        // like $min/$max, the N-forms ignore null and missing values
+                        values.add(v);
+                    }
+                }
+
+                values.sort(this::compareSortValues);
+
+                if ("$maxN".equals(fn)) {
+                    Collections.reverse(values);
+                }
+
+                return values.size() > count ? new ArrayList<>(values.subList(0, count)) : values;
+            }
+
+            case "$top":
+            case "$bottom":
+            case "$topN":
+            case "$bottomN": {
+                boolean nForm = fn.endsWith("N");
+                Map<String, Object> a = nForm ? swfMapArg(fn, arg, "n", "sortBy", "output")
+                                              : swfMapArg(fn, arg, "sortBy", "output");
+
+                if (!(a.get("sortBy") instanceof Map) || ((Map<?, ?>) a.get("sortBy")).isEmpty()) {
+                    throw mongoCommandError(5397900, fn + " requires a non-empty 'sortBy' object");
+                }
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> opSortBy = (Map<String, Object>) a.get("sortBy");
+                Object output = a.get("output");
+                List<Map<String, Object>> windowDocs = new ArrayList<>();
+
+                for (int j = lo; j <= hi; j++) {
+                    windowDocs.add(docs.get(j));
+                }
+
+                // the operator sorts by its OWN sortBy spec, independent of the stage sortBy
+                applySortBy(windowDocs, opSortBy);
+
+                if (!nForm) {
+                    if (windowDocs.isEmpty()) {
+                        return null;
+                    }
+
+                    int idx = "$top".equals(fn) ? 0 : windowDocs.size() - 1;
+                    return projectComputedValue(output, windowDocs.get(idx));
+                }
+
+                int count = swfPositiveN(fn, a.get("n"));
+                List<Object> values = new ArrayList<>();
+
+                if ("$topN".equals(fn)) {
+                    for (int j = 0; j < Math.min(count, windowDocs.size()); j++) {
+                        values.add(projectComputedValue(output, windowDocs.get(j)));
+                    }
+                } else {
+                    // bottomN: the last n documents, keeping the operator's sort order
+                    for (int j = Math.max(0, windowDocs.size() - count); j < windowDocs.size(); j++) {
+                        values.add(projectComputedValue(output, windowDocs.get(j)));
+                    }
+                }
+
+                return values;
+            }
+
             default:
                 throw mongoCommandError(5397901, "window function '" + fn + "' is not supported by the in-memory driver");
         }
+    }
+
+    /** Validates a window-function argument object: must be a Map containing all required keys. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> swfMapArg(String fn, Object arg, String... requiredKeys) {
+        if (!(arg instanceof Map)) {
+            throw mongoCommandError(5397900, fn + " requires an object argument");
+        }
+
+        Map<String, Object> a = (Map<String, Object>) arg;
+
+        for (String k : requiredKeys) {
+            if (!a.containsKey(k)) {
+                throw mongoCommandError(5397900, fn + " requires a '" + k + "' field");
+            }
+        }
+
+        return a;
+    }
+
+    /**
+     * Resolves a time unit for $derivative/$integral/range windows to its millisecond factor.
+     * Calendar units (month/quarter/year) are rejected like mongod does for these operators.
+     */
+    private long swfUnitMillis(String unit, String context) {
+        Long factor = DENSIFY_UNIT_MILLIS.get(unit);
+
+        if (factor == null) {
+            throw mongoCommandError(5397904, context + ": unit '" + unit
+                + "' is not supported - only 'week', 'day', 'hour', 'minute', 'second' and 'millisecond'");
+        }
+
+        return factor;
+    }
+
+    /** $derivative/$integral (and $linearFill) need a stage sortBy over exactly one field. */
+    private String swfSingleSortField(String fn, Map<String, Object> sortBy) {
+        if (sortBy == null || sortBy.size() != 1) {
+            throw mongoCommandError(5371801, fn + " requires a sortBy specification with exactly one field");
+        }
+
+        return sortBy.keySet().iterator().next();
+    }
+
+    /**
+     * The sort-axis value of a document for $derivative/$integral: with a unit the sortBy field
+     * must hold dates (value in millis), without a unit it must hold numbers.
+     */
+    private double swfSortAxisValue(String fn, Map<String, Object> doc, String sortField, Long unitMillis) {
+        Object v = getByPath(doc, sortField);
+
+        if (unitMillis != null) {
+            if (v instanceof Date) {
+                return ((Date) v).getTime();
+            }
+
+            throw mongoCommandError(5371802,
+                fn + " with 'unit' requires the sortBy field to hold date values, got: " + v);
+        }
+
+        if (v instanceof Number) {
+            return ((Number) v).doubleValue();
+        }
+
+        throw mongoCommandError(5371802,
+            fn + " requires the sortBy field to hold numeric values (or dates with 'unit'), got: " + v);
+    }
+
+    /** Input expression value for $derivative/$integral: numeric, null/missing, or a loud error. */
+    private Double swfNumericInput(String fn, Object input, Map<String, Object> doc) {
+        Object v = projectComputedValue(input, doc);
+
+        if (v == null) {
+            return null;
+        }
+
+        if (v instanceof Number) {
+            return ((Number) v).doubleValue();
+        }
+
+        throw mongoCommandError(5397906, fn + " requires numeric input values, got: " + v);
+    }
+
+    /**
+     * $derivative: (input[hi] - input[lo]) / (sort[hi] - sort[lo]); $integral: trapezoid rule
+     * over the window. With a unit the sort axis is a date measured in unit-milliseconds.
+     * Windows with fewer than two documents (and null/missing inputs) yield null - except a
+     * single-document $integral, which is 0 (a degenerate trapezoid has no area).
+     */
+    private Object derivativeOrIntegral(String fn, Object input, List<Map<String, Object>> docs,
+            int lo, int hi, String sortField, Long unitMillis) {
+        if (lo > hi) {
+            return null;
+        }
+
+        if ("$derivative".equals(fn)) {
+            if (lo == hi) {
+                return null;
+            }
+
+            Double y0 = swfNumericInput(fn, input, docs.get(lo));
+            Double y1 = swfNumericInput(fn, input, docs.get(hi));
+
+            if (y0 == null || y1 == null) {
+                return null;
+            }
+
+            double dx = swfSortAxisValue(fn, docs.get(hi), sortField, unitMillis)
+                - swfSortAxisValue(fn, docs.get(lo), sortField, unitMillis);
+
+            if (unitMillis != null) {
+                dx /= unitMillis;
+            }
+
+            // a zero sort-distance has no defined slope
+            return dx == 0 ? null : (y1 - y0) / dx;
+        }
+
+        double sum = 0;
+
+        for (int j = lo; j < hi; j++) {
+            Double ya = swfNumericInput(fn, input, docs.get(j));
+            Double yb = swfNumericInput(fn, input, docs.get(j + 1));
+
+            if (ya == null || yb == null) {
+                return null;
+            }
+
+            double dx = swfSortAxisValue(fn, docs.get(j + 1), sortField, unitMillis)
+                - swfSortAxisValue(fn, docs.get(j), sortField, unitMillis);
+
+            if (unitMillis != null) {
+                dx /= unitMillis;
+            }
+
+            sum += (ya + yb) / 2.0 * dx;
+        }
+
+        return sum;
+    }
+
+    /**
+     * $expMovingAvg over the sorted partition: result_0 = input_0,
+     * result_i = input_i * alpha + result_{i-1} * (1 - alpha); N is sugar for alpha = 2/(N+1).
+     * Non-numeric inputs yield null for that document and leave the state untouched.
+     */
+    private void applyExpMovingAvg(Map<String, Object> a, List<Map<String, Object>> docs, String outField) {
+        boolean hasN = a.containsKey("N");
+        boolean hasAlpha = a.containsKey("alpha");
+
+        if (hasN == hasAlpha) {
+            throw mongoCommandError(5397900, "$expMovingAvg requires exactly one of 'N' or 'alpha'");
+        }
+
+        double alpha;
+
+        if (hasN) {
+            Object nVal = a.get("N");
+
+            if (!(nVal instanceof Number) || ((Number) nVal).doubleValue() != Math.rint(((Number) nVal).doubleValue())
+                    || ((Number) nVal).longValue() < 1) {
+                throw mongoCommandError(5397900, "$expMovingAvg 'N' must be a positive integer, got: " + nVal);
+            }
+
+            alpha = 2.0 / (((Number) nVal).doubleValue() + 1.0);
+        } else {
+            Object alphaVal = a.get("alpha");
+
+            if (!(alphaVal instanceof Number) || ((Number) alphaVal).doubleValue() <= 0
+                    || ((Number) alphaVal).doubleValue() >= 1) {
+                throw mongoCommandError(5397900, "$expMovingAvg 'alpha' must be a number between 0 and 1 exclusive, got: " + alphaVal);
+            }
+
+            alpha = ((Number) alphaVal).doubleValue();
+        }
+
+        Object input = a.get("input");
+        Double state = null;
+
+        for (Map<String, Object> doc : docs) {
+            Object v = projectComputedValue(input, doc);
+
+            if (v instanceof Number) {
+                double x = ((Number) v).doubleValue();
+                state = state == null ? x : x * alpha + state * (1 - alpha);
+                setNestedValue(doc, outField, state);
+            } else {
+                setNestedValue(doc, outField, null);
+            }
+        }
+    }
+
+    /**
+     * $linearFill: null/missing values are interpolated linearly between the surrounding
+     * non-null values, proportionally to the sortBy distance (numbers, or dates via their
+     * millisecond value). The sortBy values must be strictly increasing (mongod code 605001);
+     * edge documents without both anchors stay null.
+     */
+    private void applyLinearFill(Object arg, List<Map<String, Object>> docs, String outField, Map<String, Object> sortBy) {
+        if (sortBy == null || sortBy.size() != 1) {
+            throw mongoCommandError(605001, "$linearFill requires a sortBy with exactly one field");
+        }
+
+        String sortField = sortBy.keySet().iterator().next();
+        int n = docs.size();
+        double[] xs = new double[n];
+        Double[] ys = new Double[n];
+
+        for (int i = 0; i < n; i++) {
+            Object s = getByPath(docs.get(i), sortField);
+
+            if (s instanceof Number) {
+                xs[i] = ((Number) s).doubleValue();
+            } else if (s instanceof Date) {
+                xs[i] = ((Date) s).getTime();
+            } else {
+                throw mongoCommandError(605001, "$linearFill requires numeric or date sortBy values, got: " + s);
+            }
+
+            if (i > 0 && xs[i] <= xs[i - 1]) {
+                throw mongoCommandError(605001, "$linearFill requires strictly increasing sortBy values");
+            }
+
+            Object v = projectComputedValue(arg, docs.get(i));
+
+            if (v == null) {
+                ys[i] = null;
+            } else if (v instanceof Number) {
+                ys[i] = ((Number) v).doubleValue();
+            } else {
+                throw mongoCommandError(5397906, "$linearFill requires numeric input values, got: " + v);
+            }
+        }
+
+        int prevKnown = -1;
+
+        for (int i = 0; i < n; i++) {
+            if (ys[i] == null) {
+                continue;
+            }
+
+            setNestedValue(docs.get(i), outField, ys[i]);
+
+            if (prevKnown >= 0 && i - prevKnown > 1) {
+                for (int j = prevKnown + 1; j < i; j++) {
+                    double filled = ys[prevKnown]
+                        + (ys[i] - ys[prevKnown]) * (xs[j] - xs[prevKnown]) / (xs[i] - xs[prevKnown]);
+                    setNestedValue(docs.get(j), outField, filled);
+                }
+            } else if (prevKnown < 0) {
+                // leading nulls without a left anchor stay null
+                for (int j = 0; j < i; j++) {
+                    setNestedValue(docs.get(j), outField, null);
+                }
+            }
+
+            prevKnown = i;
+        }
+
+        // trailing nulls without a right anchor stay null (also covers an all-null partition)
+        for (int j = Math.max(prevKnown + 1, 0); j < n; j++) {
+            setNestedValue(docs.get(j), outField, null);
+        }
+    }
+
+    /** Validates the 'n' argument of $firstN/$lastN/$minN/$maxN/$topN/$bottomN (mongod code 5787908). */
+    private int swfPositiveN(String fn, Object nSpec) {
+        Object n = nSpec instanceof Number ? nSpec : projectComputedValue(nSpec, new HashMap<>());
+
+        if (!(n instanceof Number) || ((Number) n).doubleValue() != Math.rint(((Number) n).doubleValue())
+                || ((Number) n).longValue() < 1) {
+            throw mongoCommandError(5787908, "'n' must be a positive integer for " + fn + ", got: " + nSpec);
+        }
+
+        return (int) Math.min(((Number) n).longValue(), Integer.MAX_VALUE);
     }
 
     // ---- shared windowing helpers ---------------------------------------------------------
