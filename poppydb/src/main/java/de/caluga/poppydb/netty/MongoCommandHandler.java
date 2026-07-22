@@ -1799,7 +1799,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processUpdateDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processUpdateDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("update");
         List<Map<String, Object>> updates = (List<Map<String, Object>>) doc.get("updates");
@@ -1815,9 +1816,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             boolean multi = Boolean.TRUE.equals(upd.get("multi"));
             boolean upsert = Boolean.TRUE.equals(upd.get("upsert"));
             try {
-                // The per-update collation was hardcoded to null here (#252).
+                // The per-update collation was hardcoded to null here (#252); arrayFilters
+                // were dropped entirely, breaking $[<identifier>] updates over the wire (#256).
                 var result = driver.update(db, coll, q, null, u, multi, upsert,
-                                           (Map<String, Object>) upd.get("collation"), null);
+                                           (Map<String, Object>) upd.get("collation"), null,
+                                           (List<Map<String, Object>>) upd.get("arrayFilters"));
                 if (result != null) {
                     totalN += result.getOrDefault("n", 0) instanceof Number ? ((Number) result.get("n")).intValue() : 0;
                     totalModified += result.getOrDefault("nModified", 0) instanceof Number ? ((Number) result.get("nModified")).intValue() : 0;

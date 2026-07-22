@@ -97,6 +97,30 @@ public class FastPathOptionsTest {
     }
 
     @Test
+    public void updateDirect_honoursArrayFilters() throws Exception {
+        MorphiumId id = new MorphiumId();
+        List<Map<String, Object>> seed = new ArrayList<>();
+        seed.add(Doc.of("_id", id, "grades", new ArrayList<>(List.of(85, 92, 90))));
+        new de.caluga.morphium.driver.commands.InsertMongoCommand(drv)
+            .setDb(db).setColl(coll).setDocuments(seed).execute();
+
+        Map<String, Object> answer = handler().processUpdateDirect(Doc.of(
+            "$db", db, "update", coll,
+            "updates", List.of(Doc.of(
+                "q", Doc.of("_id", id),
+                "u", Doc.of("$set", Doc.of("grades.$[elem]", 100)),
+                "arrayFilters", List.of(Doc.of("elem", Doc.of("$gte", 90)))))));
+
+        assertNull(answer.get("writeErrors"), "arrayFilters from the request must not produce write errors");
+        FindCommand fnd = new FindCommand(drv).setDb(db).setColl(coll);
+        fnd.setFilter(Doc.of("_id", id));
+        List<Map<String, Object>> res = fnd.execute();
+        fnd.releaseConnection();
+        assertEquals(List.of(85, 100, 100), res.get(0).get("grades"),
+            "arrayFilters from the request must be passed through the fast path to the driver");
+    }
+
+    @Test
     public void deleteDirect_honoursCollation() throws Exception {
         List<Map<String, Object>> seed = new ArrayList<>();
         seed.add(Doc.of("_id", new MorphiumId(), "name", "hello"));
