@@ -188,10 +188,18 @@ public class CreateCommand extends MongoCommand<CreateCommand> {
         setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
         var msg = connection.sendCommand(this);
-        var crs = connection.getAnswerFor(msg, connection.getDriver().getDefaultBatchSize());
+        // mongod's create reply is a plain document, not a cursor - reading it through
+        // getAnswerFor() dropped cursor-less replies entirely on the in-memory connection,
+        // which silently swallowed command errors (e.g. the time-series refusal, #262).
+        Map<String, Object> result = connection.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
         setMetaData("duration", dur);
-        return crs.next();
+
+        if (result != null && result.get("ok") instanceof Number && ((Number) result.get("ok")).doubleValue() == 0.0) {
+            throw new MorphiumDriverException("Error: " + result.get("code") + " - " + result.get("errmsg"));
+        }
+
+        return result;
     }
 
     public enum Granularity {

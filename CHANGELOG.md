@@ -67,6 +67,9 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 
 ### Fixed
 
+#### InMemoryDriver/PoppyDB: creating a time-series collection now fails loudly (#262 interim)
+`create` with a `timeseries` spec used to log a WARN and create a **plain** collection — a silent divergence: no `timeField` enforcement, no retention, `listCollections` reporting the wrong type. It now returns a proper command error (code 115 `CommandNotSupported`) over the wire and raises a `MorphiumDriverException` for embedded users. On the way, `CreateCommand.execute()` was switched from cursor-style reading to `readSingleAnswer` — mongod's create reply is a plain document, and the cursor path silently swallowed cursor-less replies (including error documents) on the in-memory connection. Real time-series support is tracked in #261 (API) and #262 (in-memory emulation), both scheduled for 6.4.0.
+
 #### InMemoryDriver/PoppyDB: resumed change streams could deliver an event twice
 A watch resuming with `resumeAfter` registers its subscription *before* replaying the event history (the reverse order would lose events written between history snapshot and live stream). An event written exactly in that window was delivered twice — once by the asynchronous live dispatch to the already-registered subscription, once by the replay — and, because the live dispatch can overtake the replay, in arbitrary order. Resumed subscriptions now suppress exact duplicates by resume token (a bounded recent-token window; a monotonic guard would have turned the reordering into losses). Fresh watches have no replay and are unaffected — no overhead on the messaging path. Real MongoDB never had this problem (oplog-cursor resume is snapshot-consistent); morphium's own consumers (messaging, PoppyDB replication) were already idempotent, so this mainly protects custom `ChangeStreamListener`s running against InMemoryDriver/PoppyDB.
 

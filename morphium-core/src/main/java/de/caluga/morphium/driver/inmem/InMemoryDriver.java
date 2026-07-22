@@ -2917,7 +2917,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         if (cmd.getTimeseries() != null) {
-            log.warn("Timeseries collections not supported in memory");
+            // Interim for #262: refusing loudly beats warning and creating a PLAIN collection
+            // that pretends to be a time-series one (no timeField enforcement, no retention,
+            // listCollections reporting the wrong type). Surfaces as a command error over the
+            // wire (PoppyDB) and as a MorphiumDriverException for embedded users.
+            return errorResult(115, "CommandNotSupported",
+                               "time-series collections are not supported by the in-memory driver (see issue #262)");
         }
 
         if (cmd.getPipeline() != null) {
