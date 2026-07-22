@@ -846,7 +846,8 @@ public class SingleMongoConnection implements MongoConnection {
             // Track whether we should exit after processing events
             boolean shouldExit = false;
             if (result != null && !result.isEmpty()) {
-                log.info("WATCH: received batch of {} events for coll={} (iter={})", result.size(), command.getColl(), watchIterations);
+                // demoted to debug (#264): one line per watch batch is production log spam
+                log.debug("WATCH: received batch of {} events for coll={} (iter={})", result.size(), command.getColl(), watchIterations);
                 for (Map<String, Object> o : result) {
                     // Capture resume token from each event (_id is the resume token in change streams)
                     @SuppressWarnings("unchecked")
@@ -864,7 +865,7 @@ public class SingleMongoConnection implements MongoConnection {
                     // Check isContinued() after EACH event, matching InMemoryDriver behavior
                     // This ensures we stop immediately when callback returns false
                     if (!command.getCb().isContinued()) {
-                        log.info("WATCH: isContinued returned false, will exit - coll={}", command.getColl());
+                        log.debug("WATCH: isContinued returned false, will exit - coll={}", command.getColl());
                         shouldExit = true;
                         break;
                     }

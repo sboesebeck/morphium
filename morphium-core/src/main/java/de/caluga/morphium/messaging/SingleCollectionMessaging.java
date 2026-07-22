@@ -528,10 +528,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
-            // Debug: Count ALL change stream events for InMemoryDriver
-            if (morphium.getDriver().getName().contains("InMem")) {
-                int totalEvents = changeStreamEventsReceived.incrementAndGet();
-                log.info("CSE: {}: Change stream event #{} received, id={}", this.id, totalEvents, id);
+            // Per-event counter, log demoted to debug (#264) - the flaky-hunt INFO version was
+            // one line per change-stream event, far too chatty for production log levels.
+            int totalEvents = changeStreamEventsReceived.incrementAndGet();
+
+            if (log.isDebugEnabled()) {
+                log.debug("CSE: {}: Change stream event #{} received, id={}", this.id, totalEvents, id);
             }
 
             MorphiumId normalizedDocKeyId = null;
