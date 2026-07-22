@@ -907,7 +907,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         : settings.getFullDocumentBeforeChange(),
                         Boolean.TRUE.equals(settings.getShowExpandedEvents()),
                         monitor,
-                        cursorIdSequence.incrementAndGet());
+                        cursorIdSequence.incrementAndGet(),
+                        settings.getResumeAfter() != null || settings.getStartAfter() != null);
 
         registerSubscription(subscription);
 
@@ -2036,7 +2037,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         cmd.getFullDocument() == null ? WatchCommand.FullDocumentEnum.defaultValue : cmd.getFullDocument(),
                         cmd.getFullDocumentBeforeChange() == null ? WatchCommand.FullDocumentBeforeChangeEnum.off : cmd.getFullDocumentBeforeChange(),
                         Boolean.TRUE.equals(cmd.getShowExpandedEvents()),
-                        monitor, cursorId);
+                        monitor, cursorId,
+                        cmd.getResumeAfter() != null || cmd.getStartAfter() != null);
 
         // Register subscription synchronously
         registerSubscription(subscription);
@@ -8183,13 +8185,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final long cursorId;
         // Deliver inline to keep latency low for messaging-heavy workloads
         private final java.util.concurrent.ExecutorService subscriptionExecutor = null;
+        // Duplicate suppression for RESUMED watches only: the subscription is registered before
+        // replayHistory runs (the reverse order would lose the gap between history snapshot and
+        // live stream), so an event written in that window arrives twice - once live, once from
+        // the replay - and, because live dispatch is asynchronous, in arbitrary order relative to
+        // the replayed events. Exact-duplicate suppression by token is therefore the only correct
+        // guard (a monotonic "drop <= last delivered" would turn the reordering into losses).
+        // Fresh watches have no replay and skip this entirely (field stays null - no overhead on
+        // the latency-sensitive messaging path). Bounded: the duplicate can only trail its twin
+        // by the async dispatch backlog, so a small recent-token window is sufficient.
+        private static final int DELIVERED_TOKEN_CAPACITY = 8192;
+        private final LinkedHashSet<Long> deliveredTokens;
 
         @SuppressWarnings("unchecked")
         private ChangeStreamSubscription(String db, String collection, DriverTailableIterationCallback callback,
                                          List<Map<String, Object>> pipeline,
                                          WatchCommand.FullDocumentEnum fullDocumentMode,
                                          WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode,
-                                         boolean showExpandedEvents, WatchMonitor monitor, long cursorId) {
+                                         boolean showExpandedEvents, WatchMonitor monitor, long cursorId,
+                                         boolean resumed) {
             this.db = db;
             this.collection = collection;
             this.callback = callback;
@@ -8202,6 +8216,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // reuse aggregator to avoid per-event allocations; safe because we create fresh input docs
             this.aggregator = pipeline == null || pipeline.isEmpty() ? null : new InMemAggregator(null, Map.class, Map.class);
             this.insertOnlyMatchPipeline = isInsertOnlyPipeline(pipeline);
+            this.deliveredTokens = resumed ? new LinkedHashSet<>() : null;
+        }
+
+        /** true if this token has not been delivered before (and marks it delivered) */
+        private boolean firstDelivery(long token) {
+            synchronized (deliveredTokens) {
+                if (!deliveredTokens.add(token)) {
+                    return false;
+                }
+
+                if (deliveredTokens.size() > DELIVERED_TOKEN_CAPACITY) {
+                    var it = deliveredTokens.iterator();
+                    it.next();
+                    it.remove();
+                }
+
+                return true;
+            }
         }
 
         private boolean matches(ChangeStreamEventInfo info) {
@@ -8251,6 +8283,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         private void deliver(ChangeStreamEventInfo info) {
             if (!active) {
+                return;
+            }
+
+            // resumed watch: live dispatch and history replay can both carry this event
+            if (deliveredTokens != null && !firstDelivery(info.token)) {
                 return;
             }
 

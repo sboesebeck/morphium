@@ -67,6 +67,9 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 
 ### Fixed
 
+#### InMemoryDriver/PoppyDB: resumed change streams could deliver an event twice
+A watch resuming with `resumeAfter` registers its subscription *before* replaying the event history (the reverse order would lose events written between history snapshot and live stream). An event written exactly in that window was delivered twice — once by the asynchronous live dispatch to the already-registered subscription, once by the replay — and, because the live dispatch can overtake the replay, in arbitrary order. Resumed subscriptions now suppress exact duplicates by resume token (a bounded recent-token window; a monotonic guard would have turned the reordering into losses). Fresh watches have no replay and are unaffected — no overhead on the messaging path. Real MongoDB never had this problem (oplog-cursor resume is snapshot-consistent); morphium's own consumers (messaging, PoppyDB replication) were already idempotent, so this mainly protects custom `ChangeStreamListener`s running against InMemoryDriver/PoppyDB.
+
 #### PoppyDB: the wire fast path dropped `arrayFilters` (#256 follow-up)
 `processUpdateDirect` — PoppyDB's direct dispatch for plain `update` commands — passed the request's per-update `collation` but not its `arrayFilters` to the driver, so a `$[<identifier>]` update sent over the wire (mongosh, any standard client) failed with "No array filter found" while the identical update worked against the InMemoryDriver directly. Third instance of the fast-path-drops-request-options bug class (#252: `ordered`/`collation`, createIndexes: index specs); covered by a `FastPathOptionsTest` seam test like the others.
 
