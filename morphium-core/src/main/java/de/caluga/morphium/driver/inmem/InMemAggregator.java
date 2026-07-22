@@ -1892,21 +1892,31 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     onFields.add("_id");
                 }
 
-                // whenMatched as a pipeline is not implemented - it needs the $$new variable bound to
-                // the incoming document. Reject it explicitly rather than silently doing something else.
+                // whenMatched may be a custom update pipeline: it runs per match with the EXISTING
+                // target document as input and the incoming document bound to $$new (unless a
+                // custom `let` replaces the default {new: "$$ROOT"}, as mongod does).
+                Object letSpec = mergeSpec.get("let");
+                List<Map<String, Object>> matchedPipeline = null;
+                String whenMatched = null;
+
                 if (mergeSpec.get("whenMatched") instanceof List) {
-                    throw mongoCommandError(51199,
-                        "$merge with a custom whenMatched pipeline is not supported by the in-memory driver");
+                    matchedPipeline = parseMergeWhenMatchedPipeline((List<?>) mergeSpec.get("whenMatched"), letSpec);
+                } else {
+                    if (letSpec != null) {
+                        // mongod rejects this with 51199 as well
+                        throw mongoCommandError(51199, "$merge: let is only allowed when whenMatched is a pipeline");
+                    }
+
+                    whenMatched = mergeSpec.get("whenMatched") == null
+                                  ? "merge" : String.valueOf(mergeSpec.get("whenMatched"));
+
+                    if (!List.of("replace", "keepExisting", "merge", "fail").contains(whenMatched)) {
+                        throw mongoCommandError(51190, "unknown $merge whenMatched action '" + whenMatched + "'");
+                    }
                 }
 
-                String whenMatched = mergeSpec.get("whenMatched") == null
-                                     ? "merge" : String.valueOf(mergeSpec.get("whenMatched"));
                 String whenNotMatched = mergeSpec.get("whenNotMatched") == null
                                         ? "insert" : String.valueOf(mergeSpec.get("whenNotMatched"));
-
-                if (!List.of("replace", "keepExisting", "merge", "fail").contains(whenMatched)) {
-                    throw mongoCommandError(51190, "unknown $merge whenMatched action '" + whenMatched + "'");
-                }
 
                 if (!List.of("insert", "discard", "fail").contains(whenNotMatched)) {
                     throw mongoCommandError(51191, "unknown $merge whenNotMatched action '" + whenNotMatched + "'");
@@ -1955,6 +1965,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
 
                     Map<String, Object> existing = matches.get(0);
+
+                    if (matchedPipeline != null) {
+                        Map<String, Object> vars = bindMergeLetVariables(letSpec, doc);
+                        Map<String, Object> piped = applyMergeWhenMatchedPipeline(matchedPipeline, existing, vars);
+                        piped.put("_id", existing.get("_id"));
+                        mergeDriver.store(mergeDb, mergeColl, new ArrayList<>(List.of(piped)), null);
+                        continue;
+                    }
 
                     if ("keepExisting".equals(whenMatched)) {
                         continue;
@@ -2631,6 +2649,372 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             return Expr.parse(value).evaluate(o);
         }
         return value;
+    }
+
+    // ---- $merge whenMatched pipeline (#241) ----------------------------------------------
+    //
+    // mongod only allows these stages inside a whenMatched update pipeline. They are executed
+    // by a small dedicated executor below instead of reusing the execStep() implementations:
+    // those evaluate expressions against the bare document, and the pipeline variables ($$new
+    // resp. the `let` bindings) could only be smuggled in by writing them into the document
+    // itself - which would leak them into the stored result.
+    private static final Set<String> MERGE_PIPELINE_STAGES =
+        Set.of("$addFields", "$set", "$project", "$unset", "$replaceRoot", "$replaceWith");
+
+    // system variables that are always defined during expression evaluation
+    private static final Set<String> MERGE_BUILTIN_VARIABLES = Set.of("ROOT", "CURRENT", "REMOVE", "NOW");
+
+    // sentinel bound to $$REMOVE: a field whose expression evaluates to it is dropped
+    private static final Object MERGE_REMOVE_SENTINEL = new Object();
+
+    /** Validates a whenMatched pipeline: stage whitelist plus every $$variable being defined. */
+    private List<Map<String, Object>> parseMergeWhenMatchedPipeline(List<?> rawPipeline, Object letSpec) {
+        if (letSpec != null && !(letSpec instanceof Map)) {
+            throw mongoCommandError(51198, "$merge: let must be a document");
+        }
+
+        List<Map<String, Object>> pipeline = new ArrayList<>();
+
+        for (Object stageObj : rawPipeline) {
+            Object stageVal = stageObj instanceof Expr ? ((Expr) stageObj).toQueryObject() : stageObj;
+
+            if (!(stageVal instanceof Map) || ((Map<?, ?>) stageVal).size() != 1) {
+                throw mongoCommandError(72,
+                    "$merge whenMatched pipeline: each stage must be a document with exactly one stage name");
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> stageMap = (Map<String, Object>) stageVal;
+            String stageName = stageMap.keySet().iterator().next();
+
+            if (!MERGE_PIPELINE_STAGES.contains(stageName)) {
+                throw mongoCommandError(72, "$merge whenMatched pipeline: unsupported stage '" + stageName + "'");
+            }
+
+            pipeline.add(stageMap);
+        }
+
+        // With a custom `let`, the default {new: "$$ROOT"} is REPLACED, not extended - $$new is
+        // then only defined if `let` defines it itself (mongod behaviour). Fail up front instead
+        // of silently evaluating undefined variables to null.
+        Set<String> defined = new HashSet<>(MERGE_BUILTIN_VARIABLES);
+
+        if (letSpec == null) {
+            defined.add("new");
+        } else {
+            for (Object k : ((Map<?, ?>) letSpec).keySet()) {
+                defined.add(String.valueOf(k));
+            }
+        }
+
+        Set<String> referenced = new HashSet<>();
+        collectVariableReferences(pipeline, referenced);
+        for (String var : referenced) {
+            if (!defined.contains(var)) {
+                // 17276 is mongod's "Use of undefined variable" code
+                throw mongoCommandError(17276, "$merge whenMatched pipeline: use of undefined variable: " + var);
+            }
+        }
+
+        return pipeline;
+    }
+
+    /** Collects the names of all "$$var" references in an expression tree (best effort - a
+     * string literal that merely looks like a variable reference is indistinguishable here). */
+    private void collectVariableReferences(Object node, Set<String> out) {
+        if (node instanceof Expr) {
+            node = ((Expr) node).toQueryObject();
+        }
+
+        if (node instanceof String s) {
+            if (s.startsWith("$$")) {
+                String name = s.substring(2);
+                int dot = name.indexOf('.');
+                out.add(dot > 0 ? name.substring(0, dot) : name);
+            }
+        } else if (node instanceof Map) {
+            for (Object v : ((Map<?, ?>) node).values()) {
+                collectVariableReferences(v, out);
+            }
+        } else if (node instanceof List) {
+            for (Object v : (List<?>) node) {
+                collectVariableReferences(v, out);
+            }
+        }
+    }
+
+    /** Evaluates the `let` expressions against the INCOMING document (default: {new: "$$ROOT"})
+     * and returns the variable bindings in both spellings ("x" and "$x", see Expr.map). */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> bindMergeLetVariables(Object letSpec, Map<String, Object> incoming) {
+        Map<String, Object> vars = new HashMap<>();
+
+        if (letSpec == null) {
+            vars.put("new", incoming);
+            vars.put("$new", incoming);
+            return vars;
+        }
+
+        // "$$ROOT" inside a let expression refers to the incoming document
+        Map<String, Object> letContext = new HashMap<>(incoming);
+        letContext.put("ROOT", incoming);
+        letContext.put("$ROOT", incoming);
+        letContext.put("CURRENT", incoming);
+        letContext.put("$CURRENT", incoming);
+
+        for (Map.Entry<String, Object> e : ((Map<String, Object>) letSpec).entrySet()) {
+            Object value = e.getValue();
+            Object bound;
+
+            if (value instanceof Expr) {
+                bound = ((Expr) value).evaluate(letContext);
+            } else if (value instanceof String s && s.startsWith("$")) {
+                // handles both "$field.path" and "$$ROOT" style references
+                bound = Expr.field(s).evaluate(letContext);
+            } else if (value instanceof Map) {
+                bound = Expr.parse(value).evaluate(letContext);
+            } else {
+                bound = value;
+            }
+
+            vars.put(e.getKey(), bound);
+            vars.put("$" + e.getKey(), bound);
+        }
+
+        return vars;
+    }
+
+    /** Runs a validated whenMatched pipeline on the existing target document. */
+    private Map<String, Object> applyMergeWhenMatchedPipeline(List<Map<String, Object>> pipeline,
+        Map<String, Object> existing, Map<String, Object> vars) {
+        Map<String, Object> current = new HashMap<>(existing);
+
+        for (Map<String, Object> stageMap : pipeline) {
+            String stageName = stageMap.keySet().iterator().next();
+            Object body = stageMap.get(stageName);
+
+            switch (stageName) {
+                case "$set":
+                case "$addFields": {
+                    if (body instanceof Expr) {
+                        body = ((Expr) body).toQueryObject();
+                    }
+
+                    if (!(body instanceof Map)) {
+                        throw mongoCommandError(40272, "the " + stageName + " stage specification must be an object");
+                    }
+
+                    Map<String, Object> next = new HashMap<>(current);
+
+                    //noinspection unchecked
+                    for (Map.Entry<String, Object> e : ((Map<String, Object>) body).entrySet()) {
+                        Object v = evaluateMergeExpression(e.getValue(), current, vars);
+
+                        if (v == MERGE_REMOVE_SENTINEL) {
+                            next.remove(e.getKey());
+                        } else if (e.getKey().contains(".")) {
+                            setNestedValue(next, e.getKey(), v);
+                        } else {
+                            next.put(e.getKey(), v);
+                        }
+                    }
+
+                    current = next;
+                    break;
+                }
+
+                case "$unset": {
+                    if (body instanceof Expr) {
+                        body = ((Expr) body).toQueryObject();
+                    }
+
+                    List<String> fields = new ArrayList<>();
+
+                    if (body instanceof List) {
+                        for (Object f : (List<?>) body) {
+                            fields.add(String.valueOf(f));
+                        }
+                    } else {
+                        fields.add(String.valueOf(body));
+                    }
+
+                    current = new HashMap<>(current);
+
+                    for (String f : fields) {
+                        removeByPath(current, f);
+                    }
+
+                    break;
+                }
+
+                case "$project": {
+                    if (body instanceof Expr) {
+                        body = ((Expr) body).toQueryObject();
+                    }
+
+                    if (!(body instanceof Map)) {
+                        throw mongoCommandError(40272, "the $project stage specification must be an object");
+                    }
+
+                    //noinspection unchecked
+                    current = applyMergeProjection((Map<String, Object>) body, current, vars);
+                    break;
+                }
+
+                case "$replaceRoot":
+                case "$replaceWith": {
+                    Object rootExpr = body;
+
+                    if ("$replaceRoot".equals(stageName)) {
+                        if (body instanceof Expr) {
+                            body = ((Expr) body).toQueryObject();
+                        }
+
+                        if (!(body instanceof Map) || !((Map<?, ?>) body).containsKey("newRoot")) {
+                            throw mongoCommandError(40414, "$replaceRoot requires a 'newRoot' expression");
+                        }
+
+                        rootExpr = ((Map<?, ?>) body).get("newRoot");
+                    }
+
+                    Object result = evaluateMergeExpression(rootExpr, current, vars);
+
+                    if (!(result instanceof Map)) {
+                        throw mongoCommandError(40228, "'newRoot' expression must evaluate to an object");
+                    }
+
+                    //noinspection unchecked
+                    current = new HashMap<>((Map<String, Object>) result);
+                    break;
+                }
+
+                default:
+                    // unreachable - the pipeline was validated up front
+                    throw mongoCommandError(72, "$merge whenMatched pipeline: unsupported stage '" + stageName + "'");
+            }
+        }
+
+        return current;
+    }
+
+    /** $project inside a whenMatched pipeline, mirroring the strict/lenient split of the
+     * regular $project stage but evaluating computed values with the pipeline variables. */
+    private Map<String, Object> applyMergeProjection(Map<String, Object> op, Map<String, Object> current,
+        Map<String, Object> vars) {
+        boolean strictInclusion = false;
+
+        for (Map.Entry<String, Object> e : op.entrySet()) {
+            if (!e.getKey().equals("_id") && isProjectInclusionFlag(e.getValue())) {
+                strictInclusion = true;
+                break;
+            }
+        }
+
+        Map<String, Object> obj;
+
+        if (strictInclusion) {
+            obj = new HashMap<>();
+
+            if (!(op.containsKey("_id") && isProjectExclusionFlag(op.get("_id"))) && current.containsKey("_id")) {
+                obj.put("_id", current.get("_id"));
+            }
+
+            for (Map.Entry<String, Object> e : op.entrySet()) {
+                String k = e.getKey();
+                Object value = e.getValue();
+
+                if (k.equals("_id")) {
+                    if (!isProjectInclusionFlag(value) && !isProjectExclusionFlag(value)) {
+                        obj.put(k, evaluateMergeExpression(value, current, vars));
+                    }
+
+                    continue;
+                }
+
+                if (isProjectInclusionFlag(value)) {
+                    Object v = getByPath(current, k);
+
+                    if (v != null || current.containsKey(k)) {
+                        obj.put(k, v);
+                    }
+                } else if (isProjectExclusionFlag(value)) {
+                    // exclusions mixed into an inclusion projection are ignored (except _id)
+                } else {
+                    Object v = evaluateMergeExpression(value, current, vars);
+
+                    if (v != MERGE_REMOVE_SENTINEL) {
+                        obj.put(k, v);
+                    }
+                }
+            }
+        } else {
+            obj = new HashMap<>(current);
+
+            for (Map.Entry<String, Object> e : op.entrySet()) {
+                if (isProjectExclusionFlag(e.getValue())) {
+                    obj.remove(e.getKey());
+                } else {
+                    Object v = evaluateMergeExpression(e.getValue(), current, vars);
+
+                    if (v == MERGE_REMOVE_SENTINEL) {
+                        obj.remove(e.getKey());
+                    } else {
+                        obj.put(e.getKey(), v);
+                    }
+                }
+            }
+        }
+
+        return obj;
+    }
+
+    /** Evaluates one expression against the current intermediate document with the pipeline
+     * variables bound in both spellings (see Expr.map: "$$x" resolves via the context key "$x"). */
+    private Object evaluateMergeExpression(Object value, Map<String, Object> current, Map<String, Object> vars) {
+        Map<String, Object> ctx = new HashMap<>(current);
+        ctx.put("ROOT", current);
+        ctx.put("$ROOT", current);
+        ctx.put("CURRENT", current);
+        ctx.put("$CURRENT", current);
+        ctx.put("REMOVE", MERGE_REMOVE_SENTINEL);
+        ctx.put("$REMOVE", MERGE_REMOVE_SENTINEL);
+        ctx.put("NOW", new Date());
+        ctx.put("$NOW", ctx.get("NOW"));
+        ctx.putAll(vars);
+
+        if (value instanceof Expr) {
+            return ((Expr) value).evaluate(ctx);
+        }
+
+        if (value instanceof String s && s.startsWith("$")) {
+            // handles field paths ("$a.b") and variable references ("$$new.a") alike
+            return Expr.field(s).evaluate(ctx);
+        }
+
+        if (value instanceof Map) {
+            return Expr.parse(value).evaluate(ctx);
+        }
+
+        return value;
+    }
+
+    /** Removes a (possibly dotted) path from a document, copying nested maps on the way. */
+    private void removeByPath(Map<String, Object> doc, String path) {
+        int dot = path.indexOf('.');
+
+        if (dot < 0) {
+            doc.remove(path);
+            return;
+        }
+
+        String head = path.substring(0, dot);
+
+        if (doc.get(head) instanceof Map) {
+            //noinspection unchecked
+            Map<String, Object> sub = new HashMap<>((Map<String, Object>) doc.get(head));
+            removeByPath(sub, path.substring(dot + 1));
+            doc.put(head, sub);
+        }
     }
 
     /**
