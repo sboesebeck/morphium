@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -92,6 +93,36 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     // answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
+
+    // Bounded trace of per-message processing decisions (skip reasons, matches, enqueues).
+    // The processing pipeline bails out silently in several places, which made the recurring
+    // answer-timeout flaky undiagnosable: a real occurrence showed the answer's change-stream
+    // event arriving and delivery still failing with no hint why. Dumped only by
+    // logAnswerTimeoutDiagnostics - zero log noise in normal operation.
+    private static final int DECISION_TRACE_CAPACITY = 512;
+    private final ArrayDeque<String> decisionTrace = new ArrayDeque<>();
+
+    private void traceDecision(Object msgId, Object inAnswerTo, String decision) {
+        String entry = System.currentTimeMillis() + " " + msgId
+                       + (inAnswerTo != null ? " (answer to " + inAnswerTo + ")" : "") + ": " + decision;
+
+        synchronized (decisionTrace) {
+            decisionTrace.addLast(entry);
+
+            if (decisionTrace.size() > DECISION_TRACE_CAPACITY) {
+                decisionTrace.pollFirst();
+            }
+        }
+    }
+
+    /** all traced processing decisions referencing the given message id (as request or answer target) */
+    public List<String> getProcessingDecisions(MorphiumId msgId) {
+        String idStr = String.valueOf(msgId);
+
+        synchronized (decisionTrace) {
+            return decisionTrace.stream().filter(e -> e.contains(idStr)).collect(Collectors.toList());
+        }
+    }
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
     private final BlockingQueue<ProcessingQueueElement> processing = new PriorityBlockingQueue<>();
@@ -524,6 +555,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // Exclusive message already processed, skip
                         // NOTE: Do NOT add to docIdsFromChangestreamSet so polling can later process it
                         // if processedBy is cleared
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: exclusive already processed by " + processedBy + ", skipped");
                         log.debug("Got already processed exclusive message - skipping but not marking as seen");
                         return running;
                     }
@@ -535,6 +567,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 // initially skipped can be picked up by polling later if processedBy is cleared
                 if (normalizedDocKeyId != null) {
                     if (docIdsFromChangestreamSet.contains(normalizedDocKeyId)) {
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: duplicate event suppressed");
                         return running;
                     }
 
@@ -549,6 +582,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 synchronized (processing) {
                     // First check if already in progress (most important for preventing duplicates)
                     if (idsInProgress.contains(messageId)) {
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in idsInProgress, skipped");
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: message {} already in idsInProgress", messageId);
                         return running;
                     }
@@ -578,8 +612,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
 
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: queued for processing");
                         log.debug("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
                     } else {
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in processing queue, skipped");
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
                 }
@@ -938,11 +974,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
 
                 final ProcessingQueueElement finalPrEl = prEl;
+                // Distinguishes "never dequeued" from "runnable stuck in the thread pool" from
+                // "runnable ran and bailed" in the decision trace (see the BasicJMSTests flaky:
+                // an answer was queued for processing and then nothing happened for 30s).
+                traceDecision(finalPrEl.getId(), null, "processing: dequeued, submitting runnable");
                 Runnable r = () -> {
                     boolean wasProcessed = false;
                     Msg msg = null;
                     try {
+                        traceDecision(finalPrEl.getId(), null, "processing: runnable started");
+
                         if (!running || morphium == null || morphium.getDriver() == null) {
+                            traceDecision(finalPrEl.getId(), null, "processing: bailing - messaging not running / driver gone");
                             return;
                         }
 
@@ -955,33 +998,39 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         msg = q.get();
 
                         if (msg == null) {
+                            traceDecision(finalPrEl.getId(), null, "processing: reread returned null - message gone from collection");
                             return;
                         }
 
                         // do not process if no listener registered for this message
                         if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getTopic())) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: no listener for topic '" + msg.getTopic() + "', skipped");
                             return;
                         }
 
                         // Never receive messages sent by myself by default.
                         // sendMessageToSelf() uses sender="self" and explicit recipient, so it still works.
                         if (msg.getSender() != null && msg.getSender().equals(id)) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: sent by myself (sender==me), skipped");
                             return;
                         }
 
                         // exclusive message already processed
                         if (msg.isExclusive() && msg.getProcessedBy() != null && msg.getProcessedBy().size() != 0) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: exclusive already processed by " + msg.getProcessedBy() + ", skipped");
                             return;
                         }
 
                         // I did already process this message
                         // For all drivers, check the stale copy first (fast path)
                         if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: already processed by me, skipped");
                             return;
                         }
 
                         // recipient specified, but i am not it
                         if (msg.getRecipients() != null && !msg.getRecipients().contains(id)) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: not a recipient (recipients=" + msg.getRecipients() + "), skipped");
                             return;
                         }
 
@@ -997,6 +1046,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                             if (null != answersForMessage) {
                                 // we're expecting this message!
+                                traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: answer matched waiting request, delivered");
                                 updateProcessedBy(msg);
 
                                 if (!answersForMessage.contains(msg)) {
@@ -1011,6 +1061,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             final Msg theMessage = msg;
 
                             if (cbr != null) {
+                                traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: answer matched async callback, delivered");
                                 AsyncMessageCallback cb = cbr.callback;
                                 Runnable cbRunnable = () -> {
                                     cb.incomingMessage(theMessage);
@@ -1025,17 +1076,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                 checkDeleteAfterProcessing(msg);
                                 return;
                             }
+
+                            // neither a waiter nor a callback: the request may have timed out
+                            // already - or this is the exact silent drop the trace exists for
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: answer matched NO waiter/callback, falling through to topic listeners");
                         }
 
                         if (!getListenerNames().containsKey(msg.getTopic())) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: no listener for topic '" + msg.getTopic() + "', dropped");
                             return;
                         }
 
                         // really do handle message
                         if (msg.isExclusive()) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: handling exclusively (lockAndProcess)");
                             lockAndProcess(msg);
                             wasProcessed = true;
                         } else {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: handling (processMessage)");
                             processMessage(msg);
                             wasProcessed = true;
                         }
@@ -1321,6 +1379,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // NOTE: We do NOT add to idsInProgress here
                     // It will be added when the processing thread pulls it from the queue
                     // This prevents messages from getting stuck in idsInProgress if never processed
+                    traceDecision(el.getId(), null, "poll: queued for processing");
+                } else {
+                    traceDecision(el.getId(), null, "poll: skipped (already queued or in progress)");
                 }
             }
         }
@@ -2180,6 +2241,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             log.error("answer timeout diagnostics for {}/{} after {}ms (instance {}): request={}, answers stored={} -> {}",
                 theMessage.getTopic(), theMessage.getMsgId(), timeoutInMs, getSenderId(),
                 orig == null ? "GONE" : "present, processedBy=" + orig.getProcessedBy(), answers, verdict);
+            // "answers stored=0" at exactly t=timeout can be a TTL artifact (answer TTL often
+            // equals the await timeout) - the decision trace shows what THIS instance actually
+            // did with the request and any answer to it, including the silent skip paths.
+            List<String> decisions = getProcessingDecisions(theMessage.getMsgId());
+            log.error("processing decision trace for {} ({} entries): {}",
+                theMessage.getMsgId(), decisions.size(), decisions.isEmpty() ? "NONE - no event or poll ever saw this id" : String.join(" | ", decisions));
         } catch (Exception e) {
             log.error("answer timeout diagnostics failed", e);
         }
