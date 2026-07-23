@@ -325,6 +325,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private java.util.function.IntSupplier connectionCountSupplier;
     private java.util.function.LongSupplier connectionsCreatedSupplier;
     private Map<String, Integer> rsPriorities;
+    private java.util.concurrent.Callable<Integer> dumpNowAction;
+    private java.util.function.Supplier<Map<String, Object>> dumpStatusSupplier;
 
     /** The server-wide op registry backing currentOp/$currentOp/killOp. */
     public MongoCommandHandler setOpRegistry(OpRegistry opRegistry) {
@@ -343,6 +345,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     /** Per-host election priorities for replSetGetConfig (rs.conf()). */
     public MongoCommandHandler setRsPriorities(Map<String, Integer> rsPriorities) {
         this.rsPriorities = rsPriorities;
+        return this;
+    }
+
+    /** On-demand dump trigger backing the dumpNow admin command; returns the number of
+     * databases written. Left unset (null) when the server runs without a dump directory. */
+    public MongoCommandHandler setDumpNowAction(java.util.concurrent.Callable<Integer> dumpNowAction) {
+        this.dumpNowAction = dumpNowAction;
+        return this;
+    }
+
+    /** Read-only persistence info backing the dumpStatus admin command. Unset means the
+     * handler answers enabled:false itself. */
+    public MongoCommandHandler setDumpStatusSupplier(java.util.function.Supplier<Map<String, Object>> supplier) {
+        this.dumpStatusSupplier = supplier;
         return this;
     }
 
@@ -593,6 +609,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
             }
 
+            case "dumpNow":
+                processDumpNow(ctx, requestId);
+                return; // async response
+
+            case "dumpStatus": {
+                Map<String, Object> status = dumpStatusSupplier == null
+                        ? Doc.of("enabled", (Object) false) : dumpStatusSupplier.get();
+                answer = new LinkedHashMap<>(status);
+                answer.put("ok", 1.0);
+                break;
+            }
+
             case "listCommands":
                 answer = processListCommands();
                 break;
@@ -756,6 +784,26 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 "ok", 1.0);
     }
 
+    /** Triggers the configured on-demand dump off the I/O thread - a large dump must not
+     * stall every connection on this event loop. Responds from the dump thread via the
+     * channel's event loop, like the async getMore path. */
+    private void processDumpNow(ChannelHandlerContext ctx, int requestId) {
+        if (dumpNowAction == null) {
+            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions",
+                    "errmsg", "no dump directory configured - start the server with --dump-dir"));
+            return;
+        }
+
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return Doc.of("ok", 1.0, "databases", (Object) dumpNowAction.call());
+            } catch (Exception e) {
+                log.error("dumpNow failed: {}", e.getMessage(), e);
+                return Doc.of("ok", 0.0, "errmsg", "dump failed: " + e.getMessage());
+            }
+        }).thenAccept(answer -> ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, answer)));
+    }
+
     /** Every command name this server answers: wire-level handlers plus the driver's commands. */
     private Map<String, Object> processListCommands() {
         java.util.TreeSet<String> names = new java.util.TreeSet<>(driver.getSupportedCommandNames());
@@ -767,7 +815,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 "killCursors", "getMore", "insert", "find", "update", "delete", "count", "distinct",
                 "aggregate", "createIndexes", "bulkWrite", "abortTransaction", "commitTransaction",
                 "registerMessagingCollection", "unregisterMessagingSubscriber", "getMessagingStats",
-                "dbHash", "validate"));
+                "dbHash", "validate", "dumpNow", "dumpStatus"));
         Map<String, Object> commands = new LinkedHashMap<>();
 
         for (String n : names) {

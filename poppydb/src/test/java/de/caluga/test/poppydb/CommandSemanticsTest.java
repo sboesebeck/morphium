@@ -137,6 +137,52 @@ public class CommandSemanticsTest {
         }
     }
 
+    // dumpNow: the admin command must trigger the configured on-demand dump end-to-end
+    // (PoppyDB wiring, not just the handler) and actually write the dump files.
+    @Test
+    public void dumpNowWritesDumpFilesOnDemand() throws Exception {
+        int port = freePort();
+        PoppyDB srv = new PoppyDB(port, "127.0.0.1", 1000, 10);
+        java.io.File dumpDir = java.nio.file.Files.createTempDirectory("poppy-dumpnow").toFile();
+        srv.setDumpDirectory(dumpDir);
+        srv.start();
+
+        try (Socket sock = connect(port)) {
+            Map<String, Object> insert = command(sock, Doc.of(
+                    "insert", "dump_coll",
+                    "documents", List.of(Doc.of("_id", 1, "v", "x")),
+                    "$db", "dumptest"));
+            assertEquals(1.0, ok(insert), "insert must succeed: " + insert);
+
+            Map<String, Object> statusBefore = command(sock, Doc.of("dumpStatus", 1, "$db", "admin"));
+            log.info("dumpStatus before: {}", statusBefore);
+            assertEquals(1.0, ok(statusBefore), "dumpStatus must succeed: " + statusBefore);
+            assertEquals(true, statusBefore.get("enabled"), "persistence is configured");
+            assertEquals(dumpDir.getAbsolutePath(), statusBefore.get("dir"));
+            assertEquals(0L, ((Number) statusBefore.get("lastDumpMs")).longValue(),
+                    "no dump ran yet");
+
+            Map<String, Object> reply = command(sock, Doc.of("dumpNow", 1, "$db", "admin"));
+            log.info("dumpNow reply: {}", reply);
+
+            assertEquals(1.0, ok(reply), "dumpNow must succeed: " + reply);
+            assertNotNull(reply.get("databases"), "reply must report the dumped database count");
+            java.io.File dumpFile = new java.io.File(dumpDir, "dumptest.morphium.gz");
+            assertEquals(true, dumpFile.exists(), "dump file must exist: " + dumpFile);
+
+            Map<String, Object> statusAfter = command(sock, Doc.of("dumpStatus", 1, "$db", "admin"));
+            log.info("dumpStatus after: {}", statusAfter);
+            assertEquals(true, ((Number) statusAfter.get("lastDumpMs")).longValue() > 0,
+                    "lastDumpMs must reflect the on-demand dump: " + statusAfter);
+        } finally {
+            try {
+                if (srv.isRunning()) srv.shutdown();
+            } catch (Exception e) {
+                log.warn("shutdown error: {}", e.getMessage());
+            }
+        }
+    }
+
     // Scenario 2: write concern w>secondaries must wait for replication on the fast path
     // and surface a writeConcernError instead of an immediate OK.
     @Test

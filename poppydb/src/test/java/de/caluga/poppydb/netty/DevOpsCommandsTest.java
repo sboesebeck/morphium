@@ -236,6 +236,133 @@ public class DevOpsCommandsTest {
         assertThat(reply.get("errmsg").toString()).contains("not supported");
     }
 
+    // ---- dumpNow -------------------------------------------------------------------------
+
+    /** dumpNow answers asynchronously (the dump runs off the I/O thread) - pump the
+     * EmbeddedChannel's task queue until the reply arrives. */
+    private Map<String, Object> sendAsync(Map<String, Object> cmd) throws Exception {
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(msgId.incrementAndGet());
+        msg.setFirstDoc(cmd);
+        ch.writeInbound(msg);
+
+        for (int i = 0; i < 500; i++) {
+            ch.runPendingTasks();
+            OpMsg reply = ch.readOutbound();
+
+            if (reply != null) {
+                return reply.getFirstDoc();
+            }
+
+            Thread.sleep(10);
+        }
+
+        throw new AssertionError("no reply for " + cmd.keySet().iterator().next());
+    }
+
+    @Test
+    public void dumpNowWithoutDumpDirectoryAnswersInvalidOptions() throws Exception {
+        Map<String, Object> reply = sendAsync(Doc.of("dumpNow", 1, "$db", "admin"));
+
+        assertThat(reply.get("ok")).as("reply: " + reply).isEqualTo(0.0);
+        assertThat(((Number) reply.get("code")).intValue()).isEqualTo(72);
+        assertThat(reply.get("errmsg").toString()).contains("--dump-dir");
+    }
+
+    @Test
+    public void dumpNowTriggersTheConfiguredDumpAndReportsTheCount() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        EmbeddedChannel dumpCh = new EmbeddedChannel(new MongoCommandHandler(drv, null, null, null,
+                new AtomicInteger(1), "0.0.0.0", 27017, "my-rs", List.of("localhost:27017"), true,
+                "localhost:27017", 0, () -> null)
+                .setDumpNowAction(() -> { calls.incrementAndGet(); return 3; }));
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(msgId.incrementAndGet());
+        msg.setFirstDoc(Doc.of("dumpNow", 1, "$db", "admin"));
+        dumpCh.writeInbound(msg);
+        OpMsg reply = null;
+
+        for (int i = 0; i < 500 && reply == null; i++) {
+            dumpCh.runPendingTasks();
+            reply = dumpCh.readOutbound();
+
+            if (reply == null) {
+                Thread.sleep(10);
+            }
+        }
+
+        assertThat(reply).isNotNull();
+        assertThat(reply.getFirstDoc().get("ok")).as("reply: " + reply.getFirstDoc()).isEqualTo(1.0);
+        assertThat(((Number) reply.getFirstDoc().get("databases")).intValue()).isEqualTo(3);
+        assertThat(calls.get()).isEqualTo(1);
+    }
+
+    @Test
+    public void dumpNowReportsAFailedDumpAsError() throws Exception {
+        EmbeddedChannel dumpCh = new EmbeddedChannel(new MongoCommandHandler(drv, null, null, null,
+                new AtomicInteger(1), "0.0.0.0", 27017, "my-rs", List.of("localhost:27017"), true,
+                "localhost:27017", 0, () -> null)
+                .setDumpNowAction(() -> { throw new java.io.IOException("disk full"); }));
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(msgId.incrementAndGet());
+        msg.setFirstDoc(Doc.of("dumpNow", 1, "$db", "admin"));
+        dumpCh.writeInbound(msg);
+        OpMsg reply = null;
+
+        for (int i = 0; i < 500 && reply == null; i++) {
+            dumpCh.runPendingTasks();
+            reply = dumpCh.readOutbound();
+
+            if (reply == null) {
+                Thread.sleep(10);
+            }
+        }
+
+        assertThat(reply).isNotNull();
+        assertThat(reply.getFirstDoc().get("ok")).isEqualTo(0.0);
+        assertThat(reply.getFirstDoc().get("errmsg").toString()).contains("disk full");
+    }
+
+    @Test
+    public void listCommandsIncludesDumpNow() {
+        Map<String, Object> reply = send(Doc.of("listCommands", 1, "$db", "admin"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> commands = (Map<String, Object>) reply.get("commands");
+        assertThat(commands).containsKeys("dumpNow", "dumpStatus");
+    }
+
+    @Test
+    public void dumpStatusWithoutPersistenceAnswersDisabled() {
+        Map<String, Object> reply = send(Doc.of("dumpStatus", 1, "$db", "admin"));
+
+        assertThat(reply.get("ok")).as("reply: " + reply).isEqualTo(1.0);
+        assertThat(reply.get("enabled")).isEqualTo(false);
+    }
+
+    @Test
+    public void dumpStatusReportsTheWiredPersistenceInfo() {
+        EmbeddedChannel statusCh = new EmbeddedChannel(new MongoCommandHandler(drv, null, null, null,
+                new AtomicInteger(1), "0.0.0.0", 27017, "my-rs", List.of("localhost:27017"), true,
+                "localhost:27017", 0, () -> null)
+                .setDumpStatusSupplier(() -> Doc.of("enabled", true, "dir", "/data/dumps",
+                        "intervalMs", 60000L, "schedulerRunning", true, "lastDumpMs", 12345L)));
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(msgId.incrementAndGet());
+        msg.setFirstDoc(Doc.of("dumpStatus", 1, "$db", "admin"));
+        statusCh.writeInbound(msg);
+        OpMsg reply = statusCh.readOutbound();
+
+        assertThat(reply).isNotNull();
+        Map<String, Object> doc = reply.getFirstDoc();
+        assertThat(doc.get("ok")).as("reply: " + doc).isEqualTo(1.0);
+        assertThat(doc.get("enabled")).isEqualTo(true);
+        assertThat(doc.get("dir")).isEqualTo("/data/dumps");
+        assertThat(((Number) doc.get("intervalMs")).longValue()).isEqualTo(60000L);
+        assertThat(doc.get("schedulerRunning")).isEqualTo(true);
+        assertThat(((Number) doc.get("lastDumpMs")).longValue()).isEqualTo(12345L);
+    }
+
     // ---- replSetGetConfig ----------------------------------------------------------------
 
     @Test

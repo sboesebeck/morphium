@@ -244,7 +244,9 @@ public class PoppyDB {
                         ).setAuthRequired(authRequired)
                          .setOpRegistry(opRegistry)
                          .setConnectionCounters(allChannels::size, connectionsCreated::get)
-                         .setRsPriorities(hostPriorities));
+                         .setRsPriorities(hostPriorities)
+                         .setDumpNowAction(dumpDirectory == null ? null : PoppyDB.this::dumpNow)
+                         .setDumpStatusSupplier(PoppyDB.this::getDumpStatus));
 
                         // Track the channel
                         allChannels.add(ch);
@@ -813,6 +815,19 @@ public class PoppyDB {
     private boolean isSecondarySyncing() {
         ReplicationManager rm = replicationManager;
         return rm != null && rm.isSyncing();
+    }
+
+    /** Read-only persistence info backing the dumpStatus admin command. */
+    public Map<String, Object> getDumpStatus() {
+        if (dumpDirectory == null) {
+            return de.caluga.morphium.driver.Doc.of("enabled", (Object) false);
+        }
+
+        return de.caluga.morphium.driver.Doc.of("enabled", true,
+                "dir", dumpDirectory.getAbsolutePath(),
+                "intervalMs", dumpIntervalMs,
+                "schedulerRunning", dumpScheduler != null && !dumpScheduler.isShutdown(),
+                "lastDumpMs", lastDumpTime);
     }
 
     public int dumpNow() throws IOException {
