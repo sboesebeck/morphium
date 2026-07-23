@@ -44,6 +44,24 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void inMemSampleLargerThanCollectionReturnsAll() throws Exception {
+        // mongosh tab completion samples documents with $sample {size: 10}; on a collection
+        // with fewer documents this used to throw IndexOutOfBoundsException ("toIndex = 10")
+        // instead of returning all documents like MongoDB does.
+        for (int i = 0; i < 3; i++) {
+            morphium.store(new UncachedObject("s" + i, i));
+        }
+
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.sample(10);
+        assertEquals(3, agg.aggregateMap().size());
+
+        agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.sample(2);
+        assertEquals(2, agg.aggregateMap().size());
+    }
+
+    @Test
     public void inMemAggregationSumTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);

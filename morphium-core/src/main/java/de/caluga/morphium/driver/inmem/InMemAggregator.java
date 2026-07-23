@@ -1842,8 +1842,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 @SuppressWarnings("unchecked")
                 List o = new ArrayList(data);
                 Collections.shuffle(o);
+                // like mongod: a size >= collection count returns all documents (in random
+                // order) - mongosh tab completion samples with size 10 on every collection
                 //noinspection unchecked
-                ret = o.subList(0, size);
+                ret = o.subList(0, Math.min(size, o.size()));
                 break;
 
             case "$merge": {
