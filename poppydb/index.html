@@ -1208,6 +1208,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Performance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#messaging-round-trip-latency-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging Round-Trip Latency (measured)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2631,6 +2648,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Performance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#messaging-round-trip-latency-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging Round-Trip Latency (measured)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3572,6 +3606,74 @@ not evaluated yet — isolate the network segment), size the heap deliberately, 
 </tr>
 </tbody>
 </table>
+<h3 id="messaging-round-trip-latency-measured">Messaging Round-Trip Latency (measured)<a class="headerlink" href="#messaging-round-trip-latency-measured" title="Permanent link">&para;</a></h3>
+<p>Measured with <a href="https://github.com/sboesebeck/morpheus">morpheus</a>, the CLI tool for
+morphium-driven projects: its latency harness sends morphium messages ping-pong style and
+records the full round trip (send → receive → answer → answer received). Setup: dedicated
+run on a single MacBook Pro, <strong>both</strong> systems as a 3-node replica set, identical morphium
+messaging code on both sides.</p>
+<table>
+<thead>
+<tr>
+<th>Metric (ms)</th>
+<th>PoppyDB (3-node RS)</th>
+<th>MongoDB (3-node RS)</th>
+<th>Factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>avg round trip</td>
+<td>2.64</td>
+<td>59.5</td>
+<td>~22x</td>
+</tr>
+<tr>
+<td>p50</td>
+<td>2.43</td>
+<td>59.1</td>
+<td>~24x</td>
+</tr>
+<tr>
+<td>p90</td>
+<td>3.31</td>
+<td>70.0</td>
+<td>~21x</td>
+</tr>
+<tr>
+<td>p99</td>
+<td>6.70</td>
+<td>79.8</td>
+<td>~12x</td>
+</tr>
+<tr>
+<td>min</td>
+<td>1.31</td>
+<td>34.8</td>
+<td>~26x</td>
+</tr>
+<tr>
+<td>jitter</td>
+<td>0.66</td>
+<td>6.48</td>
+<td>~10x</td>
+</tr>
+<tr>
+<td>message loss</td>
+<td>0%</td>
+<td>0%</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why the gap is structural, not tuning:</strong> MongoDB change streams only emit
+majority-committed events, so every messaging hop pays replication plus journal-commit
+latency — that is MongoDB's ~35ms latency <em>floor</em> in this setup, and it buys durability.
+PoppyDB's change streams emit directly from memory and pay nothing, because there is
+nothing to persist — the same trade-off described in the
+<a href="#5-message-broker-for-short-lived-messages-production">use cases</a>: you get the latency
+because you accepted the loss model. Numbers vary with hardware; re-run the harness on
+your target machine for real figures.</p>
 <h2 id="monitoring">Monitoring<a class="headerlink" href="#monitoring" title="Permanent link">&para;</a></h2>
 <h3 id="built-in-status-monitoring">Built-in Status Monitoring<a class="headerlink" href="#built-in-status-monitoring" title="Permanent link">&para;</a></h3>
 <p><strong>All Morphium messaging instances automatically include status monitoring</strong> via the <code>morphium_status</code> topic. This works with PoppyDB and any Morphium messaging setup.</p>
