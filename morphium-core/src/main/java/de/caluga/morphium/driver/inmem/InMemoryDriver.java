@@ -1139,6 +1139,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // but NOT ENFORCED - unauthenticated commands still execute (enforcement is a separate
     // step with an explicit opt-in switch). X.509 and createRole remain honestly unimplemented.
 
+    /**
+     * Version reported by serverStatus here and by PoppyDB's buildInfo and hello msg.
+     * PoppyDB releases in lockstep with morphium, so this is the real product version from
+     * the Maven build - deliberately the PoppyDB version, not a MongoDB compatibility
+     * version: protocol capabilities are negotiated via maxWireVersion, not this string.
+     */
+    public static final String REPORTED_SERVER_VERSION =
+        de.caluga.morphium.MorphiumVersion.UNKNOWN_VERSION.equals(de.caluga.morphium.MorphiumVersion.getVersion())
+        ? "0.0.0-dev" : de.caluga.morphium.MorphiumVersion.getVersion();
+
     private static final String USERS_DB = "admin";
     private static final String USERS_COLLECTION = "system.users";
     private static final long SCRAM_CONVERSATION_TTL_MS = 60_000;
@@ -1594,7 +1604,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         if (commandClass == null) {
-            throw new IllegalArgumentException("Unknown command " + commandName);
+            // answer like mongod instead of throwing: clients probe with commands we don't
+            // implement (mongosh sends atlasVersion on every connect to detect Atlas) and
+            // expect the CommandNotFound error shape to handle the reply gracefully
+            return errorResult(59, "CommandNotFound", "no such command: '" + commandName + "'");
         }
 
         try {
@@ -1670,7 +1683,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var m = prepareResult();
         m.put("host", host);
         // same version string PoppyDB's buildInfo reports - clients comparing the two must agree
-        m.put("version", "5.0.0-ALPHA");
+        m.put("version", REPORTED_SERVER_VERSION);
         // "mongod", not an own process name: tooling uses this field to distinguish mongod vs
         // mongos routing semantics, and the in-memory server behaves like a single mongod
         m.put("process", "mongod");

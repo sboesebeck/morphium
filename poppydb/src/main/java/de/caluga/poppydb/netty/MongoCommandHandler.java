@@ -377,7 +377,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
 
             case "buildInfo":
-                answer = Doc.of("version", "5.0.0-ALPHA",
+                answer = Doc.of("version", InMemoryDriver.REPORTED_SERVER_VERSION,
                         "buildEnvironment", Doc.of("distarch", "java", "targetarch", "java"),
                         "ok", 1.0);
                 break;
@@ -1187,6 +1187,36 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /**
+     * The name this node has from a client's perspective: the seed-list entry carrying our
+     * port when the bind address itself is not a seed (e.g. bound to 0.0.0.0), otherwise
+     * bind host:port - wildcard binds resolved to the local hostname. Used for hello ("me")
+     * and the rs.status self flag, so both agree with the election member identity.
+     */
+    private String memberAddress() {
+        String effectiveHost = host;
+
+        if ("0.0.0.0".equals(effectiveHost) || "::".equals(effectiveHost)) {
+            try {
+                effectiveHost = java.net.InetAddress.getLocalHost().getCanonicalHostName();
+            } catch (Exception e) {
+                effectiveHost = "localhost";
+            }
+        }
+
+        String myAddress = effectiveHost + ":" + port;
+
+        if (hosts != null && !hosts.isEmpty() && !hosts.contains(myAddress)) {
+            for (String seed : hosts) {
+                if (seed.endsWith(":" + port)) {
+                    return seed;
+                }
+            }
+        }
+
+        return myAddress;
+    }
+
     private HelloResult getHelloResult() {
         HelloResult res = new HelloResult();
         res.setHelloOk(true);
@@ -1195,22 +1225,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         // Derive "me" from the RS seed list entry matching our port, so that
         // clients see a reachable hostname instead of the bind address (e.g. 0.0.0.0).
-        String effectiveHost = host;
-        if ("0.0.0.0".equals(effectiveHost) || "::".equals(effectiveHost)) {
-            try {
-                effectiveHost = java.net.InetAddress.getLocalHost().getCanonicalHostName();
-            } catch (Exception e) {
-                effectiveHost = "localhost";
-            }
-        }
-        String myAddress = effectiveHost + ":" + port;
+        String myAddress = memberAddress();
         if (hosts != null && !hosts.isEmpty()) {
-            for (String seed : hosts) {
-                if (seed.endsWith(":" + port)) {
-                    myAddress = seed;
-                    break;
-                }
-            }
             List<String> allHosts = new ArrayList<>(hosts);
             if (!allHosts.contains(myAddress)) {
                 allHosts.add(0, myAddress);
@@ -1252,7 +1268,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             res.setHosts(Arrays.asList(myAddress));
         }
         res.setLogicalSessionTimeoutMinutes(30);
-        res.setMsg("PoppyDB V0.1ALPHA (Netty)");
+        res.setMsg("PoppyDB V" + InMemoryDriver.REPORTED_SERVER_VERSION + " (Netty)");
 
         // Advertise supported compression algorithms
         List<String> compressionAlgorithms = new ArrayList<>();
@@ -1497,12 +1513,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> electionStats = electionManager.getStats();
             status.put("term", electionStats.get("term"));
 
-            // Determine myState based on election state
+            // Determine myState based on election state - reported in MongoDB member-state
+            // nomenclature, never the internal Raft enum names (clients parse stateStr)
             ElectionState state = electionManager.getState();
             int myState = switch (state) {
                 case LEADER -> 1;    // PRIMARY
                 case FOLLOWER -> 2;  // SECONDARY
                 case CANDIDATE -> 3; // RECOVERING (closest match)
+            };
+            String myStateStr = switch (state) {
+                case LEADER -> "PRIMARY";
+                case FOLLOWER -> "SECONDARY";
+                case CANDIDATE -> "RECOVERING";
             };
             status.put("myState", myState);
 
@@ -1516,7 +1538,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             selfMember.put("_id", 0);
             selfMember.put("name", myAddress);
             selfMember.put("state", myState);
-            selfMember.put("stateStr", state.name());
+            selfMember.put("stateStr", myStateStr);
             selfMember.put("self", true);
             members.add(selfMember);
 
@@ -1546,6 +1568,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             List<Map<String, Object>> members = new ArrayList<>();
             int memberId = 0;
+            // compare against the seed-list identity, not the raw bind address (0.0.0.0)
+            String myAddress = memberAddress();
             for (String h : hosts) {
                 Map<String, Object> member = new LinkedHashMap<>();
                 member.put("_id", memberId++);
@@ -1553,7 +1577,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 boolean isPrimary = h.equals(primaryHost);
                 member.put("state", isPrimary ? 1 : 2);
                 member.put("stateStr", isPrimary ? "PRIMARY" : "SECONDARY");
-                member.put("self", h.equals(host + ":" + port));
+                member.put("self", h.equals(myAddress));
                 members.add(member);
             }
             status.put("members", members);

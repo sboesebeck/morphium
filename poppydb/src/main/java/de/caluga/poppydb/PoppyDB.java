@@ -411,6 +411,23 @@ public class PoppyDB {
 
         String myAddress = host + ":" + port;
 
+        // A wildcard or alternate bind address (e.g. --bind 0.0.0.0) is not the name this
+        // node has in the seed list. Identify it by the unique seed entry carrying our port -
+        // otherwise self stays in the election peer list (duplicate rs.status member, votes
+        // for itself as a peer) and the priority lookup below misses.
+        if (!hosts.isEmpty() && !hosts.contains(myAddress)) {
+            List<String> samePortSeeds = hosts.stream().filter(h -> h.endsWith(":" + port)).toList();
+
+            if (samePortSeeds.size() == 1) {
+                log.info("Bind address {} is not a replica set seed - using seed {} as member identity",
+                         myAddress, samePortSeeds.get(0));
+                myAddress = samePortSeeds.get(0);
+            } else {
+                log.warn("Bind address {} is not in the replica set seed list {} and no unique seed matches "
+                         + "port {} - member identity may be wrong (rs.status/election)", myAddress, hosts, port);
+            }
+        }
+
         // Set this node's election priority from the priorities map
         // Priorities should be 0-100, where 0 = cannot become primary
         // All nodes in the cluster must use the same priority configuration
