@@ -128,6 +128,103 @@ public class InMemServerCommandsTest {
         assertEquals(0L, ((Number) res.get("totalIndexSize")).longValue());
     }
 
+    // ---- dbHash / validate / top -------------------------------------------------------
+
+    @Test
+    public void dbHash_equalDataYieldsEqualHash_regardlessOfInsertOrder() throws Exception {
+        // same documents, different insertion order - the canonical hash order must make
+        // both databases agree (initial sync vs live replication materialize different orders)
+        new InsertMongoCommand(drv).setDb("hash_a").setColl("c").setDocuments(List.of(
+            Doc.of("_id", 1, "v", "x"), Doc.of("_id", 2, "v", "y"))).execute();
+        new InsertMongoCommand(drv).setDb("hash_b").setColl("c").setDocuments(List.of(
+            Doc.of("_id", 2, "v", "y"), Doc.of("_id", 1, "v", "x"))).execute();
+        new InsertMongoCommand(drv).setDb("hash_c").setColl("c").setDocuments(List.of(
+            Doc.of("_id", 1, "v", "x"), Doc.of("_id", 2, "v", "DIFFERENT"))).execute();
+
+        Map<String, Object> a = run(Doc.of("dbHash", 1, "$db", "hash_a"));
+        Map<String, Object> b = run(Doc.of("dbHash", 1, "$db", "hash_b"));
+        Map<String, Object> c = run(Doc.of("dbHash", 1, "$db", "hash_c"));
+
+        assertEquals(1.0, a.get("ok"), "reply: " + a);
+        assertEquals("hash_a", a.get("db"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> collsA = (Map<String, Object>) a.get("collections");
+        assertTrue(collsA.containsKey("c"), "per-collection hash present: " + a);
+        assertEquals(((Map<?, ?>) b.get("collections")).get("c"), collsA.get("c"),
+            "same data must hash identically regardless of list order");
+        assertEquals(a.get("md5"), b.get("md5"));
+        assertNotEquals(a.get("md5"), c.get("md5"), "different data must produce a different hash");
+    }
+
+    @Test
+    public void dbHash_honorsCollectionsFilter() throws Exception {
+        insert(coll, Doc.of("a", 1));
+        insert("other_coll", Doc.of("b", 2));
+
+        Map<String, Object> filtered = run(Doc.of("dbHash", 1, "collections", List.of(coll), "$db", db));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> colls = (Map<String, Object>) filtered.get("collections");
+        assertTrue(colls.containsKey(coll));
+        assertFalse(colls.containsKey("other_coll"), "filtered out: " + filtered);
+    }
+
+    @Test
+    public void validate_healthyCollectionIsValid() throws Exception {
+        insert(coll, Doc.of("counter", 1), Doc.of("counter", 2), Doc.of("counter", 3));
+        run(Doc.of("createIndexes", coll, "indexes",
+            List.of(Doc.of("key", Doc.of("counter", 1), "name", "counter_1")), "$db", db));
+
+        Map<String, Object> res = run(Doc.of("validate", coll, "$db", db));
+
+        assertEquals(1.0, res.get("ok"), "reply: " + res);
+        assertEquals(true, res.get("valid"), "reply: " + res);
+        assertEquals(3L, ((Number) res.get("nrecords")).longValue());
+        assertTrue(((Number) res.get("nIndexes")).intValue() >= 2, "at least _id_ and counter_1: " + res);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> keys = (Map<String, Object>) res.get("keysPerIndex");
+        assertEquals(3L, ((Number) keys.get("_id_")).longValue());
+        assertTrue(((List<?>) res.get("errors")).isEmpty());
+    }
+
+    @Test
+    public void validate_detectsStaleIndexEntries() throws Exception {
+        insert(coll, Doc.of("counter", 1), Doc.of("counter", 2));
+
+        // corrupt on purpose: remove a document from the raw list BEHIND the index store's
+        // back - exactly the drift class validate exists to find
+        var m = InMemoryDriver.class.getDeclaredMethod("getCollection", String.class, String.class);
+        m.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> raw = (List<Map<String, Object>>) m.invoke(drv, db, coll);
+        raw.remove(0);
+
+        Map<String, Object> res = run(Doc.of("validate", coll, "$db", db));
+
+        assertEquals(1.0, res.get("ok"), "reply: " + res);
+        assertEquals(false, res.get("valid"), "stale index entry must be detected: " + res);
+        assertFalse(((List<?>) res.get("errors")).isEmpty());
+        assertFalse(((List<?>) res.get("extraIndexEntries")).isEmpty(),
+            "the index still references the removed document: " + res);
+    }
+
+    @Test
+    public void validate_missingCollectionAnswersNamespaceNotFound() throws Exception {
+        Map<String, Object> res = run(Doc.of("validate", "no_such_coll", "$db", db));
+
+        assertEquals(0.0, res.get("ok"));
+        assertEquals(26, ((Number) res.get("code")).intValue(), "reply: " + res);
+    }
+
+    @Test
+    public void top_answersExplicitCommandNotSupported() throws Exception {
+        Map<String, Object> res = run(Doc.of("top", 1, "$db", "admin"));
+
+        assertEquals(0.0, res.get("ok"));
+        assertEquals(115, ((Number) res.get("code")).intValue(), "CommandNotSupported: " + res);
+        assertTrue(res.get("errmsg").toString().contains("not supported"), "reply: " + res);
+    }
+
     // ---- currentOp -------------------------------------------------------------------
 
     @Test

@@ -93,7 +93,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "getlog", "getparameter", "replsetprogress",
             "requestvote", "appendentries", "replsetgetstatus", "replsetstepdown", "replsetfreeze",
             "currentop", "killop", "listcommands", "hostinfo", "connectionstatus", "whatsmyuri",
-            "replsetgetconfig", "serverstatus"
+            "replsetgetconfig", "serverstatus",
+            // read-only diagnostics that MUST work on secondaries: dbHash exists to compare
+            // replica-set members, validate checks local data<->index consistency
+            "dbhash", "validate"
     );
 
     /**
@@ -763,7 +766,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 "saslStart", "saslContinue", "logout", "endSessions", "startSession", "refreshSessions",
                 "killCursors", "getMore", "insert", "find", "update", "delete", "count", "distinct",
                 "aggregate", "createIndexes", "bulkWrite", "abortTransaction", "commitTransaction",
-                "registerMessagingCollection", "unregisterMessagingSubscriber", "getMessagingStats"));
+                "registerMessagingCollection", "unregisterMessagingSubscriber", "getMessagingStats",
+                "dbHash", "validate"));
         Map<String, Object> commands = new LinkedHashMap<>();
 
         for (String n : names) {

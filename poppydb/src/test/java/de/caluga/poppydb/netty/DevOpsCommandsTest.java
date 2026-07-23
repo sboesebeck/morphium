@@ -183,6 +183,34 @@ public class DevOpsCommandsTest {
         assertThat(((Number) connections.get("totalCreated")).longValue()).isEqualTo(99L);
     }
 
+    // ---- dbHash / validate / top ---------------------------------------------------------
+
+    @Test
+    public void dbHashAndValidateWorkOverTheWire() throws Exception {
+        send(Doc.of("insert", "c1", "documents", List.of(Doc.of("_id", 1, "v", "x")), "$db", "hashdb"));
+
+        Map<String, Object> hash = send(Doc.of("dbHash", 1, "$db", "hashdb"));
+        assertThat(hash.get("ok")).as("reply: " + hash).isEqualTo(1.0);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> colls = (Map<String, Object>) hash.get("collections");
+        assertThat(colls).containsKey("c1");
+        assertThat(hash.get("md5").toString()).hasSize(32);
+
+        Map<String, Object> validate = send(Doc.of("validate", "c1", "$db", "hashdb"));
+        assertThat(validate.get("ok")).as("reply: " + validate).isEqualTo(1.0);
+        assertThat(validate.get("valid")).isEqualTo(true);
+        assertThat(((Number) validate.get("nrecords")).longValue()).isEqualTo(1L);
+    }
+
+    @Test
+    public void topAnswersExplicitCommandNotSupported() {
+        Map<String, Object> reply = send(Doc.of("top", 1, "$db", "admin"));
+
+        assertThat(reply.get("ok")).isEqualTo(0.0);
+        assertThat(((Number) reply.get("code")).intValue()).as("reply: " + reply).isEqualTo(115);
+        assertThat(reply.get("errmsg").toString()).contains("not supported");
+    }
+
     // ---- replSetGetConfig ----------------------------------------------------------------
 
     @Test

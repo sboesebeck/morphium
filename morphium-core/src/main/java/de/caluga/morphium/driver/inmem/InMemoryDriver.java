@@ -1160,6 +1160,191 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<Integer, ScramConversationState> scramConversations = new ConcurrentHashMap<>();
 
     /**
+     * dbHash: MD5 per collection over the BSON-encoded documents, plus a combined hash -
+     * the one-command consistency check for comparing replica-set members after
+     * failover/replication tests. Documents are hashed in a canonical order (sorted by
+     * their encoded bytes), so two nodes holding the same data produce the same hash even
+     * when initial sync and live replication materialized the lists in different order.
+     * Optional {@code collections: [...]} restricts the hash to a subset.
+     */
+    private int handleDbHash(Map<String, Object> cmdMap) {
+        long start = System.currentTimeMillis();
+        String db = (String) cmdMap.get("$db");
+        Map<String, List<Map<String, Object>>> dbMap = database.get(db);
+        List<String> requested = null;
+
+        if (cmdMap.get("collections") instanceof List<?> l) {
+            requested = new ArrayList<>();
+
+            for (Object o : l) {
+                requested.add(String.valueOf(o));
+            }
+        }
+
+        try {
+            java.security.MessageDigest combined = java.security.MessageDigest.getInstance("MD5");
+            Map<String, Object> collHashes = new LinkedHashMap<>();
+
+            if (dbMap != null) {
+                for (String coll : new java.util.TreeSet<>(dbMap.keySet())) {
+                    if (requested != null && !requested.contains(coll)) {
+                        continue;
+                    }
+
+                    String hex = md5HexOfCollection(db, coll);
+                    collHashes.put(coll, hex);
+                    combined.update(hex.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                }
+            }
+
+            int ret = commandNumber.incrementAndGet();
+            var m = prepareResult();
+            m.put("db", db);
+            m.put("collections", collHashes);
+            m.put("md5", java.util.HexFormat.of().formatHex(combined.digest()));
+            m.put("timeMillis", System.currentTimeMillis() - start);
+            addResult(ret, m);
+            return ret;
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return errorResult(1, "InternalError", "MD5 not available: " + e.getMessage());
+        }
+    }
+
+    private String md5HexOfCollection(String db, String coll) throws java.security.NoSuchAlgorithmException {
+        var lock = getCollectionLock(db, coll);
+        lock.readLock().lock();
+
+        try {
+            Map<String, List<Map<String, Object>>> dbMap = database.get(db);
+            List<Map<String, Object>> data = dbMap == null ? null : dbMap.get(coll);
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+
+            if (data != null) {
+                List<byte[]> encoded = new ArrayList<>(data.size());
+
+                for (Map<String, Object> doc : data) {
+                    try {
+                        encoded.add(BsonEncoder.encodeDocument(doc));
+                    } catch (Exception e) {
+                        // a value the BSON encoder cannot handle must not break the hash command
+                    }
+                }
+
+                encoded.sort(java.util.Arrays::compare);
+
+                for (byte[] b : encoded) {
+                    md.update(b);
+                }
+            }
+
+            return java.util.HexFormat.of().formatHex(md.digest());
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * validate: a REAL consistency check between the collection data and its
+     * CollectionIndexStore - every index entry must reference a live document, and every
+     * document must be present in every index (the store indexes all documents, sparse or
+     * not). Reports mongod's validate shape; detail lists are capped at 20 entries, the
+     * error strings carry the full counts.
+     */
+    private int handleValidate(Map<String, Object> cmdMap) {
+        String db = (String) cmdMap.get("$db");
+        Object collObj = cmdMap.get("validate");
+
+        if (!(collObj instanceof String coll)) {
+            return errorResult(2, "BadValue", "validate requires a collection name");
+        }
+
+        Map<String, List<Map<String, Object>>> dbMap = database.get(db);
+        List<Map<String, Object>> data = dbMap == null ? null : dbMap.get(coll);
+
+        if (data == null) {
+            return errorResult(26, "NamespaceNotFound",
+                    "Collection '" + db + "." + coll + "' does not exist to validate.");
+        }
+
+        var lock = getCollectionLock(db, coll);
+        lock.readLock().lock();
+
+        try {
+            Set<Map<String, Object>> live = Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            live.addAll(data);
+            CollectionIndexStore store = getIndexStore(db, coll);
+            Map<String, IndexDefinition> defs = store.definitionsByName();
+            Doc keysPerIndex = Doc.of();
+            List<String> errors = new ArrayList<>();
+            List<Map<String, Object>> extraIndexEntries = new ArrayList<>();
+            List<Map<String, Object>> missingIndexEntries = new ArrayList<>();
+            long extraCount = 0;
+            long missingCount = 0;
+
+            for (String idxName : defs.keySet()) {
+                long keys = 0;
+                Set<Map<String, Object>> seen = Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                var it = store.orderedScan(idxName, false);
+
+                while (it.hasNext()) {
+                    Map<String, Object> d = it.next();
+                    keys++;
+
+                    if (live.contains(d)) {
+                        seen.add(d);
+                    } else {
+                        extraCount++;
+
+                        if (extraIndexEntries.size() < 20) {
+                            extraIndexEntries.add(Doc.of("indexName", idxName, "_id", d.get("_id")));
+                        }
+                    }
+                }
+
+                for (Map<String, Object> d : data) {
+                    if (!seen.contains(d)) {
+                        missingCount++;
+
+                        if (missingIndexEntries.size() < 20) {
+                            missingIndexEntries.add(Doc.of("indexName", idxName, "_id", d.get("_id")));
+                        }
+                    }
+                }
+
+                keysPerIndex.put(idxName, keys);
+            }
+
+            if (extraCount > 0) {
+                errors.add(extraCount + " index entr" + (extraCount == 1 ? "y" : "ies")
+                        + " referencing documents that are not in the collection (stale index state)");
+            }
+
+            if (missingCount > 0) {
+                errors.add(missingCount + " document" + (missingCount == 1 ? "" : "s")
+                        + " missing from one or more indexes");
+            }
+
+            int ret = commandNumber.incrementAndGet();
+            var m = prepareResult();
+            m.put("ns", db + "." + coll);
+            m.put("nrecords", (long) data.size());
+            m.put("nIndexes", defs.size());
+            m.put("keysPerIndex", keysPerIndex);
+            m.put("nInvalidDocuments", 0L);
+            m.put("valid", errors.isEmpty());
+            m.put("repaired", false);
+            m.put("warnings", new ArrayList<>());
+            m.put("errors", errors);
+            m.put("extraIndexEntries", extraIndexEntries);
+            m.put("missingIndexEntries", missingIndexEntries);
+            addResult(ret, m);
+            return ret;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
      * Names of every command this driver can execute - the typed command classes plus the
      * raw-map specials handled directly in runCommand. PoppyDB's listCommands builds on this.
      */
@@ -1174,7 +1359,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser",
-                "registerMessagingCollection", "unregisterMessagingSubscriber"));
+                "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash", "validate"));
         return names;
     }
 
@@ -1612,6 +1797,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (commandName.equals("bulkWrite")) {
             return handleBulkWrite(cmdMap);
+        }
+
+        if (commandName.equals("dbHash")) {
+            return handleDbHash(cmdMap);
+        }
+
+        if (commandName.equals("validate")) {
+            return handleValidate(cmdMap);
+        }
+
+        if (commandName.equals("top")) {
+            // real mongod has top, so a generic CommandNotFound would mislead - per-collection
+            // operation counters are simply not tracked here, say so explicitly
+            return errorResult(115, "CommandNotSupported",
+                    "top is not supported by InMemoryDriver/PoppyDB - per-collection operation counters are not tracked");
         }
 
         Class <? extends MongoCommand > commandClass = commandsCache.get(commandName);

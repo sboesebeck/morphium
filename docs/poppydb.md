@@ -670,6 +670,8 @@ PoppyDB implements the following MongoDB admin commands:
 | `connectionStatus` | Authenticated user of this connection (empty without `--auth`) |
 | `whatsmyuri` | Client address as the server sees it |
 | `replSetGetStatus` / `replSetGetConfig` | `rs.status()` and `rs.conf()` (config reconstructed from seeds and priorities) |
+| `dbHash` | MD5 per collection + combined hash in canonical document order — compare replica-set members with one command, works on secondaries |
+| `validate` | Real data↔index consistency check against the collection's index store (stale/missing index entries, keysPerIndex) |
 | `replSetStepDown` | Step down from primary (for replica sets) |
 | `startSession` / `endSessions` / `refreshSessions` | Session management |
 | `getMore` | Cursor iteration for both regular queries and change streams |
