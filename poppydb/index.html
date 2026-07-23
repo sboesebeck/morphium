@@ -3566,6 +3566,14 @@ Netty internals, replace the configuration via <code>-Dlogback.configurationFile
 <td><code>rs.status()</code> and <code>rs.conf()</code> (config reconstructed from seeds and priorities)</td>
 </tr>
 <tr>
+<td><code>dbHash</code></td>
+<td>MD5 per collection + combined hash in canonical document order — compare replica-set members with one command, works on secondaries</td>
+</tr>
+<tr>
+<td><code>validate</code></td>
+<td>Real data↔index consistency check against the collection's index store (stale/missing index entries, keysPerIndex)</td>
+</tr>
+<tr>
 <td><code>replSetStepDown</code></td>
 <td>Step down from primary (for replica sets)</td>
 </tr>
