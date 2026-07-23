@@ -64,6 +64,8 @@ You can configure the PoppyDB using the following command-line arguments:
 | `-p`, `--port <port>` | Port to listen on. | `17017` |
 | `-b`, `--bind <host>` | Host to bind to. | `localhost` |
 | `--log-level <level>` | Log verbosity: `ERROR`, `WARN`, `INFO`, `DEBUG` or `TRACE`. See [Logging](#logging). | `INFO` |
+| `--memory-warn <percent>` | Log a warning when heap occupancy crosses this percentage (100 = off). See [Memory Watermark](#memory-watermark). | `75` |
+| `--memory-reject <percent>` | Reject document-creating writes above this heap percentage (100 = off). See [Memory Watermark](#memory-watermark). | `90` |
 | `-mt`, `--maxThreads <threads>` | Maximum number of threads for handling client connections. | `1000` |
 | `-mint`, `--minThreads <threads>` | Minimum number of threads to keep in the pool. | `10` |
 | `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
@@ -229,6 +231,44 @@ server.dumpNow();
 - Not a real-time persistence solution (no write-ahead log)
 - Data between dump intervals may be lost on crash
 - Suitable for development/testing, not production
+
+### Memory Watermark
+
+An in-memory store dies of OOM when producers outrun consumers — and a replica set dies
+*completely*, because replication copies the data volume to every node. PoppyDB therefore
+guards its heap with two watermarks (percent of the JVM's max heap):
+
+- **Warn** (default 75%): a WARN log line when heap occupancy crosses the threshold
+  (logged once per crossing, re-arms 5% below).
+- **Reject** (default 90%): document-creating writes (`insert`, replace-style `store`) are
+  refused with a mongod-shaped `ExceededMemoryLimit` error (code 146). **Updates, deletes
+  and TTL expiry keep working** — the drain paths (messaging processed-marks, lock
+  releases, cleanup) must stay open so the system can get back under the watermark
+  instead of being stuck above it.
+
+Replication applies and the initial sync bypass the guard: the primary is the gate, and a
+secondary refusing to apply what the primary accepted would silently diverge. All nodes of
+a replica set stop accepting new data at the same watermark instead of failing together.
+
+Clients receive the rejection as a write error and should treat it as retryable
+backpressure. The current state is visible in `db.serverStatus().memoryWatermark`
+(`heapUsedPercent`, thresholds, warn state). The gauge is JVM heap occupancy — garbage
+inflates it, so rejection near the limit errs on the conservative side, which beats an
+OOM kill.
+
+```bash
+# defaults: warn at 75%, reject at 90%
+java -jar poppydb-cli.jar --port 27017
+
+# tighter bound, e.g. when sharing the JVM host with other services
+java -Xmx2g -jar poppydb-cli.jar --port 27017 --memory-warn 60 --memory-reject 75
+
+# disable entirely (test setups that intentionally fill the heap)
+java -jar poppydb-cli.jar --port 27017 --memory-warn 100 --memory-reject 100
+```
+
+Programmatic: `poppyDb.setMemoryWatermarks(warnPercent, rejectPercent)` or
+`InMemoryDriver.setMemoryWatermarks(...)` for embedded use.
 
 ### SSL/TLS Configuration
 
@@ -567,6 +607,39 @@ docker run -p 27017:27017 poppydb
 # Or use docker-compose
 docker-compose up
 ```
+
+### 5. Message Broker for Short-Lived Messages (production)
+
+Morphium messaging runs natively against PoppyDB: TTL-based messages, exclusive locks,
+answer semantics, and event-driven delivery via change streams. For **ephemeral messages**
+— events, cache invalidation, job triggers with sender-side retry — a 3-node replica set
+is a lightweight broker: node failures are covered by replication and Raft failover, and
+the [memory watermark](#memory-watermark) turns overload into retryable backpressure
+instead of an OOM.
+
+**Know the loss model:** there is no write-ahead log. A cluster-wide outage loses all
+messages since the last snapshot (if any). Use it where in-flight loss is acceptable and
+senders can retry — not for guaranteed delivery.
+
+### 6. Cache / Session Storage (production)
+
+Cache semantics tolerate total loss by definition, which makes PoppyDB a candidate for
+memcached/Redis-style roles with two twists neither offers out of the box:
+
+- **Wire compatibility**: every language with a MongoDB driver is a client — no extra
+  protocol or library.
+- **Push invalidation**: change streams are built-in pub/sub — cache entries invalidate
+  by event instead of polling.
+
+Session storage is the textbook case: a TTL index on the last-access field expires
+sessions automatically, replica-set failover keeps sessions alive across node restarts
+(more than memcached offers), and off-the-shelf MongoDB session backends (e.g. Spring
+Session) work unchanged. `$inc` + TTL also cover rate limiting and counters; tiny
+config/feature-flag collections get instant propagation via change streams.
+
+For all production use: enable [`--auth`](#authentication---auth) (note that roles are
+not evaluated yet — isolate the network segment), size the heap deliberately, monitor
+`db.serverStatus().memoryWatermark` and `db.stats()`, and read the loss model above.
 
 ## Performance
 

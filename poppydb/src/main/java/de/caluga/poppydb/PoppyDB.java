@@ -141,6 +141,16 @@ public class PoppyDB {
     /** Primary replay-buffer bound (events) backing replication resume-after-disconnect. */
     static final int REPLICATION_REPLAY_BUFFER_EVENTS = 100_000;
 
+    /**
+     * Warn/reject memory watermarks in percent of max heap (100 disables a stage) - see
+     * InMemoryDriver.setMemoryWatermarks. Above the reject watermark, document-creating
+     * writes are refused with ExceededMemoryLimit (146) instead of running into an OOM
+     * that a replica set cannot survive either (replication copies the volume everywhere).
+     */
+    public void setMemoryWatermarks(int warnPercent, int rejectPercent) {
+        driver.setMemoryWatermarks(warnPercent, rejectPercent);
+    }
+
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds) {
         this(port, host, maxConnections, idleTimeoutSeconds, OpCompressed.COMPRESSOR_NOOP);
     }

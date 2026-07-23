@@ -1344,6 +1344,98 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
+    // ---- memory watermark ---------------------------------------------------------------
+    // An in-memory store dies of OOM when producers outrun consumers - and a replica set
+    // dies COMPLETELY, because replication copies the data volume to every node. Above the
+    // reject watermark, document-creating writes (insert/store) are refused with
+    // ExceededMemoryLimit (146) while updates, deletes and TTL sweeps stay allowed - the
+    // drain paths (messaging processed-marks, lock deletes, expiry) must keep working or
+    // the system could never get back under the watermark. Measured against JVM heap
+    // occupancy (used/max) - garbage inflates the gauge, so rejection near the limit is
+    // conservative, which beats an OOM kill.
+
+    private volatile int memoryWarnPercent = 75;
+    private volatile int memoryRejectPercent = 90;
+    private final AtomicBoolean memoryWarnActive = new AtomicBoolean(false);
+    private static final ThreadLocal<Boolean> memoryGuardBypass = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /** Warn/reject thresholds in percent of max heap; 100 disables the respective stage. */
+    public void setMemoryWatermarks(int warnPercent, int rejectPercent) {
+        if (warnPercent < 1 || warnPercent > 100 || rejectPercent < 1 || rejectPercent > 100) {
+            throw new IllegalArgumentException("memory watermarks must be in 1..100 (100 = disabled)");
+        }
+
+        this.memoryWarnPercent = warnPercent;
+        this.memoryRejectPercent = rejectPercent;
+    }
+
+    public int getMemoryWarnPercent() {
+        return memoryWarnPercent;
+    }
+
+    public int getMemoryRejectPercent() {
+        return memoryRejectPercent;
+    }
+
+    /** True while heap occupancy is above the warn watermark (hysteresis: re-arms 5% below). */
+    public boolean isMemoryWarnActive() {
+        return memoryWarnActive.get();
+    }
+
+    /** Current JVM heap occupancy in percent of the maximum heap. */
+    public double heapUsedPercent() {
+        Runtime rt = Runtime.getRuntime();
+        return 100.0 * (rt.totalMemory() - rt.freeMemory()) / rt.maxMemory();
+    }
+
+    /**
+     * try-with-resources scope during which the memory guard is bypassed on this thread.
+     * Replication applies and the initial sync MUST NOT be rejected: the primary is the
+     * gate, and a secondary refusing to apply what the primary accepted would silently
+     * diverge.
+     */
+    public MemoryGuardBypassScope bypassMemoryGuard() {
+        memoryGuardBypass.set(Boolean.TRUE);
+        return new MemoryGuardBypassScope();
+    }
+
+    public static final class MemoryGuardBypassScope implements AutoCloseable {
+        @Override
+        public void close() {
+            memoryGuardBypass.set(Boolean.FALSE);
+        }
+    }
+
+    private void checkMemoryWatermark() throws MorphiumDriverException {
+        if (memoryWarnPercent >= 100 && memoryRejectPercent >= 100) {
+            return;
+        }
+
+        if (Boolean.TRUE.equals(memoryGuardBypass.get())) {
+            return;
+        }
+
+        double used = heapUsedPercent();
+
+        if (used >= memoryWarnPercent && memoryWarnPercent < 100) {
+            if (memoryWarnActive.compareAndSet(false, true)) {
+                log.warn("Heap occupancy {}% crossed the warn watermark ({}%) - document-creating writes "
+                         + "will be rejected at {}%", Math.round(used), memoryWarnPercent, memoryRejectPercent);
+            }
+        } else if (used < memoryWarnPercent - 5 && memoryWarnActive.compareAndSet(true, false)) {
+            log.info("Heap occupancy {}% dropped below the warn watermark ({}%)", Math.round(used), memoryWarnPercent);
+        }
+
+        if (used >= memoryRejectPercent && memoryRejectPercent < 100) {
+            MorphiumDriverException ex = new MorphiumDriverException(
+                "heap occupancy " + Math.round(used) + "% is above the memory watermark ("
+                + memoryRejectPercent + "%) - refusing to create new documents; delete data, "
+                + "wait for TTL expiry or raise the heap");
+            ex.setMongoCode(146); // ExceededMemoryLimit
+            throw ex;
+        }
+    }
+
     /**
      * Names of every command this driver can execute - the typed command classes plus the
      * raw-map specials handled directly in runCommand. PoppyDB's listCommands builds on this.
@@ -1921,6 +2013,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     "totalCreated", totalCreated));
         m.put("mem", Doc.of("bits", 64, "resident", (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024),
                             "virtual", rt.totalMemory() / (1024 * 1024), "supported", true));
+        m.put("memoryWatermark", Doc.of("heapUsedPercent", Math.round(heapUsedPercent() * 10) / 10.0,
+                                        "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
+                                        "warnActive", memoryWarnActive.get()));
         addResult(ret, m);
         return ret;
     }
@@ -5718,8 +5813,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
                                             Map<String, Object> wc, boolean ordered) throws MorphiumDriverException {
-        // log.debug("insert() called: db={}, coll={}, thread={}", db, collection,
-        // Thread.currentThread().getName());
+        checkMemoryWatermark();
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         List<Map<String, Object>> writeErrors;
@@ -5960,6 +6054,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs,
                                       Map<String, Object> wc) throws MorphiumDriverException {
+        checkMemoryWatermark();
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         List<PendingNotification> pendingNotifications = new ArrayList<>();

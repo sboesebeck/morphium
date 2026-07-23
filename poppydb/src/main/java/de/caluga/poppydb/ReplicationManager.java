@@ -295,6 +295,14 @@ public class ReplicationManager {
      */
     @SuppressWarnings("unchecked")
     void applyEventsInOrder(List<Map<String, Object>> batch) {
+        // Replication applies must never be rejected by the memory watermark: the primary is
+        // the gate, and a secondary refusing what the primary accepted would silently diverge.
+        try (var ignored = localDriver.bypassMemoryGuard()) {
+            applyEventsInOrderGuarded(batch);
+        }
+    }
+
+    private void applyEventsInOrderGuarded(List<Map<String, Object>> batch) {
         List<Map<String, Object>> run = new ArrayList<>();
         String runCollectionKey = null;
 
@@ -959,6 +967,14 @@ public class ReplicationManager {
      * Perform initial sync - copy all data from primary to secondary.
      */
     private void performInitialSync() throws Exception {
+        // Same as applyEventsInOrder: the snapshot copy must not be refused by the local
+        // memory watermark, or a secondary could never sync a near-watermark primary.
+        try (var ignored = localDriver.bypassMemoryGuard()) {
+            performInitialSyncGuarded();
+        }
+    }
+
+    private void performInitialSyncGuarded() throws Exception {
         log.info("Starting initial sync from primary...");
         long startTime = System.currentTimeMillis();
 

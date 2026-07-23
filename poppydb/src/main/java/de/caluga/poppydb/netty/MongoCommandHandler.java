@@ -1988,8 +1988,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
             return answer;
         } catch (MorphiumDriverException e) {
+            // the driver sets a mongo code for typed failures (146 ExceededMemoryLimit from the
+            // memory watermark); everything untyped on this path is a duplicate-key error
+            Object code = e.getMongoCode() != null ? e.getMongoCode() : 11000;
             return Doc.of("ok", 1.0, "n", 0, "nModified", 0, "writeErrors",
-                    List.of(Doc.of("index", 0, "code", 11000, "errmsg", e.getMessage())));
+                    List.of(Doc.of("index", 0, "code", code, "errmsg", e.getMessage())));
         }
     }
 

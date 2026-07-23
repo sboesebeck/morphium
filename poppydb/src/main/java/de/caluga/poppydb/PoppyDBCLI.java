@@ -24,6 +24,8 @@ public class PoppyDBCLI {
         log.info("Starting up server... parsing commandline params");
         String host = "localhost";
         int port = 17017;
+        int memoryWarnPct = 75;
+        int memoryRejectPct = 90;
         String rsNameArg = "";
         String hostSeedArg = "";
         List<String> hostsArg = new ArrayList<>();
@@ -63,6 +65,16 @@ public class PoppyDBCLI {
                 case "-b":
                 case "--bind":
                     host = args[idx + 1];
+                    idx += 2;
+                    break;
+
+                case "--memory-warn":
+                    memoryWarnPct = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
+
+                case "--memory-reject":
+                    memoryRejectPct = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
 
@@ -220,6 +232,7 @@ public class PoppyDBCLI {
         }
 
         var srv = new PoppyDB(port, host, maxConnections, socketTimeoutSec, compressorId);
+        srv.setMemoryWatermarks(memoryWarnPct, memoryRejectPct);
 
         // Configure replica set - election is always enabled for multi-node replica sets
         boolean enableElection = !rsNameArg.isEmpty() && hostsArg.size() > 1;
@@ -310,6 +323,9 @@ public class PoppyDBCLI {
         System.out.println("  -p, --port <port>          : Port to listen on (default: 17017)");
         System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
         System.out.println("  --log-level <level>        : Log verbosity: ERROR, WARN, INFO, DEBUG, TRACE (default: INFO)");
+        System.out.println("  --memory-warn <percent>    : Log a warning when heap occupancy crosses this percentage (default: 75, 100 = off)");
+        System.out.println("  --memory-reject <percent>  : Reject document-creating writes (code 146 ExceededMemoryLimit) above this");
+        System.out.println("                               heap percentage; updates/deletes/TTL keep working (default: 90, 100 = off)");
         System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
         System.out.println("  --rs-name <name>           : Name of the replica set");
         System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts in the replica set");

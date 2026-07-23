@@ -203,6 +203,31 @@ public class DevOpsCommandsTest {
     }
 
     @Test
+    public void insertOverTheWireIsRejectedAboveTheMemoryWatermark() {
+        // hold >=2% of the max heap so a 1% threshold is guaranteed to be exceeded,
+        // independent of the surefire JVM's heap sizing
+        byte[] filler = new byte[(int) Math.min(Integer.MAX_VALUE - 8, Runtime.getRuntime().maxMemory() / 50)];
+        filler[0] = 1;
+        drv.setMemoryWatermarks(1, 1);
+
+        try {
+            Map<String, Object> reply = send(Doc.of("insert", "c1",
+                    "documents", List.of(Doc.of("_id", 1)), "$db", "wmdb"));
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> writeErrors = (List<Map<String, Object>>) reply.get("writeErrors");
+            assertThat(writeErrors).as("reply: " + reply).isNotNull().isNotEmpty();
+            assertThat(((Number) writeErrors.get(0).get("code")).intValue())
+                .as("ExceededMemoryLimit, not a mislabelled duplicate key: " + reply).isEqualTo(146);
+        } finally {
+            drv.setMemoryWatermarks(75, 90);
+        }
+
+        // keep the filler reachable until the assertions ran
+        assertThat(filler.length).isPositive();
+    }
+
+    @Test
     public void topAnswersExplicitCommandNotSupported() {
         Map<String, Object> reply = send(Doc.of("top", 1, "$db", "admin"));
 

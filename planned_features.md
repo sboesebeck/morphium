@@ -11,6 +11,7 @@
 | PoppyDB Authentication | ⏳ Not Started | SCRAM-SHA-256 server-side needed |
 | InMemoryDriver Text Index | ✅ Done | Full MongoDB-compatible $text query support |
 | PoppyDB Election/Failover | ✅ Mostly Done | Phases 1-3, 5-6 complete; Phase 4, 7 partial |
+| Per-Collection LRU Eviction (7.0) | ⏳ Not Started | Cache-style collections: evict LRU documents at a size bound |
 
 ---
 
@@ -874,3 +875,38 @@ public class ElectionConfig {
 - [Raft Consensus Algorithm](https://raft.github.io/) - Primary inspiration for election protocol
 - [MongoDB Replica Set Elections](https://www.mongodb.com/docs/manual/core/replica-set-elections/) - Compatibility reference
 - [Viewstamped Replication](http://pmg.csail.mit.edu/papers/vr-revisited.pdf) - Alternative consensus approach
+
+---
+
+## Per-Collection LRU Eviction (7.0) ⏳ NOT IMPLEMENTED
+
+**Goal:** make PoppyDB a credible memcached/Redis replacement — a cache that *evicts* under
+memory pressure instead of rejecting writes. This goes beyond what MongoDB offers (capped
+collections evict by insertion order, not by access) and is the counterpart to the 6.3
+memory watermark, which rejects document-creating writes above a heap threshold.
+
+**Design sketch (to be refined):**
+
+- **Opt-in per collection**, analogous to `capped`: e.g.
+  `db.createCollection("cache", {cacheMaxBytes: 104857600})` or a PoppyDB-specific create
+  option. Non-cache collections keep the watermark's reject semantics — a broker must
+  never silently drop messages, a cache must never reject puts.
+- **LRU tracking:** touch on read (`find`/`findOne`/`getMore` delivery) and write; an
+  access-ordered structure (`LinkedHashMap` accessOrder or an explicit deque) per cache
+  collection. Needs the collection's byte size, which the capped-collection byte counters
+  already model.
+- **Eviction point:** on insert/update when over the per-collection bound — evict from the
+  LRU end until under the bound; evicted documents produce regular delete change-stream
+  events so watchers/replication stay consistent.
+- **Replication:** evictions happen on the primary and replicate as deletes; secondaries
+  never evict on their own (same divergence rule as the memory watermark bypass).
+- **Morphium API pass-through:** annotation support (e.g. `@Cache`-style entity annotation
+  or `@Capped`-analogous `@LruBound(maxBytes=...)`) so embedded users and PoppyDB clients
+  get the same behavior; needs a driver-level create option carried through
+  `CreateCommand`.
+- **Interplay with the global watermark:** cache collections should evict *before* the
+  global reject watermark fires, e.g. triggered by the warn watermark - a global
+  "evict caches first, reject only when nothing is left to evict" policy.
+
+**Why 7.0:** needs a new create option on the public API surface (morphium annotation +
+driver command), so it rides a major release per the release policy.
