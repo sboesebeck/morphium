@@ -1159,6 +1159,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private final Map<Integer, ScramConversationState> scramConversations = new ConcurrentHashMap<>();
 
+    /**
+     * Names of every command this driver can execute - the typed command classes plus the
+     * raw-map specials handled directly in runCommand. PoppyDB's listCommands builds on this.
+     */
+    public Set<String> getSupportedCommandNames() {
+        var names = new java.util.TreeSet<String>();
+
+        for (String name : commandsCache.keySet()) {
+            // abstract command bases register with a null name - not a wire command
+            if (name != null) {
+                names.add(name);
+            }
+        }
+
+        names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser",
+                "registerMessagingCollection", "unregisterMessagingSubscriber"));
+        return names;
+    }
+
     private int errorResult(int code, String codeName, String errmsg) {
         int requestId = commandNumber.incrementAndGet();
         addResult(requestId, prepareResult(Doc.of(

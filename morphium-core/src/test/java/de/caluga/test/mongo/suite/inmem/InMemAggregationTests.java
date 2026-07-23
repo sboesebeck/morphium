@@ -44,6 +44,17 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void inMemCurrentOpStageAnswersEmptyInsteadOfError() throws Exception {
+        // mongosh's db.currentOp() pipeline stage. Embedded execution is synchronous, so an
+        // empty result is the honest answer - it used to fail with 40324. PoppyDB answers
+        // the stage server-side from its live op registry instead.
+        morphium.store(new UncachedObject("x", 1));
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.addOperator(UtilsMap.of("$currentOp", UtilsMap.of()));
+        assertEquals(0, agg.aggregateMap().size());
+    }
+
+    @Test
     public void inMemSampleLargerThanCollectionReturnsAll() throws Exception {
         // mongosh tab completion samples documents with $sample {size: 10}; on a collection
         // with fewer documents this used to throw IndexOutOfBoundsException ("toIndex = 10")

@@ -661,6 +661,15 @@ PoppyDB implements the following MongoDB admin commands:
 | `getCmdLineOpts` | Command line options |
 | `getParameter` | Server parameters |
 | `getLog` | Server logs |
+| `listCommands` | Names of every command this server answers |
+| `currentOp` / `$currentOp` stage | Live operations from the server's op registry — `db.currentOp()` works, including `$match` filters |
+| `killOp` | Marks an op kill-pending; best-effort thread interrupt (never a Netty event loop — cooperative like mongod) |
+| `serverStatus` | Includes real client connection gauges (`connections.current`/`totalCreated` from the Netty channel group) |
+| `dbStats` / `collStats` | Real BSON data sizes, estimated index sizes |
+| `hostInfo` | Host basics (hostname, cores, memory, OS, JVM) |
+| `connectionStatus` | Authenticated user of this connection (empty without `--auth`) |
+| `whatsmyuri` | Client address as the server sees it |
+| `replSetGetStatus` / `replSetGetConfig` | `rs.status()` and `rs.conf()` (config reconstructed from seeds and priorities) |
 | `replSetStepDown` | Step down from primary (for replica sets) |
 | `startSession` / `endSessions` / `refreshSessions` | Session management |
 | `getMore` | Cursor iteration for both regular queries and change streams |

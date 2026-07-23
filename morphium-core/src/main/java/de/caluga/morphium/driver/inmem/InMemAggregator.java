@@ -2449,6 +2449,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 ret = new ArrayList<>();
                 break;
 
+            case "$currentOp":
+                // db-level stage (mongosh's db.currentOp()). The in-memory driver executes
+                // commands synchronously on the caller's thread, so there is never a concurrent
+                // op to report - empty is the honest answer. PoppyDB answers this stage
+                // server-side from its live op registry before it ever reaches this aggregator.
+                ret = new ArrayList<>();
+                break;
+
             // $indexStats previously shared $geoNear's body and silently ran geoNear logic (#243).
             // It is not implemented by the in-memory driver, so it is grouped with the other
             // unimplemented stages here and surfaces as a proper command error instead.

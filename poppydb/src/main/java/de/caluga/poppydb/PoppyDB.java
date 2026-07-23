@@ -110,6 +110,12 @@ public class PoppyDB {
     // (not just newly accepted ones) immediately observes the new value.
     private final AtomicReference<ReplicationCoordinator> replicationCoordinatorRef = new AtomicReference<>();
 
+    // DevOps command context: live op registry (currentOp/killOp), real connection gauges
+    // for serverStatus, and the per-host priorities replSetGetConfig reports.
+    private final de.caluga.poppydb.netty.OpRegistry opRegistry = new de.caluga.poppydb.netty.OpRegistry();
+    private final java.util.concurrent.atomic.AtomicLong connectionsCreated = new java.util.concurrent.atomic.AtomicLong();
+    private volatile Map<String, Integer> hostPriorities;
+
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
         this.host = host;
@@ -225,10 +231,14 @@ public class PoppyDB {
                                 primary, primaryHost, compressorId,
                                 replicationCoordinatorRef::get, electionManager,
                                 PoppyDB.this::isSecondarySyncing
-                        ).setAuthRequired(authRequired));
+                        ).setAuthRequired(authRequired)
+                         .setOpRegistry(opRegistry)
+                         .setConnectionCounters(allChannels::size, connectionsCreated::get)
+                         .setRsPriorities(hostPriorities));
 
                         // Track the channel
                         allChannels.add(ch);
+                        connectionsCreated.incrementAndGet();
                         log.debug("New connection accepted (total: {})", allChannels.size());
                     }
                 });
@@ -427,6 +437,9 @@ public class PoppyDB {
                          + "port {} - member identity may be wrong (rs.status/election)", myAddress, hosts, port);
             }
         }
+
+        // keep for replSetGetConfig (rs.conf())
+        this.hostPriorities = priorities == null ? null : new java.util.HashMap<>(priorities);
 
         // Set this node's election priority from the priorities map
         // Priorities should be 0-100, where 0 = cannot become primary

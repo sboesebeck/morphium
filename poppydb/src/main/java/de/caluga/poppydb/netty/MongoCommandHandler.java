@@ -74,7 +74,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // mongod's pre-auth allowance.
     private static final Set<String> PRE_AUTH_COMMANDS = Set.of(
             "hello", "ismaster", "saslstart", "saslcontinue", "logout",
-            "ping", "buildinfo", "getcmdlineopts");
+            "ping", "buildinfo", "getcmdlineopts",
+            // mongod allows these unauthenticated too (connectionStatus then reports no users)
+            "whatsmyuri", "connectionstatus");
 
     // Auth enforcement state - one handler instance per channel, so these fields ARE the
     // per-connection authentication state. Enforcement is strictly opt-in via setAuthRequired.
@@ -89,7 +91,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "listdatabases", "endsessions", "startsession", "refreshsessions",
             "aborttransaction", "committransaction", "getmore", "killcursors",
             "getlog", "getparameter", "replsetprogress",
-            "requestvote", "appendentries", "replsetgetstatus", "replsetstepdown", "replsetfreeze"
+            "requestvote", "appendentries", "replsetgetstatus", "replsetstepdown", "replsetfreeze",
+            "currentop", "killop", "listcommands", "hostinfo", "connectionstatus", "whatsmyuri",
+            "replsetgetconfig", "serverstatus"
     );
 
     /**
@@ -313,6 +317,32 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return this;
     }
 
+    // DevOps command context - optional, wired by PoppyDB; tests may leave them unset.
+    private OpRegistry opRegistry;
+    private java.util.function.IntSupplier connectionCountSupplier;
+    private java.util.function.LongSupplier connectionsCreatedSupplier;
+    private Map<String, Integer> rsPriorities;
+
+    /** The server-wide op registry backing currentOp/$currentOp/killOp. */
+    public MongoCommandHandler setOpRegistry(OpRegistry opRegistry) {
+        this.opRegistry = opRegistry;
+        return this;
+    }
+
+    /** Real connection gauges for serverStatus (Netty channel count, not driver borrows). */
+    public MongoCommandHandler setConnectionCounters(java.util.function.IntSupplier current,
+            java.util.function.LongSupplier totalCreated) {
+        this.connectionCountSupplier = current;
+        this.connectionsCreatedSupplier = totalCreated;
+        return this;
+    }
+
+    /** Per-host election priorities for replSetGetConfig (rs.conf()). */
+    public MongoCommandHandler setRsPriorities(Map<String, Integer> rsPriorities) {
+        this.rsPriorities = rsPriorities;
+        return this;
+    }
+
     /** Best effort: the n= value from the SASL client-first payload; null if unparsable. */
     private static String extractSaslUser(Object payload) {
         try {
@@ -333,6 +363,24 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
         log.debug("Handling command {}", cmd);
+
+        // currentOp/killOp visibility: the op is registered for its synchronous dispatch;
+        // write-concern waits continuing on the command executor and deferred getMore
+        // responses fall out of scope once dispatch returns.
+        OpRegistry.OpEntry op = opRegistry == null ? null
+            : opRegistry.register(cmd, doc, String.valueOf(ctx.channel().remoteAddress()));
+
+        try {
+            dispatchOpMsg(ctx, doc, cmd, requestId);
+        } finally {
+            if (opRegistry != null) {
+                opRegistry.deregister(op);
+            }
+        }
+    }
+
+    private void dispatchOpMsg(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+                               int requestId) throws Exception {
 
         // Auth enforcement (--auth, strictly opt-in): until this connection completed a SCRAM
         // exchange, only the handshake/SASL/health commands may run. One handler instance
@@ -513,8 +561,69 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 answer = processDistinctDirect(doc);
                 break;
             case "aggregate":
+                // mongosh's db.currentOp() is {aggregate: 1, pipeline: [{$currentOp: {}}, ...]} -
+                // answered here from the live op registry, never by the in-memory aggregator
+                if (isCurrentOpPipeline(doc)) {
+                    answer = processCurrentOpAggregation(doc);
+                    break;
+                }
                 processDefaultCommandAsync(ctx, doc, cmd, requestId);
                 return; // aggregate is complex, keep generic path
+
+            case "currentOp":
+                answer = Doc.of("inprog", opRegistry == null ? new ArrayList<>() : opRegistry.snapshot(),
+                        "ok", 1.0);
+                break;
+
+            case "killOp": {
+                Object opid = doc.get("op");
+
+                if (!(opid instanceof Number n)) {
+                    answer = Doc.of("ok", 0.0, "code", 2, "codeName", "BadValue",
+                            "errmsg", "killOp requires a numeric op id");
+                } else if (opRegistry != null && opRegistry.killOp(n.longValue())) {
+                    answer = Doc.of("info", "attempting to kill op", "ok", 1.0);
+                } else {
+                    answer = Doc.of("ok", 0.0, "errmsg", "no such opid: " + n.longValue());
+                }
+
+                break;
+            }
+
+            case "listCommands":
+                answer = processListCommands();
+                break;
+
+            case "hostInfo":
+                answer = processHostInfo();
+                break;
+
+            case "connectionStatus": {
+                List<Map<String, Object>> authUsers = new ArrayList<>();
+
+                if (authenticatedUser != null) {
+                    authUsers.add(Doc.of("user", authenticatedUser, "db", "admin"));
+                }
+
+                answer = Doc.of("authInfo", Doc.of("authenticatedUsers", authUsers,
+                        "authenticatedUserRoles", new ArrayList<>()), "ok", 1.0);
+                break;
+            }
+
+            case "whatsmyuri": {
+                String addr = String.valueOf(ctx.channel().remoteAddress());
+
+                if (addr.startsWith("/")) {
+                    addr = addr.substring(1);
+                }
+
+                answer = Doc.of("you", addr, "ok", 1.0);
+                break;
+            }
+
+            case "replSetGetConfig":
+                answer = processReplSetGetConfig();
+                break;
             case "createIndexes":
                 answer = processCreateIndexesDirect(doc);
                 break;
@@ -608,6 +717,128 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /** True when an aggregate command's first pipeline stage is $currentOp. */
+    @SuppressWarnings("unchecked")
+    private boolean isCurrentOpPipeline(Map<String, Object> doc) {
+        Object p = doc.get("pipeline");
+        return p instanceof List<?> pipeline && !pipeline.isEmpty()
+            && pipeline.get(0) instanceof Map<?, ?> first && first.containsKey("$currentOp");
+    }
+
+    /**
+     * db.currentOp(): answer the $currentOp pipeline from the live op registry. Follow-up
+     * $match stages (mongosh appends the currentOp filter as one) are applied; any other
+     * follow-up stage is refused loudly rather than silently ignored.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processCurrentOpAggregation(Map<String, Object> doc) {
+        List<Map<String, Object>> pipeline = (List<Map<String, Object>>) doc.get("pipeline");
+        List<Map<String, Object>> ops = opRegistry == null ? new ArrayList<>() : opRegistry.snapshot();
+
+        for (int i = 1; i < pipeline.size(); i++) {
+            Map<String, Object> stage = pipeline.get(i);
+            Object match = stage.get("$match");
+
+            if (match instanceof Map<?, ?> m) {
+                ops.removeIf(o -> !de.caluga.morphium.driver.inmem.QueryHelper
+                    .matchesQuery((Map<String, Object>) m, o, null));
+            } else {
+                return Doc.of("ok", 0.0, "code", 40324, "errmsg",
+                        "PoppyDB supports only $match after $currentOp, got: " + stage.keySet());
+            }
+        }
+
+        String db = doc.get("$db") instanceof String s ? s : "admin";
+        return Doc.of("cursor", Doc.of("firstBatch", ops, "id", 0L, "ns", db + ".$cmd.aggregate"),
+                "ok", 1.0);
+    }
+
+    /** Every command name this server answers: wire-level handlers plus the driver's commands. */
+    private Map<String, Object> processListCommands() {
+        java.util.TreeSet<String> names = new java.util.TreeSet<>(driver.getSupportedCommandNames());
+        names.addAll(List.of("hello", "isMaster", "ping", "buildInfo", "getCmdLineOpts",
+                "getFreeMonitoringStatus", "getLog", "getParameter", "listDatabases", "serverStatus",
+                "currentOp", "killOp", "listCommands", "hostInfo", "connectionStatus", "whatsmyuri",
+                "replSetGetStatus", "replSetGetConfig", "replSetStepDown", "replSetFreeze",
+                "saslStart", "saslContinue", "logout", "endSessions", "startSession", "refreshSessions",
+                "killCursors", "getMore", "insert", "find", "update", "delete", "count", "distinct",
+                "aggregate", "createIndexes", "bulkWrite", "abortTransaction", "commitTransaction",
+                "registerMessagingCollection", "unregisterMessagingSubscriber", "getMessagingStats"));
+        Map<String, Object> commands = new LinkedHashMap<>();
+
+        for (String n : names) {
+            commands.put(n, Doc.of("help", ""));
+        }
+
+        return Doc.of("commands", commands, "ok", 1.0);
+    }
+
+    private Map<String, Object> processHostInfo() {
+        String hostname;
+
+        try {
+            hostname = java.net.InetAddress.getLocalHost().getHostName();
+        } catch (Exception e) {
+            hostname = "localhost";
+        }
+
+        Runtime rt = Runtime.getRuntime();
+        Doc system = Doc.of();
+        system.put("currentTime", new Date());
+        system.put("hostname", hostname);
+        system.put("cpuAddrSize", 64);
+        system.put("memSizeMB", rt.maxMemory() / (1024 * 1024));
+        system.put("memLimitMB", rt.maxMemory() / (1024 * 1024));
+        system.put("numCores", rt.availableProcessors());
+        system.put("cpuArch", System.getProperty("os.arch"));
+        system.put("numaEnabled", false);
+        Doc os = Doc.of("type", System.getProperty("os.name"),
+                "name", System.getProperty("os.name"),
+                "version", System.getProperty("os.version"));
+        Doc extra = Doc.of("javaVersion", System.getProperty("java.version"), "poppydb", true);
+        return Doc.of("system", system, "os", os, "extra", extra, "ok", 1.0);
+    }
+
+    /** rs.conf(): the replica-set configuration reconstructed from seeds and priorities. */
+    private Map<String, Object> processReplSetGetConfig() {
+        if (rsName == null || rsName.isEmpty()) {
+            return Doc.of("ok", 0.0, "code", 76, "codeName", "NoReplicationEnabled",
+                    "errmsg", "not running with --replSet");
+        }
+
+        List<Map<String, Object>> members = new ArrayList<>();
+        int id = 0;
+
+        for (String h : hosts) {
+            Doc member = Doc.of();
+            member.put("_id", id++);
+            member.put("host", h);
+            member.put("arbiterOnly", false);
+            member.put("buildIndexes", true);
+            member.put("hidden", false);
+            member.put("priority", rsPriorities == null ? 50 : rsPriorities.getOrDefault(h, 50));
+            member.put("tags", Doc.of());
+            member.put("secondaryDelaySecs", 0L);
+            member.put("votes", 1);
+            members.add(member);
+        }
+
+        long term = 0;
+
+        if (electionManager != null && electionManager.getStats().get("term") instanceof Number n) {
+            term = n.longValue();
+        }
+
+        Doc config = Doc.of();
+        config.put("_id", rsName);
+        config.put("version", 1);
+        config.put("term", term);
+        config.put("protocolVersion", 1L);
+        config.put("members", members);
+        config.put("settings", Doc.of());
+        return Doc.of("config", config, "ok", 1.0);
+    }
+
     private Map<String, Object> processKillCursors(Map<String, Object> doc) {
         List<Long> cursorsToKill = new ArrayList<>();
         Object cursorsObj = doc.get("cursors");
@@ -666,6 +897,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             Map<String, Object> answer = Doc.of("ok", 1.0);
             if (result != null) answer.putAll(result);
+
+            // The driver's serverStatus counts its internal connection borrows - overlay the
+            // real client-socket gauges the server knows (Netty channel group).
+            if (cmd.equals("serverStatus") && connectionCountSupplier != null) {
+                int current = connectionCountSupplier.getAsInt();
+                long created = connectionsCreatedSupplier == null ? current : connectionsCreatedSupplier.getAsLong();
+                answer.put("connections", Doc.of("current", current,
+                        "available", Math.max(0, 1000000 - current), "totalCreated", created));
+            }
 
             // Promote the pending user once the driver confirms the SCRAM exchange succeeded.
             // done:true covers both skipEmptyExchange and the empty third round trip.
