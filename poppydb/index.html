@@ -2888,6 +2888,11 @@
 <td><code>localhost</code></td>
 </tr>
 <tr>
+<td><code>--log-level &lt;level&gt;</code></td>
+<td>Log verbosity: <code>ERROR</code>, <code>WARN</code>, <code>INFO</code>, <code>DEBUG</code> or <code>TRACE</code>. See <a href="#logging">Logging</a>.</td>
+<td><code>INFO</code></td>
+</tr>
+<tr>
 <td><code>-mt</code>, <code>--maxThreads &lt;threads&gt;</code></td>
 <td>Maximum number of threads for handling client connections.</td>
 <td><code>1000</code></td>
@@ -3470,16 +3475,22 @@ settings) — the driver performs the SCRAM handshake automatically on connect.<
 </span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;Active connections: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">connections</span><span class="p">);</span>
 </span></code></pre></div>
 <h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Debug logging with Logback</span>
-</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>java<span class="w"> </span>-Dlogback.configurationFile<span class="o">=</span>logback.xml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">     </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">     </span>--port<span class="w"> </span><span class="m">27017</span>
-</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
-</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="c1"># Simple logger</span>
-</span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>java<span class="w"> </span>-Dorg.slf4j.simpleLogger.defaultLogLevel<span class="o">=</span>debug<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="w">     </span>-jar<span class="w"> </span>poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-29-9"><a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w">     </span>--port<span class="w"> </span><span class="m">27017</span>
+<p>The server CLI jar ships its own Logback configuration: root level <code>INFO</code>, Netty at <code>WARN</code>,
+console output. Verbosity can be raised or lowered at startup — the three overrides, in
+increasing order of control:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># CLI option (recommended)</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span><span class="w"> </span>--log-level<span class="w"> </span>DEBUG
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="c1"># System property (read by the bundled logback.xml)</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>java<span class="w"> </span>-Dpoppydb.log.level<span class="o">=</span>DEBUG<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>
+</span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="c1"># Full control: replace the bundled configuration entirely</span>
+</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>java<span class="w"> </span>-Dlogback.configurationFile<span class="o">=</span>/path/to/my-logback.xml<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-29-9"><a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w">     </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span></code></pre></div>
+<p><code>--log-level</code> accepts <code>ERROR</code>, <code>WARN</code>, <code>INFO</code>, <code>DEBUG</code> and <code>TRACE</code>. Both the CLI option and
+the system property change the root logger only — Netty stays at <code>WARN</code> either way; to see
+Netty internals, replace the configuration via <code>-Dlogback.configurationFile</code>.</p>
 <h2 id="supported-admin-commands">Supported Admin Commands<a class="headerlink" href="#supported-admin-commands" title="Permanent link">&para;</a></h2>
 <p>PoppyDB implements the following MongoDB admin commands:</p>
 <table>
