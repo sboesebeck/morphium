@@ -3530,6 +3530,42 @@ Netty internals, replace the configuration via <code>-Dlogback.configurationFile
 <td>Server logs</td>
 </tr>
 <tr>
+<td><code>listCommands</code></td>
+<td>Names of every command this server answers</td>
+</tr>
+<tr>
+<td><code>currentOp</code> / <code>$currentOp</code> stage</td>
+<td>Live operations from the server's op registry — <code>db.currentOp()</code> works, including <code>$match</code> filters</td>
+</tr>
+<tr>
+<td><code>killOp</code></td>
+<td>Marks an op kill-pending; best-effort thread interrupt (never a Netty event loop — cooperative like mongod)</td>
+</tr>
+<tr>
+<td><code>serverStatus</code></td>
+<td>Includes real client connection gauges (<code>connections.current</code>/<code>totalCreated</code> from the Netty channel group)</td>
+</tr>
+<tr>
+<td><code>dbStats</code> / <code>collStats</code></td>
+<td>Real BSON data sizes, estimated index sizes</td>
+</tr>
+<tr>
+<td><code>hostInfo</code></td>
+<td>Host basics (hostname, cores, memory, OS, JVM)</td>
+</tr>
+<tr>
+<td><code>connectionStatus</code></td>
+<td>Authenticated user of this connection (empty without <code>--auth</code>)</td>
+</tr>
+<tr>
+<td><code>whatsmyuri</code></td>
+<td>Client address as the server sees it</td>
+</tr>
+<tr>
+<td><code>replSetGetStatus</code> / <code>replSetGetConfig</code></td>
+<td><code>rs.status()</code> and <code>rs.conf()</code> (config reconstructed from seeds and priorities)</td>
+</tr>
+<tr>
 <td><code>replSetStepDown</code></td>
 <td>Step down from primary (for replica sets)</td>
 </tr>
