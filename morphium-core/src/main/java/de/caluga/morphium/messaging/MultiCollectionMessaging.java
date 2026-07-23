@@ -655,9 +655,16 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             AsyncMessageCallback cb = cbr.callback;
             Runnable cbRunnable = () -> {
                 cb.incomingMessage(theMessage);
-                waitingForCallbacks.remove(m.getInAnswerTo());
             };
             queueOrRun(cbRunnable);
+
+            // Only exclusive requests are done after one answer; broadcasts keep the callback
+            // registered so every responder's answer is delivered (matches SingleCollectionMessaging
+            // and the sendAndAwaitAsync javadoc). The scheduled cleanup in sendAndAwaitAsync
+            // removes the entry after timeoutInMs either way.
+            if (cbr.theMessage.isExclusive()) {
+                waitingForCallbacks.remove(m.getInAnswerTo());
+            }
         } else {
             // an answer, but no one is waiting for it
             processMessage(theMessage);
