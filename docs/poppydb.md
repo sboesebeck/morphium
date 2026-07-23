@@ -652,6 +652,33 @@ not evaluated yet — isolate the network segment), size the heap deliberately, 
 | Updates/sec | ~40,000 | Varies |
 | Latency (localhost) | 1-5ms | 1-10ms |
 
+### Messaging Round-Trip Latency (measured)
+
+Measured with [morpheus](https://github.com/sboesebeck/morpheus), the CLI tool for
+morphium-driven projects: its latency harness sends morphium messages ping-pong style and
+records the full round trip (send → receive → answer → answer received). Setup: dedicated
+run on a single MacBook Pro, **both** systems as a 3-node replica set, identical morphium
+messaging code on both sides.
+
+| Metric (ms) | PoppyDB (3-node RS) | MongoDB (3-node RS) | Factor |
+|---|---|---|---|
+| avg round trip | 2.64 | 59.5 | ~22x |
+| p50 | 2.43 | 59.1 | ~24x |
+| p90 | 3.31 | 70.0 | ~21x |
+| p99 | 6.70 | 79.8 | ~12x |
+| min | 1.31 | 34.8 | ~26x |
+| jitter | 0.66 | 6.48 | ~10x |
+| message loss | 0% | 0% | — |
+
+**Why the gap is structural, not tuning:** MongoDB change streams only emit
+majority-committed events, so every messaging hop pays replication plus journal-commit
+latency — that is MongoDB's ~35ms latency *floor* in this setup, and it buys durability.
+PoppyDB's change streams emit directly from memory and pay nothing, because there is
+nothing to persist — the same trade-off described in the
+[use cases](#5-message-broker-for-short-lived-messages-production): you get the latency
+because you accepted the loss model. Numbers vary with hardware; re-run the harness on
+your target machine for real figures.
+
 ## Monitoring
 
 ### Built-in Status Monitoring
