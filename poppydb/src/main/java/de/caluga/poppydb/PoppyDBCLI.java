@@ -65,6 +65,20 @@ public class PoppyDBCLI {
                     host = args[idx + 1];
                     idx += 2;
                     break;
+
+                case "--log-level": {
+                    ch.qos.logback.classic.Level level = ch.qos.logback.classic.Level.toLevel(args[idx + 1], null);
+
+                    if (level == null) {
+                        log.error("Unknown log level {} - use ERROR, WARN, INFO, DEBUG or TRACE", args[idx + 1]);
+                        System.exit(1);
+                    }
+
+                    ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME))
+                    .setLevel(level);
+                    idx += 2;
+                    break;
+                }
                 case "--rs-name":
                     rsNameArg = args[idx + 1];
                     idx += 2;
@@ -295,6 +309,7 @@ public class PoppyDBCLI {
         System.out.println("Options:");
         System.out.println("  -p, --port <port>          : Port to listen on (default: 17017)");
         System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
+        System.out.println("  --log-level <level>        : Log verbosity: ERROR, WARN, INFO, DEBUG, TRACE (default: INFO)");
         System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
         System.out.println("  --rs-name <name>           : Name of the replica set");
         System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts in the replica set");
