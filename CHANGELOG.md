@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: `--log-level` option — the server no longer logs everything at DEBUG
+The CLI fat jar shipped no Logback configuration (the module jars deliberately exclude `logback*.xml`, as libraries should), so Logback fell back to its basic setup: **every logger at DEBUG on the console**. Long-running servers produced enormous logs — one orphaned instance filled a test runner's disk with a 28GB log file. The fat jar now bundles a server configuration (root `INFO`, Netty `WARN`), and verbosity is adjustable at startup: `--log-level ERROR|WARN|INFO|DEBUG|TRACE`, or `-Dpoppydb.log.level=<level>`, or a full replacement via `-Dlogback.configurationFile=...`.
+
 #### Driver: configurable `appName` in the connection handshake
 New setting `DriverSettings.appName` (default `"Morphium"`), sent to MongoDB as `client.application.name` in the `hello` handshake. Set it per service to tell instances apart in `db.currentOp()`, server logs and profiler output (MongoDB truncates values over 128 bytes). Third-party `MorphiumDriver` implementations keep compiling — the new interface methods are defaults.
 
@@ -60,6 +63,9 @@ The change-stream watch loop receives a server reply at least every `maxTimeMS` 
 
 ### Changed
 
+#### PoppyDB: reports its real version instead of "5.0.0-ALPHA" / "PoppyDB V0.1ALPHA"
+`buildInfo.version` and `serverStatus.version` were hardcoded to `5.0.0-ALPHA` (mongosh greeted every connect with `Using MongoDB: 5.0.0-ALPHA`), and the hello `msg` field still said `PoppyDB V0.1ALPHA (Netty)`. All three now carry the actual product version from the Maven build (via `MorphiumVersion`, shared constant `InMemoryDriver.REPORTED_SERVER_VERSION`) — PoppyDB releases in lockstep with morphium, so mongosh now shows `Using MongoDB: 6.3.0`. Deliberately the PoppyDB version, not a MongoDB compatibility version: protocol capabilities are negotiated via `maxWireVersion`, not this string.
+
 #### InMemoryDriver: O(1) change-stream replay-buffer bound
 The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size()` — O(n), ~200k node traversals per write at PoppyDB's 100k-event replay bound. The deque size is now tracked in an `AtomicInteger`; eviction semantics are unchanged.
 
@@ -69,6 +75,15 @@ The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size
 `$merge` previously reported success and wrote nothing at all — every persistence call was commented-out dead code — so pipelines materialising results (rollups, denormalised views, ETL-style flows) silently produced no data. It now works: `whenMatched` `merge` (default, incoming fields win) / `replace` / `keepExisting` / `fail`, `whenNotMatched` `insert` (default) / `discard` / `fail`, `on` defaulting to `_id` and accepting a single field or a list, and `into` as a collection name or `{db, coll}`. `merge` and `replace` preserve the target document's `_id`; ambiguous `on` matches and documents missing an `on` field are refused rather than silently guessed; `$merge` is terminal and yields no documents. Writes go through the driver's `find()`/`store()`, so index maintenance, capped/TTL bookkeeping, locking and watcher events all happen. `whenMatched` may also be a custom update pipeline: it runs per match with the existing target document as input and the incoming document bound to `$$new`, supports the stages mongod allows there (`$addFields`/`$set`, `$project`/`$unset`, `$replaceRoot`/`$replaceWith` — anything else is refused), and honours `let` (which, as in mongod, *replaces* the default `{new: "$$ROOT"}`, is evaluated against the incoming document, and is rejected when `whenMatched` is not a pipeline). References to undefined `$$variables` fail up front instead of evaluating to null; the pipeline result keeps the target document's `_id`.
 
 ### Fixed
+
+#### InMemoryDriver: `$sample` larger than the collection threw instead of returning all documents
+`$sample` cut its shuffled copy with `subList(0, size)`, so a sample size exceeding the collection count failed with `IndexOutOfBoundsException: toIndex = N` instead of returning all documents in random order like mongod. Visible in every mongosh session against PoppyDB: tab completion samples schema documents with `$sample {size: 10}`, so completing on any collection with fewer than 10 documents printed a `Tab completion error: ... aggregate failed: toIndex = 10` stack trace.
+
+#### InMemoryDriver/PoppyDB: unknown commands are answered like mongod instead of throwing
+An unregistered command made `InMemoryDriver.runCommand` throw `IllegalArgumentException` — over the wire that meant an ERROR stack trace in the server log and a reply without an error code. mongosh probes `atlasVersion` on **every** connect (Atlas detection) and expects the mongod-shaped rejection, so every mongosh session logged a spurious exception. Unknown commands now return `{ok: 0, code: 59, codeName: "CommandNotFound", errmsg: "no such command: '...'"}`, which clients handle silently — for any unknown command, exactly like mongod.
+
+#### PoppyDB: rs.status spoke Raft and mis-identified wildcard-bound nodes
+Two defects in `replSetGetStatus`: the self member's `stateStr` reported the internal Raft enum name (`LEADER`/`FOLLOWER`/`CANDIDATE`) instead of MongoDB's nomenclature (`PRIMARY`/`SECONDARY`/`RECOVERING`), which clients and monitoring tools cannot parse. And with `--bind 0.0.0.0` the node used its bind address as member identity, so it failed to recognize itself in the seed list: rs.status showed the node **twice** (as `0.0.0.0:<port>` and again under its seed name, wrongly marked SECONDARY), the node requested election votes from itself as a "peer", and the `--rs-priorities` lookup missed. The member identity is now canonicalized to the unique seed entry matching the node's port (with a WARN when no unambiguous match exists), and hello's `me`, rs.status' `self` flag and the election identity all agree.
 
 #### PooledDriver: expired connections were pooled on release instead of closed
 `releaseConnection` returned connections to the pool even when they had exceeded their `maxConnectionLifetime`/`maxConnectionIdleTime` while borrowed — only the heartbeat's expiry sweep removed them, one sweep later. A borrow burst (e.g. 20 connections) therefore parked a mountain of already-expired connections in the pool, and under load the sweep lagged behind, keeping the pool far above its per-host minimum for many seconds (the `testLotsConnectionPool` flaky; diagnosed with the new `PoolConvergenceReproTest` counter telemetry — the pool's bookkeeping itself is drift-free). Expired connections are now closed on release, like the official MongoDB drivers do; the pool converges within one lifetime window even after bursts.

@@ -63,6 +63,7 @@ You can configure the PoppyDB using the following command-line arguments:
 |---|---|---|
 | `-p`, `--port <port>` | Port to listen on. | `17017` |
 | `-b`, `--bind <host>` | Host to bind to. | `localhost` |
+| `--log-level <level>` | Log verbosity: `ERROR`, `WARN`, `INFO`, `DEBUG` or `TRACE`. See [Logging](#logging). | `INFO` |
 | `-mt`, `--maxThreads <threads>` | Maximum number of threads for handling client connections. | `1000` |
 | `-mint`, `--minThreads <threads>` | Minimum number of threads to keep in the pool. | `10` |
 | `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
@@ -627,17 +628,25 @@ System.out.println("Active connections: " + connections);
 
 ### Logging
 
-```bash
-# Debug logging with Logback
-java -Dlogback.configurationFile=logback.xml \
-     -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar \
-     --port 27017
+The server CLI jar ships its own Logback configuration: root level `INFO`, Netty at `WARN`,
+console output. Verbosity can be raised or lowered at startup — the three overrides, in
+increasing order of control:
 
-# Simple logger
-java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
-     -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar \
-     --port 27017
+```bash
+# CLI option (recommended)
+java -jar poppydb-cli.jar --port 27017 --log-level DEBUG
+
+# System property (read by the bundled logback.xml)
+java -Dpoppydb.log.level=DEBUG -jar poppydb-cli.jar --port 27017
+
+# Full control: replace the bundled configuration entirely
+java -Dlogback.configurationFile=/path/to/my-logback.xml \
+     -jar poppydb-cli.jar --port 27017
 ```
+
+`--log-level` accepts `ERROR`, `WARN`, `INFO`, `DEBUG` and `TRACE`. Both the CLI option and
+the system property change the root logger only — Netty stays at `WARN` either way; to see
+Netty internals, replace the configuration via `-Dlogback.configurationFile`.
 
 ## Supported Admin Commands
 
