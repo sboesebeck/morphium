@@ -68,6 +68,7 @@ import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.SingleBatchCursor;
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.bulk.BulkRequest;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -2850,29 +2851,87 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+    /**
+     * Rough per-entry cost of an in-memory index entry (tree node, IndexKey, boxed key value).
+     * Index structures are heap object graphs - an exact number would need a deep object walk;
+     * this keeps the estimate proportional to the real cost, which is what dashboards need.
+     */
+    static final long INDEX_ENTRY_ESTIMATE_BYTES = 64;
+
+    /**
+     * Real BSON size of every document in db.coll - mongod's dataSize definition. Encodes each
+     * document under the collection's read lock: O(data), acceptable for diagnostic commands.
+     * Package-private: also used by the $collStats aggregation stage.
+     */
+    long collectionDataSize(String db, String coll) {
+        Map<String, List<Map<String, Object>>> dbMap = database.get(db);
+        List<Map<String, Object>> data = dbMap == null ? null : dbMap.get(coll);
+
+        if (data == null) {
+            return 0;
+        }
+
+        var lock = getCollectionLock(db, coll);
+        lock.readLock().lock();
+
+        try {
+            long sum = 0;
+
+            for (Map<String, Object> doc : data) {
+                try {
+                    sum += BsonEncoder.encodeDocument(doc).length;
+                } catch (Exception e) {
+                    // a value the BSON encoder cannot handle must not break a stats command
+                }
+            }
+
+            return sum;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Estimated index memory for all indexes of db.coll: one entry per document per index at
+     * the rough per-entry cost. Package-private: also used by the $collStats aggregation stage.
+     */
+    long estimatedIndexSize(String db, String coll, long docCount) {
+        return (long) getIndexes(db, coll).size() * docCount * INDEX_ENTRY_ESTIMATE_BYTES;
+    }
+
     private int runCommand(DbStatsCommand cmd) {
-        // #247: report stats scoped to the requested database (cmd.getDb()), not a global count of
-        // all databases. Byte-size fields (dataSize/storageSize/indexSize) are reported as 0 because
-        // the in-memory driver does not track document byte sizes on the read path; the meaningful
-        // counts (collections/objects/indexes) are computed from the live structures.
+        // #247 scoped this to the requested database; the byte-size fields used to be 0.
+        // dataSize now is the real BSON size of every document (computed on demand - a
+        // diagnostic command may cost O(data)), storageSize equals dataSize (no padding or
+        // compression in memory), indexSize is an estimate (see estimatedIndexSize), and
+        // fsUsedSize/fsTotalSize report the JVM heap - the "filesystem" an in-memory
+        // database actually lives on. Index counts come from getIndexes, which includes
+        // the implicit _id index like mongod does.
         int ret = commandNumber.incrementAndGet();
         String db = cmd.getDb();
         Map<String, List<Map<String, Object>>> dbMap = database.get(db);
 
         long collections = 0;
         long objects = 0;
+        long dataSize = 0;
+        long indexes = 0;
+        long indexSize = 0;
+
         if (dbMap != null) {
             collections = dbMap.size();
-            for (List<Map<String, Object>> coll : dbMap.values()) {
-                objects += coll.size();
-            }
-        }
 
-        long indexes = 0;
-        Map<String, List<Map<String, Object>>> dbIdx = indicesByDbCollection.get(db);
-        if (dbIdx != null) {
-            for (List<Map<String, Object>> idxList : dbIdx.values()) {
-                indexes += idxList.size();
+            for (String collName : new ArrayList<>(dbMap.keySet())) {
+                List<Map<String, Object>> coll = dbMap.get(collName);
+
+                if (coll == null) {
+                    continue;
+                }
+
+                long cnt = coll.size();
+                objects += cnt;
+                dataSize += collectionDataSize(db, collName);
+                indexes += getIndexes(db, collName).size();
+                indexSize += estimatedIndexSize(db, collName, cnt);
             }
         }
 
@@ -2880,11 +2939,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         m.put("db", db);
         m.put("collections", collections);
         m.put("objects", objects);
-        m.put("avgObjSize", 0);
-        m.put("dataSize", 0);
-        m.put("storageSize", 0);
+        m.put("avgObjSize", objects > 0 ? (double) dataSize / objects : 0.0);
+        m.put("dataSize", dataSize);
+        m.put("storageSize", dataSize);
         m.put("indexes", indexes);
-        m.put("indexSize", 0);
+        m.put("indexSize", indexSize);
+        m.put("totalSize", dataSize + indexSize);
+        Runtime rt = Runtime.getRuntime();
+        m.put("fsUsedSize", rt.totalMemory() - rt.freeMemory());
+        m.put("fsTotalSize", rt.maxMemory());
         m.put("scaleFactor", 1);
         addResult(ret, m);
         return ret;
@@ -2970,50 +3033,49 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(CollStatsCommand cmd) {
-        /**
-         * "ns" : "admin.admin",
-         * "size" : 0.0,
-         * "count" : 0.0,
-         * "numOrphanDocs" : 0.0,
-         * "storageSize" : 0.0,
-         * "totalSize" : 0.0,
-         * "nindexes" : 0.0,
-         * "totalIndexSize" : 0.0,
-         * "indexDetails" : {
-         *
-         * },
-         * "indexSizes" : {
-         *
-         * },
-         */
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        // Real values now (this used to report jol's *shallow* sizeOf - the ArrayList header,
+        // not the data): size is the BSON size of all documents, storageSize equals it (no
+        // padding/compression in memory), index sizes are estimates (INDEX_ENTRY_ESTIMATE_BYTES
+        // per entry). A missing db/collection answers zeros instead of NPEing - callers probe
+        // stats on collections that may not exist yet.
         int ret = commandNumber.incrementAndGet();
+        String db = cmd.getDb();
+        String coll = cmd.getColl();
+        Map<String, List<Map<String, Object>>> dbMap = database.get(db);
+        List<Map<String, Object>> data = dbMap == null ? null : dbMap.get(coll);
+        long count = data == null ? 0 : data.size();
+        long size = data == null ? 0 : collectionDataSize(db, coll);
+
         var m = prepareResult();
-        m.put("ns", cmd.getDb() + "." + cmd.getColl());
-        var size = VM.current().sizeOf(database.get(cmd.getDb()).get(cmd.getColl()));
+        m.put("ns", db + "." + coll);
         m.put("size", size);
-        m.put("storageSize", 0);
-        List<Map<String, Object>> indexes = getIndexes(cmd.getDb(), cmd.getColl());
-        m.put("nindexes", indexes.size());
+        m.put("count", count);
+        m.put("avgObjSize", count > 0 ? (double) size / count : 0.0);
+        m.put("numOrphanDocs", 0);
+        m.put("storageSize", size);
         var indexDetails = Doc.of();
         var indexSizes = Doc.of();
-        long totalSize = size;
-        for (var idx : indexes) {
-            String idxName = (String) ((Map) idx.get("$options")).get("name");
-            indexDetails.put(idxName, idx);
-            // Used to add sizeOf(indexDataByDBCollection...) here too - that structure is no
-            // longer maintained (Task 4 stopped writing to it once nothing read it anymore after
-            // Task 3's read-path switch to CollectionIndexStore), and querying it now would NPE
-            // since the per-db/per-collection entries are never created. This is a cosmetic
-            // stats-reporting number, not a correctness-critical read.
-            long sz = VM.current().sizeOf(idx);
-            indexSizes.put(idxName, sz);
-            totalSize += sz;
+        long totalIndexSize = 0;
+        int nindexes = 0;
+
+        if (data != null) {
+            List<Map<String, Object>> indexes = getIndexes(db, coll);
+            nindexes = indexes.size();
+            long perIndex = count * INDEX_ENTRY_ESTIMATE_BYTES;
+
+            for (var idx : indexes) {
+                String idxName = (String) ((Map) idx.get("$options")).get("name");
+                indexDetails.put(idxName, idx);
+                indexSizes.put(idxName, perIndex);
+                totalIndexSize += perIndex;
+            }
         }
-        m.put("totalSize", totalSize);
+
+        m.put("nindexes", nindexes);
         m.put("indexDetails", indexDetails);
         m.put("indexSizes", indexSizes);
+        m.put("totalIndexSize", totalIndexSize);
+        m.put("totalSize", size + totalIndexSize);
         addResult(ret, m);
         return ret;
     }

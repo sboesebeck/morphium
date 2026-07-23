@@ -20,8 +20,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * #254: the $collStats pipeline stage. Counts are real; byte-size fields are 0 by the same
- * precedent as the dbStats command (the in-memory driver does not track document byte sizes).
+ * #254: the $collStats pipeline stage. Counts are real; byte-size fields carry the real BSON
+ * data size (and an estimated index size) since dbStats/collStats learned to compute them.
  */
 @Tag("inmemory")
 public class CollStatsStageTest extends MultiDriverTestBase {
@@ -71,7 +71,7 @@ public class CollStatsStageTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesInMemOnly")
-    public void storageStats_countReal_byteSizesZero(Morphium morphium) throws Exception {
+    public void storageStats_countAndByteSizesReal(Morphium morphium) throws Exception {
         try (morphium) {
             seed(morphium, 2);
 
@@ -81,8 +81,15 @@ public class CollStatsStageTest extends MultiDriverTestBase {
             Map<String, Object> storage = (Map<String, Object>) res.get(0).get("storageStats");
             assertNotNull(storage);
             assertEquals(2, ((Number) storage.get("count")).intValue());
-            assertEquals(0, ((Number) storage.get("size")).intValue());
-            assertEquals(0, ((Number) storage.get("storageSize")).intValue());
+            long size = ((Number) storage.get("size")).longValue();
+            assertTrue(size > 0, "size must be the real BSON data size: " + storage);
+            assertEquals(size, ((Number) storage.get("storageSize")).longValue(),
+                "no padding/compression in memory - storageSize equals size");
+            assertEquals(size / 2.0, ((Number) storage.get("avgObjSize")).doubleValue(), 0.001);
+            assertTrue(((Number) storage.get("totalIndexSize")).longValue() > 0,
+                "estimated index size for the _id index: " + storage);
+            assertEquals(size + ((Number) storage.get("totalIndexSize")).longValue(),
+                ((Number) storage.get("totalSize")).longValue());
         }
     }
 

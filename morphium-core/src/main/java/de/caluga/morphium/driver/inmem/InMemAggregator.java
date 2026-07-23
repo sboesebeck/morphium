@@ -3536,15 +3536,18 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         if (spec.containsKey("storageStats")) {
+            // real BSON data size + estimated index size, same computation as dbStats/collStats
+            long size = drv.collectionDataSize(db, coll);
+            long indexSize = drv.estimatedIndexSize(db, coll, count);
             Map<String, Object> storage = new LinkedHashMap<>();
-            storage.put("size", 0);
+            storage.put("size", size);
             storage.put("count", count);
-            storage.put("avgObjSize", 0);
-            storage.put("storageSize", 0);
+            storage.put("avgObjSize", count > 0 ? (double) size / count : 0.0);
+            storage.put("storageSize", size);
             storage.put("freeStorageSize", 0);
             storage.put("capped", false);
-            storage.put("totalIndexSize", 0);
-            storage.put("totalSize", 0);
+            storage.put("totalIndexSize", indexSize);
+            storage.put("totalSize", size + indexSize);
             statsDoc.put("storageStats", storage);
         }
 

@@ -1,6 +1,7 @@
 package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
@@ -65,6 +66,66 @@ public class InMemServerCommandsTest {
         List<Map<String, Object>> res = fnd.execute();
         fnd.releaseConnection();
         return res;
+    }
+
+    // ---- dbStats / collStats -----------------------------------------------------------
+
+    @Test
+    public void dbStats_reportsRealSizes() throws Exception {
+        insert(coll, Doc.of("name", "one", "payload", "x".repeat(100)),
+               Doc.of("name", "two", "payload", "y".repeat(100)));
+
+        Map<String, Object> res = run(Doc.of("dbStats", 1, "$db", db));
+
+        assertEquals(1.0, res.get("ok"));
+        assertEquals(1L, ((Number) res.get("collections")).longValue());
+        assertEquals(2L, ((Number) res.get("objects")).longValue());
+
+        long expected = 0;
+        for (Map<String, Object> doc : findAll(coll)) {
+            expected += BsonEncoder.encodeDocument(doc).length;
+        }
+        assertEquals(expected, ((Number) res.get("dataSize")).longValue(),
+            "dataSize must be the real BSON size of all documents: " + res);
+        assertEquals(expected, ((Number) res.get("storageSize")).longValue(),
+            "no padding/compression in memory - storageSize equals dataSize");
+        assertEquals(expected / 2.0, ((Number) res.get("avgObjSize")).doubleValue(), 0.001);
+        assertTrue(((Number) res.get("indexes")).longValue() >= 1, "at least the _id index: " + res);
+        assertTrue(((Number) res.get("indexSize")).longValue() > 0, "estimated index size: " + res);
+        assertEquals(expected + ((Number) res.get("indexSize")).longValue(),
+            ((Number) res.get("totalSize")).longValue());
+        assertTrue(((Number) res.get("fsUsedSize")).longValue() > 0, "heap used: " + res);
+        assertTrue(((Number) res.get("fsTotalSize")).longValue() >= ((Number) res.get("fsUsedSize")).longValue());
+    }
+
+    @Test
+    public void collStats_reportsRealSizes() throws Exception {
+        insert(coll, Doc.of("name", "one", "payload", "x".repeat(50)));
+
+        Map<String, Object> res = run(Doc.of("collStats", coll, "$db", db));
+
+        assertEquals(1.0, res.get("ok"));
+        assertEquals(db + "." + coll, res.get("ns"));
+        assertEquals(1L, ((Number) res.get("count")).longValue());
+        long expected = BsonEncoder.encodeDocument(findAll(coll).get(0)).length;
+        assertEquals(expected, ((Number) res.get("size")).longValue(),
+            "size must be the real BSON size, not a shallow ArrayList header: " + res);
+        assertEquals(expected, ((Number) res.get("storageSize")).longValue());
+        assertEquals(expected, ((Number) res.get("avgObjSize")).longValue());
+        assertTrue(((Number) res.get("nindexes")).intValue() >= 1, "at least the _id index: " + res);
+        assertTrue(((Number) res.get("totalIndexSize")).longValue() > 0, "estimated index size: " + res);
+        assertEquals(expected + ((Number) res.get("totalIndexSize")).longValue(),
+            ((Number) res.get("totalSize")).longValue());
+    }
+
+    @Test
+    public void collStats_unknownCollectionAnswersZeros() throws Exception {
+        Map<String, Object> res = run(Doc.of("collStats", "does_not_exist", "$db", "no_such_db"));
+
+        assertEquals(1.0, res.get("ok"), "stats on a missing collection must not fail: " + res);
+        assertEquals(0L, ((Number) res.get("count")).longValue());
+        assertEquals(0L, ((Number) res.get("size")).longValue());
+        assertEquals(0L, ((Number) res.get("totalIndexSize")).longValue());
     }
 
     // ---- currentOp -------------------------------------------------------------------
