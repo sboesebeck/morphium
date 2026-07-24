@@ -1071,12 +1071,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             if (null != answersForMessage) {
                                 // we're expecting this message!
                                 traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: answer matched waiting request, delivered");
-                                updateProcessedBy(msg);
+
+                                // Deliver BEFORE persisting the processed_by mark: that write is
+                                // majority-acked on real MongoDB (easily 10ms+ per call) and the blocked
+                                // sendAndAwait* caller must not pay for it. The local object is marked
+                                // first so the delivered answer carries consistent metadata; redelivery
+                                // during the gap cannot happen because this block runs inside the
+                                // processing runnable and the id stays in idsInProgress (excluded by
+                                // both the poll query and the change stream duplicate check) until the
+                                // write has landed.
+                                if (!msg.getProcessedBy().contains(id)) {
+                                    msg.getProcessedBy().add(id);
+                                }
 
                                 if (!answersForMessage.contains(msg)) {
                                     answersForMessage.add(msg);
                                 }
 
+                                persistProcessedByMark(msg);
                                 checkDeleteAfterProcessing(msg);
                                 return;
                             }
@@ -1090,8 +1102,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                 Runnable cbRunnable = () -> {
                                     cb.incomingMessage(theMessage);
                                 };
-                                updateProcessedBy(theMessage);
+                                // Dispatch BEFORE persisting the processed_by mark - same reasoning as
+                                // the waiter path above: the callback must not wait for the write, and
+                                // idsInProgress shields against redelivery until the write has landed.
+                                if (!theMessage.getProcessedBy().contains(id)) {
+                                    theMessage.getProcessedBy().add(id);
+                                }
+
                                 queueOrRun(cbRunnable);
+                                persistProcessedByMark(theMessage);
 
                                 if (cbr.theMessage.isExclusive()) {
                                     waitingForCallbacks.remove(msg.getInAnswerTo());
@@ -1775,6 +1794,45 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
             return false;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
+
+    /**
+     * DB-only companion to updateProcessedBy for the answer fast path: the local Msg object has
+     * already been marked (so the delivered answer carries consistent metadata) and only the
+     * $addToSet write remains. Deliberately no local-contains shortcut - the local list was just
+     * mutated, the write must still be attempted. nModified=0 means someone else marked the
+     * message or it was already deleted (deleteAfterProcessing race); both are fine for answers,
+     * $addToSet is idempotent either way.
+     */
+    private void persistProcessedByMark(Msg msg) {
+        if (msg == null || !running || morphium == null || morphium.getDriver() == null || morphium.getConfig() == null) {
+            return;
+        }
+
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
+        idq.f("_id").eq(queryId);
+        UpdateMongoCommand cmd = null;
+
+        try {
+            cmd = new UpdateMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
+            cmd.addUpdate(idq.toQueryObject(), Doc.of("$addToSet", Doc.of(processedByFieldName, id)),
+                          null, false, false, null, null, null);
+            cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+        } catch (MorphiumDriverException e) {
+            log.error("Error persisting processed_by mark for answer " + msg.getMsgId(), e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
