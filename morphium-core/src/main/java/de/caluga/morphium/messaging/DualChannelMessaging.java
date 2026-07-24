@@ -2040,8 +2040,21 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         }
         m.setSenderHost(hostname);
         try {
-            morphium.insert(m, getCollectionName(), cb);
-            scheduleTimeoutDeletionIfNeeded(m, getCollectionName());
+            // DualChannelMessaging send-side routing (#265): directed messages (recipients set -
+            // requests as well as answers, via Msg#sendAnswer/#setRecipient) go into EACH
+            // recipient's own per-recipient DM collection instead of the shared main collection.
+            // Broadcasts/topic messages (no recipients) keep using the main collection, watched
+            // by the unmodified main-lane change stream - bit-identical to SingleCollectionMessaging.
+            if (m.getRecipients() != null && !m.getRecipients().isEmpty()) {
+                for (String recipient : m.getRecipients()) {
+                    String dmColl = getDMCollectionName(recipient);
+                    morphium.insert(m, dmColl, cb);
+                    scheduleTimeoutDeletionIfNeeded(m, dmColl);
+                }
+            } else {
+                morphium.insert(m, getCollectionName(), cb);
+                scheduleTimeoutDeletionIfNeeded(m, getCollectionName());
+            }
         } catch (RuntimeException e) {
             if (networkRegistry != null
                     && settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.THROW
@@ -2113,7 +2126,8 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         m.setSender("self");
         m.addRecipient(id);
         m.setSenderHost(hostname);
-        morphium.insert(m, getCollectionName(), cb);
+        // Recipient is always "self" (== id) here, so this goes straight into my own DM collection.
+        morphium.insert(m, getDMCollectionName(), cb);
     }
 
     @Override
@@ -2455,9 +2469,22 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         return getLockCollectionName();
     }
 
+    /**
+     * @return the name of this instance's own per-recipient DM/answer collection.
+     */
+    public String getDMCollectionName() {
+        return getDMCollectionName(getSenderId());
+    }
+
+    /**
+     * Per-recipient DM/answer collection name. Deliberately includes the queue prefix
+     * ({@link #getCollectionName()}), unlike {@code MultiCollectionMessaging}'s {@code "dm_" +
+     * camelCase(sender)}: this way multiple independent queues on the same database never share
+     * a DM collection for the same sender id.
+     */
     @Override
     public String getDMCollectionName(String sender) {
-        return getCollectionName();
+        return getCollectionName() + "_dm_" + morphium.getARHelper().createCamelCase(sender, false);
 
     }
 }
