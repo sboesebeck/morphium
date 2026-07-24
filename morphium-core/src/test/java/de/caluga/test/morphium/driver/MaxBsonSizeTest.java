@@ -164,6 +164,22 @@ public class MaxBsonSizeTest {
         assertEquals(1, drv.count(db, coll, Doc.of(), null, null));
     }
 
+    private static final class ArbitraryJavaObject {
+        @SuppressWarnings("unused")
+        final int v = 42;
+    }
+
+    @Test
+    public void documentsWithArbitraryJavaObjectsStayStorable() throws Exception {
+        // the embedded InMemoryDriver has always accepted any Java object as a value
+        // (nothing is ever BSON-serialized there) - the size gate must skip what the
+        // encoder cannot measure instead of breaking the historically legal write
+        drv.insert(db, coll, List.of(Doc.of("_id", 1, "obj", new ArbitraryJavaObject())), null);
+        drv.store(db, coll, List.of(Doc.of("_id", 2, "obj", new ArbitraryJavaObject())), null);
+
+        assertEquals(2, drv.count(db, coll, Doc.of(), null, null));
+    }
+
     @Test
     public void errorMessageMatchesTheMongoShape() throws Exception {
         drv.setMaxBsonObjectSize(1024);

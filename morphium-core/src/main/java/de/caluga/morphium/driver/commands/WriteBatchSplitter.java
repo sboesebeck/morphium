@@ -38,7 +38,7 @@ public final class WriteBatchSplitter {
             long total = 0;
 
             for (Map<String, Object> st : statements) {
-                total += BsonEncoder.documentSize(st);
+                total += BsonEncoder.documentSizeOrZero(st);
 
                 if (total > maxBytes) {
                     break;
@@ -55,7 +55,8 @@ public final class WriteBatchSplitter {
         long currentBytes = 0;
 
         for (Map<String, Object> st : statements) {
-            int size = BsonEncoder.documentSize(st);
+            // OrZero: embedded in-memory connections accept values BSON cannot encode
+            int size = BsonEncoder.documentSizeOrZero(st);
 
             if (!current.isEmpty() && (currentBytes + size > maxBytes || current.size() >= maxCount)) {
                 chunks.add(current);

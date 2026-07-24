@@ -3616,7 +3616,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int count = 0;
 
         for (int i = 0; i < maxCount && i < docs.size(); i++) {
-            sum += de.caluga.morphium.driver.bson.BsonEncoder.documentSize(docs.get(i));
+            sum += de.caluga.morphium.driver.bson.BsonEncoder.documentSizeOrZero(docs.get(i));
 
             if (count > 0 && sum > budget) {
                 break;
@@ -3668,7 +3668,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 if (doc == null) break;
 
                 if (serverMode) {
-                    sum += de.caluga.morphium.driver.bson.BsonEncoder.documentSize(doc);
+                    sum += de.caluga.morphium.driver.bson.BsonEncoder.documentSizeOrZero(doc);
 
                     if (!result.isEmpty() && sum > budget) {
                         // over the byte cap - back onto the buffer for the next getMore
@@ -3789,7 +3789,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         int internalMax = limit + 16 * 1024;
         int bound = afterUpdate ? internalMax : limit;
-        int size = de.caluga.morphium.driver.bson.BsonEncoder.documentSize(doc);
+        // OrZero: embedded documents may contain arbitrary Java objects the encoder cannot
+        // measure - those never reach a wire, so the size gate skips them (size 0)
+        int size = de.caluga.morphium.driver.bson.BsonEncoder.documentSizeOrZero(doc);
 
         if (size <= bound) {
             return null;

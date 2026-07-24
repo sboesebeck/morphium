@@ -153,6 +153,21 @@ public class WireWriteSplittingTest {
     }
 
     @Test
+    public void payloadsWithArbitraryJavaObjectsSurviveTheSplitMeasurement() throws Exception {
+        // embedded in-memory connections accept any Java object as a value - the byte
+        // measurement for splitting must skip what BSON cannot encode, not blow up
+        List<Map<String, Object>> docs = new ArrayList<>();
+
+        for (int i = 0; i < 5; i++) {
+            docs.add(Doc.of("_id", i, "obj", new Object()));
+        }
+
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
+
+        assertEquals(5, drv.count(db, coll, Doc.of(), null, null));
+    }
+
+    @Test
     public void smallWritesStayOneMessage() throws Exception {
         List<Map<String, Object>> docs = new ArrayList<>();
 
