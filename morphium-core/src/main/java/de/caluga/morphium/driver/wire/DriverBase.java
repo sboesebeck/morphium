@@ -31,9 +31,12 @@ public abstract class DriverBase implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(DriverBase.class);
     private volatile AtomicInteger rqid = new AtomicInteger(Math.abs((int)(System.currentTimeMillis() % 100000)));
     private int maxWait = 1000;
-    private int maxBsonObjectSize = 12 * 1025 * 1024;
-    private int maxMessageSize = 16 * 1024 * 1024;
-    private int maxWriteBatchSize = 1000;
+    // MongoDB's real wire limits, overwritten by the hello handshake (the old defaults
+    // were a 12*1025*1024 typo, a 16MB message bound and batch size 1000 - and the
+    // PooledDriver never adopted the hello values, so the defaults were what stuck)
+    private int maxBsonObjectSize = 16 * 1024 * 1024;
+    private int maxMessageSize = 48 * 1024 * 1024;
+    private int maxWriteBatchSize = 100000;
     private ReadPreference defaultRP = ReadPreference.primary();
     private boolean replicaSet = false;
     private String replicaSetName = null;

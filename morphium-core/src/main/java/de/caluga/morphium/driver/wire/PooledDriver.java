@@ -364,6 +364,20 @@ public class PooledDriver extends DriverBase {
         if (hello == null)
             return;
 
+        // Adopt the wire limits the server advertises - they exist precisely so clients
+        // bound what they send (message splitting, batch sizing, document size checks)
+        if (hello.getMaxMessageSizeBytes() != null) {
+            setMaxMessageSize(hello.getMaxMessageSizeBytes());
+        }
+
+        if (hello.getMaxWriteBatchSize() != null) {
+            setMaxWriteBatchSize(hello.getMaxWriteBatchSize());
+        }
+
+        if (hello.getMaxBsonObjectSize() != null) {
+            setMaxBsonObjectSize(hello.getMaxBsonObjectSize());
+        }
+
         // Detect backend type from hello handshake
         if (!poppyDB && Boolean.TRUE.equals(hello.getPoppyDB())) {
             poppyDB = true;

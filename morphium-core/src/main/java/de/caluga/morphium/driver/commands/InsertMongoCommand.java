@@ -60,6 +60,21 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
         return "insert";
     }
 
+    @Override
+    protected List<Map<String, Object>> getPayloadStatements() {
+        return documents;
+    }
+
+    @Override
+    protected void setPayloadStatements(List<Map<String, Object>> statements) {
+        this.documents = statements;
+    }
+
+    @Override
+    protected boolean isOrderedWrite() {
+        return ordered == null || ordered;
+    }
+
 
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {

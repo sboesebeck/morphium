@@ -75,4 +75,19 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
     public String getCommandName() {
         return "update";
     }
+
+    @Override
+    protected List<Map<String, Object>> getPayloadStatements() {
+        return updates;
+    }
+
+    @Override
+    protected void setPayloadStatements(List<Map<String, Object>> statements) {
+        this.updates = statements;
+    }
+
+    @Override
+    protected boolean isOrderedWrite() {
+        return ordered == null || ordered;
+    }
 }

@@ -1104,7 +1104,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Class<?> cmdClass = cmd.getClass();
             Method method = commandMethodCache.computeIfAbsent(cmdClass, cls -> {
                 try {
-                    return this.getClass().getDeclaredMethod("runCommand", cls);
+                    // anchored to InMemoryDriver.class - getClass() would miss the (inherited)
+                    // handlers for subclassed drivers, getDeclaredMethod ignores inheritance
+                    return InMemoryDriver.class.getDeclaredMethod("runCommand", cls);
                 } catch (NoSuchMethodException e) {
                     throw new RuntimeException(e);
                 }
@@ -2868,14 +2870,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         List<Map<String, Object>> firstBatch = new ArrayList<>();
+        int consumed = 0;
 
         if (!result.isEmpty()) {
-            int end = Math.min(requestedBatchSize, result.size());
-            firstBatch.addAll(result.subList(0, end));
+            consumed = byteCappedCount(result, Math.min(requestedBatchSize, result.size()));
+            firstBatch.addAll(result.subList(0, consumed));
         }
 
         String namespace = cmd.getDb() + "." + cmd.getColl();
-        long cursorId = registerCursorBuffer(namespace, result, requestedBatchSize);
+        long cursorId = registerCursorBuffer(namespace, result, consumed, requestedBatchSize);
 
         Map<String, Object> cursorDoc = new HashMap<>();
         cursorDoc.put("firstBatch", firstBatch);
@@ -3518,11 +3521,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             String namespace = cmd.getDb() + "." + cmd.getColl();
-            long cursorId = registerCursorBuffer(namespace, allResults, batchSize);
+            int consumed = byteCappedCount(allResults, Math.min(batchSize, allResults.size()));
+            long cursorId = registerCursorBuffer(namespace, allResults, consumed, batchSize);
 
             List<Map<String, Object>> firstBatch;
-            if (cursorId != 0L && allResults.size() > batchSize) {
-                firstBatch = new ArrayList<>(allResults.subList(0, batchSize));
+            if (cursorId != 0L) {
+                firstBatch = new ArrayList<>(allResults.subList(0, consumed));
             } else {
                 firstBatch = allResults;
             }
@@ -3585,23 +3589,63 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return result;
     }
 
-    private long registerCursorBuffer(String namespace, List<Map<String, Object>> allResults, int batchSize) {
+    /**
+     * Byte cap for reply batches in server mode: mongod limits cursor batches to ~16MB so
+     * a reply message never exceeds the wire bound - a find over large documents with a
+     * big batchSize would otherwise build a reply that real drivers answer by dropping
+     * the connection. Follows maxBsonObjectSize (mongod parity at the 16MB default).
+     */
+    private long replyBatchByteLimit() {
+        int limit = maxBsonObjectSize;
+        return limit > 0 ? limit : 16 * 1024 * 1024;
+    }
+
+    /**
+     * Number of leading documents (at most {@code maxCount}) whose summed BSON size stays
+     * within the reply byte cap - always at least one, an oversized single document is
+     * the document size limit's business. Embedded mode returns {@code maxCount}
+     * untouched: replies never become wire messages there, so no byte walk is spent.
+     */
+    private int byteCappedCount(List<Map<String, Object>> docs, int maxCount) {
+        if (!serverMode) {
+            return maxCount;
+        }
+
+        long budget = replyBatchByteLimit();
+        long sum = 0;
+        int count = 0;
+
+        for (int i = 0; i < maxCount && i < docs.size(); i++) {
+            sum += de.caluga.morphium.driver.bson.BsonEncoder.documentSize(docs.get(i));
+
+            if (count > 0 && sum > budget) {
+                break;
+            }
+
+            count++;
+        }
+
+        return count;
+    }
+
+    private long registerCursorBuffer(String namespace, List<Map<String, Object>> allResults,
+            int consumedCount, int defaultBatchSize) {
         if (allResults == null || allResults.isEmpty()) {
             return 0L;
         }
 
-        if (batchSize <= 0) {
-            batchSize = Math.min(allResults.size(), 101);
+        if (defaultBatchSize <= 0) {
+            defaultBatchSize = Math.min(allResults.size(), 101);
         }
 
-        if (allResults.size() <= batchSize) {
+        if (allResults.size() <= consumedCount) {
             return 0L;
         }
 
         // Use ConcurrentLinkedDeque for lock-free cursor operations
-        Deque<Map<String, Object>> remaining = new java.util.concurrent.ConcurrentLinkedDeque<>(allResults.subList(batchSize, allResults.size()));
+        Deque<Map<String, Object>> remaining = new java.util.concurrent.ConcurrentLinkedDeque<>(allResults.subList(consumedCount, allResults.size()));
         long cursorId = cursorIdSequence.getAndIncrement();
-        activeQueryCursors.put(cursorId, new CursorResultBuffer(remaining, namespace, batchSize));
+        activeQueryCursors.put(cursorId, new CursorResultBuffer(remaining, namespace, defaultBatchSize));
         return cursorId;
     }
 
@@ -3616,9 +3660,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
             }
 
+            long budget = serverMode ? replyBatchByteLimit() : Long.MAX_VALUE;
+            long sum = 0;
+
             for (int i = 0; i < size; i++) {
                 Map<String, Object> doc = buffer.remaining.pollFirst();
                 if (doc == null) break;
+
+                if (serverMode) {
+                    sum += de.caluga.morphium.driver.bson.BsonEncoder.documentSize(doc);
+
+                    if (!result.isEmpty() && sum > budget) {
+                        // over the byte cap - back onto the buffer for the next getMore
+                        buffer.remaining.addFirst(doc);
+                        break;
+                    }
+                }
+
                 result.add(doc);
             }
 

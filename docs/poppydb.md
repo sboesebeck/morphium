@@ -296,7 +296,12 @@ real 8.0.26 server, the behaviour is:
 
 Do not confuse this with `maxMessageSizeBytes` (48MB): that bounds a single **wire
 protocol message** — the envelope — so a bulk insert can carry multiple documents of up
-to `maxBsonObjectSize` each in one message.
+to `maxBsonObjectSize` each in one message. Both sides of that bound are enforced:
+Morphium's wire drivers split oversized write payloads (insert documents, update/delete
+statements) into several messages under the advertised limit — transparently, with summed
+counters and correctly shifted error indices — and PoppyDB caps **reply** batches
+(find/getMore/aggregate cursors) at `maxBsonObjectSize` worth of documents per batch like
+mongod, handing out the remainder via the cursor.
 
 Configurable via `--max-bson-size <bytes>` (0 disables the check entirely — then `hello`
 advertises a permissive 128MB), programmatic via `poppyDb.setMaxBsonObjectSize(bytes)` or
