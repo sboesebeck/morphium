@@ -39,6 +39,7 @@ public class BasicMessagingEdgeCaseTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morph = new Morphium(cfg)) {
+                    morph.dropCollection(Msg.class);
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     MorphiumMessaging receiver = morph.createMessaging();

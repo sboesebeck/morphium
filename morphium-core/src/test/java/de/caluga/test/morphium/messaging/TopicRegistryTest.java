@@ -63,6 +63,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 cfg.messagingSettings().setMessagingRegistryCheckTopics(de.caluga.morphium.config.MessagingSettings.TopicCheck.THROW);
                 cfg.messagingSettings().setMessagingRegistryUpdateInterval(1);
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     MorphiumMessaging messaging = m.createMessaging();
                     messaging.start();
                     assertTrue(messaging.waitForReady(30, TimeUnit.SECONDS), "messaging not ready");
@@ -98,6 +99,8 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 cfg.messagingSettings().setMessagingRegistryUpdateInterval(1);
 
                 try (Morphium m1 = new Morphium(cfg); Morphium m2 = new Morphium(cfg)) {
+                    m1.dropCollection(Msg.class);
+                    m2.dropCollection(Msg.class);
                     MorphiumMessaging sender = m1.createMessaging();
                     sender.start();
                     assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
@@ -142,6 +145,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 cfg.messagingSettings().setMessagingRegistryCheckTopics(de.caluga.morphium.config.MessagingSettings.TopicCheck.WARN);
                 cfg.messagingSettings().setMessagingRegistryUpdateInterval(1);
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     MorphiumMessaging messaging = m.createMessaging();
                     messaging.start();
                     assertTrue(messaging.waitForReady(30, TimeUnit.SECONDS), "messaging not ready");
@@ -181,12 +185,14 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                 cfg.messagingSettings().setMessagingRegistryUpdateInterval(2);
 
                 try (Morphium m1 = new Morphium(cfg)) {
+                    m1.dropCollection(Msg.class);
                     MorphiumMessaging sender = m1.createMessaging();
                     sender.start();
                     assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
 
                     String receiverId;
                     try (Morphium m2 = new Morphium(cfg)) {
+                        m2.dropCollection(Msg.class);
                         MorphiumMessaging receiver = m2.createMessaging();
                         receiverId = receiver.getSenderId();
                         receiver.start();

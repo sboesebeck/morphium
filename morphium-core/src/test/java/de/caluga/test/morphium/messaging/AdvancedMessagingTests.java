@@ -48,6 +48,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
+                    morphium.dropCollection(Msg.class);
                     morphium.dropCollection(Msg.class, "msg", null);
                     counts.clear();
 
@@ -142,6 +143,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
+                    morphium.dropCollection(Msg.class);
                     MorphiumMessaging producer = morphium.createMessaging();
                     producer.setUseChangeStream(true);
                     producer.start();
@@ -191,6 +193,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
+                    morphium.dropCollection(Msg.class);
                     MorphiumMessaging producer = morphium.createMessaging();
                     producer.start();
                     MorphiumMessaging consumer = morphium.createMessaging();

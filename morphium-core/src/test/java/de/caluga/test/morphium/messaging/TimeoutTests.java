@@ -46,6 +46,7 @@ public class TimeoutTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(
                                    morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     MorphiumMessaging m1 = m.createMessaging();
                     m1.setSenderId("sender");
                     m1.start();
@@ -105,6 +106,7 @@ public class TimeoutTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(
                                    morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     MorphiumMessaging m1 = m.createMessaging();
                     m1.setSenderId("sender");
                     m1.setUseChangeStream(true);

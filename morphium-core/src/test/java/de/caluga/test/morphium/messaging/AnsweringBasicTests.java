@@ -51,6 +51,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 final MorphiumMessaging m1;
                 final MorphiumMessaging m2;
                 final MorphiumMessaging onlyAnswers;
@@ -198,6 +199,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging m1 = morph.createMessaging();
                 m1.setSenderId("m1");
                 MorphiumMessaging m2 = morph.createMessaging();
@@ -247,6 +249,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging m1 = morph.createMessaging();
                 m1.setSenderId("m1");
                 m1.setUseChangeStream(false);
@@ -311,6 +314,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging m1 = morph.createMessaging();
                 MorphiumMessaging m2 = morph.createMessaging();
                 m1.start();
@@ -364,6 +368,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging sender = morph.createMessaging();
                 MorphiumMessaging recipient = morph.createMessaging();
                 sender.start();

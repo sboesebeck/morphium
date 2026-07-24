@@ -62,6 +62,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging messaging1 = morph.createMessaging();
                 MorphiumMessaging messaging2 = morph.createMessaging();
                 MorphiumMessaging messagingElse = morph.createMessaging();
@@ -139,6 +140,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 assertThrows(RuntimeException.class, () -> {
                     MorphiumMessaging m1 = morph.createMessaging();
                     log.info("Upcoming Errormessage is expected, because messaging is not processing own messages!");
@@ -184,6 +186,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.setSenderId("Sender");
                 sender.start();
@@ -271,6 +274,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
 
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.setSenderId("sender");
@@ -322,6 +326,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
 
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.setSenderId("sender");

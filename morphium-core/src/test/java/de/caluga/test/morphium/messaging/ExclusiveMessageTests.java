@@ -337,6 +337,7 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
             cfg.connectionSettings().setMaxConnections(50);
             cfg.connectionSettings().setMinConnections(5);
             try (Morphium mx = new Morphium(cfg)) {
+                mx.dropCollection(Msg.class);
                 MorphiumMessaging sender = mx.createMessaging();
                 sender.setPause(100).setMultithreadded(true).setWindowSize(1);
                 sender.setSenderId("sender");

@@ -43,6 +43,7 @@ public class CustomMsgTest extends MultiDriverTestBase {
             cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
             try (Morphium m = new Morphium(cfg)) {
+                m.dropCollection(Msg.class);
                 MorphiumMessaging m1 = m.createMessaging();
                 m1.setUseChangeStream(true);
                 MorphiumMessaging m2 = m.createMessaging();

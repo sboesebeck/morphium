@@ -40,6 +40,7 @@ public class SendAndAwaitAsyncMultiAnswerTest extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
 
                 MorphiumMessaging sender = morph.createMessaging();
                 MorphiumMessaging responder1 = morph.createMessaging();

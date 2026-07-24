@@ -144,6 +144,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morph = new Morphium(cfg)) {
+                    morph.dropCollection(Msg.class);
                     MorphiumMessaging messaging1 = morph.createMessaging();
                     messaging1.setPause(500);
                     messaging1.setMultithreadded(false);

@@ -44,6 +44,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
 
 
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     // wait until a primary connection is available to avoid race conditions on startup
                     // Important: always release the acquired connection back to the pool
                     de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue(10000, "No primary node found", () -> {
@@ -170,6 +171,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
 
                 final AtomicInteger errorCount = new AtomicInteger();
                 try (Morphium morph = new Morphium(cfg)) {
+                    morph.dropCollection(Msg.class);
                     String method = new Object() {
                     }
                     .getClass().getEnclosingMethod().getName();
