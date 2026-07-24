@@ -301,6 +301,22 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         return idsInProgress.size();
     }
 
+    /**
+     * @return current depth of the DM lane's bounded processing queue (#265). Not part of
+     * {@link MorphiumMessaging} - DM-lane specific, mainly for tests/diagnostics of the overflow
+     * guard in {@link #enqueueDmForProcessing(MorphiumId, int, long)}.
+     */
+    public int getDmProcessingCount() {
+        return dmProcessing.size();
+    }
+
+    /**
+     * @return number of DM-lane messages currently claimed for processing (#265).
+     */
+    public int getDmInProgressCount() {
+        return dmIdsInProgress.size();
+    }
+
     @Override
     public int waitingForAnswersCount() {
         return waitingForAnswers.size();
