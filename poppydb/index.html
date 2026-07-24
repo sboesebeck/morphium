@@ -1007,6 +1007,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bson-size-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BSON Size Limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#ssltls-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2447,6 +2458,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bson-size-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BSON Size Limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#ssltls-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3003,6 +3025,11 @@
 <td><code>90</code></td>
 </tr>
 <tr>
+<td><code>--max-bson-size &lt;bytes&gt;</code></td>
+<td>BSON document size limit, enforced like mongod (0 = off). See <a href="#bson-size-limit">BSON Size Limit</a>.</td>
+<td><code>16777216</code> (16MB)</td>
+</tr>
+<tr>
 <td><code>-mt</code>, <code>--maxThreads &lt;threads&gt;</code></td>
 <td>Maximum number of threads for handling client connections.</td>
 <td><code>1000</code></td>
@@ -3239,9 +3266,14 @@ secondary refusing to apply what the primary accepted would silently diverge. Al
 a replica set stop accepting new data at the same watermark instead of failing together.</p>
 <p>Clients receive the rejection as a write error and should treat it as retryable
 backpressure. The current state is visible in <code>db.serverStatus().memoryWatermark</code>
-(<code>heapUsedPercent</code>, thresholds, warn state). The gauge is JVM heap occupancy — garbage
-inflates it, so rejection near the limit errs on the conservative side, which beats an
-OOM kill.</p>
+(<code>heapUsedPercent</code>, <code>heapUsedAfterGcPercent</code>, thresholds, warn state).</p>
+<p>Both stages decide on the <strong>post-GC live set</strong> (<code>heapUsedAfterGcPercent</code>, from the JVM's
+per-pool collection usage), not on raw heap occupancy: with <code>-Xms</code> == <code>-Xmx</code> the JVM only
+collects when the heap is nearly full, so the raw <code>used/max</code> gauge routinely reads above
+90% under allocation-heavy load even when the next GC would free most of it. Deciding on
+the raw gauge would reject writes on a heap that is one GC away from half empty. The raw
+gauge remains as a cheap precheck (the live set can never exceed it) and is what
+<code>heapUsedPercent</code> reports in <code>serverStatus</code>.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># defaults: warn at 75%, reject at 90%</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
@@ -3253,6 +3285,30 @@ OOM kill.</p>
 </span></code></pre></div>
 <p>Programmatic: <code>poppyDb.setMemoryWatermarks(warnPercent, rejectPercent)</code> or
 <code>InMemoryDriver.setMemoryWatermarks(...)</code> for embedded use.</p>
+<h3 id="bson-size-limit">BSON Size Limit<a class="headerlink" href="#bson-size-limit" title="Permanent link">&para;</a></h3>
+<p>PoppyDB enforces MongoDB's per-document BSON size limit (default 16MB) — measured against a
+real 8.0.26 server, the behaviour is:</p>
+<ul>
+<li><strong>Inserts/stores</strong> of a document over the limit fail with <code>BSONObjectTooLarge</code> (code
+  10334) and mongod's message shape (<code>BSONObj size: N (0x..) is invalid. Size must be
+  between 0 and 16793600(16MB) First element: ...</code>). In practice, well-behaved drivers
+  already refuse to <em>send</em> such documents, because the limit is advertised as
+  <code>maxBsonObjectSize</code> in the <code>hello</code> handshake — which PoppyDB now answers with the
+  <em>configured</em> value instead of a hardcoded one.</li>
+<li><strong>Updates</strong> (<code>$set</code>, <code>$push</code>, replacements, upserts) whose <strong>resulting</strong> document would
+  exceed the limit fail with the same error, atomically — the stored document is left
+  untouched. This is the case client-side checks cannot catch (each individual update
+  command is small), so the server-side check is what actually guarantees the bound.
+  Like mongod, update results get a 16KB internal margin (<code>BSONObjMaxInternalSize</code>).</li>
+</ul>
+<p>Do not confuse this with <code>maxMessageSizeBytes</code> (48MB): that bounds a single <strong>wire
+protocol message</strong> — the envelope — so a bulk insert can carry multiple documents of up
+to <code>maxBsonObjectSize</code> each in one message.</p>
+<p>Configurable via <code>--max-bson-size &lt;bytes&gt;</code> (0 disables the check entirely — then <code>hello</code>
+advertises a permissive 128MB), programmatic via <code>poppyDb.setMaxBsonObjectSize(bytes)</code> or
+<code>InMemoryDriver.setMaxBsonObjectSize(bytes)</code> for embedded use. The embedded InMemoryDriver
+enforces the same 16MB default, so tests against it catch oversized documents before a
+real MongoDB would.</p>
 <h3 id="ssltls-configuration">SSL/TLS Configuration<a class="headerlink" href="#ssltls-configuration" title="Permanent link">&para;</a></h3>
 <p>PoppyDB supports SSL/TLS encrypted connections for secure communication.</p>
 <p><strong>Quick Start with SSL:</strong></p>
