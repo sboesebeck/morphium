@@ -185,6 +185,25 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
     private final CountDownLatch readyLatch = new CountDownLatch(1);
     private volatile boolean ready = false;
 
+    // ---------------------------------------------------------------------------------------
+    // DualChannelMessaging (#265): dedicated per-recipient DM/answer collection + second cursor.
+    // Everything above/below this block that is NOT in this block is the unmodified SCM main
+    // lane (broadcast/topic traffic - main collection, one change stream, windowed poll,
+    // idsInProgress/processing backpressure guards - kept bit-identical to SCM).
+    // ---------------------------------------------------------------------------------------
+    private ChangeStreamMonitor dmMonitor;
+    private volatile long lastDmCsEventMs = 0;
+    private final AtomicInteger requestDmPoll = new AtomicInteger(0);
+    // Bounded processing queue for genuine directed messages (not answers - those are dispatched
+    // inline from the CS listener, see handleDmAnswer). Overflow guard caps this at 2x windowSize
+    // (see enqueueDmForProcessing) so a cursor backlog cannot grow this unbounded.
+    private final BlockingQueue<ProcessingQueueElement> dmProcessing = new PriorityBlockingQueue<>();
+    private final List<MorphiumId> dmIdsInProgress = new java.util.concurrent.CopyOnWriteArrayList<>();
+    // Same InMemoryDriver-duplicate-event guard as the main lane's docIdsFromChangestreamSet.
+    private final Set<Object> dmDocIdsFromChangestreamSet = Collections.synchronizedSet(new LinkedHashSet<>());
+    private Thread dmDispatcherThread;
+    private volatile boolean dmDispatcherRunning = false;
+
 
     public DualChannelMessaging() {
         allMessagings.add(this);
@@ -783,6 +802,586 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         }
     }
 
+    // =========================================================================================
+    // DualChannelMessaging (#265): second change-stream cursor for the per-recipient DM/answer
+    // collection, its fast-path answer handling, and the dedicated dispatcher for genuine
+    // directed (non-answer) messages. None of this touches the main lane above.
+    // =========================================================================================
+
+    /**
+     * Sets up (and starts) the second {@link ChangeStreamMonitor}, watching this instance's own
+     * DM collection ({@link #getDMCollectionName()}) with {@code fullDocument=true}. Mirrors the
+     * requeue-detection pipeline shape of the main lane's monitor (see {@link #initChangeStreams()}).
+     */
+    private void initDmChangeStream() {
+        Map<String, Object> requeueRelevant = new LinkedHashMap<>();
+        requeueRelevant.put("operationType", "update");
+        requeueRelevant.put("updateDescription.updatedFields." + processedByFieldName, UtilsMap.of("$size", 0));
+        Map<String, Object> relevanceMatch = new LinkedHashMap<>();
+        relevanceMatch.put("$or", Arrays.asList(
+            UtilsMap.of("operationType", "insert"),
+            requeueRelevant
+        ));
+        List<Map<String, Object>> pipeline = new ArrayList<>();
+        pipeline.add(UtilsMap.of("$match", relevanceMatch));
+
+        dmMonitor = new ChangeStreamMonitor(morphium, getDMCollectionName(), true, changeStreamMaxWait, pipeline);
+        dmMonitor.addListener(this::onDmCsEvent);
+        // Same reasoning as the main lane: on every watch (re-)establishment, poll once so
+        // messages inserted while the DM stream was down (or before this instance even started)
+        // are not stuck until the fallback poll interval.
+        dmMonitor.addWatchEstablishedListener(requestDmPoll::incrementAndGet);
+        lastDmCsEventMs = System.currentTimeMillis();
+        dmMonitor.start();
+    }
+
+    /**
+     * @return true if the DM change stream is provably alive (server heartbeat within maxTimeMS).
+     * Extends {@link #changeStreamsLive()}'s notion of liveness to the DM lane.
+     */
+    public boolean dmChangeStreamLive() {
+        return dmMonitor != null && dmMonitor.isStreamLive();
+    }
+
+    /**
+     * Listener for the DM collection's change stream. Answers (inAnswerTo != null) are dispatched
+     * INLINE, directly on this listener thread - registry status answers first, then delivery to
+     * any waitingForAnswers/waitingForCallbacks entry, with the processed_by persist write pushed
+     * off onto queueOrRun (see {@link #handleDmAnswer(Msg)} - same "dispatch before persist"
+     * pattern as af932867, applied to the DM lane). Genuine directed messages (no inAnswerTo) are
+     * NOT processed inline; they are handed to {@link #enqueueDmForProcessing(MorphiumId, int, long)}
+     * for the dedicated dispatcher thread to pick up, with a bounded-queue overflow guard.
+     */
+    private boolean onDmCsEvent(ChangeStreamEvent evt) {
+        lastDmCsEventMs = System.currentTimeMillis();
+
+        if (!running) {
+            return false;
+        }
+
+        try {
+            if ("update".equals(evt.getOperationType())) {
+                // requeue signature only (see pipeline) - no fullDocument on this event, just poll.
+                requestDmPoll.incrementAndGet();
+                return running;
+            }
+
+            if (!"insert".equals(evt.getOperationType())) {
+                return running;
+            }
+
+            Map<String, Object> doc = evt.getFullDocument();
+
+            if (doc == null) {
+                requestDmPoll.incrementAndGet();
+                return running;
+            }
+
+            Msg msg = morphium.getMapper().deserialize(Msg.class, doc);
+
+            if (msg == null || msg.getMsgId() == null) {
+                return running;
+            }
+
+            // InMemoryDriver change streams may deliver duplicate insert events; filter them here,
+            // same as the main lane's docIdsFromChangestreamSet.
+            if (dmDocIdsFromChangestreamSet.contains(msg.getMsgId())) {
+                return running;
+            }
+
+            dmDocIdsFromChangestreamSet.add(msg.getMsgId());
+
+            if (dmDocIdsFromChangestreamSet.size() > 1000) {
+                dmDocIdsFromChangestreamSet.clear();
+            }
+
+            if (msg.isAnswer()) {
+                handleDmAnswer(msg);
+            } else {
+                enqueueDmForProcessing(msg.getMsgId(), msg.getPriority(), msg.getTimestamp());
+            }
+        } catch (Exception e) {
+            log.error("Error during DM change stream event processing for '{}'", getDMCollectionName(), e);
+        }
+
+        return running;
+    }
+
+    /**
+     * Answer fast path (see {@link #onDmCsEvent(ChangeStreamEvent)}). Delivers to a waiting
+     * caller/callback BEFORE persisting the processed_by mark - the majority-acked write is
+     * pushed onto {@link #queueOrRun(Runnable)} instead of running inline on the CS listener
+     * thread, exactly mirroring commit af932867's fix for the main lane's answer path.
+     */
+    private void handleDmAnswer(Msg m) {
+        if (networkRegistry != null && m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName())) {
+            networkRegistry.updateFrom(m);
+            checkDeleteAfterProcessingDm(m);
+            return;
+        }
+
+        final Queue<Msg> answersForMessage = waitingForAnswers.get(m.getInAnswerTo());
+
+        if (answersForMessage != null) {
+            if (!m.getProcessedBy().contains(id)) {
+                m.getProcessedBy().add(id);
+            }
+
+            if (!answersForMessage.contains(m)) {
+                answersForMessage.add(m);
+            }
+
+            queueOrRun(() -> persistDmProcessedByMark(m));
+            checkDeleteAfterProcessingDm(m);
+            return;
+        }
+
+        final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
+
+        if (cbr != null) {
+            AsyncMessageCallback cb = cbr.callback;
+
+            if (!m.getProcessedBy().contains(id)) {
+                m.getProcessedBy().add(id);
+            }
+
+            queueOrRun(() -> cb.incomingMessage(m));
+            queueOrRun(() -> persistDmProcessedByMark(m));
+
+            if (cbr.theMessage.isExclusive()) {
+                waitingForCallbacks.remove(m.getInAnswerTo());
+            }
+
+            checkDeleteAfterProcessingDm(m);
+            return;
+        }
+
+        // No one is waiting (yet, or anymore - the request may have timed out). Fall back to the
+        // normal dispatcher path: a re-read there re-evaluates waiters/callbacks once more and,
+        // failing that, falls through to topic listener dispatch (an answer can double as a
+        // regular message if a listener is registered for its topic).
+        enqueueDmForProcessing(m.getMsgId(), m.getPriority(), m.getTimestamp());
+    }
+
+    /**
+     * Bounded enqueue for the DM dispatcher. Overflow guard: if the queue already holds more than
+     * 2x windowSize elements, the event is dropped and only the poll trigger is incremented - the
+     * next fallback poll (window-limited, same as the main lane) will pick the backlog up instead
+     * of letting an unbounded cursor backlog grow this queue forever.
+     */
+    private void enqueueDmForProcessing(MorphiumId messageId, int priority, long timestamp) {
+        synchronized (dmProcessing) {
+            if (dmIdsInProgress.contains(messageId)) {
+                return;
+            }
+
+            if (dmProcessing.size() > 2L * windowSize) {
+                requestDmPoll.incrementAndGet();
+                return;
+            }
+
+            ProcessingQueueElement el = new ProcessingQueueElement(priority, timestamp, messageId);
+
+            if (!dmProcessing.contains(el)) {
+                dmProcessing.add(el);
+                dmIdsInProgress.add(messageId);
+            }
+        }
+    }
+
+    /**
+     * Dedicated dispatcher thread for the DM lane, started from {@link #run()}. Drains
+     * {@link #dmProcessing} and re-reads/dispatches each element against the DM collection. Unlike
+     * the main lane's processing loop, there is no locking/MsgLock involved - the DM collection has
+     * exactly one consumer (this instance), so exclusivity is moot there.
+     */
+    private void dmDispatcherLoop() {
+        while (dmDispatcherRunning) {
+            try {
+                ProcessingQueueElement prEl = dmProcessing.poll(1000, TimeUnit.MILLISECONDS);
+
+                if (prEl == null) {
+                    continue;
+                }
+
+                processDmElement(prEl);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            } catch (Throwable t) {
+                if (dmDispatcherRunning) {
+                    log.error("Unhandled throwable in DM dispatcher loop for '{}' — keeping thread alive",
+                            getDMCollectionName(), t);
+                }
+            }
+        }
+    }
+
+    private void processDmElement(ProcessingQueueElement prEl) {
+        try {
+            if (!running || morphium == null || morphium.getDriver() == null) {
+                return;
+            }
+
+            var q = morphium.createQueryFor(Msg.class)
+                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(prEl.getId());
+            q.setCollectionName(getDMCollectionName());
+            Msg msg = q.get();
+
+            if (msg == null) {
+                return;
+            }
+
+            if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+                return;
+            }
+
+            if (msg.isAnswer()) {
+                if (networkRegistry != null && msg.getTopic() != null && msg.getTopic().equals(getStatusInfoListenerName())) {
+                    networkRegistry.updateFrom(msg);
+                    checkDeleteAfterProcessingDm(msg);
+                    return;
+                }
+
+                final Queue<Msg> answersForMessage = waitingForAnswers.get(msg.getInAnswerTo());
+
+                if (answersForMessage != null) {
+                    if (!msg.getProcessedBy().contains(id)) {
+                        msg.getProcessedBy().add(id);
+                    }
+
+                    if (!answersForMessage.contains(msg)) {
+                        answersForMessage.add(msg);
+                    }
+
+                    persistDmProcessedByMark(msg);
+                    checkDeleteAfterProcessingDm(msg);
+                    return;
+                }
+
+                final CallbackRequest cbr = waitingForCallbacks.get(msg.getInAnswerTo());
+
+                if (cbr != null) {
+                    final Msg theMessage = msg;
+
+                    if (!theMessage.getProcessedBy().contains(id)) {
+                        theMessage.getProcessedBy().add(id);
+                    }
+
+                    queueOrRun(() -> cbr.callback.incomingMessage(theMessage));
+                    persistDmProcessedByMark(theMessage);
+
+                    if (cbr.theMessage.isExclusive()) {
+                        waitingForCallbacks.remove(msg.getInAnswerTo());
+                    }
+
+                    checkDeleteAfterProcessingDm(msg);
+                    return;
+                }
+
+                // no waiter/callback (anymore) - fall through to topic listener dispatch below,
+                // same as the main lane's equivalent fallthrough.
+            }
+
+            if (!getListenerNames().containsKey(msg.getTopic())) {
+                return;
+            }
+
+            processDmMessage(msg);
+        } finally {
+            synchronized (dmProcessing) {
+                dmIdsInProgress.remove(prEl.getId());
+            }
+        }
+    }
+
+    /**
+     * Dispatch a genuine directed message to its topic listener(s) against the DM collection.
+     * Exception in a listener leaves processed_by empty so the fallback poll redelivers it (until
+     * TTL expiry); {@link MessageRejectedException} triggers a DM poll and invokes its rejection
+     * handler, mirroring SCM's semantics for the main lane.
+     */
+    private void processDmMessage(Msg msg) {
+        if (msg == null || !running || morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+            return;
+        }
+
+        if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+            return;
+        }
+
+        if (listenerByName.isEmpty()) {
+            return;
+        }
+
+        List<MessageListener> lst = new ArrayList<>();
+
+        if (listenerByName.get(msg.getTopic()) != null) {
+            lst.addAll(listenerByName.get(msg.getTopic()));
+        }
+
+        boolean wasProcessed = false;
+        boolean wasRejected = false;
+        List<MessageRejectedException> rejections = new ArrayList<>();
+
+        for (MessageListener l : lst) {
+            try {
+                if (pauseMessages.containsKey(msg.getTopic())) {
+                    requestDmPoll.incrementAndGet();
+                    return;
+                }
+
+                if ((l.markAsProcessedBeforeExec() || msg.isExclusive()) && !msg.getProcessedBy().contains(id)) {
+                    persistDmProcessedByMark(msg);
+                    msg.getProcessedBy().add(id);
+                }
+
+                Msg answer = l.onMessage(this, msg);
+                wasProcessed = true;
+
+                if (autoAnswer && answer == null) {
+                    answer = new Msg(msg.getTopic(), "received", "");
+                }
+
+                if (answer != null) {
+                    msg.sendAnswer(this, answer);
+                }
+            } catch (MessageRejectedException mre) {
+                log.info(id + ": DM message was rejected by listener: " + mre.getMessage());
+                wasRejected = true;
+                rejections.add(mre);
+                requestDmPoll.incrementAndGet();
+            } catch (Exception e) {
+                log.error(id + ": DM listener processing failed", e);
+                checkDeleteAfterProcessingDm(msg);
+            }
+        }
+
+        if (wasRejected) {
+            for (MessageRejectedException mre : rejections) {
+                if (mre.getRejectionHandler() != null) {
+                    try {
+                        mre.getRejectionHandler().handleRejection(this, msg);
+                    } catch (Exception e) {
+                        log.error("Error in DM rejection handling", e);
+                    }
+                } else {
+                    log.error("No rejection handler defined for rejected DM message!");
+                }
+            }
+
+            // processed_by stays empty (unless a prior markAsProcessedBeforeExec listener already
+            // set it) so the fallback poll can redeliver.
+            return;
+        }
+
+        if (wasProcessed && !msg.getProcessedBy().contains(id)) {
+            persistDmProcessedByMark(msg);
+            msg.getProcessedBy().add(id);
+        }
+
+        if (wasProcessed) {
+            checkDeleteAfterProcessingDm(msg);
+        }
+    }
+
+    /**
+     * DB-only $addToSet write for the DM collection - companion to the main lane's
+     * {@link #persistProcessedByMark(Msg)}, same fire-and-forget semantics (idempotent, no
+     * local-contains shortcut since the caller already mutated the local list).
+     */
+    private void persistDmProcessedByMark(Msg msg) {
+        if (msg == null || !running || morphium == null || morphium.getDriver() == null || morphium.getConfig() == null) {
+            return;
+        }
+
+        Object queryId = msg.getMsgId();
+
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
+
+        String dmColl = getDMCollectionName();
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, dmColl);
+        idq.f("_id").eq(queryId);
+        UpdateMongoCommand cmd = null;
+
+        try {
+            cmd = new UpdateMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd.setColl(dmColl).setDb(morphium.getDatabase());
+            cmd.addUpdate(idq.toQueryObject(), Doc.of("$addToSet", Doc.of(processedByFieldName, id)),
+                          null, false, false, null, null, null);
+            cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+        } catch (MorphiumDriverException e) {
+            log.error("Error persisting processed_by mark for DM message " + msg.getMsgId(), e);
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
+
+    /**
+     * DM-collection companion to the main lane's {@link #checkDeleteAfterProcessing(Msg)}. No
+     * MsgLock handling - the DM lane never locks (single consumer).
+     */
+    private void checkDeleteAfterProcessingDm(Msg obj) {
+        if (!running || morphium == null || morphium.getConfig() == null || morphium.getDriver() == null) {
+            return;
+        }
+
+        if (!obj.isDeleteAfterProcessing()) {
+            return;
+        }
+
+        String coll = getDMCollectionName();
+
+        if (obj.getDeleteAfterProcessingTime() == 0) {
+            morphium.delete(obj, coll);
+            return;
+        }
+
+        obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
+        String deleteAtField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.deleteAt.name());
+        morphium.setInEntity(obj, coll, deleteAtField, obj.getDeleteAt(), false, null);
+        long deleteDelay = Math.max(0, obj.getDeleteAfterProcessingTime()) + TimeUnit.SECONDS.toMillis(1);
+
+        if (decouplePool != null) {
+            decouplePool.schedule(() -> {
+                if (!running || morphium == null || morphium.getDriver() == null) {
+                    return;
+                }
+
+                try {
+                    morphium.createQueryFor(Msg.class, coll)
+                            .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY)
+                            .f("_id").eq(obj.getMsgId())
+                            .remove();
+                } catch (Exception ignored) {
+                }
+            }, deleteDelay, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /**
+     * DM-collection poll fallback + backlog scan, mirroring the main lane's windowed poll query
+     * shape ({@link #getMessagesForProcessing()}) but simpler: no lock-collection join, no
+     * exclusive/lock branching (single consumer). Called from the same decouplePool tick as the
+     * main lane's fallback poll (see {@link #run()}).
+     *
+     * @return true if at least one unprocessed DM was found (backlog signal for the DM stall watchdog)
+     */
+    private boolean findDmMessages() {
+        if (!running) {
+            return false;
+        }
+
+        try {
+            var idsToIgnore = new ArrayList<MorphiumId>();
+
+            synchronized (dmProcessing) {
+                for (var p : dmProcessing) {
+                    idsToIgnore.add(p.getId());
+                }
+
+                idsToIgnore.addAll(dmIdsInProgress);
+            }
+
+            Query<Msg> q = morphium.createQueryFor(Msg.class, getDMCollectionName());
+            q.f(processedByFieldName + ".0").notExists();
+
+            if (!idsToIgnore.isEmpty()) {
+                q.f("_id").nin(idsToIgnore);
+            }
+
+            q.setLimit(windowSize);
+            q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
+            List<Msg> result = q.asList();
+
+            if (result.isEmpty()) {
+                return false;
+            }
+
+            for (Msg m : result) {
+                enqueueDmForProcessing(m.getMsgId(), m.getPriority(), m.getTimestamp());
+            }
+
+            if (result.size() >= windowSize) {
+                requestDmPoll.incrementAndGet();
+            }
+
+            return true;
+        } catch (Exception e) {
+            if (running) {
+                log.error(id + ": Error while polling DM collection", e);
+            }
+
+            return false;
+        }
+    }
+
+    /**
+     * Registry-gated orphan sweep (#265). Setting name is
+     * {@link MessagingSettings#isMessagingDmCleanupOrphansOnStartup()} despite running
+     * periodically (on the same decouplePool tick as the fallback polls, see {@link #run()}) -
+     * "OnStartup" refers to it being on by default from the first startup onward, not to a
+     * one-shot execution. Drops per-recipient DM collections that are BOTH empty AND belong to
+     * a participant the registry currently considers inactive. Never touches this instance's own
+     * collection, and never touches a non-empty collection - an empty collection momentarily
+     * belonging to a live participant between messages must keep its TTL index.
+     * <p>
+     * <b>Known limitation (needs operator sign-off, see final report):</b> liveness is derived
+     * from {@link MessagingRegistry#isParticipantActive(String)}, which only reports a
+     * participant "active" if it currently has at least one registered topic listener. A pure
+     * requester (no listeners, only ever sends/awaits answers) is therefore reported inactive
+     * even while alive, and its currently-empty DM collection could be swept - causing a
+     * change-stream cursor disruption on that peer and loss of its TTL index until restart. This
+     * is only safe in clusters where every DualChannelMessaging participant also registers at
+     * least one topic listener (e.g. the built-in status-info listener, if enabled).
+     */
+    private void sweepOrphanDmCollections() {
+        if (networkRegistry == null) {
+            return;
+        }
+
+        try {
+            String ownDmCollection = getDMCollectionName();
+            String prefix = getCollectionName() + "_dm_";
+            List<String> candidates = morphium.listCollections(java.util.regex.Pattern.quote(prefix) + ".*");
+
+            if (candidates == null) {
+                return;
+            }
+
+            for (String coll : candidates) {
+                if (coll == null || coll.equals(ownDmCollection) || !coll.startsWith(prefix)) {
+                    continue;
+                }
+
+                String candidateSenderId = coll.substring(prefix.length());
+
+                if (networkRegistry.isParticipantActive(candidateSenderId)) {
+                    continue; // considered alive - never touch
+                }
+
+                try {
+                    long count = morphium.createQueryFor(Msg.class, coll).countAll();
+
+                    if (count == 0) {
+                        log.info("DualChannelMessaging orphan sweep: dropping empty, inactive DM collection '{}'", coll);
+                        morphium.dropCollection(Msg.class, coll, null);
+                    }
+                } catch (Exception e) {
+                    log.debug("Orphan DM sweep: error checking/dropping '{}': {}", coll, e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Orphan DM collection sweep failed: {}", e.getMessage());
+        }
+    }
+
     public void run() {
         setName("Msg " + id);
 
@@ -793,9 +1392,22 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         // Register with PoppyDB for optimizations if connected
         registerWithPoppyDB();
 
+        // DualChannelMessaging (#265): ensure the DM collection (incl. its TTL index) exists
+        // before wiring up its change stream / dispatcher. Done here (not in init()) because
+        // setSenderId() can change getSenderId()/getDMCollectionName() between init() and start().
+        morphium.ensureIndicesFor(Msg.class, getDMCollectionName());
+        log.warn("DualChannelMessaging (beta, #265) starting on queue '{}': ALL messaging "
+                + "participants on this queue must run DualChannelMessaging for DM/answer "
+                + "delivery to work - a legacy StandardMessaging node's answers to THIS "
+                + "instance's requests will time out (see class javadoc).", getCollectionName());
+
+        dmDispatcherRunning = true;
+        dmDispatcherThread = Thread.ofPlatform().name("msg-dm-" + id).start(this::dmDispatcherLoop);
+
         if (useChangeStream) {
             log.info("Changestream init");
             initChangeStreams();
+            initDmChangeStream();
             // Signal that messaging is now ready (change streams are initialized)
             ready = true;
             readyLatch.countDown();
@@ -816,6 +1428,12 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             // used to poll IMMEDIATELY when a stream falls silent, instead of on the timer.
             final AtomicLong lastFallbackPoll = new AtomicLong(0);
             final AtomicBoolean streamsWereLive = new AtomicBoolean(false);
+            // DM-lane fallback-poll bookkeeping (mirrors the main lane's, separate state) and the
+            // registry-gated orphan DM collection sweep (#265) - both run on this same tick,
+            // deliberately no dedicated cron thread.
+            final AtomicLong lastDmFallbackPoll = new AtomicLong(0);
+            final AtomicBoolean dmStreamWasLive = new AtomicBoolean(false);
+            final AtomicLong lastDmOrphanSweep = new AtomicLong(0);
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
@@ -864,6 +1482,41 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                         }
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
+                    }
+
+                    // --- DM lane fallback poll (#265): same three trigger conditions as the main
+                    // lane, applied to the DM collection/cursor instead. ---
+                    boolean shouldDmFallbackPoll = false;
+
+                    if (useChangeStream) {
+                        boolean dmLive = dmChangeStreamLive();
+                        boolean dmJustTurnedSuspect = dmStreamWasLive.getAndSet(dmLive) && !dmLive;
+                        long now = System.currentTimeMillis();
+
+                        if (dmJustTurnedSuspect
+                                || now - lastDmFallbackPoll.get() >= settings.getMessagingFallbackPollInterval()) {
+                            lastDmFallbackPoll.set(now);
+                            shouldDmFallbackPoll = true;
+                        }
+                    }
+
+                    if (requestDmPoll.get() > 0 || !useChangeStream || shouldDmFallbackPoll) {
+                        requestDmPoll.set(0);
+                        findDmMessages();
+                    }
+
+                    // --- Orphan DM collection sweep (#265): registry-gated, drops dead+empty
+                    // per-recipient DM collections belonging to former participants of this
+                    // queue. Never touches a collection with documents in it (a live participant's
+                    // collection could transiently be empty between messages - dropping it would
+                    // lose its TTL index). ---
+                    if (networkRegistry != null && settings.isMessagingDmCleanupOrphansOnStartup()) {
+                        long now = System.currentTimeMillis();
+
+                        if (now - lastDmOrphanSweep.get() >= settings.getMessagingRegistryUpdateInterval() * 1000L) {
+                            lastDmOrphanSweep.set(now);
+                            sweepOrphanDmCollections();
+                        }
                     }
                 } catch (Throwable e) {
                     if (running) {
@@ -1954,6 +2607,35 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         }
         if (changeStreamMonitor != null) {
             changeStreamMonitor.terminate();
+        }
+
+        // DualChannelMessaging (#265): stop the DM monitor + dispatcher and drop this instance's
+        // own per-recipient DM collection. Other instances' DM collections are left untouched
+        // here - that's what the registry-gated orphan sweep is for (see sweepOrphanDmCollections).
+        if (dmMonitor != null) {
+            dmMonitor.terminate();
+        }
+
+        dmDispatcherRunning = false;
+
+        if (dmDispatcherThread != null) {
+            dmDispatcherThread.interrupt();
+
+            try {
+                dmDispatcherThread.join(2000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        dmProcessing.clear();
+        dmIdsInProgress.clear();
+        requestDmPoll.set(0);
+
+        try {
+            morphium.dropCollection(Msg.class, getDMCollectionName(), null);
+        } catch (Exception e) {
+            log.warn("Error dropping own DM collection '{}' on terminate: {}", getDMCollectionName(), e.getMessage());
         }
     }
 
