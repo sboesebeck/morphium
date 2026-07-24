@@ -636,12 +636,23 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         if (null != answersForMessage) {
             // we're expecting this message!
-            updateProcessedBy(m);
+            // Deliver BEFORE persisting the processed_by mark: that write is majority-acked
+            // on real MongoDB (easily 10ms+ per call) and the blocked sendAndAwait* caller
+            // must not pay for it. handleAnswer also runs directly on the DM change stream
+            // listener thread, so the write used to stall every subsequent DM event too.
+            // The local object is marked first so the delivered answer carries consistent
+            // metadata; duplicate delivery stays guarded by the answersForMessage.contains
+            // check, exactly as before.
+            String senderId = getSenderId();
+            if (senderId != null && !m.getProcessedBy().contains(senderId)) {
+                m.getProcessedBy().add(senderId);
+            }
 
             if (!answersForMessage.contains(m)) {
                 answersForMessage.add(m);
             }
 
+            persistProcessedByMark(m);
             checkDeleteAfterProcessing(m);
             return;
         }
@@ -1149,6 +1160,48 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         }
 
         return getCollectionName(msg);
+    }
+
+    /**
+     * DB-only companion to updateProcessedBy for the answer fast path: the local Msg object has
+     * already been marked (so the delivered answer carries consistent metadata) and only the
+     * $addToSet write remains. Deliberately no local-contains shortcut - the local list was just
+     * mutated, the write must still be attempted. $addToSet is idempotent, so a concurrent mark
+     * or an already-deleted message (deleteAfterProcessing race) is harmless.
+     */
+    private void persistProcessedByMark(Msg msg) {
+        String id = getSenderId();
+        if (msg == null || id == null) {
+            return;
+        }
+
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
+        String collName = getStorageCollectionNameForMessage(msg);
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, collName);
+        idq.f("_id").eq(queryId);
+        UpdateMongoCommand cmd = null;
+
+        try {
+            cmd = new UpdateMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd.setColl(collName).setDb(morphium.getDatabase());
+            cmd.addUpdate(idq.toQueryObject(), Doc.of("$addToSet", Doc.of(processedByFieldName, id)),
+                          null, false, false, null, null, null);
+            if (!running.get())
+                return; // this happens during tests mainly
+            cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+        } catch (MorphiumDriverException e) {
+            log.error("Error persisting processed_by mark for answer " + msg.getMsgId(), e);
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
     }
 
     private void updateProcessedBy(Msg msg) {
