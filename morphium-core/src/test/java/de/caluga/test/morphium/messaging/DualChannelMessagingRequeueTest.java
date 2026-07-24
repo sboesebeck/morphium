@@ -71,11 +71,16 @@ public class DualChannelMessagingRequeueTest extends MultiDriverTestBase {
                     TestUtils.waitForConditionToBecomeTrue(20000, "message was never retried after listener exception",
                             () -> attempts.get() >= 2);
 
+                    // attempts.get() >= 2 only proves the second listener invocation STARTED (the
+                    // counter increments before the listener returns and before processDmMessage's
+                    // synchronous persistDmProcessedByMark write lands) - poll for the DB write
+                    // itself rather than asserting immediately, closing that small but real gap.
                     String dmColl = receiver.getDMCollectionName();
-                    Msg stored = m.createQueryFor(Msg.class, dmColl).f("_id").eq(msg.getMsgId()).get();
-                    assertNotNull(stored);
-                    assertTrue(stored.getProcessedBy() == null || stored.getProcessedBy().contains(receiver.getSenderId()),
-                            "second (successful) attempt should have marked processed_by");
+                    TestUtils.waitForConditionToBecomeTrue(5000,
+                            "second (successful) attempt should have marked processed_by", () -> {
+                                Msg s = m.createQueryFor(Msg.class, dmColl).f("_id").eq(msg.getMsgId()).get();
+                                return s != null && s.getProcessedBy() != null && s.getProcessedBy().contains(receiver.getSenderId());
+                            });
                 } finally {
                     receiver.terminate();
                     sender.terminate();

@@ -952,7 +952,16 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             return;
         }
 
-        final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
+        // Atomic get-and-remove: a callback must fire exactly once. Unlike the main lane (where
+        // idsInProgress shields the whole processing runnable, including this dispatch, from
+        // redelivery until persistProcessedByMark's write has landed - see the main lane's
+        // equivalent block), this DM fast path runs directly on the CS listener thread and never
+        // touches dmIdsInProgress, so a fallback poll triggered by the async persist's own update
+        // event can rediscover the still-not-yet-marked-processed document and redeliver it via
+        // enqueueDmForProcessing/the DM dispatcher thread while the entry is still sitting here.
+        // Using remove() instead of get() closes that window regardless of exclusivity: whichever
+        // path claims the entry first is the only one that ever invokes the callback.
+        final CallbackRequest cbr = waitingForCallbacks.remove(m.getInAnswerTo());
 
         if (cbr != null) {
             AsyncMessageCallback cb = cbr.callback;
@@ -963,11 +972,6 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
 
             queueOrRun(() -> cb.incomingMessage(m));
             queueOrRun(() -> persistDmProcessedByMark(m));
-
-            if (cbr.theMessage.isExclusive()) {
-                waitingForCallbacks.remove(m.getInAnswerTo());
-            }
-
             checkDeleteAfterProcessingDm(m);
             return;
         }
@@ -1074,7 +1078,11 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                     return;
                 }
 
-                final CallbackRequest cbr = waitingForCallbacks.get(msg.getInAnswerTo());
+                // Atomic get-and-remove - see handleDmAnswer's identical reasoning: a callback
+                // must fire exactly once, regardless of exclusivity, and this path is reached
+                // both from the fallback poll and (via enqueueDmForProcessing's fallthrough) from
+                // the CS fast path finding neither a waiter nor callback the first time around.
+                final CallbackRequest cbr = waitingForCallbacks.remove(msg.getInAnswerTo());
 
                 if (cbr != null) {
                     final Msg theMessage = msg;
@@ -1085,11 +1093,6 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
 
                     queueOrRun(() -> cbr.callback.incomingMessage(theMessage));
                     persistDmProcessedByMark(theMessage);
-
-                    if (cbr.theMessage.isExclusive()) {
-                        waitingForCallbacks.remove(msg.getInAnswerTo());
-                    }
-
                     checkDeleteAfterProcessingDm(msg);
                     return;
                 }
