@@ -168,6 +168,22 @@ public class MessagingSettings extends Settings {
     private long messagingRegistryParticipantTimeout = 65000;
     private boolean messagingRegistryWaitForInitialSync = false;
 
+    // DualChannelMessaging (beta, #265): whether to sweep and drop orphaned per-recipient DM
+    // collections (dead + empty) on the decouplePool scheduler tick. Only effective when
+    // messagingRegistryEnabled is also true, since the sweep relies on registry participant
+    // liveness to decide "dead". Default on, since orphaned DM collections otherwise accumulate
+    // forever (one per historical sender id).
+    private boolean messagingDmCleanupOrphansOnStartup = true;
+
+    public boolean isMessagingDmCleanupOrphansOnStartup() {
+        return messagingDmCleanupOrphansOnStartup;
+    }
+
+    public MessagingSettings setMessagingDmCleanupOrphansOnStartup(boolean messagingDmCleanupOrphansOnStartup) {
+        this.messagingDmCleanupOrphansOnStartup = messagingDmCleanupOrphansOnStartup;
+        return this;
+    }
+
     public boolean isMessagingRegistryEnabled() {
         return messagingRegistryEnabled;
     }
