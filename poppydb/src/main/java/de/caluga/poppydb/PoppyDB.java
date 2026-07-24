@@ -151,6 +151,16 @@ public class PoppyDB {
         driver.setMemoryWatermarks(warnPercent, rejectPercent);
     }
 
+    /**
+     * BSON document size limit in bytes, mongod-compatible (default 16MB, 0 = unlimited) -
+     * see InMemoryDriver.setMaxBsonObjectSize. Enforced on inserts/stores and on update
+     * results (with mongod's 16KB internal margin), answered as BSONObjectTooLarge (10334);
+     * hello advertises the configured value so clients enforce it on their side too.
+     */
+    public void setMaxBsonObjectSize(int maxBsonObjectSize) {
+        driver.setMaxBsonObjectSize(maxBsonObjectSize);
+    }
+
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds) {
         this(port, host, maxConnections, idleTimeoutSeconds, OpCompressed.COMPRESSOR_NOOP);
     }

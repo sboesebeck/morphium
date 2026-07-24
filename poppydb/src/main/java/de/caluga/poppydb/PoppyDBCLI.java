@@ -26,6 +26,7 @@ public class PoppyDBCLI {
         int port = 17017;
         int memoryWarnPct = 75;
         int memoryRejectPct = 90;
+        int maxBsonSizeBytes = 16 * 1024 * 1024;
         String rsNameArg = "";
         String hostSeedArg = "";
         List<String> hostsArg = new ArrayList<>();
@@ -75,6 +76,11 @@ public class PoppyDBCLI {
 
                 case "--memory-reject":
                     memoryRejectPct = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
+
+                case "--max-bson-size":
+                    maxBsonSizeBytes = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
 
@@ -233,6 +239,7 @@ public class PoppyDBCLI {
 
         var srv = new PoppyDB(port, host, maxConnections, socketTimeoutSec, compressorId);
         srv.setMemoryWatermarks(memoryWarnPct, memoryRejectPct);
+        srv.setMaxBsonObjectSize(maxBsonSizeBytes);
 
         // Configure replica set - election is always enabled for multi-node replica sets
         boolean enableElection = !rsNameArg.isEmpty() && hostsArg.size() > 1;
@@ -326,6 +333,8 @@ public class PoppyDBCLI {
         System.out.println("  --memory-warn <percent>    : Log a warning when heap occupancy crosses this percentage (default: 75, 100 = off)");
         System.out.println("  --memory-reject <percent>  : Reject document-creating writes (code 146 ExceededMemoryLimit) above this");
         System.out.println("                               heap percentage; updates/deletes/TTL keep working (default: 90, 100 = off)");
+        System.out.println("  --max-bson-size <bytes>    : BSON document size limit, enforced like mongod (code 10334 BSONObjectTooLarge,");
+        System.out.println("                               update results get mongod's 16KB margin; default: 16777216 = 16MB, 0 = off)");
         System.out.println("  -c, --compressor <type>    : Compressor to use (none, snappy, zstd, zlib; default: none)");
         System.out.println("  --rs-name <name>           : Name of the replica set");
         System.out.println("  --rs-seed <hosts>          : Comma-separated list of hosts in the replica set");

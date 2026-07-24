@@ -66,6 +66,7 @@ You can configure the PoppyDB using the following command-line arguments:
 | `--log-level <level>` | Log verbosity: `ERROR`, `WARN`, `INFO`, `DEBUG` or `TRACE`. See [Logging](#logging). | `INFO` |
 | `--memory-warn <percent>` | Log a warning when heap occupancy crosses this percentage (100 = off). See [Memory Watermark](#memory-watermark). | `75` |
 | `--memory-reject <percent>` | Reject document-creating writes above this heap percentage (100 = off). See [Memory Watermark](#memory-watermark). | `90` |
+| `--max-bson-size <bytes>` | BSON document size limit, enforced like mongod (0 = off). See [BSON Size Limit](#bson-size-limit). | `16777216` (16MB) |
 | `-mt`, `--maxThreads <threads>` | Maximum number of threads for handling client connections. | `1000` |
 | `-mint`, `--minThreads <threads>` | Minimum number of threads to keep in the pool. | `10` |
 | `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
@@ -275,6 +276,33 @@ java -jar poppydb-cli.jar --port 27017 --memory-warn 100 --memory-reject 100
 
 Programmatic: `poppyDb.setMemoryWatermarks(warnPercent, rejectPercent)` or
 `InMemoryDriver.setMemoryWatermarks(...)` for embedded use.
+
+### BSON Size Limit
+
+PoppyDB enforces MongoDB's per-document BSON size limit (default 16MB) — measured against a
+real 8.0.26 server, the behaviour is:
+
+- **Inserts/stores** of a document over the limit fail with `BSONObjectTooLarge` (code
+  10334) and mongod's message shape (`BSONObj size: N (0x..) is invalid. Size must be
+  between 0 and 16793600(16MB) First element: ...`). In practice, well-behaved drivers
+  already refuse to *send* such documents, because the limit is advertised as
+  `maxBsonObjectSize` in the `hello` handshake — which PoppyDB now answers with the
+  *configured* value instead of a hardcoded one.
+- **Updates** (`$set`, `$push`, replacements, upserts) whose **resulting** document would
+  exceed the limit fail with the same error, atomically — the stored document is left
+  untouched. This is the case client-side checks cannot catch (each individual update
+  command is small), so the server-side check is what actually guarantees the bound.
+  Like mongod, update results get a 16KB internal margin (`BSONObjMaxInternalSize`).
+
+Do not confuse this with `maxMessageSizeBytes` (48MB): that bounds a single **wire
+protocol message** — the envelope — so a bulk insert can carry multiple documents of up
+to `maxBsonObjectSize` each in one message.
+
+Configurable via `--max-bson-size <bytes>` (0 disables the check entirely — then `hello`
+advertises a permissive 128MB), programmatic via `poppyDb.setMaxBsonObjectSize(bytes)` or
+`InMemoryDriver.setMaxBsonObjectSize(bytes)` for embedded use. The embedded InMemoryDriver
+enforces the same 16MB default, so tests against it catch oversized documents before a
+real MongoDB would.
 
 ### SSL/TLS Configuration
 

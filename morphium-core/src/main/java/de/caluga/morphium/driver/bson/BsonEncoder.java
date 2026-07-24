@@ -32,6 +32,21 @@ public class BsonEncoder {
         return encodeDocument(m, UUIDRepresentation.STANDARD);
     }
 
+    /**
+     * BSON size in bytes of the given document - exactly what {@link #encodeDocument(Map)}
+     * would produce, but without materializing the final array copy (the driver's document
+     * size limit checks this on every write, and a near-limit document would otherwise
+     * allocate its whole size twice just to be measured).
+     */
+    public static int documentSize(Map<String, Object> m) {
+        BsonEncoder enc = new BsonEncoder();
+        for (Map.Entry<String, Object> e : m.entrySet()) {
+            enc.encodeObject(e.getKey(), e.getValue());
+        }
+        // body + 4 bytes length prefix + 1 byte terminator
+        return enc.out.size() + 5;
+    }
+
     public static byte[] encodeDocument(Map<String, Object> m, UUIDRepresentation representation) {
         // Use a single encoder for all fields — avoids N allocations for N fields
         BsonEncoder enc = new BsonEncoder();

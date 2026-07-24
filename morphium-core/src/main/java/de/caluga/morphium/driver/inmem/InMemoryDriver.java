@@ -3563,7 +3563,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         helloResponse.put("isWritablePrimary", true);
         helloResponse.put("ismaster", true); // Critical for driver compatibility
         helloResponse.put("secondary", false);
-        helloResponse.put("maxBsonObjectSize", 128 * 1024 * 1024);
+        // advertise the enforced limit so well-behaved drivers block oversized documents
+        // client-side, exactly like against mongod; disabled limit → historical 128MB
+        helloResponse.put("maxBsonObjectSize", maxBsonObjectSize > 0 ? maxBsonObjectSize : 128 * 1024 * 1024);
         helloResponse.put("maxWriteBatchSize", 100000);
         helloResponse.put("maxWireVersion", 21);
         helloResponse.put("minWireVersion", 0);
@@ -3693,11 +3695,66 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public int getMaxBsonObjectSize() {
-        return Integer.MAX_VALUE;
+        return maxBsonObjectSize;
     }
 
+    /** Document size limit in bytes, mongod-compatible (default 16MB); 0 disables the check. */
     @Override
     public void setMaxBsonObjectSize(int maxBsonObjectSize) {
+        if (maxBsonObjectSize < 0) {
+            throw new IllegalArgumentException("maxBsonObjectSize must be >= 0 (0 = unlimited)");
+        }
+
+        this.maxBsonObjectSize = maxBsonObjectSize;
+    }
+
+    // mongod's BSONObjMaxUserSize; update RESULTS get mongod's additional 16KB internal
+    // margin (BSONObjMaxInternalSize) - see documentTooLarge
+    private volatile int maxBsonObjectSize = 16 * 1024 * 1024;
+
+    /**
+     * mongod-compatible BSON size gate: measured against a real 8.0.26, a write whose
+     * document exceeds the limit fails with BSONObjectTooLarge (10334) and the message
+     * {@code BSONObj size: N (0x..) is invalid. Size must be between 0 and 16793600(16MB)
+     * First element: _id: 1} - where 16793600 is the user limit plus a 16KB internal
+     * margin that update results are checked against ({@code afterUpdate}), while inserts
+     * are held to the plain limit. Returns null when the document fits (or the limit is
+     * disabled), the ready-to-throw exception otherwise - callers on the update path must
+     * roll back their in-place mutation before throwing.
+     */
+    private MorphiumDriverException documentTooLarge(Map<String, Object> doc, boolean afterUpdate) {
+        int limit = maxBsonObjectSize;
+
+        if (limit <= 0) {
+            return null;
+        }
+
+        int internalMax = limit + 16 * 1024;
+        int bound = afterUpdate ? internalMax : limit;
+        int size = de.caluga.morphium.driver.bson.BsonEncoder.documentSize(doc);
+
+        if (size <= bound) {
+            return null;
+        }
+
+        String first = "";
+
+        if (!doc.isEmpty()) {
+            var e = doc.entrySet().iterator().next();
+            String v = String.valueOf(e.getValue());
+
+            if (v.length() > 40) {
+                v = v.substring(0, 40) + "...";
+            }
+
+            first = " First element: " + e.getKey() + ": " + v;
+        }
+
+        MorphiumDriverException ex = new MorphiumDriverException(
+            "BSONObj size: " + size + " (0x" + Integer.toHexString(size).toUpperCase() + ") is invalid. "
+            + "Size must be between 0 and " + internalMax + "(" + (limit / (1024 * 1024)) + "MB)" + first);
+        ex.setMongoCode(10334); // BSONObjectTooLarge
+        return ex;
     }
 
     @Override
@@ -4389,7 +4446,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @Override
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException {
         return new HelloResult().setHosts(Arrays.asList("inMem")).setHelloOk(true).setLocalTime(new Date())
-        .setMaxBsonObjectSize(Integer.MAX_VALUE).setMe("inMem").setWritablePrimary(true);
+        .setMaxBsonObjectSize(maxBsonObjectSize > 0 ? maxBsonObjectSize : Integer.MAX_VALUE)
+        .setMe("inMem").setWritablePrimary(true);
     }
 
     @Override
@@ -5873,6 +5931,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             int errors = 0;
             objs = new ArrayList<>(objs);
             writeErrors = new ArrayList<>();
+
+            // BSON size gate (mongod parity, code 10334) - like the duplicate checks below:
+            // ordered inserts throw, unordered ones report a per-document writeError
+            List<Map<String, Object>> oversized = new ArrayList<>();
+
+            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
+                MorphiumDriverException tooBig = documentTooLarge(objs.get(objIdx), false);
+
+                if (tooBig != null) {
+                    if (ordered) {
+                        throw tooBig;
+                    }
+
+                    writeErrors.add(Doc.of("index", objIdx, "code", 10334, "errmsg", tooBig.getMessage()));
+                    oversized.add(objs.get(objIdx));
+                    errors++;
+                }
+            }
+
+            objs.removeAll(oversized);
             // check for unique index
             List<Map<String, Object>> indexes = getIndexes(db, collection);
             if (indexes != null && !indexes.isEmpty()) {
@@ -6127,6 +6205,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private Map<String, Integer> storeInternal(String db, String collection, List<Map<String, Object>> objs,
             Map<String, Object> wc, List<PendingNotification> pendingNotifications) throws MorphiumDriverException {
         // This method is called with the write lock already held
+
+        // BSON size gate (mongod parity, code 10334) - covers store() and updateInternal's
+        // upsert branch; checked before any mutation, so a throw leaves nothing behind
+        for (Map<String, Object> o : objs) {
+            MorphiumDriverException tooBig = documentTooLarge(o, false);
+
+            if (tooBig != null) {
+                throw tooBig;
+            }
+        }
+
         Map<String, Integer> ret = new HashMap<>();
         int upd = 0;
         int inserted = 0;
@@ -7350,6 +7439,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
 
                     if (!insert) {
+                        // mongod refuses an update whose RESULT exceeds the BSON size limit -
+                        // atomically, so the in-place replacement is rolled back before throwing
+                        MorphiumDriverException tooBig = documentTooLarge(obj, true);
+
+                        if (tooBig != null) {
+                            obj.clear();
+                            obj.putAll(original);
+                            throw tooBig;
+                        }
+
                         // Keep the index store in sync with the in-place replacement. NOTE: this
                         // branch previously ran NO uniqueness validation at all on a full-document
                         // replace - a pre-existing gap. CollectionIndexStore.onUpdate enforces
@@ -7976,6 +8075,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
 
                 if (!insert) {
+                    // mongod refuses an update whose RESULT exceeds the BSON size limit (10334,
+                    // checked against limit + 16KB internal margin) - atomically, so the in-place
+                    // mutation is rolled back exactly like the unique-violation path below
+                    MorphiumDriverException tooBig = documentTooLarge(obj, true);
+
+                    if (tooBig != null) {
+                        obj.clear();
+                        obj.putAll(original);
+                        throw tooBig;
+                    }
+
                     // Enforce uniqueness after modification; rollback if violation. "obj" was
                     // mutated in place above (same live reference the store's buckets already
                     // hold), so this is exactly the onUpdate(before, after) shape the store

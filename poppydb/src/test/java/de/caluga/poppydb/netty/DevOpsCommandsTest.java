@@ -241,6 +241,17 @@ public class DevOpsCommandsTest {
     }
 
     @Test
+    public void helloAdvertisesTheDriversConfiguredBsonSizeLimit() {
+        drv.setMaxBsonObjectSize(4 * 1024 * 1024);
+
+        Map<String, Object> reply = send(Doc.of("hello", 1, "$db", "admin"));
+
+        assertThat(((Number) reply.get("maxBsonObjectSize")).intValue())
+            .as("hello must advertise the enforced limit, not a hardcoded one: " + reply)
+            .isEqualTo(4 * 1024 * 1024);
+    }
+
+    @Test
     public void topAnswersExplicitCommandNotSupported() {
         Map<String, Object> reply = send(Doc.of("top", 1, "$db", "admin"));
 

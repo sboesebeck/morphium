@@ -1489,6 +1489,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         String effectiveHost = host;
 
         if ("0.0.0.0".equals(effectiveHost) || "::".equals(effectiveHost)) {
+            // Prefer the RS seed entry matching our port BEFORE any DNS lookup:
+            // getLocalHost().getCanonicalHostName() below can block for ~30s on hosts
+            // without working reverse DNS, and when the seed list already names us the
+            // resolved value was discarded anyway.
+            if (hosts != null) {
+                for (String seed : hosts) {
+                    if (seed.endsWith(":" + port)) {
+                        return seed;
+                    }
+                }
+            }
+
             try {
                 effectiveHost = java.net.InetAddress.getLocalHost().getCanonicalHostName();
             } catch (Exception e) {
@@ -1542,7 +1554,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         res.setMaxWireVersion(17);
         res.setMinWireVersion(13);
         res.setMaxMessageSizeBytes(48 * 1024 * 1024); // 48MB, same as MongoDB
-        res.setMaxBsonObjectSize(16 * 1024 * 1024);  // 16MB, same as MongoDB
+        // the driver enforces this limit on every write - advertise the real value so
+        // well-behaved clients block oversized documents client-side, like against mongod
+        // (16MB by default; 0 = disabled, then advertise a permissive 128MB)
+        int maxBson = driver.getMaxBsonObjectSize();
+        res.setMaxBsonObjectSize(maxBson > 0 ? maxBson : 128 * 1024 * 1024);
         // In standalone mode (no RS name), behave like real MongoDB:
         // don't set setName, hosts, or secondary — only writablePrimary
         if (rsName != null && !rsName.isEmpty()) {
