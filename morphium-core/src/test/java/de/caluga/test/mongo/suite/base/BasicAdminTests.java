@@ -110,6 +110,29 @@ public class BasicAdminTests extends MultiDriverTestBase {
         }
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void listCollectionsWithPattern(Morphium morphium) {
+        // regression test: Morphium.listCollections(pattern) caches its result via CollectionInfo,
+        // which used to have no @Id field - this made every call with a non-null pattern throw
+        // IllegalArgumentException("Object has no id defined: CollectionInfo") (fixed by adding
+        // @Id to CollectionInfo#name).
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+
+        try(morphium) {
+            UncachedObject u = new UncachedObject("test", 1);
+            morphium.store(u);
+            String collectionName = morphium.getMapper().getCollectionName(UncachedObject.class);
+            List<String> cols = morphium.listCollections(java.util.regex.Pattern.quote(collectionName));
+            assertNotNull(cols);
+            assertTrue(cols.contains(collectionName));
+            //calling again must hit the cache path without throwing
+            cols = morphium.listCollections(java.util.regex.Pattern.quote(collectionName));
+            assertTrue(cols.contains(collectionName));
+        }
+    }
+
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

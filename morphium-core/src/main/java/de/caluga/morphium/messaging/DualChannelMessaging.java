@@ -1365,15 +1365,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         try {
             String ownDmCollection = getDMCollectionName();
             String prefix = getCollectionName() + "_dm_";
-            // NOTE: deliberately NOT morphium.listCollections(pattern) with a non-null regex
-            // pattern here - that call path hits a pre-existing Morphium framework bug: it caches
-            // results via CollectionInfo (de.caluga.morphium.CollectionInfo), which has no @Id
-            // field, so MorphiumCacheImpl#addToCache throws IllegalArgumentException("Object has
-            // no id defined: CollectionInfo") for any non-null cache key. listCollections() with
-            // no pattern avoids that code path; filtering by prefix happens here in Java instead.
-            // This is a core-framework issue independent of DualChannelMessaging - flagged in the
-            // feature's final report rather than fixed here (out of this feature's scope).
-            List<String> all = morphium.listCollections();
+            // Server-side filtered via a regex pattern (Morphium.listCollections(pattern) caches
+            // results as CollectionInfo, which needs an @Id - see CollectionInfo#name).
+            List<String> all = morphium.listCollections(java.util.regex.Pattern.quote(prefix) + ".*");
 
             if (all == null) {
                 return;
