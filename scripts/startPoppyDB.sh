@@ -102,7 +102,15 @@ if [ ! -e $TMPDIR ]; then
 fi
 if $COMPILE; then
   mvn -Dmaven.test.skip=true -Dmaven.javadoc.skip=true package -pl poppydb -am || exit 1
-  mv poppydb/target/*-cli.jar $TMPDIR/poppydb.jar
+  # resolve the current project version from the pom - stale jars from older
+  # versions may still be lying around in target/
+  POMVERSION=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' pom.xml | head -n 1)
+  CLIJAR="poppydb/target/poppydb-${POMVERSION}-cli.jar"
+  if [ ! -e "$CLIJAR" ]; then
+    echo "Build did not produce $CLIJAR - check pom version / build output"
+    exit 1
+  fi
+  mv "$CLIJAR" $TMPDIR/poppydb.jar
 else
   if [ ! -e $TMPDIR/poppydb.jar ]; then
     echo "No PoppyDB installation found"

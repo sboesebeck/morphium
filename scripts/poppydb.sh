@@ -93,7 +93,16 @@ function _pdb_parse_hosts_from_uri() {
 
 function _pdb_find_cli_jar() {
   local jar
-  jar=$(ls -1 poppydb/target/*-cli*.jar 2>/dev/null | head -n 1)
+  # Prefer the jar matching the current pom version - stale jars from older
+  # versions may still be lying around in target/
+  local pom_version
+  pom_version=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' pom.xml 2>/dev/null | head -n 1)
+  if [ -n "$pom_version" ] && [ -f "poppydb/target/poppydb-${pom_version}-cli.jar" ]; then
+    jar="poppydb/target/poppydb-${pom_version}-cli.jar"
+  fi
+  if [ -z "$jar" ]; then
+    jar=$(ls -1 poppydb/target/*-cli*.jar 2>/dev/null | head -n 1)
+  fi
   if [ -z "$jar" ]; then
     jar=$(ls -1 poppydb/target/poppydb-*-cli.jar 2>/dev/null | head -n 1)
   fi
