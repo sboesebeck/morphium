@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -2736,17 +2737,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             database.putIfAbsent(cmd.getDb(), new HashMap<>());
         }
 
-        // Get the name filter if specified
+        // Get the name filter if specified. MongoDB's listCollections accepts either an exact
+        // string (equality) or a BSON regex for filter.name; the wire protocol decodes a BSON
+        // regex into java.util.regex.Pattern (see BsonDecoder). Stringifying a Pattern via
+        // String.valueOf() yields its regex source (e.g. "\Qfoo\E"), which can never equal a
+        // real collection name - that used to silently make every regex-filtered listCollections
+        // call over the wire (e.g. against PoppyDB) return zero matches.
         Map<String, Object> filter = cmd.getFilter();
         String nameFilter = null;
+        Pattern nameFilterPattern = null;
         if (filter != null && filter.containsKey("name")) {
             Object filterName = filter.get("name");
             log.debug("listCollections filter: name={}, type={}", filterName,
                       filterName != null ? filterName.getClass().getName() : "null");
             if (filterName instanceof String) {
                 nameFilter = (String) filterName;
+            } else if (filterName instanceof Pattern) {
+                nameFilterPattern = (Pattern) filterName;
             } else if (filterName != null) {
-                // Handle non-String types by converting to string
+                // Handle non-String, non-Pattern types by converting to string
                 nameFilter = String.valueOf(filterName);
             }
         }
@@ -2754,6 +2763,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (String coll : database.get(cmd.getDb()).keySet()) {
             // Apply name filter if specified
             if (nameFilter != null && !nameFilter.equals(coll)) {
+                continue;
+            }
+            if (nameFilterPattern != null && !nameFilterPattern.matcher(coll).matches()) {
                 continue;
             }
 
