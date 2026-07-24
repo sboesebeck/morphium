@@ -252,9 +252,15 @@ a replica set stop accepting new data at the same watermark instead of failing t
 
 Clients receive the rejection as a write error and should treat it as retryable
 backpressure. The current state is visible in `db.serverStatus().memoryWatermark`
-(`heapUsedPercent`, thresholds, warn state). The gauge is JVM heap occupancy — garbage
-inflates it, so rejection near the limit errs on the conservative side, which beats an
-OOM kill.
+(`heapUsedPercent`, `heapUsedAfterGcPercent`, thresholds, warn state).
+
+Both stages decide on the **post-GC live set** (`heapUsedAfterGcPercent`, from the JVM's
+per-pool collection usage), not on raw heap occupancy: with `-Xms` == `-Xmx` the JVM only
+collects when the heap is nearly full, so the raw `used/max` gauge routinely reads above
+90% under allocation-heavy load even when the next GC would free most of it. Deciding on
+the raw gauge would reject writes on a heap that is one GC away from half empty. The raw
+gauge remains as a cheap precheck (the live set can never exceed it) and is what
+`heapUsedPercent` reports in `serverStatus`.
 
 ```bash
 # defaults: warn at 75%, reject at 90%

@@ -1350,9 +1350,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // reject watermark, document-creating writes (insert/store) are refused with
     // ExceededMemoryLimit (146) while updates, deletes and TTL sweeps stay allowed - the
     // drain paths (messaging processed-marks, lock deletes, expiry) must keep working or
-    // the system could never get back under the watermark. Measured against JVM heap
-    // occupancy (used/max) - garbage inflates the gauge, so rejection near the limit is
-    // conservative, which beats an OOM kill.
+    // the system could never get back under the watermark. Decisions are based on the
+    // post-GC live set (heapUsedAfterGcPercent): the raw used/max gauge counts collectable
+    // garbage and routinely reads >90% under allocation-heavy load with -Xms==-Xmx, which
+    // would reject writes a single GC away from a half-empty heap. The raw gauge only
+    // serves as a cheap precheck - between collections used memory never shrinks, so the
+    // live set cannot exceed it.
 
     private volatile int memoryWarnPercent = 75;
     private volatile int memoryRejectPercent = 90;
@@ -1382,10 +1385,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return memoryWarnActive.get();
     }
 
-    /** Current JVM heap occupancy in percent of the maximum heap. */
+    /** Current JVM heap occupancy in percent of the maximum heap - includes collectable garbage. */
     public double heapUsedPercent() {
         Runtime rt = Runtime.getRuntime();
         return 100.0 * (rt.totalMemory() - rt.freeMemory()) / rt.maxMemory();
+    }
+
+    /**
+     * Heap occupancy at the end of the most recent garbage collection, in percent of the
+     * maximum heap - the live-set approximation the watermark decisions are based on. The
+     * raw gauge (heapUsedPercent) counts collectable garbage too: with -Xms==-Xmx the JVM
+     * only collects when the heap is nearly full, so raw occupancy sits above 90% under
+     * allocation-heavy load even when the next GC would free most of it. Falls back to the
+     * raw gauge while no collection has produced data yet (fresh JVM) - conservative, but
+     * short-lived: a heap that is actually near full triggers a GC on its own.
+     */
+    public double heapUsedAfterGcPercent() {
+        long used = 0;
+        boolean haveData = false;
+
+        for (java.lang.management.MemoryPoolMXBean pool : java.lang.management.ManagementFactory.getMemoryPoolMXBeans()) {
+            if (pool.getType() != java.lang.management.MemoryType.HEAP) {
+                continue;
+            }
+
+            java.lang.management.MemoryUsage afterGc = pool.getCollectionUsage();
+
+            if (afterGc != null) {
+                used += afterGc.getUsed();
+                haveData = haveData || afterGc.getUsed() > 0;
+            }
+        }
+
+        if (!haveData) {
+            return heapUsedPercent();
+        }
+
+        return 100.0 * used / Runtime.getRuntime().maxMemory();
     }
 
     /**
@@ -1417,22 +1453,34 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         double used = heapUsedPercent();
 
+        // fast path: the live set can never exceed the raw gauge, so below the thresholds
+        // the MXBean query can be skipped entirely on the hot write path
+        double live = -1;
+
         if (used >= memoryWarnPercent && memoryWarnPercent < 100) {
-            if (memoryWarnActive.compareAndSet(false, true)) {
-                log.warn("Heap occupancy {}% crossed the warn watermark ({}%) - document-creating writes "
-                         + "will be rejected at {}%", Math.round(used), memoryWarnPercent, memoryRejectPercent);
+            live = heapUsedAfterGcPercent();
+
+            if (live >= memoryWarnPercent && memoryWarnActive.compareAndSet(false, true)) {
+                log.warn("Heap live set {}% crossed the warn watermark ({}%) - document-creating writes "
+                         + "will be rejected at {}%", Math.round(live), memoryWarnPercent, memoryRejectPercent);
             }
         } else if (used < memoryWarnPercent - 5 && memoryWarnActive.compareAndSet(true, false)) {
             log.info("Heap occupancy {}% dropped below the warn watermark ({}%)", Math.round(used), memoryWarnPercent);
         }
 
         if (used >= memoryRejectPercent && memoryRejectPercent < 100) {
-            MorphiumDriverException ex = new MorphiumDriverException(
-                "heap occupancy " + Math.round(used) + "% is above the memory watermark ("
-                + memoryRejectPercent + "%) - refusing to create new documents; delete data, "
-                + "wait for TTL expiry or raise the heap");
-            ex.setMongoCode(146); // ExceededMemoryLimit
-            throw ex;
+            if (live < 0) {
+                live = heapUsedAfterGcPercent();
+            }
+
+            if (live >= memoryRejectPercent) {
+                MorphiumDriverException ex = new MorphiumDriverException(
+                    "heap live set " + Math.round(live) + "% is above the memory watermark ("
+                    + memoryRejectPercent + "%) - refusing to create new documents; delete data, "
+                    + "wait for TTL expiry or raise the heap");
+                ex.setMongoCode(146); // ExceededMemoryLimit
+                throw ex;
+            }
         }
     }
 
@@ -1944,7 +1992,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             try {
                 java.lang.reflect.Method method = runCommandMethodCache.computeIfAbsent(commandClass, cls -> {
                     try {
-                        return InMemoryDriver.this.getClass().getDeclaredMethod("runCommand", cls);
+                        // the handlers are declared on InMemoryDriver itself - getClass() would miss
+                        // them (getDeclaredMethod ignores inherited methods) for subclassed drivers
+                        return InMemoryDriver.class.getDeclaredMethod("runCommand", cls);
                     } catch (NoSuchMethodException e) {
                         throw new RuntimeException("No runCommand method for " + cls.getSimpleName(), e);
                     }
@@ -2014,6 +2064,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         m.put("mem", Doc.of("bits", 64, "resident", (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024),
                             "virtual", rt.totalMemory() / (1024 * 1024), "supported", true));
         m.put("memoryWatermark", Doc.of("heapUsedPercent", Math.round(heapUsedPercent() * 10) / 10.0,
+                                        "heapUsedAfterGcPercent", Math.round(heapUsedAfterGcPercent() * 10) / 10.0,
                                         "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
                                         "warnActive", memoryWarnActive.get()));
         addResult(ret, m);

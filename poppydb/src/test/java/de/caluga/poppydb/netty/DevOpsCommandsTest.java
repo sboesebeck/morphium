@@ -48,11 +48,15 @@ public class DevOpsCommandsTest {
     }
 
     private Map<String, Object> send(Map<String, Object> cmd) {
+        return send(ch, cmd);
+    }
+
+    private Map<String, Object> send(EmbeddedChannel channel, Map<String, Object> cmd) {
         OpMsg msg = new OpMsg();
         msg.setMessageId(msgId.incrementAndGet());
         msg.setFirstDoc(cmd);
-        ch.writeInbound(msg);
-        OpMsg reply = ch.readOutbound();
+        channel.writeInbound(msg);
+        OpMsg reply = channel.readOutbound();
         assertThat(reply).as("no reply for " + cmd.keySet().iterator().next()).isNotNull();
         return reply.getFirstDoc();
     }
@@ -203,15 +207,27 @@ public class DevOpsCommandsTest {
     }
 
     @Test
-    public void insertOverTheWireIsRejectedAboveTheMemoryWatermark() {
-        // hold >=2% of the max heap so a 1% threshold is guaranteed to be exceeded,
-        // independent of the surefire JVM's heap sizing
-        byte[] filler = new byte[(int) Math.min(Integer.MAX_VALUE - 8, Runtime.getRuntime().maxMemory() / 50)];
-        filler[0] = 1;
-        drv.setMemoryWatermarks(1, 1);
+    public void insertOverTheWireIsRejectedAboveTheMemoryWatermark() throws Exception {
+        // fixed heap gauges instead of a real filler: the guard decides on the post-GC
+        // live set, which cannot be forced deterministically from a test
+        InMemoryDriver hotDrv = new InMemoryDriver() {
+            @Override
+            public double heapUsedPercent() {
+                return 95;
+            }
+
+            @Override
+            public double heapUsedAfterGcPercent() {
+                return 93; // above the default reject watermark (90)
+            }
+        };
+        hotDrv.connect();
+        EmbeddedChannel hotCh = new EmbeddedChannel(new MongoCommandHandler(hotDrv, null, null, null,
+                new AtomicInteger(1), "0.0.0.0", 27017, "my-rs", List.of("localhost:27017", "localhost:27018"),
+                true, "localhost:27017", 0, () -> null).setOpRegistry(new OpRegistry()));
 
         try {
-            Map<String, Object> reply = send(Doc.of("insert", "c1",
+            Map<String, Object> reply = send(hotCh, Doc.of("insert", "c1",
                     "documents", List.of(Doc.of("_id", 1)), "$db", "wmdb"));
 
             @SuppressWarnings("unchecked")
@@ -220,11 +236,8 @@ public class DevOpsCommandsTest {
             assertThat(((Number) writeErrors.get(0).get("code")).intValue())
                 .as("ExceededMemoryLimit, not a mislabelled duplicate key: " + reply).isEqualTo(146);
         } finally {
-            drv.setMemoryWatermarks(75, 90);
+            hotDrv.close();
         }
-
-        // keep the filler reachable until the assertions ran
-        assertThat(filler.length).isPositive();
     }
 
     @Test
