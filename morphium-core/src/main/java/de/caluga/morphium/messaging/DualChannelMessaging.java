@@ -952,16 +952,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             return;
         }
 
-        // Atomic get-and-remove: a callback must fire exactly once. Unlike the main lane (where
-        // idsInProgress shields the whole processing runnable, including this dispatch, from
-        // redelivery until persistProcessedByMark's write has landed - see the main lane's
-        // equivalent block), this DM fast path runs directly on the CS listener thread and never
-        // touches dmIdsInProgress, so a fallback poll triggered by the async persist's own update
-        // event can rediscover the still-not-yet-marked-processed document and redeliver it via
-        // enqueueDmForProcessing/the DM dispatcher thread while the entry is still sitting here.
-        // Using remove() instead of get() closes that window regardless of exclusivity: whichever
-        // path claims the entry first is the only one that ever invokes the callback.
-        final CallbackRequest cbr = waitingForCallbacks.remove(m.getInAnswerTo());
+        final CallbackRequest cbr = claimCallbackFor(m);
 
         if (cbr != null) {
             AsyncMessageCallback cb = cbr.callback;
@@ -1078,11 +1069,10 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                     return;
                 }
 
-                // Atomic get-and-remove - see handleDmAnswer's identical reasoning: a callback
-                // must fire exactly once, regardless of exclusivity, and this path is reached
-                // both from the fallback poll and (via enqueueDmForProcessing's fallthrough) from
-                // the CS fast path finding neither a waiter nor callback the first time around.
-                final CallbackRequest cbr = waitingForCallbacks.remove(msg.getInAnswerTo());
+                // this path is reached both from the fallback poll and (via
+                // enqueueDmForProcessing's fallthrough) from the CS fast path finding neither
+                // a waiter nor callback the first time around - same claim gate as there
+                final CallbackRequest cbr = claimCallbackFor(msg);
 
                 if (cbr != null) {
                     final Msg theMessage = msg;
@@ -2914,6 +2904,40 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         AsyncMessageCallback callback;
         long ttl;
         long timestamp;
+        // answer msgIds already dispatched to this callback - the per-answer exactly-once
+        // gate for broadcast requests (see claimCallbackFor). Bounded by the request's
+        // lifetime: the entry (and this set with it) is removed on answer (exclusive),
+        // timeout or shutdown.
+        final Set<MorphiumId> dispatchedAnswers = ConcurrentHashMap.newKeySet();
+    }
+
+    /**
+     * Exactly-once dispatch gate for DM answer callbacks, claimed atomically by whichever
+     * path (CS fast path or dispatcher thread) gets there first - the DM fast path runs
+     * outside dmIdsInProgress, so the async persistDmProcessedByMark write can trigger a
+     * fallback poll that redelivers the SAME answer before the mark lands (the
+     * double-callback race). Returns the CallbackRequest when the caller may fire the
+     * callback for this answer, null otherwise.
+     *
+     * <p>Exclusive requests expect exactly one answer: atomically removing the entry is
+     * the claim. Broadcast requests (non-exclusive sendAndAwaitAsync) legitimately receive
+     * one answer PER responder on the same entry - the entry must survive, so there the
+     * claim is per answer id: {@code dispatchedAnswers.add} is atomic, the same answer
+     * document fires at most once, distinct answers all pass
+     * (SendAndAwaitAsyncMultiAnswerTest holds this invariant).
+     */
+    private CallbackRequest claimCallbackFor(Msg answer) {
+        CallbackRequest cbr = waitingForCallbacks.get(answer.getInAnswerTo());
+
+        if (cbr == null) {
+            return null;
+        }
+
+        if (cbr.theMessage.isExclusive()) {
+            return waitingForCallbacks.remove(answer.getInAnswerTo());
+        }
+
+        return cbr.dispatchedAnswers.add(answer.getMsgId()) ? cbr : null;
     }
 
     /**
