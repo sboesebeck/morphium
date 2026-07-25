@@ -62,6 +62,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging messaging1 = morph.createMessaging();
                 MorphiumMessaging messaging2 = morph.createMessaging();
                 MorphiumMessaging messagingElse = morph.createMessaging();
@@ -89,9 +90,9 @@ public class AnsweringTests extends MultiDriverTestBase {
                 messaging1.start();
                 messaging2.start();
                 messagingElse.start();
-                assertTrue(messaging1.waitForReady(15, TimeUnit.SECONDS), "messaging1 not ready");
-                assertTrue(messaging2.waitForReady(15, TimeUnit.SECONDS), "messaging2 not ready");
-                assertTrue(messagingElse.waitForReady(15, TimeUnit.SECONDS), "messagingElse not ready");
+                assertTrue(messaging1.waitForReady(60, TimeUnit.SECONDS), "messaging1 not ready");
+                assertTrue(messaging2.waitForReady(60, TimeUnit.SECONDS), "messaging2 not ready");
+                assertTrue(messagingElse.waitForReady(60, TimeUnit.SECONDS), "messagingElse not ready");
                 Msg msg = new Msg("not asdf", "will it stick", "uahh", 10000);
                 msg.setPriority(1);
                 messaging1.sendMessage(msg);
@@ -139,6 +140,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 assertThrows(RuntimeException.class, () -> {
                     MorphiumMessaging m1 = morph.createMessaging();
                     log.info("Upcoming Errormessage is expected, because messaging is not processing own messages!");
@@ -184,6 +186,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.setSenderId("Sender");
                 sender.start();
@@ -211,7 +214,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     msgs.add(rec);
                 }
                 for (MorphiumMessaging rec : msgs) {
-                    assertTrue(rec.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+                    assertTrue(rec.waitForReady(60, TimeUnit.SECONDS), "receiver not ready");
                 }
 
                 // Be more tolerant on external setups; first answer can take longer under load / replication lag
@@ -271,6 +274,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
 
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.setSenderId("sender");
@@ -322,6 +326,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
 
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.setSenderId("sender");

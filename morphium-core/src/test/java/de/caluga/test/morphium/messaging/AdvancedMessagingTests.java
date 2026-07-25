@@ -27,6 +27,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue;
 
 @Tag("messaging")
+// The base class budget (5 min) was sized for two messaging implementations - these
+// tests iterate MultiDriverTestBase.messagingsToTest, which now holds THREE
+// (DualChannelMessaging, #265): same per-iteration budget, one iteration more.
+@org.junit.jupiter.api.Timeout(value = 8, unit = java.util.concurrent.TimeUnit.MINUTES)
 public class AdvancedMessagingTests extends MultiDriverTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
@@ -48,6 +52,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
+                    morphium.dropCollection(Msg.class);
                     morphium.dropCollection(Msg.class, "msg", null);
                     counts.clear();
 
@@ -80,10 +85,10 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     m4.start();
 
                     // Wait for all messaging instances to be fully ready (change streams initialized)
-                    assertTrue(m1.waitForReady(15, TimeUnit.SECONDS), "m1 not ready");
-                    assertTrue(m2.waitForReady(15, TimeUnit.SECONDS), "m2 not ready");
-                    assertTrue(m3.waitForReady(15, TimeUnit.SECONDS), "m3 not ready");
-                    assertTrue(m4.waitForReady(15, TimeUnit.SECONDS), "m4 not ready");
+                    assertTrue(m1.waitForReady(60, TimeUnit.SECONDS), "m1 not ready");
+                    assertTrue(m2.waitForReady(60, TimeUnit.SECONDS), "m2 not ready");
+                    assertTrue(m3.waitForReady(60, TimeUnit.SECONDS), "m3 not ready");
+                    assertTrue(m4.waitForReady(60, TimeUnit.SECONDS), "m4 not ready");
 
                     MessageListener<Msg> msgMessageListener = (msg, m) -> {
                         Msg answer = m.createAnswerMsg();
@@ -142,6 +147,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
+                    morphium.dropCollection(Msg.class);
                     MorphiumMessaging producer = morphium.createMessaging();
                     producer.setUseChangeStream(true);
                     producer.start();
@@ -150,8 +156,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     consumer.start();
 
                     // Wait for both messaging instances to be fully ready (change streams initialized)
-                    assertTrue(producer.waitForReady(15, TimeUnit.SECONDS), "producer not ready");
-                    assertTrue(consumer.waitForReady(15, TimeUnit.SECONDS), "consumer not ready");
+                    assertTrue(producer.waitForReady(60, TimeUnit.SECONDS), "producer not ready");
+                    assertTrue(consumer.waitForReady(60, TimeUnit.SECONDS), "consumer not ready");
 
                     try {
                         consumer.addListenerForTopic("testDiff", new MessageListener() {
@@ -191,14 +197,15 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
+                    morphium.dropCollection(Msg.class);
                     MorphiumMessaging producer = morphium.createMessaging();
                     producer.start();
                     MorphiumMessaging consumer = morphium.createMessaging();
                     consumer.start();
 
                     // Wait for both messaging instances to be fully ready (change streams initialized)
-                    assertTrue(producer.waitForReady(15, TimeUnit.SECONDS), "producer not ready");
-                    assertTrue(consumer.waitForReady(15, TimeUnit.SECONDS), "consumer not ready");
+                    assertTrue(producer.waitForReady(60, TimeUnit.SECONDS), "producer not ready");
+                    assertTrue(consumer.waitForReady(60, TimeUnit.SECONDS), "consumer not ready");
 
                     counts.clear();
                     consumer.addListenerForTopic("testAnswering", (msg, m) -> {

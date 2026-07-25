@@ -1471,6 +1471,40 @@ public class PooledDriver extends DriverBase {
                 return;
             }
 
+            // NEVER pool a connection whose sent request still awaits its reply: the next
+            // borrower would read the predecessor's answer - THE source of the wire-desync
+            // family ("out of sync: expected reply to X, got Y", "Illegal opcode"). Whatever
+            // abandoned the request (interrupt, outer timeout between send and read) - the
+            // connection is poisoned, close it and let the pool create a fresh one.
+            if (con.hasPendingReplies()) {
+                String pending = "?";
+                boolean expectedAbandon = false;
+
+                if (con instanceof SingleMongoConnection smc) {
+                    pending = smc.pendingReplySummary();
+                    // a tailable/awaitData teardown legitimately walks away from its in-flight
+                    // getMore - close quietly; anything else is an abandoned reply worth a WARN
+                    expectedAbandon = smc.pendingRepliesAreOnlyGetMore();
+                }
+
+                if (expectedAbandon) {
+                    log.debug("Released connection to {} still awaits replies ({}) - closing instead of pooling",
+                        con.getConnectedTo(), pending);
+                } else {
+                    log.warn("Released connection to {} still awaits replies ({}) - closing instead of pooling",
+                        con.getConnectedTo(), pending);
+                }
+                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                markStatsDirty();
+
+                try {
+                    con.close();
+                } catch (Exception ignored) {
+                }
+
+                return;
+            }
+
             // Don't pool connections that exceeded their lifetime (or idle time) while borrowed —
             // pooling them parks already-expired connections until the heartbeat's expiry sweep
             // runs, which lags behind under load. A borrow burst then keeps the pool far above

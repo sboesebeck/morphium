@@ -3093,6 +3093,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     var res = cmd.execute();
                     cmd.releaseConnection();
                     cmd = null;
+                    // con = null is NOT optional: without it the finally below releases the
+                    // connection a SECOND time. By then the pool may have handed it to the next
+                    // borrower (borrowedConnections is keyed by source port, the re-borrow
+                    // re-registers the same port), so the second release steals that borrower's
+                    // connection mid-request - its un-read reply then poisoned the pool for the
+                    // next user: THE source of the "out of sync"/"Illegal opcode" wire-desync
+                    // family. Every sibling call site in this class already nulls con; this one
+                    // (createIndex - hence "abandoned by command 'createIndexes'" all over the
+                    // CI logs) was the one left behind.
+                    con = null;
 
                     if (res != null && res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
                         if (((String) res.get("errmsg")).contains("already exists")) {

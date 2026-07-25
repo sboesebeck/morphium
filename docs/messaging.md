@@ -9,7 +9,7 @@ Concepts
   - Exclusive (`Msg.setExclusive(true)`): exactly one listener processes the message (one‑of‑n); implemented using a lock collection
   - Non‑exclusive (default): every registered listener for the topic processes the message (broadcast)
 - Answers: listeners may return a `Msg` as response; senders can wait synchronously or asynchronously
-- Implementations: choose between Standard and Advanced; see [Messaging Implementations](./howtos/messaging-implementations.md) for differences and migration.
+- Implementations: choose between Standard, Advanced, and the beta Dual Channel implementation; see [Messaging Implementations](./howtos/messaging-implementations.md) for differences and migration.
 
 Setup
 ```java

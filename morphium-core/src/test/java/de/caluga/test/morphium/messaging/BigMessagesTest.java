@@ -40,6 +40,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 try (Morphium mx = new Morphium(cfg)) {
+                    mx.dropCollection(Msg.class);
                     MorphiumMessaging sender = mx.createMessaging();
                     MorphiumMessaging receiver = mx.createMessaging();
 

@@ -27,6 +27,17 @@ public interface MongoConnection extends Closeable {
 
     boolean isConnected();
 
+    /**
+     * True while a sent request's reply has not been read from this connection yet. Such
+     * a connection must not be reused/pooled - the next user would read its predecessor's
+     * answer (wire desync, "out of sync: expected reply to X, got Y"). Default false for
+     * implementations without request/reply bookkeeping (e.g. the in-memory driver, which
+     * answers synchronously).
+     */
+    default boolean hasPendingReplies() {
+        return false;
+    }
+
     String getConnectedTo();
 
     String getConnectedToHost();
