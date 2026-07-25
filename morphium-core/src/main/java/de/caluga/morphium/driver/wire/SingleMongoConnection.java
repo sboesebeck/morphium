@@ -661,6 +661,16 @@ public class SingleMongoConnection implements MongoConnection {
         return pendingReplies.toString();
     }
 
+    /**
+     * True when every pending reply belongs to a getMore - the expected shape of a
+     * tailable/awaitData teardown: stopping to tail structurally means walking away from
+     * an in-flight getMore the server is still holding open, there is nothing to fix.
+     * Anything else pending means a caller abandoned a reply it should have read.
+     */
+    public boolean pendingRepliesAreOnlyGetMore() {
+        return !pendingReplies.isEmpty() && pendingReplies.values().stream().allMatch("getMore"::equals);
+    }
+
     public synchronized OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
         return sendAndWaitForReply(q, driver.getMaxWaitTime());
     }

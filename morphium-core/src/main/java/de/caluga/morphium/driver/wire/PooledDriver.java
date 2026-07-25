@@ -1477,9 +1477,23 @@ public class PooledDriver extends DriverBase {
             // abandoned the request (interrupt, outer timeout between send and read) - the
             // connection is poisoned, close it and let the pool create a fresh one.
             if (con.hasPendingReplies()) {
-                String pending = con instanceof SingleMongoConnection smc ? smc.pendingReplySummary() : "?";
-                log.warn("Released connection to {} still awaits replies ({}) - closing instead of pooling",
-                    con.getConnectedTo(), pending);
+                String pending = "?";
+                boolean expectedAbandon = false;
+
+                if (con instanceof SingleMongoConnection smc) {
+                    pending = smc.pendingReplySummary();
+                    // a tailable/awaitData teardown legitimately walks away from its in-flight
+                    // getMore - close quietly; anything else is an abandoned reply worth a WARN
+                    expectedAbandon = smc.pendingRepliesAreOnlyGetMore();
+                }
+
+                if (expectedAbandon) {
+                    log.debug("Released connection to {} still awaits replies ({}) - closing instead of pooling",
+                        con.getConnectedTo(), pending);
+                } else {
+                    log.warn("Released connection to {} still awaits replies ({}) - closing instead of pooling",
+                        con.getConnectedTo(), pending);
+                }
                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                 markStatsDirty();
 
