@@ -596,6 +596,49 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
      * Register this messaging collection with PoppyDB for optimizations.
      * Only effective when connected to a PoppyDB instance.
      */
+    /**
+     * DM collection/TTL-index bootstrap - the network-touching startup step, extracted as a
+     * protected seam so tests can inject transient failures (startup resilience).
+     */
+    protected void ensureDmCollectionIndices() {
+        morphium.ensureIndicesFor(Msg.class, getDMCollectionName());
+    }
+
+    /**
+     * Startup steps must survive transient driver failures (a broken pooled connection
+     * after a wire hiccup, the heartbeat mid-reconnect): an uncaught exception in run()
+     * before {@link #readyLatch} counts down kills this thread and leaves every
+     * {@link #waitForReady} caller to time out against an instance that is dead on
+     * arrival - the CI failure shape "m4 not ready" (ensureIndicesFor threw
+     * "Not connected"). The pool heals underneath, so retry with bounded backoff for as
+     * long as the instance is supposed to run. Returns false when terminated/interrupted
+     * while retrying - the caller must abort startup then.
+     */
+    private boolean retryStartupStep(String stepName, Runnable step) {
+        int attempt = 0;
+
+        while (running) {
+            try {
+                step.run();
+                return true;
+            } catch (Exception e) {
+                attempt++;
+                long backoffMs = Math.min(5000L, 250L * attempt);
+                log.warn("Messaging {} startup step '{}' failed (attempt {}): {} - retrying in {}ms",
+                         id, stepName, attempt, e.getMessage(), backoffMs);
+
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private void registerWithPoppyDB() {
         try {
             if (morphium.getDriver().isPoppyDB()) {
@@ -1395,6 +1438,10 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
 
     public void run() {
         setName("Msg " + id);
+        // Startup phase timings: readiness stalls under parallel load (waitForReady timeouts,
+        // seen only with DualChannelMessaging in CI) need to name the slow phase, not just
+        // the total - logged as WARN when startup is suspiciously slow, DEBUG otherwise.
+        final long t0 = System.currentTimeMillis();
 
         if (statusInfoListenerEnabled) {
             listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
@@ -1402,11 +1449,17 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
 
         // Register with PoppyDB for optimizations if connected
         registerWithPoppyDB();
+        final long tPoppy = System.currentTimeMillis();
 
         // DualChannelMessaging (#265): ensure the DM collection (incl. its TTL index) exists
         // before wiring up its change stream / dispatcher. Done here (not in init()) because
         // setSenderId() can change getSenderId()/getDMCollectionName() between init() and start().
-        morphium.ensureIndicesFor(Msg.class, getDMCollectionName());
+        if (!retryStartupStep("ensureDmCollectionIndices", this::ensureDmCollectionIndices)) {
+            log.error("Messaging {} startup aborted (terminated while bootstrapping DM collection)", id);
+            return;
+        }
+
+        final long tIndices = System.currentTimeMillis();
         log.warn("DualChannelMessaging (beta, #265) starting on queue '{}': ALL messaging "
                 + "participants on this queue must run DualChannelMessaging for DM/answer "
                 + "delivery to work - a legacy StandardMessaging node's answers to THIS "
@@ -1417,12 +1470,32 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
 
         if (useChangeStream) {
             log.info("Changestream init");
-            initChangeStreams();
-            initDmChangeStream();
+
+            if (!retryStartupStep("initChangeStreams", this::initChangeStreams)) {
+                log.error("Messaging {} startup aborted (terminated while initializing change streams)", id);
+                return;
+            }
+
+            final long tMainCs = System.currentTimeMillis();
+
+            if (!retryStartupStep("initDmChangeStream", this::initDmChangeStream)) {
+                log.error("Messaging {} startup aborted (terminated while initializing the DM change stream)", id);
+                return;
+            }
+
+            final long tDmCs = System.currentTimeMillis();
             // Signal that messaging is now ready (change streams are initialized)
             ready = true;
             readyLatch.countDown();
-            log.info("Messaging {} is now ready", id);
+            long total = tDmCs - t0;
+            String timings = String.format("registerPoppy=%dms ensureIndices=%dms mainAndLockCs=%dms dmCs=%dms total=%dms",
+                    tPoppy - t0, tIndices - tPoppy, tMainCs - tIndices, tDmCs - tMainCs, total);
+
+            if (total > 10_000) {
+                log.warn("Messaging {} is now ready - SLOW startup: {}", id, timings);
+            } else {
+                log.info("Messaging {} is now ready ({})", id, timings);
+            }
         } else {
             // No change streams, ready immediately
             ready = true;
