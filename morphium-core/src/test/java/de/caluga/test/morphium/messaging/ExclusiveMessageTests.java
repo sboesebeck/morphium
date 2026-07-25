@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -512,7 +513,25 @@ public class ExclusiveMessageTests extends MultiDriverTestBase {
                         }
 
                         Thread.sleep(1000);
-                        assertTrue(System.currentTimeMillis() < waitUntil, "Took too long!");
+
+                        if (System.currentTimeMillis() >= waitUntil) {
+                            // Failure-path diagnostics (2026-07-25, poppydb_rs flaky: stuck at
+                            // 118/130 with an empty queue for minutes - message LOSS, not lag):
+                            // name the stuck documents and their lock state before failing, the
+                            // collections are dropped long before anyone can inspect them.
+                            for (Msg stuck : mx.createQueryFor(Msg.class, sender.getCollectionName()).asList()) {
+                                log.error("STUCK message {}: topic={} exclusive={} processedBy={} inAnswerTo={}",
+                                    stuck.getMsgId(), stuck.getTopic(), stuck.isExclusive(),
+                                    stuck.getProcessedBy(), stuck.getInAnswerTo());
+                            }
+
+                            for (MsgLock lock : mx.createQueryFor(MsgLock.class, sender.getLockCollectionName()).asList()) {
+                                log.error("STUCK lock {}: lockId={}", lock.getId(), lock.getLockId());
+                            }
+
+                            fail("Took too long! received=" + received.get() + " of " + (amount + broadcastAmount * 4)
+                                + " (impl " + msgImpl + ")");
+                        }
                     }
 
                     int rec = received.get();
