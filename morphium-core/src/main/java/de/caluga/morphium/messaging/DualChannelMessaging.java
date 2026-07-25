@@ -254,12 +254,24 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         setPause(settings.getMessagingPollPause());
         setMultithreadded(settings.isMessagingMultithreadded());
 
-        morphium.ensureIndicesFor(Msg.class, getCollectionName());
-        morphium.ensureIndicesFor(MsgLock.class, getLockCollectionName());
+        // Same resilience as the run()-side bootstrap: a transient driver failure (broken
+        // pooled connection, pool starvation under parallel load) must not fail messaging
+        // construction - retry until it works or the instance is terminated.
+        retryStartupStep("ensureMessagingCollectionIndices", this::ensureMessagingCollectionIndices);
 
         if (settings.isMessagingRegistryEnabled()) {
             networkRegistry = new MessagingRegistry(this);
         }
+    }
+
+    /**
+     * Main/lock collection index bootstrap - init()'s network-touching step, extracted as a
+     * protected seam so tests can inject transient failures (startup resilience, caller-thread
+     * twin of {@link #ensureDmCollectionIndices()}).
+     */
+    protected void ensureMessagingCollectionIndices() {
+        morphium.ensureIndicesFor(Msg.class, getCollectionName());
+        morphium.ensureIndicesFor(MsgLock.class, getLockCollectionName());
     }
 
     @Override

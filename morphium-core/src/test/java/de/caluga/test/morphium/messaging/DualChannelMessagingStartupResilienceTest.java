@@ -39,6 +39,38 @@ public class DualChannelMessagingStartupResilienceTest extends MultiDriverTestBa
         }
     }
 
+    /** Main/lock index bootstrap in init() failing transiently - the caller-thread twin. */
+    private static class FlakyInitMessaging extends DualChannelMessaging {
+        final AtomicInteger attempts = new AtomicInteger();
+
+        @Override
+        protected void ensureMessagingCollectionIndices() {
+            if (attempts.incrementAndGet() <= 2) {
+                throw new RuntimeException("simulated transient driver failure (Not connected)");
+            }
+
+            super.ensureMessagingCollectionIndices();
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void initSurvivesTransientDriverFailures(Morphium morphium) throws Exception {
+        try (morphium) {
+            FlakyInitMessaging msg = new FlakyInitMessaging();
+            msg.init(morphium); // must not throw despite two transient failures
+
+            try {
+                assertTrue(msg.attempts.get() >= 3, "the failing step must have been retried, attempts: "
+                    + msg.attempts.get());
+                msg.start();
+                assertTrue(msg.waitForReady(20, TimeUnit.SECONDS), "instance must come up normally afterwards");
+            } finally {
+                msg.terminate();
+            }
+        }
+    }
+
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void startupSurvivesTransientDriverFailures(Morphium morphium) throws Exception {

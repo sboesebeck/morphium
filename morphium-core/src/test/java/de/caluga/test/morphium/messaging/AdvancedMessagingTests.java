@@ -81,10 +81,10 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     m4.start();
 
                     // Wait for all messaging instances to be fully ready (change streams initialized)
-                    assertTrue(m1.waitForReady(15, TimeUnit.SECONDS), "m1 not ready");
-                    assertTrue(m2.waitForReady(15, TimeUnit.SECONDS), "m2 not ready");
-                    assertTrue(m3.waitForReady(15, TimeUnit.SECONDS), "m3 not ready");
-                    assertTrue(m4.waitForReady(15, TimeUnit.SECONDS), "m4 not ready");
+                    assertTrue(m1.waitForReady(60, TimeUnit.SECONDS), "m1 not ready");
+                    assertTrue(m2.waitForReady(60, TimeUnit.SECONDS), "m2 not ready");
+                    assertTrue(m3.waitForReady(60, TimeUnit.SECONDS), "m3 not ready");
+                    assertTrue(m4.waitForReady(60, TimeUnit.SECONDS), "m4 not ready");
 
                     MessageListener<Msg> msgMessageListener = (msg, m) -> {
                         Msg answer = m.createAnswerMsg();
@@ -152,8 +152,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     consumer.start();
 
                     // Wait for both messaging instances to be fully ready (change streams initialized)
-                    assertTrue(producer.waitForReady(15, TimeUnit.SECONDS), "producer not ready");
-                    assertTrue(consumer.waitForReady(15, TimeUnit.SECONDS), "consumer not ready");
+                    assertTrue(producer.waitForReady(60, TimeUnit.SECONDS), "producer not ready");
+                    assertTrue(consumer.waitForReady(60, TimeUnit.SECONDS), "consumer not ready");
 
                     try {
                         consumer.addListenerForTopic("testDiff", new MessageListener() {
@@ -200,8 +200,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     consumer.start();
 
                     // Wait for both messaging instances to be fully ready (change streams initialized)
-                    assertTrue(producer.waitForReady(15, TimeUnit.SECONDS), "producer not ready");
-                    assertTrue(consumer.waitForReady(15, TimeUnit.SECONDS), "consumer not ready");
+                    assertTrue(producer.waitForReady(60, TimeUnit.SECONDS), "producer not ready");
+                    assertTrue(consumer.waitForReady(60, TimeUnit.SECONDS), "consumer not ready");
 
                     counts.clear();
                     consumer.addListenerForTopic("testAnswering", (msg, m) -> {
