@@ -2053,7 +2053,7 @@
 <li>Exclusive (<code>Msg.setExclusive(true)</code>): exactly one listener processes the message (one‑of‑n); implemented using a lock collection</li>
 <li>Non‑exclusive (default): every registered listener for the topic processes the message (broadcast)</li>
 <li>Answers: listeners may return a <code>Msg</code> as response; senders can wait synchronously or asynchronously</li>
-<li>Implementations: choose between Standard and Advanced; see <a href="../howtos/messaging-implementations/">Messaging Implementations</a> for differences and migration.</li>
+<li>Implementations: choose between Standard, Advanced, and the beta Dual Channel implementation; see <a href="../howtos/messaging-implementations/">Messaging Implementations</a> for differences and migration.</li>
 </ul>
 <p>Setup
 <div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.messaging.*</span><span class="p">;</span>

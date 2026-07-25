@@ -1264,6 +1264,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dual-channel-messaging-beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dual Channel Messaging (Beta)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#measured-behavior-under-load-july-2026" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1329,6 +1340,17 @@
     <span class="md-ellipsis">
       
         Migrating Standard → Advanced
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migrating-standard-dual-channel-beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating Standard → Dual Channel (Beta)
       
     </span>
   </a>
@@ -1903,6 +1925,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dual-channel-messaging-beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dual Channel Messaging (Beta)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#measured-behavior-under-load-july-2026" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1968,6 +2001,17 @@
     <span class="md-ellipsis">
       
         Migrating Standard → Advanced
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migrating-standard-dual-channel-beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating Standard → Dual Channel (Beta)
       
     </span>
   </a>
@@ -2067,7 +2111,7 @@
 
 
 <h1 id="messaging-implementations">Messaging Implementations<a class="headerlink" href="#messaging-implementations" title="Permanent link">&para;</a></h1>
-<p>Morphium provides two messaging implementations that share the same API (<code>MorphiumMessaging</code>) but differ in storage layout and scalability characteristics.</p>
+<p>Morphium provides three messaging implementations that share the same API (<code>MorphiumMessaging</code>) but differ in storage layout and scalability characteristics.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Standard (<code>StdMessaging</code>, name: <code>StandardMessaging</code>)</li>
@@ -2083,17 +2127,76 @@
 <li>One collection per topic: <code>&lt;queue&gt;_&lt;topic&gt;</code> (spaces, dashes, slashes removed).</li>
 <li>Direct messages use a dedicated collection per recipient: <code>dm_&lt;senderIdCamelCase&gt;</code>.</li>
 <li>Lock collections per topic: <code>&lt;queue&gt;_lck_&lt;topic&gt;</code>.</li>
-<li>Optimized change stream efficiency and reduced contention on busy/many‑topic systems.</li>
+<li>
+<p>Optimized change stream efficiency and reduced contention on busy/many‑topic systems.</p>
+</li>
+<li>
+<p><strong>Dual Channel (<code>DualChannelMessaging</code>, BETA, since 6.4.0)</strong></p>
+</li>
+<li>A complete fork of Standard: identical single-collection layout and change-stream cursor for
+    broadcast/topic traffic - bit-for-bit the same backpressure/window behavior as Standard.</li>
+<li>Adds a <em>second</em> delivery lane purely for directed messages and answers: each participant gets
+    its own per-recipient collection <code>&lt;queue&gt;_dm_&lt;senderIdCamelCase&gt;</code> with its own dedicated
+    change-stream cursor and dispatcher thread.</li>
+<li>Rationale: load testing showed the throughput ceiling on MongoDB is delivery-bound - a single
+    change-stream cursor delivers at a fixed cadence regardless of collection layout. Advanced's
+    capacity edge over Standard comes from exactly this second cursor, not from the per-topic
+    split. Dual Channel isolates that one idea on top of an otherwise unmodified Standard core.</li>
+<li>Marked <code>@Beta</code> (see <code>de.caluga.morphium.annotations.Beta</code>): behavior, collection layout, or API
+    surface may change without a deprecation cycle. See
+    <a href="https://github.com/sboesebeck/morphium/issues/265">GitHub issue #265</a>.</li>
+<li><strong>Mixed-cluster requirement:</strong> every participant on a given queue must run
+    <code>DualChannelMessaging</code> for DM/answer delivery to work both ways - see the dedicated section
+    below.</li>
 </ul>
-<p>Both support:
+<p>Standard and Advanced support:
 - Change Streams vs polling (<code>useChangeStream</code>), window size, multithreading, answers, exclusive vs broadcast.</p>
+<p>Dual Channel supports all of the above too, plus its own DM lane settings (see Configuration below).</p>
 <h2 id="choosing-an-implementation">Choosing an Implementation<a class="headerlink" href="#choosing-an-implementation" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Start with Standard. If you have many topics, high listener fan‑out, or change streams getting noisy, move to Advanced.</li>
+<li>If your bottleneck is specifically request/reply (answer) throughput and you can run a
+  homogeneous cluster (see below), try the beta Dual Channel implementation instead of Advanced -
+  it keeps Standard's simpler single-collection layout for broadcast/topic traffic and only adds
+  the second cursor where it actually helps.</li>
 <li>Names used for selection:</li>
 <li><code>StandardMessaging</code> → <code>StdMessaging</code></li>
 <li><code>AdvMessaging</code> → <code>AdvancedSplitCollectionMessaging</code></li>
+<li><code>DualChannelMessaging</code> (beta) → <code>DualChannelMessaging</code></li>
 </ul>
+<h2 id="dual-channel-messaging-beta">Dual Channel Messaging (Beta)<a class="headerlink" href="#dual-channel-messaging-beta" title="Permanent link">&para;</a></h2>
+<p>Activate via configuration only - no code changes beyond the implementation name:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">&quot;DualChannelMessaging&quot;</span><span class="p">);</span>
+</span></code></pre></div>
+<p>Mechanism:
+- Broadcast/topic messages (no recipients set) use the same collection and change-stream cursor
+  as Standard, with identical window-limited polling and backpressure guards.
+- Directed messages (recipients set - both explicit point-to-point requests and answers created via
+  <code>Msg#sendAnswer</code>/<code>setRecipient</code>) are routed into the <em>recipient's own</em> per-recipient collection:
+  <code>&lt;queue&gt;_dm_&lt;senderIdCamelCase&gt;</code>. That collection has its own change-stream cursor and a
+  dedicated dispatcher thread, so answer/DM delivery is no longer serialized behind the main
+  broadcast cursor.
+- Answers are dispatched to a waiting <code>sendAndAwaitFirstAnswer</code>/<code>sendAndAwaitAsync</code> caller <em>before</em>
+  the <code>processed_by</code> write is persisted (same pattern as the perf fix in 6.3.0 for Standard/
+  Advanced), further cutting request/reply latency.
+- The DM collection (incl. its TTL index) is created on <code>start()</code> and dropped again on
+  <code>terminate()</code>. A registry-gated periodic sweep
+  (<code>MessagingSettings#setMessagingDmCleanupOrphansOnStartup</code>, default <code>true</code>, requires
+  <code>messagingRegistryEnabled=true</code>) drops OTHER empty, inactive participants' DM collections left
+  behind by crashed/removed nodes - it never touches a non-empty collection or one belonging to a
+  currently active participant.</p>
+<p><strong>Mixed-cluster requirement (read this before enabling in production):</strong> there is no dual-read/
+dual-write bridge between the collection layouts.
+- A <code>DualChannelMessaging</code> node CAN still receive and answer requests from legacy
+  <code>StandardMessaging</code> nodes on the same queue (the forked main lane keeps Standard's answer-handling
+  path as a compatibility side effect).
+- The reverse does NOT work: a <code>StandardMessaging</code> node awaiting an answer from a
+  <code>DualChannelMessaging</code> responder will time out, because the answer is written to the requester's
+  DM collection, which legacy code never reads.
+- Practically: <strong>all messaging participants on a given queue must run <code>DualChannelMessaging</code></strong>
+  for DM/answer delivery to work in both directions. Every <code>DualChannelMessaging</code> instance logs a
+  <code>WARN</code> on startup restating this. Migrate with the same big-bang or bridge approach described
+  under "Migrating Standard → Advanced" below (the same caveats apply).</p>
 <h2 id="measured-behavior-under-load-july-2026">Measured Behavior Under Load (July 2026)<a class="headerlink" href="#measured-behavior-under-load-july-2026" title="Permanent link">&para;</a></h2>
 <p>Request/reply load tests with the <a href="https://github.com/sboesebeck/morpheus">Morpheus</a> latency tool
 (ramp 50→250 msg/s in 50 msg/s steps of 10 s, 15 sender threads, 5 s warmup, <code>sendAndAwaitAsync</code>
@@ -2169,25 +2272,26 @@ cheap enough that the single cursor never became the bottleneck in this test.</p
   dedicated DM collection), not from the per-topic split: on mongod every change-stream cursor
   tails the whole oplog regardless of collection layout, and Standard already filters relevance
   server-side in its pipeline. Combining Standard's layout with just that second delivery lane is
-  planned as a third, beta-marked implementation (selectable via settings like the others) for
-  6.4 — see <a href="https://github.com/sboesebeck/morphium/issues/265">#265</a>.</li>
+  exactly what <code>DualChannelMessaging</code> (beta, 6.4.0) does — see
+  <a href="https://github.com/sboesebeck/morphium/issues/265">#265</a> and the dedicated section above.</li>
 </ul>
 <h2 id="configuration-and-usage">Configuration and Usage<a class="headerlink" href="#configuration-and-usage" title="Permanent link">&para;</a></h2>
 <p>Always instantiate via <code>Morphium.createMessaging()</code> so configuration and implementation selection are handled correctly.</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// Configure implementation by name</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">&quot;AdvMessaging&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// or &quot;StandardMessaging&quot; (default)</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">Morphium</span><span class="w"> </span><span class="n">morphium</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Morphium</span><span class="p">(</span><span class="n">cfg</span><span class="p">);</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">messaging</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">messaging</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">messaging</span><span class="p">.</span><span class="na">addListenerForTopic</span><span class="p">(</span><span class="s">&quot;orders.created&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">mm</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="c1">// ...</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">});</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// Configure implementation by name</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">&quot;AdvMessaging&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// or &quot;StandardMessaging&quot; (default), or &quot;DualChannelMessaging&quot; (beta)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">Morphium</span><span class="w"> </span><span class="n">morphium</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Morphium</span><span class="p">(</span><span class="n">cfg</span><span class="p">);</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">messaging</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">messaging</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">messaging</span><span class="p">.</span><span class="na">addListenerForTopic</span><span class="p">(</span><span class="s">&quot;orders.created&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">mm</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="c1">// ...</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">});</span>
 </span></code></pre></div>
-<p>Relevant settings are the same for both implementations (see the Messaging page):
+<p>Relevant settings are the same across all three implementations (see the Messaging page):
 - <code>messageQueueName</code>, <code>messagingWindowSize</code>, <code>messagingMultithreadded</code>, <code>useChangeStream</code>, <code>messagingPollPause</code>.</p>
+<p>Dual Channel additionally supports <code>messagingDmCleanupOrphansOnStartup</code> (see above).</p>
 <h2 id="storage-layout-details">Storage Layout Details<a class="headerlink" href="#storage-layout-details" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Standard</li>
@@ -2201,7 +2305,17 @@ cheap enough that the single cursor never became the bottleneck in this test.</p
 </li>
 <li>Topic queue: <code>&lt;queue&gt;_&lt;topic&gt;</code></li>
 <li>Locks: <code>&lt;queue&gt;_lck_&lt;topic&gt;</code></li>
-<li>Direct messages: <code>dm_&lt;recipientSenderIdCamelCase&gt;</code></li>
+<li>
+<p>Direct messages: <code>dm_&lt;recipientSenderIdCamelCase&gt;</code></p>
+</li>
+<li>
+<p>Dual Channel (beta)</p>
+</li>
+<li>Broadcast/topic queue: <code>&lt;queue&gt;</code> (identical to Standard)</li>
+<li>Locks: <code>&lt;queue&gt;_lck</code> (identical to Standard)</li>
+<li>Direct messages / answers: <code>&lt;queue&gt;_dm_&lt;recipientSenderIdCamelCase&gt;</code> (queue-prefixed, unlike
+    Advanced's shared <code>dm_&lt;sender&gt;</code> — so multiple queues never collide on the same DM collection
+    for a given sender id)</li>
 </ul>
 <h2 id="migrating-standard-advanced">Migrating Standard → Advanced<a class="headerlink" href="#migrating-standard-advanced" title="Permanent link">&para;</a></h2>
 <p>Because the storage layout changes, do not mix Standard and Advanced nodes for the same application at the same time.</p>
@@ -2220,21 +2334,30 @@ cheap enough that the single cursor never became the bottleneck in this test.</p
 - Topic names do not change. Advanced derives collection names from topics automatically.
 - Indexes are ensured automatically by both implementations on startup.
 - Clean‑up: once fully migrated, you may drop the old Standard queue collections (<code>&lt;queue&gt;</code>, <code>&lt;queue&gt;_lck</code>) after verifying they’re unused.</p>
+<h2 id="migrating-standard-dual-channel-beta">Migrating Standard → Dual Channel (Beta)<a class="headerlink" href="#migrating-standard-dual-channel-beta" title="Permanent link">&para;</a></h2>
+<p>Same big-bang approach as Standard → Advanced: stop all consumers, switch every node's config to
+<code>DualChannelMessaging</code>, restart. Since Dual Channel's broadcast/topic collection layout is
+identical to Standard's, an even simpler option exists for this specific migration: a rolling
+restart is tolerable for broadcast/topic traffic (both implementations read/write the same main
+collection compatibly), but request/reply (answers, directed messages) will silently fail for any
+<code>StandardMessaging</code> requester still waiting on a <code>DualChannelMessaging</code> responder mid-rollout (see
+the Mixed-Cluster Requirement above) — so requests/replies should still be drained or paused
+during the switch, even though broadcast/topic traffic tolerates a rolling restart.</p>
 <h2 id="cache-synchronization">Cache Synchronization<a class="headerlink" href="#cache-synchronization" title="Permanent link">&para;</a></h2>
-<p>Both implementations work with <code>MessagingCacheSynchronizer</code>. No code changes needed—only the implementation selection via config.</p>
+<p>All three implementations work with <code>MessagingCacheSynchronizer</code>. No code changes needed—only the implementation selection via config.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="messages-not-being-processed">Messages Not Being Processed<a class="headerlink" href="#messages-not-being-processed" title="Permanent link">&para;</a></h3>
 <p>If messages are piling up in MongoDB but not being processed:</p>
 <ol>
 <li>
 <p><strong>Check if ChangeStreamMonitor is running:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;changeStream&quot;</span>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;changeStream&quot;</span>
 </span></code></pre></div>
    If no changeStream thread exists, the monitor may have died.</p>
 </li>
 <li>
 <p><strong>Check logs for ChangeStream errors:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;changestream\|connection closed&quot;</span><span class="w"> </span>/path/to/logs/*.log
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;changestream\|connection closed&quot;</span><span class="w"> </span>/path/to/logs/*.log
 </span></code></pre></div></p>
 </li>
 <li>
@@ -2256,27 +2379,27 @@ cheap enough that the single cursor never became the bottleneck in this test.</p
 </li>
 </ol>
 <h3 id="debugging-checklist">Debugging Checklist<a class="headerlink" href="#debugging-checklist" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 1. Thread dump - check for blocked threads</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-A<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="s2">&quot;sendAndAwaitFirstAnswer&quot;</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># 2. Check if ChangeStream is alive</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;changeStream&quot;</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 3. Check MongoDB message queue</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.countDocuments({})&quot;</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># 4. Check for unprocessed answers</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.countDocuments({in_answer_to: {\$ne: null}})&quot;</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># 5. Check recipients of pending messages</span>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.distinct(&#39;recipients&#39;)&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># 1. Thread dump - check for blocked threads</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-A<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="s2">&quot;sendAndAwaitFirstAnswer&quot;</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># 2. Check if ChangeStream is alive</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>jstack<span class="w"> </span>&lt;pid&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;changeStream&quot;</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># 3. Check MongoDB message queue</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.countDocuments({})&quot;</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># 4. Check for unprocessed answers</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.countDocuments({in_answer_to: {\$ne: null}})&quot;</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c1"># 5. Check recipients of pending messages</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>mongosh<span class="w"> </span>--eval<span class="w"> </span><span class="s2">&quot;db.msg.distinct(&#39;recipients&#39;)&quot;</span>
 </span></code></pre></div>
 <h3 id="logging-configuration">Logging Configuration<a class="headerlink" href="#logging-configuration" title="Permanent link">&para;</a></h3>
 <p>To see ChangeStream-related logs, ensure your logging level is at least WARN:</p>
-<div class="language-properties highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># application.properties (Spring Boot)</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="na">logging.level.de.caluga.morphium</span><span class="o">=</span><span class="s">WARN</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="na">logging.level.de.caluga.morphium.changestream</span><span class="o">=</span><span class="s">INFO</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="na">logging.level.de.caluga.morphium.messaging</span><span class="o">=</span><span class="s">INFO</span>
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># application.properties (Spring Boot)</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="na">logging.level.de.caluga.morphium</span><span class="o">=</span><span class="s">WARN</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="na">logging.level.de.caluga.morphium.changestream</span><span class="o">=</span><span class="s">INFO</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="na">logging.level.de.caluga.morphium.messaging</span><span class="o">=</span><span class="s">INFO</span>
 </span></code></pre></div>
 
 
