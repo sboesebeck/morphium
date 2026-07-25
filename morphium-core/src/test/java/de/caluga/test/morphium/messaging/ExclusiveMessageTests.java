@@ -40,6 +40,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("messaging")
 @Tag("slow")  // Timing-sensitive messaging tests - may be flaky under high parallel load
+// The base class budget (5 min) was sized for two messaging implementations - these
+// tests iterate MultiDriverTestBase.messagingsToTest, which now holds THREE
+// (DualChannelMessaging, #265): same per-iteration budget, one iteration more.
+@org.junit.jupiter.api.Timeout(value = 8, unit = java.util.concurrent.TimeUnit.MINUTES)
 public class ExclusiveMessageTests extends MultiDriverTestBase {
     private volatile boolean gotMessage1 = false;
     private volatile boolean gotMessage2 = false;

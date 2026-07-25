@@ -25,6 +25,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.*;
@@ -40,6 +41,18 @@ public class SingleMongoConnection implements MongoConnection {
     private volatile int cachedSourcePort = 0;
 
     private AtomicInteger msgId = new AtomicInteger(1000);
+
+    // requestId -> command name of sent requests whose reply has not been read yet. A
+    // connection with a pending reply is POISONED for reuse: the next borrower would read
+    // its predecessor's answer ("out of sync: expected reply to X, got reply to Y" - the
+    // wire-desync family). PooledDriver.releaseConnection closes such connections instead
+    // of pooling them, and the out-of-sync detection uses this map to NAME the command
+    // that abandoned its reply. Tracked on send (unless fire-and-forget/moreToCome),
+    // cleared on every successfully read message and on close.
+    private final Map<Integer, String> pendingReplies = new ConcurrentHashMap<>();
+    // command name of the request the most recently read reply answered (null if unknown) -
+    // names the abandoning command when readReplyFor detects an out-of-sync stream
+    private volatile String lastReadReplyOrigin;
 
     // Extra client-side wait on top of a watch getMore's maxTimeMS: the server answers
     // within maxTimeMS, this grace covers network and processing time. Only a truly broken
@@ -435,6 +448,9 @@ public class SingleMongoConnection implements MongoConnection {
                 }
 
                 stats.get(REPLY_RECEIVED).incrementAndGet();
+                // central un-track for every read path (readReplyFor, watch loops, ...);
+                // remember the origin for the out-of-sync diagnostics in readReplyFor
+                lastReadReplyOrigin = pendingReplies.remove(msg.getResponseTo());
                 return msg;
             } catch (SocketTimeoutException ste) {
                 // Raw SocketTimeoutException from parseFromStream means 0 bytes were consumed:
@@ -483,6 +499,8 @@ public class SingleMongoConnection implements MongoConnection {
     public void close() {
         running = false;
         connected = false;
+        // a closed connection can no longer deliver stale replies - the poison is gone
+        pendingReplies.clear();
 
         if (in != null) {
             try {
@@ -602,6 +620,13 @@ public class SingleMongoConnection implements MongoConnection {
             }
 
             out.flush();
+
+            // moreToCome on a REQUEST = fire-and-forget (w:0), the server sends no reply
+            if ((q.getFlags() & OpMsg.MORE_TO_COME) == 0) {
+                Map<String, Object> doc = q.getFirstDoc();
+                pendingReplies.put(q.getMessageId(),
+                    doc == null || doc.isEmpty() ? "?" : doc.keySet().iterator().next());
+            }
         } catch (MorphiumDriverException e) {
             close();
             throw (e);
@@ -619,6 +644,21 @@ public class SingleMongoConnection implements MongoConnection {
             }
             throw new MorphiumDriverException("Error sending Request: ", e);
         }
+    }
+
+    /**
+     * True while a sent request's reply has not been read yet. Such a connection is
+     * poisoned for reuse (the next borrower would read its predecessor's answer) -
+     * {@code PooledDriver.releaseConnection} closes it instead of pooling it.
+     */
+    @Override
+    public boolean hasPendingReplies() {
+        return !pendingReplies.isEmpty();
+    }
+
+    /** The pending requestId->command entries, for the close-instead-of-pool log line. */
+    public String pendingReplySummary() {
+        return pendingReplies.toString();
     }
 
     public synchronized OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
@@ -642,8 +682,11 @@ public class SingleMongoConnection implements MongoConnection {
         OpMsg reply = readNextMessage(timeout);
 
         if (reply != null && reply.getResponseTo() != requestId) {
-            log.error("Connection to {} out of sync: expected reply to request {}, got reply to {} - closing connection",
-                connectedTo, requestId, reply.getResponseTo());
+            // lastReadReplyOrigin names the command whose caller abandoned this reply without
+            // closing the connection - the actual bug to hunt, this here is only the backstop
+            log.error("Connection to {} out of sync: expected reply to request {}, got reply to {} "
+                + "(abandoned by command '{}') - closing connection",
+                connectedTo, requestId, reply.getResponseTo(), lastReadReplyOrigin);
             close();
             throw new MorphiumDriverNetworkException("Connection out of sync: expected reply to request "
                 + requestId + ", got reply to " + reply.getResponseTo());

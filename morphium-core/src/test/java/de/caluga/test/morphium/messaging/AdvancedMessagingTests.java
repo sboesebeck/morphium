@@ -27,6 +27,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue;
 
 @Tag("messaging")
+// The base class budget (5 min) was sized for two messaging implementations - these
+// tests iterate MultiDriverTestBase.messagingsToTest, which now holds THREE
+// (DualChannelMessaging, #265): same per-iteration budget, one iteration more.
+@org.junit.jupiter.api.Timeout(value = 8, unit = java.util.concurrent.TimeUnit.MINUTES)
 public class AdvancedMessagingTests extends MultiDriverTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 

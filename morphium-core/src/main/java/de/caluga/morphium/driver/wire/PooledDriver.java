@@ -1471,6 +1471,26 @@ public class PooledDriver extends DriverBase {
                 return;
             }
 
+            // NEVER pool a connection whose sent request still awaits its reply: the next
+            // borrower would read the predecessor's answer - THE source of the wire-desync
+            // family ("out of sync: expected reply to X, got Y", "Illegal opcode"). Whatever
+            // abandoned the request (interrupt, outer timeout between send and read) - the
+            // connection is poisoned, close it and let the pool create a fresh one.
+            if (con.hasPendingReplies()) {
+                String pending = con instanceof SingleMongoConnection smc ? smc.pendingReplySummary() : "?";
+                log.warn("Released connection to {} still awaits replies ({}) - closing instead of pooling",
+                    con.getConnectedTo(), pending);
+                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                markStatsDirty();
+
+                try {
+                    con.close();
+                } catch (Exception ignored) {
+                }
+
+                return;
+            }
+
             // Don't pool connections that exceeded their lifetime (or idle time) while borrowed —
             // pooling them parks already-expired connections until the heartbeat's expiry sweep
             // runs, which lags behind under load. A borrow burst then keeps the pool far above
