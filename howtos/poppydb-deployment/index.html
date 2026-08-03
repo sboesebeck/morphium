@@ -18,7 +18,7 @@
         <link rel="prev" href="../../poppydb/">
       
       
-        <link rel="next" href="../migration-v6_2-to-v6_3/">
+        <link rel="next" href="../migration-mongodb-to-poppydb/">
       
       
         
@@ -1027,10 +1027,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-secrets-handling-until-config-file-support-lands" class="md-nav__link">
+  <a href="#3-secrets-handling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Secrets handling (until config-file support lands)
+        3. Secrets handling
       
     </span>
   </a>
@@ -1093,6 +1093,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#9-best-practices-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Best Practices Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1107,6 +1118,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration-mongodb-to-poppydb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from MongoDB
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1973,10 +2012,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-secrets-handling-until-config-file-support-lands" class="md-nav__link">
+  <a href="#3-secrets-handling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Secrets handling (until config-file support lands)
+        3. Secrets handling
       
     </span>
   </a>
@@ -2039,6 +2078,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#9-best-practices-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Best Practices Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2073,7 +2123,8 @@
 <p>This is a task-oriented, step-by-step guide to running PoppyDB in production. For the full
 feature reference (all CLI flags, replica-set internals, admin command support, performance
 numbers) see <strong><a href="../../poppydb/">PoppyDB</a></strong> — this page only covers <em>how to get from a bare JAR to
-a securely configured, monitored, backed-up production instance</em>, in order.</p>
+a securely configured, monitored, backed-up production instance</em>, in order, ending in a
+<a href="#9-best-practices-checklist">Best Practices Checklist</a> to review before launch.</p>
 <p>Read this if you're deploying PoppyDB as a message broker or cache/session store (see
 <a href="../../poppydb/#use-cases">PoppyDB § Use Cases</a>). If you only need it for tests or CI, the defaults
 already documented in <a href="../../poppydb/#quick-start">PoppyDB § Quick Start</a> are enough — skip this
@@ -2094,39 +2145,80 @@ page.</p>
 </ul>
 <h2 id="2-minimal-secure-configuration">2. Minimal secure configuration<a class="headerlink" href="#2-minimal-secure-configuration" title="Permanent link">&para;</a></h2>
 <p>Every production instance should start with <strong>both</strong> of these enabled — neither is on by default,
-both are opt-in for backward compatibility with test/dev usage:</p>
+both are opt-in for backward compatibility with test/dev usage. Use a
+<a href="../../poppydb/#configuration-file">configuration file</a> from the start rather than command-line
+flags: it is the only form that keeps <code>--rootPassword</code>/<code>--sslKeystorePassword</code> off the process
+argument list (see <a href="#3-secrets-handling">§3</a> for why that matters), and it is what every later
+step in this playbook (systemd, monitoring, upgrades) assumes.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Generate a keystore once (see PoppyDB § SSL/TLS for details)</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>keytool<span class="w"> </span>-genkeypair<span class="w"> </span>-alias<span class="w"> </span>poppydb<span class="w"> </span>-keyalg<span class="w"> </span>RSA<span class="w"> </span>-keysize<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>-validity<span class="w"> </span><span class="m">3650</span><span class="w"> </span>-keystore<span class="w"> </span>/etc/poppydb/server.jks<span class="w"> </span>-storepass<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$KEYSTORE_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>-dname<span class="w"> </span><span class="s2">&quot;CN=poppydb.internal.example.com&quot;</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">27017</span><span class="w"> </span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--auth<span class="w"> </span>--rootUser<span class="w"> </span>admin<span class="w"> </span>--rootPassword<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--ssl<span class="w"> </span>--sslKeystore<span class="w"> </span>/etc/poppydb/server.jks<span class="w"> </span>--sslKeystorePassword<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$KEYSTORE_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--rs-name<span class="w"> </span>prod-rs<span class="w"> </span>--rs-seed<span class="w"> </span>node1:27017,node2:27017,node3:27017
 </span></code></pre></div>
-<p>Repeat on the other two nodes with the same <code>--rs-name</code>/<code>--rs-seed</code> and each node's own bind
-address. See <a href="../../poppydb/#replica-set-behavior-experimental">PoppyDB § Replica Set Behavior</a> for
-how initial sync and elections work.</p>
-<p><strong>Do not skip <code>--auth</code> or <code>--ssl</code> in production</strong> — without them, anyone who can reach the port
-has full read/write/admin access in cleartext. Authorization is authentication-only right now
-(roles are stored but not evaluated, see <a href="../../poppydb/#security">PoppyDB § Security</a>) — treat
-every authenticated user as an admin and control access at the network boundary, not by role.</p>
-<h2 id="3-secrets-handling-until-config-file-support-lands">3. Secrets handling (until config-file support lands)<a class="headerlink" href="#3-secrets-handling-until-config-file-support-lands" title="Permanent link">&para;</a></h2>
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># /etc/poppydb/config - identical on all three nodes except &#39;bind&#39; if it differs per host</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="na">port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">27017</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="na">bind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.0.0.0</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="na">auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">true</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="na">root-user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">admin</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="na">root-password-file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/etc/poppydb/secrets/root.pw</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="na">ssl</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">true</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="na">ssl-keystore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/etc/poppydb/server.jks</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="na">ssl-keystore-password-file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/etc/poppydb/secrets/keystore.pw</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="na">rs-name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">prod-rs</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="na">rs-seed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">node1:27017,node2:27017,node3:27017</span>
+</span></code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># chmod 600 the secret files referenced above, then:</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--cfg<span class="w"> </span>/etc/poppydb/config
+</span></code></pre></div>
+<p>Repeat on the other two nodes with the same config file (<code>rs-name</code>/<code>rs-seed</code> must be identical
+everywhere). See <a href="../../poppydb/#replica-set-behavior-experimental">PoppyDB § Replica Set Behavior</a>
+for how initial sync and elections work.</p>
+<p><strong>Do not skip <code>auth</code>/<code>ssl</code> in production</strong> — without them, anyone who can reach the port has full
+read/write/admin access in cleartext. Authorization is authentication-only right now (roles are
+stored but not evaluated, see <a href="../../poppydb/#security">PoppyDB § Security</a>) — treat every
+authenticated user as an admin and control access at the network boundary, not by role.</p>
+<p>If you only need a one-off run without a persistent config file (a quick manual test against a
+production-shaped setup, say), the equivalent CLI-only form is
+<code>--port 27017 --bind 0.0.0.0 --auth --rootUser admin --rootPassword "$ROOT_PASSWORD" --ssl --sslKeystore ... --sslKeystorePassword "$KEYSTORE_PASSWORD" --rs-name ... --rs-seed ...</code>
+— but see <a href="#3-secrets-handling">§3</a> for why this isn't the recommended shape for anything
+long-running.</p>
+<h2 id="3-secrets-handling">3. Secrets handling<a class="headerlink" href="#3-secrets-handling" title="Permanent link">&para;</a></h2>
 <p><code>--rootPassword</code> and <code>--sslKeystorePassword</code> on the command line are visible to any local user via
-<code>ps aux</code> or <code>/proc/&lt;pid&gt;/cmdline</code> for the life of the process. Until PoppyDB gains file-based
-configuration, mitigate this with your process supervisor rather than the command line directly:</p>
+<code>ps aux</code> or <code>/proc/&lt;pid&gt;/cmdline</code> for the life of the process — avoid them for production and use
+PoppyDB's <a href="../../poppydb/#configuration-file">configuration file</a> instead: it keeps secrets out of
+the process argument list entirely, and its <code>root-password-file</code>/<code>ssl-keystore-password-file</code>
+keys go one step further by keeping the secrets out of the main config file too:</p>
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># /etc/poppydb/config - world-readable is fine, it contains no secrets itself</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="na">port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">27017</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="na">bind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.0.0.0</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="na">auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">true</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="na">root-user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">admin</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="na">root-password-file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/etc/poppydb/secrets/root.pw</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="na">ssl</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">true</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="na">ssl-keystore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/etc/poppydb/server.jks</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="na">ssl-keystore-password-file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/etc/poppydb/secrets/keystore.pw</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="na">rs-name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">prod-rs</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="na">rs-seed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">node1:27017,node2:27017,node3:27017</span>
+</span></code></pre></div>
+<p>PoppyDB refuses to start if <code>root-password</code>/<code>ssl-keystore-password</code> and their <code>*-file</code>
+counterparts are set at the same time, and checks the POSIX permissions of the main file (if it
+embeds a secret directly) and of any <code>*-file</code>-referenced secret file: group/other-readable only
+warns, group/other-writable is a hard error (a writable config with secrets is a privilege
+escalation, not a style issue) — see
+<a href="../../poppydb/#configuration-file">PoppyDB § Configuration File</a> for the full syntax and search
+path rules.</p>
 <ul>
-<li><strong>systemd</strong>: put secrets in an <code>EnvironmentFile</code> with <code>0600</code> permissions (root-only readable,
-  see the unit file in <a href="#5-run-it-as-a-service-systemd">§5</a> below) and reference them as
-  <code>${ROOT_PASSWORD}</code> in <code>ExecStart</code> — systemd expands the environment before exec, so the
-  expanded values never appear in <code>ps aux</code> the way literal CLI arguments would.</li>
-<li><strong>Docker/Compose</strong>: use <code>secrets:</code> (Swarm) or an env file excluded from your image/VCS, not
-  hardcoded <code>CMD</code> arguments (the <a href="../../poppydb/#4-docker-deployment">Dockerfile example in PoppyDB § Use Cases</a>
-  is fine for local/CI use, but bakes the password into the image layer — do not reuse it verbatim
-  for a production image with real secrets).</li>
-<li><strong>Kubernetes</strong>: mount a <code>Secret</code> as environment variables into the pod spec, same reasoning.</li>
+<li><strong>systemd</strong>: reference the secret files via <code>LoadCredential=</code> (see the unit file in
+  <a href="#5-run-it-as-a-service-systemd">§5</a> below) so the secrets themselves are never interpolated
+  into <code>ExecStart</code> or exposed as environment variables — <code>root-password-file</code>/
+  <code>ssl-keystore-password-file</code> point straight at the credential paths systemd exposes.</li>
+<li><strong>Docker/Compose</strong>: mount the config file (<code>docker run -v poppydb.conf:/etc/poppydb/config:ro</code>,
+  see <a href="../../poppydb/#4-docker-deployment">PoppyDB § Docker Deployment</a>) and mount secret files via
+  <code>secrets:</code> (Swarm) separately, referenced from the config via <code>*-password-file</code> — do not bake
+  real secrets into a <code>CMD</code> line or an image layer (the plain Dockerfile example in
+  <a href="../../poppydb/#4-docker-deployment">PoppyDB § Use Cases</a> is fine for local/CI use only).</li>
+<li><strong>Kubernetes</strong>: mount a <code>Secret</code> as files into the pod (not environment variables) and point
+  <code>root-password-file</code>/<code>ssl-keystore-password-file</code> at the mounted paths.</li>
 </ul>
 <h2 id="4-capacity-planning">4. Capacity planning<a class="headerlink" href="#4-capacity-planning" title="Permanent link">&para;</a></h2>
 <ul>
@@ -2145,44 +2237,59 @@ configuration, mitigate this with your process supervisor rather than the comman
   round number.</li>
 </ul>
 <h2 id="5-run-it-as-a-service-systemd">5. Run it as a service (systemd)<a class="headerlink" href="#5-run-it-as-a-service-systemd" title="Permanent link">&para;</a></h2>
-<div class="language-ini highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># /etc/systemd/system/poppydb.service</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">[Unit]</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="na">Description</span><span class="o">=</span><span class="s">PoppyDB MongoDB-compatible server</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="na">After</span><span class="o">=</span><span class="s">network-online.target</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="na">Wants</span><span class="o">=</span><span class="s">network-online.target</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">[Service]</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="na">Type</span><span class="o">=</span><span class="s">simple</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="na">User</span><span class="o">=</span><span class="s">poppydb</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="na">Group</span><span class="o">=</span><span class="s">poppydb</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="na">EnvironmentFile</span><span class="o">=</span><span class="s">/etc/poppydb/secrets.env</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">/usr/bin/java -Xms4g -Xmx4g -jar /opt/poppydb/poppydb-cli.jar </span>\
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="s">--port 27017 --bind 0.0.0.0 </span>\
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span><span class="s">--auth --rootUser admin --rootPassword ${ROOT_PASSWORD} </span>\
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">  </span><span class="s">--ssl --sslKeystore /etc/poppydb/server.jks --sslKeystorePassword ${KEYSTORE_PASSWORD} </span>\
-</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="s">--rs-name prod-rs --rs-seed node1:27017,node2:27017,node3:27017 </span>\
-</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span><span class="s">--dump-dir /var/lib/poppydb/snapshots --dump-interval 300 </span>\
-</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span><span class="s">--log-level INFO</span>
-</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="na">Restart</span><span class="o">=</span><span class="s">on-failure</span>
-</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="na">RestartSec</span><span class="o">=</span><span class="s">5</span>
-</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="na">LimitNOFILE</span><span class="o">=</span><span class="s">65536</span>
-</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>
-</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="k">[Install]</span>
-</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="na">WantedBy</span><span class="o">=</span><span class="s">multi-user.target</span>
+<p>Use a <a href="../../poppydb/#configuration-file">configuration file</a> instead of a long <code>ExecStart</code> line
+with <code>${VAR}</code> interpolation, and <code>LoadCredential=</code> to hand secrets to the process without ever
+putting them in <code>ExecStart</code>, an environment variable, or <code>ps aux</code>:</p>
+<div class="language-ini highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># /etc/systemd/system/poppydb.service</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">[Unit]</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="na">Description</span><span class="o">=</span><span class="s">PoppyDB MongoDB-compatible server</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="na">After</span><span class="o">=</span><span class="s">network-online.target</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="na">Wants</span><span class="o">=</span><span class="s">network-online.target</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">[Service]</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="na">Type</span><span class="o">=</span><span class="s">simple</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="na">User</span><span class="o">=</span><span class="s">poppydb</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="na">Group</span><span class="o">=</span><span class="s">poppydb</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="na">LoadCredential</span><span class="o">=</span><span class="s">root-password:/etc/poppydb/secrets/root.pw</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="na">LoadCredential</span><span class="o">=</span><span class="s">keystore-password:/etc/poppydb/secrets/keystore.pw</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">/usr/bin/java -Xms4g -Xmx4g -jar /opt/poppydb/poppydb-cli.jar --cfg /etc/poppydb/config</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="na">Restart</span><span class="o">=</span><span class="s">on-failure</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="na">RestartSec</span><span class="o">=</span><span class="s">5</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="na">LimitNOFILE</span><span class="o">=</span><span class="s">65536</span>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="k">[Install]</span>
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="na">WantedBy</span><span class="o">=</span><span class="s">multi-user.target</span>
 </span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># /etc/poppydb/secrets.env - chmod 600, owned by root:poppydb</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">ROOT_PASSWORD</span><span class="o">=</span>change-me
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">KEYSTORE_PASSWORD</span><span class="o">=</span>change-me-too
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># /etc/poppydb/config - no secrets in here, safe to be world-readable</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="na">port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">27017</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="na">bind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">0.0.0.0</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="na">auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">true</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="na">root-user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">admin</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="na">root-password-file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/run/credentials/poppydb.service/root-password</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="na">ssl</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">true</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="na">ssl-keystore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/etc/poppydb/server.jks</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="na">ssl-keystore-password-file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/run/credentials/poppydb.service/keystore-password</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="na">rs-name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">prod-rs</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="na">rs-seed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">node1:27017,node2:27017,node3:27017</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="na">dump-dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">/var/lib/poppydb/snapshots</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="na">dump-interval</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">300</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="na">log-level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">INFO</span>
 </span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>sudo<span class="w"> </span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>/etc/poppydb/secrets.env
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>sudo<span class="w"> </span>chown<span class="w"> </span>root:poppydb<span class="w"> </span>/etc/poppydb/secrets.env
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>daemon-reload
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>poppydb
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>poppydb
+<p><code>LoadCredential=&lt;name&gt;:&lt;path&gt;</code> makes systemd copy <code>&lt;path&gt;</code> into a runtime-only, root-owned
+directory readable only by the service (<code>/run/credentials/&lt;unit&gt;/&lt;name&gt;</code>) before the process
+starts — the source file at <code>/etc/poppydb/secrets/*.pw</code> still needs <code>chmod 600</code> itself, but the
+password is never expanded into <code>ExecStart</code> or exposed as an environment variable the way
+<code>EnvironmentFile</code> + CLI args would. Repeat on the other two replica-set nodes with the same
+<code>rs-name</code>/<code>rs-seed</code> and each node's own <code>bind</code>/config.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>sudo<span class="w"> </span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>/etc/poppydb/secrets/root.pw<span class="w"> </span>/etc/poppydb/secrets/keystore.pw
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>sudo<span class="w"> </span>chown<span class="w"> </span>root:poppydb<span class="w"> </span>/etc/poppydb/secrets/root.pw<span class="w"> </span>/etc/poppydb/secrets/keystore.pw
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>daemon-reload
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>poppydb
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>poppydb
 </span></code></pre></div>
-<p><code>--log-level</code> controls verbosity without editing the bundled Logback config — see
-<a href="../../poppydb/#logging">PoppyDB § Logging</a> if you need more (e.g. a rotating file appender via
-<code>-Dlogback.configurationFile</code>).</p>
+<p><code>log-level</code> (or <code>--log-level</code> on the command line) controls verbosity without editing the bundled
+Logback config — see <a href="../../poppydb/#logging">PoppyDB § Logging</a> if you need more (e.g. a rotating
+file appender via <code>-Dlogback.configurationFile</code>).</p>
 <h2 id="6-monitoring">6. Monitoring<a class="headerlink" href="#6-monitoring" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Server health</strong>: poll <code>db.serverStatus()</code> (connections, <code>memoryWatermark</code>) and <code>db.stats()</code>
@@ -2236,9 +2343,48 @@ accordingly:</p>
 <li>Take a manual snapshot immediately before upgrading (see §7) regardless of your regular dump
   interval.</li>
 </ul>
+<h2 id="9-best-practices-checklist">9. Best Practices Checklist<a class="headerlink" href="#9-best-practices-checklist" title="Permanent link">&para;</a></h2>
+<p>A condensed summary of the dos and don'ts from this playbook — use it as a pre-launch review, not
+a replacement for reading the sections above.</p>
+<p><strong>Do:</strong></p>
+<ul>
+<li>Run a <strong>3-node replica set</strong>, not a single node — a single node has no failover (see <a href="#1-prerequisites">§1</a>).</li>
+<li>Configure via a <strong><a href="../../poppydb/#configuration-file">configuration file</a></strong> (<code>--cfg</code>), not raw
+  CLI flags — it's the only form that keeps secrets out of <code>ps aux</code> (see <a href="#2-minimal-secure-configuration">§2</a>/<a href="#3-secrets-handling">§3</a>).</li>
+<li>Enable <strong>both <code>auth</code> and <code>ssl</code></strong> on every production instance, always together — either alone
+  leaves a real gap (cleartext admin access, or encrypted-but-open access, respectively).</li>
+<li>Keep secrets in their <strong>own file</strong> via <code>root-password-file</code>/<code>ssl-keystore-password-file</code>, not
+  inline in the main config — the main config can then be <code>0644</code> and live in your config
+  management repo; only the secret files need <code>0600</code> and careful handling.</li>
+<li>Size the <strong>heap deliberately</strong> for your expected dataset plus watermark headroom, and <strong>watch
+  <code>memoryWatermark</code></strong> — don't let "reject" be the first time you learn it's close (see <a href="#4-capacity-planning">§4</a>).</li>
+<li><strong>Snapshot before every upgrade</strong>, in addition to your regular <code>--dump-interval</code>, and pin the
+  exact same version across all replica-set members (see <a href="#8-upgrades">§8</a>).</li>
+<li><strong>Verify backups periodically</strong> (<code>zcat ... | jq .</code>) — a silently-broken dump job is worse than no
+  backup, because it hides the gap until you need it (see <a href="#7-backup-and-restore">§7</a>).</li>
+<li>Treat every authenticated user as <strong>fully privileged</strong> — authorization/roles are not enforced
+  yet (see <a href="../../poppydb/#security">PoppyDB § Security</a>); control access at the network boundary.</li>
+</ul>
+<p><strong>Don't:</strong></p>
+<ul>
+<li>Don't put <code>--rootPassword</code>/<code>--sslKeystorePassword</code> directly in <code>ExecStart</code>, a Dockerfile <code>CMD</code>,
+  or any long-lived process's argument list.</li>
+<li>Don't rely on a replica-set secondary as your backup — it replicates mistakes just as faithfully
+  as good data. Only a snapshot protects against logical corruption or a cluster-wide event.</li>
+<li>Don't assume PoppyDB is a persistent system of record — there is no write-ahead log; only use it
+  where the <a href="../../poppydb/#5-message-broker-for-short-lived-messages-production">loss model</a> (loss
+  between snapshots is acceptable) actually fits your data.</li>
+<li>Don't wait for "the original primary" to reclaim leadership after a failover — verify <em>any</em> node
+  became primary instead (see <a href="#8-upgrades">§8</a> and <a href="../../poppydb/#stepdown--failover-behavior-replica-set">PoppyDB § StepDown/Failover Behavior</a>).</li>
+<li>Don't skip the config-file <strong>permission warning</strong> — <code>chmod 600</code> any file PoppyDB tells you is
+  group/other-readable and contains secrets, before it becomes group/other-<em>writable</em> and PoppyDB
+  refuses to start entirely.</li>
+</ul>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../poppydb/">PoppyDB</a> — full feature reference</li>
+<li><a href="../migration-mongodb-to-poppydb/">Migrating from MongoDB to PoppyDB</a> — moving an existing
+  workload over, rather than starting fresh</li>
 <li><a href="../../monitoring-metrics-guide/">Monitoring &amp; Metrics Guide</a></li>
 <li><a href="../../security-guide/">Security Guide</a></li>
 <li><a href="../messaging-implementations/">Messaging Implementations</a> — if PoppyDB backs Morphium
