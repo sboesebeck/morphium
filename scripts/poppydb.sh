@@ -202,7 +202,9 @@ function _pdb_start_cluster() {
     fi
 
     local log_file="${pid_dir}/logs/poppydb_${port}.log"
-    local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout"
+    # --no-config: never let a private ~/.config/poppydb/config or /etc/poppydb.conf silently
+    # influence test runs ("green locally, red in CI") - test runs are CLI-args-only.
+    local conn_args="--no-config --max-connections $max_conn --socket-timeout $sock_timeout"
     if [ "${poppydbSingleNode:-${morphiumserverSingleNode:-0}}" -eq 1 ]; then
       nohup java $jvm_opts -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &
     else

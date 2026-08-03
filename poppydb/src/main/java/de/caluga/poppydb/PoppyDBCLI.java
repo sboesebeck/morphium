@@ -2,13 +2,18 @@ package de.caluga.poppydb;
 
 import de.caluga.morphium.driver.wire.SslHelper;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
+import de.caluga.poppydb.config.ConfigException;
+import de.caluga.poppydb.config.ConfigLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import static java.lang.Thread.sleep;
 
@@ -16,10 +21,77 @@ public class PoppyDBCLI {
     private static final Logger log = LoggerFactory.getLogger(PoppyDBCLI.class);
 
     public static void main(String[] args) throws Exception {
-        if (args.length == 0 || (args.length == 1 && (args[0].equals("--help") || args[0].equals("-h")))) {
+        // Pre-scan: --help/-h anywhere, --cfg/-f <path> and --no-config are resolved before the
+        // real argument parser runs, since the config file (if any) contributes its own tokens
+        // to the front of the effective argument list (see below).
+        Path explicitCfg = null;
+        boolean skipConfigDiscovery = false;
+
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+                case "--help":
+                case "-h":
+                    printHelp();
+                    return;
+                case "--cfg":
+                case "-f":
+                    if (i + 1 >= args.length) {
+                        log.error("Option {} requires a value", args[i]);
+                        System.exit(1);
+                        return;
+                    }
+                    explicitCfg = Paths.get(ConfigLoader.expandHome(args[i + 1]));
+                    i++;
+                    break;
+                case "--no-config":
+                    skipConfigDiscovery = true;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        ConfigLoader configLoader = new ConfigLoader();
+        Path cfgFile;
+        try {
+            cfgFile = configLoader.discover(explicitCfg, skipConfigDiscovery);
+        } catch (ConfigException e) {
+            log.error(e.getMessage());
+            System.exit(1);
+            return;
+        }
+
+        // No config file at the default search paths and nothing on the command line either:
+        // keep the historic behavior of printing help instead of starting with all defaults.
+        if (cfgFile == null && args.length == 0) {
             printHelp();
             return;
         }
+
+        List<String> configTokens = new ArrayList<>();
+        if (cfgFile != null) {
+            try {
+                Properties cfgProps = configLoader.load(cfgFile);
+                configLoader.checkPermissions(cfgFile, cfgProps);
+                cfgProps = configLoader.resolveFileRefs(cfgProps);
+                configTokens = configLoader.toArgs(cfgProps);
+            } catch (ConfigException e) {
+                log.error(e.getMessage());
+                System.exit(1);
+                return;
+            }
+            log.info("Using configuration file {}", cfgFile);
+        }
+
+        // Config-file tokens first, real CLI args after: the existing "last assignment wins"
+        // parser below then automatically gives CLI args precedence over the config file, and
+        // the config file precedence over the built-in defaults - for every single setting.
+        String[] effectiveArgs = new String[configTokens.size() + args.length];
+        for (int i = 0; i < configTokens.size(); i++) {
+            effectiveArgs[i] = configTokens.get(i);
+        }
+        System.arraycopy(args, 0, effectiveArgs, configTokens.size(), args.length);
+
         int idx = 0;
         log.info("Starting up server... parsing commandline params");
         String host = "localhost";
@@ -50,45 +122,63 @@ public class PoppyDBCLI {
         int maxConnections = 500;
         int socketTimeoutSec = 300;
 
-        while (idx < args.length) {
-            switch (args[idx]) {
+        while (idx < effectiveArgs.length) {
+            switch (effectiveArgs[idx]) {
                 case "--help":
                 case "-h":
                     printHelp();
                     System.exit(0);
                     break;
+
+                // Already handled by the pre-scan above; tolerate them here too in case they
+                // show up in the real (post-config-token) part of effectiveArgs.
+                case "--cfg":
+                case "-f":
+                    idx += 2;
+                    break;
+
+                case "--no-config":
+                    idx += 1;
+                    break;
+
                 case "-p":
                 case "--port":
-                    port = Integer.parseInt(args[idx + 1]);
+                    requireValue(effectiveArgs, idx);
+                    port = Integer.parseInt(effectiveArgs[idx + 1]);
                     idx += 2;
                     break;
 
                 case "-b":
                 case "--bind":
-                    host = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    host = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
 
                 case "--memory-warn":
-                    memoryWarnPct = Integer.parseInt(args[idx + 1]);
+                    requireValue(effectiveArgs, idx);
+                    memoryWarnPct = Integer.parseInt(effectiveArgs[idx + 1]);
                     idx += 2;
                     break;
 
                 case "--memory-reject":
-                    memoryRejectPct = Integer.parseInt(args[idx + 1]);
+                    requireValue(effectiveArgs, idx);
+                    memoryRejectPct = Integer.parseInt(effectiveArgs[idx + 1]);
                     idx += 2;
                     break;
 
                 case "--max-bson-size":
-                    maxBsonSizeBytes = Integer.parseInt(args[idx + 1]);
+                    requireValue(effectiveArgs, idx);
+                    maxBsonSizeBytes = Integer.parseInt(effectiveArgs[idx + 1]);
                     idx += 2;
                     break;
 
                 case "--log-level": {
-                    ch.qos.logback.classic.Level level = ch.qos.logback.classic.Level.toLevel(args[idx + 1], null);
+                    requireValue(effectiveArgs, idx);
+                    ch.qos.logback.classic.Level level = ch.qos.logback.classic.Level.toLevel(effectiveArgs[idx + 1], null);
 
                     if (level == null) {
-                        log.error("Unknown log level {} - use ERROR, WARN, INFO, DEBUG or TRACE", args[idx + 1]);
+                        log.error("Unknown log level {} - use ERROR, WARN, INFO, DEBUG or TRACE", effectiveArgs[idx + 1]);
                         System.exit(1);
                     }
 
@@ -98,11 +188,13 @@ public class PoppyDBCLI {
                     break;
                 }
                 case "--rs-name":
-                    rsNameArg = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    rsNameArg = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
                 case "--rs-seed":
-                    hostSeedArg = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    hostSeedArg = effectiveArgs[idx + 1];
                     idx += 2;
                     hostsArg = new ArrayList<>();
                     // Parse hosts - priorities will be assigned after all args are parsed
@@ -122,22 +214,24 @@ public class PoppyDBCLI {
                     break;
 
                 case "--rs-priorities":
-                    prioritiesArg = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    prioritiesArg = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
 
                 case "-c":
                 case "--compressor":
-                    if (args[idx + 1].equals("snappy")) {
+                    requireValue(effectiveArgs, idx);
+                    if (effectiveArgs[idx + 1].equals("snappy")) {
                         compressorId = OpCompressed.COMPRESSOR_SNAPPY;
-                    } else if (args[idx + 1].equals("zstd")) {
+                    } else if (effectiveArgs[idx + 1].equals("zstd")) {
                         compressorId = OpCompressed.COMPRESSOR_ZSTD;
-                    } else if (args[idx + 1].equals("none")) {
+                    } else if (effectiveArgs[idx + 1].equals("none")) {
                         compressorId = OpCompressed.COMPRESSOR_NOOP;
-                    } else if (args[idx + 1].equals("zlib")) {
+                    } else if (effectiveArgs[idx + 1].equals("zlib")) {
                         compressorId = OpCompressed.COMPRESSOR_ZLIB;
                     } else {
-                        log.error("Unknown parameter for compressor {}", args[idx + 1]);
+                        log.error("Unknown parameter for compressor {}", effectiveArgs[idx + 1]);
                         System.exit(1);
                     }
 
@@ -150,56 +244,74 @@ public class PoppyDBCLI {
                     idx += 1;
                     break;
 
+                case "--no-ssl":
+                    sslEnabled = false;
+                    idx += 1;
+                    break;
+
                 case "--auth":
                     authRequired = true;
                     idx += 1;
                     break;
 
+                case "--no-auth":
+                    authRequired = false;
+                    idx += 1;
+                    break;
+
                 case "--rootUser":
-                    rootUser = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    rootUser = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
 
                 case "--rootPassword":
-                    rootPassword = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    rootPassword = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
 
                 case "--sslKeystore":
                 case "--tlsKeystore":
-                    keystorePath = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    keystorePath = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
 
                 case "--sslKeystorePassword":
                 case "--tlsKeystorePassword":
-                    keystorePassword = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    keystorePassword = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
 
                 case "--dump-dir":
                 case "-d":
-                    dumpDir = args[idx + 1];
+                    requireValue(effectiveArgs, idx);
+                    dumpDir = effectiveArgs[idx + 1];
                     idx += 2;
                     break;
 
                 case "--dump-interval":
-                    dumpIntervalSec = Long.parseLong(args[idx + 1]);
+                    requireValue(effectiveArgs, idx);
+                    dumpIntervalSec = Long.parseLong(effectiveArgs[idx + 1]);
                     idx += 2;
                     break;
 
                 case "--max-connections":
-                    maxConnections = Integer.parseInt(args[idx + 1]);
+                    requireValue(effectiveArgs, idx);
+                    maxConnections = Integer.parseInt(effectiveArgs[idx + 1]);
                     idx += 2;
                     break;
 
                 case "--socket-timeout":
-                    socketTimeoutSec = Integer.parseInt(args[idx + 1]);
+                    requireValue(effectiveArgs, idx);
+                    socketTimeoutSec = Integer.parseInt(effectiveArgs[idx + 1]);
                     idx += 2;
                     break;
 
                 default:
-                    log.error("unknown parameter " + args[idx]);
+                    log.error("unknown parameter " + effectiveArgs[idx]);
                     System.exit(1);
             }
         }
@@ -319,6 +431,13 @@ public class PoppyDBCLI {
         }
     }
 
+    /** Bounds-check helper for value-reading cases in the argument loop above. */
+    private static void requireValue(String[] arr, int idx) {
+        if (idx + 1 >= arr.length) {
+            log.error("Option {} requires a value", arr[idx]);
+            System.exit(1);
+        }
+    }
 
     private static void printHelp() {
         System.out.println("Usage: java -jar poppydb.jar [options]");
@@ -348,11 +467,13 @@ public class PoppyDBCLI {
         System.out.println();
         System.out.println("SSL/TLS Options:");
         System.out.println("  --ssl, --tls               : Enable SSL/TLS encrypted connections");
+        System.out.println("  --no-ssl                   : Force SSL/TLS off, overriding a config file's ssl=true");
         System.out.println("  --sslKeystore <path>       : Path to JKS or PKCS12 keystore file");
         System.out.println("  --sslKeystorePassword <pw> : Password for the keystore");
         System.out.println("  --auth                     : Require SCRAM authentication (SCRAM-SHA-1/-256).");
         System.out.println("                               Unauthenticated connections may only run the");
         System.out.println("                               handshake/SASL/ping commands.");
+        System.out.println("  --no-auth                  : Force auth off, overriding a config file's auth=true");
         System.out.println("  --rootUser <name>          : Initial admin user, created at startup if absent");
         System.out.println("  --rootPassword <pw>        : Password for the initial admin user");
         System.out.println();
@@ -365,6 +486,20 @@ public class PoppyDBCLI {
         System.out.println("  --max-connections <num>    : Maximum concurrent connections (default: 500)");
         System.out.println("  --socket-timeout <seconds> : Idle connection timeout in seconds (default: 300)");
         System.out.println();
+        System.out.println("Configuration File Options:");
+        System.out.println("  --cfg, -f <path>           : Load settings from this configuration file (java.util.Properties");
+        System.out.println("                               format, key=value). Command line arguments always win over");
+        System.out.println("                               values from the file, which in turn win over the defaults above.");
+        System.out.println("  --no-config                : Do not search the default configuration file locations below");
+        System.out.println("                               (an explicit --cfg/-f still applies if also given)");
+        System.out.println("                               Without --cfg/-f/--no-config, the first existing file among:");
+        System.out.println("                                 $POPPYDB_CONF");
+        System.out.println("                                 ${XDG_CONFIG_HOME:-~/.config}/poppydb/config");
+        System.out.println("                                 ${XDG_CONFIG_HOME:-~/.config}/poppydb.conf");
+        System.out.println("                                 /etc/poppydb/config");
+        System.out.println("                                 /etc/poppydb.conf");
+        System.out.println("                               is used (no merging - first match wins). See docs/poppydb.md.");
+        System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
         System.out.println("Examples:");
@@ -372,5 +507,6 @@ public class PoppyDBCLI {
         System.out.println("  java -jar poppydb.jar -p 27018 --ssl --sslKeystore server.jks --sslKeystorePassword changeit");
         System.out.println("  java -jar poppydb.jar -p 27017 --dump-dir /var/poppydb/data --dump-interval 300");
         System.out.println("  java -jar poppydb.jar --rs-name myrs --rs-seed localhost:27017,localhost:27018,localhost:27019");
+        System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config");
     }
 }
