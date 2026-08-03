@@ -52,21 +52,47 @@ has full read/write/admin access in cleartext. Authorization is authentication-o
 (roles are stored but not evaluated, see [PoppyDB § Security](../poppydb.md#security)) — treat
 every authenticated user as an admin and control access at the network boundary, not by role.
 
-## 3. Secrets handling (until config-file support lands)
+## 3. Secrets handling
 
 `--rootPassword` and `--sslKeystorePassword` on the command line are visible to any local user via
-`ps aux` or `/proc/<pid>/cmdline` for the life of the process. Until PoppyDB gains file-based
-configuration, mitigate this with your process supervisor rather than the command line directly:
+`ps aux` or `/proc/<pid>/cmdline` for the life of the process — avoid them for production and use
+PoppyDB's [configuration file](../poppydb.md#configuration-file) instead: it keeps secrets out of
+the process argument list entirely, and its `root-password-file`/`ssl-keystore-password-file`
+keys go one step further by keeping the secrets out of the main config file too:
 
-- **systemd**: put secrets in an `EnvironmentFile` with `0600` permissions (root-only readable,
-  see the unit file in [§5](#5-run-it-as-a-service-systemd) below) and reference them as
-  `${ROOT_PASSWORD}` in `ExecStart` — systemd expands the environment before exec, so the
-  expanded values never appear in `ps aux` the way literal CLI arguments would.
-- **Docker/Compose**: use `secrets:` (Swarm) or an env file excluded from your image/VCS, not
-  hardcoded `CMD` arguments (the [Dockerfile example in PoppyDB § Use Cases](../poppydb.md#4-docker-deployment)
-  is fine for local/CI use, but bakes the password into the image layer — do not reuse it verbatim
-  for a production image with real secrets).
-- **Kubernetes**: mount a `Secret` as environment variables into the pod spec, same reasoning.
+```properties
+# /etc/poppydb/config - world-readable is fine, it contains no secrets itself
+port = 27017
+bind = 0.0.0.0
+auth = true
+root-user = admin
+root-password-file = /etc/poppydb/secrets/root.pw
+ssl = true
+ssl-keystore = /etc/poppydb/server.jks
+ssl-keystore-password-file = /etc/poppydb/secrets/keystore.pw
+rs-name = prod-rs
+rs-seed = node1:27017,node2:27017,node3:27017
+```
+
+PoppyDB refuses to start if `root-password`/`ssl-keystore-password` and their `*-file`
+counterparts are set at the same time, and checks the POSIX permissions of the main file (if it
+embeds a secret directly) and of any `*-file`-referenced secret file: group/other-readable only
+warns, group/other-writable is a hard error (a writable config with secrets is a privilege
+escalation, not a style issue) — see
+[PoppyDB § Configuration File](../poppydb.md#configuration-file) for the full syntax and search
+path rules.
+
+- **systemd**: reference the secret files via `LoadCredential=` (see the unit file in
+  [§5](#5-run-it-as-a-service-systemd) below) so the secrets themselves are never interpolated
+  into `ExecStart` or exposed as environment variables — `root-password-file`/
+  `ssl-keystore-password-file` point straight at the credential paths systemd exposes.
+- **Docker/Compose**: mount the config file (`docker run -v poppydb.conf:/etc/poppydb/config:ro`,
+  see [PoppyDB § Docker Deployment](../poppydb.md#4-docker-deployment)) and mount secret files via
+  `secrets:` (Swarm) separately, referenced from the config via `*-password-file` — do not bake
+  real secrets into a `CMD` line or an image layer (the plain Dockerfile example in
+  [PoppyDB § Use Cases](../poppydb.md#4-docker-deployment) is fine for local/CI use only).
+- **Kubernetes**: mount a `Secret` as files into the pod (not environment variables) and point
+  `root-password-file`/`ssl-keystore-password-file` at the mounted paths.
 
 ## 4. Capacity planning
 
@@ -86,6 +112,10 @@ configuration, mitigate this with your process supervisor rather than the comman
 
 ## 5. Run it as a service (systemd)
 
+Use a [configuration file](../poppydb.md#configuration-file) instead of a long `ExecStart` line
+with `${VAR}` interpolation, and `LoadCredential=` to hand secrets to the process without ever
+putting them in `ExecStart`, an environment variable, or `ps aux`:
+
 ```ini
 # /etc/systemd/system/poppydb.service
 [Unit]
@@ -97,14 +127,9 @@ Wants=network-online.target
 Type=simple
 User=poppydb
 Group=poppydb
-EnvironmentFile=/etc/poppydb/secrets.env
-ExecStart=/usr/bin/java -Xms4g -Xmx4g -jar /opt/poppydb/poppydb-cli.jar \
-  --port 27017 --bind 0.0.0.0 \
-  --auth --rootUser admin --rootPassword ${ROOT_PASSWORD} \
-  --ssl --sslKeystore /etc/poppydb/server.jks --sslKeystorePassword ${KEYSTORE_PASSWORD} \
-  --rs-name prod-rs --rs-seed node1:27017,node2:27017,node3:27017 \
-  --dump-dir /var/lib/poppydb/snapshots --dump-interval 300 \
-  --log-level INFO
+LoadCredential=root-password:/etc/poppydb/secrets/root.pw
+LoadCredential=keystore-password:/etc/poppydb/secrets/keystore.pw
+ExecStart=/usr/bin/java -Xms4g -Xmx4g -jar /opt/poppydb/poppydb-cli.jar --cfg /etc/poppydb/config
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
@@ -113,23 +138,41 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 ```
 
-```bash
-# /etc/poppydb/secrets.env - chmod 600, owned by root:poppydb
-ROOT_PASSWORD=change-me
-KEYSTORE_PASSWORD=change-me-too
+```properties
+# /etc/poppydb/config - no secrets in here, safe to be world-readable
+port = 27017
+bind = 0.0.0.0
+auth = true
+root-user = admin
+root-password-file = /run/credentials/poppydb.service/root-password
+ssl = true
+ssl-keystore = /etc/poppydb/server.jks
+ssl-keystore-password-file = /run/credentials/poppydb.service/keystore-password
+rs-name = prod-rs
+rs-seed = node1:27017,node2:27017,node3:27017
+dump-dir = /var/lib/poppydb/snapshots
+dump-interval = 300
+log-level = INFO
 ```
 
+`LoadCredential=<name>:<path>` makes systemd copy `<path>` into a runtime-only, root-owned
+directory readable only by the service (`/run/credentials/<unit>/<name>`) before the process
+starts — the source file at `/etc/poppydb/secrets/*.pw` still needs `chmod 600` itself, but the
+password is never expanded into `ExecStart` or exposed as an environment variable the way
+`EnvironmentFile` + CLI args would. Repeat on the other two replica-set nodes with the same
+`rs-name`/`rs-seed` and each node's own `bind`/config.
+
 ```bash
-sudo chmod 600 /etc/poppydb/secrets.env
-sudo chown root:poppydb /etc/poppydb/secrets.env
+sudo chmod 600 /etc/poppydb/secrets/root.pw /etc/poppydb/secrets/keystore.pw
+sudo chown root:poppydb /etc/poppydb/secrets/root.pw /etc/poppydb/secrets/keystore.pw
 sudo systemctl daemon-reload
 sudo systemctl enable --now poppydb
 sudo systemctl status poppydb
 ```
 
-`--log-level` controls verbosity without editing the bundled Logback config — see
-[PoppyDB § Logging](../poppydb.md#logging) if you need more (e.g. a rotating file appender via
-`-Dlogback.configurationFile`).
+`log-level` (or `--log-level` on the command line) controls verbosity without editing the bundled
+Logback config — see [PoppyDB § Logging](../poppydb.md#logging) if you need more (e.g. a rotating
+file appender via `-Dlogback.configurationFile`).
 
 ## 6. Monitoring
 
