@@ -18,6 +18,7 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 - [Overview](./overview.md) — Features und kurzer Quick Start
 - [Developer Guide](./developer-guide.md) — Mapping, Queries, Aggregation, Caching, Konfiguration
 - [Messaging](./messaging.md) — Built-in Message Queue Guide
+- [Messaging Implementations](./howtos/messaging-implementations.md) — Standard vs. Advanced vs. beta DualChannelMessaging, incl. measured throughput/latency numbers
 - [How‑Tos](./howtos/basic-setup.md) — Rezepte für häufige Aufgaben
 
 ## Testing & Development
@@ -61,9 +62,9 @@ The initial Message Queuing feature was created to synchronize caches across a c
 Learn more
 - Object mapping and configuration: see the [Developer Guide](./developer-guide.md)
 - Caching: see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md)
-- Messaging: see [Messaging](./messaging.md)
+- Messaging: see [Messaging](./messaging.md) and [Messaging Implementations](./howtos/messaging-implementations.md) (implementation comparison, measured throughput/latency)
 - Testing without MongoDB: see [InMemory Driver](./howtos/inmemory-driver.md), [PoppyDB](./poppydb.md)
-- Upgrading: [v6.1 → v6.2](./howtos/migration-v6_1-to-v6_2.md) | [v5 → v6](./howtos/migration-v5-to-v6.md)
+- Upgrading: [v6.2 → v6.3](./howtos/migration-v6_2-to-v6_3.md) | [v6.1 → v6.2](./howtos/migration-v6_1-to-v6_2.md) | [v5 → v6](./howtos/migration-v5-to-v6.md)
 
 ### Our own driver (since 5.0)
 
