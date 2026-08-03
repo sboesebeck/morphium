@@ -92,9 +92,13 @@ dual-write bridge between the collection layouts.
 ## Measured Behavior Under Load (July 2026)
 
 Request/reply load tests with the [Morpheus](https://github.com/sboesebeck/morpheus) latency tool
-(ramp 50→250 msg/s in 50 msg/s steps of 10 s, 15 sender threads, 5 s warmup, `sendAndAwaitAsync`
-against a pong responder; everything on one host — Apple Silicon macOS, MongoDB as single-node
-replica set vs. PoppyDB; Morphium 6.3.0-SNAPSHOT) produced the following picture.
+(`sendAndAwaitAsync` against a pong responder, 15 sender threads, 5 s warmup; everything on one
+host — Apple Silicon macOS, MongoDB as a local 3-node replica set vs. a local 3-node PoppyDB
+replica set; Morphium 6.3.0-SNAPSHOT). Two rounds were run; the numbers below are from the second,
+slower ramp (`50:25:20` — start 50 msg/s, +25 msg/s every 20 s, 150 s total), which gives each rate
+step enough dwell time to reach a real steady state before the next increase. All three
+implementations (Standard, MultiCollection, Dual Channel) were measured side by side against both
+backends.
 
 ### Latency floor (below saturation, 50–100 msg/s)
 
@@ -114,16 +118,26 @@ Before that reorder the return leg carried an extra majority-acked write, making
 expensive as the outbound leg (measured 2.0× → 1.0× after the fix, ~40% lower request/reply RTT
 on MongoDB).
 
-### Throughput ceiling and overload behavior
+### Throughput ceiling and overload behavior — MongoDB
 
-| MongoDB | Standard | MultiCollection |
-|---|---|---|
-| usable up to | ~100 msg/s | ~150 msg/s |
-| sustained ceiling | ~145 msg/s | ~190 msg/s |
-| behavior past the knee | hard plateau, RTT stable ~250 ms (honest backpressure) | accepts more than it delivers, RTT grows unboundedly (measured up to 3.6 s, near the answer timeout) |
+Steady-state window (offered rate 175–225 msg/s, well past every implementation's knee):
 
-PoppyDB reached its knee at ~200–250 msg/s with either implementation — its change-stream push is
-cheap enough that the single cursor never became the bottleneck in this test.
+| Implementation | Throughput | RTT p50 | RTT p95 |
+|---|---|---|---|
+| Standard | 121.1 msg/s | 410 ms | 723 ms |
+| MultiCollection | 139.4 msg/s | 305 ms | **2044 ms** |
+| **Dual Channel (beta)** | **131.7 msg/s** | **274 ms** | **519 ms** |
+
+Dual Channel beats Standard on *both* axes — +9% throughput, −33% p50, −28% p95 — delivering on
+its design goal: a second delivery lane without inheriting MultiCollection's runaway behavior.
+MultiCollection does reach a higher raw number, but by accepting more than it can reliably
+deliver: RTT repeatedly climbs into the multi-second range (up to ~2 s, near the answer timeout)
+and back down rather than settling on a stable plateau — the same "accepts more than it delivers"
+pattern the original motivation for this work identified. The +9% throughput gain is more modest
+than the ~30% (~145→190 msg/s) implied by that original motivation; a slower/longer ramp than the
+one used in the initial measurement was needed to even see a clean, reproducible edge over
+Standard, since both implementations self-limit toward the same ~120–145 msg/s range unless the
+offered load is sustained well past that knee for tens of seconds.
 
 Two findings worth keeping in mind when choosing an implementation:
 
@@ -131,12 +145,35 @@ Two findings worth keeping in mind when choosing an implementation:
   w:1 would not lift it: change-stream visibility still waits for the majority commit point.
   It would only weaken the exactly-once guarantees for exclusive messages (processed_by marks and
   locks can roll back on failover).
-- **MultiCollection's capacity advantage comes from its second cursor** (answers/DMs through the
+- **MultiCollection's capacity edge comes from its second cursor** (answers/DMs through the
   dedicated DM collection), not from the per-topic split: on mongod every change-stream cursor
   tails the whole oplog regardless of collection layout, and Standard already filters relevance
-  server-side in its pipeline. Combining Standard's layout with just that second delivery lane is
-  exactly what `DualChannelMessaging` (beta, 6.4.0) does — see
-  [#265](https://github.com/sboesebeck/morphium/issues/265) and the dedicated section above.
+  server-side in its pipeline. `DualChannelMessaging` isolates exactly that one mechanism on top of
+  an unmodified Standard core — see [#265](https://github.com/sboesebeck/morphium/issues/265).
+
+### Throughput ceiling — PoppyDB (no differentiation, and why)
+
+| Implementation | Throughput | RTT p50 | RTT p95 |
+|---|---|---|---|
+| Standard | 186.6 msg/s | 22.6 ms | 176.3 ms |
+| MultiCollection | 186.8 msg/s | 20.9 ms | 157.1 ms |
+| Dual Channel (beta) | 186.9 msg/s | **17.4 ms** | 158.0 ms |
+
+Throughput is statistically identical across all three (differences are noise) — the second
+cursor buys nothing on PoppyDB, even measured over a ~50 s steady-state window well past PoppyDB's
+own knee (~250–300 msg/s, notably higher than MongoDB's ~145 msg/s ceiling). This was verified
+against the actual code, not just inferred from the numbers: PoppyDB's `InMemoryDriver` delivers
+change-stream events **push-based, synchronously, immediately after the write** (`PoppyDB.java`
+sets `serverMode=true`, which makes `dispatchEvent` run inline on the writer thread instead of via
+polling or a fixed cadence), and a single `getMore` round-trip batches up to 100 events. There is no
+"a cursor can only deliver events at a fixed cadence" bottleneck for a second cursor to
+parallelize — that bottleneck is specific to mongod's oplog-tailing change streams, which is
+exactly what motivated this feature. PoppyDB's own ceiling is write-path bound instead (per-
+collection write lock, synchronous per-insert subscriber dispatch), not cursor-count bound, so a
+second cursor doesn't move it. **No architectural changes are planned for PoppyDB on account of
+this feature.** The one real, if small, side effect: Dual Channel's steady-state p50 is lowest of
+the three despite equal throughput, plausibly because its dedicated DM collection has fewer
+subscribers/irrelevant events to match per write than the shared main collection.
 
 ## Configuration and Usage
 
