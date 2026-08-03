@@ -15,6 +15,7 @@ PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InM
 - ✅ **Perfect for CI/CD** - No Docker or MongoDB installation required
 - ✅ **Integration Testing** - Test multi-language microservices together
 - ✅ **Opt-in Authentication & TLS** - Real SCRAM-SHA-1/-256 auth (`--auth`) and SSL/TLS encrypted connections (`--ssl`)
+- ✅ **Configuration File** - `--cfg`/`-f`, systemd/Docker-friendly, keeps secrets off the command line via `*-file` indirection (see [Configuration File](#configuration-file))
 
 ## Quick Start
 

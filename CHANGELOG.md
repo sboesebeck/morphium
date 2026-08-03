@@ -10,6 +10,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: configuration file support (`--cfg`/`-f`, `--no-config`), secrets kept off the command line
+Production deployment (systemd, Docker, config management) needed a config file — every setting
+was CLI-only, and passwords (`--rootPassword`, `--sslKeystorePassword`) on the command line are
+readable by any local user via `ps aux`/`/proc/<pid>/cmdline` for the life of the process. PoppyDB
+now optionally reads a `java.util.Properties`-format file (`key=value`), discovered in order
+(first match wins, files are never merged) from `--cfg`/`-f`, `$POPPYDB_CONF`,
+`${XDG_CONFIG_HOME:-~/.config}/poppydb/config`, `~/.config/poppydb.conf`, `/etc/poppydb/config`,
+then `/etc/poppydb.conf`; `--no-config` skips the four default locations. Precedence is uniform
+for every single setting: command line argument wins, then the config file, then the built-in
+default — `--no-ssl`/`--no-auth` were added so a config file's `ssl=true`/`auth=true` can still be
+switched back off from the command line, closing the precedence chain for both boolean flags.
+Keys are matched case/separator-insensitively (`max-bson-size` ≡ `maxBsonSize` ≡ `MAX_BSON_SIZE`),
+an optional `poppydb.` prefix is stripped, and an unknown key (typo) aborts startup with a "did you
+mean" suggestion instead of being silently ignored — a config that starts wrong is worse than one
+that doesn't start. `root-password`/`ssl-keystore-password` each gained a `*-file` counterpart
+(`root-password-file`, `ssl-keystore-password-file`) that reads the secret from a separate file
+(compatible with Docker secrets, Kubernetes secret mounts, and systemd's `LoadCredential=`), and
+any file carrying a secret — the main config or a referenced `*-file` — has its POSIX permissions
+checked: group/other-readable warns, group/other-writable refuses to start (a world-writable
+config holding secrets is a privilege escalation, not a style issue). Deliberately **not** built:
+`#include`/`conf.d` directory merging — `#` is a comment character in `.properties` files, which
+makes a `#include` directive collide with ordinary commented-out lines, and the one real
+motivating use case (secrets separation) is better served by the `*-file` indirection above.
+`scripts/poppydb.sh`/`scripts/startPoppyDB.sh` always pass `--no-config` now, so a developer's
+private config can never silently change what a local test run connects to. See
+[PoppyDB § Configuration File](docs/poppydb.md#configuration-file) and the
+[Production Deployment Playbook](docs/howtos/poppydb-deployment.md).
+
 #### PoppyDB: DevOps command surface — live currentOp/killOp, rs.conf(), listCommands, hostInfo, real connection gauges
 Closes the gaps that made mongosh's admin helpers fail against PoppyDB. A server-wide **op registry** tracks every command for the duration of its dispatch: `db.currentOp()` (mongosh's `{aggregate: 1, pipeline: [{$currentOp: {}}]}` shape, `$match` filters included) and the `currentOp` command answer from it with mongod-shaped op documents (opid, ns, command, secs_running, client, killPending — SASL/createUser payloads redacted); `killOp` marks an op kill-pending and best-effort interrupts its thread, cooperatively like mongod (never a Netty event loop; write-concern waits on the executor are interruptible). New commands: `listCommands` (generated from the real command surface — the wire handlers plus the driver's registered command classes), `hostInfo`, `connectionStatus` (reports the connection's SCRAM user under `--auth`), `whatsmyuri`, and `replSetGetConfig` — `rs.conf()` now works, reconstructed from `--rs-seed`/`--rs-priorities`. `serverStatus.connections` reports the server's **real** client-socket gauges (Netty channel group) instead of the in-memory driver's internal connection borrows. The embedded InMemoryDriver answers the `$currentOp` stage with an honest empty set (commands execute synchronously — there is never a concurrent op to report).
 
