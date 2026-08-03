@@ -4,13 +4,13 @@ Morphium provides three messaging implementations that share the same API (`Morp
 
 ## Summary
 
-- Standard (`StdMessaging`, name: `StandardMessaging`)
+- Standard (`SingleCollectionMessaging`, name: `StandardMessaging`)
   - Single queue collection per queue name (e.g., `msg`).
   - Direct messages (recipient‑targeted) are stored in the same collection.
   - One lock collection per queue (e.g., `msg_lck`) for exclusive messages.
   - Simpler layout, good default for small to medium setups or few topics.
 
-- Advanced (`AdvancedSplitCollectionMessaging`, name: `AdvMessaging`)
+- MultiCollection (`MultiCollectionMessaging`, name: `MultiCollectionMessaging`)
   - One collection per topic: `<queue>_<topic>` (spaces, dashes, slashes removed).
   - Direct messages use a dedicated collection per recipient: `dm_<senderIdCamelCase>`.
   - Lock collections per topic: `<queue>_lck_<topic>`.
@@ -23,7 +23,7 @@ Morphium provides three messaging implementations that share the same API (`Morp
     its own per-recipient collection `<queue>_dm_<senderIdCamelCase>` with its own dedicated
     change-stream cursor and dispatcher thread.
   - Rationale: load testing showed the throughput ceiling on MongoDB is delivery-bound - a single
-    change-stream cursor delivers at a fixed cadence regardless of collection layout. Advanced's
+    change-stream cursor delivers at a fixed cadence regardless of collection layout. MultiCollection's
     capacity edge over Standard comes from exactly this second cursor, not from the per-topic
     split. Dual Channel isolates that one idea on top of an otherwise unmodified Standard core.
   - Marked `@Beta` (see `de.caluga.morphium.annotations.Beta`): behavior, collection layout, or API
@@ -33,21 +33,21 @@ Morphium provides three messaging implementations that share the same API (`Morp
     `DualChannelMessaging` for DM/answer delivery to work both ways - see the dedicated section
     below.
 
-Standard and Advanced support:
+Standard and MultiCollection support:
 - Change Streams vs polling (`useChangeStream`), window size, multithreading, answers, exclusive vs broadcast.
 
 Dual Channel supports all of the above too, plus its own DM lane settings (see Configuration below).
 
 ## Choosing an Implementation
 
-- Start with Standard. If you have many topics, high listener fan‑out, or change streams getting noisy, move to Advanced.
+- Start with Standard. If you have many topics, high listener fan‑out, or change streams getting noisy, move to MultiCollection.
 - If your bottleneck is specifically request/reply (answer) throughput and you can run a
-  homogeneous cluster (see below), try the beta Dual Channel implementation instead of Advanced -
+  homogeneous cluster (see below), try the beta Dual Channel implementation instead of MultiCollection -
   it keeps Standard's simpler single-collection layout for broadcast/topic traffic and only adds
   the second cursor where it actually helps.
 - Names used for selection:
-  - `StandardMessaging` → `StdMessaging`
-  - `AdvMessaging` → `AdvancedSplitCollectionMessaging`
+  - `StandardMessaging` → `SingleCollectionMessaging`
+  - `MultiCollectionMessaging` → `MultiCollectionMessaging` (class and registry name are the same)
   - `DualChannelMessaging` (beta) → `DualChannelMessaging`
 
 ## Dual Channel Messaging (Beta)
@@ -68,7 +68,7 @@ Mechanism:
   broadcast cursor.
 - Answers are dispatched to a waiting `sendAndAwaitFirstAnswer`/`sendAndAwaitAsync` caller *before*
   the `processed_by` write is persisted (same pattern as the perf fix in 6.3.0 for Standard/
-  Advanced), further cutting request/reply latency.
+  MultiCollection), further cutting request/reply latency.
 - The DM collection (incl. its TTL index) is created on `start()` and dropped again on
   `terminate()`. A registry-gated periodic sweep
   (`MessagingSettings#setMessagingDmCleanupOrphansOnStartup`, default `true`, requires
@@ -87,7 +87,7 @@ dual-write bridge between the collection layouts.
 - Practically: **all messaging participants on a given queue must run `DualChannelMessaging`**
   for DM/answer delivery to work in both directions. Every `DualChannelMessaging` instance logs a
   `WARN` on startup restating this. Migrate with the same big-bang or bridge approach described
-  under "Migrating Standard → Advanced" below (the same caveats apply).
+  under "Migrating Standard → MultiCollection" below (the same caveats apply).
 
 ## Measured Behavior Under Load (July 2026)
 
@@ -181,7 +181,7 @@ Always instantiate via `Morphium.createMessaging()` so configuration and impleme
 
 ```java
 // Configure implementation by name
-cfg.messagingSettings().setMessagingImplementation("AdvMessaging"); // or "StandardMessaging" (default), or "DualChannelMessaging" (beta)
+cfg.messagingSettings().setMessagingImplementation("MultiCollectionMessaging"); // or "StandardMessaging" (default), or "DualChannelMessaging" (beta)
 
 Morphium morphium = new Morphium(cfg);
 MorphiumMessaging messaging = morphium.createMessaging();
@@ -205,7 +205,7 @@ Dual Channel additionally supports `messagingDmCleanupOrphansOnStartup` (see abo
   - Locks: `<queue>_lck`
   - Direct messages: `<queue>`
 
-- Advanced
+- MultiCollection
   - Topic queue: `<queue>_<topic>`
   - Locks: `<queue>_lck_<topic>`
   - Direct messages: `dm_<recipientSenderIdCamelCase>`
@@ -214,32 +214,32 @@ Dual Channel additionally supports `messagingDmCleanupOrphansOnStartup` (see abo
   - Broadcast/topic queue: `<queue>` (identical to Standard)
   - Locks: `<queue>_lck` (identical to Standard)
   - Direct messages / answers: `<queue>_dm_<recipientSenderIdCamelCase>` (queue-prefixed, unlike
-    Advanced's shared `dm_<sender>` — so multiple queues never collide on the same DM collection
+    MultiCollection's shared `dm_<sender>` — so multiple queues never collide on the same DM collection
     for a given sender id)
 
-## Migrating Standard → Advanced
+## Migrating Standard → MultiCollection
 
-Because the storage layout changes, do not mix Standard and Advanced nodes for the same application at the same time.
+Because the storage layout changes, do not mix Standard and MultiCollection nodes for the same application at the same time.
 
 Recommended approaches
 - Big‑bang switch (simplest):
   - Drain or pause message producers.
   - Stop all consumers (nodes).
-  - Update config: `cfg.messagingSettings().setMessagingImplementation("AdvMessaging")`.
+  - Update config: `cfg.messagingSettings().setMessagingImplementation("MultiCollectionMessaging")`.
   - Start all nodes; verify listeners on expected topics; resume producers.
 
 - Transitional bridge (optional):
-  - If you must avoid downtime, temporarily run a small bridge process that reads from Standard (`msg`) and republishes into Advanced per‑topic collections using the same `Msg` payloads. Switch all nodes to Advanced, then remove the bridge.
+  - If you must avoid downtime, temporarily run a small bridge process that reads from Standard (`msg`) and republishes into MultiCollection per‑topic collections using the same `Msg` payloads. Switch all nodes to MultiCollection, then remove the bridge.
 
 Notes
 - Producers and consumers use the same `MorphiumMessaging` API. The change is purely implementation/configuration.
-- Topic names do not change. Advanced derives collection names from topics automatically.
+- Topic names do not change. MultiCollection derives collection names from topics automatically.
 - Indexes are ensured automatically by both implementations on startup.
 - Clean‑up: once fully migrated, you may drop the old Standard queue collections (`<queue>`, `<queue>_lck`) after verifying they’re unused.
 
 ## Migrating Standard → Dual Channel (Beta)
 
-Same big-bang approach as Standard → Advanced: stop all consumers, switch every node's config to
+Same big-bang approach as Standard → MultiCollection: stop all consumers, switch every node's config to
 `DualChannelMessaging`, restart. Since Dual Channel's broadcast/topic collection layout is
 identical to Standard's, an even simpler option exists for this specific migration: a rolling
 restart is tolerable for broadcast/topic traffic (both implementations read/write the same main

@@ -195,8 +195,10 @@ Sender → MongoDB Collection → Change Stream/Polling → Listener
 ```
 
 #### Implementation Variants
-- **StdMessaging** - Standard implementation
-- **AdvancedSplitCollectionMessaging** - Scalable variant with collection splitting
+- **SingleCollectionMessaging** (registry name `StandardMessaging`) - Standard implementation
+- **MultiCollectionMessaging** - Scalable variant with per-topic/per-recipient collection splitting
+- **DualChannelMessaging** (beta) - Standard's layout plus a dedicated second change-stream cursor
+  for directed messages/answers; see [Messaging Implementations](./howtos/messaging-implementations.md)
 
 ### 7. Writer System
 

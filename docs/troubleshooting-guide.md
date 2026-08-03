@@ -272,7 +272,7 @@ System.out.println("Messages failed: " + stats.getMessagesFailed());
         <Logger name="de.caluga.morphium.driver.wire.PooledDriver" level="DEBUG" additivity="false">
             <AppenderRef ref="MorphiumLog"/>
         </Logger>
-        <Logger name="de.caluga.morphium.messaging.StdMessaging" level="DEBUG" additivity="false">
+        <Logger name="de.caluga.morphium.messaging.SingleCollectionMessaging" level="DEBUG" additivity="false">
             <AppenderRef ref="MorphiumLog"/>
         </Logger>
         
