@@ -3017,8 +3017,10 @@
 </span></code></pre></div>
 <h4 id="implementation-variants">Implementation Variants<a class="headerlink" href="#implementation-variants" title="Permanent link">&para;</a></h4>
 <ul>
-<li><strong>StdMessaging</strong> - Standard implementation</li>
-<li><strong>AdvancedSplitCollectionMessaging</strong> - Scalable variant with collection splitting</li>
+<li><strong>SingleCollectionMessaging</strong> (registry name <code>StandardMessaging</code>) - Standard implementation</li>
+<li><strong>MultiCollectionMessaging</strong> - Scalable variant with per-topic/per-recipient collection splitting</li>
+<li><strong>DualChannelMessaging</strong> (beta) - Standard's layout plus a dedicated second change-stream cursor
+  for directed messages/answers; see <a href="../howtos/messaging-implementations/">Messaging Implementations</a></li>
 </ul>
 <h3 id="7-writer-system">7. Writer System<a class="headerlink" href="#7-writer-system" title="Permanent link">&para;</a></h3>
 <h4 id="three-writer-types">Three Writer Types<a class="headerlink" href="#three-writer-types" title="Permanent link">&para;</a></h4>

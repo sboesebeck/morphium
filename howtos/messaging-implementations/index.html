@@ -1375,10 +1375,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migrating-standard-advanced" class="md-nav__link">
+  <a href="#migrating-standard-multicollection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Migrating Standard → Advanced
+        Migrating Standard → MultiCollection
       
     </span>
   </a>
@@ -2047,10 +2047,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migrating-standard-advanced" class="md-nav__link">
+  <a href="#migrating-standard-multicollection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Migrating Standard → Advanced
+        Migrating Standard → MultiCollection
       
     </span>
   </a>
@@ -2164,7 +2164,7 @@
 <p>Morphium provides three messaging implementations that share the same API (<code>MorphiumMessaging</code>) but differ in storage layout and scalability characteristics.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Standard (<code>StdMessaging</code>, name: <code>StandardMessaging</code>)</li>
+<li>Standard (<code>SingleCollectionMessaging</code>, name: <code>StandardMessaging</code>)</li>
 <li>Single queue collection per queue name (e.g., <code>msg</code>).</li>
 <li>Direct messages (recipient‑targeted) are stored in the same collection.</li>
 <li>One lock collection per queue (e.g., <code>msg_lck</code>) for exclusive messages.</li>
@@ -2172,7 +2172,7 @@
 <p>Simpler layout, good default for small to medium setups or few topics.</p>
 </li>
 <li>
-<p>Advanced (<code>AdvancedSplitCollectionMessaging</code>, name: <code>AdvMessaging</code>)</p>
+<p>MultiCollection (<code>MultiCollectionMessaging</code>, name: <code>MultiCollectionMessaging</code>)</p>
 </li>
 <li>One collection per topic: <code>&lt;queue&gt;_&lt;topic&gt;</code> (spaces, dashes, slashes removed).</li>
 <li>Direct messages use a dedicated collection per recipient: <code>dm_&lt;senderIdCamelCase&gt;</code>.</li>
@@ -2189,7 +2189,7 @@
     its own per-recipient collection <code>&lt;queue&gt;_dm_&lt;senderIdCamelCase&gt;</code> with its own dedicated
     change-stream cursor and dispatcher thread.</li>
 <li>Rationale: load testing showed the throughput ceiling on MongoDB is delivery-bound - a single
-    change-stream cursor delivers at a fixed cadence regardless of collection layout. Advanced's
+    change-stream cursor delivers at a fixed cadence regardless of collection layout. MultiCollection's
     capacity edge over Standard comes from exactly this second cursor, not from the per-topic
     split. Dual Channel isolates that one idea on top of an otherwise unmodified Standard core.</li>
 <li>Marked <code>@Beta</code> (see <code>de.caluga.morphium.annotations.Beta</code>): behavior, collection layout, or API
@@ -2199,19 +2199,19 @@
     <code>DualChannelMessaging</code> for DM/answer delivery to work both ways - see the dedicated section
     below.</li>
 </ul>
-<p>Standard and Advanced support:
+<p>Standard and MultiCollection support:
 - Change Streams vs polling (<code>useChangeStream</code>), window size, multithreading, answers, exclusive vs broadcast.</p>
 <p>Dual Channel supports all of the above too, plus its own DM lane settings (see Configuration below).</p>
 <h2 id="choosing-an-implementation">Choosing an Implementation<a class="headerlink" href="#choosing-an-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Start with Standard. If you have many topics, high listener fan‑out, or change streams getting noisy, move to Advanced.</li>
+<li>Start with Standard. If you have many topics, high listener fan‑out, or change streams getting noisy, move to MultiCollection.</li>
 <li>If your bottleneck is specifically request/reply (answer) throughput and you can run a
-  homogeneous cluster (see below), try the beta Dual Channel implementation instead of Advanced -
+  homogeneous cluster (see below), try the beta Dual Channel implementation instead of MultiCollection -
   it keeps Standard's simpler single-collection layout for broadcast/topic traffic and only adds
   the second cursor where it actually helps.</li>
 <li>Names used for selection:</li>
-<li><code>StandardMessaging</code> → <code>StdMessaging</code></li>
-<li><code>AdvMessaging</code> → <code>AdvancedSplitCollectionMessaging</code></li>
+<li><code>StandardMessaging</code> → <code>SingleCollectionMessaging</code></li>
+<li><code>MultiCollectionMessaging</code> → <code>MultiCollectionMessaging</code> (class and registry name are the same)</li>
 <li><code>DualChannelMessaging</code> (beta) → <code>DualChannelMessaging</code></li>
 </ul>
 <h2 id="dual-channel-messaging-beta">Dual Channel Messaging (Beta)<a class="headerlink" href="#dual-channel-messaging-beta" title="Permanent link">&para;</a></h2>
@@ -2228,7 +2228,7 @@
   broadcast cursor.
 - Answers are dispatched to a waiting <code>sendAndAwaitFirstAnswer</code>/<code>sendAndAwaitAsync</code> caller <em>before</em>
   the <code>processed_by</code> write is persisted (same pattern as the perf fix in 6.3.0 for Standard/
-  Advanced), further cutting request/reply latency.
+  MultiCollection), further cutting request/reply latency.
 - The DM collection (incl. its TTL index) is created on <code>start()</code> and dropped again on
   <code>terminate()</code>. A registry-gated periodic sweep
   (<code>MessagingSettings#setMessagingDmCleanupOrphansOnStartup</code>, default <code>true</code>, requires
@@ -2246,7 +2246,7 @@ dual-write bridge between the collection layouts.
 - Practically: <strong>all messaging participants on a given queue must run <code>DualChannelMessaging</code></strong>
   for DM/answer delivery to work in both directions. Every <code>DualChannelMessaging</code> instance logs a
   <code>WARN</code> on startup restating this. Migrate with the same big-bang or bridge approach described
-  under "Migrating Standard → Advanced" below (the same caveats apply).</p>
+  under "Migrating Standard → MultiCollection" below (the same caveats apply).</p>
 <h2 id="measured-behavior-under-load-july-2026">Measured Behavior Under Load (July 2026)<a class="headerlink" href="#measured-behavior-under-load-july-2026" title="Permanent link">&para;</a></h2>
 <p>Request/reply load tests with the <a href="https://github.com/sboesebeck/morpheus">Morpheus</a> latency tool
 (<code>sendAndAwaitAsync</code> against a pong responder, 15 sender threads, 5 s warmup; everything on one
@@ -2390,7 +2390,7 @@ subscribers/irrelevant events to match per write than the shared main collection
 <h2 id="configuration-and-usage">Configuration and Usage<a class="headerlink" href="#configuration-and-usage" title="Permanent link">&para;</a></h2>
 <p>Always instantiate via <code>Morphium.createMessaging()</code> so configuration and implementation selection are handled correctly.</p>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// Configure implementation by name</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">&quot;AdvMessaging&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// or &quot;StandardMessaging&quot; (default), or &quot;DualChannelMessaging&quot; (beta)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">&quot;MultiCollectionMessaging&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// or &quot;StandardMessaging&quot; (default), or &quot;DualChannelMessaging&quot; (beta)</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">Morphium</span><span class="w"> </span><span class="n">morphium</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Morphium</span><span class="p">(</span><span class="n">cfg</span><span class="p">);</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">MorphiumMessaging</span><span class="w"> </span><span class="n">messaging</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
@@ -2413,7 +2413,7 @@ subscribers/irrelevant events to match per write than the shared main collection
 <p>Direct messages: <code>&lt;queue&gt;</code></p>
 </li>
 <li>
-<p>Advanced</p>
+<p>MultiCollection</p>
 </li>
 <li>Topic queue: <code>&lt;queue&gt;_&lt;topic&gt;</code></li>
 <li>Locks: <code>&lt;queue&gt;_lck_&lt;topic&gt;</code></li>
@@ -2426,28 +2426,28 @@ subscribers/irrelevant events to match per write than the shared main collection
 <li>Broadcast/topic queue: <code>&lt;queue&gt;</code> (identical to Standard)</li>
 <li>Locks: <code>&lt;queue&gt;_lck</code> (identical to Standard)</li>
 <li>Direct messages / answers: <code>&lt;queue&gt;_dm_&lt;recipientSenderIdCamelCase&gt;</code> (queue-prefixed, unlike
-    Advanced's shared <code>dm_&lt;sender&gt;</code> — so multiple queues never collide on the same DM collection
+    MultiCollection's shared <code>dm_&lt;sender&gt;</code> — so multiple queues never collide on the same DM collection
     for a given sender id)</li>
 </ul>
-<h2 id="migrating-standard-advanced">Migrating Standard → Advanced<a class="headerlink" href="#migrating-standard-advanced" title="Permanent link">&para;</a></h2>
-<p>Because the storage layout changes, do not mix Standard and Advanced nodes for the same application at the same time.</p>
+<h2 id="migrating-standard-multicollection">Migrating Standard → MultiCollection<a class="headerlink" href="#migrating-standard-multicollection" title="Permanent link">&para;</a></h2>
+<p>Because the storage layout changes, do not mix Standard and MultiCollection nodes for the same application at the same time.</p>
 <p>Recommended approaches
 - Big‑bang switch (simplest):
   - Drain or pause message producers.
   - Stop all consumers (nodes).
-  - Update config: <code>cfg.messagingSettings().setMessagingImplementation("AdvMessaging")</code>.
+  - Update config: <code>cfg.messagingSettings().setMessagingImplementation("MultiCollectionMessaging")</code>.
   - Start all nodes; verify listeners on expected topics; resume producers.</p>
 <ul>
 <li>Transitional bridge (optional):</li>
-<li>If you must avoid downtime, temporarily run a small bridge process that reads from Standard (<code>msg</code>) and republishes into Advanced per‑topic collections using the same <code>Msg</code> payloads. Switch all nodes to Advanced, then remove the bridge.</li>
+<li>If you must avoid downtime, temporarily run a small bridge process that reads from Standard (<code>msg</code>) and republishes into MultiCollection per‑topic collections using the same <code>Msg</code> payloads. Switch all nodes to MultiCollection, then remove the bridge.</li>
 </ul>
 <p>Notes
 - Producers and consumers use the same <code>MorphiumMessaging</code> API. The change is purely implementation/configuration.
-- Topic names do not change. Advanced derives collection names from topics automatically.
+- Topic names do not change. MultiCollection derives collection names from topics automatically.
 - Indexes are ensured automatically by both implementations on startup.
 - Clean‑up: once fully migrated, you may drop the old Standard queue collections (<code>&lt;queue&gt;</code>, <code>&lt;queue&gt;_lck</code>) after verifying they’re unused.</p>
 <h2 id="migrating-standard-dual-channel-beta">Migrating Standard → Dual Channel (Beta)<a class="headerlink" href="#migrating-standard-dual-channel-beta" title="Permanent link">&para;</a></h2>
-<p>Same big-bang approach as Standard → Advanced: stop all consumers, switch every node's config to
+<p>Same big-bang approach as Standard → MultiCollection: stop all consumers, switch every node's config to
 <code>DualChannelMessaging</code>, restart. Since Dual Channel's broadcast/topic collection layout is
 identical to Standard's, an even simpler option exists for this specific migration: a rolling
 restart is tolerable for broadcast/topic traffic (both implementations read/write the same main
