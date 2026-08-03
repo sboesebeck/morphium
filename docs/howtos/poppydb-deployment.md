@@ -3,7 +3,8 @@
 This is a task-oriented, step-by-step guide to running PoppyDB in production. For the full
 feature reference (all CLI flags, replica-set internals, admin command support, performance
 numbers) see **[PoppyDB](../poppydb.md)** — this page only covers *how to get from a bare JAR to
-a securely configured, monitored, backed-up production instance*, in order.
+a securely configured, monitored, backed-up production instance*, in order, ending in a
+[Best Practices Checklist](#9-best-practices-checklist) to review before launch.
 
 Read this if you're deploying PoppyDB as a message broker or cache/session store (see
 [PoppyDB § Use Cases](../poppydb.md#use-cases)). If you only need it for tests or CI, the defaults
@@ -28,45 +29,94 @@ page.
 ## 2. Minimal secure configuration
 
 Every production instance should start with **both** of these enabled — neither is on by default,
-both are opt-in for backward compatibility with test/dev usage:
+both are opt-in for backward compatibility with test/dev usage. Use a
+[configuration file](../poppydb.md#configuration-file) from the start rather than command-line
+flags: it is the only form that keeps `--rootPassword`/`--sslKeystorePassword` off the process
+argument list (see [§3](#3-secrets-handling) for why that matters), and it is what every later
+step in this playbook (systemd, monitoring, upgrades) assumes.
 
 ```bash
 # Generate a keystore once (see PoppyDB § SSL/TLS for details)
 keytool -genkeypair -alias poppydb -keyalg RSA -keysize 2048 \
   -validity 3650 -keystore /etc/poppydb/server.jks -storepass "$KEYSTORE_PASSWORD" \
   -dname "CN=poppydb.internal.example.com"
-
-java -jar poppydb-cli.jar \
-  --port 27017 --bind 0.0.0.0 \
-  --auth --rootUser admin --rootPassword "$ROOT_PASSWORD" \
-  --ssl --sslKeystore /etc/poppydb/server.jks --sslKeystorePassword "$KEYSTORE_PASSWORD" \
-  --rs-name prod-rs --rs-seed node1:27017,node2:27017,node3:27017
 ```
 
-Repeat on the other two nodes with the same `--rs-name`/`--rs-seed` and each node's own bind
-address. See [PoppyDB § Replica Set Behavior](../poppydb.md#replica-set-behavior-experimental) for
-how initial sync and elections work.
+```properties
+# /etc/poppydb/config - identical on all three nodes except 'bind' if it differs per host
+port = 27017
+bind = 0.0.0.0
+auth = true
+root-user = admin
+root-password-file = /etc/poppydb/secrets/root.pw
+ssl = true
+ssl-keystore = /etc/poppydb/server.jks
+ssl-keystore-password-file = /etc/poppydb/secrets/keystore.pw
+rs-name = prod-rs
+rs-seed = node1:27017,node2:27017,node3:27017
+```
 
-**Do not skip `--auth` or `--ssl` in production** — without them, anyone who can reach the port
-has full read/write/admin access in cleartext. Authorization is authentication-only right now
-(roles are stored but not evaluated, see [PoppyDB § Security](../poppydb.md#security)) — treat
-every authenticated user as an admin and control access at the network boundary, not by role.
+```bash
+# chmod 600 the secret files referenced above, then:
+java -jar poppydb-cli.jar --cfg /etc/poppydb/config
+```
 
-## 3. Secrets handling (until config-file support lands)
+Repeat on the other two nodes with the same config file (`rs-name`/`rs-seed` must be identical
+everywhere). See [PoppyDB § Replica Set Behavior](../poppydb.md#replica-set-behavior-experimental)
+for how initial sync and elections work.
+
+**Do not skip `auth`/`ssl` in production** — without them, anyone who can reach the port has full
+read/write/admin access in cleartext. Authorization is authentication-only right now (roles are
+stored but not evaluated, see [PoppyDB § Security](../poppydb.md#security)) — treat every
+authenticated user as an admin and control access at the network boundary, not by role.
+
+If you only need a one-off run without a persistent config file (a quick manual test against a
+production-shaped setup, say), the equivalent CLI-only form is
+`--port 27017 --bind 0.0.0.0 --auth --rootUser admin --rootPassword "$ROOT_PASSWORD" --ssl --sslKeystore ... --sslKeystorePassword "$KEYSTORE_PASSWORD" --rs-name ... --rs-seed ...`
+— but see [§3](#3-secrets-handling) for why this isn't the recommended shape for anything
+long-running.
+
+## 3. Secrets handling
 
 `--rootPassword` and `--sslKeystorePassword` on the command line are visible to any local user via
-`ps aux` or `/proc/<pid>/cmdline` for the life of the process. Until PoppyDB gains file-based
-configuration, mitigate this with your process supervisor rather than the command line directly:
+`ps aux` or `/proc/<pid>/cmdline` for the life of the process — avoid them for production and use
+PoppyDB's [configuration file](../poppydb.md#configuration-file) instead: it keeps secrets out of
+the process argument list entirely, and its `root-password-file`/`ssl-keystore-password-file`
+keys go one step further by keeping the secrets out of the main config file too:
 
-- **systemd**: put secrets in an `EnvironmentFile` with `0600` permissions (root-only readable,
-  see the unit file in [§5](#5-run-it-as-a-service-systemd) below) and reference them as
-  `${ROOT_PASSWORD}` in `ExecStart` — systemd expands the environment before exec, so the
-  expanded values never appear in `ps aux` the way literal CLI arguments would.
-- **Docker/Compose**: use `secrets:` (Swarm) or an env file excluded from your image/VCS, not
-  hardcoded `CMD` arguments (the [Dockerfile example in PoppyDB § Use Cases](../poppydb.md#4-docker-deployment)
-  is fine for local/CI use, but bakes the password into the image layer — do not reuse it verbatim
-  for a production image with real secrets).
-- **Kubernetes**: mount a `Secret` as environment variables into the pod spec, same reasoning.
+```properties
+# /etc/poppydb/config - world-readable is fine, it contains no secrets itself
+port = 27017
+bind = 0.0.0.0
+auth = true
+root-user = admin
+root-password-file = /etc/poppydb/secrets/root.pw
+ssl = true
+ssl-keystore = /etc/poppydb/server.jks
+ssl-keystore-password-file = /etc/poppydb/secrets/keystore.pw
+rs-name = prod-rs
+rs-seed = node1:27017,node2:27017,node3:27017
+```
+
+PoppyDB refuses to start if `root-password`/`ssl-keystore-password` and their `*-file`
+counterparts are set at the same time, and checks the POSIX permissions of the main file (if it
+embeds a secret directly) and of any `*-file`-referenced secret file: group/other-readable only
+warns, group/other-writable is a hard error (a writable config with secrets is a privilege
+escalation, not a style issue) — see
+[PoppyDB § Configuration File](../poppydb.md#configuration-file) for the full syntax and search
+path rules.
+
+- **systemd**: reference the secret files via `LoadCredential=` (see the unit file in
+  [§5](#5-run-it-as-a-service-systemd) below) so the secrets themselves are never interpolated
+  into `ExecStart` or exposed as environment variables — `root-password-file`/
+  `ssl-keystore-password-file` point straight at the credential paths systemd exposes.
+- **Docker/Compose**: mount the config file (`docker run -v poppydb.conf:/etc/poppydb/config:ro`,
+  see [PoppyDB § Docker Deployment](../poppydb.md#4-docker-deployment)) and mount secret files via
+  `secrets:` (Swarm) separately, referenced from the config via `*-password-file` — do not bake
+  real secrets into a `CMD` line or an image layer (the plain Dockerfile example in
+  [PoppyDB § Use Cases](../poppydb.md#4-docker-deployment) is fine for local/CI use only).
+- **Kubernetes**: mount a `Secret` as files into the pod (not environment variables) and point
+  `root-password-file`/`ssl-keystore-password-file` at the mounted paths.
 
 ## 4. Capacity planning
 
@@ -86,6 +136,10 @@ configuration, mitigate this with your process supervisor rather than the comman
 
 ## 5. Run it as a service (systemd)
 
+Use a [configuration file](../poppydb.md#configuration-file) instead of a long `ExecStart` line
+with `${VAR}` interpolation, and `LoadCredential=` to hand secrets to the process without ever
+putting them in `ExecStart`, an environment variable, or `ps aux`:
+
 ```ini
 # /etc/systemd/system/poppydb.service
 [Unit]
@@ -97,14 +151,9 @@ Wants=network-online.target
 Type=simple
 User=poppydb
 Group=poppydb
-EnvironmentFile=/etc/poppydb/secrets.env
-ExecStart=/usr/bin/java -Xms4g -Xmx4g -jar /opt/poppydb/poppydb-cli.jar \
-  --port 27017 --bind 0.0.0.0 \
-  --auth --rootUser admin --rootPassword ${ROOT_PASSWORD} \
-  --ssl --sslKeystore /etc/poppydb/server.jks --sslKeystorePassword ${KEYSTORE_PASSWORD} \
-  --rs-name prod-rs --rs-seed node1:27017,node2:27017,node3:27017 \
-  --dump-dir /var/lib/poppydb/snapshots --dump-interval 300 \
-  --log-level INFO
+LoadCredential=root-password:/etc/poppydb/secrets/root.pw
+LoadCredential=keystore-password:/etc/poppydb/secrets/keystore.pw
+ExecStart=/usr/bin/java -Xms4g -Xmx4g -jar /opt/poppydb/poppydb-cli.jar --cfg /etc/poppydb/config
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
@@ -113,23 +162,41 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 ```
 
-```bash
-# /etc/poppydb/secrets.env - chmod 600, owned by root:poppydb
-ROOT_PASSWORD=change-me
-KEYSTORE_PASSWORD=change-me-too
+```properties
+# /etc/poppydb/config - no secrets in here, safe to be world-readable
+port = 27017
+bind = 0.0.0.0
+auth = true
+root-user = admin
+root-password-file = /run/credentials/poppydb.service/root-password
+ssl = true
+ssl-keystore = /etc/poppydb/server.jks
+ssl-keystore-password-file = /run/credentials/poppydb.service/keystore-password
+rs-name = prod-rs
+rs-seed = node1:27017,node2:27017,node3:27017
+dump-dir = /var/lib/poppydb/snapshots
+dump-interval = 300
+log-level = INFO
 ```
 
+`LoadCredential=<name>:<path>` makes systemd copy `<path>` into a runtime-only, root-owned
+directory readable only by the service (`/run/credentials/<unit>/<name>`) before the process
+starts — the source file at `/etc/poppydb/secrets/*.pw` still needs `chmod 600` itself, but the
+password is never expanded into `ExecStart` or exposed as an environment variable the way
+`EnvironmentFile` + CLI args would. Repeat on the other two replica-set nodes with the same
+`rs-name`/`rs-seed` and each node's own `bind`/config.
+
 ```bash
-sudo chmod 600 /etc/poppydb/secrets.env
-sudo chown root:poppydb /etc/poppydb/secrets.env
+sudo chmod 600 /etc/poppydb/secrets/root.pw /etc/poppydb/secrets/keystore.pw
+sudo chown root:poppydb /etc/poppydb/secrets/root.pw /etc/poppydb/secrets/keystore.pw
 sudo systemctl daemon-reload
 sudo systemctl enable --now poppydb
 sudo systemctl status poppydb
 ```
 
-`--log-level` controls verbosity without editing the bundled Logback config — see
-[PoppyDB § Logging](../poppydb.md#logging) if you need more (e.g. a rotating file appender via
-`-Dlogback.configurationFile`).
+`log-level` (or `--log-level` on the command line) controls verbosity without editing the bundled
+Logback config — see [PoppyDB § Logging](../poppydb.md#logging) if you need more (e.g. a rotating
+file appender via `-Dlogback.configurationFile`).
 
 ## 6. Monitoring
 
@@ -185,9 +252,50 @@ accordingly:
 - Take a manual snapshot immediately before upgrading (see §7) regardless of your regular dump
   interval.
 
+## 9. Best Practices Checklist
+
+A condensed summary of the dos and don'ts from this playbook — use it as a pre-launch review, not
+a replacement for reading the sections above.
+
+**Do:**
+
+- Run a **3-node replica set**, not a single node — a single node has no failover (see [§1](#1-prerequisites)).
+- Configure via a **[configuration file](../poppydb.md#configuration-file)** (`--cfg`), not raw
+  CLI flags — it's the only form that keeps secrets out of `ps aux` (see [§2](#2-minimal-secure-configuration)/[§3](#3-secrets-handling)).
+- Enable **both `auth` and `ssl`** on every production instance, always together — either alone
+  leaves a real gap (cleartext admin access, or encrypted-but-open access, respectively).
+- Keep secrets in their **own file** via `root-password-file`/`ssl-keystore-password-file`, not
+  inline in the main config — the main config can then be `0644` and live in your config
+  management repo; only the secret files need `0600` and careful handling.
+- Size the **heap deliberately** for your expected dataset plus watermark headroom, and **watch
+  `memoryWatermark`** — don't let "reject" be the first time you learn it's close (see [§4](#4-capacity-planning)).
+- **Snapshot before every upgrade**, in addition to your regular `--dump-interval`, and pin the
+  exact same version across all replica-set members (see [§8](#8-upgrades)).
+- **Verify backups periodically** (`zcat ... | jq .`) — a silently-broken dump job is worse than no
+  backup, because it hides the gap until you need it (see [§7](#7-backup-and-restore)).
+- Treat every authenticated user as **fully privileged** — authorization/roles are not enforced
+  yet (see [PoppyDB § Security](../poppydb.md#security)); control access at the network boundary.
+
+**Don't:**
+
+- Don't put `--rootPassword`/`--sslKeystorePassword` directly in `ExecStart`, a Dockerfile `CMD`,
+  or any long-lived process's argument list.
+- Don't rely on a replica-set secondary as your backup — it replicates mistakes just as faithfully
+  as good data. Only a snapshot protects against logical corruption or a cluster-wide event.
+- Don't assume PoppyDB is a persistent system of record — there is no write-ahead log; only use it
+  where the [loss model](../poppydb.md#5-message-broker-for-short-lived-messages-production) (loss
+  between snapshots is acceptable) actually fits your data.
+- Don't wait for "the original primary" to reclaim leadership after a failover — verify *any* node
+  became primary instead (see [§8](#8-upgrades) and [PoppyDB § StepDown/Failover Behavior](../poppydb.md#stepdown--failover-behavior-replica-set)).
+- Don't skip the config-file **permission warning** — `chmod 600` any file PoppyDB tells you is
+  group/other-readable and contains secrets, before it becomes group/other-*writable* and PoppyDB
+  refuses to start entirely.
+
 ## See Also
 
 - [PoppyDB](../poppydb.md) — full feature reference
+- [Migrating from MongoDB to PoppyDB](./migration-mongodb-to-poppydb.md) — moving an existing
+  workload over, rather than starting fresh
 - [Monitoring & Metrics Guide](../monitoring-metrics-guide.md)
 - [Security Guide](../security-guide.md)
 - [Messaging Implementations](./messaging-implementations.md) — if PoppyDB backs Morphium

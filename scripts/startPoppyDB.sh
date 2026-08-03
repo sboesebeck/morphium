@@ -125,7 +125,8 @@ if [ $NODES -eq 1 ]; then
     exit 1
   fi
   echo "Starting single node PoppyDB on port $BASEPORT"
-  java -Xmx8G -jar $TMPDIR/poppydb.jar -p $BASEPORT >$TMPDIR/poppydb-1.log 2>&1 &
+  # --no-config: keep local test runs isolated from any private ~/.config/poppydb/config
+  java -Xmx8G -jar $TMPDIR/poppydb.jar --no-config -p $BASEPORT >$TMPDIR/poppydb-1.log 2>&1 &
   pid=$!
   echo "$pid" >$TMPDIR/node-1.pid
   sleep 2
@@ -160,7 +161,7 @@ else
     if [ $ONLYNODE -eq 0 ] || [ $ONLYNODE -eq $n ]; then
       echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
 
-      java -Xmx8G -jar $TMPDIR/poppydb.jar -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" >$TMPDIR/poppydb-$n.log 2>&1 &
+      java -Xmx8G -jar $TMPDIR/poppydb.jar --no-config -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" >$TMPDIR/poppydb-$n.log 2>&1 &
       pid=$!
       echo "$pid" >$TMPDIR/node-$n.pid
       sleep 1

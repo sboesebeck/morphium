@@ -76,6 +76,7 @@ nav:
   - PoppyDB:
     - Overview: poppydb.md
     - Production Deployment Playbook: howtos/poppydb-deployment.md
+    - Migrating from MongoDB: howtos/migration-mongodb-to-poppydb.md
   - How-To Guides:
     - Upgrade v6.2→v6.3: howtos/migration-v6_2-to-v6_3.md
     - Upgrade v6.1→v6.2: howtos/migration-v6_1-to-v6_2.md

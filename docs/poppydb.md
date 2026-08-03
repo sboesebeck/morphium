@@ -15,6 +15,7 @@ PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InM
 - ✅ **Perfect for CI/CD** - No Docker or MongoDB installation required
 - ✅ **Integration Testing** - Test multi-language microservices together
 - ✅ **Opt-in Authentication & TLS** - Real SCRAM-SHA-1/-256 auth (`--auth`) and SSL/TLS encrypted connections (`--ssl`)
+- ✅ **Configuration File** - `--cfg`/`-f`, systemd/Docker-friendly, keeps secrets off the command line via `*-file` indirection (see [Configuration File](#configuration-file))
 
 ## Quick Start
 
@@ -56,31 +57,164 @@ public class MyApp {
 
 ## Configuration
 
-### Command Line Arguments
-You can configure the PoppyDB using the following command-line arguments:
+### Configuration File
 
-| Argument | Description | Default |
-|---|---|---|
-| `-p`, `--port <port>` | Port to listen on. | `17017` |
-| `-b`, `--bind <host>` | Host to bind to. | `localhost` |
-| `--log-level <level>` | Log verbosity: `ERROR`, `WARN`, `INFO`, `DEBUG` or `TRACE`. See [Logging](#logging). | `INFO` |
-| `--memory-warn <percent>` | Log a warning when heap occupancy crosses this percentage (100 = off). See [Memory Watermark](#memory-watermark). | `75` |
-| `--memory-reject <percent>` | Reject document-creating writes above this heap percentage (100 = off). See [Memory Watermark](#memory-watermark). | `90` |
-| `--max-bson-size <bytes>` | BSON document size limit, enforced like mongod (0 = off). See [BSON Size Limit](#bson-size-limit). | `16777216` (16MB) |
-| `-mt`, `--maxThreads <threads>` | Maximum number of threads for handling client connections. | `1000` |
-| `-mint`, `--minThreads <threads>` | Minimum number of threads to keep in the pool. | `10` |
-| `-c`, `--compressor <type>` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
-| `--rs-name <name>` | Name of the replica set. | |
-| `--rs-seed <hosts>` | Comma-separated list of hosts to seed the replica set. The first host in the list will have the highest priority. | |
-| `--ssl`, `--tls` | Enable SSL/TLS encrypted connections. | disabled |
-| `--sslKeystore <path>` | Path to JKS or PKCS12 keystore file containing server certificate. | |
-| `--sslKeystorePassword <pw>` | Password for the keystore. | |
-| `--auth` | Require SCRAM authentication (SCRAM-SHA-1 / SCRAM-SHA-256). Unauthenticated connections may only run the handshake/SASL/ping commands. | disabled |
-| `--rootUser <name>` | Initial admin user, created at startup if absent. Required for a fresh `--auth` server — there is no localhost exception. | |
-| `--rootPassword <pw>` | Password for the initial admin user. | |
-| `-d`, `--dump-dir <path>` | Directory for periodic database dumps. Enables persistence. | |
-| `--dump-interval <seconds>` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
-| `-h`, `--help` | Print this help message and exit. | |
+Instead of (or in addition to) command-line arguments, PoppyDB can read its settings from a
+`java.util.Properties`-format file (`key=value`, one per line). This is the preferred way to
+configure a production instance under systemd, Docker, or config management — see the
+[Production Deployment Playbook](./howtos/poppydb-deployment.md) for a full walkthrough.
+
+**Precedence, for every single setting, no exceptions:** command line argument, if given, always
+wins. Otherwise the value from the config file, if present, wins. Otherwise the built-in default
+(shown in the [options table](#command-line-arguments) below) applies. `--no-ssl`/`--no-auth`
+exist specifically so a config file's `ssl=true`/`auth=true` can still be switched back off from
+the command line.
+
+**Search order (first match wins - files are never merged):**
+
+```
+1. --cfg <path> / -f <path>                                (explicit; stops the search)
+2. $POPPYDB_CONF                                            (env var; stops the search)
+3. ${XDG_CONFIG_HOME:-~/.config}/poppydb/config              (user, directory form)
+4. ${XDG_CONFIG_HOME:-~/.config}/poppydb.conf                (user, single file)
+5. /etc/poppydb/config                                       (system, directory form)
+6. /etc/poppydb.conf                                         (system, single file)
+```
+
+If neither `--cfg`/`-f` nor `$POPPYDB_CONF` is given, and none of the four default locations
+exist, PoppyDB starts exactly as before (command-line arguments and defaults only) — this is not
+an error. `--no-config` skips the four default locations entirely (an explicit `--cfg`/`-f` still
+applies if given alongside it); `scripts/poppydb.sh` and `scripts/startPoppyDB.sh` always pass
+`--no-config` for local test runs, so a stray `~/.config/poppydb/config` on a developer machine
+can never silently change what a test run connects to.
+
+There is deliberately **no `#include` and no `conf.d` directory merging** — a "directory form"
+search path (e.g. `/etc/poppydb/config`) just means "look for a file literally named `config`
+inside that directory"; whichever single file is found is the only one that is read.
+
+**`java.util.Properties` syntax notes** (easy to get wrong):
+
+- The file is always read as **UTF-8** (not the `Properties.load(InputStream)` default of
+  ISO-8859-1).
+- `#` or `!` start a comment, but **only at the beginning of a line** —
+  `root-password=secret#1` is a perfectly valid password.
+- `\` is the escape character, so a literal Windows path needs doubled backslashes:
+  `ssl-keystore = C:\\keys\\server.jks`.
+- Keys are matched **case-insensitively**, and `-`, `_`, `.` are all ignored during matching:
+  `max-bson-size`, `maxBsonSize`, `MAX_BSON_SIZE` and `MAX.BSON.SIZE` are all the same key. An
+  optional `poppydb.` prefix on any key is stripped before matching (`poppydb.port` ≡ `port`).
+  Setting two spellings of the same key in one file (including the prefixed/unprefixed pair) is
+  a hard error, not a silent pick.
+- Boolean values accept `true|yes|on|1` / `false|no|off|0`, case-insensitive — anything else is
+  rejected rather than silently treated as `false`.
+- An unknown key (typo) aborts startup with a "did you mean" suggestion instead of being
+  silently ignored.
+
+**Keeping secrets out of the main file:** `root-password` and `ssl-keystore-password` each have
+a `*-file` counterpart (`root-password-file`, `ssl-keystore-password-file`) that reads the
+secret from a separate file instead (UTF-8, one trailing `\r`/`\n` stripped) — this is what lets
+you commit/distribute the main config while keeping secrets in a separately-permissioned file
+(or behind `systemd`'s `LoadCredential=`, see the
+[deployment playbook](./howtos/poppydb-deployment.md)). Setting both the direct value and the
+`*-file` indirection for the same secret is a hard error. Whenever a config file directly embeds
+a secret, or a `*-file` value points at one, PoppyDB checks its POSIX permissions: readable by
+group/others only warns (`chmod 600` recommended), writable by group/others refuses to start (a
+world-writable config carrying secrets is a privilege escalation, not a style issue). On
+non-POSIX filesystems (Windows) the check is skipped.
+
+There is no live-reload — a config file change needs a restart to take effect.
+
+Example file (copy this as a starting point):
+
+```properties
+#
+# PoppyDB configuration
+#
+# Search order (first match wins, no merging across files):
+#   1. --cfg <path> / -f <path>
+#   2. $POPPYDB_CONF
+#   3. ${XDG_CONFIG_HOME:-~/.config}/poppydb/config
+#   4. ${XDG_CONFIG_HOME:-~/.config}/poppydb.conf
+#   5. /etc/poppydb/config
+#   6. /etc/poppydb.conf
+#
+# Command line arguments always override values from this file.
+# Values not set here fall back to the built-in defaults shown in [brackets].
+#
+# Syntax notes (java.util.Properties):
+#   - '#' or '!' start a comment, but only at the beginning of a line
+#     ('root-password=secret#1' is a valid password)
+#   - backslashes must be escaped: C:\\keys\\server.jks
+#   - trailing whitespace is part of the value - watch out with passwords
+#   - the file is read as UTF-8
+#   - keys are matched case-insensitively, '-', '_' and '.' are ignored:
+#     max-bson-size == maxBsonSize == MAX_BSON_SIZE
+#   - an optional 'poppydb.' prefix on every key is stripped
+#
+# If this file contains a password, restrict its permissions:
+#   chmod 600 /etc/poppydb/config
+#
+
+port = 17017
+bind = 0.0.0.0
+max-connections = 2000
+socket-timeout = 300
+compressor = none
+log-level = INFO
+memory-warn = 75
+memory-reject = 90
+max-bson-size = 16777216
+#rs-name = rs0
+#rs-seed = node1:17017,node2:17017,node3:17017
+#rs-priorities = 100,50,50
+#ssl = true
+#ssl-keystore = /etc/poppydb/server.p12
+#ssl-keystore-password-file = /run/credentials/poppydb.service/keystore.pw
+#auth = true
+#root-user = admin
+#root-password-file = /etc/poppydb/secrets/root.pw
+#dump-dir = /var/lib/poppydb/data
+#dump-interval = 300
+```
+
+Load it explicitly, or drop it at one of the default search paths:
+
+```bash
+java -jar poppydb-cli.jar --cfg /etc/poppydb/config
+```
+
+### Command Line Arguments
+You can configure the PoppyDB using the following command-line arguments. The **Config Key**
+column is the equivalent key for the [configuration file](#configuration-file) above (kebab-case,
+case/separator-insensitive) — flags without one are CLI-only (there is nothing to put in a file).
+
+| Argument | Config Key | Description | Default |
+|---|---|---|---|
+| `-p`, `--port <port>` | `port` | Port to listen on. | `17017` |
+| `-b`, `--bind <host>` | `bind` | Host to bind to. | `localhost` |
+| `--log-level <level>` | `log-level` | Log verbosity: `ERROR`, `WARN`, `INFO`, `DEBUG` or `TRACE`. See [Logging](#logging). | `INFO` |
+| `--memory-warn <percent>` | `memory-warn` | Log a warning when heap occupancy crosses this percentage (100 = off). See [Memory Watermark](#memory-watermark). | `75` |
+| `--memory-reject <percent>` | `memory-reject` | Reject document-creating writes above this heap percentage (100 = off). See [Memory Watermark](#memory-watermark). | `90` |
+| `--max-bson-size <bytes>` | `max-bson-size` | BSON document size limit, enforced like mongod (0 = off). See [BSON Size Limit](#bson-size-limit). | `16777216` (16MB) |
+| `-c`, `--compressor <type>` | `compressor` | Compressor to use for the wire protocol. Can be `none`, `snappy`, `zstd`, or `zlib`. | `none` |
+| `--rs-name <name>` | `rs-name` | Name of the replica set. | |
+| `--rs-seed <hosts>` | `rs-seed` | Comma-separated list of hosts to seed the replica set. The first host in the list will have the highest priority. | |
+| `--rs-priorities <list>` | `rs-priorities` | Comma-separated list of election priorities (0-100) matching seed order. | all `50` |
+| `--ssl`, `--tls` | `ssl` | Enable SSL/TLS encrypted connections. | disabled |
+| `--no-ssl` | | Force SSL/TLS off, overriding a config file's `ssl=true`. | |
+| `--sslKeystore <path>` | `ssl-keystore` | Path to JKS or PKCS12 keystore file containing server certificate. | |
+| `--sslKeystorePassword <pw>` | `ssl-keystore-password` | Password for the keystore. `ssl-keystore-password-file` (config-file only) reads it from a separate file instead. | |
+| `--auth` | `auth` | Require SCRAM authentication (SCRAM-SHA-1 / SCRAM-SHA-256). Unauthenticated connections may only run the handshake/SASL/ping commands. | disabled |
+| `--no-auth` | | Force auth off, overriding a config file's `auth=true`. | |
+| `--rootUser <name>` | `root-user` | Initial admin user, created at startup if absent. Required for a fresh `--auth` server — there is no localhost exception. | |
+| `--rootPassword <pw>` | `root-password` | Password for the initial admin user. `root-password-file` (config-file only) reads it from a separate file instead. | |
+| `-d`, `--dump-dir <path>` | `dump-dir` | Directory for periodic database dumps. Enables persistence. | |
+| `--dump-interval <seconds>` | `dump-interval` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
+| `--max-connections <num>` | `max-connections` | Maximum concurrent connections. | `500` |
+| `--socket-timeout <seconds>` | `socket-timeout` | Idle connection timeout in seconds. | `300` |
+| `--cfg <path>`, `-f <path>` | | Load settings from this [configuration file](#configuration-file). | |
+| `--no-config` | | Skip the configuration file's default search paths (an explicit `--cfg`/`-f` still applies). | |
+| `-h`, `--help` | | Print this help message and exit. | |
 
 Example:
 ```bash
@@ -647,6 +781,31 @@ docker run -p 27017:27017 poppydb
 docker-compose up
 ```
 
+**Alternative: mounted configuration file instead of CLI flags.** For anything beyond a couple
+of flags, a mounted [config file](#configuration-file) reads more clearly than a long `CMD` line
+and lets ops change settings without rebuilding the image:
+
+```dockerfile
+FROM openjdk:21-slim
+WORKDIR /app
+
+COPY poppydb/target/poppydb-<version>-cli.jar /app/poppydb.jar
+
+EXPOSE 27017
+
+# No CLI flags at all - everything comes from the mounted file. --cfg also works with
+# --no-config if you want to rule out any other config file location entirely.
+CMD ["java", "-jar", "/app/poppydb.jar", "--cfg", "/etc/poppydb/config"]
+```
+
+```bash
+docker run -p 27017:27017 -v "$PWD/poppydb.conf:/etc/poppydb/config:ro" poppydb
+```
+
+Secrets referenced via the `*-file` indirection (`root-password-file`,
+`ssl-keystore-password-file`) can be mounted from a Docker/Swarm `secret` file separately from the
+rest of the config, keeping them out of the image and out of `docker inspect` environment output.
+
 ### 5. Message Broker for Short-Lived Messages (production)
 
 Morphium messaging runs natively against PoppyDB: TTL-based messages, exclusive locks,
@@ -981,6 +1140,8 @@ public static void main(String[] args) throws Exception {
 
 - [PoppyDB Production Deployment Playbook](./howtos/poppydb-deployment.md) - step-by-step guide:
   systemd unit, secrets handling, capacity planning, monitoring, backup/restore, upgrades
+- [Migrating from MongoDB to PoppyDB](./howtos/migration-mongodb-to-poppydb.md) - data migration,
+  validation, cutover and rollback
 - [InMemory Driver](./howtos/inmemory-driver.md) - Embedded driver for unit tests
 - [Messaging](./messaging.md) - Messaging with Morphium / PoppyDB
 - [Configuration Reference](./configuration-reference.md) - All configuration options
