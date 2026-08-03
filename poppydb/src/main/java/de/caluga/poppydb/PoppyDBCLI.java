@@ -92,6 +92,34 @@ public class PoppyDBCLI {
         }
         System.arraycopy(args, 0, effectiveArgs, configTokens.size(), args.length);
 
+        PoppyDB srv = configureServer(effectiveArgs);
+
+        try {
+            srv.start();
+        } catch (Exception e) {
+            log.error("Failed to start PoppyDB: {}", e.getMessage());
+            System.exit(1);
+        }
+
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("Shutdown hook triggered");
+            srv.shutdown();
+        }));
+
+        while (srv.isRunning()) {
+            log.info("PoppyDB alive - connections: {}", srv.getConnectionCount());
+            sleep(10000);
+        }
+    }
+
+    /**
+     * Parses the effective argument list (config-file tokens followed by the real CLI args, see
+     * {@link #main(String[])}) and builds a fully configured but not yet started {@link PoppyDB}.
+     * Package-private so tests can exercise the real parsing/wiring logic end-to-end without
+     * going through {@code main}'s blocking "keep alive" loop.
+     */
+    static PoppyDB configureServer(String[] effectiveArgs) throws Exception {
         int idx = 0;
         log.info("Starting up server... parsing commandline params");
         String host = "localhost";
@@ -412,23 +440,7 @@ public class PoppyDBCLI {
             }
         }
 
-        try {
-            srv.start();
-        } catch (Exception e) {
-            log.error("Failed to start PoppyDB: {}", e.getMessage());
-            System.exit(1);
-        }
-
-        // Add shutdown hook
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("Shutdown hook triggered");
-            srv.shutdown();
-        }));
-
-        while (srv.isRunning()) {
-            log.info("PoppyDB alive - connections: {}", srv.getConnectionCount());
-            sleep(10000);
-        }
+        return srv;
     }
 
     /** Bounds-check helper for value-reading cases in the argument loop above. */
