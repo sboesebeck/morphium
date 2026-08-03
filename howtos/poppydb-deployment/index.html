@@ -12,13 +12,13 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/howtos/field-names/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/howtos/poppydb-deployment/">
       
       
-        <link rel="prev" href="../cache-patterns/">
+        <link rel="prev" href="../../poppydb/">
       
       
-        <link rel="next" href="../../messaging/">
+        <link rel="next" href="../migration-v6_2-to-v6_3/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Field Name Mapping - Morphium Documentation</title>
+        <title>Production Deployment Playbook - Morphium Documentation</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#field-names-without-string-literals" class="md-skip">
+        <a href="#poppydb-production-deployment-playbook" class="md-skip">
           Skip to content
         </a>
       
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Field Name Mapping
+              Production Deployment Playbook
             
           </span>
         </div>
@@ -288,10 +288,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../poppydb/" class="md-tabs__link">
           
   
@@ -308,12 +310,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../migration-v6_2-to-v6_3/" class="md-tabs__link">
           
   
@@ -855,28 +855,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -894,7 +897,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -937,10 +940,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../poppydb-deployment/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production Deployment Playbook
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -956,6 +986,127 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-minimal-secure-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Minimal secure configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-secrets-handling-until-config-file-support-lands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Secrets handling (until config-file support lands)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-capacity-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Capacity planning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-run-it-as-a-service-systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Run it as a service (systemd)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-backup-and-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Backup and restore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-upgrades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Upgrades
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -972,31 +1123,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -1014,7 +1162,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1197,19 +1345,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../field-names/" class="md-nav__link">
         
   
   
@@ -1225,7 +1364,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1806,6 +1944,113 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-minimal-secure-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Minimal secure configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-secrets-handling-until-config-file-support-lands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Secrets handling (until config-file support lands)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-capacity-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Capacity planning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-run-it-as-a-service-systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Run it as a service (systemd)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-backup-and-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Backup and restore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-upgrades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Upgrades
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1824,43 +2069,180 @@
   
 
 
-<h1 id="field-names-without-string-literals">Field Names Without String Literals<a class="headerlink" href="#field-names-without-string-literals" title="Permanent link">&para;</a></h1>
-<p>Avoid hard‑coded string field names in queries to prevent typos and ease refactors/migrations.</p>
-<p>Option 1: Enums (recommended for teams)
-<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@Entity</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">User</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nd">@Id</span><span class="w"> </span><span class="kd">private</span><span class="w"> </span><span class="n">MorphiumId</span><span class="w"> </span><span class="n">id</span><span class="p">;</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="kd">private</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">userName</span><span class="p">;</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="kd">public</span><span class="w"> </span><span class="kd">enum</span><span class="w"> </span><span class="n">Fields</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">userName</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="kd">var</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">User</span><span class="p">.</span><span class="na">class</span><span class="p">)</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="n">User</span><span class="p">.</span><span class="na">Fields</span><span class="p">.</span><span class="na">userName</span><span class="p">).</span><span class="na">eq</span><span class="p">(</span><span class="s">&quot;alice&quot;</span><span class="p">);</span>
-</span></code></pre></div></p>
-<p>Option 2: Lambda property extractor (no codegen)</p>
+<h1 id="poppydb-production-deployment-playbook">PoppyDB Production Deployment Playbook<a class="headerlink" href="#poppydb-production-deployment-playbook" title="Permanent link">&para;</a></h1>
+<p>This is a task-oriented, step-by-step guide to running PoppyDB in production. For the full
+feature reference (all CLI flags, replica-set internals, admin command support, performance
+numbers) see <strong><a href="../../poppydb/">PoppyDB</a></strong> — this page only covers <em>how to get from a bare JAR to
+a securely configured, monitored, backed-up production instance</em>, in order.</p>
+<p>Read this if you're deploying PoppyDB as a message broker or cache/session store (see
+<a href="../../poppydb/#use-cases">PoppyDB § Use Cases</a>). If you only need it for tests or CI, the defaults
+already documented in <a href="../../poppydb/#quick-start">PoppyDB § Quick Start</a> are enough — skip this
+page.</p>
+<h2 id="1-prerequisites">1. Prerequisites<a class="headerlink" href="#1-prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Use a method reference to a getter; Morphium will receive the Java field name</li>
-<li>A small helper is included: <code>de.caluga.morphium.query.FieldNames</code> and <code>Property</code>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import static</span><span class="w"> </span><span class="nn">de.caluga.morphium.query.FieldNames.of</span><span class="p">;</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kd">var</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">User</span><span class="p">.</span><span class="na">class</span><span class="p">)</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="n">of</span><span class="p">(</span><span class="n">User</span><span class="p">::</span><span class="n">getUserName</span><span class="p">)).</span><span class="na">eq</span><span class="p">(</span><span class="s">&quot;alice&quot;</span><span class="p">);</span>
+<li>Java 21+ on the target host.</li>
+<li>The PoppyDB CLI jar, either built from source or downloaded as a release artifact:
+  <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/sboesebeck/morphium.git
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>morphium
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>mvn<span class="w"> </span>clean<span class="w"> </span>package<span class="w"> </span>-pl<span class="w"> </span>poppydb<span class="w"> </span>-am<span class="w"> </span>-Dmaven.test.skip<span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># produces poppydb/target/poppydb-&lt;version&gt;-cli.jar</span>
 </span></code></pre></div></li>
+<li>Decide up front: single node, or a replica set? Production deployments should default to a
+  3-node replica set — a single node has no failover, and PoppyDB's loss model (no
+  write-ahead log, see <a href="../../poppydb/#5-message-broker-for-short-lived-messages-production">§5</a>)
+  means a crashed single node loses everything since the last snapshot.</li>
 </ul>
-<p>Notes</p>
+<h2 id="2-minimal-secure-configuration">2. Minimal secure configuration<a class="headerlink" href="#2-minimal-secure-configuration" title="Permanent link">&para;</a></h2>
+<p>Every production instance should start with <strong>both</strong> of these enabled — neither is on by default,
+both are opt-in for backward compatibility with test/dev usage:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Generate a keystore once (see PoppyDB § SSL/TLS for details)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>keytool<span class="w"> </span>-genkeypair<span class="w"> </span>-alias<span class="w"> </span>poppydb<span class="w"> </span>-keyalg<span class="w"> </span>RSA<span class="w"> </span>-keysize<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>-validity<span class="w"> </span><span class="m">3650</span><span class="w"> </span>-keystore<span class="w"> </span>/etc/poppydb/server.jks<span class="w"> </span>-storepass<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$KEYSTORE_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>-dname<span class="w"> </span><span class="s2">&quot;CN=poppydb.internal.example.com&quot;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">27017</span><span class="w"> </span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--auth<span class="w"> </span>--rootUser<span class="w"> </span>admin<span class="w"> </span>--rootPassword<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--ssl<span class="w"> </span>--sslKeystore<span class="w"> </span>/etc/poppydb/server.jks<span class="w"> </span>--sslKeystorePassword<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$KEYSTORE_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--rs-name<span class="w"> </span>prod-rs<span class="w"> </span>--rs-seed<span class="w"> </span>node1:27017,node2:27017,node3:27017
+</span></code></pre></div>
+<p>Repeat on the other two nodes with the same <code>--rs-name</code>/<code>--rs-seed</code> and each node's own bind
+address. See <a href="../../poppydb/#replica-set-behavior-experimental">PoppyDB § Replica Set Behavior</a> for
+how initial sync and elections work.</p>
+<p><strong>Do not skip <code>--auth</code> or <code>--ssl</code> in production</strong> — without them, anyone who can reach the port
+has full read/write/admin access in cleartext. Authorization is authentication-only right now
+(roles are stored but not evaluated, see <a href="../../poppydb/#security">PoppyDB § Security</a>) — treat
+every authenticated user as an admin and control access at the network boundary, not by role.</p>
+<h2 id="3-secrets-handling-until-config-file-support-lands">3. Secrets handling (until config-file support lands)<a class="headerlink" href="#3-secrets-handling-until-config-file-support-lands" title="Permanent link">&para;</a></h2>
+<p><code>--rootPassword</code> and <code>--sslKeystorePassword</code> on the command line are visible to any local user via
+<code>ps aux</code> or <code>/proc/&lt;pid&gt;/cmdline</code> for the life of the process. Until PoppyDB gains file-based
+configuration, mitigate this with your process supervisor rather than the command line directly:</p>
 <ul>
-<li>Works with <code>@Entity(translateCamelCase = true)</code>—use Java field names in queries, Morphium maps to stored names.</li>
-<li>Requires normal JavaBean getter names (<code>getXxx</code> or <code>isXxx</code>).</li>
+<li><strong>systemd</strong>: put secrets in an <code>EnvironmentFile</code> with <code>0600</code> permissions (root-only readable,
+  see the unit file in <a href="#5-run-it-as-a-service-systemd">§5</a> below) and reference them as
+  <code>${ROOT_PASSWORD}</code> in <code>ExecStart</code> — systemd expands the environment before exec, so the
+  expanded values never appear in <code>ps aux</code> the way literal CLI arguments would.</li>
+<li><strong>Docker/Compose</strong>: use <code>secrets:</code> (Swarm) or an env file excluded from your image/VCS, not
+  hardcoded <code>CMD</code> arguments (the <a href="../../poppydb/#4-docker-deployment">Dockerfile example in PoppyDB § Use Cases</a>
+  is fine for local/CI use, but bakes the password into the image layer — do not reuse it verbatim
+  for a production image with real secrets).</li>
+<li><strong>Kubernetes</strong>: mount a <code>Secret</code> as environment variables into the pod spec, same reasoning.</li>
 </ul>
-<p>Option 3: Code generation at build time (annotation processor)</p>
+<h2 id="4-capacity-planning">4. Capacity planning<a class="headerlink" href="#4-capacity-planning" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Create a simple JSR‑269 annotation processor that scans <code>@Entity</code> classes and generates <code>Fields</code> enums or <code>User_</code> constants classes using JavaPoet.</li>
-<li>Wire it via Maven’s <code>maven-compiler-plugin</code> <code>annotationProcessorPaths</code> or run a generator via <code>exec-maven-plugin</code> in the <code>generate-sources</code> phase to write sources into <code>target/generated-sources</code>.</li>
-<li>Pros: strongly typed enums/constants; Cons: extra module/maintenance.</li>
+<li><strong>Heap sizing</strong>: PoppyDB's entire dataset lives in the JVM heap (<code>-Xmx</code>). Size it to your
+  expected data volume plus headroom for the <a href="../../poppydb/#memory-watermark">memory watermark</a>
+  (default reject threshold 90% of heap) — a heap that's <em>exactly</em> your dataset size will reject
+  writes almost immediately.</li>
+<li><strong>Memory watermark</strong>: tune <code>--memory-warn</code>/<code>--memory-reject</code> if you share the host with other
+  services, or disable (<code>100</code>/<code>100</code>) only if you have an external hard cap you trust more (rare).
+  Watch <code>db.serverStatus().memoryWatermark</code> (see <a href="#6-monitoring">§6</a>).</li>
+<li><strong>Replication buffer</strong>: for replica sets under sustained write load, read
+  <a href="../../poppydb/#replication-buffer-sizing">PoppyDB § Replication buffer sizing</a> — an undersized
+  buffer causes repeated full re-syncs under load, which is itself extra load.</li>
+<li><strong>Connections</strong>: <code>--max-connections</code> (default 500) and <code>--socket-timeout</code> (default 300s) bound
+  resource usage per client population; size to your actual number of connecting services, not a
+  round number.</li>
 </ul>
-<p>Recommendation</p>
+<h2 id="5-run-it-as-a-service-systemd">5. Run it as a service (systemd)<a class="headerlink" href="#5-run-it-as-a-service-systemd" title="Permanent link">&para;</a></h2>
+<div class="language-ini highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># /etc/systemd/system/poppydb.service</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">[Unit]</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="na">Description</span><span class="o">=</span><span class="s">PoppyDB MongoDB-compatible server</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="na">After</span><span class="o">=</span><span class="s">network-online.target</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="na">Wants</span><span class="o">=</span><span class="s">network-online.target</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">[Service]</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="na">Type</span><span class="o">=</span><span class="s">simple</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="na">User</span><span class="o">=</span><span class="s">poppydb</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="na">Group</span><span class="o">=</span><span class="s">poppydb</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="na">EnvironmentFile</span><span class="o">=</span><span class="s">/etc/poppydb/secrets.env</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">/usr/bin/java -Xms4g -Xmx4g -jar /opt/poppydb/poppydb-cli.jar </span>\
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="s">--port 27017 --bind 0.0.0.0 </span>\
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span><span class="s">--auth --rootUser admin --rootPassword ${ROOT_PASSWORD} </span>\
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">  </span><span class="s">--ssl --sslKeystore /etc/poppydb/server.jks --sslKeystorePassword ${KEYSTORE_PASSWORD} </span>\
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="s">--rs-name prod-rs --rs-seed node1:27017,node2:27017,node3:27017 </span>\
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span><span class="s">--dump-dir /var/lib/poppydb/snapshots --dump-interval 300 </span>\
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span><span class="s">--log-level INFO</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="na">Restart</span><span class="o">=</span><span class="s">on-failure</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="na">RestartSec</span><span class="o">=</span><span class="s">5</span>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="na">LimitNOFILE</span><span class="o">=</span><span class="s">65536</span>
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="k">[Install]</span>
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="na">WantedBy</span><span class="o">=</span><span class="s">multi-user.target</span>
+</span></code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># /etc/poppydb/secrets.env - chmod 600, owned by root:poppydb</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">ROOT_PASSWORD</span><span class="o">=</span>change-me
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">KEYSTORE_PASSWORD</span><span class="o">=</span>change-me-too
+</span></code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>sudo<span class="w"> </span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>/etc/poppydb/secrets.env
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>sudo<span class="w"> </span>chown<span class="w"> </span>root:poppydb<span class="w"> </span>/etc/poppydb/secrets.env
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>daemon-reload
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>poppydb
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>poppydb
+</span></code></pre></div>
+<p><code>--log-level</code> controls verbosity without editing the bundled Logback config — see
+<a href="../../poppydb/#logging">PoppyDB § Logging</a> if you need more (e.g. a rotating file appender via
+<code>-Dlogback.configurationFile</code>).</p>
+<h2 id="6-monitoring">6. Monitoring<a class="headerlink" href="#6-monitoring" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Start with Enums or the Lambda extractor. If your model is large or changes often, consider adding a lightweight codegen step later.</li>
+<li><strong>Server health</strong>: poll <code>db.serverStatus()</code> (connections, <code>memoryWatermark</code>) and <code>db.stats()</code>
+  per the metrics listed in <a href="../../poppydb/#monitoring">PoppyDB § Monitoring</a>. Wire these into the
+  same Prometheus/Grafana setup described in the
+  <strong><a href="../../monitoring-metrics-guide/">Monitoring &amp; Metrics Guide</a></strong> — that guide's dashboards and
+  alert-rule patterns apply to PoppyDB the same way they do to a Morphium client against real
+  MongoDB, since PoppyDB answers the same commands.</li>
+<li><strong>Replication health</strong> (replica sets only): watch <code>resyncCount</code> and <code>replicationLagEvents</code> from
+  <code>ReplicationManager.getStats()</code> — see
+  <a href="../../poppydb/#replication-buffer-sizing">PoppyDB § Replication buffer sizing</a> for what a healthy
+  vs. degrading secondary looks like.</li>
+<li><strong>Application-level messaging monitoring</strong>: every Morphium messaging instance answers the
+  built-in <code>morphium_status</code> topic regardless of backend — see
+  <a href="../../messaging/#built-in-status-monitoring">Messaging § Built-in Status Monitoring</a>.</li>
+<li><strong>Alerting priorities</strong>: alert on <code>memoryWatermark</code> crossing warn (backpressure starting) before
+  it hits reject (writes actively failing), and on <code>resyncCount</code> incrementing more than once in a
+  10-minute window (replication falling behind structurally, not transiently).</li>
+</ul>
+<h2 id="7-backup-and-restore">7. Backup and restore<a class="headerlink" href="#7-backup-and-restore" title="Permanent link">&para;</a></h2>
+<p>PoppyDB's only persistence is periodic snapshots (<code>--dump-dir</code>/<code>--dump-interval</code>) — there is no
+write-ahead log, so a snapshot is a point-in-time copy, not continuous durability. Treat backups
+accordingly:</p>
+<ul>
+<li><strong>Snapshot cadence</strong>: <code>--dump-interval</code> in seconds; a shorter interval bounds your worst-case
+  data loss window on a crash, at the cost of periodic I/O pauses while dumping. 300s (5 min) is a
+  reasonable starting point for message-broker/cache workloads where some loss is acceptable by
+  design (see the loss model in <a href="../../poppydb/#5-message-broker-for-short-lived-messages-production">Use Cases §5</a>).</li>
+<li><strong>Manual snapshot before risky operations</strong> (version upgrade, config change): trigger one
+  on-demand via the programmatic <code>dumpNow()</code> API, or restart the node (a final dump runs on
+  shutdown) before the change.</li>
+<li><strong>Restore</strong>: dump files (<code>&lt;dbname&gt;.morphium.gz</code>) in the configured <code>--dump-dir</code> are restored
+  automatically on startup if present — to restore onto a fresh node, copy the snapshot files into
+  its <code>--dump-dir</code> before first start.</li>
+<li><strong>Verify backups periodically</strong>: <code>zcat &lt;file&gt;.morphium.gz | jq .</code> to confirm the file is valid
+  and non-empty — a snapshot job that silently stopped producing usable dumps is worse than no
+  backup, because it hides the gap.</li>
+<li><strong>Replica sets</strong>: a healthy secondary is not a backup substitute — it replicates the same data
+  (and the same accidental deletes) in near-real-time. Snapshots remain your only protection
+  against logical corruption or a cluster-wide event.</li>
+</ul>
+<h2 id="8-upgrades">8. Upgrades<a class="headerlink" href="#8-upgrades" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Pin the exact PoppyDB version in your deployment artifacts (same jar for all replica-set
+  members) — mixed-version replica sets are not tested.</li>
+<li>Rolling upgrade for a replica set: upgrade secondaries first (they resync from the current
+  primary on restart), then step down the primary (<code>replSetStepDown</code> or restart it last) so a
+  secondary takes over — verify <em>some</em> node became primary afterward rather than waiting for a
+  specific one (see <a href="../../poppydb/#stepdown--failover-behavior-replica-set">PoppyDB § StepDown/Failover Behavior</a>
+  for why the original primary may not reclaim leadership).</li>
+<li>Take a manual snapshot immediately before upgrading (see §7) regardless of your regular dump
+  interval.</li>
+</ul>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../poppydb/">PoppyDB</a> — full feature reference</li>
+<li><a href="../../monitoring-metrics-guide/">Monitoring &amp; Metrics Guide</a></li>
+<li><a href="../../security-guide/">Security Guide</a></li>
+<li><a href="../messaging-implementations/">Messaging Implementations</a> — if PoppyDB backs Morphium
+  messaging, which implementation to choose</li>
 </ul>
 
 
