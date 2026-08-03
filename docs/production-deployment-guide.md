@@ -2,6 +2,13 @@
 
 Comprehensive guide for deploying Morphium applications in production environments.
 
+**Choosing a backend:** this guide assumes a real MongoDB deployment. If your workload is
+ephemeral messaging, caching, or session storage rather than durable system-of-record data,
+**[PoppyDB](./poppydb.md)** — Morphium's own wire-protocol-compatible server — is a supported,
+lighter-weight production option; see its
+[Production Deployment Playbook](./howtos/poppydb-deployment.md) for the PoppyDB-specific version
+of the checklist below (systemd unit, secrets handling, backup/restore, monitoring).
+
 ## Performance Baseline
 
 **Morphium Performance Advantage:**

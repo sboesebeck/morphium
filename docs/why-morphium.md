@@ -218,6 +218,13 @@ void setup() {
 - **Change streams work**
 - **No Docker, no external process**
 
+Need the same in-memory engine reachable over the network — for multi-language integration tests,
+CI pipelines, or as a lightweight production message broker/cache (no Docker or MongoDB install
+required)? That's **[PoppyDB](../poppydb.md)**: the InMemory Driver exposed behind the real
+MongoDB wire protocol, so any MongoDB client (Python, Node.js, Go, ...) can connect to it directly.
+See the [Production Deployment Playbook](./howtos/poppydb-deployment.md) if you're running it as
+more than a test fixture.
+
 ---
 
 ### 4. Fluent Query API with Type Safety

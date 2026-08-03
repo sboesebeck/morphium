@@ -27,10 +27,10 @@ After building the project, you can run the server directly using the PoppyDB CL
 mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 
 # Run PoppyDB with default settings (port 17017)
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar
+java -jar poppydb/target/poppydb-<version>-cli.jar
 
 # Run on a different port
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017
+java -jar poppydb/target/poppydb-<version>-cli.jar --port 27017
 ```
 
 ### Running Programmatically
@@ -84,7 +84,7 @@ You can configure the PoppyDB using the following command-line arguments:
 
 Example:
 ```bash
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
+java -jar poppydb/target/poppydb-<version>-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
 ### Replica Set Behavior (experimental)
@@ -188,11 +188,11 @@ PoppyDB can periodically dump all databases to disk and restore them on startup.
 
 ```bash
 # Start with persistence - dumps every 5 minutes
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27017 \
+java -jar poppydb/target/poppydb-<version>-cli.jar -p 27017 \
   --dump-dir /var/morphium/data --dump-interval 300
 
 # Start with persistence - dump only on shutdown
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27017 \
+java -jar poppydb/target/poppydb-<version>-cli.jar -p 27017 \
   --dump-dir /var/morphium/data
 ```
 
@@ -324,7 +324,7 @@ keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
 
 2. Start the server with SSL enabled:
 ```bash
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar -p 27018 \
+java -jar poppydb/target/poppydb-<version>-cli.jar -p 27018 \
   --ssl --sslKeystore server.jks --sslKeystorePassword changeit
 ```
 
@@ -414,7 +414,7 @@ server.start();
 FROM openjdk:21-slim
 WORKDIR /app
 
-COPY poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar /app/poppydb.jar
+COPY poppydb/target/poppydb-<version>-cli.jar /app/poppydb.jar
 COPY server.jks /app/server.jks
 
 EXPOSE 27018
@@ -540,7 +540,7 @@ jobs:
 
       - name: Start PoppyDB
         run: |
-          java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar \
+          java -jar poppydb/target/poppydb-<version>-cli.jar \
                --port 27017 --host 0.0.0.0 &
           sleep 2
 
@@ -590,7 +590,7 @@ static void stopServer() {
 
 ```bash
 # Terminal 1: Start PoppyDB
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017
+java -jar poppydb/target/poppydb-<version>-cli.jar --port 27017
 
 # Terminal 2: Start Node.js service
 MONGO_URL=mongodb://localhost:27017 npm start
@@ -610,7 +610,7 @@ FROM openjdk:21-slim
 WORKDIR /app
 
 # Copy the executable server JAR
-COPY poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar /app/poppydb.jar
+COPY poppydb/target/poppydb-<version>-cli.jar /app/poppydb.jar
 
 EXPOSE 27017
 
@@ -898,24 +898,31 @@ db.watch().on('change', console.log);
 
 ### Security
 - ✅ **TLS/SSL Supported** - Encrypted connections available (since v6.1.0)
-- ❌ **No Authentication** - Not implemented yet
-- 💡 **Workaround** - Use reverse proxy for authentication
+- ✅ **Authentication** - Real SCRAM-SHA-1/SHA-256, opt-in via `--auth` (since v6.3.0) - see
+  [Authentication](#authentication---auth)
+- ⚠️ **Authorization not enforced** - roles are stored (`createUser`'s `roles` field) but not
+  evaluated; any authenticated user may run any command. Isolate the network segment if you need
+  fine-grained access control.
 
 ## When NOT to Use
 
 **Avoid for:**
-- Production data requiring persistence
-- Datasets exceeding available RAM (>16GB)
-- High availability requirements
-- Authentication requirements (not yet implemented)
-- MongoDB Atlas features
-- Advanced search/geospatial features
+- Data that must survive a total cluster outage without loss - there is no write-ahead log; see
+  the loss model under [Use Cases](#5-message-broker-for-short-lived-messages-production)
+- Datasets exceeding available RAM
+- Fine-grained, per-role authorization (roles are stored but not evaluated - see Security above)
+- MongoDB Atlas-specific features
+- GridFS, advanced full-text search/geospatial, sharding, or distributed transactions
 
 **Use Instead:**
-- **Production**: Real MongoDB with persistence
-- **Large Datasets**: MongoDB with disk storage
-- **High Availability**: MongoDB replica sets
-- **Cloud**: MongoDB Atlas
+- **Durable system-of-record data**: real MongoDB with persistence
+- **Large datasets**: MongoDB with disk storage
+- **Cloud-managed**: MongoDB Atlas
+- **Fine-grained access control**: real MongoDB's role-based access control
+
+Note that PoppyDB *does* support authentication, TLS, and replica-set failover (see above) -
+"avoid for production" is not a blanket rule. For ephemeral messaging and cache/session roles it
+is explicitly recommended in production, with the caveats in [Use Cases](#use-cases) below.
 
 ## Building from Source
 
@@ -928,7 +935,7 @@ mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 # poppydb/target/poppydb-X.Y.Z-cli.jar
 
 # Run the server:
-java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017
+java -jar poppydb/target/poppydb-<version>-cli.jar --port 27017
 ```
 
 ## Maven Dependency
@@ -937,7 +944,7 @@ java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.2.0</version>
+    <version>6.3.0</version> <!-- use the current release -->
 </dependency>
 ```
 
@@ -972,6 +979,8 @@ public static void main(String[] args) throws Exception {
 
 ## See Also
 
+- [PoppyDB Production Deployment Playbook](./howtos/poppydb-deployment.md) - step-by-step guide:
+  systemd unit, secrets handling, capacity planning, monitoring, backup/restore, upgrades
 - [InMemory Driver](./howtos/inmemory-driver.md) - Embedded driver for unit tests
 - [Messaging](./messaging.md) - Messaging with Morphium / PoppyDB
 - [Configuration Reference](./configuration-reference.md) - All configuration options
