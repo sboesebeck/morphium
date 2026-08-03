@@ -294,6 +294,8 @@ a replacement for reading the sections above.
 ## See Also
 
 - [PoppyDB](../poppydb.md) — full feature reference
+- [Migrating from MongoDB to PoppyDB](./migration-mongodb-to-poppydb.md) — moving an existing
+  workload over, rather than starting fresh
 - [Monitoring & Metrics Guide](../monitoring-metrics-guide.md)
 - [Security Guide](../security-guide.md)
 - [Messaging Implementations](./messaging-implementations.md) — if PoppyDB backs Morphium

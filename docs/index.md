@@ -35,6 +35,7 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
 - **[PoppyDB Production Deployment Playbook](./howtos/poppydb-deployment.md)** - Running PoppyDB itself in production: systemd unit, secrets handling, capacity planning, monitoring, backup/restore, upgrades
+- **[Migrating from MongoDB to PoppyDB](./howtos/migration-mongodb-to-poppydb.md)** - moving an existing workload over: data migration, validation, cutover, rollback
 - **[Configuration Reference](./configuration-reference.md)** - Complete reference for all configuration options
 - **[Performance & Scalability Guide](./performance-scalability-guide.md)** - Optimization strategies from small to large scale
 - **[Security Guide](./security-guide.md)** - Security considerations for MongoDB Community Edition deployments
