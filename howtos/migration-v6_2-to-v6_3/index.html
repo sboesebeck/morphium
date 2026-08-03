@@ -12,29 +12,31 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/howtos/migration-v6_2-to-v6_3/">
       
       
+        <link rel="prev" href="../inmemory-driver/">
       
-        <link rel="next" href="why-morphium/">
+      
+        <link rel="next" href="../migration-v6_1-to-v6_2/">
       
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Morphium Documentation</title>
+        <title>Upgrade v6.2→v6.3 - Morphium Documentation</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +55,7 @@
       
     
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#morphium-v6-documentation" class="md-skip">
+        <a href="#migration-v62x-v630" class="md-skip">
           Skip to content
         </a>
       
@@ -96,7 +98,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="Morphium Documentation" class="md-header__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
+    <a href="../.." title="Morphium Documentation" class="md-header__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -116,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              Upgrade v6.2→v6.3
             
           </span>
         </div>
@@ -227,11 +229,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="." class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -252,7 +252,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="why-morphium/" class="md-tabs__link">
+        <a href="../../why-morphium/" class="md-tabs__link">
           
   
   
@@ -272,7 +272,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="test-runner/" class="md-tabs__link">
+        <a href="../../test-runner/" class="md-tabs__link">
           
   
   
@@ -288,11 +288,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="howtos/migration-v6_2-to-v6_3/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -312,7 +314,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="messaging/" class="md-tabs__link">
+        <a href="../../messaging/" class="md-tabs__link">
           
   
   
@@ -332,7 +334,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="api-reference/" class="md-tabs__link">
+        <a href="../../api-reference/" class="md-tabs__link">
           
   
   
@@ -352,7 +354,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="v5-vs-v6-performance/" class="md-tabs__link">
+        <a href="../../v5-vs-v6-performance/" class="md-tabs__link">
           
   
   
@@ -370,7 +372,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="contributing/" class="md-tabs__link">
+      <a href="../../contributing/" class="md-tabs__link">
         
   
   
@@ -405,7 +407,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="Morphium Documentation" class="md-nav__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
+    <a href="../.." title="Morphium Documentation" class="md-nav__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -432,37 +434,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Home
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="." class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -478,122 +453,6 @@
   
 
       </a>
-      
-        
-
-  
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#new-here-start-here" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        🚀 New Here? Start Here!
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#getting-started-reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting Started (Reference)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing-development" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing &amp; Development
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#production-deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Production Deployment
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#operations-monitoring" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operations &amp; Monitoring
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reference
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#motivation-history" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Motivation &amp; History
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Motivation &amp; History">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#our-own-driver-since-50" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Our own driver (since 5.0)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -659,7 +518,7 @@
   
   
     <li class="md-nav__item">
-      <a href="why-morphium/" class="md-nav__link">
+      <a href="../../why-morphium/" class="md-nav__link">
         
   
   
@@ -687,7 +546,7 @@
   
   
     <li class="md-nav__item">
-      <a href="quickstart-tutorial/" class="md-nav__link">
+      <a href="../../quickstart-tutorial/" class="md-nav__link">
         
   
   
@@ -715,7 +574,7 @@
   
   
     <li class="md-nav__item">
-      <a href="first-test/" class="md-nav__link">
+      <a href="../../first-test/" class="md-nav__link">
         
   
   
@@ -743,7 +602,7 @@
   
   
     <li class="md-nav__item">
-      <a href="overview/" class="md-nav__link">
+      <a href="../../overview/" class="md-nav__link">
         
   
   
@@ -771,7 +630,7 @@
   
   
     <li class="md-nav__item">
-      <a href="architecture-overview/" class="md-nav__link">
+      <a href="../../architecture-overview/" class="md-nav__link">
         
   
   
@@ -799,7 +658,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/basic-setup/" class="md-nav__link">
+      <a href="../basic-setup/" class="md-nav__link">
         
   
   
@@ -888,7 +747,7 @@
   
   
     <li class="md-nav__item">
-      <a href="test-runner/" class="md-nav__link">
+      <a href="../../test-runner/" class="md-nav__link">
         
   
   
@@ -916,7 +775,7 @@
   
   
     <li class="md-nav__item">
-      <a href="inmemory-driver/" class="md-nav__link">
+      <a href="../../inmemory-driver/" class="md-nav__link">
         
   
   
@@ -944,7 +803,7 @@
   
   
     <li class="md-nav__item">
-      <a href="poppydb/" class="md-nav__link">
+      <a href="../../poppydb/" class="md-nav__link">
         
   
   
@@ -972,7 +831,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/inmemory-driver/" class="md-nav__link">
+      <a href="../inmemory-driver/" class="md-nav__link">
         
   
   
@@ -1004,28 +863,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -1043,7 +905,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1058,10 +920,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="howtos/migration-v6_2-to-v6_3/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upgrade v6.2→v6.3
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1077,6 +966,155 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#breaking-changes-that-affect-real-mongodb-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking Changes That Affect Real MongoDB Users
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Breaking Changes That Affect Real MongoDB Users">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mid-message-read-timeouts-now-close-the-connection-instead-of-silently-reusing-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mid-message read timeouts now close the connection instead of silently reusing it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#expired-pooled-connections-are-closed-on-release-not-returned-to-the-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expired pooled connections are closed on release, not returned to the pool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pooleddriver-re-seeds-from-the-host-list-after-a-full-outage-233" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PooledDriver re-seeds from the host list after a full outage (#233)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breaking-changes-in-inmemorydriver-poppydb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking Changes in InMemoryDriver / PoppyDB
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecations-the-70-removal-wave-218" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecations — the 7.0-removal wave (#218)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-dualchannelmessaging-beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: DualChannelMessaging (Beta)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-poppydb-production-readiness-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: PoppyDB — production-readiness features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-inmemorydriver-aggregation-query-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: InMemoryDriver aggregation &amp; query surface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-messaging-improvements-all-implementations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: Messaging improvements (all implementations)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1089,7 +1127,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/migration-v6_1-to-v6_2/" class="md-nav__link">
+      <a href="../migration-v6_1-to-v6_2/" class="md-nav__link">
         
   
   
@@ -1117,7 +1155,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/migration-v5-to-v6/" class="md-nav__link">
+      <a href="../migration-v5-to-v6/" class="md-nav__link">
         
   
   
@@ -1145,7 +1183,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/aggregation-examples/" class="md-nav__link">
+      <a href="../aggregation-examples/" class="md-nav__link">
         
   
   
@@ -1173,7 +1211,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/caching-examples/" class="md-nav__link">
+      <a href="../caching-examples/" class="md-nav__link">
         
   
   
@@ -1201,7 +1239,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/cache-patterns/" class="md-nav__link">
+      <a href="../cache-patterns/" class="md-nav__link">
         
   
   
@@ -1229,7 +1267,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/field-names/" class="md-nav__link">
+      <a href="../field-names/" class="md-nav__link">
         
   
   
@@ -1318,7 +1356,7 @@
   
   
     <li class="md-nav__item">
-      <a href="messaging/" class="md-nav__link">
+      <a href="../../messaging/" class="md-nav__link">
         
   
   
@@ -1346,7 +1384,7 @@
   
   
     <li class="md-nav__item">
-      <a href="howtos/messaging-implementations/" class="md-nav__link">
+      <a href="../messaging-implementations/" class="md-nav__link">
         
   
   
@@ -1374,7 +1412,7 @@
   
   
     <li class="md-nav__item">
-      <a href="ssl-tls/" class="md-nav__link">
+      <a href="../../ssl-tls/" class="md-nav__link">
         
   
   
@@ -1402,7 +1440,7 @@
   
   
     <li class="md-nav__item">
-      <a href="developer-guide/" class="md-nav__link">
+      <a href="../../developer-guide/" class="md-nav__link">
         
   
   
@@ -1491,7 +1529,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api-reference/" class="md-nav__link">
+      <a href="../../api-reference/" class="md-nav__link">
         
   
   
@@ -1519,7 +1557,7 @@
   
   
     <li class="md-nav__item">
-      <a href="configuration-reference/" class="md-nav__link">
+      <a href="../../configuration-reference/" class="md-nav__link">
         
   
   
@@ -1608,7 +1646,7 @@
   
   
     <li class="md-nav__item">
-      <a href="v5-vs-v6-performance/" class="md-nav__link">
+      <a href="../../v5-vs-v6-performance/" class="md-nav__link">
         
   
   
@@ -1636,7 +1674,7 @@
   
   
     <li class="md-nav__item">
-      <a href="performance-scalability-guide/" class="md-nav__link">
+      <a href="../../performance-scalability-guide/" class="md-nav__link">
         
   
   
@@ -1664,7 +1702,7 @@
   
   
     <li class="md-nav__item">
-      <a href="production-deployment-guide/" class="md-nav__link">
+      <a href="../../production-deployment-guide/" class="md-nav__link">
         
   
   
@@ -1692,7 +1730,7 @@
   
   
     <li class="md-nav__item">
-      <a href="monitoring-metrics-guide/" class="md-nav__link">
+      <a href="../../monitoring-metrics-guide/" class="md-nav__link">
         
   
   
@@ -1720,7 +1758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="security-guide/" class="md-nav__link">
+      <a href="../../security-guide/" class="md-nav__link">
         
   
   
@@ -1748,7 +1786,7 @@
   
   
     <li class="md-nav__item">
-      <a href="troubleshooting-guide/" class="md-nav__link">
+      <a href="../../troubleshooting-guide/" class="md-nav__link">
         
   
   
@@ -1783,7 +1821,7 @@
   
   
     <li class="md-nav__item">
-      <a href="contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         
   
   
@@ -1832,88 +1870,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#new-here-start-here" class="md-nav__link">
+  <a href="#breaking-changes-that-affect-real-mongodb-users" class="md-nav__link">
     <span class="md-ellipsis">
       
-        🚀 New Here? Start Here!
+        Breaking Changes That Affect Real MongoDB Users
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#getting-started-reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting Started (Reference)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing-development" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing &amp; Development
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#production-deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Production Deployment
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#operations-monitoring" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operations &amp; Monitoring
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reference
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#motivation-history" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Motivation &amp; History
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Motivation &amp; History">
+    <nav class="md-nav" aria-label="Breaking Changes That Affect Real MongoDB Users">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#our-own-driver-since-50" class="md-nav__link">
+  <a href="#mid-message-read-timeouts-now-close-the-connection-instead-of-silently-reusing-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Our own driver (since 5.0)
+        Mid-message read timeouts now close the connection instead of silently reusing it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#expired-pooled-connections-are-closed-on-release-not-returned-to-the-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expired pooled connections are closed on release, not returned to the pool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pooleddriver-re-seeds-from-the-host-list-after-a-full-outage-233" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PooledDriver re-seeds from the host list after a full outage (#233)
       
     </span>
   </a>
@@ -1922,6 +1916,83 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breaking-changes-in-inmemorydriver-poppydb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking Changes in InMemoryDriver / PoppyDB
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecations-the-70-removal-wave-218" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecations — the 7.0-removal wave (#218)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-dualchannelmessaging-beta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: DualChannelMessaging (Beta)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-poppydb-production-readiness-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: PoppyDB — production-readiness features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-inmemorydriver-aggregation-query-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: InMemoryDriver aggregation &amp; query surface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-messaging-improvements-all-implementations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New: Messaging improvements (all implementations)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration Checklist
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1945,75 +2016,171 @@
   
 
 
-<h1 id="morphium-v6-documentation">Morphium v6 Documentation<a class="headerlink" href="#morphium-v6-documentation" title="Permanent link">&para;</a></h1>
-<p>Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messaging system. It includes a custom MongoDB wire‑protocol driver, distributed caching, and a topic‑based message queue.</p>
-<hr />
-<h2 id="new-here-start-here">🚀 New Here? Start Here!<a class="headerlink" href="#new-here-start-here" title="Permanent link">&para;</a></h2>
-<p><strong>Learning path for beginners:</strong></p>
+<h1 id="migration-v62x-v630">Migration v6.2.x → v6.3.0<a class="headerlink" href="#migration-v62x-v630" title="Permanent link">&para;</a></h1>
+<p>This guide covers breaking changes, deprecations, and the headline new features when upgrading
+from Morphium 6.2.x to 6.3.0. 6.3.0 is a large release, dominated by InMemoryDriver/PoppyDB
+correctness and production-readiness work; if you only use Morphium against real MongoDB and
+never touch the embedded driver or PoppyDB, most of this guide does not apply to you — skip to
+<a href="#breaking-changes-that-affect-real-mongodb-users">Breaking Changes That Affect Real MongoDB Users</a>
+and <a href="#new-dualchannelmessaging-beta">New: DualChannelMessaging</a>.</p>
+<p>No dependency version bumps in this release (Netty/BSON/SLF4J/Logback are unchanged from 6.2.10).</p>
+<h2 id="breaking-changes-that-affect-real-mongodb-users">Breaking Changes That Affect Real MongoDB Users<a class="headerlink" href="#breaking-changes-that-affect-real-mongodb-users" title="Permanent link">&para;</a></h2>
+<h3 id="mid-message-read-timeouts-now-close-the-connection-instead-of-silently-reusing-it">Mid-message read timeouts now close the connection instead of silently reusing it<a class="headerlink" href="#mid-message-read-timeouts-now-close-the-connection-instead-of-silently-reusing-it" title="Permanent link">&para;</a></h3>
+<p>A socket timeout that struck mid-reply (header consumed, body still in flight) used to leave the
+connection desynchronized but still pooled — the next borrower would see cryptic <code>Illegal opcode</code>
+errors or a <code>null</code> reply. The driver now detects this case and closes the connection instead of
+retrying/pooling it. <strong>What to change:</strong> nothing in your code, but if your logs previously showed
+sporadic <code>Illegal opcode ...</code> errors under load, they should disappear; if you see more connection
+churn than before under timeout-heavy conditions, that is this fix working as intended, not a
+regression.</p>
+<h3 id="expired-pooled-connections-are-closed-on-release-not-returned-to-the-pool">Expired pooled connections are closed on release, not returned to the pool<a class="headerlink" href="#expired-pooled-connections-are-closed-on-release-not-returned-to-the-pool" title="Permanent link">&para;</a></h3>
+<p>Previously only the heartbeat's expiry sweep removed connections past
+<code>maxConnectionLifetime</code>/<code>maxConnectionIdleTime</code>; a connection could sit in the pool one sweep
+interval past its expiry. No API change, but expect pool size to converge to its minimum faster
+after a connection burst.</p>
+<h3 id="pooleddriver-re-seeds-from-the-host-list-after-a-full-outage-233"><code>PooledDriver</code> re-seeds from the host list after a full outage (#233)<a class="headerlink" href="#pooleddriver-re-seeds-from-the-host-list-after-a-full-outage-233" title="Permanent link">&para;</a></h3>
+<p>If every replica-set member became unreachable for long enough, the driver previously stayed
+permanently dead (<code>No primary node found</code>) even after the cluster recovered, requiring an
+application restart. It now re-seeds from the configured host list and resumes discovery on its
+own. No action needed — this only removes a failure mode.</p>
+<h2 id="breaking-changes-in-inmemorydriver-poppydb">Breaking Changes in InMemoryDriver / PoppyDB<a class="headerlink" href="#breaking-changes-in-inmemorydriver-poppydb" title="Permanent link">&para;</a></h2>
+<p>These only affect you if you run tests against the InMemoryDriver (<code>-Dmorphium.driver=inmem</code>) or
+run PoppyDB as a MongoDB-compatible server. All of them make the emulation <em>more</em> correct — i.e.
+closer to how real MongoDB always behaved — so if you only run tests against real MongoDB, none of
+this applies; if you run the same tests against InMemoryDriver/PoppyDB too, some may start failing
+because they were relying on previously-wrong lenient behavior.</p>
+<ul>
+<li><strong><code>$in</code>/<code>$nin</code> reject scalar and <code>null</code> operands</strong> instead of silently wrapping them into a
+  single-element list (<code>{$in: "a"}</code> no longer behaves like <code>{$in: ["a"]}</code>) — this also reverts the
+  6.2.9 leniency for the <code>$in</code> aggregation expression specifically. Real MongoDB always rejected
+  this (<code>BadValue: $in needs an array</code>).</li>
+<li><strong><code>$project</code> inclusion mode (<code>{field: 1}</code>) actually restricts output to selected fields now.</strong>
+  It was a no-op before — only exclusion (<code>{field: 0}</code>) had any effect — so any test asserting a
+  full document came back from an inclusion-style <code>$project</code> will now correctly see only the
+  projected fields.</li>
+<li><strong>BSON document size limit (16MB) is enforced</strong> on insert and on the <em>result</em> of
+  update/replace/upsert operations, matching mongod's <code>BSONObjectTooLarge</code> (10334). Previously
+  unenforced (and advertised as a fantasy 128MB by the embedded driver). Configurable via
+  <code>--max-bson-size</code> / <code>PoppyDB.setMaxBsonObjectSize(...)</code> / <code>InMemoryDriver.setMaxBsonObjectSize(...)</code>
+  (<code>0</code> = off).</li>
+<li><strong><code>maxMessageSizeBytes</code> (48MB) is respected end-to-end.</strong> Oversized write commands are now split
+  into sub-batches instead of being sent as one huge OP_MSG that would previously get the
+  connection closed by any real server (or PoppyDB's own decoder).</li>
+<li><strong>Creating a time-series collection fails loudly</strong> (<code>CommandNotSupported</code>, code 115) instead of
+  silently creating a plain collection with none of the promised behavior. Real time-series
+  support is tracked for 7.0 (#261/#262).</li>
+<li><strong>Auth commands fail instead of pretending to succeed.</strong> <code>saslStart</code>, X.509 <code>authenticate</code>,
+  <code>createUser</code>, <code>createRole</code> used to be empty stubs that the dispatch machinery resolved to
+  <code>{ok: 1.0}</code> — any client "authenticated" with any or no credentials. They now fail explicitly
+  until real SCRAM/role support is in place (SCRAM verification and <code>createUser</code> landed later in
+  6.3.0, see below — <code>createRole</code>/authorization enforcement are still not implemented).</li>
+<li><strong>Memory watermark rejects writes above 90% post-GC heap</strong> by default (<code>ExceededMemoryLimit</code>,
+  code 146 — a retryable/backpressure signal). If your tests or embedded usage push large volumes
+  into an undersized heap, you may now see this error where you previously got an <code>OutOfMemoryError</code>
+  or degraded performance. Tune with <code>--memory-warn</code>/<code>--memory-reject</code> (PoppyDB) or
+  <code>setMemoryWatermarks(...)</code> (embedded); <code>100</code> disables the corresponding threshold. Updates,
+  deletes, and TTL expiry are always allowed (the drain paths must keep working).</li>
+</ul>
+<h2 id="deprecations-the-70-removal-wave-218">Deprecations — the 7.0-removal wave (#218)<a class="headerlink" href="#deprecations-the-70-removal-wave-218" title="Permanent link">&para;</a></h2>
+<p>Members confirmed for removal in 7.0 now carry <code>@Deprecated(since = "6.3", forRemoval = true)</code>,
+so IDEs flag every usage a full minor release ahead of time. This is a pure annotation/Javadoc
+change — nothing behaves differently in 6.3.0, and everything listed still works. Covered:</p>
+<ul>
+<li>Flat <code>MorphiumConfig</code> setters/getters — use the <code>Settings</code> sub-objects instead
+  (<code>connectionSettings()</code>, <code>objectMappingSettings()</code>, <code>messagingSettings()</code>, ...).</li>
+<li><code>MorphiumBase.set…</code>/<code>unsetQ…</code> variants.</li>
+<li>The legacy <code>SingleCollectionMessaging</code> constructors — use <code>Morphium.createMessaging()</code>.</li>
+<li><code>Query.complexQuery</code>, <code>Query.getById</code>, <code>Query.textSearch</code>.</li>
+<li><code>Msg.name</code>.</li>
+<li><code>MorphiumMessaging.setProcessMultiple</code> — use <code>setWindowSize(int)</code> instead.</li>
+<li><code>MongoBob</code>.</li>
+<li><code>@UseIfnull</code> — use <code>@IgnoreNullFromDB</code>.</li>
+</ul>
+<p><strong>What to change now (optional but recommended):</strong> search your codebase for the members above and
+migrate opportunistically. Nothing is urgent for 6.3.0 — this only matters before upgrading to 7.0.</p>
+<h2 id="new-dualchannelmessaging-beta">New: DualChannelMessaging (Beta)<a class="headerlink" href="#new-dualchannelmessaging-beta" title="Permanent link">&para;</a></h2>
+<p>A new, opt-in messaging implementation (<code>de.caluga.morphium.messaging.DualChannelMessaging</code>,
+<a href="https://github.com/sboesebeck/morphium/issues/265">#265</a>) targeting request/reply throughput on
+real MongoDB: it keeps Standard's simple single-collection layout for broadcast/topic traffic and
+adds a second, dedicated per-recipient collection with its own change-stream cursor purely for
+directed messages and answers — the second cursor is what actually gives <code>MultiCollectionMessaging</code>
+its capacity edge over Standard, not the per-topic split, and this isolates just that one mechanism
+on top of an otherwise unmodified Standard core.</p>
+<p>Enable it with a one-line config change:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">&quot;DualChannelMessaging&quot;</span><span class="p">);</span>
+</span></code></pre></div>
+<p>Measured on MongoDB under sustained overload: <strong>+9% throughput and ~33% lower p50 latency than
+Standard</strong>, without <code>MultiCollectionMessaging</code>'s runaway-RTT failure mode under overload. On
+PoppyDB the second cursor makes no measurable throughput difference (PoppyDB's change-stream
+delivery is push-based and was never cursor-cadence-bound the way mongod's oplog-tailing is).</p>
+<p><strong>Before enabling in production:</strong> every participant on a given queue must run
+<code>DualChannelMessaging</code> — see the
+<a href="../messaging-implementations/#dual-channel-messaging-beta">Mixed-Cluster Requirement</a> and full
+measured numbers in <a href="../messaging-implementations/">Messaging Implementations</a>. Marked <code>@Beta</code>:
+behavior, collection layout, or API surface may change without a deprecation cycle.</p>
+<h2 id="new-poppydb-production-readiness-features">New: PoppyDB — production-readiness features<a class="headerlink" href="#new-poppydb-production-readiness-features" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>DevOps command surface</strong>: <code>db.currentOp()</code>/<code>killOp</code> (with a real op registry), <code>rs.conf()</code>,
+  <code>listCommands</code>, <code>hostInfo</code>, <code>connectionStatus</code>, <code>whatsmyuri</code>, real <code>serverStatus.connections</code>.
+  Fixes mongosh's admin helpers, which previously failed against PoppyDB.</li>
+<li><strong>Opt-in auth enforcement</strong> (<code>--auth</code>) with real server-side SCRAM-SHA-1/SHA-256 verification
+  (RFC 5802/7677) and a working <code>createUser</code>. Without <code>--auth</code>, behavior is unchanged (fully open).
+  Authorization is authentication-only for now — roles are stored but not evaluated.</li>
+<li><strong>TLS actually works now</strong> — it was silently broken (NPE on startup) whenever an <code>SSLContext</code> was
+  configured.</li>
+<li><strong><code>--log-level</code> option</strong> — the CLI jar no longer floods disks by logging everything at DEBUG by
+  default (root now defaults to <code>INFO</code>).</li>
+<li><strong>Replication correctness</strong>: index definitions are now replicated (previously documents only —
+  unique constraints, TTL, and index-backed queries silently didn't work on secondaries or after
+  failover); replication is now lossless and order-preserving; a long-standing election bug that
+  kept followers from ever starting replication is fixed.</li>
+<li><strong>Memory watermarks</strong> and <strong>BSON/message size enforcement</strong> — see Breaking Changes above.</li>
+</ul>
+<h2 id="new-inmemorydriver-aggregation-query-surface">New: InMemoryDriver aggregation &amp; query surface<a class="headerlink" href="#new-inmemorydriver-aggregation-query-surface" title="Permanent link">&para;</a></h2>
+<p>A large batch of previously-missing or silently-wrong aggregation/query behavior is now
+implemented, primarily useful for anyone testing MongoDB-heavy pipelines against the InMemoryDriver
+or PoppyDB instead of a real server:</p>
+<ul>
+<li>New pipeline stages: <code>$documents</code>, <code>$densify</code>, <code>$fill</code>, the full <code>$setWindowFields</code> window-function
+  surface (including range windows), a working <code>$merge</code>, and a real <code>$out</code> (previously a no-op).</li>
+<li>~40 additional <code>Expr</code> operators implemented (<code>$map</code>, date arithmetic, byte/codepoint string
+  operators, <code>$sortArray</code>, <code>$round</code>, <code>$median</code>/<code>$percentile</code>, and more).</li>
+<li>Positional update operators <code>$</code>, <code>$[]</code>, <code>$[&lt;identifier&gt;]</code> with <code>arrayFilters</code> (also reachable from
+  the high-level API via the new <code>Query.setArrayFilters(...)</code>), and <code>$bit</code>.</li>
+<li><code>dbHash</code>, <code>validate</code>, <code>currentOp</code>, real <code>serverStatus</code>, and the MongoDB-8.0-style top-level
+  <code>bulkWrite</code> command.</li>
+</ul>
+<p>If any of your tests were relying on a previously-stubbed or silently-wrong behavior in this area
+(several dozen correctness fixes shipped alongside the new features — see <code>CHANGELOG.md</code>'s
+<code>[Unreleased]</code>/6.3.0 section for the full list), re-run your suite against InMemoryDriver/PoppyDB
+after upgrading.</p>
+<h2 id="new-messaging-improvements-all-implementations">New: Messaging improvements (all implementations)<a class="headerlink" href="#new-messaging-improvements-all-implementations" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Configurable <code>messagingDefaultTtl</code> (default 30s, was hardcoded) and <code>messagingFallbackPollInterval</code>
+  (default 10s) — tune the poll interval below your shortest message TTL.</li>
+<li>Requeued messages (cleared <code>processedBy</code> via a plain DB update) are now picked up event-driven
+  instead of waiting for the next fallback poll.</li>
+<li>Change-stream liveness now drives the fallback poll directly — a silent stream triggers an
+  immediate poll instead of waiting for the next timer tick.</li>
+<li>A bounded processing-decision trace aids answer-timeout diagnostics (dumped only on timeout, not
+  during normal operation).</li>
+</ul>
+<h2 id="migration-checklist">Migration Checklist<a class="headerlink" href="#migration-checklist" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong><a href="why-morphium/">Why Morphium?</a></strong> — Honest comparison with the Official Driver</li>
-<li><strong><a href="quickstart-tutorial/">Quick Start Tutorial</a></strong> — From zero to your first query in 10 minutes</li>
-<li><strong><a href="first-test/">Your First Test</a></strong> — Unit tests with the InMemory Driver</li>
+<li>[ ] <strong>Search for <code>forRemoval = true</code> candidates</strong> (see Deprecations above) and migrate
+   opportunistically — not urgent for 6.3.0, but IDEs will now flag them.</li>
+<li>[ ] <strong>If you test against InMemoryDriver/PoppyDB</strong>, re-run your suite — several dozen
+   correctness fixes may surface previously-masked test bugs (see the two Breaking Changes
+   sections above).</li>
+<li>[ ] <strong>If you run PoppyDB in production</strong>, review the new <code>--auth</code>, <code>--memory-warn</code>/
+   <code>--memory-reject</code>, and <code>--log-level</code> options — defaults preserve prior (open, unbounded, DEBUG)
+   behavior, so nothing changes unless you opt in.</li>
+<li>[ ] <strong>If you store documents that could exceed 16MB</strong> or write batches that could exceed 48MB
+   against InMemoryDriver/PoppyDB, verify you're within the now-enforced limits (or raise them).</li>
+<li>[ ] <strong>Optional:</strong> if request/reply throughput is your bottleneck on real MongoDB and you can run
+   a homogeneous cluster, evaluate the beta <code>DualChannelMessaging</code> implementation.</li>
+<li>[ ] No dependency version changes — nothing to reconcile in your own <code>pom.xml</code>.</li>
 </ol>
-<hr />
-<h2 id="getting-started-reference">Getting Started (Reference)<a class="headerlink" href="#getting-started-reference" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="overview/">Overview</a> — Features und kurzer Quick Start</li>
-<li><a href="developer-guide/">Developer Guide</a> — Mapping, Queries, Aggregation, Caching, Konfiguration</li>
-<li><a href="messaging/">Messaging</a> — Built-in Message Queue Guide</li>
-<li><a href="howtos/messaging-implementations/">Messaging Implementations</a> — Standard vs. Advanced vs. beta DualChannelMessaging, incl. measured throughput/latency numbers</li>
-<li><a href="howtos/basic-setup/">How‑Tos</a> — Rezepte für häufige Aufgaben</li>
-</ul>
-<h2 id="testing-development">Testing &amp; Development<a class="headerlink" href="#testing-development" title="Permanent link">&para;</a></h2>
-<p>Morphium includes a complete in-memory MongoDB-compatible implementation for testing and development:
-- <strong><a href="developer-testing-guide/">Developer Testing Guide</a></strong> - How to run and write tests, MultiDriverTestBase, runtests.sh
-- <strong><a href="test-runner/">Test Runner</a></strong> - Quick reference for the <code>runtests.sh</code> script
-- <strong><a href="howtos/inmemory-driver/">InMemory Driver</a></strong> - Embedded in-memory driver for unit tests (no MongoDB installation required!)
-- <strong><a href="poppydb/">PoppyDB</a></strong> - Standalone MongoDB-compatible server that speaks the wire protocol (formerly MorphiumServer)
-  - Perfect for CI/CD pipelines, integration testing, and microservices development
-  - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
-  - Supports <strong>Replica Sets</strong> (experimental) and <strong>Persistence (Snapshots)</strong>
-  - Run with: <code>java -jar poppydb/target/poppydb-6.2.0-SNAPSHOT-cli.jar --port 27017</code></p>
-<h2 id="production-deployment">Production Deployment<a class="headerlink" href="#production-deployment" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong><a href="production-deployment-guide/">Production Deployment Guide</a></strong> - Complete guide for deploying Morphium in production environments</li>
-<li><strong><a href="configuration-reference/">Configuration Reference</a></strong> - Complete reference for all configuration options</li>
-<li><strong><a href="performance-scalability-guide/">Performance &amp; Scalability Guide</a></strong> - Optimization strategies from small to large scale</li>
-<li><strong><a href="security-guide/">Security Guide</a></strong> - Security considerations for MongoDB Community Edition deployments</li>
-</ul>
-<h2 id="operations-monitoring">Operations &amp; Monitoring<a class="headerlink" href="#operations-monitoring" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong><a href="monitoring-metrics-guide/">Monitoring &amp; Metrics Guide</a></strong> - Comprehensive monitoring with DriverStats and performance metrics</li>
-<li><strong><a href="troubleshooting-guide/">Troubleshooting Guide</a></strong> - Common issues, diagnosis, and solutions</li>
-<li><strong><a href="architecture-overview/">Architecture Overview</a></strong> - Internal architecture and component relationships</li>
-</ul>
-<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong><a href="api-reference/">API Reference</a></strong> - Complete API documentation with examples</li>
-</ul>
-<p>Minimum requirements
-- Java 21+
-- MongoDB 5.0+</p>
-<p>Links
-- Repository: https://github.com/sboesebeck/morphium</p>
-<h2 id="motivation-history">Motivation &amp; History<a class="headerlink" href="#motivation-history" title="Permanent link">&para;</a></h2>
-<p>Morphium started when there was no official MongoDB object mapper and the then‑popular Morphia lacked extensibility around caching. We set out to build a flexible, extensible ODM with declarative features—especially for caching. At that time, Jackson also missed a few capabilities we needed (like better generics handling), so Morphium ships its own object mapper tuned precisely for Morphium’s use cases and performance.</p>
-<p>The initial Message Queuing feature was created to synchronize caches across a cluster; it has since evolved into a production‑ready messaging system.</p>
-<p>Learn more
-- Object mapping and configuration: see the <a href="developer-guide/">Developer Guide</a>
-- Caching: see <a href="howtos/caching-examples/">Caching Examples</a> and <a href="howtos/cache-patterns/">Cache Patterns</a>
-- Messaging: see <a href="messaging/">Messaging</a> and <a href="howtos/messaging-implementations/">Messaging Implementations</a> (implementation comparison, measured throughput/latency)
-- Testing without MongoDB: see <a href="howtos/inmemory-driver/">InMemory Driver</a>, <a href="poppydb/">PoppyDB</a>
-- Upgrading: <a href="howtos/migration-v6_2-to-v6_3/">v6.2 → v6.3</a> | <a href="howtos/migration-v6_1-to-v6_2/">v6.1 → v6.2</a> | <a href="howtos/migration-v5-to-v6/">v5 → v6</a></p>
-<h3 id="our-own-driver-since-50">Our own driver (since 5.0)<a class="headerlink" href="#our-own-driver-since-50" title="Permanent link">&para;</a></h3>
-<p>With Morphium 5.0 we implemented our own MongoDB driver. The official driver includes object mapping, which interfered with Morphium’s mapping system, and we also experienced some failover issues. Building our own wire‑protocol driver gave us full control over mapping, retry/failover behavior, and performance characteristics.</p>
-<p>Benefits
-- Tailored to Morphium’s mapping and lifecycle needs; minimal impedance with Morphium’s object mapper.
-- Full control over retry/failover semantics and performance trade‑offs.
-- SSL/TLS support for secure connections (since v6.0).</p>
-<p>Limitations
-- No MongoDB Atlas support.
-- Some advanced features of the official driver are not available.</p>
 
 
 
@@ -2087,10 +2254,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
