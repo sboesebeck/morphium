@@ -1356,18 +1356,13 @@ public class ReplicationManager {
         // content: clear it here (right before the snapshot begins) so users deleted on the
         // primary while this node was disconnected cannot survive a resync - and so the
         // snapshot's strict inserts cannot collide with leftovers of a previous partial copy.
-        // Only the collection's documents are removed, never the admin database itself.
-        // A delete with an empty filter and limit 0 removes everything and is a harmless
-        // no-op when the collection does not exist yet.
-        GenericCommand clearUsers = new GenericCommand(localDriver);
-        clearUsers.setDb("admin");
-        clearUsers.setColl("system.users");
-        clearUsers.setCmdData(Doc.of(
-            "delete", "system.users",
-            "$db", "admin",
-            "deletes", List.of(Doc.of("q", Doc.of(), "limit", 0))
-        ));
-        localDriver.runCommand(clearUsers);
+        // Only the collection is removed, never the admin database itself. drop() rather than
+        // an empty-filter delete for the same auto-vivification reason documented for
+        // system.version below: on a cluster that never ran createUser (no root user
+        // configured), a delete's internal find() would phantom-create an empty system.users
+        // on every resyncing secondary but not on the primary, asymmetrically diverging the
+        // namespace set the consistency shortcut compares.
+        localDriver.drop("admin", "system.users", null);
 
         // admin.system.version DOES replicate too (the users-file version-gate meta doc), and is
         // subject to the exact same staleness risk as admin.system.users above: without this
