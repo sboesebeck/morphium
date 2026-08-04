@@ -80,6 +80,16 @@ public class PoppyDB {
     private List<String> hosts = new ArrayList<>();
     private volatile boolean primary = true;
     private volatile String primaryHost;
+    // Epoch guard for onLeadershipChange (Finding A hardening): ElectionManager dispatches
+    // onLeadershipChange from a 3-thread pool, serialized on the PoppyDB monitor but NOT
+    // ordered - two rapid false->true (or true->false) dispatches can acquire the monitor in
+    // the wrong order, so a stale body would run its full leader/follower bookkeeping AFTER a
+    // newer one already did, undoing it (e.g. clearing replicationCoordinatorRef right after a
+    // fresh leader body just set it up). incrementAndGet() is atomic, so whichever wrapper
+    // invocation increments LAST always holds the current value at the moment it reaches the
+    // synchronized body - by definition nothing newer can exist to make it stale later, so the
+    // most recent transition is never starved by this guard, only strictly older ones are.
+    private final java.util.concurrent.atomic.AtomicLong leadershipEpoch = new java.util.concurrent.atomic.AtomicLong(0);
 
     // Election configuration
     private boolean electionEnabled = false;
@@ -109,6 +119,16 @@ public class PoppyDB {
     // via a Supplier - onLeadershipChange swaps this reference and every existing connection
     // (not just newly accepted ones) immediately observes the new value.
     private final AtomicReference<ReplicationCoordinator> replicationCoordinatorRef = new AtomicReference<>();
+
+    // Bounded-backoff retry for a failed startReplicationToLeader() attempt (Finding B
+    // hardening) - see scheduleReplicationRetry/retryReplicationStart. Single daemon thread,
+    // created lazily (most PoppyDB instances - standalone, static-mode RS, most tests - never
+    // fail a replication start and shouldn't pay for a background thread they never use), and
+    // shut down in shutdown(). All reads/writes go through synchronized accessors below so the
+    // monitor provides the visibility a plain field wouldn't.
+    private java.util.concurrent.ScheduledExecutorService replicationRetryScheduler;
+    static final long REPLICATION_RETRY_INITIAL_DELAY_MS = 1000;
+    static final long REPLICATION_RETRY_MAX_DELAY_MS = 30_000;
 
     // DevOps command context: live op registry (currentOp/killOp), real connection gauges
     // for serverStatus, and the per-host priorities replSetGetConfig reports.
@@ -316,6 +336,10 @@ public class PoppyDB {
 
         // Stop replication
         stopReplication();
+
+        // Stop the replication-start retry scheduler (Finding B hardening) - must happen on
+        // every shutdown so its daemon thread doesn't leak across test instances in the same JVM.
+        stopReplicationRetryScheduler();
 
         // Stop dump scheduler
         stopDumpScheduler();
@@ -581,11 +605,15 @@ public class PoppyDB {
      */
     private void onLeadershipChange(boolean isLeader) {
         log.info("Leadership change: {} is now {}", host + ":" + port, isLeader ? "LEADER" : "FOLLOWER");
+        // Epoch first, then the flag, both outside the monitor - see the leadershipEpoch field
+        // comment for why incrementAndGet() ordering alone is enough to make the guard in
+        // onLeadershipChangeSynchronized race-safe without synchronizing this wrapper.
+        long epoch = leadershipEpoch.incrementAndGet();
         // Flip the externally visible role flag immediately, before the monitor - see the
         // class-level reasoning in the javadoc above for why this is safe on its own and how it
         // interacts with the synchronized ReplicationManager bookkeeping below.
         primary = isLeader;
-        onLeadershipChangeSynchronized(isLeader);
+        onLeadershipChangeSynchronized(isLeader, epoch);
     }
 
     /**
@@ -593,8 +621,25 @@ public class PoppyDB {
      * multi-thread scheduler pool, so they must serialize on the PoppyDB monitor to avoid
      * interleaving their ReplicationManager teardown/replace logic. The externally visible
      * {@code primary} flag itself is no longer flipped here - see {@link #onLeadershipChange}.
+     *
+     * {@code epoch} is the value {@link #leadershipEpoch} held right after this transition's
+     * wrapper incremented it, captured before this method ever competes for the monitor. If, by
+     * the time this body finally acquires the monitor, a NEWER transition's wrapper has already
+     * incremented {@link #leadershipEpoch} past {@code epoch}, then that newer body either already
+     * ran or is about to - either way it reflects the current {@link #primary}/state truth, and
+     * this stale body running its bookkeeping on top would only undo that (Finding A: e.g.
+     * clearing {@link #replicationCoordinatorRef} right after a fresh leader body just populated
+     * it). No-op in that case for BOTH directions (a stale true-body and a stale false-body are
+     * equally capable of clobbering a newer body's work). Package-private (not private) so a
+     * test can drive it directly with a deliberately stale epoch.
      */
-    private synchronized void onLeadershipChangeSynchronized(boolean isLeader) {
+    synchronized void onLeadershipChangeSynchronized(boolean isLeader, long epoch) {
+        if (epoch != leadershipEpoch.get()) {
+            log.debug("Ignoring stale leadership transition (epoch {} superseded by {})",
+                    epoch, leadershipEpoch.get());
+            return;
+        }
+
         if (isLeader) {
             // Becoming leader
             primaryHost = host + ":" + port;
@@ -665,6 +710,18 @@ public class PoppyDB {
      * the same leader without re-tearing-down a healthy ReplicationManager.
      */
     private synchronized void startReplicationToLeader(String leaderId) {
+        startReplicationToLeader(leaderId, REPLICATION_RETRY_INITIAL_DELAY_MS);
+    }
+
+    /**
+     * Same as {@link #startReplicationToLeader(String)}, but carries the delay to use for the
+     * NEXT retry if this attempt also fails (Finding B hardening) - see
+     * {@link #scheduleReplicationRetry(long)}/{@link #retryReplicationStart(long)}. The public
+     * single-arg entry point always starts a fresh backoff at
+     * {@link #REPLICATION_RETRY_INITIAL_DELAY_MS}; only the retry chain itself threads a doubled
+     * delay back in here.
+     */
+    private synchronized void startReplicationToLeader(String leaderId, long delayOnFailureMs) {
         if (primary || leaderId == null) {
             return;
         }
@@ -701,21 +758,129 @@ public class PoppyDB {
             primaryHost = leaderId;
             log.info("Started replication from new leader {}", leaderId);
         } catch (Exception e) {
-            log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
-            // start() failed partway through; the instance may hold live resources
-            // (executors, a connected primaryMorphium) that must be released so we
-            // don't leak them. Never assign it to the field: leaving a dead-but-non-null
-            // ReplicationManager there would trip the same-leader guard above and block
-            // any retry until the next leader change.
+            handleReplicationStartFailure(leaderId, newReplicationManager, e, delayOnFailureMs);
+        }
+    }
+
+    /**
+     * Cleans up after a failed {@code newReplicationManager.start()} and self-schedules a
+     * bounded-backoff retry (Finding B hardening). Factored out of
+     * {@link #startReplicationToLeader(String, long)}'s catch block, rather than left inline, so
+     * a test can drive exactly this logic directly (package-private seam) - forcing the real
+     * {@code ReplicationManager.start()} to throw synchronously via network conditions alone
+     * isn't reliably possible: for a single-host, non-replica-set-configured target (which is
+     * what {@code ReplicationManager} always uses), the underlying Morphium client's
+     * {@code PooledDriver.connect()} swallows an unreachable seed internally and defers to its
+     * own background heartbeat reconnection instead of throwing, so an RS test that merely
+     * leaves the leader's port unbound cannot force this catch block to run - verified
+     * empirically (see task-1-report.md).
+     */
+    synchronized void handleReplicationStartFailure(String leaderId, ReplicationManager failedManager,
+                                                      Exception e, long delayOnFailureMs) {
+        log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
+        // start() failed partway through; the instance may hold live resources
+        // (executors, a connected primaryMorphium) that must be released so we
+        // don't leak them. Never assign it to the field: leaving a dead-but-non-null
+        // ReplicationManager there would trip the same-leader guard above and block
+        // any retry until the next leader change.
+        try {
+            failedManager.stop();
+        } catch (Exception stopException) {
+            log.warn("Error stopping failed ReplicationManager for {}: {}", leaderId, stopException.getMessage());
+        }
+        // Reset primaryHost so a re-discovery of the same leader (e.g. the next
+        // heartbeat) doesn't get short-circuited by the same-leader guard and can
+        // retry cleanly instead of being stuck until an actual leader change.
+        primaryHost = null;
+        // Finding B: ElectionManager only re-fires onLeaderDiscovered on an actual leader
+        // CHANGE, not on every heartbeat - without this, a follower whose first attempt
+        // failed (e.g. the leader's port wasn't listening yet) would stay
+        // replication-less forever. Self-schedule a bounded-backoff retry instead.
+        scheduleReplicationRetry(delayOnFailureMs);
+    }
+
+    /**
+     * Schedule a single retry of {@link #retryReplicationStart(long)} after {@code delayMs}
+     * (capped at {@link #REPLICATION_RETRY_MAX_DELAY_MS}), unless the node is already shutting
+     * down. Lazily creates the retry executor on first use.
+     */
+    private synchronized void scheduleReplicationRetry(long delayMs) {
+        if (!running) {
+            return; // shutting down (or never started) - nothing to retry for
+        }
+
+        long boundedDelay = Math.min(delayMs, REPLICATION_RETRY_MAX_DELAY_MS);
+        log.info("Scheduling replication start retry in {}ms", boundedDelay);
+
+        try {
+            replicationRetryScheduler().schedule(() -> retryReplicationStart(boundedDelay),
+                    boundedDelay, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Lost a race with shutdown() shutting the executor down between the running-check
+            // above and this call - nothing left to retry for either way.
+            log.debug("Replication retry not scheduled - shutting down");
+        }
+    }
+
+    /**
+     * Retry body: re-checks every guard {@link #startReplicationToLeader} would anyway (running,
+     * not primary, no live ReplicationManager already), then re-reads
+     * {@link ElectionManager#getCurrentLeader()} rather than reusing the leader address that
+     * failed - the leader may have changed while this retry was backing off (a real failover),
+     * and retrying a stale/dead address would just fail again for the wrong reason. On repeated
+     * failure, {@link #startReplicationToLeader(String, long)} chains the next retry itself with
+     * a doubled delay (capped), via {@link #scheduleReplicationRetry(long)}.
+     */
+    private synchronized void retryReplicationStart(long lastDelayMs) {
+        if (!running || primary || replicationManager != null || electionManager == null) {
+            return; // shut down, became primary meanwhile, already replicating, or no election configured
+        }
+
+        String leader = electionManager.getCurrentLeader();
+        if (leader == null) {
+            return; // no leader known at all yet - the eventual onLeaderDiscovered will pick this up
+        }
+
+        startReplicationToLeader(leader, Math.min(lastDelayMs * 2, REPLICATION_RETRY_MAX_DELAY_MS));
+    }
+
+    /**
+     * Lazily creates the single daemon thread backing the replication-start retry chain - see
+     * the {@link #replicationRetryScheduler} field comment for why this stays lazy.
+     */
+    private synchronized java.util.concurrent.ScheduledExecutorService replicationRetryScheduler() {
+        if (replicationRetryScheduler == null) {
+            replicationRetryScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "PoppyDB-ReplicationRetry-" + host + ":" + port);
+                t.setDaemon(true);
+                return t;
+            });
+        }
+
+        return replicationRetryScheduler;
+    }
+
+    private void stopReplicationRetryScheduler() {
+        // Grab-and-clear under the monitor, but shut down/await OUTSIDE it: retryReplicationStart
+        // is itself `synchronized` on this instance, so if we held the monitor across
+        // awaitTermination() a currently-queued-or-running retry task could never acquire it to
+        // finish - deadlocking this shutdown against its own retry executor.
+        java.util.concurrent.ScheduledExecutorService scheduler;
+        synchronized (this) {
+            scheduler = replicationRetryScheduler;
+            replicationRetryScheduler = null;
+        }
+
+        if (scheduler != null) {
+            scheduler.shutdown();
             try {
-                newReplicationManager.stop();
-            } catch (Exception stopException) {
-                log.warn("Error stopping failed ReplicationManager for {}: {}", leaderId, stopException.getMessage());
+                if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    scheduler.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                scheduler.shutdownNow();
+                Thread.currentThread().interrupt();
             }
-            // Reset primaryHost so a re-discovery of the same leader (e.g. the next
-            // heartbeat) doesn't get short-circuited by the same-leader guard and can
-            // retry cleanly instead of being stuck until an actual leader change.
-            primaryHost = null;
         }
     }
 
