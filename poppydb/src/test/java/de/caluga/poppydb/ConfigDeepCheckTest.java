@@ -62,4 +62,10 @@ public class ConfigDeepCheckTest {
         assertThat(r.errors()).isEmpty();
         assertThat(r.warnings()).isEmpty();
     }
+
+    @Test
+    void invalidPathBecomesAnErrorNotAnException() {
+        ConfigInspector.Result r = ConfigInspector.deepCheck(opts("--dump-dir", "bad\0dir"));
+        assertThat(r.errors()).anySatisfy(e -> assertThat(e).contains("Invalid dump-dir path"));
+    }
 }

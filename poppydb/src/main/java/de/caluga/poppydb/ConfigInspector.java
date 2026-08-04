@@ -2,6 +2,7 @@ package de.caluga.poppydb;
 
 import de.caluga.morphium.driver.wire.SslHelper;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -99,26 +100,34 @@ class ConfigInspector {
         List<String> warnings = new ArrayList<>();
 
         if (opts.sslKeystore != null) {
-            Path ks = Paths.get(opts.sslKeystore);
-            if (!Files.isRegularFile(ks)) {
-                errors.add("SSL keystore not found: " + ks);
-            } else {
-                try {
-                    SslHelper.createServerSslContext(opts.sslKeystore, opts.sslKeystorePassword);
-                } catch (Exception e) {
-                    errors.add("Cannot load SSL keystore " + ks + ": " + e.getMessage());
+            try {
+                Path ks = Paths.get(opts.sslKeystore);
+                if (!Files.isRegularFile(ks)) {
+                    errors.add("SSL keystore not found: " + ks);
+                } else {
+                    try {
+                        SslHelper.createServerSslContext(opts.sslKeystore, opts.sslKeystorePassword);
+                    } catch (Exception e) {
+                        errors.add("Cannot load SSL keystore " + ks + ": " + e.getMessage());
+                    }
                 }
+            } catch (InvalidPathException e) {
+                errors.add("Invalid ssl-keystore path '" + opts.sslKeystore + "': " + e.getMessage());
             }
         }
 
         if (opts.dumpDir != null) {
-            Path dir = Paths.get(opts.dumpDir);
-            if (Files.exists(dir) && !Files.isDirectory(dir)) {
-                errors.add("dump-dir " + dir + " exists but is not a directory");
-            } else if (Files.isDirectory(dir) && !Files.isWritable(dir)) {
-                errors.add("dump-dir " + dir + " is not writable");
-            } else if (!Files.exists(dir)) {
-                warnings.add("dump-dir " + dir + " does not exist yet");
+            try {
+                Path dir = Paths.get(opts.dumpDir);
+                if (Files.exists(dir) && !Files.isDirectory(dir)) {
+                    errors.add("dump-dir " + dir + " exists but is not a directory");
+                } else if (Files.isDirectory(dir) && !Files.isWritable(dir)) {
+                    errors.add("dump-dir " + dir + " is not writable");
+                } else if (!Files.exists(dir)) {
+                    warnings.add("dump-dir " + dir + " does not exist yet");
+                }
+            } catch (InvalidPathException e) {
+                errors.add("Invalid dump-dir path '" + opts.dumpDir + "': " + e.getMessage());
             }
         }
         return new Result(errors, warnings);
