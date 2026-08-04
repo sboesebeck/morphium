@@ -1050,6 +1050,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#inspecting-and-validating-the-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting and validating the configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#command-line-arguments" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2568,6 +2579,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#inspecting-and-validating-the-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting and validating the configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#command-line-arguments" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3286,6 +3308,24 @@ non-POSIX filesystems (Windows) the check is skipped.</p>
 <p>Load it explicitly, or drop it at one of the default search paths:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--cfg<span class="w"> </span>/etc/poppydb/config
 </span></code></pre></div>
+<h3 id="inspecting-and-validating-the-configuration">Inspecting and validating the configuration<a class="headerlink" href="#inspecting-and-validating-the-configuration" title="Permanent link">&para;</a></h3>
+<p><code>--print-config</code> prints the <em>effective</em> configuration - built-in defaults, the loaded config
+file and the command line merged, with the usual precedence (command line &gt; config file &gt;
+defaults) - and exits. Every key carries a comment naming where its value came from, secrets
+are redacted (<code># root-password=***</code>). The output is itself a valid configuration file, so it
+doubles as a starting template:</p>
+<div class="language-text highlight"><pre><span></span><code>java -jar poppydb.jar --no-config --print-config &gt; poppydb.conf.template
+</code></pre></div>
+<p><code>--check-config</code> validates the effective configuration without starting the server and exits
+with code 0 (OK) or 1 (errors) - like <code>nginx -t</code>. Beyond syntax and semantic cross-checks
+(value ranges, <code>root-user</code>/<code>root-password</code> pairing, <code>rs-priorities</code> count matching <code>rs-seed</code>,
+<code>memory-warn</code> &lt;= <code>memory-reject</code>, ...), it performs deep checks: the SSL keystore is actually
+loaded (catching wrong keystore passwords), secret files are read, and the dump directory is
+checked for usability. Warnings (e.g. <code>ssl</code> without a keystore) do not affect the exit code:</p>
+<div class="language-text highlight"><pre><span></span><code>java -jar poppydb.jar --cfg /etc/poppydb/config --check-config
+</code></pre></div>
+<p>Both flags combine with <code>--cfg</code>/<code>-f</code>, <code>--no-config</code> and any other option, but not with each other:
+<code>--print-config --check-config</code> exits immediately with an error.</p>
 <h3 id="command-line-arguments">Command Line Arguments<a class="headerlink" href="#command-line-arguments" title="Permanent link">&para;</a></h3>
 <p>You can configure the PoppyDB using the following command-line arguments. The <strong>Config Key</strong>
 column is the equivalent key for the <a href="#configuration-file">configuration file</a> above (kebab-case,
@@ -3442,6 +3482,18 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 <td><code>--no-config</code></td>
 <td></td>
 <td>Skip the configuration file's default search paths (an explicit <code>--cfg</code>/<code>-f</code> still applies).</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--print-config</code></td>
+<td></td>
+<td>Print the effective configuration as a reusable config file, then exit. See <a href="#inspecting-and-validating-the-configuration">Inspecting and validating the configuration</a>.</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--check-config</code></td>
+<td></td>
+<td>Validate the effective configuration without starting the server, exit 0/1. See <a href="#inspecting-and-validating-the-configuration">Inspecting and validating the configuration</a>.</td>
 <td></td>
 </tr>
 <tr>
