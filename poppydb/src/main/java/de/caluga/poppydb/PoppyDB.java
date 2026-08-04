@@ -551,8 +551,13 @@ public class PoppyDB {
 
     /**
      * Called when this node's leadership status changes.
+     *
+     * Synchronized: ElectionManager dispatches both this callback and
+     * onLeaderDiscovered from a multi-thread scheduler pool, so they must
+     * serialize on the PoppyDB monitor to avoid interleaving their
+     * ReplicationManager teardown/replace logic.
      */
-    private void onLeadershipChange(boolean isLeader) {
+    private synchronized void onLeadershipChange(boolean isLeader) {
         log.info("Leadership change: {} is now {}", host + ":" + port, isLeader ? "LEADER" : "FOLLOWER");
 
         if (isLeader) {
@@ -599,33 +604,50 @@ public class PoppyDB {
             return; // same leader, already replicating — nothing to do
         }
         log.info("Discovered leader: {}", leaderId);
-        primaryHost = leaderId;
 
         // If we're a follower, (re-)point replication at the newly discovered leader. A
         // ReplicationManager's target host/port is fixed at construction time and never
         // updated, so after a failover the old instance (still replicating from the now-dead
         // former leader) would otherwise retry that dead address forever - it must be torn
         // down and replaced with one pointed at the new leader, not left in place just because
-        // it happens to be non-null.
+        // it happens to be non-null. A malformed leaderId (practically unreachable) must not
+        // tear down a perfectly working existing ReplicationManager, so teardown only happens
+        // once we know we have a usable host:port to replace it with.
         if (!primary && leaderId != null) {
-            if (replicationManager != null) {
-                replicationManager.stop();
-                replicationManager = null;
-            }
-
             String[] parts = leaderId.split(":");
             if (parts.length == 2) {
+                if (replicationManager != null) {
+                    replicationManager.stop();
+                    replicationManager = null;
+                }
+
                 String leaderHost = parts[0];
                 int leaderPort = Integer.parseInt(parts[1]);
 
                 // Start replication from new leader
-                replicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
-                replicationManager.setMyAddress(host + ":" + port);
+                ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+                newReplicationManager.setMyAddress(host + ":" + port);
                 try {
-                    replicationManager.start();
+                    newReplicationManager.start();
+                    replicationManager = newReplicationManager;
+                    primaryHost = leaderId;
                     log.info("Started replication from new leader {}", leaderId);
                 } catch (Exception e) {
                     log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
+                    // start() failed partway through; the instance may hold live resources
+                    // (executors, a connected primaryMorphium) that must be released so we
+                    // don't leak them. Never assign it to the field: leaving a dead-but-non-null
+                    // ReplicationManager there would trip the same-leader guard above and block
+                    // any retry until the next leader change.
+                    try {
+                        newReplicationManager.stop();
+                    } catch (Exception stopException) {
+                        log.warn("Error stopping failed ReplicationManager for {}: {}", leaderId, stopException.getMessage());
+                    }
+                    // Reset primaryHost so a re-discovery of the same leader (e.g. the next
+                    // heartbeat) doesn't get short-circuited by the same-leader guard and can
+                    // retry cleanly instead of being stuck until an actual leader change.
+                    primaryHost = null;
                 }
             }
         }
