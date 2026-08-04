@@ -102,4 +102,31 @@ public class ConfigPrintTest {
         String reRendered = ConfigInspector.render(reloaded, cfg);
         assertThat(nonCommentLines(reRendered)).isEqualTo(nonCommentLines(rendered));
     }
+
+    @Test
+    void newlineInValueCannotSmuggleExtraKeys(@TempDir Path dir) throws Exception {
+        ServerOptions original = PoppyDBCLI.parse(
+            new String[] {"--rs-name", "x\nport=9999", "--port", "27018"}, 0);
+        String rendered = ConfigInspector.render(original, null);
+        Path cfg = dir.resolve("printed.conf");
+        Files.writeString(cfg, rendered, StandardCharsets.UTF_8);
+        de.caluga.poppydb.config.ConfigLoader loader = new de.caluga.poppydb.config.ConfigLoader();
+        java.util.Properties props = loader.resolveFileRefs(loader.load(cfg));
+        java.util.List<String> tokens = loader.toArgs(props);
+        ServerOptions reloaded = PoppyDBCLI.parse(tokens.toArray(new String[0]), tokens.size());
+        assertThat(reloaded.port).isEqualTo(27018);
+        assertThat(reloaded.rsName).isEqualTo("x\nport=9999");
+    }
+
+    @Test
+    void leadingSpaceInValueSurvivesRoundTrip(@TempDir Path dir) throws Exception {
+        ServerOptions original = PoppyDBCLI.parse(new String[] {"--rs-name", " padded"}, 0);
+        String rendered = ConfigInspector.render(original, null);
+        Path cfg = dir.resolve("printed.conf");
+        Files.writeString(cfg, rendered, StandardCharsets.UTF_8);
+        de.caluga.poppydb.config.ConfigLoader loader = new de.caluga.poppydb.config.ConfigLoader();
+        java.util.List<String> tokens = loader.toArgs(loader.resolveFileRefs(loader.load(cfg)));
+        ServerOptions reloaded = PoppyDBCLI.parse(tokens.toArray(new String[0]), tokens.size());
+        assertThat(reloaded.rsName).isEqualTo(" padded");
+    }
 }

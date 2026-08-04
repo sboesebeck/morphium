@@ -19,7 +19,11 @@ class ConfigInspector {
 
     record Result(List<String> errors, List<String> warnings) {}
 
-    private static final Set<String> LOG_LEVELS = Set.of("ERROR", "WARN", "INFO", "DEBUG", "TRACE");
+    // OFF/ALL are accepted for backward compatibility with the pre-refactor CLI, which passed
+    // --log-level straight to logback's Level.toLevel and therefore silently accepted them too -
+    // they stay undocumented (help text and the error message above only advertise the five
+    // "real" levels).
+    private static final Set<String> LOG_LEVELS = Set.of("ERROR", "WARN", "INFO", "DEBUG", "TRACE", "OFF", "ALL");
     private static final Set<String> COMPRESSORS = Set.of("none", "snappy", "zstd", "zlib");
 
     /** Collects ALL semantic problems instead of failing at the first one. Never throws. */
@@ -171,7 +175,28 @@ class ConfigInspector {
             return;
         }
         sb.append("# ").append(key).append("  (").append(sourceText(opts.sourceOf(key))).append(")\n");
-        sb.append(key).append('=').append(value.replace("\\", "\\\\")).append("\n\n");
+        sb.append(key).append('=').append(escapeValue(value)).append("\n\n");
+    }
+
+    /** Escapes a value per java.util.Properties conventions so the rendered line always
+     *  reloads to the identical string: backslash, CR/LF/TAB/FF, and a leading space. */
+    private static String escapeValue(String v) {
+        StringBuilder sb = new StringBuilder(v.length() + 8);
+        for (int i = 0; i < v.length(); i++) {
+            char c = v.charAt(i);
+            switch (c) {
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\t': sb.append("\\t"); break;
+                case '\f': sb.append("\\f"); break;
+                default: sb.append(c);
+            }
+        }
+        if (sb.length() > 0 && sb.charAt(0) == ' ') {
+            sb.insert(0, '\\');
+        }
+        return sb.toString();
     }
 
     private static void appendSecret(StringBuilder sb, ServerOptions opts, String key, String value) {
