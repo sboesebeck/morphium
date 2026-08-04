@@ -449,6 +449,19 @@ public class PoppyDBCLI {
                 throw new ConfigException("Unknown parameter for compressor " + opts.compressor);
         }
 
+        // Users-file bootstrap: parse + validate BEFORE server construction, so a broken file
+        // fails fast (ConfigException -> main's startup catch -> exit 1) instead of surfacing
+        // after the server already came up. Loader warnings (e.g. group-readable permissions)
+        // are surfaced here; the file CONTENT is secret material and is never logged.
+        de.caluga.poppydb.config.UsersFileSpec usersFileSpec = null;
+        if (opts.usersFile != null) {
+            usersFileSpec = de.caluga.poppydb.config.UsersFileLoader.load(opts.usersFile);
+            usersFileSpec.warnings().forEach(log::warn);
+            log.info("Users file {} loaded: {} entries{}", opts.usersFile, usersFileSpec.users().size(),
+                    usersFileSpec.version() != null ? " (version " + usersFileSpec.version() + ")"
+                                                    : " (unversioned)");
+        }
+
         log.info("Starting server...");
 
         List<String> hosts;
@@ -502,6 +515,10 @@ public class PoppyDBCLI {
                 throw new ConfigException("--rootUser and --rootPassword must be given together");
             }
             srv.setRootUser(opts.rootUser, opts.rootPassword);
+        }
+
+        if (usersFileSpec != null) {
+            srv.setBootstrapUsers(usersFileSpec);
         }
 
         if (opts.dumpDir != null) {
