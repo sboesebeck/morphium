@@ -400,6 +400,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final AtomicLong changeStreamSequence = new AtomicLong();
+    /**
+     * Serializes admin.system.users writes ACROSS store + change-stream emit (held by
+     * createUserInternal / updateUserInternal only). The file's convention is to call
+     * {@code notifyWatchers} AFTER releasing the collection write lock, because in serverMode
+     * dispatch runs subscriber callbacks synchronously on the calling thread - running them
+     * under a collection lock would block every reader (e.g. SCRAM auth lookups) for the
+     * duration of the callback, and synchronous delivery under locks historically deadlocked
+     * messaging (callbacks trigger further writes). That convention leaves a gap for user
+     * writes, where emit ORDER is load-bearing: PoppyDB secondaries apply the change stream
+     * as _id-keyed upserts, so a store order A then B whose events get sequence tokens B then A
+     * makes secondaries converge on the OLD document. Holding this dedicated mutex across
+     * store+notify closes the gap without violating the convention: during notifyWatchers the
+     * collection write lock is already released, so subscriber callbacks can still freely
+     * read/write admin.system.users through the generic paths (which never touch this mutex).
+     * Deadlock-free: this mutex is always acquired BEFORE the users collection lock and nothing
+     * acquires it while holding any collection lock, so no lock-order cycle exists.
+     */
+    private final java.util.concurrent.locks.ReentrantLock userWriteEmitLock = new java.util.concurrent.locks.ReentrantLock();
     private final List<String> hostSeed = new CopyOnWriteArrayList<>();
 
     // Change stream infrastructure (per driver instance)
@@ -1544,23 +1562,45 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int createUserInternal(String db, String user, String pwd, List<Object> roles, List<String> mechanisms) {
+        // Fast pre-lock check only for the common "already exists" answer - the authoritative
+        // check happens under the write lock below, because two concurrent createUsers must not
+        // both act on the same pre-lock snapshot (that was the TOCTOU: both passed this check
+        // and both inserted, leaving duplicate _id documents in admin.system.users).
         if (findUserDocument(db, user) != null) {
             return errorResult(51003, "Location51003", "User \"" + user + "@" + db + "\" already exists");
         }
 
+        String id = de.caluga.morphium.driver.inmem.auth.UserDocuments.userId(db, user);
+
         try {
+            // built speculatively outside the locks - the SCRAM key derivation is expensive
+            // (~ms range) and a losing racer simply discards the document
             Map<String, Object> doc = de.caluga.morphium.driver.inmem.auth.UserDocuments
                 .buildUserDocument(db, user, pwd, roles, mechanisms);
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
 
-            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
-            lock.writeLock().lock();
+            // held across store + notify so stream order equals store order - see userWriteEmitLock
+            userWriteEmitLock.lock();
             try {
-                users.add(doc);
+                java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+                lock.writeLock().lock();
+                try {
+                    for (Map<String, Object> existing : users) {
+                        if (id.equals(existing.get("_id"))) {
+                            // lost the race against a concurrent create since the pre-lock check
+                            return errorResult(51003, "Location51003",
+                                "User \"" + user + "@" + db + "\" already exists");
+                        }
+                    }
+
+                    users.add(doc);
+                } finally {
+                    lock.writeLock().unlock();
+                }
+                notifyWatchers(USERS_DB, USERS_COLLECTION, "insert", doc);
             } finally {
-                lock.writeLock().unlock();
+                userWriteEmitLock.unlock();
             }
-            notifyWatchers(USERS_DB, USERS_COLLECTION, "insert", doc);
         } catch (MorphiumDriverException e) {
             return errorResult(1, "InternalError", "could not store user: " + e.getMessage());
         }
@@ -1609,39 +1649,45 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> replacement;
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
 
-            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
-            lock.writeLock().lock();
+            // held across store + notify so stream order equals store order - see userWriteEmitLock
+            userWriteEmitLock.lock();
             try {
-                Map<String, Object> current = null;
-                for (Map<String, Object> doc : users) {
-                    if (id.equals(doc.get("_id"))) {
-                        current = doc;
-                        break;
+                java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+                lock.writeLock().lock();
+                try {
+                    Map<String, Object> current = null;
+                    for (Map<String, Object> doc : users) {
+                        if (id.equals(doc.get("_id"))) {
+                            current = doc;
+                            break;
+                        }
                     }
+
+                    if (current == null) {
+                        // lost the race against a concurrent removal since the pre-lock check
+                        return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
+                    }
+
+                    if (pwd != null) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> effectiveRoles = roles != null ? roles : (List<Object>) current.get("roles");
+                        replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
+                            .buildUserDocument(db, user, pwd, effectiveRoles, mechanisms);
+                    } else {
+                        replacement = new LinkedHashMap<>(current);
+                        replacement.put("roles", roles);
+                    }
+
+                    users.removeIf(doc -> id.equals(doc.get("_id")));
+                    users.add(replacement);
+                } finally {
+                    lock.writeLock().unlock();
                 }
 
-                if (current == null) {
-                    // lost the race against a concurrent removal since the pre-lock check
-                    return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
-                }
-
-                if (pwd != null) {
-                    @SuppressWarnings("unchecked")
-                    List<Object> effectiveRoles = roles != null ? roles : (List<Object>) current.get("roles");
-                    replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
-                        .buildUserDocument(db, user, pwd, effectiveRoles, mechanisms);
-                } else {
-                    replacement = new LinkedHashMap<>(current);
-                    replacement.put("roles", roles);
-                }
-
-                users.removeIf(doc -> id.equals(doc.get("_id")));
-                users.add(replacement);
+                notifyWatchers(USERS_DB, USERS_COLLECTION, "replace", replacement);
             } finally {
-                lock.writeLock().unlock();
+                userWriteEmitLock.unlock();
             }
-
-            notifyWatchers(USERS_DB, USERS_COLLECTION, "replace", replacement);
         } catch (MorphiumDriverException e) {
             return errorResult(1, "InternalError", "could not update user: " + e.getMessage());
         } catch (IllegalArgumentException e) {
@@ -8347,6 +8393,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // insert/store/update methods)
         // so there's no risk of deadlock, and synchronous execution ensures proper
         // event ordering
+        //
+        // Note: "after lock release" means the sequence token below is NOT assigned under
+        // the collection lock, so two racing writers can get tokens in the opposite of
+        // their store order. For admin.system.users writes that inversion is corrected by
+        // userWriteEmitLock (held across store+notify in createUserInternal /
+        // updateUserInternal) because PoppyDB replicates users via this stream in token
+        // order - see the field's javadoc for the full reasoning.
         // log.debug("notifyWatchers called: db={}, coll={}, op={}, driver instance={}",
         // db, collection, op, System.identityHashCode(this));
         ChangeStreamEventInfo eventInfo = buildChangeStreamEvent(db, collection, op, doc, updatedFields, removedFields,
