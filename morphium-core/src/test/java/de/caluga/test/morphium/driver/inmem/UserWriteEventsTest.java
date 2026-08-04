@@ -336,4 +336,145 @@ public class UserWriteEventsTest {
             creds.getMechanism(), user, candidatePassword, creds.getSalt(), creds.getIterationCount());
         return Arrays.equals(derived.getStoredKey(), creds.getStoredKey());
     }
+
+    /**
+     * TOCTOU regression for createUser: the existence check used to run before the collection
+     * write lock was taken, so N concurrent createUser calls for the same user could all pass
+     * the check and all insert - leaving several documents with the same {@code _id} in
+     * admin.system.users. Contract: exactly one caller wins (ok:1.0), every other caller gets
+     * code 51003, and exactly one document exists afterwards.
+     */
+    @RepeatedTest(10)
+    void createUserConcurrentlyExactlyOneWins() throws Exception {
+        int n = 8;
+        CyclicBarrier barrier = new CyclicBarrier(n);
+        List<Map<String, Object>> results = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
+        List<Thread> threads = new ArrayList<>();
+
+        for (int i = 0; i < n; i++) {
+            final int idx = i;
+            Thread t = new Thread(() -> {
+                try {
+                    barrier.await();
+                    CreateUserAdminCommand cmd = new CreateUserAdminCommand(null)
+                        .setUserName("u6").setPwd("pw-" + idx);
+                    cmd.setDb("admin");
+                    results.add(drv.readSingleAnswer(drv.runCommand(cmd)));
+                } catch (Throwable e) {
+                    errors.add(e);
+                }
+            });
+            threads.add(t);
+            t.start();
+        }
+        for (Thread t : threads) {
+            t.join(10_000);
+        }
+
+        assertThat(errors).as("createUser threads must not fail: " + errors).isEmpty();
+        assertThat(results).hasSize(n);
+
+        long okCount = results.stream().filter(r -> Double.valueOf(1.0).equals(r.get("ok"))).count();
+        long duplicateCount = results.stream().filter(r -> Integer.valueOf(51003).equals(r.get("code"))).count();
+        assertThat(okCount)
+            .as("exactly one concurrent createUser must win, results: " + results)
+            .isEqualTo(1);
+        assertThat(duplicateCount)
+            .as("every losing createUser must get code 51003, results: " + results)
+            .isEqualTo(n - 1);
+
+        var docs = drv.findByFieldValue("admin", "system.users", "_id", "admin.u6");
+        assertThat(docs).as("exactly one user document must exist for admin.u6, found: " + docs).hasSize(1);
+    }
+
+    private static String resumeTokenData(Map<String, Object> event) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> id = (Map<String, Object>) event.get("_id");
+        return (String) id.get("_data");
+    }
+
+    private long countReplaceEvents(ClusterWatch cw) {
+        synchronized (cw.events) {
+            return cw.events.stream().filter(e -> "replace".equals(e.get("operationType"))).count();
+        }
+    }
+
+    /**
+     * Store-order vs stream-order regression: user writes used to release the collection write
+     * lock BEFORE calling notifyWatchers, so under two concurrent password changes the store
+     * order A→B could get its change-stream tokens assigned as B→A. A replica-set secondary
+     * applies stream events in token order as _id-keyed upserts, so it would converge on the
+     * OLD document. Contract: among each round's replace events, the one with the HIGHEST
+     * resume token carries the FINAL stored document.
+     *
+     * <p>This race has no deterministic seam (the inversion window is the gap between
+     * writeLock.unlock() and the token assignment inside notifyWatchers), so this test is
+     * probabilistic: 50 barrier-started rounds of concurrent roles-only updateUser (roles-only
+     * deliberately - a pwd change spends ~15ms in SCRAM key derivation INSIDE the write lock,
+     * which makes the losing thread's microsecond-scale post-unlock window practically
+     * unhittable; roles-only keeps both sides' windows symmetric). Pre-fix it fails
+     * intermittently (RED-flaky); post-fix the dedicated emit lock makes token order equal
+     * store order, so it must always pass.
+     */
+    @Test
+    void concurrentUpdateUserHighestTokenEventCarriesFinalDocument() throws Exception {
+        createUser("u7", "initial");
+        ClusterWatch cw = subscribeClusterWatch();
+        try {
+            int writers = 8;
+            for (int round = 0; round < 50; round++) {
+                CyclicBarrier barrier = new CyclicBarrier(writers);
+                List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
+                List<Thread> threads = new ArrayList<>();
+
+                for (int i = 0; i < writers; i++) {
+                    List<Object> roles = List.of(Doc.of("role", "role-" + round + "-" + i, "db", "testdb"));
+                    Thread t = new Thread(() -> {
+                        try {
+                            barrier.await();
+                            Map<String, Object> r = updateUser(Doc.of("updateUser", "u7", "roles", roles, "$db", "admin"));
+                            if (!Double.valueOf(1.0).equals(r.get("ok"))) {
+                                errors.add(new AssertionError("updateUser failed: " + r));
+                            }
+                        } catch (Throwable e) {
+                            errors.add(e);
+                        }
+                    });
+                    threads.add(t);
+                    t.start();
+                }
+                for (Thread t : threads) {
+                    t.join(10_000);
+                }
+                assertThat(errors).as("round " + round + ": updateUser threads must not fail: " + errors).isEmpty();
+
+                long expected = (long) (round + 1) * writers;
+                TestUtils.waitForConditionToBecomeTrue(5000,
+                    "round " + round + ": expected " + expected + " replace events, got " + countReplaceEvents(cw),
+                    () -> countReplaceEvents(cw) >= expected);
+
+                var docs = drv.findByFieldValue("admin", "system.users", "_id", "admin.u7");
+                assertThat(docs).as("round " + round + ": exactly one document expected, found: " + docs).hasSize(1);
+                Object storedRoles = docs.get(0).get("roles");
+
+                Map<String, Object> latestEvent;
+                synchronized (cw.events) {
+                    latestEvent = cw.events.stream()
+                        .filter(e -> "replace".equals(e.get("operationType")))
+                        .max(java.util.Comparator.comparing(UserWriteEventsTest::resumeTokenData))
+                        .orElseThrow();
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> fullDoc = (Map<String, Object>) latestEvent.get("fullDocument");
+                assertThat(fullDoc).as("round " + round + ": replace event must carry fullDocument").isNotNull();
+                assertThat(fullDoc.get("roles"))
+                    .as("round %d: the highest-token replace event must carry the FINAL stored document "
+                        + "(stream order diverged from store order)", round)
+                    .isEqualTo(storedRoles);
+            }
+        } finally {
+            cw.stop();
+        }
+    }
 }
