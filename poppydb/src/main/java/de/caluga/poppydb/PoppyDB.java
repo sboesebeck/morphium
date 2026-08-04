@@ -552,17 +552,51 @@ public class PoppyDB {
     /**
      * Called when this node's leadership status changes.
      *
-     * Synchronized: ElectionManager dispatches both this callback and
-     * onLeaderDiscovered from a multi-thread scheduler pool, so they must
-     * serialize on the PoppyDB monitor to avoid interleaving their
-     * ReplicationManager teardown/replace logic.
+     * The externally visible {@link #primary} flag is flipped here, immediately and outside
+     * any monitor: clients polling {@code isPrimary()}/hello, and tests asserting on step-down,
+     * must not wait behind the (potentially slow, network-touching) ReplicationManager
+     * teardown/replace work in {@link #onLeadershipChangeSynchronized}, which serializes on the
+     * PoppyDB monitor behind a possibly in-flight {@link #onLeaderDiscovered}
+     * (ReplicationManager.start() does a full Morphium client construction + connect - hundreds
+     * of ms to seconds, up to a 10s connect timeout). Before the callbacks were serialized
+     * (commit 51f82bda) this flip ran unsynchronized and was near-instant; serializing it
+     * re-introduced that latency, which is what this early flip undoes without giving up the
+     * synchronization the ReplicationManager bookkeeping still needs.
+     *
+     * Interaction with the guards below, reasoned through explicitly because the flip now runs
+     * strictly before the monitor instead of as its first statement:
+     * - A stale queued onLeaderDiscovered that runs after this node already became leader: it
+     *   now reliably observes primary==true (the flip always happens before
+     *   onLeadershipChangeSynchronized(true) is even entered, let alone before any later,
+     *   independently scheduled onLeaderDiscovered call), so startReplicationToLeader's
+     *   `if (primary || leaderId == null) return;` guard no-ops it. That's strictly better than
+     *   before: a leader must never run a ReplicationManager against another node.
+     * - A stale queued onLeadershipChange(true) that flips primary=true early while a discovery
+     *   is already mid-startReplicationToLeader (having passed the guard just before the flip):
+     *   the discovery still finishes constructing/starting its ReplicationManager outside any
+     *   monitor, but onLeadershipChangeSynchronized(true) can only acquire the monitor after
+     *   that in-flight call releases it, and its leader-body unconditionally stops+nulls
+     *   whatever replicationManager it finds - so the stray ReplicationManager the discovery
+     *   just started gets torn down right after, not left running against a leader.
      */
-    private synchronized void onLeadershipChange(boolean isLeader) {
+    private void onLeadershipChange(boolean isLeader) {
         log.info("Leadership change: {} is now {}", host + ":" + port, isLeader ? "LEADER" : "FOLLOWER");
+        // Flip the externally visible role flag immediately, before the monitor - see the
+        // class-level reasoning in the javadoc above for why this is safe on its own and how it
+        // interacts with the synchronized ReplicationManager bookkeeping below.
+        primary = isLeader;
+        onLeadershipChangeSynchronized(isLeader);
+    }
 
+    /**
+     * Synchronized: ElectionManager dispatches both this and onLeaderDiscovered from a
+     * multi-thread scheduler pool, so they must serialize on the PoppyDB monitor to avoid
+     * interleaving their ReplicationManager teardown/replace logic. The externally visible
+     * {@code primary} flag itself is no longer flipped here - see {@link #onLeadershipChange}.
+     */
+    private synchronized void onLeadershipChangeSynchronized(boolean isLeader) {
         if (isLeader) {
             // Becoming leader
-            primary = true;
             primaryHost = host + ":" + port;
 
             // Initialize replication coordinator (only if not already present)
@@ -585,8 +619,7 @@ public class PoppyDB {
                 ensureRootUser();
             }
         } else {
-            // Stepping down from leader
-            primary = false;
+            // Stepping down from leader (primary flag already flipped to false by the caller)
 
             // Clean up replication coordinator
             replicationCoordinatorRef.set(null);
@@ -594,12 +627,12 @@ public class PoppyDB {
             // Start replication from new primary (will be set by onLeaderDiscovered) - unless
             // ElectionManager already knows one. ElectionManager dispatches this callback and
             // onLeaderDiscovered onto its own multi-thread pool independently: if the discovery
-            // task happened to acquire this monitor first (before the `primary = false` above
-            // ran), it saw primary still true and no-op'd. Since ElectionManager only re-fires
-            // onLeaderDiscovered on an actual leader CHANGE, that no-op is permanent - it will
-            // never fire again for the same leader, and this node would be stuck not replicating
-            // until some unrelated later leader change happened to bail it out. Query the
-            // now-current leader here so a raced-out discovery still gets picked up.
+            // task happened to acquire this monitor first (before the `primary = false` flip
+            // above ran), it saw primary still true and no-op'd. Since ElectionManager only
+            // re-fires onLeaderDiscovered on an actual leader CHANGE, that no-op is permanent -
+            // it will never fire again for the same leader, and this node would be stuck not
+            // replicating until some unrelated later leader change happened to bail it out.
+            // Query the now-current leader here so a raced-out discovery still gets picked up.
             if (electionManager != null) {
                 String knownLeader = electionManager.getCurrentLeader();
                 if (knownLeader != null && !knownLeader.equals(host + ":" + port)) {
