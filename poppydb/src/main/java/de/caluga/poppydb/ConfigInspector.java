@@ -1,5 +1,6 @@
 package de.caluga.poppydb;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -82,5 +83,68 @@ class ConfigInspector {
             warnings.add("dump-interval is set but dump-dir is not - periodic dumps are disabled");
         }
         return new Result(errors, warnings);
+    }
+
+    /** Renders the effective configuration as a reloadable properties file with source comments. */
+    static String render(ServerOptions opts, Path configFile) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("# PoppyDB effective configuration (--print-config)\n");
+        sb.append("# Config file: ").append(configFile != null ? configFile : "none").append('\n');
+        sb.append("# Precedence: command line > config file > built-in defaults\n");
+        sb.append("# This output is itself a loadable PoppyDB configuration file.\n\n");
+
+        appendKey(sb, opts, "port", String.valueOf(opts.port));
+        appendKey(sb, opts, "bind", opts.bind);
+        appendKey(sb, opts, "log-level", opts.logLevel.toUpperCase(Locale.ROOT));
+        appendKey(sb, opts, "memory-warn", String.valueOf(opts.memoryWarnPct));
+        appendKey(sb, opts, "memory-reject", String.valueOf(opts.memoryRejectPct));
+        appendKey(sb, opts, "max-bson-size", String.valueOf(opts.maxBsonSizeBytes));
+        appendKey(sb, opts, "compressor", opts.compressor.toLowerCase(Locale.ROOT));
+        appendKey(sb, opts, "rs-name", opts.rsName);
+        appendKey(sb, opts, "rs-seed", opts.rsSeed);
+        appendKey(sb, opts, "rs-priorities", opts.rsPriorities);
+        appendKey(sb, opts, "ssl", String.valueOf(opts.ssl));
+        appendKey(sb, opts, "ssl-keystore", opts.sslKeystore);
+        appendSecret(sb, opts, "ssl-keystore-password", opts.sslKeystorePassword);
+        appendKey(sb, opts, "auth", String.valueOf(opts.auth));
+        appendKey(sb, opts, "root-user", opts.rootUser);
+        appendSecret(sb, opts, "root-password", opts.rootPassword);
+        appendKey(sb, opts, "dump-dir", opts.dumpDir);
+        appendKey(sb, opts, "dump-interval", String.valueOf(opts.dumpIntervalSec));
+        appendKey(sb, opts, "max-connections", String.valueOf(opts.maxConnections));
+        appendKey(sb, opts, "socket-timeout", String.valueOf(opts.socketTimeoutSec));
+        return sb.toString();
+    }
+
+    private static void appendKey(StringBuilder sb, ServerOptions opts, String key, String value) {
+        if (value == null || value.isEmpty()) {
+            sb.append("# ").append(key).append("  (unset)\n");
+            sb.append("# ").append(key).append("=\n\n");
+            return;
+        }
+        sb.append("# ").append(key).append("  (").append(sourceText(opts.sourceOf(key))).append(")\n");
+        sb.append(key).append('=').append(value.replace("\\", "\\\\")).append("\n\n");
+    }
+
+    private static void appendSecret(StringBuilder sb, ServerOptions opts, String key, String value) {
+        if (value == null || value.isEmpty()) {
+            sb.append("# ").append(key).append("  (unset)\n");
+            sb.append("# ").append(key).append("=\n\n");
+            return;
+        }
+        sb.append("# ").append(key).append("  (set, ").append(sourceText(opts.sourceOf(key)))
+          .append(") - value not shown\n");
+        sb.append("# ").append(key).append("=***\n\n");
+    }
+
+    private static String sourceText(ServerOptions.Source s) {
+        switch (s) {
+            case CONFIG_FILE:
+                return "from config file";
+            case CLI:
+                return "from command line";
+            default:
+                return "default";
+        }
     }
 }
