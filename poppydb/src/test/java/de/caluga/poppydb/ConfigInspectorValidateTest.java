@@ -57,6 +57,15 @@ public class ConfigInspectorValidateTest {
     }
 
     @Test
+    void logLevelOffAndAllAreAcceptedForBackwardCompatibility() {
+        // Undocumented (help/error text still only advertise ERROR/WARN/INFO/DEBUG/TRACE), but the
+        // pre-refactor CLI accepted anything logback's Level.toLevel understood, so existing
+        // --log-level OFF/ALL invocations must keep starting.
+        assertThat(ConfigInspector.validate(opts("--log-level", "OFF")).errors()).isEmpty();
+        assertThat(ConfigInspector.validate(opts("--log-level", "all")).errors()).isEmpty();
+    }
+
+    @Test
     void rootUserAndPasswordOnlyTogether() {
         assertThat(ConfigInspector.validate(opts("--rootUser", "admin")).errors())
             .anySatisfy(e -> assertThat(e).contains("together"));
