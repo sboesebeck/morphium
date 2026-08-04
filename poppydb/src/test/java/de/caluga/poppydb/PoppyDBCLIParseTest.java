@@ -3,9 +3,6 @@ package de.caluga.poppydb;
 import de.caluga.poppydb.config.ConfigException;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
