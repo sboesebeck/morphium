@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -106,6 +107,65 @@ public class ReplicationManager {
     // FastResyncTest#fallbackOnDivergence). Once set, every subsequent retry within the same cycle
     // skips the shortcut attempt and goes straight to a full sync.
     private final AtomicBoolean wipedThisSyncCycle = new AtomicBoolean(false);
+
+    // Test-only observables for the abort-must-never-wipe hardening (stop() racing the sync
+    // retry loop): counts of how many times tryConsistencyShortcut() was entered and
+    // clearLocalDatabases() actually ran. A seam test uses the former to poll for "the shortcut
+    // attempt against the (unreachable/slow) primary has begun" before racing stop() against it,
+    // instead of a blind sleep; the latter is the actual assertion - it must stay 0 for a cycle
+    // that stop() interrupted, even though tryConsistencyShortcut()'s own InterruptedException
+    // handling only restores the interrupt flag and converts the exception to `false`, which by
+    // itself does NOT stop the caller from wiping local data (see the running/interrupted guard
+    // in startInitialSyncOnce() immediately before the clearLocalDatabases() call). Same seam
+    // pattern as wasLastSyncShortcut()/setWatchLiveForTest().
+    private final AtomicInteger consistencyShortcutAttempts = new AtomicInteger(0);
+    private final AtomicInteger clearLocalDatabasesInvocations = new AtomicInteger(0);
+
+    /** Test hook: number of times tryConsistencyShortcut() has been entered. */
+    int getConsistencyShortcutAttemptsForTest() {
+        return consistencyShortcutAttempts.get();
+    }
+
+    /** Test hook: number of times clearLocalDatabases() has actually run. */
+    int getClearLocalDatabasesInvocationsForTest() {
+        return clearLocalDatabasesInvocations.get();
+    }
+
+    /**
+     * Test hook: the currently running initial-sync snapshot thread, or {@code null}. Must be
+     * captured by a test BEFORE calling {@link #stop()} - stop() clears the field once it has
+     * interrupted (and, per this hardening fix, joined) the thread.
+     */
+    Thread getInitialSyncThreadForTest() {
+        return initialSyncThread;
+    }
+
+    // Test-only synchronization point, armed only when a test calls armTestPauseInShortcutForTest().
+    // A no-op (null) in production. Lets a test deterministically block the sync thread INSIDE
+    // tryConsistencyShortcut() - past the consistencyShortcutAttempts counter, at the exact spot a
+    // real blocking primary-side driver call would sit - so it can race stop() against that precise
+    // window instead of depending on real network timing (which, against a merely unreachable port,
+    // resolves in single-digit milliseconds and gives no usable window at all).
+    private volatile CountDownLatch testPauseInShortcut;
+
+    private void awaitTestPauseIfArmed() throws InterruptedException {
+        CountDownLatch latch = testPauseInShortcut;
+        if (latch != null) {
+            latch.await();
+        }
+    }
+
+    /**
+     * Test hook: arm the pause point inside {@code tryConsistencyShortcut()} (see
+     * {@link #testPauseInShortcut}). A test polls {@link #getConsistencyShortcutAttemptsForTest()}
+     * to know the sync thread has reached (and is now blocked at) the pause, then calls
+     * {@link #stop()} - whose interrupt() throws {@code InterruptedException} out of the latch
+     * await, reproducing exactly the "stop() interrupts a still-attempting shortcut" race the
+     * hardening fix guards against.
+     */
+    void armTestPauseInShortcutForTest() {
+        testPauseInShortcut = new CountDownLatch(1);
+    }
 
     // Lossless initial sync (watch-first, buffer, snapshot, replay):
     //   applying              - gate for the batch processor. While false, replication events
@@ -591,11 +651,36 @@ public class ReplicationManager {
 
         log.info("Stopping replication...");
 
-        // Interrupt an in-flight initial-sync snapshot thread (if any) so it exits promptly.
+        // Interrupt an in-flight initial-sync snapshot thread (if any) so it exits promptly, then
+        // join it with a bounded wait before proceeding. Without the join, an old, just-stopped
+        // ReplicationManager's sync thread could still be mid-cycle (see the running/interrupted
+        // guard added to the retry loop above) at the moment PoppyDB installs its replacement RM,
+        // letting the old thread's clearLocalDatabases()/performInitialSync() race the new RM's
+        // own sync on the same local database.
+        //
+        // Bounded rather than unbounded: stop() is called from PoppyDB's synchronized leadership/
+        // probe paths (startReplicationToLeader, probeReplicationLiveness,
+        // onLeadershipChangeSynchronized) and, for the liveness probe, on PoppyDB's single
+        // retry-scheduler thread - an unbounded join here could stall those indefinitely on a
+        // wedged sync thread. The joined thread only ever touches this ReplicationManager's own
+        // state and its own driver connections; it never calls back into PoppyDB, so it can never
+        // itself need the monitor stop() is running under - this join cannot deadlock against it.
+        // 5s is generous versus the sync loop's own bounded per-attempt work (a dbHash comparison
+        // or per-collection copy against a healthy primary, or a fast failure against an
+        // unreachable one) while still capping the worst case for the callers above.
         Thread syncThread = initialSyncThread;
+        initialSyncThread = null;
         if (syncThread != null) {
             syncThread.interrupt();
-            initialSyncThread = null;
+            try {
+                syncThread.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (syncThread.isAlive()) {
+                log.warn("Initial-sync thread did not terminate within 5s of stop(); it may still "
+                        + "be running concurrently with a replacement ReplicationManager");
+            }
         }
 
         // Stop batch processor first to flush remaining events
@@ -834,6 +919,20 @@ public class ReplicationManager {
                         // be comparing the primary against data this very cycle just copied.
                         boolean shortcut = shouldAttemptConsistencyShortcut() && tryConsistencyShortcut();
 
+                        // stop() may have interrupted this thread while tryConsistencyShortcut()'s
+                        // blocking IO was in flight (or at any point up to here). Its
+                        // InterruptedException handling restores the interrupt flag but converts the
+                        // exception itself into `false` (a correctness fallback -> full sync), which by
+                        // itself would let a STOPPED cycle fall straight into clearLocalDatabases()
+                        // below and wipe local data - possibly while an already-running replacement
+                        // ReplicationManager (PoppyDB replaces RMs on leader change) is populating the
+                        // very same local database. running.get() alone already catches the stop()
+                        // case (it flips false before the interrupt is even sent), and the interrupt
+                        // check is the belt-and-suspenders half for any other source of interruption.
+                        if (!running.get() || Thread.currentThread().isInterrupted()) {
+                            break;
+                        }
+
                         if (!shortcut) {
                             // Start each attempt from a clean local slate so a retry after a
                             // partially-successful copy doesn't fail on already-copied documents.
@@ -984,7 +1083,9 @@ public class ReplicationManager {
      * abandoned and the full path (which redoes the index sync) runs.
      */
     private boolean tryConsistencyShortcut() {
+        consistencyShortcutAttempts.incrementAndGet();
         try {
+            awaitTestPauseIfArmed();
             MorphiumDriver primaryDriver = primaryMorphium.getDriver();
             SortedMap<String, SortedSet<String>> primaryNs =
                 replicatedNamespaces(primaryDriver.listDatabases(), db -> primaryDriver.listCollections(db, null));
@@ -1234,6 +1335,7 @@ public class ReplicationManager {
     }
 
     private void clearLocalDatabases() throws Exception {
+        clearLocalDatabasesInvocations.incrementAndGet();
         for (String dbName : localDriver.listDatabases()) {
             // admin/local/config are never dropped wholesale: they hold node-local state beyond
             // the one replicated collection (admin.system.users, cleared separately below).
