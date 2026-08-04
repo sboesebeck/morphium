@@ -384,6 +384,19 @@ class UsersFileLoaderTest {
                 .hasMessageContaining("position");
     }
 
+    @Test
+    void malformedJsonNeverLeaksSecretContent(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("users.json");
+        Files.writeString(f,
+            "[ { \"user\": \"app\", \"pwd\": \"S3cr3tLeakMe\" } ]\n\"S3cr3tLeakMe\"",
+            StandardCharsets.UTF_8);
+        assertThatThrownBy(() -> UsersFileLoader.load(f.toString()))
+            .isInstanceOf(ConfigException.class)
+            .hasMessageContaining("position")
+            .hasMessageNotContaining("S3cr3tLeakMe")
+            .hasNoCause();
+    }
+
     // ---- ~-expansion (component 1 amendment: THIS loader's responsibility) ------------------------
 
     @Test

@@ -96,8 +96,14 @@ public final class UsersFileLoader {
         try {
             parsed = new JSONParser().parse(content);
         } catch (ParseException e) {
+            // Never interpolate e/e.toString()/e.getMessage() and never attach e as cause: for
+            // UNEXPECTED_TOKEN, json-simple's ParseException.toString() (and thus any
+            // stack-trace/"Caused by" logging of this exception) renders the offending token's
+            // VALUE verbatim, which can be a raw secret scalar trailing a malformed users file.
+            // Only safe, structured fields (position/error type) go into the message.
             throw new ConfigException(String.format(
-                    "Failed to parse users file %s as JSON: %s", path, e), e);
+                    "Failed to parse users file %s as JSON: malformed JSON at position %d (error type %d)",
+                    path, e.getPosition(), e.getErrorType()));
         }
 
         return parseTopLevel(path, parsed, warnings);
