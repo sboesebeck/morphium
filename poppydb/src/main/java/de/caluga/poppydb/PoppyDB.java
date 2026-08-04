@@ -273,7 +273,13 @@ public class PoppyDB {
         log.info("PoppyDB started on {}:{} (workers: {})", host, port, workerThreads);
 
         if (rootUser != null && rootPassword != null) {
-            ensureRootUser();
+            if (!electionEnabled) {
+                ensureRootUser();
+            }
+            // in election mode the leadership callback (below) creates it on the primary only -
+            // secondaries receive the user via replication instead of self-creating it, so a
+            // resync (which clears and repopulates admin.system.users from the primary) never
+            // wipes out a secondary's own root account
         } else if (authRequired) {
             // users may still exist from a restored dump - but a fresh --auth server without
             // any user would be permanently unreachable (no localhost exception)
@@ -563,6 +569,15 @@ public class PoppyDB {
             if (replicationManager != null) {
                 replicationManager.stop();
                 replicationManager = null;
+            }
+
+            // Now that this node has fully assumed primary duties (primary flag flipped,
+            // replication coordinator in place, no longer replicating from a stale leader),
+            // (re-)create the root user. Idempotent (handles 51003 already-exists) so repeated
+            // leadership changes (flapping, priority takeover) never race or double-create -
+            // secondaries never self-create root, they only ever receive it via replication.
+            if (rootUser != null && rootPassword != null) {
+                ensureRootUser();
             }
         } else {
             // Stepping down from leader

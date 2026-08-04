@@ -270,6 +270,49 @@ public class UserReplicationTest {
     }
 
     /**
+     * Root user creation must be primary-only in election mode (user-replication task 4): only
+     * the node that {@link PoppyDB#setRootUser} is called on becomes primary, and the SECONDARY
+     * has no root credentials configured at all - so it is physically incapable of self-creating "root"
+     * (ensureRootUser needs rootUser/rootPassword, both null on that node). If SCRAM login for
+     * "root" ever works against the secondary, the only possible explanation is that the
+     * primary created it via the leadership hook and replication carried the document over.
+     *
+     * Election priority 0 means a node can never become a candidate (see
+     * ElectionConfig#canBecomeLeaderByPriority), so the secondary can never win leadership and
+     * this is deterministic, not a race between two possible primaries.
+     */
+    @Test
+    public void rootUserIsCreatedByPrimaryAndReplicated() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+        PoppyDB primary = new PoppyDB(port1, "localhost", 20, 5);
+        PoppyDB secondary = new PoppyDB(port2, "localhost", 20, 5);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2);
+        // priority 0 -> secondary can never become a candidate, let alone leader.
+        var prio = Map.of("localhost:" + port1, 100, "localhost:" + port2, 0);
+        primary.configureReplicaSet("rsUserReplRoot", hosts, prio, true, null);
+        secondary.configureReplicaSet("rsUserReplRoot", hosts, prio, true, null);
+
+        // Only the future primary knows about root - the secondary is never given credentials,
+        // so it cannot possibly self-create the user.
+        primary.setRootUser("root", "rootpw");
+
+        // Election mode needs a majority of the 2-node cluster to vote - unlike the static-mode
+        // tests above, the designated primary cannot win an election alone, so both nodes must
+        // be up before waiting for leadership to settle.
+        startServer(primary, port1);
+        startServer(secondary, port2);
+        waitForPrimary(primary);
+        waitForInitialSync(secondary);
+
+        assertTrue(poll(10_000, () -> scramLoginWorks(port1, "root", "rootpw")),
+                "root must be usable on the primary that created it");
+        assertTrue(poll(30_000, () -> scramLoginWorks(port2, "root", "rootpw")),
+                "root created by the primary's leadership hook must replicate to a secondary "
+                + "that never had root credentials configured locally");
+    }
+
+    /**
      * Guard: the ONLY namespace joining replication is admin.system.users. A regression that
      * lets local/config, other admin collections or other system.* collections replicate is
      * Critical (July 2026 failover semantics depend on them staying node-local).
