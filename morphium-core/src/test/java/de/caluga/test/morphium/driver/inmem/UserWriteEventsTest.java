@@ -221,4 +221,48 @@ public class UserWriteEventsTest {
         assertThat((Integer) result.get("code")).isEqualTo(2);
         assertThat(result.get("codeName")).isEqualTo("BadValue");
     }
+
+    @Test
+    void updateUserWithUnknownMechanismIsBadValue() throws Exception {
+        createUser("u3", "oldpw");
+
+        Map<String, Object> result = updateUser(
+            Doc.of("updateUser", "u3", "pwd", "npw", "mechanisms", List.of("BOGUS"), "$db", "admin"));
+
+        assertThat(result.get("ok")).isEqualTo(0.0);
+        assertThat((Integer) result.get("code")).isEqualTo(2);
+        assertThat(result.get("codeName")).isEqualTo("BadValue");
+    }
+
+    @Test
+    void updateUserRolesOnlyKeepsCredentials() throws Exception {
+        createUser("u4", "oldpw");
+        var before = drv.findByFieldValue("admin", "system.users", "_id", "admin.u4");
+        assertThat(before).hasSize(1);
+        Object idBefore = before.get(0).get("_id");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> credsBefore = (Map<String, Object>) before.get(0).get("credentials");
+        assertThat(credsBefore).as("createUser must store credentials").isNotNull();
+
+        ClusterWatch cw = subscribeClusterWatch();
+        List<Object> newRoles = List.of(Doc.of("role", "readWrite", "db", "testdb"));
+        Map<String, Object> result;
+        try {
+            result = updateUser(Doc.of("updateUser", "u4", "roles", newRoles, "$db", "admin"));
+            TestUtils.waitForConditionToBecomeTrue(5000, "no replace event for u4 arrived: " + cw.events,
+                () -> cw.events.stream().anyMatch(e -> "replace".equals(e.get("operationType"))));
+        } finally {
+            cw.stop();
+        }
+
+        assertThat(result.get("ok")).as("updateUser result: " + result).isEqualTo(1.0);
+
+        var after = drv.findByFieldValue("admin", "system.users", "_id", "admin.u4");
+        assertThat(after).hasSize(1);
+        assertThat(after.get(0).get("_id")).as("_id must not change").isEqualTo(idBefore);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> credsAfter = (Map<String, Object>) after.get(0).get("credentials");
+        assertThat(credsAfter).as("credentials must be unchanged when pwd is not passed").isEqualTo(credsBefore);
+        assertThat(after.get(0).get("roles")).as("roles must be replaced").isEqualTo(newRoles);
+    }
 }

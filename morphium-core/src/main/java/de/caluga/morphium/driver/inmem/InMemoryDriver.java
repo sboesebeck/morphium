@@ -1525,12 +1525,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
             String id = de.caluga.morphium.driver.inmem.auth.UserDocuments.userId(authDb, user);
 
-            synchronized (users) {
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.readLock().lock();
+            try {
                 for (Map<String, Object> doc : users) {
                     if (id.equals(doc.get("_id"))) {
                         return doc;
                     }
                 }
+            } finally {
+                lock.readLock().unlock();
             }
         } catch (MorphiumDriverException e) {
             log.warn("could not access {}.{}", USERS_DB, USERS_COLLECTION, e);
@@ -1549,8 +1553,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 .buildUserDocument(db, user, pwd, roles, mechanisms);
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
 
-            synchronized (users) {
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.writeLock().lock();
+            try {
                 users.add(doc);
+            } finally {
+                lock.writeLock().unlock();
             }
             notifyWatchers(USERS_DB, USERS_COLLECTION, "insert", doc);
         } catch (MorphiumDriverException e) {
@@ -1608,14 +1616,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
 
-            synchronized (users) {
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.writeLock().lock();
+            try {
                 users.remove(existing);
                 users.add(replacement);
+            } finally {
+                lock.writeLock().unlock();
             }
 
             notifyWatchers(USERS_DB, USERS_COLLECTION, "replace", replacement);
         } catch (MorphiumDriverException e) {
             return errorResult(1, "InternalError", "could not update user: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            // buildUserDocument's resolveMechanisms throws this for an unknown mechanism name -
+            // mongod-style callers expect a BadValue command error, not an uncaught exception.
+            return errorResult(2, "BadValue", e.getMessage());
         }
 
         int requestId = commandNumber.incrementAndGet();
