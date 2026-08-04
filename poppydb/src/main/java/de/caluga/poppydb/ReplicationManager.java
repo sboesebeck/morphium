@@ -837,8 +837,11 @@ public class ReplicationManager {
                         if (!shortcut) {
                             // Start each attempt from a clean local slate so a retry after a
                             // partially-successful copy doesn't fail on already-copied documents.
-                            clearLocalDatabases();
+                            // The flag is set BEFORE the clear: even a clear that throws partway
+                            // leaves the local state partially wiped, and a later retry must not
+                            // run the consistency shortcut against that.
                             wipedThisSyncCycle.set(true);
+                            clearLocalDatabases();
                             performInitialSync();
                         }
 
