@@ -161,6 +161,7 @@ class ConfigInspector {
         appendKey(sb, opts, "auth", String.valueOf(opts.auth));
         appendKey(sb, opts, "root-user", opts.rootUser);
         appendSecret(sb, opts, "root-password", opts.rootPassword);
+        appendKey(sb, opts, "users-file", opts.usersFile);
         appendKey(sb, opts, "dump-dir", opts.dumpDir);
         appendKey(sb, opts, "dump-interval", String.valueOf(opts.dumpIntervalSec));
         appendKey(sb, opts, "max-connections", String.valueOf(opts.maxConnections));

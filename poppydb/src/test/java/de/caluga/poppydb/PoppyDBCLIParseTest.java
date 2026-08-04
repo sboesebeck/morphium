@@ -35,8 +35,31 @@ public class PoppyDBCLIParseTest {
         assertThat(opts.dumpIntervalSec).isZero();
         assertThat(opts.maxConnections).isEqualTo(500);
         assertThat(opts.socketTimeoutSec).isEqualTo(300);
+        assertThat(opts.usersFile).isNull();
         assertThat(opts.sourceOf("port")).isEqualTo(ServerOptions.Source.DEFAULT);
         assertThat(opts.sourceOf("bind")).isEqualTo(ServerOptions.Source.DEFAULT);
+        assertThat(opts.sourceOf("users-file")).isEqualTo(ServerOptions.Source.DEFAULT);
+    }
+
+    @Test
+    void usersFileCliFlagIsParsedAndTaggedAsCli() {
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--users-file", "/etc/poppydb/users.json"}, 0);
+        assertThat(opts.usersFile).isEqualTo("/etc/poppydb/users.json");
+        assertThat(opts.sourceOf("users-file")).isEqualTo(ServerOptions.Source.CLI);
+    }
+
+    @Test
+    void usersFileCliValueOverridesConfigFileValue() {
+        // First 2 tokens simulate config-file origin, the rest is the "real" CLI.
+        ServerOptions fromConfig = PoppyDBCLI.parse(new String[] {"--users-file", "/etc/poppydb/users.json"}, 2);
+        assertThat(fromConfig.usersFile).isEqualTo("/etc/poppydb/users.json");
+        assertThat(fromConfig.sourceOf("users-file")).isEqualTo(ServerOptions.Source.CONFIG_FILE);
+
+        ServerOptions overridden = PoppyDBCLI.parse(new String[] {
+            "--users-file", "/etc/poppydb/users.json", "--users-file", "/opt/poppydb/users.json"
+        }, 2);
+        assertThat(overridden.usersFile).isEqualTo("/opt/poppydb/users.json");
+        assertThat(overridden.sourceOf("users-file")).isEqualTo(ServerOptions.Source.CLI);
     }
 
     @Test

@@ -382,6 +382,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--users-file":
+                    opts.usersFile = value(effectiveArgs, idx);
+                    opts.sources.put("users-file", src);
+                    idx += 2;
+                    break;
+
                 case "--dump-dir":
                 case "-d":
                     opts.dumpDir = value(effectiveArgs, idx);

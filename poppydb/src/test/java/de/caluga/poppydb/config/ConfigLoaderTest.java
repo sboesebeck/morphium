@@ -148,6 +148,25 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void usersFileKeyIsAcceptedAsPathType(@TempDir Path dir) throws IOException {
+        Path cfg = writeConfig(dir, "config", "users-file=/etc/poppydb/users.json\n");
+        Properties props = new ConfigLoader().load(cfg);
+
+        assertThat(props.getProperty("users-file")).isEqualTo("/etc/poppydb/users.json");
+    }
+
+    @Test
+    void usersFileKeyTranslatesToCliFlag(@TempDir Path dir) throws IOException {
+        Path cfg = writeConfig(dir, "config", "users-file=/etc/poppydb/users.json\n");
+        ConfigLoader loader = new ConfigLoader();
+        Properties props = loader.load(cfg);
+
+        List<String> tokens = loader.toArgs(props);
+
+        assertThat(tokens).containsSequence("--users-file", "/etc/poppydb/users.json");
+    }
+
+    @Test
     void prefixedAndUnprefixedVariantOfSameKeyCollide(@TempDir Path dir) throws IOException {
         Path cfg = writeConfig(dir, "config", "poppydb.port=1\nport=2\n");
         ConfigLoader loader = new ConfigLoader();

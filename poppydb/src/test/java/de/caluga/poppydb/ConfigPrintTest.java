@@ -42,6 +42,7 @@ public class ConfigPrintTest {
         // unset keys show up commented out, usable as a template
         assertThat(out).contains("# rs-name  (unset)");
         assertThat(out).contains("# dump-dir  (unset)");
+        assertThat(out).contains("# users-file  (unset)");
     }
 
     @Test
@@ -72,7 +73,7 @@ public class ConfigPrintTest {
             "--port", "27018", "--bind", "0.0.0.0", "--compressor", "zlib",
             "--rs-name", "myrs", "--rs-seed", "a:1,b:2", "--rs-priorities", "100,50",
             "--max-connections", "77", "--dump-dir", "/tmp/poppy-dumps", "--dump-interval", "120",
-            "--ssl", "--auth"
+            "--users-file", "/etc/poppydb/users.json", "--ssl", "--auth"
         }, 0);
         String rendered = ConfigInspector.render(original, null);
 
@@ -94,6 +95,7 @@ public class ConfigPrintTest {
         assertThat(reloaded.maxConnections).isEqualTo(original.maxConnections);
         assertThat(reloaded.dumpDir).isEqualTo(original.dumpDir);
         assertThat(reloaded.dumpIntervalSec).isEqualTo(original.dumpIntervalSec);
+        assertThat(reloaded.usersFile).isEqualTo(original.usersFile);
         assertThat(reloaded.ssl).isEqualTo(original.ssl);
         assertThat(reloaded.auth).isEqualTo(original.auth);
 

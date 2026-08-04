@@ -33,6 +33,7 @@ class ServerOptions {
     boolean auth = false;
     String rootUser = null;
     String rootPassword = null;
+    String usersFile = null;
     String dumpDir = null;
     long dumpIntervalSec = 0;
     int maxConnections = 500;
