@@ -85,4 +85,16 @@ public class PoppyDBCLIInspectionTest {
             new String[] {"--print-config", "--check-config", "--port", "1234"}, 0);
         assertThat(opts.port).isEqualTo(1234);
     }
+
+    @Test
+    void printAndCheckTogetherPrintFirstThenCheck() {
+        int rc = PoppyDBCLI.runInspection(
+            new String[] {"--port", "27018"}, 0, null, true, true, out, err);
+        assertThat(rc).isZero();
+        String stdout = out();
+        assertThat(stdout).contains("# PoppyDB effective configuration");
+        assertThat(stdout).contains("Configuration OK (no config file)");
+        assertThat(stdout.indexOf("# PoppyDB effective configuration"))
+            .isLessThan(stdout.indexOf("Configuration OK"));
+    }
 }

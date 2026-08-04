@@ -99,7 +99,9 @@ public class PoppyDBCLI {
                 System.exit(1);
                 return;
             }
-            log.info("Using configuration file {}", cfgFile);
+            if (!printConfig && !checkConfig) {
+                log.info("Using configuration file {}", cfgFile);
+            }
         }
 
         // Config-file tokens first, real CLI args after: the existing "last assignment wins"
