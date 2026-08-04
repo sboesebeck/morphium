@@ -341,6 +341,24 @@ public class ReplicationManager {
     }
 
     /**
+     * Which (db, collection) pairs replicate. Normal user data does; internal databases and
+     * system collections do not - with exactly one exception: admin.system.users, so that
+     * logins survive failovers and initial sync (users would otherwise be node-local).
+     *
+     * Central predicate for every skip decision in this class (live apply, initial-sync
+     * enumeration, resync clearing, index diff) - do not add per-site variations.
+     */
+    static boolean isReplicated(String db, String collection) {
+        if ("admin".equals(db)) {
+            return "system.users".equals(collection);
+        }
+        if ("local".equals(db) || "config".equals(db)) {
+            return false;
+        }
+        return collection == null || !collection.startsWith("system.");
+    }
+
+    /**
      * Apply multiple insert events as a single bulk insert.
      */
     @SuppressWarnings("unchecked")
@@ -351,8 +369,9 @@ public class ReplicationManager {
         String db = parts[0];
         String coll = parts[1];
 
-        // Skip system databases
-        if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+        // Skip everything outside the replicated namespace set (system databases and
+        // system.* collections - except admin.system.users, which does replicate)
+        if (!isReplicated(db, coll)) {
             // Still update sequence for skipped events
             for (Map<String, Object> event : events) {
                 long seq = extractSequenceFromEvent(event);
@@ -843,12 +862,12 @@ public class ReplicationManager {
      */
     void syncIndexesFrom(MorphiumDriver source) throws Exception {
         for (String dbName : source.listDatabases()) {
-            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
-                continue;
-            }
-
             for (String collName : source.listCollections(dbName, null)) {
-                if (collName.startsWith("system.")) {
+                // Same namespace set as the data plane: only replicated collections get their
+                // indexes converged. That includes admin.system.users - its documents arrive on
+                // secondaries via replication (never via a local createUser), so any index the
+                // primary keeps on it must be carried over here as well.
+                if (!isReplicated(dbName, collName)) {
                     continue;
                 }
 
@@ -952,6 +971,8 @@ public class ReplicationManager {
 
     private void clearLocalDatabases() throws Exception {
         for (String dbName : localDriver.listDatabases()) {
+            // admin/local/config are never dropped wholesale: they hold node-local state beyond
+            // the one replicated collection (admin.system.users, cleared separately below).
             if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
                 continue;
             }
@@ -961,6 +982,23 @@ public class ReplicationManager {
             cmd.setCmdData(Doc.of("dropDatabase", 1, "$db", dbName));
             localDriver.runCommand(cmd);
         }
+
+        // admin.system.users DOES replicate, so the snapshot copy must fully define its
+        // content: clear it here (right before the snapshot begins) so users deleted on the
+        // primary while this node was disconnected cannot survive a resync - and so the
+        // snapshot's strict inserts cannot collide with leftovers of a previous partial copy.
+        // Only the collection's documents are removed, never the admin database itself.
+        // A delete with an empty filter and limit 0 removes everything and is a harmless
+        // no-op when the collection does not exist yet.
+        GenericCommand clearUsers = new GenericCommand(localDriver);
+        clearUsers.setDb("admin");
+        clearUsers.setColl("system.users");
+        clearUsers.setCmdData(Doc.of(
+            "delete", "system.users",
+            "$db", "admin",
+            "deletes", List.of(Doc.of("q", Doc.of(), "limit", 0))
+        ));
+        localDriver.runCommand(clearUsers);
     }
 
     /**
@@ -983,11 +1021,9 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String dbName : databases) {
-            // Skip system databases
-            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
-                continue;
-            }
-
+            // No db-level skip here: the per-collection isReplicated filter in syncDatabase
+            // decides. admin must be enumerated (its system.users replicates); for local and
+            // config every collection is filtered out there.
             totalDocs += syncDatabase(dbName);
         }
 
@@ -1012,8 +1048,10 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String collName : collections) {
-            // Skip system collections
-            if (collName.startsWith("system.")) {
+            // Copy exactly the replicated namespace set - which includes admin.system.users
+            // (copied verbatim by syncCollection: the documents carry credential material and
+            // must arrive bit-identical for SCRAM to verify on this node).
+            if (!isReplicated(dbName, collName)) {
                 continue;
             }
 
@@ -1317,8 +1355,9 @@ public class ReplicationManager {
             String db = (String) ns.get("db");
             String coll = (String) ns.get("coll");
 
-            // Skip system databases
-            if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+            // Skip everything outside the replicated namespace set (system databases and
+            // system.* collections - except admin.system.users, which does replicate)
+            if (!isReplicated(db, coll)) {
                 // Still update sequence for skipped events
                 if (sequenceNumber > 0) {
                     lastAppliedSequence.set(sequenceNumber);
