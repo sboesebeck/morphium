@@ -1501,7 +1501,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser",
+        names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser", "updateUser",
                 "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash", "validate"));
         return names;
     }
@@ -1552,8 +1552,70 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             synchronized (users) {
                 users.add(doc);
             }
+            notifyWatchers(USERS_DB, USERS_COLLECTION, "insert", doc);
         } catch (MorphiumDriverException e) {
             return errorResult(1, "InternalError", "could not store user: " + e.getMessage());
+        }
+
+        int requestId = commandNumber.incrementAndGet();
+        addResult(requestId, prepareResult(Doc.of("ok", 1.0)));
+        return requestId;
+    }
+
+    /**
+     * mongod-compatible {@code updateUser}: rebuilds the SCRAM credentials when a new {@code pwd}
+     * is given (each mechanism gets a freshly generated salt - reusing the old one would tie the
+     * new credentials cryptographically to the old password) and/or replaces {@code roles}.
+     * {@code buildUserDocument}'s {@code _id} is derived from db+user alone, so the replacement
+     * document keeps the same {@code _id} as the document it replaces without any extra bookkeeping.
+     */
+    private int updateUserInternal(Map<String, Object> cmdMap) {
+        String db = (String) cmdMap.get("$db");
+        String user = (String) cmdMap.get("updateUser");
+
+        if (user == null || user.isBlank()) {
+            return errorResult(2, "BadValue", "updateUser requires a user name");
+        }
+
+        String pwd = (String) cmdMap.get("pwd");
+        @SuppressWarnings("unchecked")
+        List<Object> roles = (List<Object>) cmdMap.get("roles");
+        @SuppressWarnings("unchecked")
+        List<String> mechanisms = (List<String>) cmdMap.get("mechanisms");
+
+        if (pwd == null && roles == null) {
+            return errorResult(2, "BadValue", "updateUser requires at least one of pwd or roles");
+        }
+
+        Map<String, Object> existing = findUserDocument(db, user);
+
+        if (existing == null) {
+            return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
+        }
+
+        try {
+            Map<String, Object> replacement;
+
+            if (pwd != null) {
+                @SuppressWarnings("unchecked")
+                List<Object> effectiveRoles = roles != null ? roles : (List<Object>) existing.get("roles");
+                replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
+                    .buildUserDocument(db, user, pwd, effectiveRoles, mechanisms);
+            } else {
+                replacement = new LinkedHashMap<>(existing);
+                replacement.put("roles", roles);
+            }
+
+            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
+
+            synchronized (users) {
+                users.remove(existing);
+                users.add(replacement);
+            }
+
+            notifyWatchers(USERS_DB, USERS_COLLECTION, "replace", replacement);
+        } catch (MorphiumDriverException e) {
+            return errorResult(1, "InternalError", "could not update user: " + e.getMessage());
         }
 
         int requestId = commandNumber.incrementAndGet();
@@ -1929,6 +1991,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<String> mechanisms = (List<String>) cmdMap.get("mechanisms");
             return createUserInternal((String) cmdMap.get("$db"), (String) cmdMap.get("createUser"),
                 (String) cmdMap.get("pwd"), roles, mechanisms);
+        }
+
+        if (commandName.equals("updateUser")) {
+            return updateUserInternal(cmdMap);
         }
 
         // serverStatus and the top-level bulkWrite (MongoDB 8.0 shape) have no typed command
