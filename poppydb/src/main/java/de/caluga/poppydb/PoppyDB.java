@@ -273,7 +273,13 @@ public class PoppyDB {
         log.info("PoppyDB started on {}:{} (workers: {})", host, port, workerThreads);
 
         if (rootUser != null && rootPassword != null) {
-            ensureRootUser();
+            if (!electionEnabled) {
+                ensureRootUser();
+            }
+            // in election mode the leadership callback (below) creates it on the primary only -
+            // secondaries receive the user via replication instead of self-creating it, so a
+            // resync (which clears and repopulates admin.system.users from the primary) never
+            // wipes out a secondary's own root account
         } else if (authRequired) {
             // users may still exist from a restored dump - but a fresh --auth server without
             // any user would be permanently unreachable (no localhost exception)
@@ -545,13 +551,52 @@ public class PoppyDB {
 
     /**
      * Called when this node's leadership status changes.
+     *
+     * The externally visible {@link #primary} flag is flipped here, immediately and outside
+     * any monitor: clients polling {@code isPrimary()}/hello, and tests asserting on step-down,
+     * must not wait behind the (potentially slow, network-touching) ReplicationManager
+     * teardown/replace work in {@link #onLeadershipChangeSynchronized}, which serializes on the
+     * PoppyDB monitor behind a possibly in-flight {@link #onLeaderDiscovered}
+     * (ReplicationManager.start() does a full Morphium client construction + connect - hundreds
+     * of ms to seconds, up to a 10s connect timeout). Before the callbacks were serialized
+     * (commit 51f82bda) this flip ran unsynchronized and was near-instant; serializing it
+     * re-introduced that latency, which is what this early flip undoes without giving up the
+     * synchronization the ReplicationManager bookkeeping still needs.
+     *
+     * Interaction with the guards below, reasoned through explicitly because the flip now runs
+     * strictly before the monitor instead of as its first statement:
+     * - A stale queued onLeaderDiscovered that runs after this node already became leader: it
+     *   now reliably observes primary==true (the flip always happens before
+     *   onLeadershipChangeSynchronized(true) is even entered, let alone before any later,
+     *   independently scheduled onLeaderDiscovered call), so startReplicationToLeader's
+     *   `if (primary || leaderId == null) return;` guard no-ops it. That's strictly better than
+     *   before: a leader must never run a ReplicationManager against another node.
+     * - A stale queued onLeadershipChange(true) that flips primary=true early while a discovery
+     *   is already mid-startReplicationToLeader (having passed the guard just before the flip):
+     *   the discovery still finishes constructing/starting its ReplicationManager outside any
+     *   monitor, but onLeadershipChangeSynchronized(true) can only acquire the monitor after
+     *   that in-flight call releases it, and its leader-body unconditionally stops+nulls
+     *   whatever replicationManager it finds - so the stray ReplicationManager the discovery
+     *   just started gets torn down right after, not left running against a leader.
      */
     private void onLeadershipChange(boolean isLeader) {
         log.info("Leadership change: {} is now {}", host + ":" + port, isLeader ? "LEADER" : "FOLLOWER");
+        // Flip the externally visible role flag immediately, before the monitor - see the
+        // class-level reasoning in the javadoc above for why this is safe on its own and how it
+        // interacts with the synchronized ReplicationManager bookkeeping below.
+        primary = isLeader;
+        onLeadershipChangeSynchronized(isLeader);
+    }
 
+    /**
+     * Synchronized: ElectionManager dispatches both this and onLeaderDiscovered from a
+     * multi-thread scheduler pool, so they must serialize on the PoppyDB monitor to avoid
+     * interleaving their ReplicationManager teardown/replace logic. The externally visible
+     * {@code primary} flag itself is no longer flipped here - see {@link #onLeadershipChange}.
+     */
+    private synchronized void onLeadershipChangeSynchronized(boolean isLeader) {
         if (isLeader) {
             // Becoming leader
-            primary = true;
             primaryHost = host + ":" + port;
 
             // Initialize replication coordinator (only if not already present)
@@ -564,14 +609,36 @@ public class PoppyDB {
                 replicationManager.stop();
                 replicationManager = null;
             }
+
+            // Now that this node has fully assumed primary duties (primary flag flipped,
+            // replication coordinator in place, no longer replicating from a stale leader),
+            // (re-)create the root user. Idempotent (handles 51003 already-exists) so repeated
+            // leadership changes (flapping, priority takeover) never race or double-create -
+            // secondaries never self-create root, they only ever receive it via replication.
+            if (rootUser != null && rootPassword != null) {
+                ensureRootUser();
+            }
         } else {
-            // Stepping down from leader
-            primary = false;
+            // Stepping down from leader (primary flag already flipped to false by the caller)
 
             // Clean up replication coordinator
             replicationCoordinatorRef.set(null);
 
-            // Start replication from new primary (will be set by onLeaderDiscovered)
+            // Start replication from new primary (will be set by onLeaderDiscovered) - unless
+            // ElectionManager already knows one. ElectionManager dispatches this callback and
+            // onLeaderDiscovered onto its own multi-thread pool independently: if the discovery
+            // task happened to acquire this monitor first (before the `primary = false` flip
+            // above ran), it saw primary still true and no-op'd. Since ElectionManager only
+            // re-fires onLeaderDiscovered on an actual leader CHANGE, that no-op is permanent -
+            // it will never fire again for the same leader, and this node would be stuck not
+            // replicating until some unrelated later leader change happened to bail it out.
+            // Query the now-current leader here so a raced-out discovery still gets picked up.
+            if (electionManager != null) {
+                String knownLeader = electionManager.getCurrentLeader();
+                if (knownLeader != null && !knownLeader.equals(host + ":" + port)) {
+                    startReplicationToLeader(knownLeader);
+                }
+            }
         }
     }
 
@@ -584,25 +651,71 @@ public class PoppyDB {
             return; // same leader, already replicating — nothing to do
         }
         log.info("Discovered leader: {}", leaderId);
-        primaryHost = leaderId;
+        startReplicationToLeader(leaderId);
+    }
 
-        // If we're a follower and not already replicating, start replication
-        if (!primary && replicationManager == null && leaderId != null) {
-            String[] parts = leaderId.split(":");
-            if (parts.length == 2) {
-                String leaderHost = parts[0];
-                int leaderPort = Integer.parseInt(parts[1]);
+    /**
+     * (Re-)point replication at {@code leaderId}, tearing down any existing ReplicationManager
+     * first. Called from both {@link #onLeaderDiscovered} (follower learns of a new leader via
+     * heartbeat - the common case) and {@link #onLeadershipChange} stepping-down-from-leader path
+     * (this node just got demoted and needs to catch up on a leader that discovery already raced
+     * past - see the comment there). Idempotent for repeated calls: a leaderId equal to the one
+     * already being replicated from, a null/malformed id, or a call while this node is itself
+     * primary, are all safe no-ops - so it tolerates being invoked redundantly from both paths for
+     * the same leader without re-tearing-down a healthy ReplicationManager.
+     */
+    private synchronized void startReplicationToLeader(String leaderId) {
+        if (primary || leaderId == null) {
+            return;
+        }
+        if (leaderId.equals(primaryHost) && replicationManager != null) {
+            return; // same leader, already replicating — nothing to do
+        }
 
-                // Start replication from new leader
-                replicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
-                replicationManager.setMyAddress(host + ":" + port);
-                try {
-                    replicationManager.start();
-                    log.info("Started replication from new leader {}", leaderId);
-                } catch (Exception e) {
-                    log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
-                }
+        // A ReplicationManager's target host/port is fixed at construction time and never
+        // updated, so after a failover the old instance (still replicating from the now-dead
+        // former leader) would otherwise retry that dead address forever - it must be torn
+        // down and replaced with one pointed at the new leader, not left in place just because
+        // it happens to be non-null. A malformed leaderId (practically unreachable) must not
+        // tear down a perfectly working existing ReplicationManager, so teardown only happens
+        // once we know we have a usable host:port to replace it with.
+        String[] parts = leaderId.split(":");
+        if (parts.length != 2) {
+            return;
+        }
+
+        if (replicationManager != null) {
+            replicationManager.stop();
+            replicationManager = null;
+        }
+
+        String leaderHost = parts[0];
+        int leaderPort = Integer.parseInt(parts[1]);
+
+        // Start replication from new leader
+        ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+        newReplicationManager.setMyAddress(host + ":" + port);
+        try {
+            newReplicationManager.start();
+            replicationManager = newReplicationManager;
+            primaryHost = leaderId;
+            log.info("Started replication from new leader {}", leaderId);
+        } catch (Exception e) {
+            log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
+            // start() failed partway through; the instance may hold live resources
+            // (executors, a connected primaryMorphium) that must be released so we
+            // don't leak them. Never assign it to the field: leaving a dead-but-non-null
+            // ReplicationManager there would trip the same-leader guard above and block
+            // any retry until the next leader change.
+            try {
+                newReplicationManager.stop();
+            } catch (Exception stopException) {
+                log.warn("Error stopping failed ReplicationManager for {}: {}", leaderId, stopException.getMessage());
             }
+            // Reset primaryHost so a re-discovery of the same leader (e.g. the next
+            // heartbeat) doesn't get short-circuited by the same-leader guard and can
+            // retry cleanly instead of being stuck until an actual leader change.
+            primaryHost = null;
         }
     }
 

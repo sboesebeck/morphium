@@ -85,6 +85,27 @@ public class ReplicationManager {
     // Initial sync state
     private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
+    // True when the most recently COMPLETED initial sync was satisfied by the consistency
+    // shortcut (dbHash comparison against the primary, see tryConsistencyShortcut()) instead of
+    // a full clear + snapshot. Only meaningful once initialSyncComplete is true; reset to false
+    // whenever a full snapshot completes. Package-private observable (wasLastSyncShortcut()) so
+    // tests can assert the path taken without parsing logs.
+    private final AtomicBoolean lastSyncWasShortcut = new AtomicBoolean(false);
+
+    // True once clearLocalDatabases() has run during the CURRENT sync cycle (a "cycle" is one
+    // invocation of startInitialSyncOnce()'s thread body, which may internally retry several
+    // times - see the watchInvalidatedDuringSnapshot branch below). Reset to false at the start of
+    // every fresh cycle. Guards against a misreport: if an attempt runs clearLocalDatabases() +
+    // performInitialSync() but is then discarded because the watch died/re-registered mid-copy,
+    // the NEXT retry iteration must NOT call tryConsistencyShortcut() again - the local data now
+    // holds (at least partially) this very cycle's own full copy, so a dbHash comparison would
+    // very plausibly match the primary not because the node was already consistent BEFORE this
+    // cycle started, but only because this cycle's own discarded full sync made it so. That would
+    // set lastSyncWasShortcut(true) despite a full clear + copy having actually happened, and risks
+    // flaking a test that asserts on the shortcut/full-sync distinction (e.g.
+    // FastResyncTest#fallbackOnDivergence). Once set, every subsequent retry within the same cycle
+    // skips the shortcut attempt and goes straight to a full sync.
+    private final AtomicBoolean wipedThisSyncCycle = new AtomicBoolean(false);
 
     // Lossless initial sync (watch-first, buffer, snapshot, replay):
     //   applying              - gate for the batch processor. While false, replication events
@@ -341,6 +362,24 @@ public class ReplicationManager {
     }
 
     /**
+     * Which (db, collection) pairs replicate. Normal user data does; internal databases and
+     * system collections do not - with exactly one exception: admin.system.users, so that
+     * logins survive failovers and initial sync (users would otherwise be node-local).
+     *
+     * Central predicate for every skip decision in this class (live apply, initial-sync
+     * enumeration, resync clearing, index diff) - do not add per-site variations.
+     */
+    static boolean isReplicated(String db, String collection) {
+        if ("admin".equals(db)) {
+            return "system.users".equals(collection);
+        }
+        if ("local".equals(db) || "config".equals(db)) {
+            return false;
+        }
+        return collection == null || !collection.startsWith("system.");
+    }
+
+    /**
      * Apply multiple insert events as a single bulk insert.
      */
     @SuppressWarnings("unchecked")
@@ -351,8 +390,9 @@ public class ReplicationManager {
         String db = parts[0];
         String coll = parts[1];
 
-        // Skip system databases
-        if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+        // Skip everything outside the replicated namespace set (system databases and
+        // system.* collections - except admin.system.users, which does replicate)
+        if (!isReplicated(db, coll)) {
             // Still update sequence for skipped events
             for (Map<String, Object> event : events) {
                 long seq = extractSequenceFromEvent(event);
@@ -413,7 +453,6 @@ public class ReplicationManager {
                     lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
                 }
             } catch (Exception e) {
-                log.error("Error applying bulk insert to {}.{}: {}", db, coll, e.getMessage());
                 // The bulk insert failed as a whole, or partially (writeErrors above).
                 // Its atomicity is *not* guaranteed in general: an ordered _id-duplicate
                 // throws before any document is written, but a unique-secondary-index
@@ -442,8 +481,29 @@ public class ReplicationManager {
                 // That is the intended trade-off -- we prefer forward progress and
                 // eventual convergence (the primary is the source of truth) over stalling
                 // the whole stream on one unresolved conflict.
+                //
+                // Log level for the bulk failure itself is decided AFTER the fallback runs, not
+                // before: the common case here is a benign ordered _id-duplicate from a sync race
+                // (e.g. a document the initial-sync snapshot and a buffered replay both bring in),
+                // which the idempotent replay below fully resolves -- that is expected noise, not
+                // an operational problem, so it logs at WARN. Only when the per-document fallback
+                // ALSO fails for at least one event (a genuine, still-unresolved conflict) does
+                // this stay at ERROR.
+                boolean fallbackHadFailure = false;
                 for (Map<String, Object> event : events) {
-                    applyChangeEvent(event, true);
+                    if (!applyChangeEvent(event, true)) {
+                        fallbackHadFailure = true;
+                    }
+                }
+                if (fallbackHadFailure) {
+                    log.error("Error applying bulk insert to {}.{}: {} (per-document fallback also "
+                            + "failed for at least one event -- see individual event errors above)",
+                            db, coll, e.getMessage());
+                } else {
+                    log.warn("Bulk insert to {}.{} hit {} (expected during sync races, e.g. a "
+                            + "document already present from initial sync or a concurrent replay; "
+                            + "auto-resolved via idempotent per-document replay)",
+                            db, coll, e.getMessage());
                 }
             }
         } else {
@@ -741,6 +801,7 @@ public class ReplicationManager {
 
         initialSyncThread = new Thread(() -> {
             long backoffMs = 1000;
+            wipedThisSyncCycle.set(false); // fresh cycle: no wipe has happened yet, shortcut is fair game
             try {
                 while (running.get()) {
                     // Wait until the watch is live before copying, so every write that happens
@@ -760,14 +821,34 @@ public class ReplicationManager {
                     long watchGen = watchGeneration.get();
 
                     try {
-                        // Start each attempt from a clean local slate so a retry after a
-                        // partially-successful copy doesn't fail on already-copied documents.
-                        clearLocalDatabases();
-                        performInitialSync();
+                        // Consistency shortcut (leader change with identical data): the watch on
+                        // the (possibly new) primary is live at this point, so every subsequent
+                        // primary write is already being buffered. If the local state matches the
+                        // primary byte-for-byte per dbHash, the clear + full snapshot below is
+                        // pure waste - skip it. Any mismatch, error, or watch death falls through
+                        // to today's full path; correctness beats speed.
+                        //
+                        // shouldAttemptConsistencyShortcut() is false once this cycle has already
+                        // wiped local data via clearLocalDatabases() (see wipedThisSyncCycle's
+                        // javadoc) - a retry in that state must not re-run the shortcut, it would
+                        // be comparing the primary against data this very cycle just copied.
+                        boolean shortcut = shouldAttemptConsistencyShortcut() && tryConsistencyShortcut();
 
-                        // Guard: if the watch died or was re-established during the copy, the snapshot
-                        // may be missing writes that fell into the gap. Discard it and retry under the
-                        // new watch instead of opening the gate on a lossy snapshot.
+                        if (!shortcut) {
+                            // Start each attempt from a clean local slate so a retry after a
+                            // partially-successful copy doesn't fail on already-copied documents.
+                            // The flag is set BEFORE the clear: even a clear that throws partway
+                            // leaves the local state partially wiped, and a later retry must not
+                            // run the consistency shortcut against that.
+                            wipedThisSyncCycle.set(true);
+                            clearLocalDatabases();
+                            performInitialSync();
+                        }
+
+                        // Guard: if the watch died or was re-established during the copy (or the
+                        // shortcut's hash comparison), the result may be missing writes that fell
+                        // into the gap. Discard it and retry under the new watch instead of
+                        // opening the gate on a lossy snapshot / stale match.
                         if (watchInvalidatedDuringSnapshot(watchGen)) {
                             log.warn("Watch changed during initial sync (captured gen {}, now {}, live {}); "
                                     + "redoing snapshot in {}ms to avoid a lost-write gap",
@@ -780,6 +861,7 @@ public class ReplicationManager {
                         // Success: open the gate. The batch processor now drains the events
                         // buffered during the snapshot (idempotent replay) and all subsequent live
                         // events, in order.
+                        lastSyncWasShortcut.set(shortcut);
                         applying.set(true);
                         initialSyncComplete.set(true);
                         initialSyncLatch.countDown();
@@ -819,9 +901,196 @@ public class ReplicationManager {
         watchLive.set(live);
     }
 
+    /**
+     * True when the initial-sync retry loop should attempt the consistency shortcut for the
+     * current iteration; false once {@link #wipedThisSyncCycle} has been set by a
+     * {@code clearLocalDatabases()} call earlier in the same sync cycle. Package-private (the
+     * same seam pattern as {@link #watchInvalidatedDuringSnapshot}) so a test can drive the guard
+     * without a live primary.
+     */
+    boolean shouldAttemptConsistencyShortcut() {
+        return !wipedThisSyncCycle.get();
+    }
+
+    /** Test hook: force the wipedThisSyncCycle guard (see its javadoc) without running a real sync. */
+    void setWipedThisSyncCycleForTest(boolean wiped) {
+        wipedThisSyncCycle.set(wiped);
+    }
+
     /** Test hook: simulate a watch (re-)registration bumping the generation. */
     void bumpWatchGenerationForTest() {
         watchGeneration.incrementAndGet();
+    }
+
+    /**
+     * Consistency shortcut for the initial sync: decide, via dbHash, whether the local state
+     * already matches the primary - in which case the clear + full snapshot can be skipped
+     * entirely. Returns {@code true} on a verified full match (and has then already converged
+     * the index definitions, see below); {@code false} on ANY mismatch, error, or timeout, in
+     * which case the caller runs today's full clear + snapshot. Never throws.
+     *
+     * <p><b>Why hashes and not a sequence resume:</b> change-stream sequences are primary-local.
+     * Each node's InMemoryDriver numbers events from its own private {@code changeStreamSequence}
+     * counter (reset to 0 on restart, advanced by arbitrary jumps on drops), and a follower
+     * applying replicated writes generates its OWN local numbers - nothing propagates the
+     * primary's numbering into the follower's counter. So the {@code lastAppliedSequence} this
+     * node accumulated against the OLD primary is meaningless in a NEW primary's sequence space
+     * (InMemoryDriver's resume check explicitly treats foreign-sequence-space tokens as never
+     * resumable); "resuming" there could silently skip or replay the wrong events. Comparing the
+     * actual data is the only sound cheap path.
+     *
+     * <p><b>Soundness of match-then-replay (the hash-vs-buffer window):</b> this runs in the
+     * same retry-loop slot as the snapshot, i.e. strictly AFTER the watch on the primary is
+     * registered and live - from that moment every primary write is captured into
+     * {@code eventQueue} (the gate is still closed, so nothing is applied locally; and this
+     * node, being a follower, accepts no local data-plane writes either, so the local state is
+     * frozen throughout the comparison). Each per-collection hash the primary answers is a
+     * read-locked snapshot of that collection at some instant t &gt;= watch registration. If the
+     * hashes match, the frozen local collection equals the primary's state at t - which already
+     * INCLUDES every buffered event on that collection with an effect before t. Replaying those
+     * buffered events after the gate opens is therefore a pure idempotent overlap (update/replace
+     * are upserts-by-key, deletes are no-ops, colliding inserts go through applyBulkInserts'
+     * idempotent per-event fallback - expected "Duplicate _id" noise, not corruption), and events
+     * after t apply exactly as in steady-state replication. If instead a write landed between
+     * registration and the hash read, the hashes differ and we take the full path - a spurious
+     * fallback is possible, a spurious match is not. Watch death during the comparison is caught
+     * by the caller's watchInvalidatedDuringSnapshot guard, same as for a real snapshot.
+     *
+     * <p><b>What is compared:</b> exactly the replicated namespace set per {@link #isReplicated}:
+     * every non-system database's non-system collections, plus admin.system.users (users must
+     * match too - a stale user set is divergence like any other; a follower legitimately holding
+     * the SAME users it replicated earlier is precisely the match case). Databases whose
+     * replicated-collection set is empty count as absent on both sides. Collection sets must be
+     * equal AND every per-collection dbHash must agree.
+     *
+     * <p><b>Indexes:</b> dbHash covers documents, not index definitions. The full path replicates
+     * indexes right after its snapshot (#258: never report "synced" while missing the primary's
+     * unique/TTL constraints); the shortcut upholds the same invariant by running the same
+     * {@link #syncIndexesFrom} diff after the data match. If that fails, the shortcut is
+     * abandoned and the full path (which redoes the index sync) runs.
+     */
+    private boolean tryConsistencyShortcut() {
+        try {
+            MorphiumDriver primaryDriver = primaryMorphium.getDriver();
+            SortedMap<String, SortedSet<String>> primaryNs =
+                replicatedNamespaces(primaryDriver.listDatabases(), db -> primaryDriver.listCollections(db, null));
+            SortedMap<String, SortedSet<String>> localNs =
+                replicatedNamespaces(localDriver.listDatabases(), db -> localDriver.listCollections(db, null));
+
+            if (!primaryNs.equals(localNs)) {
+                log.info("Falling back to full sync: replicated namespace sets differ (primary: {}, local: {})",
+                        primaryNs, localNs);
+                return false;
+            }
+
+            int verified = 0;
+
+            for (Map.Entry<String, SortedSet<String>> e : primaryNs.entrySet()) {
+                String db = e.getKey();
+                List<String> colls = new ArrayList<>(e.getValue());
+                Map<String, Object> primaryHashes = collectionHashesOnPrimary(db, colls);
+                Map<String, Object> localHashes = collectionHashesLocal(db, colls);
+
+                for (String coll : colls) {
+                    Object p = primaryHashes.get(coll);
+                    Object l = localHashes.get(coll);
+
+                    if (p == null || !p.equals(l)) {
+                        log.info("Falling back to full sync: dbHash mismatch on {}.{} (primary: {}, local: {})",
+                                db, coll, p, l);
+                        return false;
+                    }
+
+                    verified++;
+                }
+            }
+
+            // Data matches; converge the index definitions too before declaring victory (see
+            // javadoc). A failure lands in the catch below -> full path.
+            syncIndexesFrom(primaryDriver);
+
+            log.info("Consistency shortcut taken ({} collections verified): local state matches primary, "
+                    + "skipping clear + full snapshot", verified);
+            return true;
+        } catch (InterruptedException e) {
+            // stop() interrupting the initial-sync thread must not be swallowed: restore the flag
+            // so the caller's next blocking call (full sync or retry backoff) exits promptly.
+            Thread.currentThread().interrupt();
+            log.info("Falling back to full sync: consistency check interrupted");
+            return false;
+        } catch (Exception e) {
+            log.info("Falling back to full sync: consistency check failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** A function that may throw a driver exception - listCollections in both driver flavors. */
+    private interface CollectionLister {
+        List<String> collectionsOf(String db) throws Exception;
+    }
+
+    /**
+     * The replicated namespace map of one side: database -> sorted set of its replicated
+     * collections (per {@link #isReplicated} - so for admin at most system.users survives, and
+     * local/config never contribute). Databases with no replicated collection are omitted, so a
+     * db existing on one side only as an empty shell (or with nothing but system collections)
+     * does not count as divergence.
+     */
+    private SortedMap<String, SortedSet<String>> replicatedNamespaces(List<String> databases,
+            CollectionLister lister) throws Exception {
+        SortedMap<String, SortedSet<String>> result = new TreeMap<>();
+
+        for (String db : databases) {
+            SortedSet<String> colls = new TreeSet<>();
+
+            for (String coll : lister.collectionsOf(db)) {
+                if (isReplicated(db, coll)) {
+                    colls.add(coll);
+                }
+            }
+
+            if (!colls.isEmpty()) {
+                result.put(db, colls);
+            }
+        }
+
+        return result;
+    }
+
+    /** Per-collection dbHash of one database on the primary, over the existing connection pool. */
+    private Map<String, Object> collectionHashesOnPrimary(String db, List<String> colls) throws Exception {
+        MongoConnection con = primaryMorphium.getDriver().getReadConnection(null);
+
+        try {
+            GenericCommand cmd = new GenericCommand(con);
+            cmd.setDb(db);
+            cmd.setCmdData(Doc.of("dbHash", 1, "collections", colls, "$db", db));
+            int msgId = cmd.executeAsync();
+            Map<String, Object> result = con.readSingleAnswer(msgId);
+            return extractCollectionHashes(db, result);
+        } finally {
+            primaryMorphium.getDriver().releaseConnection(con);
+        }
+    }
+
+    /** Per-collection dbHash of one database on the local driver. */
+    private Map<String, Object> collectionHashesLocal(String db, List<String> colls) throws Exception {
+        GenericCommand cmd = new GenericCommand(localDriver);
+        cmd.setDb(db);
+        cmd.setCmdData(Doc.of("dbHash", 1, "collections", colls, "$db", db));
+        int msgId = localDriver.runCommand(cmd);
+        Map<String, Object> result = localDriver.readSingleAnswer(msgId);
+        return extractCollectionHashes(db, result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractCollectionHashes(String db, Map<String, Object> dbHashResult) {
+        if (dbHashResult == null || !(dbHashResult.get("ok") instanceof Number ok) || ok.doubleValue() != 1.0
+                || !(dbHashResult.get("collections") instanceof Map)) {
+            throw new IllegalStateException("dbHash on " + db + " did not answer ok: " + dbHashResult);
+        }
+
+        return (Map<String, Object>) dbHashResult.get("collections");
     }
 
     /**
@@ -843,12 +1112,12 @@ public class ReplicationManager {
      */
     void syncIndexesFrom(MorphiumDriver source) throws Exception {
         for (String dbName : source.listDatabases()) {
-            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
-                continue;
-            }
-
             for (String collName : source.listCollections(dbName, null)) {
-                if (collName.startsWith("system.")) {
+                // Same namespace set as the data plane: only replicated collections get their
+                // indexes converged. That includes admin.system.users - its documents arrive on
+                // secondaries via replication (never via a local createUser), so any index the
+                // primary keeps on it must be carried over here as well.
+                if (!isReplicated(dbName, collName)) {
                     continue;
                 }
 
@@ -952,6 +1221,8 @@ public class ReplicationManager {
 
     private void clearLocalDatabases() throws Exception {
         for (String dbName : localDriver.listDatabases()) {
+            // admin/local/config are never dropped wholesale: they hold node-local state beyond
+            // the one replicated collection (admin.system.users, cleared separately below).
             if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
                 continue;
             }
@@ -961,6 +1232,23 @@ public class ReplicationManager {
             cmd.setCmdData(Doc.of("dropDatabase", 1, "$db", dbName));
             localDriver.runCommand(cmd);
         }
+
+        // admin.system.users DOES replicate, so the snapshot copy must fully define its
+        // content: clear it here (right before the snapshot begins) so users deleted on the
+        // primary while this node was disconnected cannot survive a resync - and so the
+        // snapshot's strict inserts cannot collide with leftovers of a previous partial copy.
+        // Only the collection's documents are removed, never the admin database itself.
+        // A delete with an empty filter and limit 0 removes everything and is a harmless
+        // no-op when the collection does not exist yet.
+        GenericCommand clearUsers = new GenericCommand(localDriver);
+        clearUsers.setDb("admin");
+        clearUsers.setColl("system.users");
+        clearUsers.setCmdData(Doc.of(
+            "delete", "system.users",
+            "$db", "admin",
+            "deletes", List.of(Doc.of("q", Doc.of(), "limit", 0))
+        ));
+        localDriver.runCommand(clearUsers);
     }
 
     /**
@@ -983,11 +1271,9 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String dbName : databases) {
-            // Skip system databases
-            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
-                continue;
-            }
-
+            // No db-level skip here: the per-collection isReplicated filter in syncDatabase
+            // decides. admin must be enumerated (its system.users replicates); for local and
+            // config every collection is filtered out there.
             totalDocs += syncDatabase(dbName);
         }
 
@@ -1012,8 +1298,10 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String collName : collections) {
-            // Skip system collections
-            if (collName.startsWith("system.")) {
+            // Copy exactly the replicated namespace set - which includes admin.system.users
+            // (copied verbatim by syncCollection: the documents carry credential material and
+            // must arrive bit-identical for SCRAM to verify on this node).
+            if (!isReplicated(dbName, collName)) {
                 continue;
             }
 
@@ -1277,6 +1565,15 @@ public class ReplicationManager {
     }
 
     /**
+     * True when the most recently completed initial sync was satisfied by the consistency
+     * shortcut (local data already matched the primary per dbHash - no clear, no snapshot)
+     * instead of a full copy. Only meaningful once {@link #isInitialSyncComplete()} is true.
+     */
+    boolean wasLastSyncShortcut() {
+        return lastSyncWasShortcut.get();
+    }
+
+    /**
      * Apply a change event to the local driver.
      */
     private void applyChangeEvent(Map<String, Object> event) {
@@ -1295,9 +1592,13 @@ public class ReplicationManager {
      *                  a duplicate key. Other operation types are already applied
      *                  idempotently regardless of this flag (update/replace as an
      *                  upsert, delete/drop/dropDatabase are naturally safe to repeat).
+     * @return {@code true} if the event applied without error; {@code false} if it threw (the
+     *         exception is caught and logged internally either way, as before -- the return value
+     *         is additive, used by {@code applyBulkInserts}' per-event fallback loop to decide the
+     *         bulk-failure log level without otherwise changing this method's behavior).
      */
     @SuppressWarnings("unchecked")
-    private void applyChangeEvent(Map<String, Object> event, boolean asReplay) {
+    private boolean applyChangeEvent(Map<String, Object> event, boolean asReplay) {
         try {
             // Extract sequence number from resume token
             long sequenceNumber = extractSequenceFromEvent(event);
@@ -1311,19 +1612,20 @@ public class ReplicationManager {
                 if (sequenceNumber > 0) {
                     lastAppliedSequence.set(sequenceNumber);
                 }
-                return;
+                return true;
             }
 
             String db = (String) ns.get("db");
             String coll = (String) ns.get("coll");
 
-            // Skip system databases
-            if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+            // Skip everything outside the replicated namespace set (system databases and
+            // system.* collections - except admin.system.users, which does replicate)
+            if (!isReplicated(db, coll)) {
                 // Still update sequence for skipped events
                 if (sequenceNumber > 0) {
                     lastAppliedSequence.set(sequenceNumber);
                 }
-                return;
+                return true;
             }
 
             log.debug("Applying change event: {} on {}.{} seq={}", operationType, db, coll, sequenceNumber);
@@ -1428,8 +1730,10 @@ public class ReplicationManager {
                 lastAppliedSequence.set(sequenceNumber);
             }
 
+            return true;
         } catch (Exception e) {
             log.error("Error applying change event: {}", e.getMessage(), e);
+            return false;
         }
     }
 
@@ -1544,6 +1848,7 @@ public class ReplicationManager {
         stats.put("running", running.get());
         stats.put("connected", connected.get());
         stats.put("initialSyncComplete", initialSyncComplete.get());
+        stats.put("lastSyncWasShortcut", lastSyncWasShortcut.get());
         stats.put("eventsApplied", eventsApplied.get());
         stats.put("lastEventTime", lastEventTime.get());
         stats.put("lastAppliedSequence", lastAppliedSequence.get());

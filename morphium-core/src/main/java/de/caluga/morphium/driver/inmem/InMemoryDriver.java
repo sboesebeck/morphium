@@ -1501,7 +1501,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser",
+        names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser", "updateUser",
                 "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash", "validate"));
         return names;
     }
@@ -1525,12 +1525,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
             String id = de.caluga.morphium.driver.inmem.auth.UserDocuments.userId(authDb, user);
 
-            synchronized (users) {
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.readLock().lock();
+            try {
                 for (Map<String, Object> doc : users) {
                     if (id.equals(doc.get("_id"))) {
                         return doc;
                     }
                 }
+            } finally {
+                lock.readLock().unlock();
             }
         } catch (MorphiumDriverException e) {
             log.warn("could not access {}.{}", USERS_DB, USERS_COLLECTION, e);
@@ -1549,11 +1553,101 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 .buildUserDocument(db, user, pwd, roles, mechanisms);
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
 
-            synchronized (users) {
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.writeLock().lock();
+            try {
                 users.add(doc);
+            } finally {
+                lock.writeLock().unlock();
             }
+            notifyWatchers(USERS_DB, USERS_COLLECTION, "insert", doc);
         } catch (MorphiumDriverException e) {
             return errorResult(1, "InternalError", "could not store user: " + e.getMessage());
+        }
+
+        int requestId = commandNumber.incrementAndGet();
+        addResult(requestId, prepareResult(Doc.of("ok", 1.0)));
+        return requestId;
+    }
+
+    /**
+     * mongod-compatible {@code updateUser}: rebuilds the SCRAM credentials when a new {@code pwd}
+     * is given (each mechanism gets a freshly generated salt - reusing the old one would tie the
+     * new credentials cryptographically to the old password) and/or replaces {@code roles}.
+     * {@code buildUserDocument}'s {@code _id} is derived from db+user alone, so the replacement
+     * document keeps the same {@code _id} as the document it replaces without any extra bookkeeping.
+     */
+    private int updateUserInternal(Map<String, Object> cmdMap) {
+        String db = (String) cmdMap.get("$db");
+        String user = (String) cmdMap.get("updateUser");
+
+        if (user == null || user.isBlank()) {
+            return errorResult(2, "BadValue", "updateUser requires a user name");
+        }
+
+        String pwd = (String) cmdMap.get("pwd");
+        @SuppressWarnings("unchecked")
+        List<Object> roles = (List<Object>) cmdMap.get("roles");
+        @SuppressWarnings("unchecked")
+        List<String> mechanisms = (List<String>) cmdMap.get("mechanisms");
+
+        if (pwd == null && roles == null) {
+            return errorResult(2, "BadValue", "updateUser requires at least one of pwd or roles");
+        }
+
+        // Fast pre-lock check only for the common "no such user" answer. The authoritative
+        // resolve happens under the write lock below - two concurrent updateUsers must not
+        // both act on the same pre-lock snapshot (that was the TOCTOU: the loser's
+        // users.remove(existing) missed and its add(replacement) produced a duplicate _id).
+        if (findUserDocument(db, user) == null) {
+            return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
+        }
+
+        String id = de.caluga.morphium.driver.inmem.auth.UserDocuments.userId(db, user);
+
+        try {
+            Map<String, Object> replacement;
+            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
+
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.writeLock().lock();
+            try {
+                Map<String, Object> current = null;
+                for (Map<String, Object> doc : users) {
+                    if (id.equals(doc.get("_id"))) {
+                        current = doc;
+                        break;
+                    }
+                }
+
+                if (current == null) {
+                    // lost the race against a concurrent removal since the pre-lock check
+                    return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
+                }
+
+                if (pwd != null) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> effectiveRoles = roles != null ? roles : (List<Object>) current.get("roles");
+                    replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
+                        .buildUserDocument(db, user, pwd, effectiveRoles, mechanisms);
+                } else {
+                    replacement = new LinkedHashMap<>(current);
+                    replacement.put("roles", roles);
+                }
+
+                users.removeIf(doc -> id.equals(doc.get("_id")));
+                users.add(replacement);
+            } finally {
+                lock.writeLock().unlock();
+            }
+
+            notifyWatchers(USERS_DB, USERS_COLLECTION, "replace", replacement);
+        } catch (MorphiumDriverException e) {
+            return errorResult(1, "InternalError", "could not update user: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            // buildUserDocument's resolveMechanisms throws this for an unknown mechanism name -
+            // mongod-style callers expect a BadValue command error, not an uncaught exception.
+            return errorResult(2, "BadValue", e.getMessage());
         }
 
         int requestId = commandNumber.incrementAndGet();
@@ -1929,6 +2023,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<String> mechanisms = (List<String>) cmdMap.get("mechanisms");
             return createUserInternal((String) cmdMap.get("$db"), (String) cmdMap.get("createUser"),
                 (String) cmdMap.get("pwd"), roles, mechanisms);
+        }
+
+        if (commandName.equals("updateUser")) {
+            return updateUserInternal(cmdMap);
         }
 
         // serverStatus and the top-level bulkWrite (MongoDB 8.0 shape) have no typed command
