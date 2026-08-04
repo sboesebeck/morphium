@@ -92,6 +92,21 @@ public class ReplicationManager {
     // tests can assert the path taken without parsing logs.
     private final AtomicBoolean lastSyncWasShortcut = new AtomicBoolean(false);
 
+    // True once clearLocalDatabases() has run during the CURRENT sync cycle (a "cycle" is one
+    // invocation of startInitialSyncOnce()'s thread body, which may internally retry several
+    // times - see the watchInvalidatedDuringSnapshot branch below). Reset to false at the start of
+    // every fresh cycle. Guards against a misreport: if an attempt runs clearLocalDatabases() +
+    // performInitialSync() but is then discarded because the watch died/re-registered mid-copy,
+    // the NEXT retry iteration must NOT call tryConsistencyShortcut() again - the local data now
+    // holds (at least partially) this very cycle's own full copy, so a dbHash comparison would
+    // very plausibly match the primary not because the node was already consistent BEFORE this
+    // cycle started, but only because this cycle's own discarded full sync made it so. That would
+    // set lastSyncWasShortcut(true) despite a full clear + copy having actually happened, and risks
+    // flaking a test that asserts on the shortcut/full-sync distinction (e.g.
+    // FastResyncTest#fallbackOnDivergence). Once set, every subsequent retry within the same cycle
+    // skips the shortcut attempt and goes straight to a full sync.
+    private final AtomicBoolean wipedThisSyncCycle = new AtomicBoolean(false);
+
     // Lossless initial sync (watch-first, buffer, snapshot, replay):
     //   applying              - gate for the batch processor. While false, replication events
     //                           keep accumulating in eventQueue but are NOT applied. It is
@@ -438,7 +453,6 @@ public class ReplicationManager {
                     lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
                 }
             } catch (Exception e) {
-                log.error("Error applying bulk insert to {}.{}: {}", db, coll, e.getMessage());
                 // The bulk insert failed as a whole, or partially (writeErrors above).
                 // Its atomicity is *not* guaranteed in general: an ordered _id-duplicate
                 // throws before any document is written, but a unique-secondary-index
@@ -467,8 +481,29 @@ public class ReplicationManager {
                 // That is the intended trade-off -- we prefer forward progress and
                 // eventual convergence (the primary is the source of truth) over stalling
                 // the whole stream on one unresolved conflict.
+                //
+                // Log level for the bulk failure itself is decided AFTER the fallback runs, not
+                // before: the common case here is a benign ordered _id-duplicate from a sync race
+                // (e.g. a document the initial-sync snapshot and a buffered replay both bring in),
+                // which the idempotent replay below fully resolves -- that is expected noise, not
+                // an operational problem, so it logs at WARN. Only when the per-document fallback
+                // ALSO fails for at least one event (a genuine, still-unresolved conflict) does
+                // this stay at ERROR.
+                boolean fallbackHadFailure = false;
                 for (Map<String, Object> event : events) {
-                    applyChangeEvent(event, true);
+                    if (!applyChangeEvent(event, true)) {
+                        fallbackHadFailure = true;
+                    }
+                }
+                if (fallbackHadFailure) {
+                    log.error("Error applying bulk insert to {}.{}: {} (per-document fallback also "
+                            + "failed for at least one event -- see individual event errors above)",
+                            db, coll, e.getMessage());
+                } else {
+                    log.warn("Bulk insert to {}.{} hit {} (expected during sync races, e.g. a "
+                            + "document already present from initial sync or a concurrent replay; "
+                            + "auto-resolved via idempotent per-document replay)",
+                            db, coll, e.getMessage());
                 }
             }
         } else {
@@ -766,6 +801,7 @@ public class ReplicationManager {
 
         initialSyncThread = new Thread(() -> {
             long backoffMs = 1000;
+            wipedThisSyncCycle.set(false); // fresh cycle: no wipe has happened yet, shortcut is fair game
             try {
                 while (running.get()) {
                     // Wait until the watch is live before copying, so every write that happens
@@ -791,12 +827,18 @@ public class ReplicationManager {
                         // primary byte-for-byte per dbHash, the clear + full snapshot below is
                         // pure waste - skip it. Any mismatch, error, or watch death falls through
                         // to today's full path; correctness beats speed.
-                        boolean shortcut = tryConsistencyShortcut();
+                        //
+                        // shouldAttemptConsistencyShortcut() is false once this cycle has already
+                        // wiped local data via clearLocalDatabases() (see wipedThisSyncCycle's
+                        // javadoc) - a retry in that state must not re-run the shortcut, it would
+                        // be comparing the primary against data this very cycle just copied.
+                        boolean shortcut = shouldAttemptConsistencyShortcut() && tryConsistencyShortcut();
 
                         if (!shortcut) {
                             // Start each attempt from a clean local slate so a retry after a
                             // partially-successful copy doesn't fail on already-copied documents.
                             clearLocalDatabases();
+                            wipedThisSyncCycle.set(true);
                             performInitialSync();
                         }
 
@@ -854,6 +896,22 @@ public class ReplicationManager {
     /** Test hook: force the watchLive flag. */
     void setWatchLiveForTest(boolean live) {
         watchLive.set(live);
+    }
+
+    /**
+     * True when the initial-sync retry loop should attempt the consistency shortcut for the
+     * current iteration; false once {@link #wipedThisSyncCycle} has been set by a
+     * {@code clearLocalDatabases()} call earlier in the same sync cycle. Package-private (the
+     * same seam pattern as {@link #watchInvalidatedDuringSnapshot}) so a test can drive the guard
+     * without a live primary.
+     */
+    boolean shouldAttemptConsistencyShortcut() {
+        return !wipedThisSyncCycle.get();
+    }
+
+    /** Test hook: force the wipedThisSyncCycle guard (see its javadoc) without running a real sync. */
+    void setWipedThisSyncCycleForTest(boolean wiped) {
+        wipedThisSyncCycle.set(wiped);
     }
 
     /** Test hook: simulate a watch (re-)registration bumping the generation. */
@@ -1531,9 +1589,13 @@ public class ReplicationManager {
      *                  a duplicate key. Other operation types are already applied
      *                  idempotently regardless of this flag (update/replace as an
      *                  upsert, delete/drop/dropDatabase are naturally safe to repeat).
+     * @return {@code true} if the event applied without error; {@code false} if it threw (the
+     *         exception is caught and logged internally either way, as before -- the return value
+     *         is additive, used by {@code applyBulkInserts}' per-event fallback loop to decide the
+     *         bulk-failure log level without otherwise changing this method's behavior).
      */
     @SuppressWarnings("unchecked")
-    private void applyChangeEvent(Map<String, Object> event, boolean asReplay) {
+    private boolean applyChangeEvent(Map<String, Object> event, boolean asReplay) {
         try {
             // Extract sequence number from resume token
             long sequenceNumber = extractSequenceFromEvent(event);
@@ -1547,7 +1609,7 @@ public class ReplicationManager {
                 if (sequenceNumber > 0) {
                     lastAppliedSequence.set(sequenceNumber);
                 }
-                return;
+                return true;
             }
 
             String db = (String) ns.get("db");
@@ -1560,7 +1622,7 @@ public class ReplicationManager {
                 if (sequenceNumber > 0) {
                     lastAppliedSequence.set(sequenceNumber);
                 }
-                return;
+                return true;
             }
 
             log.debug("Applying change event: {} on {}.{} seq={}", operationType, db, coll, sequenceNumber);
@@ -1665,8 +1727,10 @@ public class ReplicationManager {
                 lastAppliedSequence.set(sequenceNumber);
             }
 
+            return true;
         } catch (Exception e) {
             log.error("Error applying change event: {}", e.getMessage(), e);
+            return false;
         }
     }
 

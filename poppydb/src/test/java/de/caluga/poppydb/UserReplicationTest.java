@@ -165,6 +165,10 @@ public class UserReplicationTest {
                 con.close();
             } catch (Exception ignored) {
             }
+            try {
+                carrier.close();
+            } catch (Exception ignored) {
+            }
         }
     }
 

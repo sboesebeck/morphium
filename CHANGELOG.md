@@ -21,7 +21,11 @@ commands, like all writes, are now primary-only — a secondary answers them wit
 `NotWritablePrimary` instead of silently accepting a write that would only ever apply locally,
 which was the underlying cause of the replication gap. `ensureRootUser` follows the same rule in
 election mode: only the current primary's leadership hook (re-)creates the initial admin user;
-secondaries never self-create it and only ever receive it via replication. See
+secondaries never self-create it and only ever receive it via replication. Two follow-up fixes
+round out the failover path: a demoted-but-still-running leader now resumes replication toward the
+new primary immediately instead of waiting for an unrelated later leader change, and a leader
+change with byte-for-byte identical data (verified per-namespace via `dbHash`) takes a consistency
+shortcut that skips the clear-and-full-resnapshot entirely. See
 [PoppyDB § Authentication — User replication](docs/poppydb.md#authentication---auth).
 
 #### PoppyDB: configuration file support (`--cfg`/`-f`, `--no-config`), secrets kept off the command line

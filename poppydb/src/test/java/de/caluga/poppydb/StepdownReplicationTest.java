@@ -26,7 +26,22 @@ import de.caluga.poppydb.election.AppendEntriesRequest;
 import de.caluga.poppydb.election.ElectionManager;
 
 /**
- * Regression test for the leadership-callback ordering gap (follow-up task 1 of the
+ * <p><b>Coverage note (task-4 follow-up item B):</b> this test PINS the fixed behavior (it fails
+ * loudly if a future change breaks the demoted node's ability to resume replication toward the
+ * new primary), but it empirically CANNOT detect a revert of the {@code onLeadershipChange(false)}
+ * hook that this fix touches. The bug depends on {@code onLeadershipChange(false)} and
+ * {@code onLeaderDiscovered(newLeader)} racing on ElectionManager's thread pool in the adversarial
+ * order, and that race is unforceable from the public API alone: both the natural-timing version
+ * of this test (5 runs) and the forced-race version below, which injects a synthetic heartbeat
+ * immediately after {@code stepDown()} (10 runs), came back GREEN pre-fix - 15/15 total, never RED
+ * - because task A (`onLeadershipChange`) is always submitted to the executor measurably before
+ * task B on this environment's timing, regardless of the underlying code being fixed or broken.
+ * The fix's correctness guarantee therefore rests on the code-level trace in task-1-report.md (the
+ * {@code !primary} guard combined with ElectionManager's "fires only on leader change" semantics),
+ * not on this test having demonstrated the pre-fix failure. Treat a green run here as regression
+ * coverage for the fixed code path, not as proof the hook still exists.
+ *
+ * <p>Regression test for the leadership-callback ordering gap (follow-up task 1 of the
  * user-replication series): on a LIVE stepdown - primary demoted but never killed -
  * ElectionManager dispatches {@code onLeadershipChange(false)} and
  * {@code onLeaderDiscovered(newLeader)} on its 3-thread pool in nondeterministic order. If
@@ -167,6 +182,10 @@ public class StepdownReplicationTest {
         } finally {
             try {
                 con.close();
+            } catch (Exception ignored) {
+            }
+            try {
+                carrier.close();
             } catch (Exception ignored) {
             }
         }
