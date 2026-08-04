@@ -1,6 +1,9 @@
 package de.caluga.poppydb;
 
+import de.caluga.morphium.driver.wire.SslHelper;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -81,6 +84,42 @@ class ConfigInspector {
         }
         if (opts.dumpIntervalSec > 0 && opts.dumpDir == null) {
             warnings.add("dump-interval is set but dump-dir is not - periodic dumps are disabled");
+        }
+        return new Result(errors, warnings);
+    }
+
+    /**
+     * Deep checks that touch the filesystem/crypto - only run by --check-config, never at normal
+     * startup (startup keeps its existing fail-on-use behavior). Finds the problems that
+     * otherwise only appear once the server starts: unloadable keystore (wrong password),
+     * missing keystore file, unusable dump directory.
+     */
+    static Result deepCheck(ServerOptions opts) {
+        List<String> errors = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+
+        if (opts.sslKeystore != null) {
+            Path ks = Paths.get(opts.sslKeystore);
+            if (!Files.isRegularFile(ks)) {
+                errors.add("SSL keystore not found: " + ks);
+            } else {
+                try {
+                    SslHelper.createServerSslContext(opts.sslKeystore, opts.sslKeystorePassword);
+                } catch (Exception e) {
+                    errors.add("Cannot load SSL keystore " + ks + ": " + e.getMessage());
+                }
+            }
+        }
+
+        if (opts.dumpDir != null) {
+            Path dir = Paths.get(opts.dumpDir);
+            if (Files.exists(dir) && !Files.isDirectory(dir)) {
+                errors.add("dump-dir " + dir + " exists but is not a directory");
+            } else if (Files.isDirectory(dir) && !Files.isWritable(dir)) {
+                errors.add("dump-dir " + dir + " is not writable");
+            } else if (!Files.exists(dir)) {
+                warnings.add("dump-dir " + dir + " does not exist yet");
+            }
         }
         return new Result(errors, warnings);
     }
