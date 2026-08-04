@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -26,6 +27,8 @@ public class PoppyDBCLI {
         // to the front of the effective argument list (see below).
         Path explicitCfg = null;
         boolean skipConfigDiscovery = false;
+        boolean printConfig = false;
+        boolean checkConfig = false;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -46,9 +49,19 @@ public class PoppyDBCLI {
                 case "--no-config":
                     skipConfigDiscovery = true;
                     break;
+                case "--print-config":
+                    printConfig = true;
+                    break;
+                case "--check-config":
+                    checkConfig = true;
+                    break;
                 default:
                     break;
             }
+        }
+
+        if (printConfig || checkConfig) {
+            redirectConsoleLoggingToStderr();
         }
 
         ConfigLoader configLoader = new ConfigLoader();
@@ -56,7 +69,12 @@ public class PoppyDBCLI {
         try {
             cfgFile = configLoader.discover(explicitCfg, skipConfigDiscovery);
         } catch (ConfigException e) {
-            log.error(e.getMessage());
+            if (checkConfig) {
+                System.err.println("Configuration check FAILED:");
+                System.err.println("  - " + e.getMessage());
+            } else {
+                log.error(e.getMessage());
+            }
             System.exit(1);
             return;
         }
@@ -76,11 +94,18 @@ public class PoppyDBCLI {
                 cfgProps = configLoader.resolveFileRefs(cfgProps);
                 configTokens = configLoader.toArgs(cfgProps);
             } catch (ConfigException e) {
-                log.error(e.getMessage());
+                if (checkConfig) {
+                    System.err.println("Configuration check FAILED:");
+                    System.err.println("  - " + e.getMessage());
+                } else {
+                    log.error(e.getMessage());
+                }
                 System.exit(1);
                 return;
             }
-            log.info("Using configuration file {}", cfgFile);
+            if (!printConfig && !checkConfig) {
+                log.info("Using configuration file {}", cfgFile);
+            }
         }
 
         // Config-file tokens first, real CLI args after: the existing "last assignment wins"
@@ -92,7 +117,20 @@ public class PoppyDBCLI {
         }
         System.arraycopy(args, 0, effectiveArgs, configTokens.size(), args.length);
 
-        PoppyDB srv = configureServer(effectiveArgs);
+        if (printConfig || checkConfig) {
+            System.exit(runInspection(effectiveArgs, configTokens.size(), cfgFile,
+                    printConfig, checkConfig, System.out, System.err));
+            return;
+        }
+
+        PoppyDB srv;
+        try {
+            srv = configureServer(effectiveArgs);
+        } catch (ConfigException e) {
+            log.error(e.getMessage());
+            System.exit(1);
+            return;
+        }
 
         try {
             srv.start();
@@ -113,6 +151,22 @@ public class PoppyDBCLI {
         }
     }
 
+    /** In inspection mode stdout belongs exclusively to the printed config / OK line -
+     *  all logging (e.g. ConfigLoader warnings) moves to stderr. */
+    private static void redirectConsoleLoggingToStderr() {
+        ch.qos.logback.classic.Logger root =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        var it = root.iteratorForAppenders();
+        while (it.hasNext()) {
+            var appender = it.next();
+            if (appender instanceof ch.qos.logback.core.ConsoleAppender<?> console) {
+                console.stop();
+                console.setTarget("System.err");
+                console.start();
+            }
+        }
+    }
+
     /**
      * Parses the effective argument list (config-file tokens followed by the real CLI args, see
      * {@link #main(String[])}) and builds a fully configured but not yet started {@link PoppyDB}.
@@ -120,316 +174,340 @@ public class PoppyDBCLI {
      * going through {@code main}'s blocking "keep alive" loop.
      */
     static PoppyDB configureServer(String[] effectiveArgs) throws Exception {
+        ServerOptions opts = parse(effectiveArgs, 0);
+        ConfigInspector.Result r = ConfigInspector.validate(opts);
+        r.warnings().forEach(log::warn);
+        if (!r.errors().isEmpty()) {
+            throw new ConfigException("Invalid configuration: " + String.join("; ", r.errors()));
+        }
+        return buildServer(opts);
+    }
+
+    /**
+     * Backs --print-config/--check-config: parses, optionally prints the effective config,
+     * optionally validates it (semantic + deep checks), and returns the process exit code.
+     * Pure function of its inputs - System.exit stays in main() so tests can call this.
+     * The two flags are mutually exclusive - combining them is rejected before parsing.
+     */
+    static int runInspection(String[] effectiveArgs, int configTokenCount, Path cfgFile,
+                             boolean print, boolean check, PrintStream out, PrintStream err) {
+        if (print && check) {
+            err.println("--print-config and --check-config cannot be combined - run them separately");
+            return 1;
+        }
+
+        ServerOptions opts;
+        try {
+            opts = parse(effectiveArgs, configTokenCount);
+        } catch (ConfigException e) {
+            if (check) {
+                err.println("Configuration check FAILED:");
+                err.println("  - " + e.getMessage());
+            } else {
+                err.println(e.getMessage());
+            }
+            return 1;
+        }
+
+        if (print) {
+            out.print(ConfigInspector.render(opts, cfgFile));
+        }
+
+        if (check) {
+            ConfigInspector.Result semantic = ConfigInspector.validate(opts);
+            ConfigInspector.Result deep = ConfigInspector.deepCheck(opts);
+            List<String> errors = new ArrayList<>(semantic.errors());
+            errors.addAll(deep.errors());
+            List<String> warnings = new ArrayList<>(semantic.warnings());
+            warnings.addAll(deep.warnings());
+
+            for (String w : warnings) {
+                err.println("WARNING: " + w);
+            }
+            if (!errors.isEmpty()) {
+                err.println("Configuration check FAILED:");
+                for (String e : errors) {
+                    err.println("  - " + e);
+                }
+                return 1;
+            }
+            out.println("Configuration OK (" + (cfgFile != null ? cfgFile : "no config file") + ")");
+        }
+        return 0;
+    }
+
+    /**
+     * Pure argument parsing into a {@link ServerOptions}. Tokens with index < configTokenCount
+     * originated from the config file; everything after came from the real command line - that
+     * boundary drives the per-key {@link ServerOptions.Source} tracking used by --print-config.
+     * Throws {@link ConfigException} instead of calling System.exit so --check-config (and tests)
+     * can report errors without killing the JVM.
+     */
+    static ServerOptions parse(String[] effectiveArgs, int configTokenCount) {
+        ServerOptions opts = new ServerOptions();
         int idx = 0;
-        log.info("Starting up server... parsing commandline params");
-        String host = "localhost";
-        int port = 17017;
-        int memoryWarnPct = 75;
-        int memoryRejectPct = 90;
-        int maxBsonSizeBytes = 16 * 1024 * 1024;
-        String rsNameArg = "";
-        String hostSeedArg = "";
-        List<String> hostsArg = new ArrayList<>();
-        Map<String, Integer> hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
-        String prioritiesArg = "";  // Optional explicit priorities
-        int compressorId = OpCompressed.COMPRESSOR_NOOP;
-
-        // SSL configuration
-        boolean sslEnabled = false;
-        boolean authRequired = false;
-        String rootUser = null;
-        String rootPassword = null;
-        String keystorePath = null;
-        String keystorePassword = null;
-
-        // Persistence configuration
-        String dumpDir = null;
-        long dumpIntervalSec = 0;
-
-        // Connection management configuration
-        int maxConnections = 500;
-        int socketTimeoutSec = 300;
 
         while (idx < effectiveArgs.length) {
-            switch (effectiveArgs[idx]) {
-                case "--help":
-                case "-h":
-                    printHelp();
-                    System.exit(0);
-                    break;
+            ServerOptions.Source src = idx < configTokenCount
+                    ? ServerOptions.Source.CONFIG_FILE
+                    : ServerOptions.Source.CLI;
 
-                // Already handled by the pre-scan above; tolerate them here too in case they
+            switch (effectiveArgs[idx]) {
+                // Already handled by the pre-scan in main(); tolerate them here too in case they
                 // show up in the real (post-config-token) part of effectiveArgs.
                 case "--cfg":
                 case "-f":
                     idx += 2;
                     break;
 
+                case "--help":
+                case "-h":
                 case "--no-config":
+                case "--print-config":
+                case "--check-config":
                     idx += 1;
                     break;
 
                 case "-p":
                 case "--port":
-                    requireValue(effectiveArgs, idx);
-                    port = Integer.parseInt(effectiveArgs[idx + 1]);
+                    opts.port = intValue(effectiveArgs, idx);
+                    opts.sources.put("port", src);
                     idx += 2;
                     break;
 
                 case "-b":
                 case "--bind":
-                    requireValue(effectiveArgs, idx);
-                    host = effectiveArgs[idx + 1];
+                    opts.bind = value(effectiveArgs, idx);
+                    opts.sources.put("bind", src);
                     idx += 2;
                     break;
 
                 case "--memory-warn":
-                    requireValue(effectiveArgs, idx);
-                    memoryWarnPct = Integer.parseInt(effectiveArgs[idx + 1]);
+                    opts.memoryWarnPct = intValue(effectiveArgs, idx);
+                    opts.sources.put("memory-warn", src);
                     idx += 2;
                     break;
 
                 case "--memory-reject":
-                    requireValue(effectiveArgs, idx);
-                    memoryRejectPct = Integer.parseInt(effectiveArgs[idx + 1]);
+                    opts.memoryRejectPct = intValue(effectiveArgs, idx);
+                    opts.sources.put("memory-reject", src);
                     idx += 2;
                     break;
 
                 case "--max-bson-size":
-                    requireValue(effectiveArgs, idx);
-                    maxBsonSizeBytes = Integer.parseInt(effectiveArgs[idx + 1]);
+                    opts.maxBsonSizeBytes = intValue(effectiveArgs, idx);
+                    opts.sources.put("max-bson-size", src);
                     idx += 2;
                     break;
 
-                case "--log-level": {
-                    requireValue(effectiveArgs, idx);
-                    ch.qos.logback.classic.Level level = ch.qos.logback.classic.Level.toLevel(effectiveArgs[idx + 1], null);
-
-                    if (level == null) {
-                        log.error("Unknown log level {} - use ERROR, WARN, INFO, DEBUG or TRACE", effectiveArgs[idx + 1]);
-                        System.exit(1);
-                    }
-
-                    ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME))
-                    .setLevel(level);
+                case "--log-level":
+                    opts.logLevel = value(effectiveArgs, idx);
+                    opts.sources.put("log-level", src);
                     idx += 2;
                     break;
-                }
+
                 case "--rs-name":
-                    requireValue(effectiveArgs, idx);
-                    rsNameArg = effectiveArgs[idx + 1];
+                    opts.rsName = value(effectiveArgs, idx);
+                    opts.sources.put("rs-name", src);
                     idx += 2;
                     break;
+
                 case "--rs-seed":
-                    requireValue(effectiveArgs, idx);
-                    hostSeedArg = effectiveArgs[idx + 1];
+                    opts.rsSeed = value(effectiveArgs, idx);
+                    opts.sources.put("rs-seed", src);
                     idx += 2;
-                    hostsArg = new ArrayList<>();
-                    // Parse hosts - priorities will be assigned after all args are parsed
-                    for (String s : hostSeedArg.split(",")) {
-                        s = s.trim();
-                        int rsport = 27017;
-                        String hst = s;
-
-                        if (hst.contains(":")) {
-                            rsport = Integer.parseInt(hst.split(":")[1]);
-                            hst = hst.split(":")[0];
-                        }
-
-                        String entry = hst + ":" + rsport;
-                        hostsArg.add(entry);
-                    }
                     break;
 
                 case "--rs-priorities":
-                    requireValue(effectiveArgs, idx);
-                    prioritiesArg = effectiveArgs[idx + 1];
+                    opts.rsPriorities = value(effectiveArgs, idx);
+                    opts.sources.put("rs-priorities", src);
                     idx += 2;
                     break;
 
                 case "-c":
                 case "--compressor":
-                    requireValue(effectiveArgs, idx);
-                    if (effectiveArgs[idx + 1].equals("snappy")) {
-                        compressorId = OpCompressed.COMPRESSOR_SNAPPY;
-                    } else if (effectiveArgs[idx + 1].equals("zstd")) {
-                        compressorId = OpCompressed.COMPRESSOR_ZSTD;
-                    } else if (effectiveArgs[idx + 1].equals("none")) {
-                        compressorId = OpCompressed.COMPRESSOR_NOOP;
-                    } else if (effectiveArgs[idx + 1].equals("zlib")) {
-                        compressorId = OpCompressed.COMPRESSOR_ZLIB;
-                    } else {
-                        log.error("Unknown parameter for compressor {}", effectiveArgs[idx + 1]);
-                        System.exit(1);
-                    }
-
+                    opts.compressor = value(effectiveArgs, idx);
+                    opts.sources.put("compressor", src);
                     idx += 2;
                     break;
 
                 case "--ssl":
                 case "--tls":
-                    sslEnabled = true;
+                    opts.ssl = true;
+                    opts.sources.put("ssl", src);
                     idx += 1;
                     break;
 
                 case "--no-ssl":
-                    sslEnabled = false;
+                    opts.ssl = false;
+                    opts.sources.put("ssl", src);
                     idx += 1;
                     break;
 
                 case "--auth":
-                    authRequired = true;
+                    opts.auth = true;
+                    opts.sources.put("auth", src);
                     idx += 1;
                     break;
 
                 case "--no-auth":
-                    authRequired = false;
+                    opts.auth = false;
+                    opts.sources.put("auth", src);
                     idx += 1;
                     break;
 
                 case "--rootUser":
-                    requireValue(effectiveArgs, idx);
-                    rootUser = effectiveArgs[idx + 1];
+                    opts.rootUser = value(effectiveArgs, idx);
+                    opts.sources.put("root-user", src);
                     idx += 2;
                     break;
 
                 case "--rootPassword":
-                    requireValue(effectiveArgs, idx);
-                    rootPassword = effectiveArgs[idx + 1];
+                    opts.rootPassword = value(effectiveArgs, idx);
+                    opts.sources.put("root-password", src);
                     idx += 2;
                     break;
 
                 case "--sslKeystore":
                 case "--tlsKeystore":
-                    requireValue(effectiveArgs, idx);
-                    keystorePath = effectiveArgs[idx + 1];
+                    opts.sslKeystore = value(effectiveArgs, idx);
+                    opts.sources.put("ssl-keystore", src);
                     idx += 2;
                     break;
 
                 case "--sslKeystorePassword":
                 case "--tlsKeystorePassword":
-                    requireValue(effectiveArgs, idx);
-                    keystorePassword = effectiveArgs[idx + 1];
+                    opts.sslKeystorePassword = value(effectiveArgs, idx);
+                    opts.sources.put("ssl-keystore-password", src);
                     idx += 2;
                     break;
 
                 case "--dump-dir":
                 case "-d":
-                    requireValue(effectiveArgs, idx);
-                    dumpDir = effectiveArgs[idx + 1];
+                    opts.dumpDir = value(effectiveArgs, idx);
+                    opts.sources.put("dump-dir", src);
                     idx += 2;
                     break;
 
                 case "--dump-interval":
-                    requireValue(effectiveArgs, idx);
-                    dumpIntervalSec = Long.parseLong(effectiveArgs[idx + 1]);
+                    opts.dumpIntervalSec = longValue(effectiveArgs, idx);
+                    opts.sources.put("dump-interval", src);
                     idx += 2;
                     break;
 
                 case "--max-connections":
-                    requireValue(effectiveArgs, idx);
-                    maxConnections = Integer.parseInt(effectiveArgs[idx + 1]);
+                    opts.maxConnections = intValue(effectiveArgs, idx);
+                    opts.sources.put("max-connections", src);
                     idx += 2;
                     break;
 
                 case "--socket-timeout":
-                    requireValue(effectiveArgs, idx);
-                    socketTimeoutSec = Integer.parseInt(effectiveArgs[idx + 1]);
+                    opts.socketTimeoutSec = intValue(effectiveArgs, idx);
+                    opts.sources.put("socket-timeout", src);
                     idx += 2;
                     break;
 
                 default:
-                    log.error("unknown parameter " + effectiveArgs[idx]);
-                    System.exit(1);
+                    throw new ConfigException("unknown parameter " + effectiveArgs[idx]);
             }
+        }
+        return opts;
+    }
+
+    /** Builds the configured-but-unstarted server from validated options - the old wiring code. */
+    static PoppyDB buildServer(ServerOptions opts) throws Exception {
+        // Apply the log level first so all subsequent startup logging honors it.
+        ch.qos.logback.classic.Level level = ch.qos.logback.classic.Level.toLevel(opts.logLevel, null);
+        if (level == null) {
+            throw new ConfigException("Unknown log level " + opts.logLevel
+                    + " - use ERROR, WARN, INFO, DEBUG or TRACE");
+        }
+        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME))
+                .setLevel(level);
+
+        int compressorId;
+        switch (opts.compressor.toLowerCase(java.util.Locale.ROOT)) {
+            case "snappy":
+                compressorId = OpCompressed.COMPRESSOR_SNAPPY;
+                break;
+            case "zstd":
+                compressorId = OpCompressed.COMPRESSOR_ZSTD;
+                break;
+            case "zlib":
+                compressorId = OpCompressed.COMPRESSOR_ZLIB;
+                break;
+            case "none":
+                compressorId = OpCompressed.COMPRESSOR_NOOP;
+                break;
+            default:
+                throw new ConfigException("Unknown parameter for compressor " + opts.compressor);
         }
 
         log.info("Starting server...");
 
-        // Assign priorities to hosts
-        // Default: all nodes have equal priority (50)
-        // If --rs-priorities is specified, use those values
-        hostPrioritiesArg = new java.util.concurrent.ConcurrentHashMap<>();
-        if (!hostsArg.isEmpty()) {
-            if (prioritiesArg.isEmpty()) {
-                // Default: all equal priority
-                for (String h : hostsArg) {
-                    hostPrioritiesArg.put(h, 50);
-                }
+        List<String> hosts;
+        Map<String, Integer> hostPriorities;
+        try {
+            hosts = opts.seedHosts();
+            hostPriorities = opts.seedPriorities();
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException(e.getMessage(), e);
+        }
+        if (!hosts.isEmpty()) {
+            if (opts.rsPriorities.isBlank()) {
                 log.info("All nodes have equal election priority (50)");
             } else {
-                // Parse explicit priorities
-                String[] prioValues = prioritiesArg.split(",");
-                if (prioValues.length != hostsArg.size()) {
-                    log.error("Number of priorities ({}) must match number of hosts ({})",
-                            prioValues.length, hostsArg.size());
-                    System.exit(1);
-                }
-                for (int i = 0; i < hostsArg.size(); i++) {
-                    int prio = Integer.parseInt(prioValues[i].trim());
-                    if (prio < 0 || prio > 100) {
-                        log.error("Priority must be between 0 and 100, got: {}", prio);
-                        System.exit(1);
-                    }
-                    hostPrioritiesArg.put(hostsArg.get(i), prio);
-                }
-                log.info("Election priorities: {}", hostPrioritiesArg);
+                log.info("Election priorities: {}", hostPriorities);
             }
         }
 
-        var srv = new PoppyDB(port, host, maxConnections, socketTimeoutSec, compressorId);
-        srv.setMemoryWatermarks(memoryWarnPct, memoryRejectPct);
-        srv.setMaxBsonObjectSize(maxBsonSizeBytes);
+        var srv = new PoppyDB(opts.port, opts.bind, opts.maxConnections, opts.socketTimeoutSec, compressorId);
+        srv.setMemoryWatermarks(opts.memoryWarnPct, opts.memoryRejectPct);
+        srv.setMaxBsonObjectSize(opts.maxBsonSizeBytes);
 
         // Configure replica set - election is always enabled for multi-node replica sets
-        boolean enableElection = !rsNameArg.isEmpty() && hostsArg.size() > 1;
+        boolean enableElection = !opts.rsName.isEmpty() && hosts.size() > 1;
         if (enableElection) {
-            log.info("Replica set configured with {} members, election enabled", hostsArg.size());
+            log.info("Replica set configured with {} members, election enabled", hosts.size());
         }
-        srv.configureReplicaSet(rsNameArg, hostsArg, hostPrioritiesArg, enableElection, null);
+        srv.configureReplicaSet(opts.rsName, hosts, hostPriorities, enableElection, null);
 
-        // Configure SSL if enabled
-        if (sslEnabled) {
+        if (opts.ssl) {
             log.info("SSL/TLS enabled");
-            if (keystorePath != null) {
-                log.info("Loading keystore from: {}", keystorePath);
+            if (opts.sslKeystore != null) {
+                log.info("Loading keystore from: {}", opts.sslKeystore);
                 try {
-                    SSLContext sslContext = SslHelper.createServerSslContext(keystorePath, keystorePassword);
+                    SSLContext sslContext = SslHelper.createServerSslContext(opts.sslKeystore, opts.sslKeystorePassword);
                     srv.setSslContext(sslContext);
                 } catch (Exception e) {
-                    log.error("Failed to load SSL keystore: {}", e.getMessage());
-                    System.exit(1);
+                    throw new ConfigException("Failed to load SSL keystore: " + e.getMessage(), e);
                 }
             }
             srv.setSslEnabled(true);
         }
 
-        // Configure auth enforcement if enabled
-        if (authRequired) {
+        if (opts.auth) {
             log.info("Auth enforcement enabled (--auth): clients must authenticate via SCRAM");
             srv.setAuthRequired(true);
         }
 
-        if (rootUser != null || rootPassword != null) {
-            if (rootUser == null || rootPassword == null) {
-                log.error("--rootUser and --rootPassword must be given together");
-                System.exit(1);
+        if (opts.rootUser != null || opts.rootPassword != null) {
+            if (opts.rootUser == null || opts.rootPassword == null) {
+                throw new ConfigException("--rootUser and --rootPassword must be given together");
             }
-            srv.setRootUser(rootUser, rootPassword);
+            srv.setRootUser(opts.rootUser, opts.rootPassword);
         }
 
-        // Configure persistence if enabled
-        if (dumpDir != null) {
-            java.io.File dir = new java.io.File(dumpDir);
+        if (opts.dumpDir != null) {
+            java.io.File dir = new java.io.File(opts.dumpDir);
             srv.setDumpDirectory(dir);
             log.info("Persistence enabled: dump directory = {}", dir.getAbsolutePath());
 
-            if (dumpIntervalSec > 0) {
-                srv.setDumpIntervalMs(dumpIntervalSec * 1000);
-                log.info("Periodic dumps every {} seconds", dumpIntervalSec);
+            if (opts.dumpIntervalSec > 0) {
+                srv.setDumpIntervalMs(opts.dumpIntervalSec * 1000);
+                log.info("Periodic dumps every {} seconds", opts.dumpIntervalSec);
             }
 
-            // Restore previous state if dump files exist
             try {
                 int restored = srv.restoreFromDump();
                 if (restored > 0) {
@@ -443,11 +521,28 @@ public class PoppyDBCLI {
         return srv;
     }
 
-    /** Bounds-check helper for value-reading cases in the argument loop above. */
-    private static void requireValue(String[] arr, int idx) {
+    private static String value(String[] arr, int idx) {
         if (idx + 1 >= arr.length) {
-            log.error("Option {} requires a value", arr[idx]);
-            System.exit(1);
+            throw new ConfigException("Option " + arr[idx] + " requires a value");
+        }
+        return arr[idx + 1];
+    }
+
+    private static int intValue(String[] arr, int idx) {
+        String v = value(arr, idx);
+        try {
+            return Integer.parseInt(v);
+        } catch (NumberFormatException e) {
+            throw new ConfigException("Invalid value for " + arr[idx] + ": '" + v + "' is not a valid integer");
+        }
+    }
+
+    private static long longValue(String[] arr, int idx) {
+        String v = value(arr, idx);
+        try {
+            return Long.parseLong(v);
+        } catch (NumberFormatException e) {
+            throw new ConfigException("Invalid value for " + arr[idx] + ": '" + v + "' is not a valid number");
         }
     }
 
@@ -511,6 +606,12 @@ public class PoppyDBCLI {
         System.out.println("                                 /etc/poppydb/config");
         System.out.println("                                 /etc/poppydb.conf");
         System.out.println("                               is used (no merging - first match wins). See docs/poppydb.md.");
+        System.out.println("  --print-config             : Print the effective configuration (defaults + config file +");
+        System.out.println("                               command line merged, secrets redacted) as a reusable config");
+        System.out.println("                               file with per-key source annotations, then exit");
+        System.out.println("  --check-config             : Validate the effective configuration without starting the");
+        System.out.println("                               server: syntax, semantic cross-checks and deep checks");
+        System.out.println("                               (keystore loadable, dump-dir usable). Exit code 0 = OK, 1 = errors");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
@@ -520,5 +621,7 @@ public class PoppyDBCLI {
         System.out.println("  java -jar poppydb.jar -p 27017 --dump-dir /var/poppydb/data --dump-interval 300");
         System.out.println("  java -jar poppydb.jar --rs-name myrs --rs-seed localhost:27017,localhost:27018,localhost:27019");
         System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config");
+        System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config --check-config");
+        System.out.println("  java -jar poppydb.jar --no-config --print-config > poppydb.conf.template");
     }
 }
