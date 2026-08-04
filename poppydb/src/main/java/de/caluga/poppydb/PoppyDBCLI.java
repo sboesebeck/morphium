@@ -60,6 +60,10 @@ public class PoppyDBCLI {
             }
         }
 
+        if (printConfig || checkConfig) {
+            redirectConsoleLoggingToStderr();
+        }
+
         ConfigLoader configLoader = new ConfigLoader();
         Path cfgFile;
         try {
@@ -144,6 +148,22 @@ public class PoppyDBCLI {
         while (srv.isRunning()) {
             log.info("PoppyDB alive - connections: {}", srv.getConnectionCount());
             sleep(10000);
+        }
+    }
+
+    /** In inspection mode stdout belongs exclusively to the printed config / OK line -
+     *  all logging (e.g. ConfigLoader warnings) moves to stderr. */
+    private static void redirectConsoleLoggingToStderr() {
+        ch.qos.logback.classic.Logger root =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        var it = root.iteratorForAppenders();
+        while (it.hasNext()) {
+            var appender = it.next();
+            if (appender instanceof ch.qos.logback.core.ConsoleAppender<?> console) {
+                console.stop();
+                console.setTarget("System.err");
+                console.start();
+            }
         }
     }
 
