@@ -3,15 +3,18 @@ package de.caluga.test.morphium.driver.inmem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +24,8 @@ import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.auth.CreateUserAdminCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.inmem.auth.ScramCredentials;
+import de.caluga.morphium.driver.inmem.auth.UserDocuments;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 /**
@@ -264,5 +269,71 @@ public class UserWriteEventsTest {
         Map<String, Object> credsAfter = (Map<String, Object>) after.get(0).get("credentials");
         assertThat(credsAfter).as("credentials must be unchanged when pwd is not passed").isEqualTo(credsBefore);
         assertThat(after.get(0).get("roles")).as("roles must be replaced").isEqualTo(newRoles);
+    }
+
+    /**
+     * TOCTOU regression: updateUserInternal used to resolve the target document once,
+     * before taking the write lock, and hand that stale reference to both the remove
+     * and (in the roles-only path) the replacement build. Under concurrent updateUser
+     * calls for the same user, every caller reads the same pre-lock snapshot, so only
+     * one {@code users.remove(existing)} actually removes anything - the rest silently
+     * miss and every {@code add(replacement)} still runs, leaving several documents
+     * with the same {@code _id} in admin.system.users. Fixed by re-resolving the
+     * current document by _id inside the write lock. @RepeatedTest gives the race
+     * room to reproduce across a JVM warm-up / JIT range.
+     */
+    @RepeatedTest(10)
+    void updateUserConcurrentlyNeverDuplicates() throws Exception {
+        createUser("u5", "initial");
+
+        int n = 8;
+        CyclicBarrier barrier = new CyclicBarrier(n);
+        List<String> passwords = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            passwords.add("pw-" + i + "-" + System.nanoTime());
+        }
+        List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
+        List<Thread> threads = new ArrayList<>();
+
+        for (String pwd : passwords) {
+            Thread t = new Thread(() -> {
+                try {
+                    barrier.await();
+                    Map<String, Object> result = updateUser(Doc.of("updateUser", "u5", "pwd", pwd, "$db", "admin"));
+                    if (!Double.valueOf(1.0).equals(result.get("ok"))) {
+                        errors.add(new AssertionError("updateUser failed: " + result));
+                    }
+                } catch (Throwable e) {
+                    errors.add(e);
+                }
+            });
+            threads.add(t);
+            t.start();
+        }
+        for (Thread t : threads) {
+            t.join(10_000);
+        }
+
+        assertThat(errors).as("updateUser threads must not fail: " + errors).isEmpty();
+
+        var docs = drv.findByFieldValue("admin", "system.users", "_id", "admin.u5");
+        assertThat(docs).as("exactly one user document must exist for admin.u5, found: " + docs).hasSize(1);
+
+        Map<String, Object> doc = docs.get(0);
+        ScramCredentials creds = UserDocuments.extractCredentials(doc, "SCRAM-SHA-256");
+        assertThat(creds).as("updated user must still have SCRAM-SHA-256 credentials").isNotNull();
+
+        long acceptedCount = passwords.stream()
+            .filter(pwd -> matchesPassword(creds, "u5", pwd))
+            .count();
+        assertThat(acceptedCount)
+            .as("exactly one of the %d concurrently-applied passwords must be accepted, got %s", n, acceptedCount)
+            .isEqualTo(1);
+    }
+
+    private boolean matchesPassword(ScramCredentials creds, String user, String candidatePassword) {
+        ScramCredentials derived = ScramCredentials.derive(
+            creds.getMechanism(), user, candidatePassword, creds.getSalt(), creds.getIterationCount());
+        return Arrays.equals(derived.getStoredKey(), creds.getStoredKey());
     }
 }

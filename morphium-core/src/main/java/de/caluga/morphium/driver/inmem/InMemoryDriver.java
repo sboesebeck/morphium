@@ -1595,31 +1595,47 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return errorResult(2, "BadValue", "updateUser requires at least one of pwd or roles");
         }
 
-        Map<String, Object> existing = findUserDocument(db, user);
-
-        if (existing == null) {
+        // Fast pre-lock check only for the common "no such user" answer. The authoritative
+        // resolve happens under the write lock below - two concurrent updateUsers must not
+        // both act on the same pre-lock snapshot (that was the TOCTOU: the loser's
+        // users.remove(existing) missed and its add(replacement) produced a duplicate _id).
+        if (findUserDocument(db, user) == null) {
             return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
         }
 
+        String id = de.caluga.morphium.driver.inmem.auth.UserDocuments.userId(db, user);
+
         try {
             Map<String, Object> replacement;
-
-            if (pwd != null) {
-                @SuppressWarnings("unchecked")
-                List<Object> effectiveRoles = roles != null ? roles : (List<Object>) existing.get("roles");
-                replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
-                    .buildUserDocument(db, user, pwd, effectiveRoles, mechanisms);
-            } else {
-                replacement = new LinkedHashMap<>(existing);
-                replacement.put("roles", roles);
-            }
-
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
 
             java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
             lock.writeLock().lock();
             try {
-                users.remove(existing);
+                Map<String, Object> current = null;
+                for (Map<String, Object> doc : users) {
+                    if (id.equals(doc.get("_id"))) {
+                        current = doc;
+                        break;
+                    }
+                }
+
+                if (current == null) {
+                    // lost the race against a concurrent removal since the pre-lock check
+                    return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
+                }
+
+                if (pwd != null) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> effectiveRoles = roles != null ? roles : (List<Object>) current.get("roles");
+                    replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
+                        .buildUserDocument(db, user, pwd, effectiveRoles, mechanisms);
+                } else {
+                    replacement = new LinkedHashMap<>(current);
+                    replacement.put("roles", roles);
+                }
+
+                users.removeIf(doc -> id.equals(doc.get("_id")));
                 users.add(replacement);
             } finally {
                 lock.writeLock().unlock();
