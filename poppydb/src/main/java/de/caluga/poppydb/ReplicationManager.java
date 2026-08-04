@@ -902,6 +902,20 @@ public class ReplicationManager {
     }
 
     /**
+     * True once the change-stream watch has registered with the primary (see {@code watchLive}'s
+     * field javadoc above for the design: watch registration is the FIRST step of a sync cycle,
+     * before any snapshot, so on a healthy connection this goes true within seconds of
+     * {@link #start()}). Package-private accessor backing PoppyDB's post-start liveness probe
+     * (Finding: for an unreachable leader, {@code PooledDriver.connect()} swallows the failure and
+     * {@code start()} returns normally instead of throwing, so the exception-based retry never
+     * fires - watchLive staying false long after start is the reliable signal that the connection
+     * never actually came up).
+     */
+    boolean isWatchLive() {
+        return watchLive.get();
+    }
+
+    /**
      * True when the initial-sync retry loop should attempt the consistency shortcut for the
      * current iteration; false once {@link #wipedThisSyncCycle} has been set by a
      * {@code clearLocalDatabases()} call earlier in the same sync cycle. Package-private (the

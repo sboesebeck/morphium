@@ -130,6 +130,18 @@ public class PoppyDB {
     static final long REPLICATION_RETRY_INITIAL_DELAY_MS = 1000;
     static final long REPLICATION_RETRY_MAX_DELAY_MS = 30_000;
 
+    // Post-start liveness probe (closes the gap the exception-based retry above cannot cover):
+    // for an unreachable leader, PooledDriver.connect() swallows a single-host connect failure
+    // internally and Morphium's constructor returns normally, so ReplicationManager.start() does
+    // NOT throw - the RM gets assigned as if live and handleReplicationStartFailure never runs.
+    // Every successful start() schedules exactly one of these, ~45s out (comfortably longer than
+    // watchLive normally takes to go true on a healthy connection - see ReplicationManager's
+    // watch-first design). If by then the SAME ReplicationManager instance is still assigned, this
+    // node is still a non-primary follower, and its watch never registered, the connection never
+    // actually came up - tear it down and feed the existing backoff retry chain. See
+    // probeReplicationLiveness/scheduleReplicationLivenessProbe below.
+    static final long REPLICATION_LIVENESS_PROBE_DELAY_MS = 45_000;
+
     // DevOps command context: live op registry (currentOp/killOp), real connection gauges
     // for serverStatus, and the per-host priorities replSetGetConfig reports.
     private final de.caluga.poppydb.netty.OpRegistry opRegistry = new de.caluga.poppydb.netty.OpRegistry();
@@ -757,9 +769,75 @@ public class PoppyDB {
             replicationManager = newReplicationManager;
             primaryHost = leaderId;
             log.info("Started replication from new leader {}", leaderId);
+            scheduleReplicationLivenessProbe(leaderId, newReplicationManager);
         } catch (Exception e) {
             handleReplicationStartFailure(leaderId, newReplicationManager, e, delayOnFailureMs);
         }
+    }
+
+    /**
+     * Schedule a single, one-shot {@link #probeReplicationLiveness(String, ReplicationManager)}
+     * check ~{@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} after a successful
+     * {@code newReplicationManager.start()} - see the field comment on
+     * {@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} for why this exists alongside the
+     * exception-based {@link #handleReplicationStartFailure} retry. Reuses the same lazily-created
+     * scheduler as the retry chain (no second background thread).
+     */
+    private synchronized void scheduleReplicationLivenessProbe(String leaderId, ReplicationManager probedManager) {
+        if (!running) {
+            return; // shutting down (or never started) - nothing to probe for
+        }
+
+        try {
+            replicationRetryScheduler().schedule(() -> probeReplicationLiveness(leaderId, probedManager),
+                    REPLICATION_LIVENESS_PROBE_DELAY_MS, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Lost a race with shutdown() shutting the executor down - nothing left to probe for.
+            log.debug("Replication liveness probe not scheduled - shutting down");
+        }
+    }
+
+    /**
+     * Fires ~{@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} after a replication start that returned
+     * normally (no exception). Distinguishes a healthy-but-silent connection from one that never
+     * actually came up (see the {@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} field comment): the
+     * dominant real-world case is an unreachable leader, where
+     * {@code de.caluga.morphium.driver.wire.PooledDriver#connect()} swallows the single-host
+     * connect failure and {@code ReplicationManager.start()} returns as if live.
+     *
+     * <p>All four guards must hold for the probe to act, otherwise it is a no-op:
+     * <ul>
+     *   <li>{@code running} - not shutting down;</li>
+     *   <li>{@code !primary} - this node hasn't since become leader itself;</li>
+     *   <li>{@code replicationManager == probedManager} - the RM this probe was scheduled for is
+     *       still the one assigned (not replaced by a newer leadership/discovery transition, and
+     *       not already torn down); and</li>
+     *   <li>{@code !probedManager.isWatchLive()} - the change-stream watch never registered with
+     *       the primary, which (per ReplicationManager's watch-first design) is the reliable
+     *       "never actually connected" signal.
+     * </ul>
+     * On all-true, tears the dead RM down, resets {@code primaryHost} (same reasoning as
+     * {@link #handleReplicationStartFailure}: a re-discovery of the same leader must not be
+     * short-circuited by the same-leader guard), and feeds the existing bounded-backoff retry
+     * chain via {@link #scheduleReplicationRetry(long)} - so the retry re-reads the current leader
+     * from ElectionManager rather than blindly redialing the address that just proved dead.
+     */
+    synchronized void probeReplicationLiveness(String leaderId, ReplicationManager probedManager) {
+        if (!running || primary) {
+            return; // shut down, or promoted to leader meanwhile - nothing to probe
+        }
+        if (replicationManager != probedManager) {
+            return; // superseded by a newer ReplicationManager (or already torn down) - stale probe
+        }
+        if (probedManager.isWatchLive()) {
+            return; // healthy: the watch registered, this node is actually replicating
+        }
+
+        log.warn("Replication to {} never became live - tearing down and retrying", leaderId);
+        replicationManager.stop();
+        replicationManager = null;
+        primaryHost = null;
+        scheduleReplicationRetry(REPLICATION_RETRY_INITIAL_DELAY_MS);
     }
 
     /**

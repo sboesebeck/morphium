@@ -255,4 +255,109 @@ public class ReplicationStartRetryTest {
         assertTrue(poll(30_000, () -> scramLoginWorks(followerPort, "retry-user", "retry-pw")),
                 "a user created on the leader must replicate to the follower");
     }
+
+    // ---- liveness-probe tests (silently-dead replication start, see PoppyDB.probeReplicationLiveness) ----
+
+    /**
+     * Sets up a follower with a REAL, successfully started ReplicationManager against a reachable
+     * leader (so {@code start()} does not throw and {@code isWatchLive()} is genuinely true at
+     * first), then forces {@code watchLive} back to false via the existing
+     * {@link ReplicationManager#setWatchLiveForTest} hook - reproducing, without depending on
+     * actually reaching an unreachable port, the exact state a swallowed-connect-failure leaves
+     * behind: a live-looking, non-null ReplicationManager whose watch never registered.
+     */
+    private PoppyDB startLeaderAndConnectedFollower(String rsName, int leaderPort, int followerPort) throws Exception {
+        String leaderAddress = "localhost:" + leaderPort;
+        String followerAddress = "localhost:" + followerPort;
+        List<String> hosts = List.of(leaderAddress, followerAddress);
+        Map<String, Integer> prio = Map.of(leaderAddress, 100, followerAddress, 50);
+
+        PoppyDB leader = new PoppyDB(leaderPort, "localhost", 20, 5);
+        leader.configureReplicaSet(rsName, hosts, prio);
+        startServer(leader, leaderPort);
+
+        PoppyDB follower = new PoppyDB(followerPort, "localhost", 20, 5);
+        follower.configureReplicaSet(rsName, hosts, prio, true, null);
+        startServer(follower, followerPort);
+
+        ElectionManager followerEm = follower.getElectionManager();
+        long term = followerEm.getCurrentTerm();
+        followerEm.handleAppendEntries(AppendEntriesRequest.heartbeat(term, leaderAddress, 0, 0, 0));
+
+        assertTrue(poll(30_000, () -> follower.getReplicationManagerForTest() != null),
+                "sanity: follower must actually start replicating from the leader first");
+        return follower;
+    }
+
+    /**
+     * The core fix under test: a probe firing against a same-instance ReplicationManager whose
+     * watch never (or no longer) registered must tear it down and feed the retry chain - proven
+     * end-to-end by observing the RM go null and then a fresh one reappear once the retry re-dials
+     * the (still perfectly reachable) leader.
+     */
+    @Test
+    public void probeTearsDownNeverLiveReplicationManagerAndSchedulesRetry() throws Exception {
+        int leaderPort = nextPort();
+        int followerPort = nextPort();
+        PoppyDB follower = startLeaderAndConnectedFollower("rsProbeDead", leaderPort, followerPort);
+        String leaderAddress = "localhost:" + leaderPort;
+
+        ReplicationManager live = follower.getReplicationManagerForTest();
+        assertNotNull(live, "sanity: real replication is up before the probe runs");
+        live.setWatchLiveForTest(false); // simulate the swallowed-connect-failure end state
+
+        follower.probeReplicationLiveness(leaderAddress, live);
+
+        // Torn down synchronously by the probe call itself.
+        assertNull(follower.getReplicationManagerForTest(),
+                "a never-live probe target must be stopped and cleared");
+
+        // ... and the backoff retry chain it feeds must re-establish replication against the
+        // still-reachable leader without any further test intervention.
+        assertTrue(poll(30_000, () -> {
+            ReplicationManager rm = follower.getReplicationManagerForTest();
+            return rm != null && rm != live;
+        }), "the retry chain fed by the probe must reconnect with a fresh ReplicationManager");
+    }
+
+    /**
+     * A probe firing while the target ReplicationManager's watch IS live must no-op: nothing is
+     * torn down, the same instance stays assigned.
+     */
+    @Test
+    public void probeNoOpsWhenWatchIsLive() throws Exception {
+        int leaderPort = nextPort();
+        int followerPort = nextPort();
+        PoppyDB follower = startLeaderAndConnectedFollower("rsProbeLive", leaderPort, followerPort);
+        String leaderAddress = "localhost:" + leaderPort;
+
+        ReplicationManager live = follower.getReplicationManagerForTest();
+        assertTrue(poll(10_000, live::isWatchLive), "sanity: watch must be live against a real reachable leader");
+
+        follower.probeReplicationLiveness(leaderAddress, live);
+
+        assertTrue(follower.getReplicationManagerForTest() == live,
+                "a live probe target must be left running untouched");
+    }
+
+    /**
+     * A probe firing after its target ReplicationManager was already superseded (a newer
+     * leadership/discovery transition replaced it) must no-op - it must never tear down whatever
+     * is CURRENTLY assigned just because the instance it was originally scheduled for is stale.
+     */
+    @Test
+    public void probeNoOpsWhenReplicationManagerWasReplaced() throws Exception {
+        int leaderPort = nextPort();
+        int followerPort = nextPort();
+        PoppyDB follower = startLeaderAndConnectedFollower("rsProbeReplaced", leaderPort, followerPort);
+        String leaderAddress = "localhost:" + leaderPort;
+
+        ReplicationManager current = follower.getReplicationManagerForTest();
+        ReplicationManager stale = new ReplicationManager(follower.getDriver(), "localhost", leaderPort);
+
+        follower.probeReplicationLiveness(leaderAddress, stale);
+
+        assertTrue(follower.getReplicationManagerForTest() == current,
+                "a probe for a superseded instance must not touch the currently assigned one");
+    }
 }
