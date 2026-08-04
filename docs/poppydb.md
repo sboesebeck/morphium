@@ -236,6 +236,8 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 | `--socket-timeout <seconds>` | `socket-timeout` | Idle connection timeout in seconds. | `300` |
 | `--cfg <path>`, `-f <path>` | | Load settings from this [configuration file](#configuration-file). | |
 | `--no-config` | | Skip the configuration file's default search paths (an explicit `--cfg`/`-f` still applies). | |
+| `--print-config` | | Print the effective configuration as a reusable config file, then exit. See [Inspecting and validating the configuration](#inspecting-and-validating-the-configuration). | |
+| `--check-config` | | Validate the effective configuration without starting the server, exit 0/1. See [Inspecting and validating the configuration](#inspecting-and-validating-the-configuration). | |
 | `-h`, `--help` | | Print this help message and exit. | |
 
 Example:
