@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -26,6 +27,8 @@ public class PoppyDBCLI {
         // to the front of the effective argument list (see below).
         Path explicitCfg = null;
         boolean skipConfigDiscovery = false;
+        boolean printConfig = false;
+        boolean checkConfig = false;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -46,6 +49,12 @@ public class PoppyDBCLI {
                 case "--no-config":
                     skipConfigDiscovery = true;
                     break;
+                case "--print-config":
+                    printConfig = true;
+                    break;
+                case "--check-config":
+                    checkConfig = true;
+                    break;
                 default:
                     break;
             }
@@ -56,7 +65,12 @@ public class PoppyDBCLI {
         try {
             cfgFile = configLoader.discover(explicitCfg, skipConfigDiscovery);
         } catch (ConfigException e) {
-            log.error(e.getMessage());
+            if (checkConfig) {
+                System.err.println("Configuration check FAILED:");
+                System.err.println("  - " + e.getMessage());
+            } else {
+                log.error(e.getMessage());
+            }
             System.exit(1);
             return;
         }
@@ -76,7 +90,12 @@ public class PoppyDBCLI {
                 cfgProps = configLoader.resolveFileRefs(cfgProps);
                 configTokens = configLoader.toArgs(cfgProps);
             } catch (ConfigException e) {
-                log.error(e.getMessage());
+                if (checkConfig) {
+                    System.err.println("Configuration check FAILED:");
+                    System.err.println("  - " + e.getMessage());
+                } else {
+                    log.error(e.getMessage());
+                }
                 System.exit(1);
                 return;
             }
@@ -91,6 +110,12 @@ public class PoppyDBCLI {
             effectiveArgs[i] = configTokens.get(i);
         }
         System.arraycopy(args, 0, effectiveArgs, configTokens.size(), args.length);
+
+        if (printConfig || checkConfig) {
+            System.exit(runInspection(effectiveArgs, configTokens.size(), cfgFile,
+                    printConfig, checkConfig, System.out, System.err));
+            return;
+        }
 
         PoppyDB srv;
         try {
@@ -137,6 +162,53 @@ public class PoppyDBCLI {
     }
 
     /**
+     * Backs --print-config/--check-config: parses, optionally prints the effective config,
+     * optionally validates it (semantic + deep checks), and returns the process exit code.
+     * Pure function of its inputs - System.exit stays in main() so tests can call this.
+     */
+    static int runInspection(String[] effectiveArgs, int configTokenCount, Path cfgFile,
+                             boolean print, boolean check, PrintStream out, PrintStream err) {
+        ServerOptions opts;
+        try {
+            opts = parse(effectiveArgs, configTokenCount);
+        } catch (ConfigException e) {
+            if (check) {
+                err.println("Configuration check FAILED:");
+                err.println("  - " + e.getMessage());
+            } else {
+                err.println(e.getMessage());
+            }
+            return 1;
+        }
+
+        if (print) {
+            out.print(ConfigInspector.render(opts, cfgFile));
+        }
+
+        if (check) {
+            ConfigInspector.Result semantic = ConfigInspector.validate(opts);
+            ConfigInspector.Result deep = ConfigInspector.deepCheck(opts);
+            List<String> errors = new ArrayList<>(semantic.errors());
+            errors.addAll(deep.errors());
+            List<String> warnings = new ArrayList<>(semantic.warnings());
+            warnings.addAll(deep.warnings());
+
+            for (String w : warnings) {
+                err.println("WARNING: " + w);
+            }
+            if (!errors.isEmpty()) {
+                err.println("Configuration check FAILED:");
+                for (String e : errors) {
+                    err.println("  - " + e);
+                }
+                return 1;
+            }
+            out.println("Configuration OK (" + (cfgFile != null ? cfgFile : "no config file") + ")");
+        }
+        return 0;
+    }
+
+    /**
      * Pure argument parsing into a {@link ServerOptions}. Tokens with index < configTokenCount
      * originated from the config file; everything after came from the real command line - that
      * boundary drives the per-key {@link ServerOptions.Source} tracking used by --print-config.
@@ -167,6 +239,8 @@ public class PoppyDBCLI {
                     break;
 
                 case "--no-config":
+                case "--print-config":
+                case "--check-config":
                     idx += 1;
                     break;
 
@@ -508,6 +582,12 @@ public class PoppyDBCLI {
         System.out.println("                                 /etc/poppydb/config");
         System.out.println("                                 /etc/poppydb.conf");
         System.out.println("                               is used (no merging - first match wins). See docs/poppydb.md.");
+        System.out.println("  --print-config             : Print the effective configuration (defaults + config file +");
+        System.out.println("                               command line merged, secrets redacted) as a reusable config");
+        System.out.println("                               file with per-key source annotations, then exit");
+        System.out.println("  --check-config             : Validate the effective configuration without starting the");
+        System.out.println("                               server: syntax, semantic cross-checks and deep checks");
+        System.out.println("                               (keystore loadable, dump-dir usable). Exit code 0 = OK, 1 = errors");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
@@ -517,5 +597,7 @@ public class PoppyDBCLI {
         System.out.println("  java -jar poppydb.jar -p 27017 --dump-dir /var/poppydb/data --dump-interval 300");
         System.out.println("  java -jar poppydb.jar --rs-name myrs --rs-seed localhost:27017,localhost:27018,localhost:27019");
         System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config");
+        System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config --check-config");
+        System.out.println("  java -jar poppydb.jar --no-config --print-config > poppydb.conf.template");
     }
 }

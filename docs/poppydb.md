@@ -183,6 +183,28 @@ Load it explicitly, or drop it at one of the default search paths:
 java -jar poppydb-cli.jar --cfg /etc/poppydb/config
 ```
 
+### Inspecting and validating the configuration
+
+`--print-config` prints the *effective* configuration - built-in defaults, the loaded config
+file and the command line merged, with the usual precedence (command line > config file >
+defaults) - and exits. Every key carries a comment naming where its value came from, secrets
+are redacted (`# root-password=***`). The output is itself a valid configuration file, so it
+doubles as a starting template:
+
+    java -jar poppydb.jar --no-config --print-config > poppydb.conf.template
+
+`--check-config` validates the effective configuration without starting the server and exits
+with code 0 (OK) or 1 (errors) - like `nginx -t`. Beyond syntax and semantic cross-checks
+(value ranges, `root-user`/`root-password` pairing, `rs-priorities` count matching `rs-seed`,
+`memory-warn` <= `memory-reject`, ...), it performs deep checks: the SSL keystore is actually
+loaded (catching wrong keystore passwords), secret files are read, and the dump directory is
+checked for usability. Warnings (e.g. `ssl` without a keystore) do not affect the exit code:
+
+    java -jar poppydb.jar --cfg /etc/poppydb/config --check-config
+
+Both flags can be combined with `--cfg`/`-f`, `--no-config` and any other option; `--print-config
+--check-config` prints first, then validates.
+
 ### Command Line Arguments
 You can configure the PoppyDB using the following command-line arguments. The **Config Key**
 column is the equivalent key for the [configuration file](#configuration-file) above (kebab-case,

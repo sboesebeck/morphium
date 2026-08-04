@@ -38,6 +38,13 @@ private config can never silently change what a local test run connects to. See
 [PoppyDB § Configuration File](docs/poppydb.md#configuration-file) and the
 [Production Deployment Playbook](docs/howtos/poppydb-deployment.md).
 
+#### PoppyDB: `--print-config`/`--check-config` CLI modes
+PoppyDB CLI: `--print-config` prints the effective configuration (defaults + config file +
+command line, secrets redacted, per-key source annotations) as a reusable config file;
+`--check-config` validates syntax, semantics and deep checks (keystore loadable, dump-dir
+usable) without starting the server — exit code 0/1 like `nginx -t`. See
+[PoppyDB § Inspecting and validating the configuration](docs/poppydb.md#inspecting-and-validating-the-configuration).
+
 #### PoppyDB: DevOps command surface — live currentOp/killOp, rs.conf(), listCommands, hostInfo, real connection gauges
 Closes the gaps that made mongosh's admin helpers fail against PoppyDB. A server-wide **op registry** tracks every command for the duration of its dispatch: `db.currentOp()` (mongosh's `{aggregate: 1, pipeline: [{$currentOp: {}}]}` shape, `$match` filters included) and the `currentOp` command answer from it with mongod-shaped op documents (opid, ns, command, secs_running, client, killPending — SASL/createUser payloads redacted); `killOp` marks an op kill-pending and best-effort interrupts its thread, cooperatively like mongod (never a Netty event loop; write-concern waits on the executor are interruptible). New commands: `listCommands` (generated from the real command surface — the wire handlers plus the driver's registered command classes), `hostInfo`, `connectionStatus` (reports the connection's SCRAM user under `--auth`), `whatsmyuri`, and `replSetGetConfig` — `rs.conf()` now works, reconstructed from `--rs-seed`/`--rs-priorities`. `serverStatus.connections` reports the server's **real** client-socket gauges (Netty channel group) instead of the in-memory driver's internal connection borrows. The embedded InMemoryDriver answers the `$currentOp` stage with an honest empty set (commands execute synchronously — there is never a concurrent op to report).
 
