@@ -128,6 +128,11 @@ public class PoppyDBCLI {
      */
     static PoppyDB configureServer(String[] effectiveArgs) throws Exception {
         ServerOptions opts = parse(effectiveArgs, 0);
+        ConfigInspector.Result r = ConfigInspector.validate(opts);
+        r.warnings().forEach(log::warn);
+        if (!r.errors().isEmpty()) {
+            throw new ConfigException("Invalid configuration: " + String.join("; ", r.errors()));
+        }
         return buildServer(opts);
     }
 
