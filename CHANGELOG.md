@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: `admin.system.users` replicates across the replica set — users survive failover
+Users were node-local: `createUser` only ever wrote to whichever node's own `admin.system.users`,
+so a secondary never had the same login-able users as the primary, and a failover — or a dump
+taken on a priority-0 backup node — silently lost them. `admin.system.users` is now the one system
+collection that replicates (live change-stream events, the initial-sync snapshot, and resync-clear
+all carry it, same as ordinary user data), and it gained a proper `updateUser` command (mongod-
+shaped, previously missing) alongside `createUser` for in-place password/role rotation. Both
+commands, like all writes, are now primary-only — a secondary answers them with
+`NotWritablePrimary` instead of silently accepting a write that would only ever apply locally,
+which was the underlying cause of the replication gap. `ensureRootUser` follows the same rule in
+election mode: only the current primary's leadership hook (re-)creates the initial admin user;
+secondaries never self-create it and only ever receive it via replication. See
+[PoppyDB § Authentication — User replication](docs/poppydb.md#authentication---auth).
+
 #### PoppyDB: configuration file support (`--cfg`/`-f`, `--no-config`), secrets kept off the command line
 Production deployment (systemd, Docker, config management) needed a config file — every setting
 was CLI-only, and passwords (`--rootPassword`, `--sslKeystorePassword`) on the command line are

@@ -567,6 +567,19 @@ server.start();
 - Passwords travel SCRAM-hashed, never in the clear — but combine `--auth` with `--ssl` when
   crossing untrusted networks to also encrypt the data itself.
 
+**User replication:** in a replica set, `admin.system.users` is the one system collection that
+replicates — users created or updated via `createUser`/`updateUser` reach every member, and
+(like all writes) only the primary accepts these commands; a secondary answers them with
+`NotWritablePrimary`. This means logins survive failover: a user created before a leadership
+change can still authenticate against the new primary and against every secondary, and a dump
+taken on any member — including a priority-0 backup node that never leads — contains the users,
+not just the data. Before this change users were node-local, so a backup-node dump silently
+omitted them. Two windows are worth knowing about: during a full resync a node's local user set
+is briefly empty until the snapshot lands, so SCRAM logins against that node fail in that window
+(unsurprising, since the node isn't caught up yet anyway); and right after a failover there is a
+brief window before the new primary has (re-)created the root user, during which root logins may
+transiently fail until that completes.
+
 **SSL with Docker:**
 ```dockerfile
 FROM openjdk:21-slim

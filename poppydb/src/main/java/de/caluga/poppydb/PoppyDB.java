@@ -601,8 +601,18 @@ public class PoppyDB {
         log.info("Discovered leader: {}", leaderId);
         primaryHost = leaderId;
 
-        // If we're a follower and not already replicating, start replication
-        if (!primary && replicationManager == null && leaderId != null) {
+        // If we're a follower, (re-)point replication at the newly discovered leader. A
+        // ReplicationManager's target host/port is fixed at construction time and never
+        // updated, so after a failover the old instance (still replicating from the now-dead
+        // former leader) would otherwise retry that dead address forever - it must be torn
+        // down and replaced with one pointed at the new leader, not left in place just because
+        // it happens to be non-null.
+        if (!primary && leaderId != null) {
+            if (replicationManager != null) {
+                replicationManager.stop();
+                replicationManager = null;
+            }
+
             String[] parts = leaderId.split(":");
             if (parts.length == 2) {
                 String leaderHost = parts[0];
