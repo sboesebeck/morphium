@@ -202,8 +202,8 @@ checked for usability. Warnings (e.g. `ssl` without a keystore) do not affect th
 
     java -jar poppydb.jar --cfg /etc/poppydb/config --check-config
 
-Both flags can be combined with `--cfg`/`-f`, `--no-config` and any other option; `--print-config
---check-config` prints first, then validates.
+Both flags combine with `--cfg`/`-f`, `--no-config` and any other option, but not with each other:
+`--print-config --check-config` exits immediately with an error.
 
 ### Command Line Arguments
 You can configure the PoppyDB using the following command-line arguments. The **Config Key**

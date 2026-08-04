@@ -87,14 +87,11 @@ public class PoppyDBCLIInspectionTest {
     }
 
     @Test
-    void printAndCheckTogetherPrintFirstThenCheck() {
+    void printAndCheckTogetherAreRejected() {
         int rc = PoppyDBCLI.runInspection(
             new String[] {"--port", "27018"}, 0, null, true, true, out, err);
-        assertThat(rc).isZero();
-        String stdout = out();
-        assertThat(stdout).contains("# PoppyDB effective configuration");
-        assertThat(stdout).contains("Configuration OK (no config file)");
-        assertThat(stdout.indexOf("# PoppyDB effective configuration"))
-            .isLessThan(stdout.indexOf("Configuration OK"));
+        assertThat(rc).isEqualTo(1);
+        assertThat(err()).contains("cannot be combined");
+        assertThat(out()).isEmpty();
     }
 }

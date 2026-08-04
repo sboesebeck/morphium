@@ -187,9 +187,15 @@ public class PoppyDBCLI {
      * Backs --print-config/--check-config: parses, optionally prints the effective config,
      * optionally validates it (semantic + deep checks), and returns the process exit code.
      * Pure function of its inputs - System.exit stays in main() so tests can call this.
+     * The two flags are mutually exclusive - combining them is rejected before parsing.
      */
     static int runInspection(String[] effectiveArgs, int configTokenCount, Path cfgFile,
                              boolean print, boolean check, PrintStream out, PrintStream err) {
+        if (print && check) {
+            err.println("--print-config and --check-config cannot be combined - run them separately");
+            return 1;
+        }
+
         ServerOptions opts;
         try {
             opts = parse(effectiveArgs, configTokenCount);
@@ -247,12 +253,6 @@ public class PoppyDBCLI {
                     : ServerOptions.Source.CLI;
 
             switch (effectiveArgs[idx]) {
-                case "--help":
-                case "-h":
-                    printHelp();
-                    System.exit(0);
-                    break;
-
                 // Already handled by the pre-scan in main(); tolerate them here too in case they
                 // show up in the real (post-config-token) part of effectiveArgs.
                 case "--cfg":
@@ -260,6 +260,8 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--help":
+                case "-h":
                 case "--no-config":
                 case "--print-config":
                 case "--check-config":

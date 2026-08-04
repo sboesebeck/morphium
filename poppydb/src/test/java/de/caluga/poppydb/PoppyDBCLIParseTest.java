@@ -141,4 +141,10 @@ public class PoppyDBCLIParseTest {
             .isInstanceOf(ConfigException.class)
             .hasMessageContaining("abc");
     }
+
+    @Test
+    void helpFlagIsToleratedWithoutSideEffects() {
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--help", "--port", "4711"}, 0);
+        assertThat(opts.port).isEqualTo(4711);
+    }
 }
