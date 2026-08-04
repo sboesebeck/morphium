@@ -423,15 +423,18 @@ public class ReplicationManager {
 
     /**
      * Which (db, collection) pairs replicate. Normal user data does; internal databases and
-     * system collections do not - with exactly one exception: admin.system.users, so that
-     * logins survive failovers and initial sync (users would otherwise be node-local).
+     * system collections do not - with exactly two exceptions: admin.system.users, so that
+     * logins survive failovers and initial sync (users would otherwise be node-local), and
+     * admin.system.version, which carries the users-file version-gate meta doc ({_id:
+     * "poppydb.usersFile", appliedVersion: N}) so a newly-elected primary sees the version a
+     * prior primary already applied instead of silently re-applying (or skipping) the file.
      *
      * Central predicate for every skip decision in this class (live apply, initial-sync
      * enumeration, resync clearing, index diff) - do not add per-site variations.
      */
     static boolean isReplicated(String db, String collection) {
         if ("admin".equals(db)) {
-            return "system.users".equals(collection);
+            return "system.users".equals(collection) || "system.version".equals(collection);
         }
         if ("local".equals(db) || "config".equals(db)) {
             return false;
@@ -1365,6 +1368,31 @@ public class ReplicationManager {
             "deletes", List.of(Doc.of("q", Doc.of(), "limit", 0))
         ));
         localDriver.runCommand(clearUsers);
+
+        // admin.system.version DOES replicate too (the users-file version-gate meta doc), and is
+        // subject to the exact same staleness risk as admin.system.users above: without this
+        // clear, a meta doc left over from BEFORE this node dropped out of the cluster would
+        // survive the resync untouched (admin is never dropped wholesale), and the snapshot copy
+        // would then land its own fresh appliedVersion doc alongside it via strict insert - either
+        // colliding on _id (harmless, same doc) or, if the primary's meta doc genuinely changed
+        // underneath, leaving stale data around long enough to wrongly gate a future users-file
+        // apply on this node.
+        //
+        // Deliberately NOT the same "delete" GenericCommand idiom clearUsers above uses: an empty
+        // delete against a collection that does not locally exist yet still runs a find() to
+        // determine the (empty) match set, and InMemoryDriver's find() auto-vivifies the target
+        // collection as a side effect (getCollection() lazily creates it, complete with its
+        // implicit _id index) even when nothing is deleted. Since system.version has no writer
+        // before the users-file feature (task 4) ever runs createUser/updateUser-style traffic
+        // against it, that phantom empty collection would otherwise get created HERE, on every
+        // secondary that ever completes a full sync - but never on a primary that has not
+        // separately gone through this same path - permanently and asymmetrically diverging the
+        // replicated-namespace set the initial-sync consistency shortcut compares
+        // (tryConsistencyShortcut's replicatedNamespaces()), which would then always fall back to
+        // a full sync instead of taking the shortcut. drop() is the safe idempotent primitive:
+        // it removes the map entry outright (a no-op if the collection was never created) and
+        // never conjures one into existence.
+        localDriver.drop("admin", "system.version", null);
     }
 
     /**

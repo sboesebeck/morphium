@@ -317,6 +317,40 @@ public class UserReplicationTest {
     }
 
     /**
+     * admin.system.version is the meta-doc namespace the users-file version gate writes to
+     * (user-replication task 3 follow-up): a doc inserted there on the primary must reach the
+     * secondary the same way admin.system.users does, via the normal change-stream/generic-insert
+     * path (not a special-cased apply). Written directly through the primary's InMemoryDriver
+     * (mirroring InitialSyncTest's approach) rather than a wire command, since there is no
+     * "createVersionDoc" server command - the real bootstrap apply (task 4) will use a plain
+     * update-with-upsert through the driver, which fires the same insert/replace events this
+     * generic insert does.
+     */
+    @Test
+    public void systemVersionDocReplicatesToSecondary() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+        PoppyDB primary = new PoppyDB(port1, "localhost", 20, 5);
+        PoppyDB secondary = new PoppyDB(port2, "localhost", 20, 5);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2);
+        var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
+        primary.configureReplicaSet("rsSystemVersionRepl", hosts, prio);
+        secondary.configureReplicaSet("rsSystemVersionRepl", hosts, prio);
+
+        startServer(primary, port1);
+        waitForPrimary(primary);
+        startServer(secondary, port2);
+        waitForInitialSync(secondary);
+
+        primary.getDriver().insert("admin", "system.version",
+                List.of(Doc.of("_id", "poppydb.usersFile", "appliedVersion", 1L)), null);
+
+        assertTrue(poll(30_000, () ->
+                        secondary.getDriver().count("admin", "system.version", Doc.of(), null, null) == 1),
+                "a doc inserted into admin.system.version on the primary must replicate to the secondary");
+    }
+
+    /**
      * Guard: the ONLY namespace joining replication is admin.system.users. A regression that
      * lets local/config, other admin collections or other system.* collections replicate is
      * Critical (July 2026 failover semantics depend on them staying node-local).
@@ -325,23 +359,29 @@ public class UserReplicationTest {
     public void localAndConfigAndOtherSystemCollectionsStillNotReplicated() {
         assertTrue(ReplicationManager.isReplicated("admin", "system.users"),
                 "admin.system.users is the one replicated system collection");
+        assertTrue(ReplicationManager.isReplicated("admin", "system.version"),
+                "admin.system.version replicates too - it carries the users-file version gate");
 
         assertFalse(ReplicationManager.isReplicated("admin", "foo"),
                 "other admin collections must not replicate");
-        assertFalse(ReplicationManager.isReplicated("admin", "system.version"),
-                "admin.system.version must not replicate");
         assertFalse(ReplicationManager.isReplicated("local", "x"),
                 "local must never replicate");
         assertFalse(ReplicationManager.isReplicated("local", "system.users"),
                 "only ADMIN's system.users replicates - not local's");
+        assertFalse(ReplicationManager.isReplicated("local", "system.version"),
+                "only ADMIN's system.version replicates - not local's");
         assertFalse(ReplicationManager.isReplicated("config", "x"),
                 "config must never replicate");
         assertFalse(ReplicationManager.isReplicated("config", "system.users"),
                 "only ADMIN's system.users replicates - not config's");
+        assertFalse(ReplicationManager.isReplicated("config", "system.version"),
+                "only ADMIN's system.version replicates - not config's");
         assertFalse(ReplicationManager.isReplicated("mydb", "system.indexes"),
                 "system.* in user databases must not replicate");
         assertFalse(ReplicationManager.isReplicated("mydb", "system.users"),
                 "a user-db collection named system.users is still a system collection");
+        assertFalse(ReplicationManager.isReplicated("mydb", "system.version"),
+                "a user-db collection named system.version is still a system collection");
 
         assertTrue(ReplicationManager.isReplicated("mydb", "normal"),
                 "normal user data must replicate");
