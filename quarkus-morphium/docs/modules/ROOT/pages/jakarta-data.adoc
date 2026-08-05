@@ -1,0 +1,269 @@
+= Jakarta Data 1.0
+
+include::./includes/attributes.adoc[]
+
+The quarkus-morphium extension provides full link:https://jakarta.ee/specifications/data/1.0/[Jakarta Data 1.0] support
+for MongoDB. Define a `@Repository` interface, inject it, done. The implementation is generated
+at **Quarkus build time** via Gizmo bytecode generation — no runtime reflection, no proxies,
+GraalVM native-image compatible.
+
+== Quick Example
+
+[source,java]
+----
+@Repository
+public interface ProductRepository extends CrudRepository<Product, MorphiumId> {
+
+    List<Product> findByCategory(String category);
+
+    @OrderBy("price")
+    List<Product> findByPriceBetween(double min, double max);
+
+    long countByCategory(String category);
+
+    boolean existsByName(String name);
+}
+----
+
+[source,java]
+----
+@ApplicationScoped
+public class ProductService {
+
+    @Inject ProductRepository products;
+
+    public Product create(String name, double price, String category) {
+        var product = new Product();
+        product.setName(name);
+        product.setPrice(price);
+        product.setCategory(category);
+        return products.insert(product);
+    }
+}
+----
+
+== Repository Hierarchy
+
+The extension supports the full Jakarta Data repository hierarchy:
+
+[cols="1,2"]
+|===
+| `DataRepository<T,K>` | Marker interface — no methods, used for custom repositories
+| `BasicRepository<T,K>` | `findById`, `findAll`, `save`, `saveAll`, `delete`, `deleteById`, `deleteAll`
+| `CrudRepository<T,K>` | Extends BasicRepository — adds `insert`, `insertAll`, `update`, `updateAll`
+| `MorphiumRepository<T,K>` | Extends CrudRepository — adds `distinct()`, `morphium()`, `query()` for Morphium-specific features
+|===
+
+== MorphiumRepository — The Escape Hatch
+
+`MorphiumRepository<T,K>` is a provider-specific extension of `CrudRepository`. It provides
+access to Morphium features that have no equivalent in Jakarta Data 1.0:
+
+[source,java]
+----
+@Repository
+public interface ProductRepository extends MorphiumRepository<Product, MorphiumId> {
+
+    List<Product> findByCategory(String category);
+}
+----
+
+[source,java]
+----
+// Distinct values for a field
+List<Object> categories = products.distinct("category");
+
+// Direct access to the Morphium API for aggregation, atomic updates, etc.
+Morphium m = products.morphium();
+m.inc(product, "stock", 5);
+
+// Create a typed Morphium Query for complex conditions
+Query<Product> q = products.query();
+q.f("price").gt(100).f("category").eq("electronics");
+List<Product> results = q.asList();
+----
+
+All standard Jakarta Data features (CRUD, query derivation, `@Find`, `@Query`, pagination, sorting)
+work exactly the same as with `CrudRepository`.
+
+== Query Derivation
+
+Define query methods by naming convention. The method name is parsed at build time and validated
+against the entity's fields.
+
+[source,java]
+----
+List<Product> findByName(String name);                         // WHERE name = ?
+List<Product> findByPriceGreaterThan(double min);              // WHERE price > ?
+List<Product> findByPriceBetween(double min, double max);      // WHERE price >= ? AND price <= ?
+List<Product> findByNameLike(String pattern);                  // WHERE name LIKE ?
+List<Product> findByActiveTrue();                              // WHERE active = true
+List<Product> findByTagNull();                                 // WHERE tag IS NULL
+long countByCategory(String category);                         // COUNT WHERE category = ?
+boolean existsByEmail(String email);                           // EXISTS WHERE email = ?
+void deleteByStatus(String status);                            // DELETE WHERE status = ?
+----
+
+=== Supported Operators
+
+[cols="1,1,2"]
+|===
+| Suffix | Morphium Equivalent | Example
+
+| `Equals` (default) | `.eq()` | `findByName(String)`
+| `Not` | `.ne()` | `findByStatusNot(String)`
+| `GreaterThan` | `.gt()` | `findByPriceGreaterThan(double)`
+| `GreaterThanEqual` | `.gte()` | `findByPriceGreaterThanEqual(double)`
+| `LessThan` | `.lt()` | `findByPriceLessThan(double)`
+| `LessThanEqual` | `.lte()` | `findByPriceLessThanEqual(double)`
+| `Between` | `.gte()` + `.lte()` | `findByPriceBetween(double, double)`
+| `In` | `.in()` | `findByStatusIn(List<String>)`
+| `NotIn` | `.nin()` | `findByStatusNotIn(List<String>)`
+| `Like` | `.matches()` | `findByNameLike(String)`
+| `StartsWith` | `.matches("^"+val)` | `findByNameStartsWith(String)`
+| `EndsWith` | `.matches(val+"$")` | `findByNameEndsWith(String)`
+| `Null` | `.notExists()` | `findByTagNull()`
+| `NotNull` | `.exists()` | `findByTagNotNull()`
+| `True` | `.eq(true)` | `findByActiveTrue()`
+| `False` | `.eq(false)` | `findByActiveFalse()`
+|===
+
+Operators can be combined with `And` and `Or`:
+
+[source,java]
+----
+List<Product> findByCategoryAndPriceGreaterThan(String cat, double min);
+List<Product> findByNameOrTag(String name, String tag);
+----
+
+== @Find / @By — Explicit Field Binding
+
+Use `@Find` with `@By` parameter annotations for explicit field binding. This is useful
+for embedded fields (dot notation) or when method naming doesn't map cleanly.
+
+[source,java]
+----
+@Find
+List<Product> findByCategory(@By("category.name") String categoryName);
+
+@Find
+@OrderBy(value = "price", descending = true)
+List<Product> topByCategory(@By("category.name") String name, Limit limit);
+
+@Find
+List<Product> search(@By("category") String cat,
+                     @By("price") @Is(GreaterThanEqual) double minPrice,
+                     Sort<Product> sort);
+----
+
+== @Query / JDQL — Jakarta Data Query Language
+
+For complex queries, use `@Query` with JDQL syntax:
+
+[source,java]
+----
+@Query("WHERE name LIKE :pattern ORDER BY price ASC")
+List<Product> searchByNameLike(@Param("pattern") String pattern);
+
+@Query("WHERE category = :cat AND price > :minPrice ORDER BY price")
+List<Product> findExpensive(@Param("cat") String category,
+                            @Param("minPrice") double minPrice);
+
+@Query("WHERE price >= :min AND price <= :max ORDER BY price ASC")
+List<Product> queryByPriceRange(@Param("min") double min, @Param("max") double max);
+
+@Query("WHERE price >= :min")
+long countByMinPrice(@Param("min") double minPrice);
+----
+
+JDQL supports: `WHERE`, `ORDER BY`, named parameters (`:param`), comparison operators
+(`=`, `<>`, `>`, `<`, `>=`, `\<=`), `BETWEEN`, `IN`, `LIKE`, `IS NULL`, `IS NOT NULL`, `NOT`.
+
+== Pagination & Sorting
+
+[source,java]
+----
+// Paginated query
+Page<Product> findByCategory(String category, PageRequest pageRequest);
+
+// Dynamic sort via Order parameter
+Page<Product> findAll(PageRequest pageRequest, Order<Product> order);
+
+// Static sort with @OrderBy
+@OrderBy("price")
+List<Product> findByCategory(String category);
+
+// Limit results
+@Find
+List<Product> findTop(@By("category") String cat, Limit limit);
+----
+
+[source,java]
+----
+// Usage
+Page<Product> page = products.findByCategory("electronics",
+    PageRequest.ofPage(1, 20, true));
+
+page.content();       // List<Product>
+page.totalElements(); // total count
+page.totalPages();    // calculated from total and page size
+page.hasNext();       // true if more pages exist
+----
+
+== @StaticMetamodel — Type-Safe Field References
+
+The extension auto-generates `@StaticMetamodel` classes at build time for every `@Entity`:
+
+[source,java]
+----
+// Auto-generated: Product_.java
+@StaticMetamodel(Product.class)
+public class Product_ {
+    public static final String NAME = "name";
+    public static volatile SortableAttribute<Product> name;
+    public static volatile SortableAttribute<Product> price;
+    public static volatile TextAttribute<Product> category;
+    // ...
+}
+----
+
+Use them for type-safe sorting:
+
+[source,java]
+----
+Order<Product> order = Order.by(Product_.price.asc(), Product_.name.asc());
+Page<Product> page = products.findAll(PageRequest.ofPage(1), order);
+----
+
+== Morphium ORM Features — Transparent Through Repositories
+
+All Morphium ORM annotations work transparently through Jakarta Data repositories because
+the generated implementations delegate to `morphium.store()`, `morphium.findById()`, etc.:
+
+[cols="1,2"]
+|===
+| Feature | How it works
+
+| `@Version` | Optimistic locking — Morphium checks and increments the version on every `save()`/`update()`
+| `@CreationTime` / `@LastChange` | Automatically set on first store / every store
+| `@PreStore` / `@PostStore` / `@PostLoad` | Lifecycle callbacks fired by Morphium on store/load
+| `@Cache` / `@WriteBuffer` | Read cache and async write batching
+| `@Reference` (lazy/eager) | Document references with optional `cascadeDelete` and `orphanRemoval`
+| `@Index` | Index creation managed by Morphium on startup
+|===
+
+== When to Use Which
+
+[cols="1,1"]
+|===
+| Use Jakarta Data for | Use Morphium API for
+
+| Standard CRUD (save, findById, delete) | Aggregation pipelines ($group, $project)
+| Simple to medium queries (findBy, countBy) | Atomic field operations (inc, push, pull)
+| Paginated results (Page, PageRequest) | Bulk updates ($set, $unset)
+| JDQL queries (WHERE, ORDER BY, LIKE) | Change streams, messaging
+| Testable interfaces (easy to mock) | Geospatial queries ($near, $geoWithin)
+|===
+
+TIP: Both approaches work together. Use `MorphiumRepository` for the best of both worlds —
+Jakarta Data for standard operations, and `morphium()` / `query()` for the escape hatch.

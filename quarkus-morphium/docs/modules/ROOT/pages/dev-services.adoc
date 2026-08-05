@@ -1,0 +1,109 @@
+= Dev Services
+
+include::./includes/attributes.adoc[]
+
+In *dev* (`quarkus dev`) and *test* mode the extension automatically starts a MongoDB Docker
+container when `quarkus.morphium.hosts` is not explicitly configured. No additional setup is
+needed.
+
+== How It Works
+
+1. At build time, the extension checks whether `quarkus.morphium.hosts` is set.
+2. If not set and Dev Services are enabled, a MongoDB container is started via
+   link:{testcontainers-url}[Testcontainers].
+3. The container's mapped port and database name are injected as
+   `quarkus.morphium.hosts` and `quarkus.morphium.database`.
+4. The container is reused across live reloads — it is *not* restarted when you change code.
+5. On JVM shutdown (Ctrl-C or test runner exit), the container is stopped automatically.
+
+== Configuration
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.devservices.enabled`
+| `true`
+| Set to `false` to disable the automatic container.
+
+| `quarkus.morphium.devservices.image-name`
+| `mongo:8`
+| Docker image to use (e.g. `mongo:7`, `mongo:6`).
+
+| `quarkus.morphium.devservices.database-name`
+| `morphium-dev`
+| Database name injected into `quarkus.morphium.database`.
+
+| `quarkus.morphium.devservices.replica-set`
+| `true`
+| Start MongoDB as a single-node replica set. Enables multi-document transactions, change streams, and other oplog-dependent features.
+|===
+
+== Replica-Set Mode
+
+By default, Dev Services starts MongoDB as a single-node replica set via Testcontainers'
+`MongoDBContainer.withReplicaSet()`. This enables multi-document transactions, change streams,
+and `@MorphiumTransactional` out of the box.
+
+The extension uses Testcontainers' `MongoDBContainer` which automatically:
+
+* Starts MongoDB with `--replSet`
+* Executes `rs.initiate()`
+* Waits for the node to become PRIMARY
+
+This gives you a fully functional replica set in a single container.
+
+== Dev UI Card
+
+In dev mode (`quarkus dev`), the extension registers a card in the Quarkus Dev UI at
+`/q/dev-ui/`. The card queries the running Morphium instance at runtime via JsonRPC and
+displays:
+
+[cols="1,3",options="header"]
+|===
+| Field | Description
+
+| Hosts
+| The `host:port` list from the cluster configuration, or the Atlas/SRV URL when applicable.
+
+| Database
+| The configured database name.
+
+| Mode
+| `Standalone` or `Replica Set (transactions enabled)` — detected at runtime via the MongoDB hello handshake.
+
+| Driver
+| The active Morphium driver implementation (e.g. `PooledDriver`, `InMemDriver`).
+
+| Status
+| `Connected` or `Disconnected` — reflects the actual runtime connection state.
+|===
+
+== Hot-Reload Behavior
+
+When you save a file in dev mode:
+
+* The MongoDB container *survives* the live reload — it is not restarted.
+* The Morphium `ObjectMapperImpl` entity class cache is cleared so that ClassGraph re-scans
+  the classpath with the new `QuarkusClassLoader`. Without this, stale class references from
+  the previous class loader would cause entity mapping failures.
+
+== Disabling Dev Services
+
+To use an external MongoDB instead of the automatic container:
+
+[source,properties]
+----
+quarkus.morphium.devservices.enabled=false
+quarkus.morphium.hosts=my-mongo:27017
+quarkus.morphium.database=mydb
+----
+
+Alternatively, simply setting `quarkus.morphium.hosts` is sufficient — Dev Services are
+automatically skipped when hosts are explicitly configured.
+
+== Fallback Behavior
+
+If the container fails to start (e.g. Docker not available), the extension logs a WARN and
+falls back to the configured `quarkus.morphium.hosts` (if any). The application will not
+fail to start — but it will fail at runtime if no MongoDB is reachable.

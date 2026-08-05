@@ -1,0 +1,153 @@
+= Health Checks
+
+include::./includes/attributes.adoc[]
+
+The extension automatically registers three MicroProfile Health probes with the SmallRye
+Health subsystem. These probes integrate with Kubernetes liveness, readiness, and startup
+probes out of the box.
+
+NOTE: The extension already includes `quarkus-smallrye-health` as a transitive dependency.
+No additional dependency is needed — health endpoints are available by default.
+
+== Probes Overview
+
+[cols="1,2,2,2",options="header"]
+|===
+| Probe | Endpoint | Condition | Kubernetes Behavior
+
+| Liveness
+| `/q/health/live`
+| Driver is connected
+| DOWN triggers pod *restart*
+
+| Readiness
+| `/q/health/ready`
+| Driver is connected
+| DOWN removes pod from *service endpoints*
+
+| Startup
+| `/q/health/started`
+| Initial connection established
+| DOWN *defers* liveness and readiness probes
+|===
+
+== Liveness Check
+
+Reports UP when the Morphium driver is connected; DOWN otherwise.
+
+*Metadata:*
+
+* `database` — the configured database name
+* `driver` — the driver class name (e.g. `PooledDriver`)
+
+A DOWN liveness probe causes Kubernetes to restart the pod. This detects permanent
+connection loss (e.g. server crashed, network partition).
+
+== Readiness Check
+
+Reports UP when the Morphium driver is connected. Pool statistics are included as
+*informational metadata* but do not affect the UP/DOWN status.
+
+*Metadata:*
+
+* `database` — the configured database name
+* `connectionsInUse` — current number of active connections
+* `connectionsInPool` — total connections in the pool
+* `threadsWaiting` — threads waiting for a connection
+* `errors` — total error count
+* `host:<host:port>` — per-host connection count
+
+Pool saturation during bulk operations is normal and does not affect readiness. This is
+consistent with how other Quarkus MongoDB extensions handle readiness (ping only).
+
+If pool statistics cannot be collected (e.g. during heavy load), the probe still returns
+UP with a `statsUnavailable` metadata entry.
+
+== Startup Check
+
+Reports DOWN until the initial MongoDB connection has been established.
+
+*Metadata:*
+
+* `database` — the configured database name
+* `connectionsOpened` — total number of connections opened since startup
+
+A DOWN startup probe causes Kubernetes to defer liveness and readiness checks, giving the
+application time to establish its first connection.
+
+== JSON Response Example
+
+[source,json]
+----
+{
+  "status": "UP",
+  "checks": [
+    {
+      "name": "Morphium liveness check",
+      "status": "UP",
+      "data": {
+        "database": "my-database",
+        "driver": "PooledDriver"
+      }
+    },
+    {
+      "name": "Morphium readiness check",
+      "status": "UP",
+      "data": {
+        "database": "my-database",
+        "connectionsInUse": 2,
+        "connectionsInPool": 10,
+        "threadsWaiting": 0,
+        "errors": 0,
+        "host:localhost:27017": 10
+      }
+    },
+    {
+      "name": "Morphium startup check",
+      "status": "UP",
+      "data": {
+        "database": "my-database",
+        "connectionsOpened": 10
+      }
+    }
+  ]
+}
+----
+
+== Kubernetes Probe Mapping
+
+[source,yaml]
+----
+livenessProbe:
+  httpGet:
+    path: /q/health/live
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /q/health/ready
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+startupProbe:
+  httpGet:
+    path: /q/health/started
+    port: 8080
+  initialDelaySeconds: 3
+  periodSeconds: 5
+  failureThreshold: 12
+----
+
+== Disabling Health Checks
+
+To suppress all Morphium health checks:
+
+[source,properties]
+----
+quarkus.morphium.health.enabled=false
+----
+
+This is a *build-time* property — changes require a rebuild.

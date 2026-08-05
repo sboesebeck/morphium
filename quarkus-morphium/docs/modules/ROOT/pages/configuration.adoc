@@ -1,0 +1,204 @@
+= Configuration Reference
+
+include::./includes/attributes.adoc[]
+
+All configuration properties live under the `quarkus.morphium.*` prefix in
+`application.properties`. This page documents every available property.
+
+== Core Properties
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.database`
+| _(required)_
+| MongoDB database name.
+
+| `quarkus.morphium.hosts`
+| `localhost:27017`
+| Comma-separated `host:port` list. Overridden by `atlas-url` when set.
+
+| `quarkus.morphium.username`
+| –
+| MongoDB username (optional).
+
+| `quarkus.morphium.password`
+| –
+| MongoDB password (optional).
+
+| `quarkus.morphium.auth-database`
+| `admin`
+| Authentication database for SCRAM credentials.
+
+| `quarkus.morphium.atlas-url`
+| –
+| MongoDB Atlas SRV connection string (`mongodb+srv://...`). When set, overrides `hosts`.
+
+| `quarkus.morphium.read-preference`
+| `primary`
+| Read preference: `primary`, `primaryPreferred`, `secondary`, `secondaryPreferred`, `nearest`.
+
+| `quarkus.morphium.create-indexes`
+| `true`
+| Automatically create / verify indexes on startup.
+
+| `quarkus.morphium.max-connections`
+| `250`
+| Maximum number of connections in the pool.
+
+| `quarkus.morphium.driver-name`
+| `PooledDriver`
+| Morphium driver implementation. Use `InMemDriver` for tests (no MongoDB required).
+|===
+
+== Cache Properties
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.cache.read-cache-enabled`
+| `true`
+| Enable query-result caching for `@Cache`-annotated entities.
+
+| `quarkus.morphium.cache.global-valid-time`
+| `60000`
+| Global cache TTL in milliseconds.
+|===
+
+== LocalDateTime Storage
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.local-date-time.use-bson-date`
+| `true`
+| Store `LocalDateTime` as BSON `ISODate`. Set to `false` only for backward compatibility with data written by Morphium {lt}= 6.1.
+|===
+
+.Format comparison
+[cols="2,1,1",options="header"]
+|===
+| | BSON `ISODate` (`true`) | Legacy Map (`false`)
+
+| New projects
+| *recommended*
+| –
+
+| Compatible with Morphia-written data
+| yes
+| no
+
+| Native date queries (`$gt`, `$lt`, sort)
+| yes
+| no
+
+| Readable in Atlas UI / mongosh
+| yes
+| no
+|===
+
+== SSL / TLS Properties
+
+These properties configure encrypted connections and X.509 client-certificate authentication.
+See xref:advanced.adoc#ssl-tls[Advanced Topics: SSL/TLS] for usage examples.
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.ssl.enabled`
+| `false`
+| Enable TLS for the MongoDB connection.
+
+| `quarkus.morphium.ssl.auth-mechanism`
+| –
+| Authentication mechanism. Leave unset for SCRAM-SHA-256 (default). Set to `MONGODB-X509` for X.509 client-certificate auth.
+
+| `quarkus.morphium.ssl.keystore-path`
+| –
+| Path to the keystore file (JKS or PKCS12) containing the client certificate for X.509 / mutual TLS. Falls back to the JVM default keystore (`javax.net.ssl.keyStore`) when absent.
+
+| `quarkus.morphium.ssl.keystore-password`
+| –
+| Password for the keystore.
+
+| `quarkus.morphium.ssl.truststore-path`
+| –
+| Path to the truststore file for validating the MongoDB server certificate. Falls back to the JVM default truststore when absent.
+
+| `quarkus.morphium.ssl.truststore-password`
+| –
+| Password for the truststore.
+
+| `quarkus.morphium.ssl.invalid-hostname-allowed`
+| `false`
+| Allow invalid / self-signed hostnames in the server certificate. *Do not enable in production.*
+
+| `quarkus.morphium.ssl.x509-username`
+| –
+| Explicit X.509 subject DN to use as the MongoDB username. When absent, the subject DN is extracted automatically from the client certificate.
+|===
+
+== Dev Services Properties (Build Time)
+
+Dev Services configuration is resolved at *build time* and cannot be overridden at runtime.
+See xref:dev-services.adoc[Dev Services] for details.
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.devservices.enabled`
+| `true`
+| Enable automatic MongoDB container in dev / test mode.
+
+| `quarkus.morphium.devservices.image-name`
+| `mongo:8`
+| Docker image for the MongoDB container.
+
+| `quarkus.morphium.devservices.database-name`
+| `morphium-dev`
+| Database name injected as `quarkus.morphium.database`.
+
+| `quarkus.morphium.devservices.replica-set`
+| `true`
+| Start MongoDB as a single-node replica set. Enables multi-document transactions, change streams, and `@MorphiumTransactional`.
+|===
+
+== Health Check Properties (Build Time)
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.health.enabled`
+| `true`
+| Enable Morphium health checks (liveness, readiness, startup) via SmallRye Health. Health endpoints are available by default when the extension is present.
+|===
+
+== Environment Variable Overrides
+
+SmallRye Config automatically maps property names to environment variables. Replace dots with
+underscores and use upper case:
+
+[source,bash]
+----
+export QUARKUS_MORPHIUM_DATABASE=production-db
+export QUARKUS_MORPHIUM_HOSTS=mongo1:27017,mongo2:27017
+export QUARKUS_MORPHIUM_USERNAME=admin
+export QUARKUS_MORPHIUM_PASSWORD=secret
+export QUARKUS_MORPHIUM_SSL_ENABLED=true
+----
+
+== Configuration Precedence
+
+SmallRye Config resolves values in this order (highest priority first):
+
+1. System properties (`-Dquarkus.morphium.database=...`)
+2. Environment variables (`QUARKUS_MORPHIUM_DATABASE=...`)
+3. `.env` file in the project root
+4. `application.properties` (profile-specific: `%dev.`, `%test.`, `%prod.`)
+5. Default values defined in the extension

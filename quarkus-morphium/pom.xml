@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- ENTSCHEIDUNG-OFFEN D1: Lockstep mit Morphium-Version. Bei Variante A
+       hier <version> und <morphium.version> ergänzen. -->
+  <parent>
+    <groupId>de.caluga</groupId>
+    <artifactId>morphium-parent</artifactId>
+    <version>6.3.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>quarkus-morphium-parent</artifactId>
+  <packaging>pom</packaging>
+
+  <name>Quarkus Morphium Extension – Parent</name>
+  <description>
+    Quarkus CDI extension that integrates the Morphium MongoDB ORM.
+    Provides @ApplicationScoped Morphium producer, type-safe @ConfigMapping,
+    and GraalVM native reflection registration for all @Entity classes.
+  </description>
+
+  <modules>
+    <module>runtime</module>
+    <module>deployment</module>
+    <module>testing</module>
+    <module>integration-tests</module>
+  </modules>
+
+  <!-- quarkus.version is defined in morphium-parent (see D1, Absicherung B6):
+       a Quarkus upgrade is a single-line change there. Only the BOM
+       *import* below stays in this module's own POM (see D3, I4) so that
+       no core build (morphium-core/poppydb) ever has to resolve Quarkus
+       artifacts just to read the version. -->
+
+  <!-- Der Quarkus-BOM-Import bleibt bewusst hier und darf NICHT nach
+       morphium-parent wandern (siehe D3, Invariante I4): sonst löst jeder
+       Kern-Build (morphium-core/poppydb) ~400 Quarkus-Artefakte auf. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.quarkus.platform</groupId>
+        <artifactId>quarkus-bom</artifactId>
+        <version>${quarkus.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>3.27.7</version>
+        <scope>test</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <!-- maven-compiler-plugin und maven-surefire-plugin werden bereits
+             von morphium-parent versioniert (siehe dort); hier nur die
+             Zusatz-Konfiguration, die der Parent nicht liefert. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <release>${maven.compiler.release}</release>
+            <parameters>true</parameters>
+            <compilerArgs>
+              <arg>-Xlint:deprecation,unchecked</arg>
+            </compilerArgs>
+          </configuration>
+        </plugin>
+        <!-- Vom morphium-parent NICHT geführt — hier eigenständig verwaltet. -->
+        <plugin>
+          <groupId>io.quarkus</groupId>
+          <artifactId>quarkus-extension-maven-plugin</artifactId>
+          <version>${quarkus.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>

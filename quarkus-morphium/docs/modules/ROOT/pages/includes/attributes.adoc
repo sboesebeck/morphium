@@ -1,0 +1,13 @@
+:quarkus-morphium-groupid: de.caluga
+:quarkus-morphium-version: 6.3.0-SNAPSHOT
+:quarkus-version: 3.32.3
+:morphium-version: 6.3.0-SNAPSHOT
+:extension-status: preview
+
+:github-base-url: https://github.com/sboesebeck/morphium/tree/develop/quarkus-morphium
+:morphium-github-url: https://github.com/sboesebeck/morphium
+:morphium-docs-url: https://sboesebeck.github.io/morphium
+:quarkus-guides-url: https://quarkus.io/guides
+:showcase-github-url: https://github.com/Bardioc1977/quarkus-morphium-showcase
+:quarkiverse-url: https://quarkiverse.github.io
+:testcontainers-url: https://java.testcontainers.org
