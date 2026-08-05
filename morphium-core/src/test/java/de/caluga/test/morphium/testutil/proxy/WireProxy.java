@@ -34,6 +34,11 @@ public class WireProxy implements AutoCloseable {
     private final AtomicReference<FaultMode> faultMode = new AtomicReference<>(FaultMode.passthrough);
     private final List<FrameObserver> observers = new CopyOnWriteArrayList<>();
     private final List<Socket> liveSockets = new CopyOnWriteArrayList<>();
+    /** Every pump thread {@link #startForwarding} spawns, tracked so {@link #stop()} can join
+     * them all before returning (design spec: teardown must guarantee every pump thread exits
+     * before the test method returns) - closing the sockets only unblocks them asynchronously,
+     * it doesn't wait for them to actually finish. */
+    private final List<Thread> pumpThreads = new CopyOnWriteArrayList<>();
     private volatile ResponseRewriter rewriter;
     private volatile boolean running;
     private Thread acceptThread;
@@ -94,7 +99,12 @@ public class WireProxy implements AutoCloseable {
         }
         if (mode == FaultMode.freeze) {
             // Accept, then never touch this socket again until stop() - matches kill -STOP:
-            // the OS completes the handshake from its backlog, nothing ever answers.
+            // the OS completes the handshake from its backlog, nothing ever answers. This is
+            // deliberately one-way/permanent for THIS connection: even if the fault mode later
+            // switches back to passthrough, a connection accepted here is never picked up and
+            // forwarded - it stays parked until stop() severs it. Freeze is only reversible in
+            // the sense that new connections accepted after the mode change get passthrough
+            // treatment; it is not reversible per-connection.
             liveSockets.add(client);
             return;
         }
@@ -129,6 +139,8 @@ public class WireProxy implements AutoCloseable {
                 "wireproxy-b2c-" + getListenPort());
         toBackend.setDaemon(true);
         toClient.setDaemon(true);
+        pumpThreads.add(toBackend);
+        pumpThreads.add(toClient);
         toBackend.start();
         toClient.start();
     }
@@ -184,9 +196,21 @@ public class WireProxy implements AutoCloseable {
                 }
                 WireProtocolMessage msg = WireProtocolMessage.parseFromStream(in);
                 if (msg == null) return; // backend closed
-                for (FrameObserver o : observers) {
-                    o.onFrame(FrameObserver.Direction.BACKEND_TO_CLIENT, msg,
-                            new ConnectionCtx(client.getRemoteSocketAddress().toString(), getListenPort()));
+                if (!observers.isEmpty()) {
+                    // client.getRemoteSocketAddress() can NPE if the client socket already
+                    // closed between the parse above and here (e.g. a concurrent stop()/fault
+                    // severing it) - an observer registration must never crash the pump thread
+                    // over what is purely diagnostic context.
+                    String peer;
+                    try {
+                        peer = String.valueOf(client.getRemoteSocketAddress());
+                    } catch (Exception e) {
+                        peer = "<client socket closed>";
+                    }
+                    ConnectionCtx ctx = new ConnectionCtx(peer, getListenPort());
+                    for (FrameObserver o : observers) {
+                        o.onFrame(FrameObserver.Direction.BACKEND_TO_CLIENT, msg, ctx);
+                    }
                 }
                 if (faultMode.get() != FaultMode.passthrough) continue; // fault kicked in mid-read: drop this frame
                 ResponseRewriter rw = rewriter;
@@ -264,6 +288,17 @@ public class WireProxy implements AutoCloseable {
                 Thread.currentThread().interrupt();
             }
         }
+        // The sever() calls above only unblock the pump threads asynchronously (their read()/
+        // parseFromStream() calls return once the socket is actually closed) - join them here so
+        // stop() guarantees every pump thread has exited before it returns (design spec).
+        for (Thread t : pumpThreads) {
+            try {
+                t.join(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        pumpThreads.clear();
     }
 
     @Override

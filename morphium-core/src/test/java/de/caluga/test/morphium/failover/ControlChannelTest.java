@@ -89,6 +89,54 @@ public class ControlChannelTest {
         return listener.getLocalPort();
     }
 
+    /** Replies to every request (including the connect() hello handshake) with
+     * {@code ok: 0, errmsg, code} - models a command mongod refuses outright, e.g.
+     * {@code replSetStepDown} when no secondary is caught up. */
+    private int startCannedBackendThatRefusesEveryCommand() throws IOException {
+        listener = new ServerSocket();
+        listener.bind(new InetSocketAddress("localhost", 0));
+        Thread t = new Thread(() -> {
+            try {
+                Socket s = listener.accept();
+                while (!s.isClosed()) {
+                    WireProtocolMessage req = WireProtocolMessage.parseFromStream(s.getInputStream());
+                    if (req == null) return;
+                    OpMsg resp = new OpMsg();
+                    resp.setMessageId(((OpMsg) req).getMessageId() + 1000);
+                    resp.setResponseTo(((OpMsg) req).getMessageId());
+                    resp.setFirstDoc(Doc.of("ok", 0.0, "errmsg", "No electable secondaries caught up", "code", 262));
+                    s.getOutputStream().write(resp.bytes());
+                    s.getOutputStream().flush();
+                }
+            } catch (Exception ignored) {
+            }
+        }, "canned-refusing-backend");
+        t.setDaemon(true);
+        t.start();
+        return listener.getLocalPort();
+    }
+
+    @Test
+    void commandThrowsWhenServerRepliesOkZero() throws Exception {
+        int port = startCannedBackendThatRefusesEveryCommand();
+        channel = new ControlChannel("localhost", port, null, null, null);
+        de.caluga.morphium.driver.MorphiumDriverException ex = assertThrows(
+                de.caluga.morphium.driver.MorphiumDriverException.class,
+                () -> channel.command(Doc.of("replSetStepDown", 60, "$db", "admin")));
+        assertTrue(ex.getMessage().contains("No electable secondaries caught up"),
+                "exception message must include the server's errmsg: " + ex.getMessage());
+    }
+
+    @Test
+    void commandTolerateCloseDoesNotSwallowAnOkZeroReply() throws Exception {
+        int port = startCannedBackendThatRefusesEveryCommand();
+        channel = new ControlChannel("localhost", port, null, null, null);
+        assertThrows(de.caluga.morphium.driver.MorphiumDriverException.class,
+                () -> channel.commandTolerateClose(Doc.of("replSetStepDown", 60, "$db", "admin")),
+                "an ok:0 reply is a real reply, not a connection-closed-instead-of-replying case - "
+                        + "commandTolerateClose must not swallow it");
+    }
+
     @Test
     void commandRoundTripsWithoutAuth() throws Exception {
         int port = startCannedRsBackend();

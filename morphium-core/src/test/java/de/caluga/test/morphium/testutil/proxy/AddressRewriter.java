@@ -46,7 +46,6 @@ public class AddressRewriter implements ResponseRewriter {
             }
             doc.put("hosts", rewritten);
         }
-        msg.setFirstDoc(doc);
         return msg;
     }
 

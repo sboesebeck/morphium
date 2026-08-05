@@ -31,7 +31,8 @@ import de.caluga.test.morphium.testutil.proxy.WireProxy;
  * primary hangs in-flight operations until maxWaitTime instead of failing over) against
  * whichever replica set the test runner provides (MongoDB or PoppyDB), via a wire-rewriting
  * proxy instead of killing any process. Replaces the deleted, unrunnable
- * {@code FailoverReproTest} (see Task 6 for the migration). See
+ * {@code FailoverReproTest} (see the CHANGELOG's "Driver: automated failover test via
+ * wire-rewriting proxy" entry for the migration). See
  * docs/superpowers/specs/2026-08-05-failover-proxy-test-design.md for the full design.
  */
 @Tag("wire-failover")
@@ -182,6 +183,45 @@ public class DriverFailoverProxyTest {
         }
     }
 
+    // ---- shared scenario setup (I3: extracted from 5x copy-pasted preambles) ----
+
+    /** Discovers the backend's replica-set membership over a fresh control channel and wires up
+     * one {@link WireProxy} per member (design spec: "Backend discovery & proxy wiring"). Does
+     * NOT build {@code morphium} - scenarios differ on when/how many driver instances they need
+     * (one before the fault, one after, or two for messaging's sender/receiver pair), so that
+     * stays in each scenario. */
+    private Map<String, String> setupProxiedBackend(Backend backend) throws Exception {
+        List<Map<String, Object>> members;
+        try (ControlChannel discover = new ControlChannel(backend.host(), backend.port(),
+                backend.authDb(), backend.user(), backend.password())) {
+            members = discover.members();
+        }
+        return wireProxies(backend, members);
+    }
+
+    /** Finds the current primary over a fresh control channel, sets the given fault mode on its
+     * proxy, and returns the primary's name so the caller can pass it to
+     * {@link #stepDownPrimary} / {@link #pollForNewPrimary} (I3: extracted from 5x copy-pasted
+     * fault-injection blocks). Deliberately does NOT step down the primary itself - callers do
+     * that as their own explicit step, since the exact ordering relative to other scenario setup
+     * (e.g. messaging's listener registration) varies. */
+    private String injectFaultOnCurrentPrimary(Backend backend, Map<String, String> backendToProxy,
+            de.caluga.test.morphium.testutil.proxy.FaultMode mode) throws Exception {
+        String primaryName;
+        try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
+                backend.authDb(), backend.user(), backend.password())) {
+            primaryName = probe.members().stream()
+                    .filter(m -> "PRIMARY".equals(m.get("stateStr")))
+                    .map(m -> (String) m.get("name")).findFirst().orElseThrow();
+        }
+        String proxyAddr = backendToProxy.get(primaryName);
+        WireProxy exPrimaryProxy = proxies.stream()
+                .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
+                .findFirst().orElseThrow();
+        exPrimaryProxy.setFaultMode(mode);
+        return primaryName;
+    }
+
     // ---- election helper (design spec: "Scenario mapping") ----
 
     /** Steps down the given (already-known) primary directly - no re-discovery, so this can
@@ -196,20 +236,39 @@ public class DriverFailoverProxyTest {
         }
     }
 
+    /** Polls until a new primary (not {@code exPrimaryName}) is elected, reusing a single
+     * {@link ControlChannel} across polls (I2 fix) instead of opening a brand-new one - full TCP
+     * connect + hello + possibly SCRAM auth - on every 200ms tick, which is wasteful and, on an
+     * auth-enabled backend, generates a lot of short-lived authenticated connections against a
+     * test with a "zero live sockets left behind" constraint. Uses {@link ControlChannel#poll}
+     * so the actual wait/backoff logic lives in one place; the condition here only reconnects
+     * when a poll attempt throws - {@code replSetStepDown} can legitimately kill the channel's
+     * connection, and the control-channel node itself might be mid-election too. */
     private boolean pollForNewPrimary(Backend backend, String exPrimaryName, long timeoutMs) throws Exception {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
-                    backend.authDb(), backend.user(), backend.password())) {
-                boolean elected = probe.members().stream().anyMatch(m ->
-                        "PRIMARY".equals(m.get("stateStr")) && !exPrimaryName.equals(m.get("name")));
-                if (elected) return true;
-            } catch (Exception ignored) {
-                // control-channel node itself might be mid-election too - keep polling
-            }
-            Thread.sleep(200);
+        ControlChannel[] channelHolder = { new ControlChannel(backend.host(), backend.port(),
+                backend.authDb(), backend.user(), backend.password()) };
+        try {
+            return channelHolder[0].poll(timeoutMs, () -> {
+                try {
+                    return channelHolder[0].members().stream().anyMatch(m ->
+                            "PRIMARY".equals(m.get("stateStr")) && !exPrimaryName.equals(m.get("name")));
+                } catch (Exception e) {
+                    // Connection died (stepdown) or the node is mid-election - reconnect for the
+                    // next tick instead of giving up the whole poll.
+                    try { channelHolder[0].close(); } catch (Exception ignored) { }
+                    try {
+                        channelHolder[0] = new ControlChannel(backend.host(), backend.port(),
+                                backend.authDb(), backend.user(), backend.password());
+                    } catch (Exception reconnectFailed) {
+                        // Backend momentarily unreachable/mid-election - leave the (already
+                        // closed) channel as-is, the next tick's reconnect attempt will retry.
+                    }
+                    return false;
+                }
+            });
+        } finally {
+            try { channelHolder[0].close(); } catch (Exception ignored) { }
         }
-        return false;
     }
 
     // ---- scenarios ----
@@ -217,12 +276,7 @@ public class DriverFailoverProxyTest {
     @Test
     void writesRecoverAfterFreeze() throws Exception {
         Backend backend = readBackend();
-        List<Map<String, Object>> members;
-        try (ControlChannel discover = new ControlChannel(backend.host(), backend.port(),
-                backend.authDb(), backend.user(), backend.password())) {
-            members = discover.members();
-        }
-        Map<String, String> backendToProxy = wireProxies(backend, members);
+        Map<String, String> backendToProxy = setupProxiedBackend(backend);
         morphium = buildDriverUnderTest(backendToProxy);
         morphium.dropCollection(FoDoc.class);
         Thread.sleep(500);
@@ -250,35 +304,30 @@ public class DriverFailoverProxyTest {
             assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
 
             // Find and freeze the current primary's proxy, then step it down.
-            String primaryName;
-            try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
-                    backend.authDb(), backend.user(), backend.password())) {
-                primaryName = probe.members().stream()
-                        .filter(m -> "PRIMARY".equals(m.get("stateStr")))
-                        .map(m -> (String) m.get("name")).findFirst().orElseThrow();
-            }
-            String proxyAddr = backendToProxy.get(primaryName);
-            WireProxy exPrimaryProxy = proxies.stream()
-                    .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
-                    .findFirst().orElseThrow();
-            exPrimaryProxy.setFaultMode(de.caluga.test.morphium.testutil.proxy.FaultMode.freeze);
+            String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy,
+                    de.caluga.test.morphium.testutil.proxy.FaultMode.freeze);
             stepDownPrimary(backend, primaryName);
 
             assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
 
-            // Timeout budget (Global Constraints): assert recovery within a few seconds of the
-            // fault, well under maxWaitTime (60s) - a hang-until-maxWaitTime must NOT read as
-            // "eventually recovered".
+            // Timeout budget (C2 fix): a frozen connection is only force-closed once PooledDriver
+            // evicts the host, which requires Host.getFailures() > Host.MAX_FAILURES (5, i.e. 6
+            // failures), each costing Math.max(2000, heartbeatFrequency) = 2000ms at this test's
+            // heartbeatFrequency(1000) - a floor of ~12s from the freeze before eviction even
+            // starts. The old 10s window didn't clear that floor with any real margin. 25s clears
+            // it comfortably while staying well under maxWaitTime (60s), so a genuine hang until
+            // maxWaitTime is still distinguishable from a working failover.
             int beforeRecoveryCheck = writeOk.get();
-            long deadline = System.currentTimeMillis() + 10_000;
+            long deadline = System.currentTimeMillis() + 25_000;
             boolean recovered = false;
             while (System.currentTimeMillis() < deadline) {
                 if (writeOk.get() > beforeRecoveryCheck + 2) { recovered = true; break; }
                 Thread.sleep(200);
             }
-            assertTrue(recovered, "writes did not resume within 10s of the primary freezing + stepdown - "
+            assertTrue(recovered, "writes did not resume within 25s of the primary freezing + stepdown - "
                     + "driver is stuck on the frozen connection instead of failing over (writeOk stayed at "
                     + beforeRecoveryCheck + ")");
+            assertOnlyConnectedThroughProxies(backendToProxy);
         } finally {
             // Must join here, not after the try - an assertTrue failure above (e.g. the 6.2.6
             // regression being reproduced: recovery not detected in time) must still not leak
@@ -305,12 +354,7 @@ public class DriverFailoverProxyTest {
 
     private void runWriteReadScenario(de.caluga.test.morphium.testutil.proxy.FaultMode faultMode) throws Exception {
         Backend backend = readBackend();
-        List<Map<String, Object>> members;
-        try (ControlChannel discover = new ControlChannel(backend.host(), backend.port(),
-                backend.authDb(), backend.user(), backend.password())) {
-            members = discover.members();
-        }
-        Map<String, String> backendToProxy = wireProxies(backend, members);
+        Map<String, String> backendToProxy = setupProxiedBackend(backend);
         morphium = buildDriverUnderTest(backendToProxy);
         morphium.dropCollection(FoDoc.class);
         Thread.sleep(500);
@@ -351,18 +395,7 @@ public class DriverFailoverProxyTest {
             Thread.sleep(1000);
             assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
 
-            String primaryName;
-            try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
-                    backend.authDb(), backend.user(), backend.password())) {
-                primaryName = probe.members().stream()
-                        .filter(m -> "PRIMARY".equals(m.get("stateStr")))
-                        .map(m -> (String) m.get("name")).findFirst().orElseThrow();
-            }
-            String proxyAddr = backendToProxy.get(primaryName);
-            WireProxy exPrimaryProxy = proxies.stream()
-                    .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
-                    .findFirst().orElseThrow();
-            exPrimaryProxy.setFaultMode(faultMode);
+            String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy, faultMode);
             stepDownPrimary(backend, primaryName);
 
             assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
@@ -377,6 +410,7 @@ public class DriverFailoverProxyTest {
             }
             assertTrue(recovered, "writes/reads did not resume within 10s of the fault (" + faultMode + "): "
                     + "writeOk " + writeBaseline + " -> " + writeOk.get() + ", readOk " + readBaseline + " -> " + readOk.get());
+            assertOnlyConnectedThroughProxies(backendToProxy);
         } finally {
             // Must join here, not after the try (writesRecoverAfterFreeze's pattern) - an
             // assertTrue failure above must still not leak these threads past the test, since
@@ -399,23 +433,19 @@ public class DriverFailoverProxyTest {
     @Test
     void messagingRecoversAfterFailover() throws Exception {
         Backend backend = readBackend();
-        List<Map<String, Object>> members;
-        try (ControlChannel discover = new ControlChannel(backend.host(), backend.port(),
-                backend.authDb(), backend.user(), backend.password())) {
-            members = discover.members();
-        }
-        Map<String, String> backendToProxy = wireProxies(backend, members);
+        Map<String, String> backendToProxy = setupProxiedBackend(backend);
         morphium = buildDriverUnderTest(backendToProxy);
         Morphium receiverMorphium = buildDriverUnderTest(backendToProxy);
         try {
             AtomicInteger received = new AtomicInteger();
             var sender = morphium.createMessaging();
             var receiver = receiverMorphium.createMessaging();
-            // sender/receiver are live Threads (MorphiumMessaging impls extend Thread) from the
-            // moment start() runs - everything from here on (including start() itself) must be
-            // inside this try/finally so terminate() is guaranteed on every exit path, including
-            // a Thread.sleep interrupt or assertOnlyConnectedThroughProxies throwing before the
-            // inner workload try below is even reached.
+            // MorphiumMessaging is an interface extending Closeable, not Thread - but start()
+            // spins up real internal pools/monitor threads that only terminate() cleans up, so
+            // everything from here on (including start() itself) must be inside this try/finally
+            // to guarantee terminate() runs on every exit path, including a Thread.sleep
+            // interrupt or assertOnlyConnectedThroughProxies throwing before the inner workload
+            // try below is even reached.
             try {
                 sender.setSenderId("proxy-failover-sender");
                 receiver.setSenderId("proxy-failover-receiver");
@@ -449,18 +479,8 @@ public class DriverFailoverProxyTest {
                     int receivedBefore = received.get();
                     assertTrue(receivedBefore > 0, "no messages delivered before the fault - harness itself is broken");
 
-                    String primaryName;
-                    try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
-                            backend.authDb(), backend.user(), backend.password())) {
-                        primaryName = probe.members().stream()
-                                .filter(m -> "PRIMARY".equals(m.get("stateStr")))
-                                .map(m -> (String) m.get("name")).findFirst().orElseThrow();
-                    }
-                    String proxyAddr = backendToProxy.get(primaryName);
-                    WireProxy exPrimaryProxy = proxies.stream()
-                            .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
-                            .findFirst().orElseThrow();
-                    exPrimaryProxy.setFaultMode(de.caluga.test.morphium.testutil.proxy.FaultMode.close);
+                    String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy,
+                            de.caluga.test.morphium.testutil.proxy.FaultMode.close);
                     stepDownPrimary(backend, primaryName);
 
                     assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
@@ -476,6 +496,7 @@ public class DriverFailoverProxyTest {
                         Thread.sleep(200);
                     }
                     assertTrue(recovered, "no messages delivered within 15s of the fault: received stayed at " + baseline);
+                    assertOnlyConnectedThroughProxies(backendToProxy);
                 } finally {
                     running.set(false);
                     try {
@@ -486,9 +507,10 @@ public class DriverFailoverProxyTest {
                 }
             } finally {
                 // Guaranteed regardless of whether start() ever ran, the sleep was interrupted,
-                // or the escape guard / any assertion above threw - sender/receiver are live
-                // Threads the instant start() executes, and terminate() on a never-started
-                // instance is a no-op (just flag-setting), so this is safe on every path.
+                // or the escape guard / any assertion above threw - start() spins up sender's/
+                // receiver's real internal pools/monitor threads, and terminate() on a
+                // never-started instance is a no-op (just flag-setting), so this is safe on
+                // every path.
                 try { sender.terminate(); } catch (Exception ignored) { }
                 try { receiver.terminate(); } catch (Exception ignored) { }
             }
@@ -500,28 +522,13 @@ public class DriverFailoverProxyTest {
     @Test
     void connectAfterElectionSucceedsWithoutTheOldPrimary() throws Exception {
         Backend backend = readBackend();
-        List<Map<String, Object>> members;
-        try (ControlChannel discover = new ControlChannel(backend.host(), backend.port(),
-                backend.authDb(), backend.user(), backend.password())) {
-            members = discover.members();
-        }
-        Map<String, String> backendToProxy = wireProxies(backend, members);
+        Map<String, String> backendToProxy = setupProxiedBackend(backend);
 
         // Fault + stepdown happen BEFORE Morphium exists - the application starts cold against an
         // already-elected new primary, with the old one unreachable (equivalent of the old test's
         // "primary dies HARD, replicaset elects a new primary, THEN the application starts").
-        String primaryName;
-        try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
-                backend.authDb(), backend.user(), backend.password())) {
-            primaryName = probe.members().stream()
-                    .filter(m -> "PRIMARY".equals(m.get("stateStr")))
-                    .map(m -> (String) m.get("name")).findFirst().orElseThrow();
-        }
-        String proxyAddr = backendToProxy.get(primaryName);
-        WireProxy exPrimaryProxy = proxies.stream()
-                .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
-                .findFirst().orElseThrow();
-        exPrimaryProxy.setFaultMode(de.caluga.test.morphium.testutil.proxy.FaultMode.reset);
+        String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy,
+                de.caluga.test.morphium.testutil.proxy.FaultMode.reset);
         stepDownPrimary(backend, primaryName);
         assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
 
@@ -531,5 +538,6 @@ public class DriverFailoverProxyTest {
         morphium.store(o);
         long cnt = morphium.createQueryFor(FoDoc.class).f("strValue").eq("afterRestart").countAll();
         assertTrue(cnt > 0, "write after cold-start-post-election not readable");
+        assertOnlyConnectedThroughProxies(backendToProxy);
     }
 }
