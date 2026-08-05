@@ -15,6 +15,30 @@ Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica s
 
 ### Added
 
+#### `morphium-jakarta-data` — optional Jakarta Data 1.0 runtime module
+A new optional module, `morphium-jakarta-data`, brings a [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/)
+provider implementation on top of Morphium's existing query engine: `@Repository`-based
+`CrudRepository`/`MorphiumRepository` interfaces with query derivation from method names
+(`findByCategory`, `countByStatus`, `deleteByX`, `And`/`Or`/`Between`/`In`/`Like`/`OrderBy`
+and the rest of the standard keyword set), JDQL via `@Query` (including `GROUP BY`/`HAVING`
+aggregates compiled into a Morphium aggregation pipeline), `@Find`/`@Delete` with explicit
+`@By` parameter binding, offset pagination (`Page<T>`) and cursor/keyset pagination
+(`CursoredPage<T>`), and both static (`@OrderBy`) and dynamic (`Sort`/`Order`) sorting. The
+module depends on Morphium core and on `jakarta.data:jakarta.data-api`; the dependency
+direction is strictly one-way — core has no knowledge of Jakarta Data and no dependency on
+this module, so an application declaring only `de.caluga:morphium` does not get
+`jakarta.data-api` on its classpath and none of these annotations or types become available.
+Building the reactor with `-DskipExtensions` produces a core-only build (core + PoppyDB, no
+extension modules) exactly as before this change. `morphium-jakarta-data` is deliberately
+framework-agnostic — plain Java classes with zero dependencies on Quarkus, Spring, or any DI
+container — because it is meant to be consumed transitively by framework integrations, not
+added directly by most applications: `quarkus-morphium` (build-time Gizmo bytecode
+generation) and `spring-boot-morphium` (JDK dynamic proxies) build on top of this module and
+will follow in subsequent PRs. The code originates from
+[Bardioc1977/morphium-jakarta-data](https://github.com/Bardioc1977/morphium-jakarta-data),
+which is being archived now that its content has moved into the main Morphium repository.
+See [Jakarta Data](docs/jakarta-data.md).
+
 #### PoppyDB: `--users-file` — declarative user provisioning (bootstrap, upsert, version-gated)
 Builds on user replication: `--rootUser`/`--rootPassword` only ever provisioned one admin user,
 so any real application user set still had to be created by hand (a shell script running

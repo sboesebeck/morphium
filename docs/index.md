@@ -48,6 +48,16 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
 ## Reference
 - **[API Reference](./api-reference.md)** - Complete API documentation with examples
 
+## Extensions (Optional Modules)
+Morphium's core module (`de.caluga:morphium`) is fully self-contained and does not need
+any of the following. These are additional, opt-in modules built on top of the core:
+- **[Jakarta Data](./jakarta-data.md)** - Optional module implementing the Jakarta Data
+  1.0 specification on top of Morphium's query engine (repository pattern, `@Repository`)
+  - Query derivation from method names, JDQL (`@Query`), `@Find`/`@Delete` with `@By`
+  - Offset and cursor pagination (`Page<T>`, `CursoredPage<T>`), dynamic and static sorting
+  - Zero dependency from the core: build with `-DskipExtensions` for a core-only artifact;
+    framework integrations for Quarkus and Spring Boot build on top of this module
+
 Minimum requirements
 - Java 21+
 - MongoDB 5.0+
