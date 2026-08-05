@@ -115,5 +115,15 @@ class MethodNameParserTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Cannot parse repository method name");
         }
+
+        @Test
+        @DisplayName("Mixed And/Or combinators throw IllegalArgumentException instead of silently mis-parsing")
+        void mixedAndOrCombinatorsRejected() {
+            assertThatThrownBy(() ->
+                    MethodNameParser.parse("findByStatusAndCategoryOrPriority", ENTITY_FIELDS))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Mixed And/Or combinators")
+                    .hasMessageContaining("findByStatusAndCategoryOrPriority");
+        }
     }
 }

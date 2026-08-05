@@ -96,9 +96,24 @@ public final class MethodNameParser {
 
         // Determine combinator: check for "Or" or "And"
         // We need to split on And/Or but only at word boundaries between conditions
+        //
+        // Note: this module deliberately supports only a single combinator per query
+        // (see QueryDescriptor's class Javadoc) rather than a full boolean-expression tree.
+        // A method name that mixes both "And" and "Or" (e.g. "findByStatusAndCategoryOrPriority")
+        // cannot be represented faithfully by that single-combinator model — silently picking one
+        // combinator and ignoring the other would produce a query that looks plausible but is
+        // wrong. We fail fast instead of guessing.
+        boolean hasAnd = containsCombinator(rest, "And");
+        boolean hasOr = containsCombinator(rest, "Or");
+        if (hasAnd && hasOr) {
+            throw new IllegalArgumentException(
+                    "Mixed And/Or combinators in a single derived query method are not supported: "
+                    + methodName + ". Use @Query with JDQL for complex boolean expressions.");
+        }
+
         Combinator combinator = Combinator.AND;
         String[] parts;
-        if (containsCombinator(rest, "Or")) {
+        if (hasOr) {
             combinator = Combinator.OR;
             parts = splitOnCombinator(rest, "Or");
         } else {
