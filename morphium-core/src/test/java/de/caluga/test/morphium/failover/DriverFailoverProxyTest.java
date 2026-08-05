@@ -295,7 +295,18 @@ public class DriverFailoverProxyTest {
                 backend.authDb(), backend.user(), backend.password())) {
             // Real mongod may close the connection instead of replying for some stepdown paths -
             // both outcomes are acceptable (see design spec's "Scenario mapping").
-            primary.commandTolerateClose(Doc.of("replSetStepDown", 60, "$db", "admin"));
+            //
+            // force:true - found via a real run on testrunner.fritz.box: PoppyDB's stepDown
+            // (PoppyDbCommandHandler#processReplSetStepDown) refuses ok:0 ("no eligible
+            // secondary caught up") unless forced, if no secondary has replicated far enough
+            // yet. writesRecoverAfterFreeze - always the first scenario to run, seconds after
+            // the 3-node cluster just started - hit this consistently (4/4 runs) even though
+            // every OTHER scenario, running later against an already-settled cluster, never did.
+            // This test is about the DRIVER's reaction to a primary going away, not about
+            // PoppyDB's own replication-safety guarantees around a *voluntary* stepdown - forcing
+            // it removes that unrelated race entirely rather than just waiting long enough for
+            // replication to catch up before every scenario.
+            primary.commandTolerateClose(Doc.of("replSetStepDown", 60, "force", true, "$db", "admin"));
         }
     }
 
