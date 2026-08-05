@@ -348,6 +348,34 @@ public class DriverFailoverProxyTest {
         }
     }
 
+    /** Prevents {@code nodeName} from campaigning for primary for {@code seconds} (0 cancels an
+     * active freeze immediately). Used after stepping the frozen-proxy primary down, to keep it
+     * from reclaiming primacy via priority takeover once replSetStepDown's own (much shorter,
+     * deliberately 15s - see {@link #stepDownPrimary}) block window expires: found via a real run
+     * against mongo1/mongo2.fritz.box (mongo1 priority=100) where, in
+     * {@code writesRecoverAfterFreeze}, mongo1's real node stayed fully healthy from the OTHER
+     * replica set members' point of view - only its client-facing proxy was frozen - so it
+     * reclaimed primacy 15s after stepping down, and the driver (correctly, immediately, per the
+     * primaryNode fix in PooledDriver.handleHelloResult) followed the election right back onto
+     * the still-frozen connection. Unlike replSetStepDown's block window, replSetFreeze only
+     * affects the target node - it cannot recreate the cross-scenario "both electable nodes
+     * blocked at once" bug fixed in 4beecc59, since a later scenario's own stepDown targets
+     * whichever node is CURRENTLY primary (never this frozen one, by construction). Opens its own
+     * connection rather than reusing stepDownPrimary's - that channel may already be closed by
+     * the time this runs (mongod can close the connection instead of replying to stepDown).
+     * Best-effort: swallows failures, since a failed freeze just means this specific race can
+     * recur on this run, not a definite bug. */
+    private void freezeNode(Backend backend, String nodeName, int seconds) {
+        String[] hp = nodeName.split(":");
+        try (ControlChannel ch = new ControlChannel(hp[0], Integer.parseInt(hp[1]),
+                backend.authDb(), backend.user(), backend.password())) {
+            ch.commandTolerateClose(Doc.of("replSetFreeze", seconds, "$db", "admin"));
+        } catch (Exception e) {
+            log.debug("Could not {} freeze on {} (best-effort, race with the node's own state "
+                    + "transition): {}", seconds == 0 ? "cancel" : "set", nodeName, e.getMessage());
+        }
+    }
+
     /** Polls until a new primary (not {@code exPrimaryName}) is elected, reusing a single
      * {@link ControlChannel} across polls (I2 fix) instead of opening a brand-new one - full TCP
      * connect + hello + possibly SCRAM auth - on every 200ms tick, which is wasteful and, on an
@@ -421,13 +449,24 @@ public class DriverFailoverProxyTest {
         }, "freeze-writer");
         trackedThreads.add(writer);
         writer.start();
+        String primaryName = null;
         try {
             Thread.sleep(1000);
             assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
 
             // Find and freeze the current primary's proxy, then step it down.
-            String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
+            primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
                     de.caluga.test.morphium.testutil.proxy.FaultMode.freeze);
+
+            // Keep the stepped-down node from reclaiming primacy via priority takeover once its
+            // own 15s stepDown block expires - its proxy stays frozen for the rest of this test,
+            // so if it becomes primary again, the driver correctly (and immediately, per
+            // PooledDriver's primaryNode fix) follows the election right back onto that dead
+            // connection. See freezeNode's javadoc for the full story. 100s comfortably covers
+            // this scenario's own worst case (40s election poll + 45s recovery check + margin);
+            // cancelled explicitly in the finally block below so it can never bleed into a later
+            // scenario's own stepDown against a different node.
+            freezeNode(backend, primaryName, 100);
 
             // 25s (up from 15s): a real run on testrunner.fritz.box saw this specific scenario -
             // always the first one to run against a just-started cluster - occasionally still
@@ -459,6 +498,13 @@ public class DriverFailoverProxyTest {
                     + beforeRecoveryCheck + ")");
             assertOnlyConnectedThroughProxies(backendToProxy);
         } finally {
+            // Cancel the freeze first, before anything else - a real, persistent cluster is
+            // shared across scenarios, and leaving this node artificially unelectable for its
+            // full 100s would risk stacking with a later scenario's own stepDown block (the exact
+            // failure class fixed in 4beecc59, just via a different mechanism).
+            if (primaryName != null) {
+                freezeNode(backend, primaryName, 0);
+            }
             // Must join here, not after the try - an assertTrue failure above (e.g. the 6.2.6
             // regression being reproduced: recovery not detected in time) must still not leak
             // this thread past the test, since tearDown() closes `morphium` right after and the
