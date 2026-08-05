@@ -57,6 +57,11 @@ any of the following. These are additional, opt-in modules built on top of the c
   - Offset and cursor pagination (`Page<T>`, `CursoredPage<T>`), dynamic and static sorting
   - Zero dependency from the core: build with `-DskipExtensions` for a core-only artifact;
     framework integrations for Quarkus and Spring Boot build on top of this module
+- **[Quarkus Extension](./quarkus-extension.md)** - Optional module integrating Morphium into
+  Quarkus applications via a CDI producer, `@ConfigMapping`, `@MorphiumTransactional`, health
+  checks, Dev Services, Dev UI, and build-time Jakarta Data repository generation via Gizmo
+  - GraalVM native-image support and `MorphiumId` JSON (de)serialization out of the box
+  - Zero dependency from the core: build with `-DskipExtensions` for a core-only artifact
 
 Minimum requirements
 - Java 21+
