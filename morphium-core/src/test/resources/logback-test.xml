@@ -16,8 +16,6 @@
   <logger name="de.caluga.morphium.driver.inmem.InMemoryDriver" level="INFO"/>
   <logger name="de.caluga.morphium.messaging" level="INFO"/>
   <logger name="de.caluga.test.mongo.suite" level="DEBUG"/>
-  <logger name="de.caluga.test.morphium.failover" level="DEBUG"/>
-  <logger name="de.caluga.morphium.driver.wire.PooledDriver" level="DEBUG"/>
   <root level="info">
     <appender-ref ref="STDOUT"/>
   </root>
