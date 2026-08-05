@@ -73,7 +73,7 @@ public interface ProductRepository extends CrudRepository<Product, MorphiumId> {
 
     @Find
     List<Product> search(@By("category") String cat,
-                         @By("price") @Is(GreaterThanEqual) double minPrice,
+                         @By("price") double minPrice,
                          Sort<Product> sort);
 
     @Query("WHERE category = :cat AND price > :minPrice ORDER BY price")
@@ -111,7 +111,7 @@ public class ProductService {
 |---------|---------|
 | **CRUD** | `CrudRepository<T,K>`, `BasicRepository<T,K>`, `DataRepository<T,K>`, `MorphiumRepository<T,K>` — save, insert, update, delete, findById, findAll, existsById |
 | **Query derivation** | `findBy`, `countBy`, `existsBy`, `deleteBy` with operators: Equals, Not, GreaterThan, LessThan, Between, In, NotIn, Like, StartsWith, EndsWith, Null, NotNull, True, False — combined with And/Or |
-| **@Find + @By** | Explicit field binding via parameter annotations, combined with `@Is(Operator)` for non-equality conditions |
+| **@Find + @By** | Explicit field binding via parameter annotations; each `@By`-bound parameter is applied as an equality condition |
 | **@Query (JDQL)** | Jakarta Data Query Language with WHERE, ORDER BY, named parameters (`:param`), comparison operators, BETWEEN, IN, LIKE, IS NULL, NOT, string literals, GROUP BY (single + multi-field), HAVING (AND/OR), aggregate functions (COUNT/SUM/AVG/MIN/MAX) |
 | **@OrderBy** | Static sort annotation on query methods |
 | **Pagination** | `Page<T>`, `PageRequest` with total counts, `Limit`, `CursoredPage<T>` (keyset pagination), `Page<Record>` for GROUP BY results |
@@ -120,6 +120,14 @@ public class ProductService {
 | **Async** | `CompletionStage<T>` return type for non-blocking repository methods (query derivation, `@Find`, `@Query`) |
 | **@StaticMetamodel** | Auto-generated `Entity_` classes with `Attribute`, `SortableAttribute`, `TextAttribute` fields — type-safe field references |
 | **Build-time validation** | Entity fields, ID types, method signatures validated during `mvn compile` — fail fast, not at runtime |
+
+> **Note:** `@By` currently only supports equality conditions. Jakarta Data's `@Is(Operator)`
+> annotation for non-equality `@By` conditions (e.g. `@By("price") @Is(GreaterThanEqual)`)
+> requires Jakarta Data 1.1, which is not yet finalized (latest available artifact as of this
+> writing is the `1.1.0-M3` milestone) — this module targets the stable `jakarta.data-api:1.0.0`.
+> Support for `@Is` is a natural candidate once Jakarta Data 1.1 ships as a final release; for
+> non-equality conditions today, use query derivation (`findByPriceGreaterThan(...)`) or `@Query`
+> (JDQL) instead.
 
 All Morphium ORM features work transparently through generated repositories: `@Version`
 (optimistic locking), `@CreationTime`/`@LastChange`, lifecycle callbacks (`@PreStore`,

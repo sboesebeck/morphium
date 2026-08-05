@@ -152,9 +152,16 @@ List<Product> topByCategory(@By("category.name") String name, Limit limit);
 
 @Find
 List<Product> search(@By("category") String cat,
-                     @By("price") @Is(GreaterThanEqual) double minPrice,
+                     @By("price") double minPrice,
                      Sort<Product> sort);
 ----
+
+NOTE: `@By`-bound parameters are always applied as equality conditions. Jakarta Data's
+`@Is(Operator)` annotation for non-equality `@By` conditions (e.g.
+`@By("price") @Is(GreaterThanEqual)`) requires Jakarta Data 1.1, which is not yet
+finalized (latest available artifact is the `1.1.0-M3` milestone) — this module targets
+the stable `jakarta.data-api:1.0.0`. Use query derivation
+(`findByPriceGreaterThan(...)`) or `@Query` (JDQL) for non-equality conditions today.
 
 == @Query / JDQL — Jakarta Data Query Language
 
