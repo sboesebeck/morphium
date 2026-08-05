@@ -1,6 +1,8 @@
 package de.caluga.poppydb;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.net.InetSocketAddress;
@@ -19,6 +21,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.wire.PooledDriver;
+import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.driver.wire.SslHelper;
 
 /**
@@ -98,6 +104,21 @@ public class RsInternalAuthTlsTest {
         return null;
     }
 
+    /** Authenticated (+ TLS, if clientSsl != null) client connection as the configured root user. */
+    private SingleMongoConnection connectAsRoot(int port, SSLContext clientSsl) throws Exception {
+        PooledDriver carrier = new PooledDriver();
+        carrier.setConnectionTimeout(3000);
+        if (clientSsl != null) {
+            carrier.setUseSSL(true);
+            carrier.setSslContext(clientSsl);
+            carrier.setSslInvalidHostNameAllowed(true); // self-signed test cert, CN mismatch is fine
+        }
+        SingleMongoConnection con = new SingleMongoConnection();
+        con.setCredentials("admin", ROOT_USER, ROOT_PASSWORD);
+        con.connect(carrier, "localhost", port);
+        return con;
+    }
+
     /** Build a self-signed keystore via the JDK's keytool (pattern of AuthTlsWireE2ETest). */
     private static File buildKeystore(Path dir) throws Exception {
         File keystore = dir.resolve("cluster.p12").toFile();
@@ -170,5 +191,39 @@ public class RsInternalAuthTlsTest {
         PoppyDB leader = waitForAnyPrimary(c.all(), 20_000);
 
         assertNotNull(leader, "a leader must be elected even with --auth and --ssl enabled");
+    }
+
+    @Test
+    public void dataAndLoginWorkWithAuthAndSsl(@TempDir Path dir) throws Exception {
+        File keystore = buildKeystore(dir);
+        SSLContext serverSsl = SslHelper.createServerSslContext(keystore.getAbsolutePath(), "changeit");
+        SSLContext internalSsl = SslHelper.createClientSslContext(keystore.getAbsolutePath(), "changeit");
+        Cluster c = bootstrapCluster(serverSsl, internalSsl);
+
+        PoppyDB leader = waitForAnyPrimary(c.all(), 20_000);
+        assertNotNull(leader, "a leader must be elected even with --auth and --ssl enabled");
+
+        // Write as the authenticated root user over TLS - the ordinary client-facing path,
+        // unaffected by this fix, used here only to get data onto the leader.
+        SingleMongoConnection con = connectAsRoot(leader.getPort(), internalSsl);
+        try {
+            InsertMongoCommand insert = new InsertMongoCommand(con);
+            insert.setDb("authtlsdb").setColl("docs");
+            insert.setDocuments(List.of(Doc.of("_id", "doc-1", "marker", "auth-tls-rs")));
+            Map<String, Object> result = insert.execute();
+            assertEquals(1, ((Number) result.get("n")).intValue(), "insert on the leader must succeed: " + result);
+        } finally {
+            con.close();
+        }
+
+        assertTrue(poll(30_000, () -> c.all().stream().allMatch(n ->
+                n.getDriver().count("authtlsdb", "docs", Doc.of(), null, null) == 1)),
+                "the write on the leader must replicate to every node, primary included");
+
+        // The client-facing SCRAM+TLS login path itself must be completely unaffected by this fix.
+        for (PoppyDB node : c.all()) {
+            SingleMongoConnection loginCheck = connectAsRoot(node.getPort(), internalSsl);
+            loginCheck.close(); // reaching here without an exception IS the assertion
+        }
     }
 }
