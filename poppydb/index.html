@@ -3552,6 +3552,17 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 <li>Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.</li>
 <li>Keep in mind that this is still meant for testing: persistence and durability are unchanged.</li>
 </ol>
+<p><strong>Known limitation - the vote's Raft log check is currently dead code.</strong> Elections compare
+candidates' replicated-log state (<code>lastLogIndex</code>/<code>lastLogTerm</code>) per the Raft paper, so a node
+behind on data should lose a vote against a more caught-up peer. In this implementation nothing
+ever calls <code>ElectionManager.updateLogIndex(...)</code> - <code>ReplicationManager</code> reports progress through
+a separate hook that nothing wires to it - so that state stays <code>0</code> on every node forever and the
+check is vacuously true for every candidate. Elections are in practice decided purely by term +
+priority + heartbeat timing, never by log freshness. The concrete, currently-accepted consequence
+is the users-file version gate's mid-resync caveat below; more generally, a node whose local data
+was just wiped for a resync is exactly as electable as a fully caught-up peer for the short window
+before its own sync completes. Pre-existing, tracked as a follow-up, not something to rely on
+being fixed.</p>
 <h3 id="programmatic-replica-set-configuration">Programmatic Replica Set Configuration<a class="headerlink" href="#programmatic-replica-set-configuration" title="Permanent link">&para;</a></h3>
 <p>You can configure a replica set programmatically using the <code>configureReplicaSet()</code> method:</p>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">primary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
@@ -3880,7 +3891,10 @@ becomes primary — no manual <code>createUser</code> shell commands, no drift b
 is optional and stored mongod-shaped but <strong>not enforced</strong> (like everywhere else in PoppyDB —
 see <a href="#authentication---auth">Current limitations</a> above); <code>mechanisms</code> is optional. Any unknown
 field in an entry, or at the top level, is a hard error naming the field (and the entry index)
-instead of being silently ignored. <code>version</code>, if present, must be a positive integer.</p>
+instead of being silently ignored. Two entries naming the same <code>(user, db)</code> pair are a hard error
+too — mongod identifies a user by that pair, so both would apply to the same principal; without
+this check the file loaded silently with the later entry's password/roles winning, no
+diagnostic at all. <code>version</code>, if present, must be a positive integer.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--auth<span class="w"> </span>--rootUser<span class="w"> </span>admin<span class="w"> </span>--rootPassword<span class="w"> </span>s3cr3t<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span>--users-file<span class="w"> </span>/etc/poppydb/users.json
 </span></code></pre></div>
@@ -3918,9 +3932,12 @@ passwords back to the older file's contents. Re-applying the <em>same</em> versi
 only a strictly higher version triggers a new apply. Known exception: the gate reads the
 replicated meta document, so a node elected primary while still mid-resync — after its local
 <code>admin.system.version</code> has been cleared for the resync but before the primary's snapshot has
-landed — sees no meta document and re-applies its own file regardless of version; this is a
-pre-existing election-timing gap tracked as a follow-up, not a property of the version gate
-itself.</p>
+landed — sees no meta document and re-applies its own file regardless of version. This is
+possible because nothing currently stops such a node from winning the election in the first
+place — the vote's Raft log check is dead code (see <a href="#replica-set-behavior-experimental">Replica Set
+Behavior</a> above), so a mid-resync node with an empty local
+log is exactly as electable as a fully caught-up peer. Pre-existing, tracked as a follow-up, not
+a property of the version gate itself.</p>
 <p><strong>Rotation flow:</strong> edit the file (bump <code>version</code>), roll out the new file to every node, then
 rolling-restart (or just let the next election re-run the leadership hook, in election mode).
 Logins flip cluster-wide the moment a primary holding the new file applies it — there is no
