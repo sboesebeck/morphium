@@ -373,7 +373,6 @@ public class SingleMongoConnectDriver extends DriverBase {
                 break;
             } catch (Exception e) {
                 incStat(DriverStatsKey.ERRORS);
-                log.error("connection failed", e);
                 connectToIdx++;
 
                 if (connectToIdx > getHostSeed().size()) {
@@ -383,8 +382,17 @@ public class SingleMongoConnectDriver extends DriverBase {
                 retries++;
 
                 if (retries > getRetriesOnNetworkError()) {
+                    // One summary WARN with the real cause once we actually give up - not one
+                    // ERROR-with-stack-trace per attempt. A single unreachable replica-set member
+                    // is an expected, retryable condition to most callers (e.g. PoppyDB's
+                    // ElectionNetworkClient calls connect() repeatedly - once per vote
+                    // request/heartbeat - for as long as a peer stays down; at ERROR-per-attempt
+                    // this floods the log with thousands of identical stack traces).
+                    log.warn("Could not connect after {} retries", retries, e);
                     throw (new MorphiumDriverException("max retries exceeded", e));
                 }
+
+                log.debug("connection attempt {}/{} failed, retrying: {}", retries, getRetriesOnNetworkError(), e.getMessage());
 
                 try {
                     Thread.sleep(getSleepBetweenErrorRetries());
