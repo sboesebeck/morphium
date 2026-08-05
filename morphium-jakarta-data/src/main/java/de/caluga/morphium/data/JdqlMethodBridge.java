@@ -377,9 +377,7 @@ public final class JdqlMethodBridge {
             case IN -> field.in((Collection) value);
             case NOT_IN -> field.nin((Collection) value);
             case LIKE -> {
-                String pattern = value.toString()
-                        .replace("%", ".*")
-                        .replace("_", ".");
+                String pattern = QueryExecutor.likeToRegex(value.toString());
                 if (cond.negated()) {
                     // NOT LIKE → $not with $regex
                     field.not();
