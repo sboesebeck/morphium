@@ -328,7 +328,23 @@ public class DriverFailoverProxyTest {
             // PoppyDB's own replication-safety guarantees around a *voluntary* stepdown - forcing
             // it removes that unrelated race entirely rather than just waiting long enough for
             // replication to catch up before every scenario.
-            primary.commandTolerateClose(Doc.of("replSetStepDown", 60, "force", true, "$db", "admin"));
+            //
+            // 15s, not 60s - found via a real run against mongo1/mongo2.fritz.box (a 3-voter RS
+            // with an arbiter: only 2 members can ever actually BE primary). replSetStepDown's
+            // first argument blocks the stepped-down node from being re-elected for that many
+            // seconds. With only 2 electable members and scenarios running well under a minute
+            // apart, a 60s block meant a LATER scenario's stepdown could land while the EARLIER
+            // scenario's target was still within its own 60s block - leaving BOTH electable
+            // members simultaneously unable to win an election, and the whole replica set
+            // primary-less until one of the two overlapping blocks expired (confirmed via mongod's
+            // own structured logs: repeated "Not starting an election... since we are not
+            // electable" from both nodes for 30-90+ seconds straight). PoppyDB's local 3-node test
+            // cluster never hit this - all 3 members are equally electable there, so there's
+            // always at least one unblocked candidate even mid-block. 15s is comfortably longer
+            // than any single scenario's own recovery-detection window needs to see the primary
+            // change at least once, but short enough that consecutive scenarios' blocks don't
+            // stack against only 2 real candidates.
+            primary.commandTolerateClose(Doc.of("replSetStepDown", 15, "force", true, "$db", "admin"));
         }
     }
 
