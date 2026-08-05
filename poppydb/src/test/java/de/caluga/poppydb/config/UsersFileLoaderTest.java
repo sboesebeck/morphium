@@ -343,6 +343,49 @@ class UsersFileLoaderTest {
     }
 
     @Test
+    void duplicateUserAndDbCombinationThrows(@TempDir Path dir) throws IOException {
+        Path file = writeUsersFile(dir, "users.json", """
+                [ { "user": "app", "db": "mydb", "pwd": "%s" },
+                  { "user": "app", "db": "mydb", "pwd": "%s" } ]
+                """.formatted(SECRET_PWD, SECRET_PWD));
+
+        assertThatThrownBy(() -> UsersFileLoader.load(file.toString()))
+                .isInstanceOf(ConfigException.class)
+                .hasMessageContaining("app")
+                .hasMessageContaining("mydb")
+                .hasMessageContaining("duplicate")
+                .hasMessageNotContaining(SECRET_PWD);
+    }
+
+    @Test
+    void sameUserOnDifferentDbIsNotADuplicate(@TempDir Path dir) throws IOException {
+        Path file = writeUsersFile(dir, "users.json", """
+                [ { "user": "app", "db": "db1", "pwd": "%s" },
+                  { "user": "app", "db": "db2", "pwd": "%s" } ]
+                """.formatted(SECRET_PWD, SECRET_PWD));
+
+        UsersFileSpec spec = UsersFileLoader.load(file.toString());
+
+        assertThat(spec.users()).hasSize(2);
+    }
+
+    @Test
+    void duplicateUsingDefaultDbIsDetected(@TempDir Path dir) throws IOException {
+        // First entry relies on the "admin" default, second names it explicitly - both must
+        // resolve to the same (user, db) pair for the duplicate check.
+        Path file = writeUsersFile(dir, "users.json", """
+                [ { "user": "app", "pwd": "%s" },
+                  { "user": "app", "db": "admin", "pwd": "%s" } ]
+                """.formatted(SECRET_PWD, SECRET_PWD));
+
+        assertThatThrownBy(() -> UsersFileLoader.load(file.toString()))
+                .isInstanceOf(ConfigException.class)
+                .hasMessageContaining("app")
+                .hasMessageContaining("admin")
+                .hasMessageContaining("duplicate");
+    }
+
+    @Test
     void entryNotAnObjectThrows(@TempDir Path dir) throws IOException {
         Path file = writeUsersFile(dir, "users.json", """
                 [ "not-an-object" ]

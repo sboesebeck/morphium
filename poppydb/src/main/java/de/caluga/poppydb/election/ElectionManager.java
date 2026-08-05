@@ -555,6 +555,11 @@ public class ElectionManager {
     /**
      * Check if candidate's log is at least as up-to-date as ours.
      * Per Raft: compare by (lastLogTerm, lastLogIndex) - term is more important.
+     *
+     * <p><b>Currently always true in practice:</b> {@code lastLogIndex}/{@code lastLogTerm} are
+     * never updated by any production caller (see {@link #updateLogIndex}), so both sides of
+     * every comparison are {@code 0}. This check is dead weight until that is wired up - do not
+     * rely on it to reject a behind-on-data candidate.
      */
     private boolean isLogAtLeastAsUpToDate(long candidateLastTerm, long candidateLastIndex) {
         long myLastTerm = lastLogTerm.get();
@@ -963,6 +968,23 @@ public class ElectionManager {
 
     /**
      * Update log index/term (called after writes on leader).
+     *
+     * <p><b>Known limitation - currently dead code:</b> no production caller ever invokes this.
+     * {@code ReplicationManager} does report replication progress via its own
+     * {@code onLogIndexUpdate} hook, but nothing wires that hook to this method, so
+     * {@code lastLogIndex}/{@code lastLogTerm} stay {@code 0} on every node for the node's
+     * entire lifetime. The consequence is in {@link #isLogAtLeastAsUpToDate}: every vote
+     * request's log comparison is {@code 0 == 0}, i.e. vacuously "at least as up to date" -
+     * the log check in {@link #handleVoteRequest} can never deny a vote for being behind. A
+     * node whose local state was just cleared for a resync (e.g. mid-{@code clearLocalDatabases})
+     * is therefore exactly as electable as a fully caught-up peer; this is the mechanism behind
+     * the users-file version gate's documented mid-resync caveat (see
+     * {@code docs/poppydb.md#bootstrapping-users---users-file}). Pre-existing, not something
+     * this change fixes - wiring real log tracking through election would need an actual
+     * replicated log (indices that mean the same thing across a leader change), which
+     * {@code ReplicationManager}'s per-node change-stream sequence numbers do not provide (see
+     * {@code ReplicationManager#tryConsistencyShortcut}'s javadoc on why sequences are
+     * primary-local). Tracked as a follow-up, not silently relied upon.
      */
     public void updateLogIndex(long index, long term) {
         lastLogIndex.set(index);

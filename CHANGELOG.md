@@ -26,12 +26,19 @@ carries `createUser`/`updateUser`. An optional `version` field in the file gates
 against a small replicated meta document (`admin.system.version {_id: "poppydb.usersFile",
 appliedVersion: N}`), which prevents a straggler node from rolling credentials back on failback
 with an older copy of the file on disk — only a strictly higher version re-applies — provided the
-node is not elected primary while still mid-resync (see docs). Unknown
-fields (top-level or per-entry) are a hard error naming the field, and — like every other secret
-file in PoppyDB's config surface — the file's POSIX permissions are checked (group/other-readable
-warns, group/other-writable refuses to start); its content is never logged, including in error
-messages, even for a malformed-JSON parse failure. `--check-config` validates the file (parse,
-validation, permissions) the same way, without starting a server. See
+node is not elected primary while still mid-resync: the vote's Raft log check
+(`ElectionManager.isLogAtLeastAsUpToDate`) is currently dead code (nothing calls
+`updateLogIndex`, so it can never deny a vote for being behind), so a mid-resync node with an
+empty local log is exactly as electable as a fully caught-up peer — pre-existing, honestly named
+here rather than implied, tracked as a follow-up (see docs). Unknown
+fields (top-level or per-entry) are a hard error naming the field, and two entries naming the
+same `(user, db)` pair are now a hard error too (previously silent last-entry-wins, since later
+entries' `createUser`/`updateUser` simply overwrote earlier ones with no diagnostic — a
+copy-paste typo in the file could drop a user's intended password/roles unnoticed). Like every
+other secret file in PoppyDB's config surface, the file's POSIX permissions are checked
+(group/other-readable warns, group/other-writable refuses to start); its content is never
+logged, including in error messages, even for a malformed-JSON parse failure. `--check-config`
+validates the file (parse, validation, permissions) the same way, without starting a server. See
 [PoppyDB § Bootstrapping users](docs/poppydb.md#bootstrapping-users---users-file).
 
 #### PoppyDB: `admin.system.users` replicates across the replica set — users survive failover

@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -167,7 +168,27 @@ public final class UsersFileLoader {
         for (int i = 0; i < rawList.size(); i++) {
             result.add(parseEntry(path, i, rawList.get(i)));
         }
+        checkNoDuplicateUsers(path, result);
         return result;
+    }
+
+    /**
+     * Rejects two entries naming the same (user, db) pair - mongod identifies a user by that
+     * pair, so both would createUser the same principal. Without this check the file loaded
+     * silently (last entry wins in {@link de.caluga.poppydb.PoppyDB#applyBootstrapUser}, since
+     * later entries createUser/updateUser over the earlier one's result) - a copy-paste error in
+     * the file would drop a user's intended password/roles with no diagnostic at all.
+     */
+    private static void checkNoDuplicateUsers(Path path, List<UserSpec> users) {
+        Set<String> seen = new HashSet<>();
+        for (UserSpec user : users) {
+            String key = user.user() + "@" + user.db();
+            if (!seen.add(key)) {
+                throw new ConfigException(String.format(
+                        "Users file %s: duplicate entry for user '%s' on db '%s' - each (user, db) pair "
+                        + "must appear at most once", path, user.user(), user.db()));
+            }
+        }
     }
 
     private static UserSpec parseEntry(Path path, int index, Object raw) {
