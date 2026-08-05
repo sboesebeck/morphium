@@ -479,4 +479,177 @@ class JdqlParserTest {
             assertThat(result.orderBy().get(0).ascending()).isTrue();
         }
     }
+
+    @Nested
+    @DisplayName("BUG 1: ORDER BY without a preceding WHERE clause")
+    class OrderByWithoutWhereTests {
+
+        @Test
+        @DisplayName("ORDER BY name ASC (no WHERE) parses with empty conditions and correct order")
+        void orderByWithoutWhereParsesCorrectly() {
+            String jdql = "ORDER BY name ASC";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.conditions()).isEmpty();
+            assertThat(result.orderBy()).hasSize(1);
+            assertThat(result.orderBy().get(0).field()).isEqualTo("name");
+            assertThat(result.orderBy().get(0).ascending()).isTrue();
+        }
+
+        @Test
+        @DisplayName("ORDER BY without leading keyword, multiple fields, no WHERE")
+        void orderByWithoutWhereMultipleFields() {
+            String jdql = "ORDER BY name ASC, age DESC";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.conditions()).isEmpty();
+            assertThat(result.orderBy()).hasSize(2);
+            assertThat(result.orderBy().get(0).field()).isEqualTo("name");
+            assertThat(result.orderBy().get(0).ascending()).isTrue();
+            assertThat(result.orderBy().get(1).field()).isEqualTo("age");
+            assertThat(result.orderBy().get(1).ascending()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Regression: WHERE + ORDER BY still splits correctly (age > 18 ORDER BY name)")
+        void whereWithOrderByStillWorks() {
+            String jdql = "WHERE age > 18 ORDER BY name";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.conditions()).hasSize(1);
+            JdqlQuery.JdqlCondition cond = result.conditions().get(0);
+            assertThat(cond.fieldName()).isEqualTo("age");
+            assertThat(cond.operator()).isEqualTo(JdqlQuery.Operator.GT);
+            assertThat(cond.valueRef()).isEqualTo("18");
+
+            assertThat(result.orderBy()).hasSize(1);
+            assertThat(result.orderBy().get(0).field()).isEqualTo("name");
+            assertThat(result.orderBy().get(0).ascending()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("BUG 2: HAVING without GROUP BY must be rejected")
+    class HavingWithoutGroupByTests {
+
+        @Test
+        @DisplayName("SELECT COUNT(this) FROM Entity HAVING COUNT(this) > 1 (no GROUP BY) throws")
+        void havingWithoutGroupByThrows() {
+            String jdql = "SELECT COUNT(this) FROM Entity HAVING COUNT(this) > 1";
+            try {
+                JdqlParser.parse(jdql);
+                org.junit.jupiter.api.Assertions.fail("Expected IllegalArgumentException");
+            } catch (IllegalArgumentException e) {
+                assertThat(e.getMessage()).contains("HAVING without GROUP BY");
+            }
+        }
+
+        @Test
+        @DisplayName("WHERE clause with HAVING but no GROUP BY throws")
+        void havingWithoutGroupByAfterWhereThrows() {
+            String jdql = "WHERE active = true HAVING COUNT(this) > 1";
+            try {
+                JdqlParser.parse(jdql);
+                org.junit.jupiter.api.Assertions.fail("Expected IllegalArgumentException");
+            } catch (IllegalArgumentException e) {
+                assertThat(e.getMessage()).contains("HAVING without GROUP BY");
+            }
+        }
+
+        @Test
+        @DisplayName("Regression: HAVING with GROUP BY still parses correctly")
+        void havingWithGroupByStillWorks() {
+            String jdql = "SELECT category, COUNT(this) FROM Product GROUP BY category HAVING COUNT(this) > 1";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.groupByFields()).containsExactly("category");
+            assertThat(result.havingConditions()).hasSize(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("BUG 3: ORDER BY direction token must be ASC or DESC")
+    class OrderByDirectionValidationTests {
+
+        @Test
+        @DisplayName("ORDER BY name DESCE (typo) throws IllegalArgumentException")
+        void invalidDirectionTypoThrows() {
+            String jdql = "WHERE a = :a ORDER BY name DESCE";
+            try {
+                JdqlParser.parse(jdql);
+                org.junit.jupiter.api.Assertions.fail("Expected IllegalArgumentException");
+            } catch (IllegalArgumentException e) {
+                assertThat(e.getMessage()).contains("Invalid ORDER BY direction");
+                assertThat(e.getMessage()).contains("DESCE");
+                assertThat(e.getMessage()).contains("name");
+            }
+        }
+
+        @Test
+        @DisplayName("Regression: ORDER BY name DESC (valid) still works")
+        void validDescStillWorks() {
+            String jdql = "WHERE a = :a ORDER BY name DESC";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.orderBy()).hasSize(1);
+            assertThat(result.orderBy().get(0).field()).isEqualTo("name");
+            assertThat(result.orderBy().get(0).ascending()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Regression: ORDER BY name ASC (valid) still works")
+        void validAscStillWorks() {
+            String jdql = "WHERE a = :a ORDER BY name ASC";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.orderBy()).hasSize(1);
+            assertThat(result.orderBy().get(0).field()).isEqualTo("name");
+            assertThat(result.orderBy().get(0).ascending()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("BUG 4: Top-level AND/OR splitting must ignore string literals")
+    class StringLiteralAwareSplitTests {
+
+        @Test
+        @DisplayName("name = 'A OR B' is not split at the OR inside the string literal")
+        void orInsideStringLiteralIsNotSplit() {
+            String jdql = "WHERE name = 'A OR B'";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.conditions()).hasSize(1);
+            JdqlQuery.JdqlCondition cond = result.conditions().get(0);
+            assertThat(cond.fieldName()).isEqualTo("name");
+            assertThat(cond.operator()).isEqualTo(JdqlQuery.Operator.EQ);
+            assertThat(cond.valueRef()).isEqualTo("'A OR B'");
+        }
+
+        @Test
+        @DisplayName("name = 'A AND B' AND active = true — only the real top-level AND is split")
+        void andInsideStringLiteralIsNotSplitButRealAndIs() {
+            String jdql = "WHERE name = 'A AND B' AND active = true";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.combinator()).isEqualTo(JdqlQuery.Combinator.AND);
+            assertThat(result.conditions()).hasSize(2);
+
+            JdqlQuery.JdqlCondition first = result.conditions().get(0);
+            assertThat(first.fieldName()).isEqualTo("name");
+            assertThat(first.valueRef()).isEqualTo("'A AND B'");
+
+            JdqlQuery.JdqlCondition second = result.conditions().get(1);
+            assertThat(second.fieldName()).isEqualTo("active");
+        }
+
+        @Test
+        @DisplayName("Regression: real top-level OR outside string literals still splits correctly")
+        void realTopLevelOrStillSplits() {
+            String jdql = "WHERE a = :a OR b = :b";
+            JdqlQuery result = JdqlParser.parse(jdql);
+
+            assertThat(result.combinator()).isEqualTo(JdqlQuery.Combinator.OR);
+            assertThat(result.conditions()).hasSize(2);
+        }
+    }
 }

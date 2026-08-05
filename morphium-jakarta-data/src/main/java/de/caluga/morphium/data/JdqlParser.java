@@ -58,9 +58,10 @@ public final class JdqlParser {
 
     private JdqlParser() {}
 
-    // Split ORDER BY from WHERE (case-insensitive)
+    // Split ORDER BY from WHERE (case-insensitive). Prefix may be empty when ORDER BY
+    // appears without a preceding WHERE/GROUP BY clause (WHERE is optional per class javadoc).
     private static final Pattern ORDER_BY_SPLIT = Pattern.compile(
-            "^(.+?)\\s+ORDER\\s+BY\\s+(.+)$", Pattern.CASE_INSENSITIVE);
+            "^(.*?)\\s*ORDER\\s+BY\\s+(.+)$", Pattern.CASE_INSENSITIVE);
 
     // Match aggregate function: COUNT(this), SUM(amount), AVG(field), MIN(field), MAX(field)
     private static final Pattern AGGREGATE_PATTERN = Pattern.compile(
@@ -187,6 +188,16 @@ public final class JdqlParser {
         if (groupByIdx < 0 && whereUpper.startsWith("GROUP BY ")) {
             groupByIdx = 0;
         }
+
+        // Detect HAVING without a preceding GROUP BY — must be checked before the
+        // WHERE parser gets a chance to misinterpret "HAVING ..." as a condition.
+        if (groupByIdx < 0) {
+            boolean hasHaving = whereUpper.contains(" HAVING ") || whereUpper.startsWith("HAVING ");
+            if (hasHaving) {
+                throw new IllegalArgumentException("HAVING without GROUP BY: " + jdql);
+            }
+        }
+
         List<JdqlQuery.HavingCondition> havingConditions = null;
         JdqlQuery.Combinator havingCombinator = JdqlQuery.Combinator.AND;
         if (groupByIdx >= 0) {
@@ -520,7 +531,15 @@ public final class JdqlParser {
             String field = tokens[0];
             boolean ascending = true;
             if (tokens.length > 1) {
-                ascending = !"DESC".equalsIgnoreCase(tokens[1]);
+                String direction = tokens[1];
+                if ("ASC".equalsIgnoreCase(direction)) {
+                    ascending = true;
+                } else if ("DESC".equalsIgnoreCase(direction)) {
+                    ascending = false;
+                } else {
+                    throw new IllegalArgumentException("Invalid ORDER BY direction '" + direction
+                            + "' for field '" + field + "': expected ASC or DESC");
+                }
             }
             specs.add(new JdqlQuery.OrderSpec(field, ascending));
         }
@@ -532,9 +551,15 @@ public final class JdqlParser {
     private static boolean containsTopLevelOr(String wherePart) {
         String upper = wherePart.toUpperCase(Locale.ROOT);
         int depth = 0;
+        boolean insideStringLiteral = false;
         for (int i = 0; i < upper.length(); i++) {
             char c = upper.charAt(i);
-            if (c == '(') depth++;
+            if (c == '\'') {
+                insideStringLiteral = !insideStringLiteral;
+            } else if (insideStringLiteral) {
+                // skip parenthesis depth and keyword detection while inside a string literal
+                continue;
+            } else if (c == '(') depth++;
             else if (c == ')') depth--;
             else if (depth == 0 && i + 4 <= upper.length()
                     && upper.startsWith(" OR ", i)) {
@@ -548,6 +573,7 @@ public final class JdqlParser {
      * Splits a WHERE clause on a top-level combinator (AND or OR).
      * Handles BETWEEN...AND by not splitting inside it.
      * Respects parenthesis depth — never splits inside parenthesized groups.
+     * Respects string literals (single-quoted) — never splits inside a string literal.
      */
     private static List<String> splitTopLevel(String wherePart, String combinator) {
         List<String> result = new ArrayList<>();
@@ -557,10 +583,16 @@ public final class JdqlParser {
 
         int start = 0;
         int depth = 0;
+        boolean insideStringLiteral = false;
 
         for (int i = 0; i < upper.length(); i++) {
             char c = upper.charAt(i);
-            if (c == '(') {
+            if (c == '\'') {
+                insideStringLiteral = !insideStringLiteral;
+            } else if (insideStringLiteral) {
+                // skip parenthesis depth and separator detection while inside a string literal
+                continue;
+            } else if (c == '(') {
                 depth++;
             } else if (c == ')') {
                 depth--;
