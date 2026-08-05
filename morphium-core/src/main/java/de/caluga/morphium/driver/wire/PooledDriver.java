@@ -1291,18 +1291,40 @@ public class PooledDriver extends DriverBase {
                 case NEAREST:
 
                     // check fastest answer time
-                    if (fastestHost != null) {
+                    String nearestCandidate = fastestHost;
+                    if (nearestCandidate != null) {
                         try {
-                            return borrowConnection(fastestHost);
+                            return borrowConnection(nearestCandidate);
                         } catch (MorphiumDriverException e) {
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                             log.warn("Could not get connection to fastest host, trying primary", e);
+                            // A host we cannot even borrow a connection from is not "fastest".
+                            // fastestHost is otherwise only cleared when the heartbeat finally
+                            // evicts the host (5 consecutive failures) - observed live on a real
+                            // failover: it kept pointing at the faulted ex-primary for ~11s,
+                            // taxing EVERY read in that window with a full serverSelectionTimeout
+                            // before it could fall through to a healthy node. Clear it here so
+                            // only the first read pays; the next successful ping re-elects one.
+                            if (nearestCandidate.equals(fastestHost)) {
+                                fastestHost = null;
+                                fastestTime = 10000;
+                            }
                         }
                     }
                     // fall through — NEAREST failed or no fastestHost, try primary next
 
                 case PRIMARY_PREFERRED:
-                    if (primaryNode != null && hosts.get(primaryNode) != null && !hosts.get(primaryNode).getConnectionPool().isEmpty()) {
+                    // Deliberately NO pool-emptiness precondition here: right after a failover the
+                    // freshly-promoted primary's idle pool is typically EMPTY (its connections are
+                    // still being created, or all borrowed by concurrent writers) - which is exactly
+                    // when this branch matters most. Skipping the healthy primary because of a
+                    // momentarily empty pool sent reads into the secondary-only loop below, which
+                    // excludes the primary entirely - in a two-data-node RS whose secondary just
+                    // died, that loop could then NEVER succeed while writes on the same driver
+                    // recovered fine (observed live: readOk frozen for 25s+ while writeOk climbed).
+                    // borrowConnection() itself waits deadline-bounded (serverSelectionTimeout) for
+                    // the pool to be refilled, which is precisely what PRIMARY_PREFERRED wants.
+                    if (primaryNode != null && hosts.get(primaryNode) != null) {
                         try {
                             return borrowConnection(primaryNode);
                         } catch (MorphiumDriverException e) {
@@ -1362,6 +1384,29 @@ public class PooledDriver extends DriverBase {
                         try {
                             return borrowConnection(host);
                         } catch (MorphiumDriverException e) {
+                            // "No reachable secondary" must not strand callers whose preference
+                            // allows the primary: SECONDARY_PREFERRED - and the fall-throughs from
+                            // NEAREST / PRIMARY_PREFERRED that land here - semantically mean
+                            // "secondary if available, OTHERWISE primary". Once a full round-robin
+                            // wrap over the candidate secondaries has failed (retry > 0), try the
+                            // primary instead of hammering dead secondaries for up to
+                            // retriesOnNetworkError more wraps (at serverSelectionTimeout each,
+                            // that is over a minute inside ONE read call with typical settings -
+                            // observed live after a failover: a single countAll() spent ~26s in
+                            // this loop retrying the dead ex-primary while the healthy new primary
+                            // sat idle, so reads never recovered although writes did). Only a
+                            // strict SECONDARY preference keeps excluding the primary.
+                            if (type != ReadPreferenceType.SECONDARY && retry > 0 && primaryNode != null
+                                    && hosts.get(primaryNode) != null) {
+                                try {
+                                    return borrowConnection(primaryNode);
+                                } catch (MorphiumDriverException pe) {
+                                    stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                                    log.warn("Primary fallback failed too ({}) - continuing secondary retries",
+                                             primaryNode);
+                                }
+                            }
+
                             if (retry > getRetriesOnNetworkError()) {
                                 log.error("Could not get Connection - abort");
                                 stats.get(DriverStatsKey.ERRORS).incrementAndGet();
