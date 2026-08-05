@@ -90,6 +90,9 @@ nav:
     - Messaging Implementations: howtos/messaging-implementations.md
     - SSL/TLS Connections: ssl-tls.md
     - Developer Guide: developer-guide.md
+  - Extensions:
+    # Placeholder: Quarkus- und Spring-Boot-Integrationsseiten folgen in späteren Wellen (M4, M5).
+    - Jakarta Data: jakarta-data.md
   - Reference:
     - API Reference: api-reference.md
     - Configuration: configuration-reference.md
