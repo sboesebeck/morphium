@@ -629,13 +629,24 @@ public class DriverFailoverProxyTest {
 
             int writeBaseline = writeOk.get();
             int readBaseline = readOk.get();
-            long deadline = System.currentTimeMillis() + 10_000;
+            // 25s (up from 10s): found via a live mongosh rs.status() observation across a full
+            // 5-scenario suite run on mongo1/mongo2.fritz.box - mongo1's much higher priority
+            // (100 vs mongo2's 50) means it wins back primacy within ~1s of becoming electable
+            // again, so whenever this scenario's own freezeNode() window (60s) hasn't yet been
+            // cancelled by the time an adjacent scenario faults+steps down whatever is CURRENTLY
+            // primary, both nodes can end up simultaneously unelectable for several real seconds
+            // (observed: ~9s with no primary at all) - the same "both electable nodes blocked"
+            // failure class as 4beecc59, just via freeze-window overlap instead of stepDown-block
+            // overlap. 25s comfortably absorbs that real-world gap while staying well under
+            // writesRecoverAfterFreeze's proven 45s budget for the (longer, freeze-mode-only)
+            // sibling scenario.
+            long deadline = System.currentTimeMillis() + 25_000;
             boolean recovered = false;
             while (System.currentTimeMillis() < deadline) {
                 if (writeOk.get() > writeBaseline + 2 && readOk.get() > readBaseline + 2) { recovered = true; break; }
                 Thread.sleep(200);
             }
-            assertTrue(recovered, "writes/reads did not resume within 10s of the fault (" + faultMode + "): "
+            assertTrue(recovered, "writes/reads did not resume within 25s of the fault (" + faultMode + "): "
                     + "writeOk " + writeBaseline + " -> " + writeOk.get() + ", readOk " + readBaseline + " -> " + readOk.get());
             assertOnlyConnectedThroughProxies(backendToProxy);
         } finally {
