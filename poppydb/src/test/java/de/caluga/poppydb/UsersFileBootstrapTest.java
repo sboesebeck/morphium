@@ -290,6 +290,34 @@ public class UsersFileBootstrapTest {
                 "the error must never contain the password");
     }
 
+    @Test
+    @Tag("server")
+    public void leadershipHookApplyFailureLogsButKeepsServerRunning() throws Exception {
+        int port = freePort();
+        PoppyDB srv = new PoppyDB(port, "127.0.0.1", 20, 5);
+        srv.setAuthRequired(true);
+        String me = "127.0.0.1:" + port;
+        // Single-node "replica set": majority is 1, so this node elects itself primary through
+        // the real election path (ElectionManager) and reaches the leadership-hook apply exactly
+        // like a multi-node primary would - no need to drive onLeadershipChangeSynchronized
+        // directly (that would race the real election dispatch).
+        srv.configureReplicaSet("rsHookFail", List.of(me), Map.of(me, 100), true, null);
+        // "BOGUS" is not a supported mechanism -> createUser answers a hard failure (not 51003).
+        // In election mode a leadership-hook apply failure can only be logged: a running server
+        // cannot abort mid-failover (spec: "election -> in the leadership hook ... a failure
+        // there logs ERROR; a running server cannot abort mid-failover").
+        srv.setBootstrapUsers(spec(1L,
+                new UserSpec("broken", "admin", "topsecretpw", List.of(), List.of("BOGUS"))));
+        startServer(srv, port);
+        waitForPrimary(srv);
+
+        assertTrue(srv.isRunning(),
+                "a leadership-hook apply failure must only be logged, never crash/stop the server");
+        assertFalse(scramLoginWorks(port, "admin", "broken", "topsecretpw"),
+                "the entry that failed to apply must never have been created");
+        assertNull(appliedVersion(srv), "a failed apply must not advance the version gate");
+    }
+
     // ---- CLI wiring ----------------------------------------------------------------------
 
     @Test

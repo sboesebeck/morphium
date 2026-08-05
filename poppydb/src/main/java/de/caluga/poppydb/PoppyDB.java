@@ -335,12 +335,18 @@ public class PoppyDB {
         // exit 1). Only the PRIMARY may write users: in election mode the leadership hook
         // applies instead, and a static-mode secondary skips - it receives the result via
         // replication from the static primary.
-        if (bootstrapUsers != null && !electionEnabled && primary) {
-            try {
-                applyBootstrapUsers();
-            } catch (ConfigException e) {
-                log.error("users file bootstrap apply failed - aborting startup: {}", e.getMessage());
-                throw e;
+        if (bootstrapUsers != null && !electionEnabled) {
+            if (primary) {
+                try {
+                    applyBootstrapUsers();
+                } catch (ConfigException e) {
+                    log.error("users file bootstrap apply failed - aborting startup: {}", e.getMessage());
+                    throw e;
+                }
+            } else {
+                log.info("users-file is configured on this node but it is a static-mode secondary "
+                    + "(primaryHost={}) - the file is ignored here; it applies only on the primary and "
+                    + "this node receives the result via replication", primaryHost);
             }
         }
 
@@ -1133,7 +1139,13 @@ public class PoppyDB {
             }
             return who + ": createUser failed: " + errmsgOf(result);
         } catch (Exception e) {
-            return who + ": " + e.getMessage();
+            // e.getMessage() is null for plenty of exceptions (e.g. NPE) - that used to render as
+            // "who: null" here, an unusable diagnostic. e.toString() always carries at least the
+            // exception's class name. The full throwable (with stack trace) goes to the log so
+            // the real cause is not lost even though only the short form goes into the collected
+            // failure string.
+            log.error("users file: apply failed for {}", who, e);
+            return who + ": " + e.toString();
         }
     }
 
@@ -1194,8 +1206,19 @@ public class PoppyDB {
         return driver.readSingleAnswer(driver.runCommand(cmd));
     }
 
+    /**
+     * True iff the command answer is a genuine success: {@code ok: 1} AND no non-empty
+     * {@code writeErrors} array. A generic {@code update} command (as used by
+     * {@link #writeAppliedUsersFileVersion}) can answer {@code ok: 1} at the top level while
+     * still reporting a per-statement failure via {@code writeErrors} - without this check a
+     * failed appliedVersion write would be silently treated as success.
+     */
     private static boolean isOk(Map<String, Object> result) {
-        return result != null && Double.valueOf(1.0).equals(result.get("ok"));
+        if (result == null || !Double.valueOf(1.0).equals(result.get("ok"))) {
+            return false;
+        }
+        Object writeErrors = result.get("writeErrors");
+        return !(writeErrors instanceof List<?> errors && !errors.isEmpty());
     }
 
     private static String errmsgOf(Map<String, Object> result) {
