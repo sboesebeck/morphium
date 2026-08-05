@@ -10,6 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: `--users-file` — declarative user provisioning (bootstrap, upsert, version-gated)
+Builds on user replication: `--rootUser`/`--rootPassword` only ever provisioned one admin user,
+so any real application user set still had to be created by hand (a shell script running
+`createUser` against a live server, or worse, a manual `mongosh` session) — not something you can
+put in version control or a config-management run. `--users-file <path>` (config key
+`users-file`) now points at a JSON file — either a bare array of users, or `{"version": N,
+"users": [...]}` — applied as an idempotent `createUser`/on-51003-fallback-`updateUser` upsert
+wherever `ensureRootUser` already runs: once at startup for a static-mode primary (a broken file
+aborts startup, fail-fast like any other bad config), and on every leadership-hook run for an
+election-mode primary (a failure there can only be logged — a running server cannot abort
+mid-failover). A static-mode secondary never applies the file itself, even if one is configured
+on it too; it receives the result through the same `admin.system.users` replication that already
+carries `createUser`/`updateUser`. An optional `version` field in the file gates re-application
+against a small replicated meta document (`admin.system.version {_id: "poppydb.usersFile",
+appliedVersion: N}`), so a straggler node that fails back to primary with an older copy of the
+file on disk can never roll passwords back — only a strictly higher version re-applies. Unknown
+fields (top-level or per-entry) are a hard error naming the field, and — like every other secret
+file in PoppyDB's config surface — the file's POSIX permissions are checked (group/other-readable
+warns, group/other-writable refuses to start); its content is never logged, including in error
+messages, even for a malformed-JSON parse failure. `--check-config` validates the file (parse,
+validation, permissions) the same way, without starting a server. See
+[PoppyDB § Bootstrapping users](docs/poppydb.md#bootstrapping-users---users-file).
+
 #### PoppyDB: `admin.system.users` replicates across the replica set — users survive failover
 Users were node-local: `createUser` only ever wrote to whichever node's own `admin.system.users`,
 so a secondary never had the same login-able users as the primary, and a failover — or a dump

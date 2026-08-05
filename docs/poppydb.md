@@ -173,6 +173,7 @@ max-bson-size = 16777216
 #auth = true
 #root-user = admin
 #root-password-file = /etc/poppydb/secrets/root.pw
+#users-file = /etc/poppydb/users.json
 #dump-dir = /var/lib/poppydb/data
 #dump-interval = 300
 ```
@@ -197,8 +198,11 @@ doubles as a starting template:
 with code 0 (OK) or 1 (errors) - like `nginx -t`. Beyond syntax and semantic cross-checks
 (value ranges, `root-user`/`root-password` pairing, `rs-priorities` count matching `rs-seed`,
 `memory-warn` <= `memory-reject`, ...), it performs deep checks: the SSL keystore is actually
-loaded (catching wrong keystore passwords), secret files are read, and the dump directory is
-checked for usability. Warnings (e.g. `ssl` without a keystore) do not affect the exit code:
+loaded (catching wrong keystore passwords), secret files are read, the dump directory is
+checked for usability, and — if `users-file` is set — the file is read, permission-checked and
+fully parsed/validated exactly like at real startup (see
+[Bootstrapping users](#bootstrapping-users---users-file)), so a broken users file is caught before
+it can abort a real deployment. Warnings (e.g. `ssl` without a keystore) do not affect the exit code:
 
     java -jar poppydb.jar --cfg /etc/poppydb/config --check-config
 
@@ -230,6 +234,7 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 | `--no-auth` | | Force auth off, overriding a config file's `auth=true`. | |
 | `--rootUser <name>` | `root-user` | Initial admin user, created at startup if absent. Required for a fresh `--auth` server — there is no localhost exception. | |
 | `--rootPassword <pw>` | `root-password` | Password for the initial admin user. `root-password-file` (config-file only) reads it from a separate file instead. | |
+| `--users-file <path>` | `users-file` | JSON file declaring users to provision at startup (idempotent upsert, primary-only apply, optional version gate). See [Bootstrapping users](#bootstrapping-users---users-file). | |
 | `-d`, `--dump-dir <path>` | `dump-dir` | Directory for periodic database dumps. Enables persistence. | |
 | `--dump-interval <seconds>` | `dump-interval` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
 | `--max-connections <num>` | `max-connections` | Maximum concurrent connections. | `500` |
@@ -580,6 +585,10 @@ is briefly empty until the snapshot lands, so SCRAM logins against that node fai
 brief window before the new primary has (re-)created the root user, during which root logins may
 transiently fail until that completes.
 
+For provisioning more than the one initial admin user declaratively, see
+[Bootstrapping users (`--users-file`)](#bootstrapping-users---users-file) below — a JSON file of
+users applied the same idempotent, primary-only, replication-riding way `--rootUser` is.
+
 **SSL with Docker:**
 ```dockerfile
 FROM openjdk:21-slim
@@ -595,6 +604,89 @@ CMD ["java", "-jar", "/app/poppydb.jar", \
      "--ssl", "--sslKeystore", "/app/server.jks", \
      "--sslKeystorePassword", "changeit"]
 ```
+
+### Bootstrapping users (`--users-file`)
+
+`--rootUser`/`--rootPassword` provision exactly one admin user. For production ("IaC")
+provisioning of the application's actual user set, point `--users-file <path>` (config key
+`users-file`) at a JSON file and PoppyDB applies it as an idempotent upsert every time a node
+becomes primary — no manual `createUser` shell commands, no drift between environments.
+
+**File format** — either a bare JSON array (unversioned), or an object wrapping it with a
+`version`:
+
+```json
+{ "version": 3,
+  "users": [
+    { "user": "app",     "db": "mydb",  "pwd": "s3cret",
+      "roles": [{ "role": "readWrite", "db": "mydb" }] },
+    { "user": "monitor", "pwd": "..." }
+  ] }
+```
+
+Per entry: `user` and `pwd` are required non-empty strings; `db` defaults to `"admin"`; `roles`
+is optional and stored mongod-shaped but **not enforced** (like everywhere else in PoppyDB —
+see [Current limitations](#authentication---auth) above); `mechanisms` is optional. Any unknown
+field in an entry, or at the top level, is a hard error naming the field (and the entry index)
+instead of being silently ignored. `version`, if present, must be a positive integer.
+
+```bash
+java -jar poppydb-cli.jar --auth --rootUser admin --rootPassword s3cr3t \
+  --users-file /etc/poppydb/users.json
+```
+
+**Applied by the primary only, at the same point `--rootUser` is:**
+
+- Non-replicated / static-mode primary: once, right after startup (a failure here is fatal —
+  it aborts startup, same as any other broken config, so a bad file is caught immediately
+  instead of silently leaving users unprovisioned).
+- Election-mode replica set: every time this node's leadership hook runs, right after
+  `ensureRootUser` — i.e. on every election, not just the first one. This is intentionally
+  idempotent: `createUser` on a name that already exists falls back to `updateUser` (password,
+  roles and mechanisms from the file replace the stored state), so repeated leadership changes
+  (flapping, priority takeover) just re-apply harmlessly. A failure here can only be **logged**
+  (`ERROR`) — a running server cannot abort mid-failover, so the node keeps serving with
+  whatever user state it already had.
+- A static-mode **secondary** never applies the file locally, even if `--users-file` is
+  configured on it too (PoppyDB logs an INFO line noting that it is ignored there) — it receives
+  the result purely through the normal `admin.system.users` replication that already carries
+  `createUser`/`updateUser` writes (see [User replication](#authentication---auth) above).
+
+**Deploy the identical file to every node.** The version gate below is what makes that safe even
+across a failback to a node that still has an older copy on disk.
+
+**Version gate — protects against rollback after a failback:** an unversioned file always
+applies in full on every leadership change. A versioned file only applies if the file's
+`version` is **greater than** the last version this cluster actually applied — that applied
+state is itself a small document, `admin.system.version { _id: "poppydb.usersFile",
+appliedVersion: N }`, and it replicates exactly like the users themselves (same collection-scope
+rule as `admin.system.users`). Concretely: node A applies version 3 and becomes primary; a
+network partition later promotes node B, which still has version 2 of the file on local disk —
+B's apply is skipped (`appliedVersion 3 >= file version 2`, logged at INFO) instead of rolling
+passwords back to the older file's contents. Re-applying the *same* version is likewise a no-op;
+only a strictly higher version triggers a new apply.
+
+**Rotation flow:** edit the file (bump `version`), roll out the new file to every node, then
+rolling-restart (or just let the next election re-run the leadership hook, in election mode).
+Logins flip cluster-wide the moment a primary holding the new file applies it — there is no
+per-node lag beyond ordinary replication.
+
+**Programmatic configuration** (mirrors `setRootUser`):
+```java
+import de.caluga.poppydb.PoppyDB;
+import de.caluga.poppydb.config.UsersFileLoader;
+
+PoppyDB server = new PoppyDB(27018, "localhost", 100, 10);
+server.setBootstrapUsers(UsersFileLoader.load("/etc/poppydb/users.json"));
+server.start();
+```
+
+**Out of scope (by design):** there is no `dropUser`/reconciliation-delete — the file only ever
+adds/updates, so removing a user still means an explicit `dropUser` (or leaving them in the file
+with a rotated password is not equivalent to removal); no role *enforcement* (same limitation as
+`createUser`'s `roles` field everywhere else); no environment-variable substitution inside the
+file; and no file-watching — a changed file only takes effect on the next apply (restart, or the
+next leadership change in election mode), never live.
 
 ### Constructor Options
 

@@ -87,6 +87,30 @@ public class PoppyDBCLIInspectionTest {
     }
 
     @Test
+    void checkConfigOkWithValidUsersFile(@TempDir Path dir) throws Exception {
+        Path usersFile = dir.resolve("users.json");
+        Files.writeString(usersFile, "[{\"user\": \"app\", \"pwd\": \"s3cret\"}]", StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(usersFile,
+            java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        int rc = PoppyDBCLI.runInspection(
+            new String[] {"--users-file", usersFile.toString()}, 0, null, false, true, out, err);
+        assertThat(rc).isZero();
+        assertThat(out()).contains("Configuration OK");
+    }
+
+    @Test
+    void checkConfigFailsWithBrokenUsersFile(@TempDir Path dir) throws Exception {
+        Path usersFile = dir.resolve("users.json");
+        Files.writeString(usersFile, "{ this is not json", StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(usersFile,
+            java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        int rc = PoppyDBCLI.runInspection(
+            new String[] {"--users-file", usersFile.toString()}, 0, null, false, true, out, err);
+        assertThat(rc).isEqualTo(1);
+        assertThat(err()).contains("Configuration check FAILED:");
+    }
+
+    @Test
     void printAndCheckTogetherAreRejected() {
         int rc = PoppyDBCLI.runInspection(
             new String[] {"--port", "27018"}, 0, null, true, true, out, err);

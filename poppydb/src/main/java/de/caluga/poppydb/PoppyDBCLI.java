@@ -634,7 +634,12 @@ public class PoppyDBCLI {
         System.out.println("                               file with per-key source annotations, then exit");
         System.out.println("  --check-config             : Validate the effective configuration without starting the");
         System.out.println("                               server: syntax, semantic cross-checks and deep checks");
-        System.out.println("                               (keystore loadable, dump-dir usable). Exit code 0 = OK, 1 = errors");
+        System.out.println("                               (keystore loadable, dump-dir usable, users-file parses).");
+        System.out.println("                               Exit code 0 = OK, 1 = errors");
+        System.out.println("  --users-file <path>        : JSON file declaring users to provision at startup (idempotent");
+        System.out.println("                               upsert, applied by the primary only; optional \"version\" field");
+        System.out.println("                               gates re-application). See docs/poppydb.md, section");
+        System.out.println("                               \"Bootstrapping users\".");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
@@ -646,5 +651,6 @@ public class PoppyDBCLI {
         System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config");
         System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config --check-config");
         System.out.println("  java -jar poppydb.jar --no-config --print-config > poppydb.conf.template");
+        System.out.println("  java -jar poppydb.jar --auth --rootUser admin --rootPassword s3cr3t --users-file /etc/poppydb/users.json");
     }
 }
