@@ -160,6 +160,16 @@ public class DriverFailoverProxyTest {
         cfg.connectionSettings().setMaxConnections(20).setMinConnections(2);
         cfg.connectionSettings().setConnectionTimeout(5000);
         cfg.driverSettings().setReadTimeout(10000);
+        // Found via a real run on testrunner.fritz.box: the 30s DriverSettings default left
+        // PooledDriver.getReadConnection()'s PRIMARY-case borrowConnection() wait free to block
+        // for up to 30s while the primary is being re-resolved after a fault - far longer than
+        // any scenario's recovery window (10-25s), and with no retry loop of its own the way
+        // WriteMongoCommand has ("re-resolving primary, retry N/10" in the write path's logs).
+        // A read stuck in that single 30s wait looked identical to "reads never recover": the
+        // reader thread's own 200ms retry loop never got a chance to run again until the whole
+        // window had already elapsed. 5s here lets a stuck read fail fast enough for the reader
+        // loop's own retries to actually contribute to recovery within the shorter windows.
+        cfg.driverSettings().setServerSelectionTimeout(5000);
         cfg.clusterSettings().setHeartbeatFrequency(1000);
         cfg.connectionSettings().setMaxWaitTime(60000);
         // SSL and wire compression explicitly off - the proxy cannot frame-parse either
