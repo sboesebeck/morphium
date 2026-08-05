@@ -294,7 +294,17 @@ public class DriverFailoverProxyTest {
                     log.debug("write failed (expected during the fault window): {}", t.getMessage());
                 }
                 i++;
-                try { Thread.sleep(100); } catch (InterruptedException e) { return; }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    // A spurious interrupt (e.g. PooledDriver aborting a blocked
+                    // borrowConnection() wait during host eviction) must not kill this
+                    // thread outright - only an actual shutdown request (running==false)
+                    // may stop the loop. See runWriteReadScenario's reader for the bug
+                    // this pattern was silently hitting: a single interrupt used to
+                    // permanently end the thread with no error ever surfacing.
+                    if (!running.get()) return;
+                }
             }
         }, "freeze-writer");
         trackedThreads.add(writer);
@@ -373,7 +383,13 @@ public class DriverFailoverProxyTest {
                     log.debug("write failed (expected during the fault window): {}", t.getMessage());
                 }
                 i++;
-                try { Thread.sleep(200); } catch (InterruptedException e) { return; }
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    // Spurious interrupt (see freeze-writer's comment) - only stop on a
+                    // real shutdown request.
+                    if (!running.get()) return;
+                }
             }
         }, "writeread-writer");
         Thread reader = new Thread(() -> {
@@ -384,7 +400,22 @@ public class DriverFailoverProxyTest {
                 } catch (Throwable t) {
                     log.debug("read failed (expected during the fault window): {}", t.getMessage());
                 }
-                try { Thread.sleep(200); } catch (InterruptedException e) { return; }
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    // This is the bug this comment documents: PooledDriver's borrowConnection()
+                    // wait can be interrupted internally while a host is being evicted during
+                    // failover (see PooledDriver.borrowConnection's InterruptedException handling,
+                    // which sets Thread.currentThread().interrupt() before throwing). That leaves
+                    // THIS thread's interrupt status set; the very next Thread.sleep() here would
+                    // then immediately re-throw InterruptedException too. A naive
+                    // "catch -> return" here silently and permanently ends the reader thread on
+                    // the very first such event - readOk then never increases again for the rest
+                    // of the test, with no error ever surfacing beyond the recovery assertion
+                    // failing much later. Only an actual shutdown request (running==false) may
+                    // stop the loop.
+                    if (!running.get()) return;
+                }
             }
         }, "writeread-reader");
         trackedThreads.add(writer);
@@ -469,7 +500,13 @@ public class DriverFailoverProxyTest {
                             log.debug("send failed (expected during the fault window): {}", t.getMessage());
                         }
                         i++;
-                        try { Thread.sleep(300); } catch (InterruptedException e) { return; }
+                        try {
+                            Thread.sleep(300);
+                        } catch (InterruptedException e) {
+                            // Spurious interrupt (see runWriteReadScenario's reader for the full
+                            // explanation) - only stop on a real shutdown request.
+                            if (!running.get()) return;
+                        }
                     }
                 }, "messaging-sender");
                 trackedThreads.add(sendThread);
