@@ -363,17 +363,37 @@ public class DriverFailoverProxyTest {
      * whichever node is CURRENTLY primary (never this frozen one, by construction). Opens its own
      * connection rather than reusing stepDownPrimary's - that channel may already be closed by
      * the time this runs (mongod can close the connection instead of replying to stepDown).
-     * Best-effort: swallows failures, since a failed freeze just means this specific race can
-     * recur on this run, not a definite bug. */
+     * Retries a few times on failure (bounded, short backoff) rather than a single best-effort
+     * attempt: found via a live mongosh rs.status() observation against mongo1/mongo2.fritz.box
+     * that a SINGLE immediate call, right after stepDownPrimary returns, can race the target
+     * node's own internal state transition to SECONDARY - replSetFreeze is only accepted on a
+     * secondary, so a too-early call is refused with an ok:0 reply (a real MorphiumDriverException,
+     * not the connection-closed case commandTolerateClose already tolerates) and, before this
+     * retry loop existed, was silently swallowed with nothing but a DEBUG log line - manually
+     * confirmed via mongosh that replSetFreeze itself works perfectly (mongo1 stayed SECONDARY
+     * for the full 60s) once it actually lands. Still best-effort overall: exhausting the
+     * retries just means this specific race can recur on this run, not a definite bug. */
     private void freezeNode(Backend backend, String nodeName, int seconds) {
         String[] hp = nodeName.split(":");
-        try (ControlChannel ch = new ControlChannel(hp[0], Integer.parseInt(hp[1]),
-                backend.authDb(), backend.user(), backend.password())) {
-            ch.commandTolerateClose(Doc.of("replSetFreeze", seconds, "$db", "admin"));
-        } catch (Exception e) {
-            log.debug("Could not {} freeze on {} (best-effort, race with the node's own state "
-                    + "transition): {}", seconds == 0 ? "cancel" : "set", nodeName, e.getMessage());
+        Exception lastFailure = null;
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            try (ControlChannel ch = new ControlChannel(hp[0], Integer.parseInt(hp[1]),
+                    backend.authDb(), backend.user(), backend.password())) {
+                ch.commandTolerateClose(Doc.of("replSetFreeze", seconds, "$db", "admin"));
+                return;
+            } catch (Exception e) {
+                lastFailure = e;
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
+        log.debug("Could not {} freeze on {} after 5 attempts (best-effort, race with the node's "
+                + "own state transition): {}", seconds == 0 ? "cancel" : "set", nodeName,
+                lastFailure == null ? null : lastFailure.getMessage());
     }
 
     /** Polls until a new primary (not {@code exPrimaryName}) is elected, reusing a single
