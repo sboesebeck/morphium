@@ -105,6 +105,13 @@ public class PoppyDB {
     // SSL configuration
     private boolean sslEnabled = false;
     private SSLContext sslContext = null;
+    // Trust anchor for the RS-internal channel (ElectionNetworkClient/ReplicationManager) when
+    // --ssl is on: pinned to this server's own configured certificate, built by PoppyDBCLI via
+    // SslHelper.createClientSslContext(sslKeystore, sslKeystorePassword) - see
+    // docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md. Null means the
+    // internal channel stays plaintext even if sslEnabled is true (e.g. the ephemeral
+    // self-signed-cert dev fallback, where every node's cert differs and pinning is impossible).
+    private SSLContext internalSslContext = null;
     private boolean authRequired = false;
     private String rootUser = null;
     private String rootPassword = null;
@@ -318,11 +325,22 @@ public class PoppyDB {
         if (rootUser != null && rootPassword != null) {
             if (!electionEnabled) {
                 ensureRootUser();
+            } else if (authRequired) {
+                // Election-mode bootstrap gap: with --auth on, ElectionNetworkClient's peer RPCs
+                // (requestVote/appendEntries) must SCRAM-authenticate before a leader even exists
+                // (see startElection() below) - deferring root-user creation to the leadership
+                // callback, as secondaries otherwise do, would deadlock the whole RS (no leader
+                // can be elected until credentials exist, and credentials are only created by
+                // the leader). So every node seeds its own local copy up front. Harmless: once a
+                // leader is elected, admin.system.users fully replicates (drop + repopulate) from
+                // the primary's identical root user, so this bootstrap copy is immediately
+                // superseded and every node converges on one canonical document.
+                ensureRootUser();
             }
-            // in election mode the leadership callback (below) creates it on the primary only -
-            // secondaries receive the user via replication instead of self-creating it, so a
-            // resync (which clears and repopulates admin.system.users from the primary) never
-            // wipes out a secondary's own root account
+            // in election mode without --auth, the leadership callback (below) creates it on the
+            // primary only - secondaries receive the user via replication instead of self-creating
+            // it, so a resync (which clears and repopulates admin.system.users from the primary)
+            // never wipes out a secondary's own root account
         } else if (authRequired) {
             // users may still exist from a restored dump - but a fresh --auth server without
             // any user would be permanently unreachable (no localhost exception)
@@ -1244,6 +1262,15 @@ public class PoppyDB {
         this.sslContext = sslContext;
     }
 
+    /**
+     * Trust anchor for the RS-internal channel's outbound connections when SSL is enabled - see
+     * {@link #internalSslContext}. Set by {@code PoppyDBCLI} alongside {@link #setSslContext};
+     * has no effect unless {@link #setSslEnabled(boolean)} is also true.
+     */
+    public void setInternalSslContext(SSLContext internalSslContext) {
+        this.internalSslContext = internalSslContext;
+    }
+
     public void setDumpDirectory(File dir) {
         this.dumpDirectory = dir;
     }
@@ -1306,6 +1333,8 @@ public class PoppyDB {
 
         // Start network client first (wires up callbacks)
         if (electionNetworkClient != null) {
+            electionNetworkClient.setInternalConnectionSecurity(
+                    authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             electionNetworkClient.start();
         }
 

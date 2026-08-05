@@ -129,7 +129,7 @@ public class RsInternalAuthTlsTest {
      * is non-null, --ssl. Deliberately does NOT wait for a leader - that is what
      * {@link #leaderElectedWithAuthAndSsl} tests.
      */
-    private Cluster bootstrapCluster(SSLContext serverSsl) throws Exception {
+    private Cluster bootstrapCluster(SSLContext serverSsl, SSLContext internalSsl) throws Exception {
         int port1 = nextPort();
         int port2 = nextPort();
         int port3 = nextPort();
@@ -147,6 +147,7 @@ public class RsInternalAuthTlsTest {
             if (serverSsl != null) {
                 node.setSslContext(serverSsl);
                 node.setSslEnabled(true);
+                node.setInternalSslContext(internalSsl);
             }
             node.configureReplicaSet("rsAuthTls", hosts, prio, true, null);
         }
@@ -163,7 +164,8 @@ public class RsInternalAuthTlsTest {
         File keystore = buildKeystore(dir);
         SSLContext serverSsl = SslHelper.createServerSslContext(keystore.getAbsolutePath(), "changeit");
 
-        Cluster c = bootstrapCluster(serverSsl);
+        SSLContext internalSsl = SslHelper.createClientSslContext(keystore.getAbsolutePath(), "changeit");
+        Cluster c = bootstrapCluster(serverSsl, internalSsl);
 
         PoppyDB leader = waitForAnyPrimary(c.all(), 20_000);
 

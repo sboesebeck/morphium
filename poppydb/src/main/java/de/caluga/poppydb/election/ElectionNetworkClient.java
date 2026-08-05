@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * Handles network communication between PoppyDB nodes for elections.
  * Creates connections to peer servers and sends vote requests / heartbeats.
@@ -33,6 +35,14 @@ public class ElectionNetworkClient {
 
     private volatile boolean running = false;
 
+    // RS-internal connection security, set once via setInternalConnectionSecurity() before
+    // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
+    // Defaults (auth off, no SSL context) reproduce today's plaintext/unauthenticated behavior.
+    private volatile boolean authEnabled = false;
+    private volatile String authUser = null;
+    private volatile String authPassword = null;
+    private volatile SSLContext internalSslContext = null;
+
     public ElectionNetworkClient(ElectionManager electionManager) {
         this.electionManager = electionManager;
         this.executor = Executors.newCachedThreadPool(r -> {
@@ -40,6 +50,19 @@ public class ElectionNetworkClient {
             t.setDaemon(true);
             return t;
         });
+    }
+
+    /**
+     * Configure how outbound connections to peers authenticate/encrypt themselves. Call before
+     * {@link #start()}. {@code internalSslContext} of {@code null} means the connection stays
+     * plaintext even if {@code authEnabled} is true.
+     */
+    public void setInternalConnectionSecurity(boolean authEnabled, String authUser, String authPassword,
+            SSLContext internalSslContext) {
+        this.authEnabled = authEnabled;
+        this.authUser = authUser;
+        this.authPassword = authPassword;
+        this.internalSslContext = internalSslContext;
     }
 
     /**
@@ -191,6 +214,14 @@ public class ElectionNetworkClient {
             driver.setMaxWaitTime(COMMAND_TIMEOUT_MS);
             // Use ANY connection type - during elections nodes may not yet be primary
             driver.setConnectionType(ConnectionType.ANY);
+            if (authEnabled) {
+                driver.setCredentials("admin", authUser, authPassword);
+            }
+            if (internalSslContext != null) {
+                driver.setUseSSL(true);
+                driver.setSslContext(internalSslContext);
+                driver.setSslInvalidHostNameAllowed(true);
+            }
             driver.connect();
 
             log.debug("Created connection to peer {}", peer);

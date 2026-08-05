@@ -498,9 +498,22 @@ public class PoppyDBCLI {
                 try {
                     SSLContext sslContext = SslHelper.createServerSslContext(opts.sslKeystore, opts.sslKeystorePassword);
                     srv.setSslContext(sslContext);
+                    // Same keystore file, reused as a truststore: the RS-internal channel trusts
+                    // exactly this server's own certificate (see PoppyDB#internalSslContext).
+                    SSLContext internalSslContext = SslHelper.createClientSslContext(opts.sslKeystore, opts.sslKeystorePassword);
+                    srv.setInternalSslContext(internalSslContext);
                 } catch (Exception e) {
                     throw new ConfigException("Failed to load SSL keystore: " + e.getMessage(), e);
                 }
+            } else {
+                // Ephemeral self-signed cert path (already WARN-logged elsewhere as unsuitable
+                // for production): every node generates its own throwaway cert, so there is
+                // nothing to pin - the RS-internal channel (election/replication) stays
+                // plaintext even though this node's SSL-enabled listener requires TLS from
+                // clients. On a multi-node RS this means peers can never connect to each other.
+                log.warn("SSL enabled without --sslKeystore: the RS-internal election/replication "
+                        + "channel cannot establish trust and will stay plaintext, which peers "
+                        + "requiring TLS will reject. Configure --sslKeystore for a working replica set.");
             }
             srv.setSslEnabled(true);
         }
