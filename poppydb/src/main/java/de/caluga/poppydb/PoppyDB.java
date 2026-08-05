@@ -331,10 +331,17 @@ public class PoppyDB {
                 // (see startElection() below) - deferring root-user creation to the leadership
                 // callback, as secondaries otherwise do, would deadlock the whole RS (no leader
                 // can be elected until credentials exist, and credentials are only created by
-                // the leader). So every node seeds its own local copy up front. Harmless: once a
-                // leader is elected, admin.system.users fully replicates (drop + repopulate) from
-                // the primary's identical root user, so this bootstrap copy is immediately
-                // superseded and every node converges on one canonical document.
+                // the leader). So every node seeds its own local copy up front.
+                // NOTE: "harmless because it's superseded by replication" is only true once
+                // ReplicationManager itself does auth/TLS on its connection to the primary (a
+                // separate gap - not yet fixed as of this commit; that's a later step in this
+                // same effort). Until then, a secondary's replication connection to an
+                // auth-required primary cannot complete, so the drop+repopulate of
+                // admin.system.users this comment describes cannot run end-to-end yet - each
+                // node's bootstrap copy stays in place unreplaced. It is still safe: every node
+                // was given the same rootUser/rootPassword (the "identical config on every node"
+                // deployment pattern), so each node's independently-created copy authenticates
+                // the same credential regardless of whether replication ever overwrites it.
                 ensureRootUser();
             }
             // in election mode without --auth, the leadership callback (below) creates it on the
