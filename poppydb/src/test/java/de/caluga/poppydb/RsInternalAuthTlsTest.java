@@ -3,6 +3,7 @@ package de.caluga.poppydb;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.File;
 import java.net.InetSocketAddress;
@@ -119,6 +120,20 @@ public class RsInternalAuthTlsTest {
         return con;
     }
 
+    /** Unauthenticated (+ TLS, if clientSsl != null) client connection for servers with auth disabled. */
+    private SingleMongoConnection connectUnauthenticated(int port, SSLContext clientSsl) throws Exception {
+        PooledDriver carrier = new PooledDriver();
+        carrier.setConnectionTimeout(3000);
+        if (clientSsl != null) {
+            carrier.setUseSSL(true);
+            carrier.setSslContext(clientSsl);
+            carrier.setSslInvalidHostNameAllowed(true); // self-signed test cert, CN mismatch is fine
+        }
+        SingleMongoConnection con = new SingleMongoConnection();
+        con.connect(carrier, "localhost", port);
+        return con;
+    }
+
     /** Build a self-signed keystore via the JDK's keytool (pattern of AuthTlsWireE2ETest). */
     private static File buildKeystore(Path dir) throws Exception {
         File keystore = dir.resolve("cluster.p12").toFile();
@@ -225,5 +240,136 @@ public class RsInternalAuthTlsTest {
             SingleMongoConnection loginCheck = connectAsRoot(node.getPort(), internalSsl);
             loginCheck.close(); // reaching here without an exception IS the assertion
         }
+    }
+
+    @Test
+    public void authOnlyConverges() throws Exception {
+        Cluster c = bootstrapCluster(null, null); // no SSL at all, auth still on inside bootstrapCluster
+
+        PoppyDB leader = waitForAnyPrimary(c.all(), 20_000);
+        assertNotNull(leader, "--auth alone must not prevent election");
+
+        SingleMongoConnection con = connectAsRoot(leader.getPort(), null);
+        try {
+            InsertMongoCommand insert = new InsertMongoCommand(con);
+            insert.setDb("authonlydb").setColl("docs");
+            insert.setDocuments(List.of(Doc.of("_id", "doc-1")));
+            Map<String, Object> result = insert.execute();
+            assertEquals(1, ((Number) result.get("n")).intValue(), "insert on the leader must succeed: " + result);
+        } finally {
+            con.close();
+        }
+
+        assertTrue(poll(30_000, () -> c.all().stream().allMatch(n ->
+                n.getDriver().count("authonlydb", "docs", Doc.of(), null, null) == 1)),
+                "--auth alone must not prevent replication");
+    }
+
+    @Test
+    public void sslOnlyConverges(@TempDir Path dir) throws Exception {
+        // bootstrapCluster always turns auth on when serverSsl != null in this harness (see
+        // Task 2), so exercise "ssl only" via a second, auth-free bootstrap helper here instead
+        // of reusing bootstrapCluster - this stays a small, self-contained test method.
+        File keystore = buildKeystore(dir);
+        SSLContext serverSsl = SslHelper.createServerSslContext(keystore.getAbsolutePath(), "changeit");
+        SSLContext internalSsl = SslHelper.createClientSslContext(keystore.getAbsolutePath(), "changeit");
+
+        int port1 = nextPort();
+        int port2 = nextPort();
+        int port3 = nextPort();
+        PoppyDB node1 = new PoppyDB(port1, "localhost", 20, 5);
+        PoppyDB node2 = new PoppyDB(port2, "localhost", 20, 5);
+        PoppyDB node3 = new PoppyDB(port3, "localhost", 20, 5);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2, "localhost:" + port3);
+        var prio = Map.of("localhost:" + port1, 100, "localhost:" + port2, 75, "localhost:" + port3, 50);
+        for (PoppyDB node : List.of(node1, node2, node3)) {
+            node.setSslContext(serverSsl);
+            node.setSslEnabled(true);
+            node.setInternalSslContext(internalSsl);
+            node.configureReplicaSet("rsSslOnly", hosts, prio, true, null);
+        }
+        startServer(node1, port1);
+        startServer(node2, port2);
+        startServer(node3, port3);
+        List<PoppyDB> all = List.of(node1, node2, node3);
+
+        PoppyDB leader = waitForAnyPrimary(all, 20_000);
+        assertNotNull(leader, "--ssl alone must not prevent election");
+
+        SingleMongoConnection con = connectUnauthenticated(leader.getPort(), internalSsl);
+        try {
+            InsertMongoCommand insert = new InsertMongoCommand(con);
+            insert.setDb("sslonlydb").setColl("docs");
+            insert.setDocuments(List.of(Doc.of("_id", "doc-1")));
+            insert.execute();
+        } finally {
+            con.close();
+        }
+
+        assertTrue(poll(30_000, () -> all.stream().allMatch(n ->
+                n.getDriver().count("sslonlydb", "docs", Doc.of(), null, null) == 1)),
+                "--ssl alone must not prevent replication");
+    }
+
+    @Test
+    public void wrongRootPasswordNeverJoinsCluster(@TempDir Path dir) throws Exception {
+        File keystore = buildKeystore(dir);
+        SSLContext serverSsl = SslHelper.createServerSslContext(keystore.getAbsolutePath(), "changeit");
+        SSLContext internalSsl = SslHelper.createClientSslContext(keystore.getAbsolutePath(), "changeit");
+
+        int port1 = nextPort();
+        int port2 = nextPort();
+        int port3 = nextPort();
+        PoppyDB node1 = new PoppyDB(port1, "localhost", 20, 5); // priority 100, wins the election
+        PoppyDB node2 = new PoppyDB(port2, "localhost", 20, 5); // priority 75, correctly configured
+        PoppyDB node3 = new PoppyDB(port3, "localhost", 20, 5); // priority 50, WRONG password
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2, "localhost:" + port3);
+        var prio = Map.of("localhost:" + port1, 100, "localhost:" + port2, 75, "localhost:" + port3, 50);
+
+        for (PoppyDB node : List.of(node1, node2)) {
+            node.setAuthRequired(true);
+            node.setRootUser(ROOT_USER, ROOT_PASSWORD);
+            node.setSslContext(serverSsl);
+            node.setSslEnabled(true);
+            node.setInternalSslContext(internalSsl);
+            node.configureReplicaSet("rsWrongPw", hosts, prio, true, null);
+        }
+        node3.setAuthRequired(true);
+        node3.setRootUser(ROOT_USER, "totally-different-password"); // config drift
+        node3.setSslContext(serverSsl);
+        node3.setSslEnabled(true);
+        node3.setInternalSslContext(internalSsl);
+        node3.configureReplicaSet("rsWrongPw", hosts, prio, true, null);
+
+        startServer(node1, port1);
+        startServer(node2, port2);
+        startServer(node3, port3);
+
+        long deadline = System.currentTimeMillis() + 20_000;
+        while (!node1.isPrimary() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(200);
+        }
+        assertTrue(node1.isPrimary(), "the highest-priority, correctly-configured node must win the election");
+
+        SingleMongoConnection con = connectAsRoot(node1.getPort(), internalSsl);
+        try {
+            InsertMongoCommand insert = new InsertMongoCommand(con);
+            insert.setDb("wrongpwdb").setColl("docs");
+            insert.setDocuments(List.of(Doc.of("_id", "doc-1")));
+            insert.execute();
+        } finally {
+            con.close();
+        }
+
+        assertTrue(poll(30_000, () -> node2.getDriver().count("wrongpwdb", "docs", Doc.of(), null, null) == 1),
+                "the correctly-configured secondary must still receive replicated data");
+
+        // Give node3 a generous window to (wrongly) catch up, then assert it never did: its
+        // internal client can't authenticate against node1/node2 with the wrong password, so it
+        // must stay isolated rather than silently joining unauthenticated.
+        Thread.sleep(5_000);
+        assertEquals(0, node3.getDriver().count("wrongpwdb", "docs", Doc.of(), null, null),
+                "a node with the wrong root password must never receive replicated data");
+        assertFalse(node3.isPrimary(), "a node with the wrong root password must never become primary");
     }
 }
