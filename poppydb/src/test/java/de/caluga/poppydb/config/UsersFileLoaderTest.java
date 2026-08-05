@@ -32,9 +32,23 @@ class UsersFileLoaderTest {
         return FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
     }
 
+    /**
+     * Writes a users file with deterministic owner-only (600) permissions, regardless of the
+     * environment's umask - {@link UsersFileLoader} itself refuses to start on a group/other-
+     * writable secrets file (see {@link #groupWritableUsersFileThrows}), so a permissive ambient
+     * umask (e.g. 002, common on the Linux test runner - macOS defaults to 022) would otherwise
+     * make every test in this class that does NOT specifically exercise permission handling fail
+     * with that same refusal instead of the behavior under test. Tests that DO test permission
+     * handling (group-writable/-readable/owner-only) call
+     * {@link Files#setPosixFilePermissions} themselves right after this, overriding the default.
+     */
     private static Path writeUsersFile(Path dir, String name, String content) throws IOException {
         Path file = dir.resolve(name);
         Files.writeString(file, content, StandardCharsets.UTF_8);
+        if (posixSupported()) {
+            Files.setPosixFilePermissions(file,
+                    Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+        }
         return file;
     }
 
@@ -429,10 +443,8 @@ class UsersFileLoaderTest {
 
     @Test
     void malformedJsonNeverLeaksSecretContent(@TempDir Path dir) throws Exception {
-        Path f = dir.resolve("users.json");
-        Files.writeString(f,
-            "[ { \"user\": \"app\", \"pwd\": \"S3cr3tLeakMe\" } ]\n\"S3cr3tLeakMe\"",
-            StandardCharsets.UTF_8);
+        Path f = writeUsersFile(dir, "users.json",
+            "[ { \"user\": \"app\", \"pwd\": \"S3cr3tLeakMe\" } ]\n\"S3cr3tLeakMe\"");
         assertThatThrownBy(() -> UsersFileLoader.load(f.toString()))
             .isInstanceOf(ConfigException.class)
             .hasMessageContaining("position")
