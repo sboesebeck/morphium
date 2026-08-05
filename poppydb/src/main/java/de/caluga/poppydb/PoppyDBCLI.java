@@ -606,6 +606,10 @@ public class PoppyDBCLI {
         System.out.println("  --no-auth                  : Force auth off, overriding a config file's auth=true");
         System.out.println("  --rootUser <name>          : Initial admin user, created at startup if absent");
         System.out.println("  --rootPassword <pw>        : Password for the initial admin user");
+        System.out.println("  --users-file <path>        : JSON file declaring users to provision at startup (idempotent");
+        System.out.println("                               upsert, applied by the primary only; optional \"version\" field");
+        System.out.println("                               gates re-application). See docs/poppydb.md, section");
+        System.out.println("                               \"Bootstrapping users\".");
         System.out.println();
         System.out.println("Persistence Options:");
         System.out.println("  -d, --dump-dir <path>      : Directory for periodic database dumps");
@@ -636,10 +640,6 @@ public class PoppyDBCLI {
         System.out.println("                               server: syntax, semantic cross-checks and deep checks");
         System.out.println("                               (keystore loadable, dump-dir usable, users-file parses).");
         System.out.println("                               Exit code 0 = OK, 1 = errors");
-        System.out.println("  --users-file <path>        : JSON file declaring users to provision at startup (idempotent");
-        System.out.println("                               upsert, applied by the primary only; optional \"version\" field");
-        System.out.println("                               gates re-application). See docs/poppydb.md, section");
-        System.out.println("                               \"Bootstrapping users\".");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();

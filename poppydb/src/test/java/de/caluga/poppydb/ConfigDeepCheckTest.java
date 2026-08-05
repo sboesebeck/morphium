@@ -69,6 +69,12 @@ public class ConfigDeepCheckTest {
         assertThat(r.errors()).anySatisfy(e -> assertThat(e).contains("Invalid dump-dir path"));
     }
 
+    @Test
+    void invalidUsersFilePathBecomesAnErrorNotAnException() {
+        ConfigInspector.Result r = ConfigInspector.deepCheck(opts("--users-file", "bad\0file"));
+        assertThat(r.errors()).anySatisfy(e -> assertThat(e).contains("Invalid users-file path"));
+    }
+
     // ---- users-file ------------------------------------------------------------------------
 
     @Test

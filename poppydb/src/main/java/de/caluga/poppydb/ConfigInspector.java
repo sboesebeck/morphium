@@ -148,6 +148,10 @@ class ConfigInspector {
                 warnings.addAll(spec.warnings());
             } catch (ConfigException e) {
                 errors.add(e.getMessage());
+            } catch (java.nio.file.InvalidPathException e) {
+                // same guard as the ssl-keystore/dump-dir blocks: a malformed path string
+                // (e.g. embedded NUL) must become a collected error, never an escaping throw
+                errors.add("Invalid users-file path '" + opts.usersFile + "': " + e.getMessage());
             }
         }
         return new Result(errors, warnings);
