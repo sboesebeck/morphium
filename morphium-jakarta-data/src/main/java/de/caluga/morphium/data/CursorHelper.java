@@ -108,6 +108,11 @@ public final class CursorHelper {
                                              List<SortSpec> sortSpecs,
                                              Morphium morphium, Class entityClass,
                                              boolean isForward) {
+        if (sortSpecs == null || sortSpecs.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Cursor-based pagination requires a non-empty sort order to define the keyset; got no sort fields");
+        }
+
         List orQueries = new ArrayList();
 
         for (int i = 0; i < sortSpecs.size(); i++) {
