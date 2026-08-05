@@ -98,7 +98,9 @@ public class PooledDriver extends DriverBase {
     }
 
     public static final String driverName = "PooledDriver";
-    private final Map<String, Host> hosts = new ConcurrentHashMap<>();
+    // package-private (not private) so tests in this package can register a Host directly
+    // without a real connect() - same rationale as handleHelloResult's visibility.
+    final Map<String, Host> hosts = new ConcurrentHashMap<>();
     private volatile boolean running;
     private final Map<Integer, ConnectionContainer> borrowedConnections;
     private final Map<DriverStatsKey, AtomicDecimal> stats;
@@ -1096,7 +1098,9 @@ public class PooledDriver extends DriverBase {
         return host.getBorrowedConnections() + host.getConnectionPool().size() + host.getPendingConnectionCreations();
     }
 
-    private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
+    // package-private (not private) so tests in this package can exercise it directly without
+    // a real connect() - same rationale as handleHelloResult's visibility.
+    MongoConnection borrowConnection(String host) throws MorphiumDriverException {
         if (!running) throw new MorphiumDriverException("Driver is shutting down");
         // log.debug("borrowConnection {}", host);
         if (host == null)
@@ -1132,32 +1136,40 @@ public class PooledDriver extends DriverBase {
                 }
             }
 
-            do {
-                // Poll in slices so we can abort early when the host gets evicted
-                // (dead primary during failover) instead of waiting the full
-                // serverSelectionTimeout on a host that will never deliver.
-                long deadline = getServerSelectionTimeout() <= 0
-                                ? Long.MAX_VALUE
-                                : System.currentTimeMillis() + getServerSelectionTimeout();
+            // Computed once, before the retry loop below - not on every iteration/poll. Found
+            // via a real run on mongo1/mongo2.fritz.box: a reader thread got stuck forever in
+            // here after a failover, with no exception ever thrown. Root cause was two-fold:
+            // (1) the deadline used to live *inside* the retry loop, so every stale
+            // (disconnected) connection discarded below pushed it back out by another full
+            // serverSelectionTimeout; (2) even after hoisting it out, the deadline was only ever
+            // *checked* inside the branch that runs when queue.poll() returns null (an empty
+            // queue) - if the pool keeps handing back a non-null (but stale) entry on every
+            // single poll, that branch never runs at all, so the check is never reached either.
+            // Both together made the whole method's wait effectively unbounded despite its
+            // contract being "give up after serverSelectionTimeout" - fixed by checking the
+            // deadline unconditionally at the top of every iteration, regardless of why the
+            // previous one didn't produce a usable connection.
+            long deadline = getServerSelectionTimeout() <= 0
+                            ? Long.MAX_VALUE
+                            : System.currentTimeMillis() + getServerSelectionTimeout();
 
-                while ((bc = queue.poll(100, TimeUnit.MILLISECONDS)) == null) {
-                    if (!hosts.containsKey(host)) {
-                        throw new MorphiumDriverException("Host " + host + " was removed while waiting for a connection (failover?)");
-                    }
-                    if (!running) {
-                        throw new MorphiumDriverException("Driver is shutting down");
-                    }
-                    if (System.currentTimeMillis() >= deadline) {
-                        break;
-                    }
+            while (true) {
+                if (System.currentTimeMillis() >= deadline) {
+                    bc = null;
+                    break;
+                }
+                if (!hosts.containsKey(host)) {
+                    throw new MorphiumDriverException("Host " + host + " was removed while waiting for a connection (failover?)");
+                }
+                if (!running) {
+                    throw new MorphiumDriverException("Driver is shutting down");
                 }
 
+                // Poll in slices (rather than for the full remaining budget) so the deadline/
+                // eviction/shutdown checks above still run promptly even while waiting.
+                bc = queue.poll(100, TimeUnit.MILLISECONDS);
                 if (bc == null) {
-                    log.error("Connection timeout");
-                    log.error("Connections to {}: {}", host, getTotalConnectionsToHost(host));
-                    log.error("WaitingThreads for {}: {}", host, getWaitCounterForHost(host));
-                    throw new MorphiumDriverException(
-                                    String.format("Could not get connection to %s in time %dms", host, getServerSelectionTimeout()));
+                    continue;
                 }
 
                 if (bc.getCon() == null || bc.getCon().getSourcePort() == 0 || !bc.getCon().isConnected()) {
@@ -1171,8 +1183,19 @@ public class PooledDriver extends DriverBase {
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                     markStatsDirty();
                     bc = null;
+                    continue;
                 }
-            } while (bc == null);
+
+                break;
+            }
+
+            if (bc == null) {
+                log.error("Connection timeout");
+                log.error("Connections to {}: {}", host, getTotalConnectionsToHost(host));
+                log.error("WaitingThreads for {}: {}", host, getWaitCounterForHost(host));
+                throw new MorphiumDriverException(
+                                String.format("Could not get connection to %s in time %dms", host, getServerSelectionTimeout()));
+            }
 
             bc.touch();
             bc.setBorrowedFromHost(host);  // Track the host we borrowed from for correct counter decrement
