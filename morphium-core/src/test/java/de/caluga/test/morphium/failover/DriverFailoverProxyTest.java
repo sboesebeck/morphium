@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,11 +54,14 @@ public class DriverFailoverProxyTest {
 
     private final List<WireProxy> proxies = new ArrayList<>();
     private Morphium morphium;
-    /** Tracked so {@link #tearDown()} can defensively interrupt/join it as a fallback - the
-     * normal join happens in the scenario's own finally block, but if that is somehow skipped
-     * (e.g. an error thrown outside the try) this stops a live thread from leaking past the
-     * test (Global Constraints: zero live threads/sockets left behind). */
-    private volatile Thread writerThread;
+    /** Every workload thread a scenario starts is registered here (before start()) so
+     * {@link #tearDown()} can defensively interrupt/join it as a fallback - the normal join
+     * happens in the scenario's own finally block, but if that is somehow skipped (e.g. an
+     * error thrown outside the try, or between registration and entering the try) this stops
+     * a live thread from leaking past the test (Global Constraints: zero live threads/sockets
+     * left behind). Registering before start() means even a thread that never got to run is
+     * safely handled (join() on a not-yet-started thread returns immediately). */
+    private final List<Thread> trackedThreads = new CopyOnWriteArrayList<>();
 
     @AfterEach
     void tearDown() {
@@ -69,14 +73,14 @@ public class DriverFailoverProxyTest {
             try { p.close(); } catch (Exception ignored) { }
         }
         proxies.clear();
-        if (writerThread != null) {
+        for (Thread t : trackedThreads) {
             // Closing morphium/proxies above already unblocks a thread stuck inside store() on
             // a frozen connection; interrupt+join here is just a fallback for the sleep-between-
             // iterations case.
-            writerThread.interrupt();
-            try { writerThread.join(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-            writerThread = null;
+            t.interrupt();
+            try { t.join(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
+        trackedThreads.clear();
     }
 
     // ---- backend discovery & proxy wiring (design spec: "Backend discovery & proxy wiring") ----
@@ -239,7 +243,7 @@ public class DriverFailoverProxyTest {
                 try { Thread.sleep(100); } catch (InterruptedException e) { return; }
             }
         }, "freeze-writer");
-        writerThread = writer;
+        trackedThreads.add(writer);
         writer.start();
         try {
             Thread.sleep(1000);
@@ -339,6 +343,8 @@ public class DriverFailoverProxyTest {
                 try { Thread.sleep(200); } catch (InterruptedException e) { return; }
             }
         }, "writeread-reader");
+        trackedThreads.add(writer);
+        trackedThreads.add(reader);
         writer.start();
         reader.start();
         try {
@@ -372,10 +378,22 @@ public class DriverFailoverProxyTest {
             assertTrue(recovered, "writes/reads did not resume within 10s of the fault (" + faultMode + "): "
                     + "writeOk " + writeBaseline + " -> " + writeOk.get() + ", readOk " + readBaseline + " -> " + readOk.get());
         } finally {
+            // Must join here, not after the try (writesRecoverAfterFreeze's pattern) - an
+            // assertTrue failure above must still not leak these threads past the test, since
+            // tearDown() closes `morphium` right after and either thread may still be blocked
+            // inside store()/countAll() on that same instance.
             running.set(false);
+            try {
+                writer.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            try {
+                reader.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
-        writer.join(5000);
-        reader.join(5000);
     }
 
     @Test
@@ -392,68 +410,85 @@ public class DriverFailoverProxyTest {
         try {
             AtomicInteger received = new AtomicInteger();
             var sender = morphium.createMessaging();
-            sender.setSenderId("proxy-failover-sender");
             var receiver = receiverMorphium.createMessaging();
-            receiver.setSenderId("proxy-failover-receiver");
-            receiver.addListenerForTopic("wire_failover_test",
-                    (de.caluga.morphium.messaging.MessageListener<de.caluga.morphium.messaging.Msg>) (msg, m) -> {
-                        received.incrementAndGet();
-                        return null;
-                    });
-            sender.start();
-            receiver.start();
-            Thread.sleep(1000);
-            assertOnlyConnectedThroughProxies(backendToProxy);
-
-            AtomicBoolean running = new AtomicBoolean(true);
-            Thread sendThread = new Thread(() -> {
-                int i = 0;
-                while (running.get()) {
-                    try {
-                        sender.sendMessage(new de.caluga.morphium.messaging.Msg("wire_failover_test", "msg" + i, "value" + i));
-                    } catch (Throwable t) {
-                        log.debug("send failed (expected during the fault window): {}", t.getMessage());
-                    }
-                    i++;
-                    try { Thread.sleep(300); } catch (InterruptedException e) { return; }
-                }
-            }, "messaging-sender");
-            sendThread.start();
+            // sender/receiver are live Threads (MorphiumMessaging impls extend Thread) from the
+            // moment start() runs - everything from here on (including start() itself) must be
+            // inside this try/finally so terminate() is guaranteed on every exit path, including
+            // a Thread.sleep interrupt or assertOnlyConnectedThroughProxies throwing before the
+            // inner workload try below is even reached.
             try {
-                Thread.sleep(1500);
-                int receivedBefore = received.get();
-                assertTrue(receivedBefore > 0, "no messages delivered before the fault - harness itself is broken");
+                sender.setSenderId("proxy-failover-sender");
+                receiver.setSenderId("proxy-failover-receiver");
+                receiver.addListenerForTopic("wire_failover_test",
+                        (de.caluga.morphium.messaging.MessageListener<de.caluga.morphium.messaging.Msg>) (msg, m) -> {
+                            received.incrementAndGet();
+                            return null;
+                        });
+                sender.start();
+                receiver.start();
+                Thread.sleep(1000);
+                assertOnlyConnectedThroughProxies(backendToProxy);
 
-                String primaryName;
-                try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
-                        backend.authDb(), backend.user(), backend.password())) {
-                    primaryName = probe.members().stream()
-                            .filter(m -> "PRIMARY".equals(m.get("stateStr")))
-                            .map(m -> (String) m.get("name")).findFirst().orElseThrow();
+                AtomicBoolean running = new AtomicBoolean(true);
+                Thread sendThread = new Thread(() -> {
+                    int i = 0;
+                    while (running.get()) {
+                        try {
+                            sender.sendMessage(new de.caluga.morphium.messaging.Msg("wire_failover_test", "msg" + i, "value" + i));
+                        } catch (Throwable t) {
+                            log.debug("send failed (expected during the fault window): {}", t.getMessage());
+                        }
+                        i++;
+                        try { Thread.sleep(300); } catch (InterruptedException e) { return; }
+                    }
+                }, "messaging-sender");
+                trackedThreads.add(sendThread);
+                sendThread.start();
+                try {
+                    Thread.sleep(1500);
+                    int receivedBefore = received.get();
+                    assertTrue(receivedBefore > 0, "no messages delivered before the fault - harness itself is broken");
+
+                    String primaryName;
+                    try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
+                            backend.authDb(), backend.user(), backend.password())) {
+                        primaryName = probe.members().stream()
+                                .filter(m -> "PRIMARY".equals(m.get("stateStr")))
+                                .map(m -> (String) m.get("name")).findFirst().orElseThrow();
+                    }
+                    String proxyAddr = backendToProxy.get(primaryName);
+                    WireProxy exPrimaryProxy = proxies.stream()
+                            .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
+                            .findFirst().orElseThrow();
+                    exPrimaryProxy.setFaultMode(de.caluga.test.morphium.testutil.proxy.FaultMode.close);
+                    stepDownPrimary(backend, primaryName);
+
+                    assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
+
+                    // Messaging goes through a changestream-resume path in addition to plain
+                    // read/write, so give it a little more room than the write/read scenarios (see
+                    // Post-plan follow-ups if this still proves flaky).
+                    int baseline = received.get();
+                    long deadline = System.currentTimeMillis() + 15_000;
+                    boolean recovered = false;
+                    while (System.currentTimeMillis() < deadline) {
+                        if (received.get() > baseline + 1) { recovered = true; break; }
+                        Thread.sleep(200);
+                    }
+                    assertTrue(recovered, "no messages delivered within 15s of the fault: received stayed at " + baseline);
+                } finally {
+                    running.set(false);
+                    try {
+                        sendThread.join(5000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
-                String proxyAddr = backendToProxy.get(primaryName);
-                WireProxy exPrimaryProxy = proxies.stream()
-                        .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
-                        .findFirst().orElseThrow();
-                exPrimaryProxy.setFaultMode(de.caluga.test.morphium.testutil.proxy.FaultMode.close);
-                stepDownPrimary(backend, primaryName);
-
-                assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
-
-                // Messaging goes through a changestream-resume path in addition to plain
-                // read/write, so give it a little more room than the write/read scenarios (see
-                // Post-plan follow-ups if this still proves flaky).
-                int baseline = received.get();
-                long deadline = System.currentTimeMillis() + 15_000;
-                boolean recovered = false;
-                while (System.currentTimeMillis() < deadline) {
-                    if (received.get() > baseline + 1) { recovered = true; break; }
-                    Thread.sleep(200);
-                }
-                assertTrue(recovered, "no messages delivered within 15s of the fault: received stayed at " + baseline);
             } finally {
-                running.set(false);
-                sendThread.join(5000);
+                // Guaranteed regardless of whether start() ever ran, the sleep was interrupted,
+                // or the escape guard / any assertion above threw - sender/receiver are live
+                // Threads the instant start() executes, and terminate() on a never-started
+                // instance is a no-op (just flag-setting), so this is safe on every path.
                 try { sender.terminate(); } catch (Exception ignored) { }
                 try { receiver.terminate(); } catch (Exception ignored) { }
             }
