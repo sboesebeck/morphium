@@ -15,9 +15,14 @@ if [[ "$1" = "start" ]]; then
   echo "Starting server"
 
 elif [[ "$1" = "startnode" ]]; then
+  if [[ "$2" = "-h" ]]; then
+    echo "$0 startnode NODENUM -s|--ssl -p BASEPORT"
+    exit 0
+  fi
   ONLYNODE=$2
   echo "Starting node $2"
   shift
+
 elif [[ "$1" = "stopnode" ]]; then
   if [ ! -e $TMPDIR/node-$2.pid ]; then
     echo "not running"
@@ -52,10 +57,10 @@ elif [[ "$1" = "status" ]]; then
     node_num=$(basename $i | sed 's/node-\([0-9]*\)\.pid/\1/')
     pid=$(<$i)
     if kill -0 $pid 2>/dev/null; then
-       echo "Node $node_num: Running (PID: $pid)"
-       lsof -Pan -p $pid -i | grep LISTEN | sed 's/.*TCP \(.*\):\(.*\) (LISTEN)/\tListening on: \1:\2/' || echo "\tNo listening port found for this PID"
+      echo "Node $node_num: Running (PID: $pid)"
+      lsof -Pan -p $pid -i | grep LISTEN | sed 's/.*TCP \(.*\):\(.*\) (LISTEN)/\tListening on: \1:\2/' || echo "\tNo listening port found for this PID"
     else
-       echo "Node $node_num: Not running (PID file exists with PID $pid, but process is dead)"
+      echo "Node $node_num: Not running (PID file exists with PID $pid, but process is dead)"
     fi
   done
   if [ "$found" = false ]; then
@@ -176,11 +181,10 @@ else
 
   p=$BASEPORT
   for n in $(seq $NODES); do
-    if lsof -Pi :$p -sTCP:LISTEN -t >/dev/null; then
-      echo "Port $p is already in use, skipping node $n"
-      continue
-    fi
     if [ $ONLYNODE -eq 0 ] || [ $ONLYNODE -eq $n ]; then
+      if lsof -Pi :$p -sTCP:LISTEN -t >/dev/null; then
+        echo "Port $p is already in use, skipping node $n"
+      fi
       echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
 
       java -Xmx8G -jar $TMPDIR/poppydb.jar --no-config -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" $SSL_ARGS >$TMPDIR/poppydb-$n.log 2>&1 &
