@@ -109,9 +109,9 @@ nav:
     - SSL/TLS Connections: ssl-tls.md
     - Developer Guide: developer-guide.md
   - Extensions:
-    # Placeholder: Spring-Boot-Integrationsseite folgt in einer späteren Welle (M5).
     - Jakarta Data: jakarta-data.md
     - Quarkus Extension: quarkus-extension.md
+    - Spring Boot: spring-boot.md
   - Reference:
     - API Reference: api-reference.md
     - Configuration: configuration-reference.md

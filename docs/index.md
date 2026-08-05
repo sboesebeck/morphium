@@ -85,6 +85,14 @@ any of the following. These are additional, opt-in modules built on top of the c
   checks, Dev Services, Dev UI, and build-time Jakarta Data repository generation via Gizmo
   - GraalVM native-image support and `MorphiumId` JSON (de)serialization out of the box
   - Zero dependency from the core: build with `-DskipExtensions` for a core-only artifact
+- **[Spring Boot](./spring-boot.md)** - Optional module integrating Morphium into
+  [Spring Boot](https://spring.io/projects/spring-boot) applications via auto-configuration,
+  type-safe `@ConfigurationProperties` (`morphium.*`), `@MorphiumTransactional` via AspectJ, an
+  Actuator health indicator, and Jakarta Data `@Repository` interfaces backed by JDK dynamic
+  proxies at runtime (no build-time bytecode generation, unlike `quarkus-morphium`'s Gizmo
+  approach)
+  - No Docker/Testcontainers needed — all tests run against Morphium's `InMemDriver`
+  - Zero dependency from the core: build with `-DskipExtensions` for a core-only artifact
 
 Minimum requirements
 - Java 21+

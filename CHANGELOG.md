@@ -500,6 +500,51 @@ package renames, no API changes, only the Maven coordinates move. The code origi
 being archived now that its content has moved into the main Morphium repository. See
 [Quarkus Extension](docs/quarkus-extension.md).
 
+#### `spring-boot-morphium` — optional Spring Boot integration module
+A new optional module, `spring-boot-morphium`, integrates Morphium into
+[Spring Boot](https://spring.io/projects/spring-boot) applications: `MorphiumAutoConfiguration`
+creates the application's `Morphium` bean from `morphium.*` properties (type-safe
+`@ConfigurationProperties`, with `spring-boot-configuration-processor`-generated metadata for
+IDE autocompletion), connection retry with linear backoff on transient failures, and a
+best-effort classpath pre-scan for `@Entity`/`@Embedded` classes. Jakarta Data `@Repository`
+interfaces (`CrudRepository`/`MorphiumRepository` from `morphium-jakarta-data`) are wired via
+`MorphiumRepositoryRegistrar` at Spring context-startup time, backed by a JDK dynamic proxy
+(`java.lang.reflect.Proxy`) per repository interface — in contrast to `quarkus-morphium`, which
+generates repository implementations as Gizmo bytecode at build time; here everything is
+runtime reflection, no annotation processor or build-time codegen involved. Declarative
+`@MorphiumTransactional` transactions wrap the annotated method body in
+`startTransaction()`/`commitTransaction()`/`abortTransaction()` via an AspectJ `@Around` advice,
+active only when `spring-boot-starter-aop` is on the classpath. An Actuator `HealthIndicator`
+reports live MongoDB connection status (database, driver, replica-set state) under
+`/actuator/health`, active only when `spring-boot-actuator` is present and a `Morphium` bean
+already exists; a user-defined bean named `morphiumHealthIndicator` correctly overrides the
+auto-configured one. The module publishes three artifacts — `morphium-spring-boot-starter`,
+`morphium-spring-boot-autoconfigure`, and `morphium-spring-boot-test` (a `@MorphiumTest`
+composite annotation that wires `InMemDriver` into a `@SpringBootTest`, so repository tests run
+without a MongoDB instance or container) — and, unlike `quarkus-morphium/integration-tests`,
+`morphium-spring-boot-test` is a genuine end-user artifact, not an internal test suite, and is
+published to Central like the other two. Like `morphium-jakarta-data` and `quarkus-morphium`,
+the core has zero compile- or runtime dependency on this module; building the reactor with
+`-DskipExtensions` produces an unchanged core-only build. No Docker/Testcontainers dependency
+anywhere in the module — all tests run against Morphium's `InMemDriver`, unlike
+`quarkus-morphium`'s integration tests, which need a running Docker daemon.
+**Two coordinate/naming corrections made during the pre-integration conversion:** the three
+modules were renamed from `spring-boot-morphium-*` to `morphium-spring-boot-*`, following the
+Spring Boot starter naming convention (the `spring-boot-` prefix is reserved for Spring's own
+starters); and the configuration property prefix was renamed from `spring.morphium.*` to
+`morphium.*`, since the `spring.*` namespace is reserved for Spring Boot's own configuration
+keys. Both renames happened before any Maven Central release of this module existed, so they
+carry zero breaking-change cost. **Existing users of the pre-integration
+`de.caluga:spring-boot-morphium-starter:1.0.0-SNAPSHOT`** must update their dependency's
+artifactId to `morphium-spring-boot-starter`, its version to the Morphium version they adopt
+(currently `6.3.x`), and rename every `spring.morphium.*` key in their
+`application.properties`/`.yml` to `morphium.*` (e.g. `spring.morphium.database` →
+`morphium.database`) — no Java API changes; `MorphiumProperties`, `@EnableMorphiumRepositories`,
+`@MorphiumTransactional`, and all other public types are unaffected. The code originates from
+[Bardioc1977/spring-boot-morphium](https://github.com/Bardioc1977/spring-boot-morphium), which
+is being archived now that its content has moved into the main Morphium repository. See
+[Spring Boot](docs/spring-boot.md).
+
 #### PoppyDB: `--users-file` — declarative user provisioning (bootstrap, upsert, version-gated)
 Builds on user replication: `--rootUser`/`--rootPassword` only ever provisioned one admin user,
 so any real application user set still had to be created by hand (a shell script running
