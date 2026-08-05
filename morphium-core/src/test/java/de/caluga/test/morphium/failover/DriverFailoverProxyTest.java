@@ -440,17 +440,21 @@ public class DriverFailoverProxyTest {
             // evicts the host, which requires Host.getFailures() > Host.MAX_FAILURES (5, i.e. 6
             // failures), each costing Math.max(2000, heartbeatFrequency) = 2000ms at this test's
             // heartbeatFrequency(1000) - a floor of ~12s from the freeze before eviction even
-            // starts. The old 10s window didn't clear that floor with any real margin. 25s clears
-            // it comfortably while staying well under maxWaitTime (60s), so a genuine hang until
-            // maxWaitTime is still distinguishable from a working failover.
+            // starts. That floor assumed a near-instant local-loopback connect failure per
+            // attempt (true for the local PoppyDB cluster); against a real network (mongo1/
+            // mongo2.fritz.box) each failed heartbeat attempt can itself take up to
+            // connectionTimeout (5000ms here) before giving up, pushing the real floor closer to
+            // 6 x 5s = 30s+ on top of the base interval. 45s clears that comfortably while
+            // staying well under maxWaitTime (60s), so a genuine hang until maxWaitTime is still
+            // distinguishable from a working failover.
             int beforeRecoveryCheck = writeOk.get();
-            long deadline = System.currentTimeMillis() + 25_000;
+            long deadline = System.currentTimeMillis() + 45_000;
             boolean recovered = false;
             while (System.currentTimeMillis() < deadline) {
                 if (writeOk.get() > beforeRecoveryCheck + 2) { recovered = true; break; }
                 Thread.sleep(200);
             }
-            assertTrue(recovered, "writes did not resume within 25s of the primary freezing + stepdown - "
+            assertTrue(recovered, "writes did not resume within 45s of the primary freezing + stepdown - "
                     + "driver is stuck on the frozen connection instead of failing over (writeOk stayed at "
                     + beforeRecoveryCheck + ")");
             assertOnlyConnectedThroughProxies(backendToProxy);
