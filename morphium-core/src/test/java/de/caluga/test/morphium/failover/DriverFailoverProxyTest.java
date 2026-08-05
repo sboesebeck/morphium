@@ -53,6 +53,11 @@ public class DriverFailoverProxyTest {
 
     private final List<WireProxy> proxies = new ArrayList<>();
     private Morphium morphium;
+    /** Tracked so {@link #tearDown()} can defensively interrupt/join it as a fallback - the
+     * normal join happens in the scenario's own finally block, but if that is somehow skipped
+     * (e.g. an error thrown outside the try) this stops a live thread from leaking past the
+     * test (Global Constraints: zero live threads/sockets left behind). */
+    private volatile Thread writerThread;
 
     @AfterEach
     void tearDown() {
@@ -64,6 +69,14 @@ public class DriverFailoverProxyTest {
             try { p.close(); } catch (Exception ignored) { }
         }
         proxies.clear();
+        if (writerThread != null) {
+            // Closing morphium/proxies above already unblocks a thread stuck inside store() on
+            // a frozen connection; interrupt+join here is just a fallback for the sleep-between-
+            // iterations case.
+            writerThread.interrupt();
+            try { writerThread.join(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            writerThread = null;
+        }
     }
 
     // ---- backend discovery & proxy wiring (design spec: "Backend discovery & proxy wiring") ----
@@ -167,15 +180,9 @@ public class DriverFailoverProxyTest {
 
     // ---- election helper (design spec: "Scenario mapping") ----
 
-    private String stepDownCurrentPrimaryAndReturnItsName(Backend backend, Map<String, String> backendToProxy) throws Exception {
-        String primaryName;
-        try (ControlChannel discover = new ControlChannel(backend.host(), backend.port(),
-                backend.authDb(), backend.user(), backend.password())) {
-            primaryName = discover.members().stream()
-                    .filter(m -> "PRIMARY".equals(m.get("stateStr")))
-                    .map(m -> (String) m.get("name"))
-                    .findFirst().orElseThrow(() -> new IllegalStateException("no PRIMARY found before stepdown"));
-        }
+    /** Steps down the given (already-known) primary directly - no re-discovery, so this can
+     * never race with the caller's own view of who the primary is (and which proxy got frozen). */
+    private void stepDownPrimary(Backend backend, String primaryName) throws Exception {
         String[] hp = primaryName.split(":");
         try (ControlChannel primary = new ControlChannel(hp[0], Integer.parseInt(hp[1]),
                 backend.authDb(), backend.user(), backend.password())) {
@@ -183,13 +190,11 @@ public class DriverFailoverProxyTest {
             // both outcomes are acceptable (see design spec's "Scenario mapping").
             primary.commandTolerateClose(Doc.of("replSetStepDown", 60, "$db", "admin"));
         }
-        return primaryName;
     }
 
     private boolean pollForNewPrimary(Backend backend, String exPrimaryName, long timeoutMs) throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
-            for (Map.Entry<?, ?> ignored : java.util.Map.of().entrySet()) { /* no-op, keeps structure symmetric */ }
             try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
                     backend.authDb(), backend.user(), backend.password())) {
                 boolean elected = probe.members().stream().anyMatch(m ->
@@ -234,6 +239,7 @@ public class DriverFailoverProxyTest {
                 try { Thread.sleep(100); } catch (InterruptedException e) { return; }
             }
         }, "freeze-writer");
+        writerThread = writer;
         writer.start();
         try {
             Thread.sleep(1000);
@@ -252,7 +258,7 @@ public class DriverFailoverProxyTest {
                     .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
                     .findFirst().orElseThrow();
             exPrimaryProxy.setFaultMode(de.caluga.test.morphium.testutil.proxy.FaultMode.freeze);
-            stepDownCurrentPrimaryAndReturnItsName(backend, backendToProxy);
+            stepDownPrimary(backend, primaryName);
 
             assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
 
@@ -270,8 +276,16 @@ public class DriverFailoverProxyTest {
                     + "driver is stuck on the frozen connection instead of failing over (writeOk stayed at "
                     + beforeRecoveryCheck + ")");
         } finally {
+            // Must join here, not after the try - an assertTrue failure above (e.g. the 6.2.6
+            // regression being reproduced: recovery not detected in time) must still not leak
+            // this thread past the test, since tearDown() closes `morphium` right after and the
+            // writer may still be blocked inside store() on that same instance.
             running.set(false);
+            try {
+                writer.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
-        writer.join(5000);
     }
 }
