@@ -220,9 +220,24 @@ public class DriverFailoverProxyTest {
         String primaryName;
         try (ControlChannel probe = new ControlChannel(backend.host(), backend.port(),
                 backend.authDb(), backend.user(), backend.password())) {
-            primaryName = probe.members().stream()
-                    .filter(m -> "PRIMARY".equals(m.get("stateStr")))
-                    .map(m -> (String) m.get("name")).findFirst().orElseThrow();
+            // Poll rather than a one-shot lookup (found via a real run on testrunner.fritz.box:
+            // NoSuchElementException here, because right after a fresh cluster start - or right
+            // after a preceding scenario's own fault/election left the cluster mid-transition -
+            // there can be a brief window with no elected primary yet). A one-shot
+            // findFirst().orElseThrow() spuriously fails the whole test on that race instead of
+            // just waiting out the (short) remaining settling time.
+            java.util.concurrent.atomic.AtomicReference<String> found = new java.util.concurrent.atomic.AtomicReference<>();
+            boolean elected = probe.poll(10_000, () -> {
+                String name = probe.members().stream()
+                        .filter(m -> "PRIMARY".equals(m.get("stateStr")))
+                        .map(m -> (String) m.get("name")).findFirst().orElse(null);
+                found.set(name);
+                return name != null;
+            });
+            if (!elected) {
+                throw new IllegalStateException("No primary elected within 10s before fault injection could start");
+            }
+            primaryName = found.get();
         }
         String proxyAddr = backendToProxy.get(primaryName);
         WireProxy exPrimaryProxy = proxies.stream()
