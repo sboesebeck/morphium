@@ -103,6 +103,15 @@ public class WireProxy implements AutoCloseable {
     }
 
     private void startForwarding(Socket client) {
+        if (!running) {
+            // stop() raced us between accept() and here: this connection was never registered
+            // in liveSockets in time to be severed by stop()'s own loop, and no backend
+            // connection/pump thread exists yet to do it later - sever it ourselves, forced,
+            // so the client always sees a hard reset rather than silently hanging or getting a
+            // passthrough response after the proxy is supposed to be down.
+            sever(client, FaultMode.reset);
+            return;
+        }
         Socket backend;
         try {
             backend = new Socket();
@@ -150,7 +159,12 @@ public class WireProxy implements AutoCloseable {
             }
         } catch (IOException ignored) {
         } finally {
-            sever(client, faultMode.get());
+            // If stop() has already flipped running to false, force a reset regardless of
+            // whatever fault mode happens to be configured (typically passthrough by default) -
+            // otherwise a pump thread that wakes up during/after stop() would sever with a plain
+            // close() and the client would see a clean EOF instead of the hard reset stop()
+            // promises.
+            sever(client, running ? faultMode.get() : FaultMode.reset);
             closeQuietly(backend);
         }
     }
@@ -184,7 +198,8 @@ public class WireProxy implements AutoCloseable {
             }
         } catch (IOException ignored) {
         } finally {
-            sever(client, faultMode.get());
+            // See the matching comment in pumpClientToBackend's finally block.
+            sever(client, running ? faultMode.get() : FaultMode.reset);
             closeQuietly(backend);
         }
     }

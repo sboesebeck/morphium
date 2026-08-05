@@ -246,6 +246,52 @@ public class WireProxyTest {
     }
 
     @Test
+    void closeOnAnExistingConnectionSeversItWithoutReset() throws Exception {
+        CannedBackend backend = new CannedBackend(helloReply("proxy:1", List.of("proxy:1"), "proxy:1"));
+        toClose.add(backend);
+        WireProxy proxy = new WireProxy("localhost", backend.port());
+        toClose.add(proxy);
+        proxy.start();
+
+        try (Socket s = new Socket()) {
+            s.connect(new InetSocketAddress("localhost", proxy.getListenPort()), 2000);
+            s.setSoTimeout(1500);
+            OpMsg warmup = new OpMsg();
+            warmup.setMessageId(1);
+            warmup.setFirstDoc(Doc.of("ping", 1));
+            s.getOutputStream().write(warmup.bytes());
+            s.getOutputStream().flush();
+            WireProtocolMessage.parseFromStream(s.getInputStream());
+
+            proxy.setFaultMode(FaultMode.close);
+            // The severing happens on the pump threads' own loop iteration, not synchronously
+            // with setFaultMode() - poll briefly for the socket to actually go bad, mirroring
+            // resetOnAnExistingConnectionSeversItWithReset above. Unlike reset, a close-severed
+            // connection surfaces as a clean EOF (null from parseFromStream), not an IOException.
+            long deadline = System.currentTimeMillis() + 2000;
+            boolean sawEof = false;
+            while (System.currentTimeMillis() < deadline) {
+                try {
+                    OpMsg req = new OpMsg();
+                    req.setMessageId(2);
+                    req.setFirstDoc(Doc.of("ping", 2));
+                    s.getOutputStream().write(req.bytes());
+                    s.getOutputStream().flush();
+                    WireProtocolMessage reply = WireProtocolMessage.parseFromStream(s.getInputStream());
+                    if (reply == null) {
+                        sawEof = true;
+                        break;
+                    }
+                } catch (IOException e) {
+                    fail("close mode must sever with a clean EOF, not an IOException: " + e);
+                }
+                Thread.sleep(50);
+            }
+            assertTrue(sawEof, "existing connection must eventually see a clean EOF once close mode is active");
+        }
+    }
+
+    @Test
     void observerSeesBackendToClientFrames() throws Exception {
         CannedBackend backend = new CannedBackend(helloReply("proxy:1", List.of("proxy:1"), "proxy:1"));
         toClose.add(backend);
