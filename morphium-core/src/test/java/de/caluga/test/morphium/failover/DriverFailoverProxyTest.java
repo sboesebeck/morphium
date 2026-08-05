@@ -588,11 +588,22 @@ public class DriverFailoverProxyTest {
         trackedThreads.add(reader);
         writer.start();
         reader.start();
+        String primaryName = null;
         try {
             Thread.sleep(1000);
             assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
 
-            String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy, faultMode);
+            primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy, faultMode);
+
+            // Same reclaim risk as writesRecoverAfterFreeze's freezeNode() call (see its javadoc):
+            // the stepped-down node's real backend stays fully healthy from the other RS members'
+            // point of view, so it can reclaim primacy via priority takeover once replSetStepDown's
+            // own 15s block window expires - and close/reset, just like freeze, permanently refuse
+            // new connections on that proxy for the rest of this test. Found via a real run against
+            // mongo1/mongo2.fritz.box: readOk got stuck exactly like the freeze scenario did before
+            // that fix. 60s covers this scenario's own worst case (40s election poll + 10s recovery
+            // check + margin); cancelled in the finally block below.
+            freezeNode(backend, primaryName, 60);
 
             assertTrue(pollForNewPrimary(backend, primaryName, 40_000), "no new primary elected within 40s");
 
@@ -608,6 +619,10 @@ public class DriverFailoverProxyTest {
                     + "writeOk " + writeBaseline + " -> " + writeOk.get() + ", readOk " + readBaseline + " -> " + readOk.get());
             assertOnlyConnectedThroughProxies(backendToProxy);
         } finally {
+            // Cancel the freeze first - see writesRecoverAfterFreeze's finally block for why.
+            if (primaryName != null) {
+                freezeNode(backend, primaryName, 0);
+            }
             // Must join here, not after the try (writesRecoverAfterFreeze's pattern) - an
             // assertTrue failure above must still not leak these threads past the test, since
             // tearDown() closes `morphium` right after and either thread may still be blocked
