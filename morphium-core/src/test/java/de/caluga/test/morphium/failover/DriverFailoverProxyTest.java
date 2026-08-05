@@ -54,6 +54,17 @@ public class DriverFailoverProxyTest {
     }
 
     private final List<WireProxy> proxies = new ArrayList<>();
+    /** Proxy addresses (the "localhost:PORT" values from {@code backendToProxy}) of members
+     * that are ARBITERs - a real Mongo run on testrunner.fritz.box (mongo1/mongo2.fritz.box +
+     * a 3rd voting arbiter, mongoarb.fritz.box) surfaced this: an arbiter holds no data and can
+     * never become primary, but {@code replSetGetStatus} lists it as a member like any other, so
+     * {@link #wireProxies} proxies it too (needed so the address rewriter can translate its name
+     * correctly wherever another member's hello reply mentions it). Excluded from the driver's
+     * own host-seed in {@link #buildDriverUnderTest} - seeding it let PooledDriver occasionally
+     * pick it first during initial primary discovery and report "No primary node found" before
+     * ever reaching a real data-bearing seed. Still fully tracked/rewritten - just never a
+     * connection target. */
+    private final java.util.Set<String> arbiterProxyAddresses = new java.util.HashSet<>();
     private Morphium morphium;
     /** Every workload thread a scenario starts is registered here (before start()) so
      * {@link #tearDown()} can defensively interrupt/join it as a fallback - the normal join
@@ -74,6 +85,7 @@ public class DriverFailoverProxyTest {
             try { p.close(); } catch (Exception ignored) { }
         }
         proxies.clear();
+        arbiterProxyAddresses.clear();
         for (Thread t : trackedThreads) {
             // Closing morphium/proxies above already unblocks a thread stuck inside store() on
             // a frozen connection; interrupt+join here is just a fallback for the sleep-between-
@@ -127,7 +139,11 @@ public class DriverFailoverProxyTest {
             WireProxy proxy = new WireProxy(mHost, mPort);
             proxies.add(proxy);
             proxyByBackend.put(name, proxy);
-            backendToProxy.put(name, "localhost:" + proxy.getListenPort());
+            String proxyAddr = "localhost:" + proxy.getListenPort();
+            backendToProxy.put(name, proxyAddr);
+            if ("ARBITER".equals(m.get("stateStr"))) {
+                arbiterProxyAddresses.add(proxyAddr);
+            }
         }
         AddressRewriter rewriter = new AddressRewriter(backendToProxy);
         for (WireProxy proxy : proxyByBackend.values()) {
@@ -151,6 +167,12 @@ public class DriverFailoverProxyTest {
         cfg.connectionSettings().setDatabase("wire_failover_test");
         cfg.clusterSettings().getHostSeed().clear();
         for (String proxyAddr : backendToProxy.values()) {
+            // Arbiters are excluded from the seed (see arbiterProxyAddresses' javadoc) - they're
+            // never a valid connection target, just a voting member the driver would otherwise
+            // occasionally try first during initial primary discovery.
+            if (arbiterProxyAddresses.contains(proxyAddr)) {
+                continue;
+            }
             cfg.clusterSettings().addHostToSeed(proxyAddr);
         }
         cfg.driverSettings().setDriverName("PooledDriver");
