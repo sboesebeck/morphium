@@ -199,18 +199,43 @@ public final class JdqlMethodBridge {
                                                String orderBySpec, JdqlQuery jdqlQuery,
                                                Map<String, Object> paramValues,
                                                Morphium morphium, Class entityClass) {
-        List<CursorHelper.SortSpec> sortSpecs = CursorHelper.parseSortSpecs(orderBySpec);
+        // The keyset for cursor pagination can come from two independent sources: the JDQL string's
+        // own ORDER BY clause (jdqlQuery.orderBy(), already applied to mQuery further up in
+        // executeJdql() for the non-cursor path) and the separate @OrderBy annotation
+        // (orderBySpec). Using only orderBySpec here (as before) silently dropped the JDQL ORDER BY
+        // whenever it was the only one present, leaving the cursor without a sort key at all.
+        // Decision: if the JDQL query itself specifies an ORDER BY, it wins — it is part of the
+        // explicit query text and takes precedence over the declarative @OrderBy annotation, which
+        // is only a fallback for methods that don't spell out their own ordering. We do not attempt
+        // to merge the two field lists (e.g. JDQL primary keys + @OrderBy tiebreakers) because that
+        // ordering combination is ambiguous and not defined by JDQL semantics; callers wanting both
+        // should express both fields in their ORDER BY clause directly.
+        List<CursorHelper.SortSpec> sortSpecs;
+        if (!jdqlQuery.orderBy().isEmpty()) {
+            sortSpecs = new ArrayList<>(jdqlQuery.orderBy().size());
+            for (JdqlQuery.OrderSpec spec : jdqlQuery.orderBy()) {
+                sortSpecs.add(new CursorHelper.SortSpec(spec.field(), spec.ascending()));
+            }
+        } else {
+            sortSpecs = CursorHelper.parseSortSpecs(orderBySpec);
+        }
         boolean isForward = pageRequest.mode() != PageRequest.Mode.CURSOR_PREVIOUS;
+        int requestedSize = pageRequest.size();
 
         if (pageRequest.mode() != PageRequest.Mode.OFFSET) {
             PageRequest.Cursor cursor = pageRequest.cursor()
                     .orElseThrow(() -> new IllegalArgumentException(
                             "PageRequest mode is " + pageRequest.mode() + " but no cursor provided"));
             CursorHelper.applyCursorCondition(mQuery, cursor, sortSpecs, morphium, entityClass, isForward);
+        } else {
+            // CursoredPage requested in classic offset mode (PageRequest.Mode.OFFSET): no cursor
+            // condition applies, but we still need to skip to the requested page, exactly like the
+            // Page<T> branch above (mQuery.skip(skip).limit(size)) does for a normal offset page.
+            int skip = (int) ((pageRequest.page() - 1) * requestedSize);
+            mQuery.skip(skip);
         }
 
         CursorHelper.applySort(mQuery, sortSpecs, morphium, entityClass, isForward);
-        int requestedSize = pageRequest.size();
         mQuery.limit(requestedSize + 1);
 
         List content = mQuery.asList();
@@ -777,6 +802,16 @@ public final class JdqlMethodBridge {
             return ((Number) value).longValue();
         }
         if (value instanceof Number n) {
+            // AVG must always be returned as a double, regardless of the underlying MongoDB number
+            // subtype: if every value being averaged happens to be an integer, some drivers/the
+            // in-memory aggregator return an Integer/Long for the average instead of a Double, but
+            // Jakarta Data callers of an AVG aggregate expect a double/Double result unconditionally
+            // (e.g. AVG of exactly 5 must come back as 5.0, not 5L). SUM/MIN/MAX are left on the
+            // existing int/long-preserving-unless-fractional heuristic since a SUM or MIN/MAX of an
+            // integer field is plausibly a whole number and no caller convention requires double there.
+            if (type == JdqlQuery.AggregateType.AVG) {
+                return n.doubleValue();
+            }
             return (n instanceof Integer || n instanceof Long) ? n.longValue() : n.doubleValue();
         }
         return value;

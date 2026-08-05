@@ -98,12 +98,17 @@ public final class FindMethodBridge {
         }
 
         // Apply dynamic Sort<T> parameter
+        // Also record it as CursorHelper.SortSpec, in the same field:direction shape as orderBySpec,
+        // so that executeCursoredFind() can use it as the cursor keyset below — otherwise a dynamic
+        // Sort/Order argument would silently be dropped for CursoredPage methods (see Bug 2).
+        List<CursorHelper.SortSpec> dynamicSortSpecs = new ArrayList<>();
         if (sortParamIndex >= 0 && args[sortParamIndex] != null) {
             Sort sort = (Sort) args[sortParamIndex];
             Map<String, Integer> sortMap = new LinkedHashMap<>();
             String mongoField = resolveMongoField(morphium, entityClass, sort.property());
             sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
             query.sort(sortMap);
+            dynamicSortSpecs.add(new CursorHelper.SortSpec(sort.property(), sort.isAscending()));
         }
 
         // Apply dynamic Order<T> parameter (contains multiple Sort entries)
@@ -115,6 +120,7 @@ public final class FindMethodBridge {
                     Sort sort = (Sort) s;
                     String mongoField = resolveMongoField(morphium, entityClass, sort.property());
                     sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
+                    dynamicSortSpecs.add(new CursorHelper.SortSpec(sort.property(), sort.isAscending()));
                 }
                 query.sort(sortMap);
             }
@@ -133,7 +139,7 @@ public final class FindMethodBridge {
 
             if (returnsCursoredPage) {
                 return executeCursoredFind(query, pageRequest, conditionsSpec, orderBySpec,
-                        morphium, entityClass, args);
+                        morphium, entityClass, args, dynamicSortSpecs);
             }
 
             int size = pageRequest.size();
@@ -178,10 +184,14 @@ public final class FindMethodBridge {
      * @param query           the base query with conditions and static ordering already applied
      * @param pageRequest     the requested page (cursor/offset mode, size, whether to compute totals)
      * @param conditionsSpec  encoded conditions, used to rebuild an unrestricted count query
-     * @param orderBySpec     encoded ordering, used to derive the keyset fields for cursor support
+     * @param orderBySpec     encoded static {@code @OrderBy} ordering, used as the keyset fallback
+     *                        when no dynamic {@code Sort}/{@code Order} argument was supplied
      * @param morphium        the Morphium instance
      * @param entityClass     the entity class
      * @param args            the method arguments (for re-applying conditions to the count query)
+     * @param dynamicSortSpecs the sort fields already derived from a dynamic {@code Sort}/{@code Order}
+     *                         method parameter and applied to {@code query} by {@link #executeFind},
+     *                         empty if no such parameter was present
      * @return the cursored page of results
      * @throws IllegalArgumentException if {@code pageRequest} requires a cursor but none is present
      */
@@ -189,9 +199,19 @@ public final class FindMethodBridge {
     private static Object executeCursoredFind(Query query, PageRequest pageRequest,
                                                String conditionsSpec, String orderBySpec,
                                                Morphium morphium, Class entityClass,
-                                               Object[] args) {
-        List<CursorHelper.SortSpec> sortSpecs = CursorHelper.parseSortSpecs(orderBySpec);
+                                               Object[] args, List<CursorHelper.SortSpec> dynamicSortSpecs) {
+        // The keyset for cursor pagination can come from two independent sources: a dynamic
+        // Sort/Order method parameter (already applied to `query` by executeFind() above) and the
+        // static @OrderBy annotation (orderBySpec). Using only orderBySpec here (as before) silently
+        // dropped a dynamic Sort/Order argument, leaving the cursor without the actual sort key that
+        // was applied to the query. Decision: a dynamic Sort/Order parameter, when present, wins over
+        // the static @OrderBy annotation — it is the caller's explicit, per-call choice and mirrors
+        // how query.sort() itself is applied last (overwriting any static sort) in executeFind().
+        List<CursorHelper.SortSpec> sortSpecs = !dynamicSortSpecs.isEmpty()
+                ? dynamicSortSpecs
+                : CursorHelper.parseSortSpecs(orderBySpec);
         boolean isForward = pageRequest.mode() != PageRequest.Mode.CURSOR_PREVIOUS;
+        int requestedSize = pageRequest.size();
 
         if (pageRequest.mode() != PageRequest.Mode.OFFSET) {
             // Cursor-based: apply cursor condition and adjusted sort
@@ -199,12 +219,17 @@ public final class FindMethodBridge {
                     .orElseThrow(() -> new IllegalArgumentException(
                             "PageRequest mode is " + pageRequest.mode() + " but no cursor provided"));
             CursorHelper.applyCursorCondition(query, cursor, sortSpecs, morphium, entityClass, isForward);
+        } else {
+            // CursoredPage requested in classic offset mode (PageRequest.Mode.OFFSET): no cursor
+            // condition applies, but we still need to skip to the requested page, exactly like the
+            // Page<T> branch above (query.skip(skip).limit(size)) does for a normal offset page.
+            int skip = (int) ((pageRequest.page() - 1) * requestedSize);
+            query.skip(skip);
         }
 
         // Apply sort (inverted for CURSOR_PREVIOUS)
         CursorHelper.applySort(query, sortSpecs, morphium, entityClass, isForward);
         // Fetch one extra to determine hasNext precisely
-        int requestedSize = pageRequest.size();
         query.limit(requestedSize + 1);
 
         List content = query.asList();

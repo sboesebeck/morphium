@@ -212,16 +212,21 @@ public abstract class AbstractMorphiumRepository<T, K> {
         }
 
         boolean isForward = pageRequest.mode() != PageRequest.Mode.CURSOR_PREVIOUS;
+        int requestedSize = pageRequest.size();
 
         if (pageRequest.mode() != PageRequest.Mode.OFFSET) {
             PageRequest.Cursor cursor = pageRequest.cursor()
                     .orElseThrow(() -> new IllegalArgumentException(
                             "PageRequest mode is " + pageRequest.mode() + " but no cursor provided"));
             CursorHelper.applyCursorCondition(query, cursor, sortSpecs, morphium, entityClass(), isForward);
+        } else {
+            // CursoredPage requested in classic offset mode (PageRequest.Mode.OFFSET): no cursor
+            // condition applies, but we still need to skip to the requested page like doFindAllPaged().
+            int skip = (int) ((pageRequest.page() - 1) * requestedSize);
+            query.skip(skip);
         }
 
         CursorHelper.applySort(query, sortSpecs, morphium, entityClass(), isForward);
-        int requestedSize = pageRequest.size();
         query.limit(requestedSize + 1);
 
         List<T> content = query.asList();
