@@ -125,5 +125,64 @@ class MethodNameParserTest {
                     .hasMessageContaining("Mixed And/Or combinators")
                     .hasMessageContaining("findByStatusAndCategoryOrPriority");
         }
+
+        @Test
+        @DisplayName("Unknown field (typo) in derived query method throws IllegalArgumentException")
+        void unknownFieldRejected() {
+            assertThatThrownBy(() ->
+                    MethodNameParser.parse("findByStatuss", ENTITY_FIELDS))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Unknown field")
+                    .hasMessageContaining("statuss");
+        }
+
+        @Test
+        @DisplayName("Unknown field validation is skipped when entityFields is null (no validation possible)")
+        void unknownFieldNotRejectedWhenEntityFieldsNull() {
+            QueryDescriptor result = MethodNameParser.parse("findByStatuss", null);
+
+            assertThat(result.conditions()).hasSize(1);
+            assertThat(result.conditions().get(0).field()).isEqualTo("statuss");
+        }
+
+        @Test
+        @DisplayName("Unknown field validation is skipped when entityFields is empty (no validation possible)")
+        void unknownFieldNotRejectedWhenEntityFieldsEmpty() {
+            QueryDescriptor result = MethodNameParser.parse("findByStatuss", Set.of());
+
+            assertThat(result.conditions()).hasSize(1);
+            assertThat(result.conditions().get(0).field()).isEqualTo("statuss");
+        }
+    }
+
+    @Nested
+    @DisplayName("Combinator detection with acronym/digit-ending field segments")
+    class CombinatorAcronymTests {
+
+        private static final Set<String> URL_ENTITY_FIELDS = Set.of("url", "status", "category");
+
+        @Test
+        @DisplayName("findByURLOrStatus splits correctly into URL and Status despite acronym ending in uppercase")
+        void acronymEndingSegmentSplitsOnOr() {
+            QueryDescriptor result = MethodNameParser.parse("findByURLOrStatus", URL_ENTITY_FIELDS);
+
+            assertThat(result.prefix()).isEqualTo(QueryDescriptor.Prefix.FIND);
+            assertThat(result.combinator()).isEqualTo(QueryDescriptor.Combinator.OR);
+            assertThat(result.conditions()).hasSize(2);
+            assertThat(result.conditions().get(0).field()).isEqualTo("url");
+            assertThat(result.conditions().get(1).field()).isEqualTo("status");
+        }
+
+        @Test
+        @DisplayName("findByStatusAndCategory (normal lowercase-before-combinator case) still splits correctly")
+        void regularLowercaseSegmentStillSplitsOnAnd() {
+            QueryDescriptor result = MethodNameParser.parse("findByStatusAndCategory", URL_ENTITY_FIELDS);
+
+            assertThat(result.prefix()).isEqualTo(QueryDescriptor.Prefix.FIND);
+            assertThat(result.combinator()).isEqualTo(QueryDescriptor.Combinator.AND);
+            assertThat(result.conditions()).hasSize(2);
+            assertThat(result.conditions().get(0).field()).isEqualTo("status");
+            assertThat(result.conditions().get(1).field()).isEqualTo("category");
+        }
     }
 }

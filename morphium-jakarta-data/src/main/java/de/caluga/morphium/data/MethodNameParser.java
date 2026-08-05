@@ -255,6 +255,12 @@ public final class MethodNameParser {
                     return f;
                 }
             }
+            // Not found in either form: this is not a valid field on the entity.
+            // Fail fast here instead of silently producing a query that will never
+            // match anything once executed against the database.
+            throw new IllegalArgumentException(
+                    "Unknown field '" + camelCase + "' referenced in derived query method"
+                    + " (not found in entity fields: " + entityFields + ")");
         }
         return camelCase;
     }
@@ -267,7 +273,7 @@ public final class MethodNameParser {
         while (idx > 0 && idx + combinator.length() < text.length()) {
             char before = text.charAt(idx - 1);
             char after = text.charAt(idx + combinator.length());
-            if (Character.isLowerCase(before) && Character.isUpperCase(after)) {
+            if (Character.isLetterOrDigit(before) && Character.isUpperCase(after)) {
                 return true;
             }
             idx = text.indexOf(combinator, idx + 1);
@@ -282,7 +288,7 @@ public final class MethodNameParser {
         while (idx > 0 && idx + combinator.length() < text.length()) {
             char before = text.charAt(idx - 1);
             char after = text.charAt(idx + combinator.length());
-            if (Character.isLowerCase(before) && Character.isUpperCase(after)) {
+            if (Character.isLetterOrDigit(before) && Character.isUpperCase(after)) {
                 result.add(text.substring(start, idx));
                 start = idx + combinator.length();
             }
