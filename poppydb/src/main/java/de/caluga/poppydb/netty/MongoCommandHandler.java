@@ -1862,6 +1862,13 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 if (peer.equals(currentLeader)) {
                     peerMember.put("state", 1);
                     peerMember.put("stateStr", "PRIMARY");
+                } else if (!electionManager.isPeerReachable(peer)) {
+                    // Matches real MongoDB's member state for this situation exactly
+                    // (state=8, stateStr="DOWN") - was reachable, heartbeat ack has since
+                    // gone stale. See ElectionManager#isPeerReachable for why a peer we've
+                    // never yet heard from is NOT reported DOWN (avoids a startup race).
+                    peerMember.put("state", 8);
+                    peerMember.put("stateStr", "DOWN");
                 } else {
                     peerMember.put("state", 2);
                     peerMember.put("stateStr", "SECONDARY");

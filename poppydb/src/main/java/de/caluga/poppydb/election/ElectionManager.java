@@ -1020,6 +1020,33 @@ public class ElectionManager {
     }
 
     /**
+     * Whether we (as leader) have heard a heartbeat ack from this peer recently enough to
+     * consider it reachable - reuses the same freshness window as priority-takeover
+     * eligibility (see {@link #checkPriorityTakeover} and its use of {@code peerLastContact}).
+     * Only meaningful when we ARE the leader: the leader is the only role
+     * that actively heartbeats every peer and tracks acks, so a follower has no independent
+     * way to know whether some OTHER follower is up - it returns true (optimistic/unknown) in
+     * that case, and also the first time this is asked about a peer we've never yet heard from
+     * at all (e.g. right after an election, before the first heartbeat round-trip), so a
+     * healthy peer is never falsely flagged DOWN by a startup race. Only a peer that WAS
+     * reachable and has since gone stale is reported unreachable.
+     */
+    public boolean isPeerReachable(String peer) {
+        if (state != ElectionState.LEADER) {
+            return true;
+        }
+
+        Long lastContact = peerLastContact.get(peer);
+
+        if (lastContact == null) {
+            return true;
+        }
+
+        long freshnessMs = Math.max(3L * config.getHeartbeatIntervalMs(), 2000L);
+        return System.currentTimeMillis() - lastContact <= freshnessMs;
+    }
+
+    /**
      * Simple stepdown - immediately becomes follower.
      */
     public void stepDown() {
