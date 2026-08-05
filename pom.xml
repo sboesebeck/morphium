@@ -30,6 +30,22 @@
       <email>sb@caluga.de</email>
     </developer>
   </developers>
+  <!--
+    Core modules (always built) vs. extension modules (profile "extensions",
+    active by default). See D3-reactor-strategie.md, Variante B.
+
+    Invariants that this setup guarantees:
+      I1: morphium-core/pom.xml does not reference any extension module.
+      I2: The core dependency tree stays free of jakarta.data/io.quarkus/org.springframework.
+      I3: Core (+PoppyDB) is buildable without the extensions: -DskipExtensions.
+      I4: Foreign BOMs (Quarkus/Spring) are NOT imported here, only in the
+          respective extension module's own POM.
+      I5: No cyclic module dependency (extension -> core, never the reverse).
+
+    "mvn install"                    -> builds core + PoppyDB + all extensions
+    "mvn install -DskipExtensions"    -> builds only core + PoppyDB (no Docker,
+                                          no Quarkus/Spring download needed)
+  -->
   <modules>
     <module>morphium-core</module>
     <module>poppydb</module>
@@ -51,6 +67,9 @@
          manual   = process-killing / hardcoded-local tests, NEVER in CI -->
     <test.includeTags/>
     <test.excludeTags>external,manual</test.excludeTags>
+    <!-- Extension module property for morphium-jakarta-data.
+         Deliberately only the version, no Quarkus/Spring BOM (see I4). -->
+    <jakarta.data.version>1.0.0</jakarta.data.version>
   </properties>
   <build>
     <pluginManagement>
@@ -313,6 +332,14 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <!-- For the extension module morphium-jakarta-data. Single dependency,
+           NO BOM import (I4 is uncritical for this extension anyway, since
+           Jakarta Data does not ship its own BOM). -->
+      <dependency>
+        <groupId>jakarta.data</groupId>
+        <artifactId>jakarta.data-api</artifactId>
+        <version>${jakarta.data.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <profiles>
@@ -372,6 +399,20 @@
       <properties>
         <morphium.driver>single</morphium.driver>
       </properties>
+    </profile>
+    <!-- Extension modules. Active by default (see D3, Variante B).
+         Disable with "-DskipExtensions" for a core-only build without
+         Quarkus/Spring download and without Docker. -->
+    <profile>
+      <id>extensions</id>
+      <activation>
+        <property>
+          <name>!skipExtensions</name>
+        </property>
+      </activation>
+      <modules>
+        <module>morphium-jakarta-data</module>
+      </modules>
     </profile>
   </profiles>
 </project>
