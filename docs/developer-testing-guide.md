@@ -169,12 +169,14 @@ The `runtests.sh` script provides a convenient wrapper around Maven with additio
 --rerunfailed       # Rerun only previously failed tests
 ```
 
-Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache`, `admin`, `performance`, `encryption`, `jms`, `geo`, `util`, `external`, `manual`, `failover`
+Available tags: `core`, `messaging`, `driver`, `inmemory`, `aggregation`, `cache`, `admin`, `performance`, `encryption`, `jms`, `geo`, `util`, `external`, `manual`, `failover`, `wire-failover`
 
 Two tags have special semantics:
 
 - `external` — the test needs a real MongoDB (CI-safe). Excluded by default; enabled by `--external` / the `-Pexternal` Maven profile.
-- `manual` — the test kills processes or relies on a hardcoded local setup (e.g. `FailoverReproTest` controls a local replica set via `~/mongo`). **Never runs in CI**: excluded by default, by `-Pexternal` and by `runtests.sh`. Run explicitly via `mvn -pl morphium-core test -Dtest=<Class> -Dtest.excludeTags=`. All real failover tests (StepDown/Shutdown/process kills) carry this tag; the remaining `failover` tag only marks tests to skip on PoppyDB phases.
+- `manual` — the test kills processes or relies on a hardcoded local setup. **Never runs in CI**: excluded by default, by `-Pexternal` and by `runtests.sh`. Run explicitly via `mvn -pl morphium-core test -Dtest=<Class> -Dtest.excludeTags=`. The remaining process-killing failover tests (`SingleConnectDriverFailoverTests`, `driver/pool/FailoverTests`) still carry this tag; the plain `failover` tag itself is also used as a catch-all to skip a handful of other tests on PoppyDB phases (pooled-driver tests that need a real MongoDB, `SortingTest`'s slow bulk-write case).
+
+`wire-failover` is different: it marks `DriverFailoverProxyTest`, which reproduces failover behaviour (clean stepdown, hard kill, frozen socket, and the resulting read/write/messaging recovery) through a reusable wire-level fault-injection proxy instead of controlling a real replica set process. It needs no hardcoded local setup and kills nothing, so it **does run in the normal matrix** — against both MongoDB and PoppyDB replica sets — and is not excluded by `runtests.sh` or any Maven profile.
 
 #### PoppyDB Options
 ```bash

@@ -15,6 +15,17 @@ Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica s
 
 ### Added
 
+#### Driver: automated failover test via wire-rewriting proxy, replaces manual `FailoverReproTest`
+`FailoverReproTest` reproduced the 6.2.6 failover regressions but required a hand-built local
+replica set and process kills (`kill -9`, SIGSTOP) run by hand — it was tagged `manual` and never
+ran in CI. `DriverFailoverProxyTest` reproduces the same client-visible failure modes — clean
+stepdown, hard kill, and the critical frozen-socket case (TCP connection alive but silent, the one
+a driver can't distinguish from a slow server without a timeout) — plus read/write/messaging
+recovery, through a reusable wire-level fault-injection proxy that sits between the driver and a
+real replica set instead of killing processes. Tagged `wire-failover`, it runs automatically
+against both MongoDB and PoppyDB replica sets in the normal test matrix. `FailoverReproTest` is
+removed.
+
 #### PoppyDB: `--users-file` — declarative user provisioning (bootstrap, upsert, version-gated)
 Builds on user replication: `--rootUser`/`--rootPassword` only ever provisioned one admin user,
 so any real application user set still had to be created by hand (a shell script running

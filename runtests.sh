@@ -609,8 +609,14 @@ if [ "$poppydbLocalMode" -eq 1 ] || [ "$startPoppydbLocal" -eq 1 ]; then
 	_pdb_ensure_cluster "$uri"
 fi
 
-# Auto-exclude failover tests when using PoppyDB
-# (PoppyDB doesn't support StepDownCommand for failover testing)
+# Auto-exclude 'failover' tests when using PoppyDB. This is no longer about
+# StepDownCommand - PoppyDB implements replSetStepDown now. The tag has become a
+# catch-all for tests that still don't play well with a PoppyDB replica set:
+# process-killing tests that are 'manual'+'external' anyway (SingleConnectDriverFailoverTests,
+# driver/pool/FailoverTests), pooled-driver tests that need a real MongoDB
+# (PooledDriverTest, PooledDriverConnectionsTests), and SortingTest's slow bulk-write case.
+# The proxy-based DriverFailoverProxyTest is tagged 'wire-failover', not 'failover', and is
+# NOT excluded here - it must keep running against both MongoDB and PoppyDB.
 if [ "$startPoppydbLocal" -eq 1 ]; then
 	if [ -z "$excludeTags" ]; then
 		excludeTags="failover"
