@@ -118,6 +118,17 @@
           </annotationProcessorPaths>
         </configuration>
       </plugin>
+      <!-- Activates the source/javadoc jar generation configured in
+           morphium-parent's pluginManagement (see D4, analogous to
+           morphium-jakarta-data); required for the Sonatype Central bundle. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+      </plugin>
     </plugins>
   </build>
 </project>
