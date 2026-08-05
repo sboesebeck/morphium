@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### PoppyDB: `--auth`/`--ssl` now work on a replica set - the internal election/replication channel was always plaintext and unauthenticated
+Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica set completely non-functional: `ElectionNetworkClient` (vote requests, heartbeats) and `ReplicationManager` (the sync connection to the primary) connected to peers as a plain, unauthenticated, unencrypted client, regardless of the server's own `--auth`/`--ssl` configuration. With `--ssl=true` every internal connection was rejected by the peer's TLS-only listener (`NotSslRecordException`); with `--auth=true` the election RPCs (`requestVote`/`appendEntries`) aren't on the pre-auth command whitelist, so every one was rejected as unauthorized - either way, no leader could ever be elected. Single-node PoppyDB with `--auth`/`--ssl` was unaffected; the client-facing enforcement itself was never the problem. The internal channel now authenticates as the configured root user and, when TLS is on, trusts exactly the server's own configured certificate (`ssl-keystore`, reused as the internal client's pinned truststore) - no new config keys, no change to auth enforcement.
+
 ### Added
 
 #### PoppyDB: `--users-file` — declarative user provisioning (bootstrap, upsert, version-gated)
