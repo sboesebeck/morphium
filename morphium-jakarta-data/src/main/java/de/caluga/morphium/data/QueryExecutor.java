@@ -65,14 +65,24 @@ public final class QueryExecutor {
             };
             case COUNT -> query.countAll();
             case EXISTS -> query.countAll() > 0;
+            // Uses bulk deleteMany — does NOT fire @PreRemove/@PostRemove lifecycle
+            // callbacks. This is intentional for performance (avoids loading all entities
+            // into memory). Entities requiring lifecycle hooks should use Morphium.delete()
+            // directly instead of derived deleteBy* methods.
+            //
+            // The returned count is read from the "n" key of the MongoDB delete-command
+            // result map (matches wire-protocol convention; see InMemoryDriver.delete() and
+            // AliasesTest, which read the analogous store-result the same way). If for any
+            // reason the driver's result map does not contain a numeric "n" entry, we fall
+            // back to a pre-delete countAll(); in that fallback path there is a narrow
+            // concurrency window between the count and the actual delete where concurrent
+            // inserts/deletes on the same query could make the returned number slightly
+            // inaccurate.
             case DELETE -> {
-                long count = query.countAll();
-                // Uses bulk deleteMany — does NOT fire @PreRemove/@PostRemove lifecycle
-                // callbacks. This is intentional for performance (avoids loading all entities
-                // into memory). Entities requiring lifecycle hooks should use Morphium.delete()
-                // directly instead of derived deleteBy* methods.
-                query.delete();
-                yield count;
+                long preCount = query.countAll();
+                Map<String, Object> deleteResult = query.delete();
+                Object n = deleteResult == null ? null : deleteResult.get("n");
+                yield (n instanceof Number) ? ((Number) n).longValue() : preCount;
             }
         };
     }
@@ -113,18 +123,29 @@ public final class QueryExecutor {
         List<String> aliases = resolveAliases(morphium, entityClass, cond.field());
 
         if (!aliases.isEmpty()) {
-            // Field has @Aliases — build $or to match current name + all aliases.
-            // LinkedHashSet deduplicates in case an alias equals the current mongo name.
-            List<Map<String, Object>> orBranches = new ArrayList<>();
+            // Field has @Aliases — build a boolean combination over the current mongo
+            // name + all aliases. LinkedHashSet deduplicates in case an alias equals the
+            // current mongo name.
+            //
+            // For POSITIVE operators (EQ, LIKE, CONTAINS, ...) we need "matches under
+            // ANY of the names", i.e. $or.
+            //
+            // For NEGATING operators (NE, NIN, NOT_CONTAINS, IS_NOT_NULL, IS_NOT_EMPTY —
+            // anything expressing "not X") we need "does NOT match under ANY of the
+            // names", i.e. the condition must hold for EVERY alias branch ($and). Using
+            // $or here would be wrong: "field != X OR alias != X" is true for almost any
+            // document (e.g. one that has X under the current name but no value at all
+            // under the alias name), defeating the negation entirely.
+            List<Map<String, Object>> aliasBranches = new ArrayList<>();
             Set<String> uniqueFields = new LinkedHashSet<>();
             uniqueFields.add(mongoField);
             uniqueFields.addAll(aliases);
             for (String f : uniqueFields) {
-                orBranches.add(buildRawCondition(f, cond, args));
+                aliasBranches.add(buildRawCondition(f, cond, args));
             }
             FilterExpression fe = new FilterExpression();
-            fe.setField("$or");
-            fe.setValue(orBranches);
+            fe.setField(isNegatingOperator(cond.operator()) ? "$and" : "$or");
+            fe.setValue(aliasBranches);
             query.addChild(fe);
         } else {
             // No aliases — build raw condition and add as FilterExpression.
@@ -132,6 +153,21 @@ public final class QueryExecutor {
             // operator handling in a single place.
             addRawConditionToQuery(query, buildRawCondition(mongoField, cond, args));
         }
+    }
+
+    /**
+     * Returns {@code true} if the given operator expresses a negation (i.e. its raw
+     * condition relies on a {@code $}-prefixed MongoDB negation operator such as
+     * {@code $ne}, {@code $nin}, or an equivalent {@code $nor}/exclusion semantic).
+     * Used by {@link #applyCondition} to decide whether alias branches must be
+     * combined with {@code $and} (all names must satisfy the negation) instead of
+     * {@code $or} (which would be trivially true for negated conditions).
+     */
+    private static boolean isNegatingOperator(Operator operator) {
+        return switch (operator) {
+            case NE, NIN, NOT_CONTAINS, IS_NOT_NULL, IS_NOT_EMPTY -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -207,7 +243,7 @@ public final class QueryExecutor {
             }
             case STARTS_WITH -> result.put(fieldName, Map.of("$regex", "^" + Pattern.quote(args[cond.paramIndex()].toString())));
             case ENDS_WITH -> result.put(fieldName, Map.of("$regex", Pattern.quote(args[cond.paramIndex()].toString()) + "$"));
-            case CONTAINS -> result.put(fieldName, args[cond.paramIndex()]);
+            case CONTAINS -> result.put(fieldName, Map.of("$regex", Pattern.quote(args[cond.paramIndex()].toString())));
             case NOT_CONTAINS -> result.put(fieldName, nullSafeOp("$ne", args[cond.paramIndex()]));
             case MATCHES -> result.put(fieldName, Map.of("$regex", args[cond.paramIndex()].toString()));
             case IGNORE_CASE -> {

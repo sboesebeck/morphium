@@ -397,4 +397,112 @@ class QueryExecutorAliasTest {
         QueryExecutor.applyConditions(query, descriptor, args, morphium, entityClass);
         return query;
     }
+
+    @Test
+    @DisplayName("NE on aliased field generates $and (not $or) over negated branches for each alias")
+    void neOperatorOnAliasedFieldGeneratesAnd() {
+        QueryDescriptor descriptor = new QueryDescriptor(
+                Prefix.FIND,
+                List.of(new Condition("otaUpdateId", Operator.NE, 0)),
+                Combinator.AND,
+                List.of(),
+                ReturnType.LIST
+        );
+
+        Query<?> query = buildQuery(descriptor, new Object[]{"update-123"});
+        Map<String, Object> queryObj = query.toQueryObject();
+
+        // Must NOT be $or — "field != X OR alias != X" would be trivially true for
+        // almost any document.
+        assertThat(queryObj).doesNotContainKey("$or");
+        assertThat(queryObj).containsKey("$and");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> andList = (List<Map<String, Object>>) queryObj.get("$and");
+        assertThat(andList).hasSize(2);
+
+        Set<String> queriedFields = new HashSet<>();
+        for (Map<String, Object> sub : andList) {
+            for (Map.Entry<String, Object> e : sub.entrySet()) {
+                queriedFields.add(e.getKey());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> opMap = (Map<String, Object>) e.getValue();
+                assertThat(opMap).containsKey("$ne");
+                assertThat(opMap.get("$ne")).isEqualTo("update-123");
+            }
+        }
+        assertThat(queriedFields).containsExactlyInAnyOrder("ota_update_id", "updateId");
+    }
+
+    @Test
+    @DisplayName("IS_NOT_NULL on aliased field generates $and over negated branches for each alias")
+    void isNotNullOperatorOnAliasedFieldGeneratesAnd() {
+        QueryDescriptor descriptor = new QueryDescriptor(
+                Prefix.FIND,
+                List.of(new Condition("otaUpdateId", Operator.IS_NOT_NULL, -1)),
+                Combinator.AND,
+                List.of(),
+                ReturnType.LIST
+        );
+
+        Query<?> query = buildQuery(descriptor, new Object[]{});
+        Map<String, Object> queryObj = query.toQueryObject();
+
+        assertThat(queryObj).doesNotContainKey("$or");
+        assertThat(queryObj).containsKey("$and");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> andList = (List<Map<String, Object>>) queryObj.get("$and");
+        assertThat(andList).hasSize(2);
+
+        Set<String> queriedFields = new HashSet<>();
+        for (Map<String, Object> sub : andList) {
+            for (Map.Entry<String, Object> e : sub.entrySet()) {
+                queriedFields.add(e.getKey());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> opMap = (Map<String, Object>) e.getValue();
+                assertThat(opMap).containsEntry("$ne", null);
+            }
+        }
+        assertThat(queriedFields).containsExactlyInAnyOrder("ota_update_id", "updateId");
+    }
+
+    @Test
+    @DisplayName("NE on aliased field correctly excludes documents matching under either name")
+    void neOnAliasedFieldExcludesMatchesUnderEitherName() {
+        // Document stored under the CURRENT mongo field name with the excluded value.
+        morphium.storeMap(OtaUpdate.class, new java.util.LinkedHashMap<>(java.util.Map.of(
+                "_id", "doc-current-name",
+                "ota_update_id", "update-123")));
+        // Document stored under the ALIAS name with the excluded value (legacy document).
+        morphium.storeMap(OtaUpdate.class, new java.util.LinkedHashMap<>(java.util.Map.of(
+                "_id", "doc-alias-name",
+                "updateId", "update-123")));
+        // Document that genuinely does not have the excluded value anywhere.
+        morphium.storeMap(OtaUpdate.class, new java.util.LinkedHashMap<>(java.util.Map.of(
+                "_id", "doc-other-value",
+                "ota_update_id", "some-other-id")));
+
+        QueryDescriptor descriptor = new QueryDescriptor(
+                Prefix.FIND,
+                List.of(new Condition("otaUpdateId", Operator.NE, 0)),
+                Combinator.AND,
+                List.of(),
+                ReturnType.LIST
+        );
+
+        Query<?> query = buildQuery(descriptor, new Object[]{"update-123"});
+        List<?> results = query.asList();
+
+        Set<Object> ids = new HashSet<>();
+        for (Object doc : results) {
+            ids.add(morphium.getARHelper().getId(doc));
+        }
+
+        // Both the current-name and alias-name matches must be EXCLUDED — this is exactly
+        // what the buggy $or implementation got wrong (it would incorrectly include both).
+        assertThat(ids).doesNotContain("doc-current-name", "doc-alias-name");
+        assertThat(ids).contains("doc-other-value");
+    }
 }
+
