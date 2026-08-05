@@ -332,16 +332,16 @@ public class PoppyDB {
                 // callback, as secondaries otherwise do, would deadlock the whole RS (no leader
                 // can be elected until credentials exist, and credentials are only created by
                 // the leader). So every node seeds its own local copy up front.
-                // NOTE: "harmless because it's superseded by replication" is only true once
-                // ReplicationManager itself does auth/TLS on its connection to the primary (a
-                // separate gap - not yet fixed as of this commit; that's a later step in this
-                // same effort). Until then, a secondary's replication connection to an
-                // auth-required primary cannot complete, so the drop+repopulate of
-                // admin.system.users this comment describes cannot run end-to-end yet - each
-                // node's bootstrap copy stays in place unreplaced. It is still safe: every node
-                // was given the same rootUser/rootPassword (the "identical config on every node"
-                // deployment pattern), so each node's independently-created copy authenticates
-                // the same credential regardless of whether replication ever overwrites it.
+                // NOTE: "superseded by replication" now actually happens end-to-end: since
+                // ReplicationManager wires auth/TLS onto its connection to the primary (see
+                // setInternalConnectionSecurity()), a secondary's replication connection to an
+                // auth-required primary completes, so the drop+repopulate of admin.system.users
+                // this comment describes runs once that secondary syncs - each node's bootstrap
+                // copy gets replaced by the primary's authoritative copy. It was always safe even
+                // before that wiring landed: every node is given the same rootUser/rootPassword
+                // (the "identical config on every node" deployment pattern), so each node's
+                // independently-created copy authenticates the same credential regardless of
+                // whether/when replication overwrites it.
                 ensureRootUser();
             }
             // in election mode without --auth, the leadership callback (below) creates it on the
