@@ -23,6 +23,7 @@ import io.quarkus.runtime.configuration.ConfigUtils;
 import org.jboss.logging.Logger;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -70,6 +71,14 @@ public class MorphiumDevServicesProcessor {
 
         if (ConfigUtils.isPropertyNonEmpty("quarkus.morphium.hosts")) {
             log.debug("Morphium connection settings already configured – skipping Dev Services");
+            return null;
+        }
+
+        if (ConfigUtils.getFirstOptionalValue(List.of("quarkus.morphium.driver-name"), String.class)
+                .map(driverName -> !driverName.equalsIgnoreCase("PooledDriver"))
+                .orElse(false)) {
+            log.debugf("Morphium driver-name explicitly set to a non-production driver (e.g. InMemDriver) – " +
+                    "skipping Dev Services since no real MongoDB connection is needed");
             return null;
         }
 
