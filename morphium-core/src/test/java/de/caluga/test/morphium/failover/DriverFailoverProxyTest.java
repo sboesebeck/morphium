@@ -247,10 +247,48 @@ public class DriverFailoverProxyTest {
         return primaryName;
     }
 
+    /** Combines {@link #injectFaultOnCurrentPrimary} + {@link #stepDownPrimary}, retrying the
+     * whole discover-fault-stepDown sequence if the primary changed in the (normally tiny)
+     * window between discovering it and the stepDown attempt landing. Found via a real run on
+     * testrunner.fritz.box: PoppyDB correctly replies ok:0 ("not primary so can't step down")
+     * if leadership already moved on since discovery - e.g. because an earlier scenario's own
+     * disruption left this shared 3-node cluster still settling by the time a later scenario
+     * runs. {@code stepDownPrimary}'s own doc previously claimed this race was structurally
+     * impossible ("no re-discovery, so this can never race") - it can, just rarely enough that
+     * the first several manual runs didn't hit it. Clears the fault from the wrongly-guessed
+     * proxy before retrying against the freshly-discovered one, so at most one proxy is ever
+     * faulted at a time. Bounded to 3 attempts - if the cluster is still this unstable after
+     * that many tries, that's worth failing loudly on rather than retrying forever. */
+    private String faultAndStepDownCurrentPrimary(Backend backend, Map<String, String> backendToProxy,
+            de.caluga.test.morphium.testutil.proxy.FaultMode mode) throws Exception {
+        de.caluga.morphium.driver.MorphiumDriverException lastFailure = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy, mode);
+            try {
+                stepDownPrimary(backend, primaryName);
+                return primaryName;
+            } catch (de.caluga.morphium.driver.MorphiumDriverException e) {
+                lastFailure = e;
+                log.debug("stepDown attempt {}/3 on {} failed (primary likely changed mid-race): {}",
+                        attempt, primaryName, e.getMessage());
+                String proxyAddr = backendToProxy.get(primaryName);
+                proxies.stream()
+                        .filter(p -> ("localhost:" + p.getListenPort()).equals(proxyAddr))
+                        .findFirst()
+                        .ifPresent(p -> p.setFaultMode(de.caluga.test.morphium.testutil.proxy.FaultMode.passthrough));
+            }
+        }
+        throw new IllegalStateException(
+                "Could not step down the primary after 3 attempts - cluster still unstable", lastFailure);
+    }
+
     // ---- election helper (design spec: "Scenario mapping") ----
 
-    /** Steps down the given (already-known) primary directly - no re-discovery, so this can
-     * never race with the caller's own view of who the primary is (and which proxy got frozen). */
+    /** Steps down the given (already-known) primary directly - no re-discovery of its own. Can
+     * still throw {@code MorphiumDriverException} ("not primary so can't step down") if
+     * leadership changed between the caller's discovery and this call landing - callers that
+     * need to tolerate that race should go through {@link #faultAndStepDownCurrentPrimary}
+     * instead of calling this directly. */
     private void stepDownPrimary(Backend backend, String primaryName) throws Exception {
         String[] hp = primaryName.split(":");
         try (ControlChannel primary = new ControlChannel(hp[0], Integer.parseInt(hp[1]),
@@ -339,11 +377,15 @@ public class DriverFailoverProxyTest {
             assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
 
             // Find and freeze the current primary's proxy, then step it down.
-            String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy,
+            String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
                     de.caluga.test.morphium.testutil.proxy.FaultMode.freeze);
-            stepDownPrimary(backend, primaryName);
 
-            assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
+            // 25s (up from 15s): a real run on testrunner.fritz.box saw this specific scenario -
+            // always the first one to run against a just-started cluster - occasionally still
+            // mid-election-settling from cluster startup/JVM warmup, not from anything wrong
+            // with the freeze mechanics themselves (freeze passed cleanly whenever the election
+            // itself completed promptly). Still well under maxWaitTime (60s).
+            assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
 
             // Timeout budget (C2 fix): a frozen connection is only force-closed once PooledDriver
             // evicts the host, which requires Host.getFailures() > Host.MAX_FAILURES (5, i.e. 6
@@ -451,10 +493,9 @@ public class DriverFailoverProxyTest {
             Thread.sleep(1000);
             assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
 
-            String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy, faultMode);
-            stepDownPrimary(backend, primaryName);
+            String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy, faultMode);
 
-            assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
+            assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
 
             int writeBaseline = writeOk.get();
             int readBaseline = readOk.get();
@@ -541,11 +582,10 @@ public class DriverFailoverProxyTest {
                     int receivedBefore = received.get();
                     assertTrue(receivedBefore > 0, "no messages delivered before the fault - harness itself is broken");
 
-                    String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy,
+                    String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
                             de.caluga.test.morphium.testutil.proxy.FaultMode.close);
-                    stepDownPrimary(backend, primaryName);
 
-                    assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
+                    assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
 
                     // Messaging goes through a changestream-resume path in addition to plain
                     // read/write, so give it a little more room than the write/read scenarios (see
@@ -589,10 +629,9 @@ public class DriverFailoverProxyTest {
         // Fault + stepdown happen BEFORE Morphium exists - the application starts cold against an
         // already-elected new primary, with the old one unreachable (equivalent of the old test's
         // "primary dies HARD, replicaset elects a new primary, THEN the application starts").
-        String primaryName = injectFaultOnCurrentPrimary(backend, backendToProxy,
+        String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
                 de.caluga.test.morphium.testutil.proxy.FaultMode.reset);
-        stepDownPrimary(backend, primaryName);
-        assertTrue(pollForNewPrimary(backend, primaryName, 15_000), "no new primary elected within 15s");
+        assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
 
         morphium = buildDriverUnderTest(backendToProxy);
         assertOnlyConnectedThroughProxies(backendToProxy);
