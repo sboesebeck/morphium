@@ -650,7 +650,10 @@ java -jar poppydb-cli.jar --auth --rootUser admin --rootPassword s3cr3t \
 - A static-mode **secondary** never applies the file locally, even if `--users-file` is
   configured on it too (PoppyDB logs an INFO line noting that it is ignored there) — it receives
   the result purely through the normal `admin.system.users` replication that already carries
-  `createUser`/`updateUser` writes (see [User replication](#authentication---auth) above).
+  `createUser`/`updateUser` writes (see [User replication](#authentication---auth) above). The
+  file is only ignored for *application* on such a node — it is still parsed and validated at
+  startup like everywhere else, so a syntactically broken file fails that node's startup too
+  (fail-fast by design, not a live-apply attempt).
 
 **Deploy the identical file to every node.** The version gate below is what makes that safe even
 across a failback to a node that still has an older copy on disk.
@@ -664,7 +667,12 @@ rule as `admin.system.users`). Concretely: node A applies version 3 and becomes 
 network partition later promotes node B, which still has version 2 of the file on local disk —
 B's apply is skipped (`appliedVersion 3 >= file version 2`, logged at INFO) instead of rolling
 passwords back to the older file's contents. Re-applying the *same* version is likewise a no-op;
-only a strictly higher version triggers a new apply.
+only a strictly higher version triggers a new apply. Known exception: the gate reads the
+replicated meta document, so a node elected primary while still mid-resync — after its local
+`admin.system.version` has been cleared for the resync but before the primary's snapshot has
+landed — sees no meta document and re-applies its own file regardless of version; this is a
+pre-existing election-timing gap tracked as a follow-up, not a property of the version gate
+itself.
 
 **Rotation flow:** edit the file (bump `version`), roll out the new file to every node, then
 rolling-restart (or just let the next election re-run the leadership hook, in election mode).

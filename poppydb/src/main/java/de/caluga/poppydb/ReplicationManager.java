@@ -454,7 +454,7 @@ public class ReplicationManager {
         String coll = parts[1];
 
         // Skip everything outside the replicated namespace set (system databases and
-        // system.* collections - except admin.system.users, which does replicate)
+        // system.* collections - except the replicated admin system collections, see isReplicated)
         if (!isReplicated(db, coll)) {
             // Still update sequence for skipped events
             for (Map<String, Object> event : events) {
@@ -1073,9 +1073,10 @@ public class ReplicationManager {
      * by the caller's watchInvalidatedDuringSnapshot guard, same as for a real snapshot.
      *
      * <p><b>What is compared:</b> exactly the replicated namespace set per {@link #isReplicated}:
-     * every non-system database's non-system collections, plus admin.system.users (users must
-     * match too - a stale user set is divergence like any other; a follower legitimately holding
-     * the SAME users it replicated earlier is precisely the match case). Databases whose
+     * every non-system database's non-system collections, plus the replicated admin system
+     * collections admin.system.users and admin.system.version (users must match too - a stale
+     * user set is divergence like any other; a follower legitimately holding the SAME users it
+     * replicated earlier is precisely the match case). Databases whose
      * replicated-collection set is empty count as absent on both sides. Collection sets must be
      * equal AND every per-collection dbHash must agree.
      *
@@ -1149,8 +1150,9 @@ public class ReplicationManager {
 
     /**
      * The replicated namespace map of one side: database -> sorted set of its replicated
-     * collections (per {@link #isReplicated} - so for admin at most system.users survives, and
-     * local/config never contribute). Databases with no replicated collection are omitted, so a
+     * collections (per {@link #isReplicated} - so for admin at most system.users and
+     * system.version survive, and local/config never contribute). Databases with no replicated
+     * collection are omitted, so a
      * db existing on one side only as an empty shell (or with nothing but system collections)
      * does not count as divergence.
      */
@@ -1341,7 +1343,8 @@ public class ReplicationManager {
         clearLocalDatabasesInvocations.incrementAndGet();
         for (String dbName : localDriver.listDatabases()) {
             // admin/local/config are never dropped wholesale: they hold node-local state beyond
-            // the one replicated collection (admin.system.users, cleared separately below).
+            // the replicated admin system collections (admin.system.users and
+            // admin.system.version, both cleared separately below).
             if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
                 continue;
             }
@@ -1411,8 +1414,8 @@ public class ReplicationManager {
         int totalDocs = 0;
         for (String dbName : databases) {
             // No db-level skip here: the per-collection isReplicated filter in syncDatabase
-            // decides. admin must be enumerated (its system.users replicates); for local and
-            // config every collection is filtered out there.
+            // decides. admin must be enumerated (its system.users and system.version replicate);
+            // for local and config every collection is filtered out there.
             totalDocs += syncDatabase(dbName);
         }
 
@@ -1758,7 +1761,7 @@ public class ReplicationManager {
             String coll = (String) ns.get("coll");
 
             // Skip everything outside the replicated namespace set (system databases and
-            // system.* collections - except admin.system.users, which does replicate)
+            // system.* collections - except the replicated admin system collections, see isReplicated)
             if (!isReplicated(db, coll)) {
                 // Still update sequence for skipped events
                 if (sequenceNumber > 0) {

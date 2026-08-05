@@ -24,8 +24,9 @@ mid-failover). A static-mode secondary never applies the file itself, even if on
 on it too; it receives the result through the same `admin.system.users` replication that already
 carries `createUser`/`updateUser`. An optional `version` field in the file gates re-application
 against a small replicated meta document (`admin.system.version {_id: "poppydb.usersFile",
-appliedVersion: N}`), so a straggler node that fails back to primary with an older copy of the
-file on disk can never roll passwords back — only a strictly higher version re-applies. Unknown
+appliedVersion: N}`), which prevents a straggler node from rolling credentials back on failback
+with an older copy of the file on disk — only a strictly higher version re-applies — provided the
+node is not elected primary while still mid-resync (see docs). Unknown
 fields (top-level or per-entry) are a hard error naming the field, and — like every other secret
 file in PoppyDB's config surface — the file's POSIX permissions are checked (group/other-readable
 warns, group/other-writable refuses to start); its content is never logged, including in error
