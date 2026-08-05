@@ -50,6 +50,39 @@ will follow in subsequent PRs. The code originates from
 which is being archived now that its content has moved into the main Morphium repository.
 See [Jakarta Data](docs/jakarta-data.md).
 
+#### `quarkus-morphium` — optional Quarkus extension for CDI integration
+A new optional module, `quarkus-morphium`, integrates Morphium into
+[Quarkus](https://quarkus.io) applications: a CDI producer for `Morphium`, type-safe
+runtime configuration via `@ConfigMapping` (`quarkus.morphium.*`), declarative
+`@MorphiumTransactional` transactions with `MorphiumTransactionEvent` CDI events
+(graceful degradation on Azure CosmosDB, auto-detected), MicroProfile liveness/readiness/
+startup health checks via SmallRye Health, Dev Services (an automatically-started MongoDB
+container, optionally as a single-node replica set), a Dev UI card with live connection
+info, build-time Jakarta Data `@Repository` implementations generated via Gizmo bytecode
+(no runtime reflection, no dynamic proxies — see [Jakarta Data](docs/jakarta-data.md) for
+the underlying query-derivation, JDQL, and pagination feature set), GraalVM native-image
+support (automatic reflection registration for every `@Entity`/`@Embedded` class), default
+`MorphiumId` JSON serialization as its canonical 24-character hex string (both Jackson and
+JSON-B, in both directions), and a MongoDB-backed migration runner with a distributed lock.
+The module publishes three artifacts — `quarkus-morphium` (runtime), `quarkus-morphium-deployment`
+(build-time processing), and `quarkus-morphium-testing` (test support) — plus an
+`integration-tests` submodule that is built and run but never published. Like
+`morphium-jakarta-data`, the core has zero compile- or runtime dependency on this module;
+building the reactor with `-DskipExtensions` produces an unchanged core-only build. The
+integration tests spin up a real MongoDB via Testcontainers and therefore need a running
+Docker daemon — when Docker is unavailable, they detect this and skip themselves rather than
+failing the build. **groupId migration:** this extension previously published under
+`io.quarkiverse.morphium` as part of the Quarkiverse organization; because it does not
+actually live in the [Quarkiverse](https://quarkiverse.github.io) GitHub organization,
+Maven coordinates now follow Morphium's own groupId, `de.caluga:quarkus-morphium`, and
+version in lockstep with the Morphium reactor. **Existing users of
+`io.quarkiverse.morphium:quarkus-morphium:1.2.0` must update their dependency's groupId to
+`de.caluga` and its version to the Morphium version they adopt (currently `6.3.x`)** — no
+package renames, no API changes, only the Maven coordinates move. The code originates from
+[Bardioc1977/quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium), which is
+being archived now that its content has moved into the main Morphium repository. See
+[Quarkus Extension](docs/quarkus-extension.md).
+
 #### PoppyDB: `--users-file` — declarative user provisioning (bootstrap, upsert, version-gated)
 Builds on user replication: `--rootUser`/`--rootPassword` only ever provisioned one admin user,
 so any real application user set still had to be created by hand (a shell script running
