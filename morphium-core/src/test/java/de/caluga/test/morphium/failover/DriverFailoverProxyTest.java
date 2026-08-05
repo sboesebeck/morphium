@@ -396,7 +396,7 @@ public class DriverFailoverProxyTest {
             // mid-election-settling from cluster startup/JVM warmup, not from anything wrong
             // with the freeze mechanics themselves (freeze passed cleanly whenever the election
             // itself completed promptly). Still well under maxWaitTime (60s).
-            assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
+            assertTrue(pollForNewPrimary(backend, primaryName, 40_000), "no new primary elected within 40s");
 
             // Timeout budget (C2 fix): a frozen connection is only force-closed once PooledDriver
             // evicts the host, which requires Host.getFailures() > Host.MAX_FAILURES (5, i.e. 6
@@ -506,7 +506,7 @@ public class DriverFailoverProxyTest {
 
             String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy, faultMode);
 
-            assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
+            assertTrue(pollForNewPrimary(backend, primaryName, 40_000), "no new primary elected within 40s");
 
             int writeBaseline = writeOk.get();
             int readBaseline = readOk.get();
@@ -596,7 +596,7 @@ public class DriverFailoverProxyTest {
                     String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
                             de.caluga.test.morphium.testutil.proxy.FaultMode.close);
 
-                    assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
+                    assertTrue(pollForNewPrimary(backend, primaryName, 40_000), "no new primary elected within 40s");
 
                     // Messaging goes through a changestream-resume path in addition to plain
                     // read/write, so give it a little more room than the write/read scenarios (see
@@ -642,7 +642,7 @@ public class DriverFailoverProxyTest {
         // "primary dies HARD, replicaset elects a new primary, THEN the application starts").
         String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
                 de.caluga.test.morphium.testutil.proxy.FaultMode.reset);
-        assertTrue(pollForNewPrimary(backend, primaryName, 25_000), "no new primary elected within 25s");
+        assertTrue(pollForNewPrimary(backend, primaryName, 40_000), "no new primary elected within 40s");
 
         morphium = buildDriverUnderTest(backendToProxy);
         assertOnlyConnectedThroughProxies(backendToProxy);
