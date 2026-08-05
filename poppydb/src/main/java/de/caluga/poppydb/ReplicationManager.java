@@ -423,15 +423,18 @@ public class ReplicationManager {
 
     /**
      * Which (db, collection) pairs replicate. Normal user data does; internal databases and
-     * system collections do not - with exactly one exception: admin.system.users, so that
-     * logins survive failovers and initial sync (users would otherwise be node-local).
+     * system collections do not - with exactly two exceptions: admin.system.users, so that
+     * logins survive failovers and initial sync (users would otherwise be node-local), and
+     * admin.system.version, which carries the users-file version-gate meta doc ({_id:
+     * "poppydb.usersFile", appliedVersion: N}) so a newly-elected primary sees the version a
+     * prior primary already applied instead of silently re-applying (or skipping) the file.
      *
      * Central predicate for every skip decision in this class (live apply, initial-sync
      * enumeration, resync clearing, index diff) - do not add per-site variations.
      */
     static boolean isReplicated(String db, String collection) {
         if ("admin".equals(db)) {
-            return "system.users".equals(collection);
+            return "system.users".equals(collection) || "system.version".equals(collection);
         }
         if ("local".equals(db) || "config".equals(db)) {
             return false;
@@ -451,7 +454,7 @@ public class ReplicationManager {
         String coll = parts[1];
 
         // Skip everything outside the replicated namespace set (system databases and
-        // system.* collections - except admin.system.users, which does replicate)
+        // system.* collections - except the replicated admin system collections, see isReplicated)
         if (!isReplicated(db, coll)) {
             // Still update sequence for skipped events
             for (Map<String, Object> event : events) {
@@ -1070,9 +1073,10 @@ public class ReplicationManager {
      * by the caller's watchInvalidatedDuringSnapshot guard, same as for a real snapshot.
      *
      * <p><b>What is compared:</b> exactly the replicated namespace set per {@link #isReplicated}:
-     * every non-system database's non-system collections, plus admin.system.users (users must
-     * match too - a stale user set is divergence like any other; a follower legitimately holding
-     * the SAME users it replicated earlier is precisely the match case). Databases whose
+     * every non-system database's non-system collections, plus the replicated admin system
+     * collections admin.system.users and admin.system.version (users must match too - a stale
+     * user set is divergence like any other; a follower legitimately holding the SAME users it
+     * replicated earlier is precisely the match case). Databases whose
      * replicated-collection set is empty count as absent on both sides. Collection sets must be
      * equal AND every per-collection dbHash must agree.
      *
@@ -1146,8 +1150,9 @@ public class ReplicationManager {
 
     /**
      * The replicated namespace map of one side: database -> sorted set of its replicated
-     * collections (per {@link #isReplicated} - so for admin at most system.users survives, and
-     * local/config never contribute). Databases with no replicated collection are omitted, so a
+     * collections (per {@link #isReplicated} - so for admin at most system.users and
+     * system.version survive, and local/config never contribute). Databases with no replicated
+     * collection are omitted, so a
      * db existing on one side only as an empty shell (or with nothing but system collections)
      * does not count as divergence.
      */
@@ -1338,7 +1343,8 @@ public class ReplicationManager {
         clearLocalDatabasesInvocations.incrementAndGet();
         for (String dbName : localDriver.listDatabases()) {
             // admin/local/config are never dropped wholesale: they hold node-local state beyond
-            // the one replicated collection (admin.system.users, cleared separately below).
+            // the replicated admin system collections (admin.system.users and
+            // admin.system.version, both cleared separately below).
             if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
                 continue;
             }
@@ -1353,18 +1359,38 @@ public class ReplicationManager {
         // content: clear it here (right before the snapshot begins) so users deleted on the
         // primary while this node was disconnected cannot survive a resync - and so the
         // snapshot's strict inserts cannot collide with leftovers of a previous partial copy.
-        // Only the collection's documents are removed, never the admin database itself.
-        // A delete with an empty filter and limit 0 removes everything and is a harmless
-        // no-op when the collection does not exist yet.
-        GenericCommand clearUsers = new GenericCommand(localDriver);
-        clearUsers.setDb("admin");
-        clearUsers.setColl("system.users");
-        clearUsers.setCmdData(Doc.of(
-            "delete", "system.users",
-            "$db", "admin",
-            "deletes", List.of(Doc.of("q", Doc.of(), "limit", 0))
-        ));
-        localDriver.runCommand(clearUsers);
+        // Only the collection is removed, never the admin database itself. drop() rather than
+        // an empty-filter delete for the same auto-vivification reason documented for
+        // system.version below: on a cluster that never ran createUser (no root user
+        // configured), a delete's internal find() would phantom-create an empty system.users
+        // on every resyncing secondary but not on the primary, asymmetrically diverging the
+        // namespace set the consistency shortcut compares.
+        localDriver.drop("admin", "system.users", null);
+
+        // admin.system.version DOES replicate too (the users-file version-gate meta doc), and is
+        // subject to the exact same staleness risk as admin.system.users above: without this
+        // clear, a meta doc left over from BEFORE this node dropped out of the cluster would
+        // survive the resync untouched (admin is never dropped wholesale), and the snapshot copy
+        // would then land its own fresh appliedVersion doc alongside it via strict insert - either
+        // colliding on _id (harmless, same doc) or, if the primary's meta doc genuinely changed
+        // underneath, leaving stale data around long enough to wrongly gate a future users-file
+        // apply on this node.
+        //
+        // Deliberately NOT the same "delete" GenericCommand idiom clearUsers above uses: an empty
+        // delete against a collection that does not locally exist yet still runs a find() to
+        // determine the (empty) match set, and InMemoryDriver's find() auto-vivifies the target
+        // collection as a side effect (getCollection() lazily creates it, complete with its
+        // implicit _id index) even when nothing is deleted. Since system.version has no writer
+        // before the users-file feature (task 4) ever runs createUser/updateUser-style traffic
+        // against it, that phantom empty collection would otherwise get created HERE, on every
+        // secondary that ever completes a full sync - but never on a primary that has not
+        // separately gone through this same path - permanently and asymmetrically diverging the
+        // replicated-namespace set the initial-sync consistency shortcut compares
+        // (tryConsistencyShortcut's replicatedNamespaces()), which would then always fall back to
+        // a full sync instead of taking the shortcut. drop() is the safe idempotent primitive:
+        // it removes the map entry outright (a no-op if the collection was never created) and
+        // never conjures one into existence.
+        localDriver.drop("admin", "system.version", null);
     }
 
     /**
@@ -1388,8 +1414,8 @@ public class ReplicationManager {
         int totalDocs = 0;
         for (String dbName : databases) {
             // No db-level skip here: the per-collection isReplicated filter in syncDatabase
-            // decides. admin must be enumerated (its system.users replicates); for local and
-            // config every collection is filtered out there.
+            // decides. admin must be enumerated (its system.users and system.version replicate);
+            // for local and config every collection is filtered out there.
             totalDocs += syncDatabase(dbName);
         }
 
@@ -1735,7 +1761,7 @@ public class ReplicationManager {
             String coll = (String) ns.get("coll");
 
             // Skip everything outside the replicated namespace set (system databases and
-            // system.* collections - except admin.system.users, which does replicate)
+            // system.* collections - except the replicated admin system collections, see isReplicated)
             if (!isReplicated(db, coll)) {
                 // Still update sequence for skipped events
                 if (sequenceNumber > 0) {

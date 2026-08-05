@@ -166,7 +166,7 @@ public class FastResyncTest {
         return okOf(reply) == 1.0 ? reply.get("md5") : null;
     }
 
-    /** The dbHash of admin restricted to system.users (the only replicated admin collection). */
+    /** The dbHash of admin restricted to system.users (one of the replicated admin collections). */
     private Object usersHash(int port) throws Exception {
         Map<String, Object> reply = command(port,
                 Doc.of("dbHash", 1, "collections", List.of("system.users"), "$db", "admin"));

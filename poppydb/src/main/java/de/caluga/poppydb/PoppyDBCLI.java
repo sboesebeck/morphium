@@ -382,6 +382,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--users-file":
+                    opts.usersFile = value(effectiveArgs, idx);
+                    opts.sources.put("users-file", src);
+                    idx += 2;
+                    break;
+
                 case "--dump-dir":
                 case "-d":
                     opts.dumpDir = value(effectiveArgs, idx);
@@ -443,6 +449,19 @@ public class PoppyDBCLI {
                 throw new ConfigException("Unknown parameter for compressor " + opts.compressor);
         }
 
+        // Users-file bootstrap: parse + validate BEFORE server construction, so a broken file
+        // fails fast (ConfigException -> main's startup catch -> exit 1) instead of surfacing
+        // after the server already came up. Loader warnings (e.g. group-readable permissions)
+        // are surfaced here; the file CONTENT is secret material and is never logged.
+        de.caluga.poppydb.config.UsersFileSpec usersFileSpec = null;
+        if (opts.usersFile != null) {
+            usersFileSpec = de.caluga.poppydb.config.UsersFileLoader.load(opts.usersFile);
+            usersFileSpec.warnings().forEach(log::warn);
+            log.info("Users file {} loaded: {} entries{}", opts.usersFile, usersFileSpec.users().size(),
+                    usersFileSpec.version() != null ? " (version " + usersFileSpec.version() + ")"
+                                                    : " (unversioned)");
+        }
+
         log.info("Starting server...");
 
         List<String> hosts;
@@ -496,6 +515,10 @@ public class PoppyDBCLI {
                 throw new ConfigException("--rootUser and --rootPassword must be given together");
             }
             srv.setRootUser(opts.rootUser, opts.rootPassword);
+        }
+
+        if (usersFileSpec != null) {
+            srv.setBootstrapUsers(usersFileSpec);
         }
 
         if (opts.dumpDir != null) {
@@ -583,6 +606,10 @@ public class PoppyDBCLI {
         System.out.println("  --no-auth                  : Force auth off, overriding a config file's auth=true");
         System.out.println("  --rootUser <name>          : Initial admin user, created at startup if absent");
         System.out.println("  --rootPassword <pw>        : Password for the initial admin user");
+        System.out.println("  --users-file <path>        : JSON file declaring users to provision at startup (idempotent");
+        System.out.println("                               upsert, applied by the primary only; optional \"version\" field");
+        System.out.println("                               gates re-application). See docs/poppydb.md, section");
+        System.out.println("                               \"Bootstrapping users\".");
         System.out.println();
         System.out.println("Persistence Options:");
         System.out.println("  -d, --dump-dir <path>      : Directory for periodic database dumps");
@@ -611,7 +638,8 @@ public class PoppyDBCLI {
         System.out.println("                               file with per-key source annotations, then exit");
         System.out.println("  --check-config             : Validate the effective configuration without starting the");
         System.out.println("                               server: syntax, semantic cross-checks and deep checks");
-        System.out.println("                               (keystore loadable, dump-dir usable). Exit code 0 = OK, 1 = errors");
+        System.out.println("                               (keystore loadable, dump-dir usable, users-file parses).");
+        System.out.println("                               Exit code 0 = OK, 1 = errors");
         System.out.println();
         System.out.println("  -h, --help                 : Print this help message");
         System.out.println();
@@ -623,5 +651,6 @@ public class PoppyDBCLI {
         System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config");
         System.out.println("  java -jar poppydb.jar --cfg /etc/poppydb/config --check-config");
         System.out.println("  java -jar poppydb.jar --no-config --print-config > poppydb.conf.template");
+        System.out.println("  java -jar poppydb.jar --auth --rootUser admin --rootPassword s3cr3t --users-file /etc/poppydb/users.json");
     }
 }

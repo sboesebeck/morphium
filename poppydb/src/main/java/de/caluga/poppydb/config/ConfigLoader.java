@@ -91,6 +91,7 @@ public class ConfigLoader {
         define("root-user", Type.STRING, "--rootUser");
         define("root-password", Type.SECRET, "--rootPassword");
         define("root-password-file", Type.PATH, null);
+        define("users-file", Type.PATH, "--users-file");
         define("dump-dir", Type.PATH, "--dump-dir");
         define("dump-interval", Type.LONG, "--dump-interval");
         define("max-connections", Type.INT, "--max-connections");

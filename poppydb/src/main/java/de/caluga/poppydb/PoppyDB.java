@@ -20,8 +20,13 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
+import de.caluga.poppydb.config.ConfigException;
+import de.caluga.poppydb.config.UserSpec;
+import de.caluga.poppydb.config.UsersFileSpec;
 import de.caluga.poppydb.election.ElectionConfig;
 import de.caluga.poppydb.election.ElectionManager;
 import de.caluga.poppydb.election.ElectionNetworkClient;
@@ -103,6 +108,12 @@ public class PoppyDB {
     private boolean authRequired = false;
     private String rootUser = null;
     private String rootPassword = null;
+    // Users-file bootstrap (--users-file): parsed spec handed in by PoppyDBCLI before start(),
+    // applied wherever ensureRootUser runs - non-election start() / leadership hook. volatile:
+    // set from the startup thread, read from the election callback threads.
+    private volatile UsersFileSpec bootstrapUsers = null;
+    /** _id of the version-gate meta document in admin.system.version. */
+    static final String USERS_FILE_META_ID = "poppydb.usersFile";
 
     // Persistence configuration
     private File dumpDirectory = null;
@@ -317,6 +328,26 @@ public class PoppyDB {
             // any user would be permanently unreachable (no localhost exception)
             log.warn("auth enforcement is enabled but no root user is configured - "
                 + "clients can only authenticate if admin.system.users already contains users");
+        }
+
+        // Users-file bootstrap (non-election): apply now, while startup can still fail fast -
+        // a fatal apply error must abort the start (PoppyDBCLI's startup catch turns it into
+        // exit 1). Only the PRIMARY may write users: in election mode the leadership hook
+        // applies instead, and a static-mode secondary skips - it receives the result via
+        // replication from the static primary.
+        if (bootstrapUsers != null && !electionEnabled) {
+            if (primary) {
+                try {
+                    applyBootstrapUsers();
+                } catch (ConfigException e) {
+                    log.error("users file bootstrap apply failed - aborting startup: {}", e.getMessage());
+                    throw e;
+                }
+            } else {
+                log.info("users-file is configured on this node but it is a static-mode secondary "
+                    + "(primaryHost={}) - the file is ignored here; it applies only on the primary and "
+                    + "this node receives the result via replication", primaryHost);
+            }
         }
 
         // Start dump scheduler if configured
@@ -675,6 +706,20 @@ public class PoppyDB {
             if (rootUser != null && rootPassword != null) {
                 ensureRootUser();
             }
+
+            // Users-file bootstrap: (re-)apply after primary duties are fully assumed, right
+            // after ensureRootUser. Idempotent upsert - repeated leadership changes (flapping,
+            // priority takeover) re-run it harmlessly, and the version gate short-circuits
+            // when nothing changed. A failure here can only be logged: a running server
+            // cannot abort mid-failover.
+            if (bootstrapUsers != null) {
+                try {
+                    applyBootstrapUsers();
+                } catch (Exception e) {
+                    log.error("users file bootstrap apply failed on the new primary - server keeps running: {}",
+                        e.getMessage());
+                }
+            }
         } else {
             // Stepping down from leader (primary flag already flipped to false by the caller)
 
@@ -990,6 +1035,200 @@ public class PoppyDB {
         } catch (Exception e) {
             log.error("could not create initial admin user '{}'", rootUser, e);
         }
+    }
+
+    /**
+     * Users-file bootstrap spec ({@code --users-file}), handed in by PoppyDBCLI before
+     * {@code start()}. Applied by the PRIMARY only, wherever ensureRootUser runs: at
+     * {@code start()} for non-election nodes (a fatal apply error aborts startup), in the
+     * leadership hook for election-mode primaries (a failure there only logs ERROR).
+     */
+    public void setBootstrapUsers(UsersFileSpec spec) {
+        this.bootstrapUsers = spec;
+    }
+
+    /**
+     * Applies the users file as an idempotent upsert (users-file task 4, see
+     * docs/superpowers/specs/2026-08-04-poppydb-users-file-design.md): per entry
+     * {@code createUser} in mongod wire shape; on 51003 already-exists {@code updateUser}
+     * (pwd + roles + mechanisms from the file replace the stored state). Version gate: if the
+     * file carries a version and the LOCAL meta doc's appliedVersion is already {@code >=} it,
+     * the whole apply is skipped (INFO) - that is what makes a straggler node with an old file
+     * harmless after a failback. After a fully successful apply of a VERSIONED file the meta
+     * doc is upserted through the normal driver write path, so it emits a change event and
+     * replicates (admin.system.version is in ReplicationManager.isReplicated's allow-list).
+     * Unversioned files always apply and never touch the meta doc.
+     *
+     * Any entry failure or meta-doc problem surfaces as {@link ConfigException} - the caller
+     * decides whether that aborts (non-election startup) or is only logged (leadership hook).
+     * No pwd value is ever logged or included in an exception message.
+     */
+    private void applyBootstrapUsers() {
+        UsersFileSpec spec = bootstrapUsers;
+        if (spec == null) {
+            return;
+        }
+
+        if (spec.version() != null) {
+            Long applied = readAppliedUsersFileVersion();
+            if (applied != null && applied >= spec.version()) {
+                log.info("users file version {} already applied (stored appliedVersion {}) - skipping bootstrap apply",
+                    spec.version(), applied);
+                return;
+            }
+        }
+
+        List<String> failures = new ArrayList<>();
+        for (UserSpec user : spec.users()) {
+            String failure = applyBootstrapUser(user);
+            if (failure != null) {
+                failures.add(failure);
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new ConfigException("users file bootstrap apply failed for " + failures.size() + " of "
+                + spec.users().size() + " entries: " + String.join("; ", failures));
+        }
+
+        if (spec.version() != null) {
+            writeAppliedUsersFileVersion(spec.version());
+            log.info("users file applied: {} users upserted, appliedVersion now {}",
+                spec.users().size(), spec.version());
+        } else {
+            log.info("users file applied: {} users upserted (unversioned file - no version gate)",
+                spec.users().size());
+        }
+    }
+
+    /**
+     * Upserts ONE users-file entry. Returns a description of the failure, or null on success.
+     * The description (and every log line here) names only user and db - never the pwd.
+     */
+    private String applyBootstrapUser(UserSpec user) {
+        String who = user.user() + "@" + user.db();
+
+        try {
+            Map<String, Object> create = new LinkedHashMap<>();
+            create.put("createUser", user.user());
+            create.put("pwd", user.pwd());
+            create.put("roles", user.roles()); // mandatory in the wire shape - empty list is fine
+            if (!user.mechanisms().isEmpty()) {
+                create.put("mechanisms", user.mechanisms());
+            }
+            Map<String, Object> result = runRawCommand(user.db(), create);
+
+            if (isOk(result)) {
+                log.info("users file: created user {}", who);
+                return null;
+            }
+            if (Integer.valueOf(51003).equals(result.get("code"))) {
+                Map<String, Object> update = new LinkedHashMap<>();
+                update.put("updateUser", user.user());
+                update.put("pwd", user.pwd());
+                update.put("roles", user.roles());
+                if (!user.mechanisms().isEmpty()) {
+                    update.put("mechanisms", user.mechanisms());
+                }
+                Map<String, Object> updResult = runRawCommand(user.db(), update);
+
+                if (isOk(updResult)) {
+                    log.info("users file: updated existing user {}", who);
+                    return null;
+                }
+                return who + ": updateUser failed: " + errmsgOf(updResult);
+            }
+            return who + ": createUser failed: " + errmsgOf(result);
+        } catch (Exception e) {
+            // e.getMessage() is null for plenty of exceptions (e.g. NPE) - that used to render as
+            // "who: null" here, an unusable diagnostic. e.toString() always carries at least the
+            // exception's class name. The full throwable (with stack trace) goes to the log so
+            // the real cause is not lost even though only the short form goes into the collected
+            // failure string.
+            log.error("users file: apply failed for {}", who, e);
+            return who + ": " + e.toString();
+        }
+    }
+
+    /** The stored appliedVersion from the LOCAL meta doc in admin.system.version, or null. */
+    private Long readAppliedUsersFileVersion() {
+        try {
+            List<Map<String, Object>> docs = driver.find("admin", "system.version",
+                    Doc.of("_id", USERS_FILE_META_ID), null, null, 0, 1);
+
+            if (docs == null || docs.isEmpty()) {
+                return null;
+            }
+            Object v = docs.get(0).get("appliedVersion");
+            return v instanceof Number n ? n.longValue() : null;
+        } catch (Exception e) {
+            // If the gate state cannot be read, applying anyway could roll credentials back -
+            // treat it as an apply failure instead of guessing.
+            throw new ConfigException("could not read the users-file meta document from admin.system.version: "
+                + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Upserts {@code {_id: "poppydb.usersFile", appliedVersion: N}} into admin.system.version
+     * via a generic update-with-upsert through the normal driver write path, so it emits a
+     * change event and replicates exactly like any other write.
+     */
+    private void writeAppliedUsersFileVersion(long version) {
+        try {
+            Map<String, Object> updateCmd = new LinkedHashMap<>();
+            updateCmd.put("update", "system.version");
+            updateCmd.put("updates", List.of(Doc.of(
+                "q", Doc.of("_id", USERS_FILE_META_ID),
+                "u", Doc.of("_id", USERS_FILE_META_ID, "appliedVersion", version),
+                "upsert", true, "multi", false)));
+            Map<String, Object> result = runRawCommand("admin", updateCmd);
+
+            if (!isOk(result)) {
+                throw new ConfigException("could not persist the users-file appliedVersion " + version
+                    + " to admin.system.version: " + errmsgOf(result));
+            }
+        } catch (ConfigException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ConfigException("could not persist the users-file appliedVersion " + version
+                + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Runs a raw mongod-wire-shaped command map against the local driver (the shapes
+     * InMemoryDriver's GenericCommand path dispatches natively - the same invocation style
+     * as {@link #ensureRootUser}).
+     */
+    private Map<String, Object> runRawCommand(String db, Map<String, Object> cmdMap) throws Exception {
+        GenericCommand cmd = new GenericCommand(driver).setCmdData(cmdMap);
+        cmd.setDb(db);
+        return driver.readSingleAnswer(driver.runCommand(cmd));
+    }
+
+    /**
+     * True iff the command answer is a genuine success: {@code ok: 1} AND no non-empty
+     * {@code writeErrors} array. A generic {@code update} command (as used by
+     * {@link #writeAppliedUsersFileVersion}) can answer {@code ok: 1} at the top level while
+     * still reporting a per-statement failure via {@code writeErrors} - without this check a
+     * failed appliedVersion write would be silently treated as success.
+     */
+    private static boolean isOk(Map<String, Object> result) {
+        if (result == null || !Double.valueOf(1.0).equals(result.get("ok"))) {
+            return false;
+        }
+        Object writeErrors = result.get("writeErrors");
+        return !(writeErrors instanceof List<?> errors && !errors.isEmpty());
+    }
+
+    private static String errmsgOf(Map<String, Object> result) {
+        if (result == null) {
+            return "no result";
+        }
+        Object errmsg = result.get("errmsg");
+        Object code = result.get("code");
+        return (errmsg == null ? "unknown error" : errmsg.toString())
+            + (code == null ? "" : " (code " + code + ")");
     }
 
     /**

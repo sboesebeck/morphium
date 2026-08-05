@@ -1,6 +1,9 @@
 package de.caluga.poppydb;
 
 import de.caluga.morphium.driver.wire.SslHelper;
+import de.caluga.poppydb.config.ConfigException;
+import de.caluga.poppydb.config.UsersFileLoader;
+import de.caluga.poppydb.config.UsersFileSpec;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -134,6 +137,23 @@ class ConfigInspector {
                 errors.add("Invalid dump-dir path '" + opts.dumpDir + "': " + e.getMessage());
             }
         }
+
+        if (opts.usersFile != null) {
+            // UsersFileLoader.load() does the same existence/readability/permission/parse/
+            // validation checks startup relies on, and never logs or throws anything containing
+            // a pwd value (see its class javadoc) - safe to surface its ConfigException message
+            // verbatim as a --check-config error.
+            try {
+                UsersFileSpec spec = UsersFileLoader.load(opts.usersFile);
+                warnings.addAll(spec.warnings());
+            } catch (ConfigException e) {
+                errors.add(e.getMessage());
+            } catch (java.nio.file.InvalidPathException e) {
+                // same guard as the ssl-keystore/dump-dir blocks: a malformed path string
+                // (e.g. embedded NUL) must become a collected error, never an escaping throw
+                errors.add("Invalid users-file path '" + opts.usersFile + "': " + e.getMessage());
+            }
+        }
         return new Result(errors, warnings);
     }
 
@@ -161,6 +181,7 @@ class ConfigInspector {
         appendKey(sb, opts, "auth", String.valueOf(opts.auth));
         appendKey(sb, opts, "root-user", opts.rootUser);
         appendSecret(sb, opts, "root-password", opts.rootPassword);
+        appendKey(sb, opts, "users-file", opts.usersFile);
         appendKey(sb, opts, "dump-dir", opts.dumpDir);
         appendKey(sb, opts, "dump-interval", String.valueOf(opts.dumpIntervalSec));
         appendKey(sb, opts, "max-connections", String.valueOf(opts.maxConnections));

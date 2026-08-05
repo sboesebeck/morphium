@@ -68,4 +68,49 @@ public class ConfigDeepCheckTest {
         ConfigInspector.Result r = ConfigInspector.deepCheck(opts("--dump-dir", "bad\0dir"));
         assertThat(r.errors()).anySatisfy(e -> assertThat(e).contains("Invalid dump-dir path"));
     }
+
+    @Test
+    void invalidUsersFilePathBecomesAnErrorNotAnException() {
+        ConfigInspector.Result r = ConfigInspector.deepCheck(opts("--users-file", "bad\0file"));
+        assertThat(r.errors()).anySatisfy(e -> assertThat(e).contains("Invalid users-file path"));
+    }
+
+    // ---- users-file ------------------------------------------------------------------------
+
+    @Test
+    void missingUsersFileIsAnErrorWhenKeyIsSet(@TempDir Path dir) {
+        ConfigInspector.Result r = ConfigInspector.deepCheck(
+            opts("--users-file", dir.resolve("nope.json").toString()));
+        assertThat(r.errors()).anySatisfy(e -> assertThat(e).contains("not found"));
+    }
+
+    @Test
+    void garbageUsersFileIsAnErrorMentioningPositionNotContent(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("users.json");
+        Files.writeString(f, "{ \"user\": totally-not-json, \"pwd\": \"topsecretpw\"", StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(f, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        ConfigInspector.Result r = ConfigInspector.deepCheck(opts("--users-file", f.toString()));
+        assertThat(r.errors()).anySatisfy(e -> assertThat(e).contains("position"));
+        assertThat(r.errors().toString()).doesNotContain("topsecretpw");
+    }
+
+    @Test
+    void validUsersFileIsClean(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("users.json");
+        Files.writeString(f, "[{\"user\": \"app\", \"pwd\": \"s3cret\"}]", StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(f, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        ConfigInspector.Result r = ConfigInspector.deepCheck(opts("--users-file", f.toString()));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.warnings()).isEmpty();
+    }
+
+    @Test
+    void groupReadableUsersFileIsAWarning(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("users.json");
+        Files.writeString(f, "[{\"user\": \"app\", \"pwd\": \"s3cret\"}]", StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(f, java.nio.file.attribute.PosixFilePermissions.fromString("rw-r-----"));
+        ConfigInspector.Result r = ConfigInspector.deepCheck(opts("--users-file", f.toString()));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.warnings()).anySatisfy(w -> assertThat(w).contains("readable by group/others"));
+    }
 }
