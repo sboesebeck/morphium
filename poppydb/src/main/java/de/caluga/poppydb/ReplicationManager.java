@@ -25,6 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * Handles replication from primary to secondary PoppyDB nodes.
  *
@@ -217,6 +219,14 @@ public class ReplicationManager {
     // Callback to notify when log index is updated (for election consistency)
     private java.util.function.BiConsumer<Long, Long> onLogIndexUpdate;
 
+    // RS-internal connection security, set once via setInternalConnectionSecurity() before
+    // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
+    // Defaults (auth off, no SSL context) reproduce today's plaintext/unauthenticated behavior.
+    private volatile boolean authEnabled = false;
+    private volatile String authUser = null;
+    private volatile String authPassword = null;
+    private volatile SSLContext internalSslContext = null;
+
     public ReplicationManager(InMemoryDriver localDriver, String primaryHost, int primaryPort) {
         this.localDriver = localDriver;
         this.primaryHost = primaryHost;
@@ -237,6 +247,19 @@ public class ReplicationManager {
      */
     public void setOnLogIndexUpdate(java.util.function.BiConsumer<Long, Long> callback) {
         this.onLogIndexUpdate = callback;
+    }
+
+    /**
+     * Configure how the connection to the primary authenticates/encrypts itself. Call before
+     * {@link #start()}. {@code internalSslContext} of {@code null} means the connection stays
+     * plaintext even if {@code authEnabled} is true.
+     */
+    public void setInternalConnectionSecurity(boolean authEnabled, String authUser, String authPassword,
+            SSLContext internalSslContext) {
+        this.authEnabled = authEnabled;
+        this.authUser = authUser;
+        this.authPassword = authPassword;
+        this.internalSslContext = internalSslContext;
     }
 
     /**
@@ -748,6 +771,15 @@ public class ReplicationManager {
             config.driverSettings().setRetryWrites(true);
             config.connectionSettings().setRetriesOnNetworkError(3);
             config.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
+
+            if (authEnabled) {
+                config.authSettings().setMongoLogin(authUser).setMongoPassword(authPassword)
+                        .setMongoAuthDb("admin");
+            }
+            if (internalSslContext != null) {
+                config.connectionSettings().setUseSSL(true).setSslContext(internalSslContext)
+                        .setSslInvalidHostNameAllowed(true);
+            }
 
             primaryMorphium = new Morphium(config);
             primaryMorphium.getDriver();  // Force connection

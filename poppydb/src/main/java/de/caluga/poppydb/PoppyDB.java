@@ -833,6 +833,8 @@ public class PoppyDB {
 
         // Start replication from new leader
         ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+        newReplicationManager.setInternalConnectionSecurity(
+                authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
         newReplicationManager.setMyAddress(host + ":" + port);
         try {
             newReplicationManager.start();
@@ -1424,6 +1426,8 @@ public class PoppyDB {
             log.info("Starting replication from primary {}:{}", pHost, pPort);
 
             replicationManager = new ReplicationManager(driver, pHost, pPort);
+            replicationManager.setInternalConnectionSecurity(
+                    authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             // Set this secondary's address for progress reporting
             replicationManager.setMyAddress(host + ":" + port);
             replicationManager.start();
