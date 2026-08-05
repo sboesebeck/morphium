@@ -108,6 +108,13 @@ public class PooledDriver extends DriverBase {
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private volatile String primaryNode;
     private final Object primaryNodeLock = new Object();  // Lock for primaryNode updates only
+    // Last error seen while trying to establish a connection to any seed host. Surfaced in the
+    // "No primary node found" timeout exception so callers see the actual cause (e.g. a TLS
+    // handshake failure) instead of a bare timeout message. Also exposed via
+    // getLastConnectFailure() for the non-replicaset path, where connect() itself never throws
+    // (it tolerates the failed seed and falls back to "treat first seed as primary") - a caller
+    // polling isConnected() has no other way to learn why it's still false.
+    private volatile Throwable lastConnectFailure;
     private volatile boolean inMemoryBackend = false;
     private volatile boolean poppyDB = false;
     private volatile boolean cosmosDB = false;
@@ -171,7 +178,9 @@ public class PooledDriver extends DriverBase {
             try {
                 createNewConnection(host);
             } catch (Exception e) {
-                // swallow: unreachable seed(s) are handled by the heartbeat/error logic
+                // swallow: unreachable seed(s) are handled by the heartbeat/error logic, but remember
+                // the failure so a subsequent "No primary node found" timeout can report the real cause.
+                lastConnectFailure = e;
                 if (log.isDebugEnabled()) {
                     log.debug("Initial connect to seed {} failed", host, e);
                 }
@@ -188,7 +197,9 @@ public class PooledDriver extends DriverBase {
 
             while (primaryNode == null) {
                 if (System.currentTimeMillis() - start > timeout) {
-                    throw new MorphiumDriverException("No primary node found - not connected yet?");
+                    Throwable cause = lastConnectFailure;
+                    String detail = cause == null ? "" : " - last connection error: " + cause;
+                    throw new MorphiumDriverException("No primary node found - not connected yet?" + detail, cause);
                 }
                 try {
                     Thread.sleep(50);
@@ -752,6 +763,7 @@ public class PooledDriver extends DriverBase {
                         } catch (Throwable e) {
                             // full stacktrace only on the first failure - a host that is down
                             // for a while would otherwise flood the log every heartbeat
+                            lastConnectFailure = e;
                             Host failedHost = hosts.get(normalizeHostKey(hst));
                             if (failedHost == null || failedHost.getFailures() == 0) {
                                 log.error("Could not create connection to host {}", hst, e);
@@ -1623,6 +1635,18 @@ public class PooledDriver extends DriverBase {
         }
 
         return false;
+    }
+
+    /**
+     * The last error seen while trying to establish a connection to any seed host, or
+     * {@code null} if none was seen. Populated on both the initial per-seed connect attempts in
+     * {@link #connect(String)} and every heartbeat reconnect attempt - so it reflects the most
+     * recent failure regardless of replicaset/single-host mode. A caller that finds
+     * {@link #isConnected()} still {@code false} after waiting can use this to report the real
+     * cause (e.g. a TLS handshake failure) instead of a bare "not connected" message.
+     */
+    public Throwable getLastConnectFailure() {
+        return lastConnectFailure;
     }
 
     @Override
