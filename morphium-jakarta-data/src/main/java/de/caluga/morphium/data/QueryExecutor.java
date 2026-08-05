@@ -244,7 +244,7 @@ public final class QueryExecutor {
             case STARTS_WITH -> result.put(fieldName, Map.of("$regex", "^" + Pattern.quote(args[cond.paramIndex()].toString())));
             case ENDS_WITH -> result.put(fieldName, Map.of("$regex", Pattern.quote(args[cond.paramIndex()].toString()) + "$"));
             case CONTAINS -> result.put(fieldName, Map.of("$regex", Pattern.quote(args[cond.paramIndex()].toString())));
-            case NOT_CONTAINS -> result.put(fieldName, nullSafeOp("$ne", args[cond.paramIndex()]));
+            case NOT_CONTAINS -> result.put(fieldName, Map.of("$not", Map.of("$regex", Pattern.quote(args[cond.paramIndex()].toString()))));
             case MATCHES -> result.put(fieldName, Map.of("$regex", args[cond.paramIndex()].toString()));
             case IGNORE_CASE -> {
                 Map<String, Object> regex = new LinkedHashMap<>();

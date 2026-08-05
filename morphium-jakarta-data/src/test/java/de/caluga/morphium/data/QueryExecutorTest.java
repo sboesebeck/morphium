@@ -140,6 +140,59 @@ class QueryExecutorTest {
         assertThat(found).extracting(Product::getName).containsExactlyInAnyOrder("Widget", "Gadget");
     }
 
+    // -- BUG 3: NOT_CONTAINS must negate the substring match, not test for exact inequality --
+
+    @Test
+    @DisplayName("NOT_CONTAINS generates a negated $regex (substring exclusion), not exact-match $ne")
+    void notContainsGeneratesNegatedRegex() {
+        QueryDescriptor descriptor = new QueryDescriptor(
+                Prefix.FIND,
+                List.of(new Condition("name", Operator.NOT_CONTAINS, 0)),
+                Combinator.AND,
+                List.of(),
+                ReturnType.LIST
+        );
+
+        Query<?> query = morphium.createQueryFor(Product.class);
+        QueryExecutor.applyConditions(query, descriptor, new Object[]{"dget"}, morphium, Product.class);
+        Map<String, Object> queryObj = query.toQueryObject();
+
+        assertThat(queryObj).containsKey("name");
+        Object nameCondition = queryObj.get("name");
+        // Must NOT be a plain $ne (that tests for exact inequality, not substring absence).
+        assertThat(nameCondition).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> notMap = (Map<String, Object>) nameCondition;
+        assertThat(notMap).doesNotContainKey("$ne");
+        assertThat(notMap).containsKey("$not");
+    }
+
+    @Test
+    @DisplayName("NOT_CONTAINS excludes documents where the argument occurs anywhere in the field value")
+    void notContainsExcludesSubstringMatchesAgainstRealData() {
+        morphium.store(new Product("p1", "Widget", "ACTIVE"));
+        morphium.store(new Product("p2", "Gadget", "ACTIVE"));
+        morphium.store(new Product("p3", "Gizmo", "ACTIVE"));
+
+        QueryDescriptor descriptor = new QueryDescriptor(
+                Prefix.FIND,
+                List.of(new Condition("name", Operator.NOT_CONTAINS, 0)),
+                Combinator.AND,
+                List.of(),
+                ReturnType.LIST
+        );
+
+        @SuppressWarnings("unchecked")
+        Object result = QueryExecutor.execute(descriptor, new Object[]{"dget"}, repo);
+        @SuppressWarnings("unchecked")
+        List<Product> found = (List<Product>) result;
+
+        // "dget" is a substring of "Widget" and "Gadget" but not "Gizmo" -- only "Gizmo" must
+        // remain. An exact-match NOT_CONTAINS (the bug: field != "dget") would incorrectly
+        // return all three, since none of them equals the literal string "dget".
+        assertThat(found).extracting(Product::getName).containsExactly("Gizmo");
+    }
+
     // -- BUG 2: DELETE must return the actually-deleted count, not a pre-delete count ---
 
     @Test
