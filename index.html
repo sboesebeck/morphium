@@ -352,6 +352,26 @@
     
     
       <li class="md-tabs__item">
+        <a href="jakarta-data/" class="md-tabs__link">
+          
+  
+  
+  Extensions
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
         <a href="api-reference/" class="md-tabs__link">
           
   
@@ -576,6 +596,17 @@
     <span class="md-ellipsis">
       
         Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extensions-optional-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensions (Optional Modules)
       
     </span>
   </a>
@@ -1599,7 +1630,7 @@
   <span class="md-ellipsis">
     
   
-    Reference
+    Extensions
   
 
     
@@ -1612,6 +1643,95 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Extensions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="jakarta-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jakarta Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1706,10 +1826,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
             
   
   
@@ -1727,8 +1847,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2035,6 +2155,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#extensions-optional-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensions (Optional Modules)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#motivation-history" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2130,6 +2261,15 @@
 <ul>
 <li><strong><a href="api-reference/">API Reference</a></strong> - Complete API documentation with examples</li>
 </ul>
+<h2 id="extensions-optional-modules">Extensions (Optional Modules)<a class="headerlink" href="#extensions-optional-modules" title="Permanent link">&para;</a></h2>
+<p>Morphium's core module (<code>de.caluga:morphium</code>) is fully self-contained and does not need
+any of the following. These are additional, opt-in modules built on top of the core:
+- <strong><a href="jakarta-data/">Jakarta Data</a></strong> - Optional module implementing the Jakarta Data
+  1.0 specification on top of Morphium's query engine (repository pattern, <code>@Repository</code>)
+  - Query derivation from method names, JDQL (<code>@Query</code>), <code>@Find</code>/<code>@Delete</code> with <code>@By</code>
+  - Offset and cursor pagination (<code>Page&lt;T&gt;</code>, <code>CursoredPage&lt;T&gt;</code>), dynamic and static sorting
+  - Zero dependency from the core: build with <code>-DskipExtensions</code> for a core-only artifact;
+    framework integrations for Quarkus and Spring Boot build on top of this module</p>
 <p>Minimum requirements
 - Java 21+
 - MongoDB 5.0+</p>
