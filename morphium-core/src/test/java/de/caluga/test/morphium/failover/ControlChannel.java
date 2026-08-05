@@ -36,6 +36,14 @@ public class ControlChannel implements AutoCloseable {
         msg.setMessageId(MSG_ID.incrementAndGet());
         msg.setFirstDoc(cmd);
         OpMsg reply = con.sendAndWaitForReply(msg);
+        // A clean EOF (peer closes at a message boundary, e.g. some replSetStepDown paths) makes
+        // SingleMongoConnection.sendAndWaitForReply return null rather than throw - it is not an
+        // I/O error, just "no reply came". Without this check, callers (including
+        // commandTolerateClose) would NPE on reply.getFirstDoc() instead of seeing a clean,
+        // catchable failure.
+        if (reply == null) {
+            throw new MorphiumDriverException("connection closed without a reply");
+        }
         return reply.getFirstDoc();
     }
 

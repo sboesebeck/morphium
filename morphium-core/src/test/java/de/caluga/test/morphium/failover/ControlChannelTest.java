@@ -60,6 +60,35 @@ public class ControlChannelTest {
         return listener.getLocalPort();
     }
 
+    /** Replies ok:1 to the first request (the connect() hello handshake), then closes the
+     * socket cleanly - without replying - to the next one. Models a real mongod closing the
+     * connection instead of answering (e.g. some replSetStepDown paths) via a clean FIN at a
+     * message boundary: {@code WireProtocolMessage#parseFromStream} returns null there rather
+     * than throwing, so {@code SingleMongoConnection#sendAndWaitForReply} returns null too. */
+    private int startCannedBackendThatClosesAfterHello() throws IOException {
+        listener = new ServerSocket();
+        listener.bind(new InetSocketAddress("localhost", 0));
+        Thread t = new Thread(() -> {
+            try {
+                Socket s = listener.accept();
+                WireProtocolMessage hello = WireProtocolMessage.parseFromStream(s.getInputStream());
+                if (hello == null) return;
+                OpMsg resp = new OpMsg();
+                resp.setMessageId(((OpMsg) hello).getMessageId() + 1000);
+                resp.setResponseTo(((OpMsg) hello).getMessageId());
+                resp.setFirstDoc(Doc.of("ok", 1.0));
+                s.getOutputStream().write(resp.bytes());
+                s.getOutputStream().flush();
+                WireProtocolMessage.parseFromStream(s.getInputStream());
+                s.close();
+            } catch (Exception ignored) {
+            }
+        }, "canned-closing-backend");
+        t.setDaemon(true);
+        t.start();
+        return listener.getLocalPort();
+    }
+
     @Test
     void commandRoundTripsWithoutAuth() throws Exception {
         int port = startCannedRsBackend();
@@ -79,7 +108,15 @@ public class ControlChannelTest {
     }
 
     @Test
-    void pollReturnsTrueAssoonAsConditionIsMet() throws Exception {
+    void commandTolerateCloseReturnsNullWhenPeerClosesInsteadOfReplying() throws Exception {
+        int port = startCannedBackendThatClosesAfterHello();
+        channel = new ControlChannel("localhost", port, null, null, null);
+        Map<String, Object> reply = channel.commandTolerateClose(Doc.of("replSetStepDown", 60, "$db", "admin"));
+        assertNull(reply);
+    }
+
+    @Test
+    void pollReturnsTrueAsSoonAsConditionIsMet() throws Exception {
         int port = startCannedRsBackend();
         channel = new ControlChannel("localhost", port, null, null, null);
         long start = System.currentTimeMillis();
