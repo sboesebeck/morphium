@@ -72,4 +72,45 @@ public class PooledDriverPrimaryDiscoveryTest {
 
         assertEquals(null, drv.getPrimaryNode(), "unknown advertised primary must not be adopted");
     }
+
+    private HelloResult helloAsPrimary(String me, List<String> hosts) {
+        HelloResult h = new HelloResult();
+        h.setWritablePrimary(true);
+        h.setMe(me);
+        h.setHosts(hosts);
+        return h;
+    }
+
+    /**
+     * Found via a real run against mongo1/mongo2.fritz.box + an arbiter: a rapid double
+     * failover (the ex-primary steps down, node B briefly wins, then a much-higher-priority
+     * node C immediately wins a priority takeover from B) left the driver stuck retrying
+     * connections to the FIRST ex-primary for 20+ seconds, even though B's own hello reply -
+     * the one telling the driver "I'm not primary anymore" - already named the real new
+     * primary (C) in its own {@code primary} field. handleHelloResult's "not primary anymore"
+     * branch discarded that information and just nulled primaryNode, relying entirely on some
+     * future, unrelated hello call happening to arrive from C to recover - which can take
+     * arbitrarily long if C's own heartbeat cycle hasn't come around yet.
+     */
+    @Test
+    public void adoptsTheAdvertisedPrimaryImmediatelyWhenTheBelievedPrimaryStepsDown() {
+        PooledDriver drv = new PooledDriver();
+        drv.setHostSeed("node1:27017", "node2:27017", "node3:27017");
+
+        // node2 is believed primary (e.g. from an earlier hello reply).
+        drv.handleHelloResult(helloAsPrimary("node2:27017",
+                List.of("node1:27017", "node2:27017", "node3:27017")), "node2:27017");
+        assertEquals("node2:27017", drv.getPrimaryNode(), "harness check: node2 must be primary first");
+
+        // node2 itself now reports it's no longer primary, but its own reply already names
+        // node3 as the real new primary (a rapid double-failover: node2 briefly won, then a
+        // higher-priority node3 immediately took over via priority takeover).
+        HelloResult steppedDown = helloFromSecondary("node2:27017", "node3:27017",
+                List.of("node1:27017", "node2:27017", "node3:27017"));
+        drv.handleHelloResult(steppedDown, "node2:27017");
+
+        assertEquals("node3:27017", drv.getPrimaryNode(),
+                "must adopt the newly-advertised primary immediately from the SAME reply that "
+                        + "revoked the old one, not null it out and wait for a future lucky hello");
+    }
 }

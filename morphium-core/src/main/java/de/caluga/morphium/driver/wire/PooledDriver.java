@@ -465,13 +465,27 @@ public class PooledDriver extends DriverBase {
                     primaryNode = hostConnected;
                 } else if (!hello.getWritablePrimary() && hostConnected.equals(primaryNode)) {
                     log.error("Primary node is not me {}", hello.getMe());
-                    primaryNode = null;
+                    // Recover immediately if THIS SAME reply already names the real new primary,
+                    // rather than nulling out and passively waiting for some future, unrelated
+                    // hello to arrive from that host - which can take arbitrarily long if its own
+                    // heartbeat cycle hasn't come around yet. Seen on a real rapid double
+                    // failover (ex-primary steps down, a node briefly wins, a much
+                    // higher-priority node immediately takes over via priority takeover): the
+                    // driver got stuck retrying the FIRST ex-primary for 20+ seconds even though
+                    // the second node's own "I'm not primary" reply already named the real
+                    // winner.
+                    String advertised = resolveAdvertisedPrimary(hello);
+                    if (advertised != null) {
+                        log.warn("Primary failover? {} -> {} (re-resolved from {}'s own hello)",
+                                primaryNode, advertised, hostConnected);
+                        stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
+                        primaryNode = advertised;
+                    } else {
+                        primaryNode = null;
+                    }
                 } else if (primaryNode == null && hello.getPrimary() != null) {
-                    // Only use the advertised primary if it maps to a known/reachable host key.
-                    // Must be normalized like the hosts-map keys (lowercase + port): replica set
-                    // configs may advertise members with different casing than the client seed.
-                    String advertised = normalizeHostKey(resolveAlias(hello.getPrimary()));
-                    if (hosts.containsKey(advertised)) {
+                    String advertised = resolveAdvertisedPrimary(hello);
+                    if (advertised != null) {
                         primaryNode = advertised;
                     }
                 }
@@ -538,6 +552,20 @@ public class PooledDriver extends DriverBase {
                 markStatsDirty();
             }
         }
+    }
+
+    /**
+     * Resolves hello.getPrimary() to a known/reachable host key, or null if it doesn't map to
+     * one. Must be normalized like the hosts-map keys (lowercase + default port): replica set
+     * configs may advertise members with different casing than the client seed, or without a
+     * port.
+     */
+    private String resolveAdvertisedPrimary(HelloResult hello) {
+        if (hello.getPrimary() == null) {
+            return null;
+        }
+        String advertised = normalizeHostKey(resolveAlias(hello.getPrimary()));
+        return hosts.containsKey(advertised) ? advertised : null;
     }
 
     protected synchronized void startHeartbeat() {
