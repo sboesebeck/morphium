@@ -718,8 +718,16 @@ public final class JdqlMethodBridge {
         Class<?> recordClass;
         try {
             recordClass = Thread.currentThread().getContextClassLoader().loadClass(resultRecordClass);
-        } catch (ClassNotFoundException e) {
-            throw new IllegalArgumentException("Record class not found: " + resultRecordClass, e);
+        } catch (ClassNotFoundException | NullPointerException e) {
+            // The context classloader may not see the record class in modular/OSGi/framework
+            // environments where it differs from the classloader that loaded this bridge class
+            // (or may be null, e.g. in some embedded/native-image contexts). Fall back to the
+            // bridge's own classloader before giving up.
+            try {
+                recordClass = JdqlMethodBridge.class.getClassLoader().loadClass(resultRecordClass);
+            } catch (ClassNotFoundException e2) {
+                throw new IllegalArgumentException("Record class not found: " + resultRecordClass, e2);
+            }
         }
 
         RecordComponent[] components = recordClass.getRecordComponents();
