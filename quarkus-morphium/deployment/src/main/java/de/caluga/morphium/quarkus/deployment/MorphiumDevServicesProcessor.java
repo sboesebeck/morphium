@@ -19,6 +19,7 @@ import io.quarkus.deployment.IsDevServicesSupportedByLaunchMode;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.CuratedApplicationShutdownBuildItem;
 import io.quarkus.deployment.builditem.DevServicesResultBuildItem;
+import io.quarkus.deployment.builditem.DockerStatusBuildItem;
 import io.quarkus.runtime.configuration.ConfigUtils;
 import org.jboss.logging.Logger;
 
@@ -62,10 +63,23 @@ public class MorphiumDevServicesProcessor {
     @BuildStep(onlyIf = IsDevServicesSupportedByLaunchMode.class)
     public DevServicesResultBuildItem startDevServices(
             MorphiumDevServicesBuildTimeConfig config,
+            DockerStatusBuildItem dockerStatusBuildItem,
             CuratedApplicationShutdownBuildItem closeBuildItem) {
 
         if (!config.enabled()) {
             log.debug("Morphium Dev Services disabled via quarkus.morphium.devservices.enabled=false");
+            return null;
+        }
+
+        if (!dockerStatusBuildItem.isDockerAvailable()) {
+            // Same guard Quarkus's own DevServicesMongoProcessor uses. Without it, a container
+            // start attempt on a machine with no Docker daemon throws mid-augmentation and
+            // fails the whole build instead of just skipping Dev Services -- the exact
+            // scenario the module's own MorphiumTransactionalTest works around at the test
+            // level (a @BeforeAll Docker check), but which has no equivalent guard here at
+            // the point the container would actually be started.
+            log.warn("Docker isn't working, please configure quarkus.morphium.hosts or "
+                    + "quarkus.morphium.atlas-url — Morphium Dev Services will not start a MongoDB container");
             return null;
         }
 
