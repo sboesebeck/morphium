@@ -22,6 +22,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.core.MediaType;
 
 /**
@@ -55,5 +56,15 @@ public class MorphiumIdResource {
         // Returning toString() proves the path param was parsed into a real
         // MorphiumId (not left as a raw string) and survives the round-trip.
         return id.toString();
+    }
+
+    @POST
+    @Path("/entity")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    public String acceptEntity(MorphiumIdEntity entity) {
+        // Exercises MorphiumIdJacksonModule's deserializer via the JSON request-body path
+        // (distinct from the @PathParam String-constructor path both other endpoints use).
+        return entity.getId().toString();
     }
 }

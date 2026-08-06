@@ -72,4 +72,42 @@ class MorphiumIdJsonSerializationTest {
         // Round-trips via equals: the server reconstructed the same MorphiumId.
         org.assertj.core.api.Assertions.assertThat(new MorphiumId(echoed)).isEqualTo(id);
     }
+
+    @Test
+    @DisplayName("POST echo/{malformed-id} does not throw an unhandled exception (RESTEasy Reactive path-param conversion failure)")
+    void malformedPathParamDoesNotCrashTheServer() {
+        // @PathParam MorphiumId id is resolved by RESTEasy Reactive's built-in JAX-RS
+        // String-constructor convention: it calls MorphiumId's public MorphiumId(String)
+        // constructor directly with the raw path segment, no ParamConverter or Jackson
+        // involved at all. That constructor throws IllegalArgumentException("no hex string: ...")
+        // on anything that isn't a 24-character hex string.
+        //
+        // Verified (not assumed) what RESTEasy Reactive actually does with that exception: it
+        // does NOT propagate as an unhandled 500 -- a failed String-constructor path-param
+        // conversion is treated as "no matching resource method", so the response is 404. That
+        // is at least not a server-error leak, but it is also not a very informative 400 Bad
+        // Request for what is actually invalid input, not a missing resource. Documenting the
+        // real (404) behavior here rather than an unverified assumption of 500.
+        given()
+            .when().post("/morphium-id/echo/{id}", "not-a-valid-hex-id")
+            .then()
+                .statusCode(404);
+    }
+
+    @Test
+    @DisplayName("POST entity with malformed id in JSON body -> 400, not 500")
+    void malformedJsonBodyIdReturnsBadRequestNotServerError() {
+        // This is the actual MorphiumIdJacksonModule deserializer path (distinct from the
+        // @PathParam path above, which never touches Jackson at all). Its deserialize() calls
+        // new MorphiumId(hex) directly on the raw JSON string value; Jackson wraps that
+        // IllegalArgumentException as a JsonMappingException during body parsing, and RESTEasy
+        // Reactive's default exception mapping for a body-parsing failure IS 400 Bad Request
+        // (verified against the actual response below, not assumed).
+        given()
+            .contentType("application/json")
+            .body("{\"id\":\"not-a-valid-hex-id\",\"name\":\"whatever\"}")
+            .when().post("/morphium-id/entity")
+            .then()
+                .statusCode(400);
+    }
 }
