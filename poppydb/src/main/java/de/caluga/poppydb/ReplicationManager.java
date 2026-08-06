@@ -1050,6 +1050,20 @@ public class ReplicationManager {
     }
 
     /**
+     * True once the change-stream watch has registered with the primary AT LEAST ONCE since
+     * {@link #start()} ({@code watchGeneration} only ever advances, one bump per registration).
+     * This - not the instantaneous {@link #isWatchLive()} - is what PoppyDB's one-shot
+     * post-start liveness probe must check: {@code watchLive} deliberately drops to false in
+     * the watch loop's finally block between every two watch sessions, so a probe sampling
+     * {@code isWatchLive()} during such a routine reconnect gap would tear down a
+     * ReplicationManager whose connection DID come up (2026-08-06 review finding). A watch that
+     * registered once and later died is the watch-retry loop's job to repair, not the probe's.
+     */
+    boolean hasWatchEverRegistered() {
+        return watchGeneration.get() > 0;
+    }
+
+    /**
      * True when the initial-sync retry loop should attempt the consistency shortcut for the
      * current iteration; false once {@link #wipedThisSyncCycle} has been set by a
      * {@code clearLocalDatabases()} call earlier in the same sync cycle. Package-private (the

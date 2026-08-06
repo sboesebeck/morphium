@@ -304,7 +304,13 @@ public class ReplicationStartRetryTest {
 
         ReplicationManager live = follower.getReplicationManagerForTest();
         assertNotNull(live, "sanity: real replication is up before the probe runs");
-        live.setWatchLiveForTest(false); // simulate the swallowed-connect-failure end state
+        // Simulate the swallowed-connect-failure end state: the watch is not live AND it never
+        // registered at all. Both matter - this RM really connected, so its watchGeneration is
+        // >= 1 and must be reset too, otherwise we'd be simulating a transient watch gap (which
+        // the probe must IGNORE, see probeNoOpsDuringTransientWatchGap below), not a
+        // never-came-up connection.
+        live.setWatchLiveForTest(false);
+        live.watchGeneration.set(0);
 
         follower.probeReplicationLiveness(leaderAddress, live);
 
@@ -338,6 +344,31 @@ public class ReplicationStartRetryTest {
 
         assertTrue(follower.getReplicationManagerForTest() == live,
                 "a live probe target must be left running untouched");
+    }
+
+    /**
+     * 2026-08-06 review finding: {@code watchLive} routinely drops to false between two watch
+     * sessions (the watch loop's finally block) - a probe sampling exactly such a gap must NOT
+     * tear down a ReplicationManager whose connection did come up (watchGeneration >= 1 proves
+     * a watch registered at least once). Before the fix the probe checked the instantaneous
+     * {@code isWatchLive()} and this test fails with the RM torn down and replaced.
+     */
+    @Test
+    public void probeNoOpsDuringTransientWatchGap() throws Exception {
+        int leaderPort = nextPort();
+        int followerPort = nextPort();
+        PoppyDB follower = startLeaderAndConnectedFollower("rsProbeGap", leaderPort, followerPort);
+        String leaderAddress = "localhost:" + leaderPort;
+
+        ReplicationManager live = follower.getReplicationManagerForTest();
+        assertTrue(poll(10_000, () -> live.watchGeneration.get() >= 1),
+                "sanity: the watch must have registered at least once against a real leader");
+        live.setWatchLiveForTest(false); // transient gap: not live right now, but it WAS live
+
+        follower.probeReplicationLiveness(leaderAddress, live);
+
+        assertTrue(follower.getReplicationManagerForTest() == live,
+                "a transient watch gap must not get a healthy ReplicationManager torn down");
     }
 
     /**

@@ -95,6 +95,16 @@ public class PoppyDB {
     // synchronized body - by definition nothing newer can exist to make it stale later, so the
     // most recent transition is never starved by this guard, only strictly older ones are.
     private final java.util.concurrent.atomic.AtomicLong leadershipEpoch = new java.util.concurrent.atomic.AtomicLong(0);
+    // Guards the epoch-increment + primary-flip pair in applyLeadershipFlip (and the startup
+    // poll's mirror write in waitForElectionResult). Without it, the two operations are
+    // individually atomic but not jointly: a stale onLeadershipChange dispatch could increment
+    // first, get preempted, and write its outdated primary value AFTER a newer transition
+    // already wrote the current one - leaving e.g. a demoted leader with primary==true forever,
+    // which no-ops startReplicationToLeader/probeReplicationLiveness/retryReplicationStart and
+    // silently stops replication. Deliberately NOT the PoppyDB monitor: the flip must stay
+    // cheap and must keep happening before the transition body competes for the monitor (see
+    // onLeadershipChange).
+    private final Object leadershipFlagLock = new Object();
 
     // Election configuration
     private boolean electionEnabled = false;
@@ -673,15 +683,34 @@ public class PoppyDB {
      */
     private void onLeadershipChange(boolean isLeader) {
         log.info("Leadership change: {} is now {}", host + ":" + port, isLeader ? "LEADER" : "FOLLOWER");
-        // Epoch first, then the flag, both outside the monitor - see the leadershipEpoch field
-        // comment for why incrementAndGet() ordering alone is enough to make the guard in
-        // onLeadershipChangeSynchronized race-safe without synchronizing this wrapper.
-        long epoch = leadershipEpoch.incrementAndGet();
-        // Flip the externally visible role flag immediately, before the monitor - see the
-        // class-level reasoning in the javadoc above for why this is safe on its own and how it
-        // interacts with the synchronized ReplicationManager bookkeeping below.
-        primary = isLeader;
+        // Epoch bump and flag flip happen as ONE atomic unit (applyLeadershipFlip), still
+        // before the monitor - see the class-level reasoning in the javadoc above for why the
+        // early flip is safe on its own and how it interacts with the synchronized
+        // ReplicationManager bookkeeping below.
+        long epoch = applyLeadershipFlip(isLeader);
         onLeadershipChangeSynchronized(isLeader, epoch);
+    }
+
+    /**
+     * Atomically advances {@link #leadershipEpoch} and flips the externally visible
+     * {@code primary} flag under {@link #leadershipFlagLock}. Because increment and flip are
+     * one critical section, whichever transition runs later in lock order holds the higher
+     * epoch AND writes the flag last - a stale dispatch can never overwrite a newer
+     * transition's flag (the bug class this replaces: increment-then-unsynchronized-write let
+     * a preempted stale true-dispatch re-assert primary==true after a newer false-dispatch,
+     * permanently muting startReplicationToLeader and the replication retry/liveness chain on
+     * a demoted leader). Package-private so LeadershipEpochGuardTest can hammer it
+     * concurrently and assert flag-follows-max-epoch.
+     *
+     * @return the epoch this transition owns, to be passed to
+     *         {@link #onLeadershipChangeSynchronized}
+     */
+    long applyLeadershipFlip(boolean isLeader) {
+        synchronized (leadershipFlagLock) {
+            long epoch = leadershipEpoch.incrementAndGet();
+            primary = isLeader;
+            return epoch;
+        }
     }
 
     /**
@@ -804,6 +833,15 @@ public class PoppyDB {
      * delay back in here.
      */
     private synchronized void startReplicationToLeader(String leaderId, long delayOnFailureMs) {
+        if (!running) {
+            // Shutdown already ran (it flips running=false before stopReplication()): a late
+            // election/discovery callback must not install and start a fresh ReplicationManager
+            // that nothing will ever stop - its daemon threads would hammer the force-shutdown
+            // driver for the rest of the JVM (2026-08-06 review finding). stopReplication() is
+            // synchronized on the same monitor, so the only two orders are: it tears down what
+            // we installed (we held the monitor first), or we no-op here (it ran first).
+            return;
+        }
         if (primary || leaderId == null) {
             return;
         }
@@ -884,9 +922,12 @@ public class PoppyDB {
      *   <li>{@code replicationManager == probedManager} - the RM this probe was scheduled for is
      *       still the one assigned (not replaced by a newer leadership/discovery transition, and
      *       not already torn down); and</li>
-     *   <li>{@code !probedManager.isWatchLive()} - the change-stream watch never registered with
-     *       the primary, which (per ReplicationManager's watch-first design) is the reliable
-     *       "never actually connected" signal.
+     *   <li>{@code !probedManager.hasWatchEverRegistered()} - the change-stream watch never
+     *       registered with the primary at any point since start, which (per
+     *       ReplicationManager's watch-first design) is the reliable "never actually connected"
+     *       signal. Deliberately NOT the instantaneous {@code isWatchLive()}: that flag drops
+     *       between every two watch sessions, so sampling it during a routine reconnect gap
+     *       would tear down a connection that did come up.
      * </ul>
      * On all-true, tears the dead RM down, resets {@code primaryHost} (same reasoning as
      * {@link #handleReplicationStartFailure}: a re-discovery of the same leader must not be
@@ -901,8 +942,9 @@ public class PoppyDB {
         if (replicationManager != probedManager) {
             return; // superseded by a newer ReplicationManager (or already torn down) - stale probe
         }
-        if (probedManager.isWatchLive()) {
-            return; // healthy: the watch registered, this node is actually replicating
+        if (probedManager.hasWatchEverRegistered()) {
+            return; // healthy: the watch registered (at least once) - the connection came up;
+                    // any later watch drop is the watch-retry loop's job, not the probe's
         }
 
         log.warn("Replication to {} never became live - tearing down and retrying", leaderId);
@@ -1383,7 +1425,17 @@ public class PoppyDB {
 
             // Check if we became leader or found one
             if (electionManager.isLeader()) {
-                primary = true;
+                // Mirror write, not a transition: it must not bump the epoch, and it must not
+                // be able to overwrite a newer callback-driven flip - so re-check leadership
+                // under the same lock applyLeadershipFlip uses. If a stepdown snuck in between
+                // the poll above and here, isLeader() is already false (ElectionManager flips
+                // its state before dispatching the callback) and we skip; if the stepdown
+                // callback is still queued, its own locked flip runs after ours and wins.
+                synchronized (leadershipFlagLock) {
+                    if (electionManager.isLeader()) {
+                        primary = true;
+                    }
+                }
                 primaryHost = host + ":" + port;
                 log.info("Election complete: this node is the leader");
                 break;
@@ -1444,7 +1496,12 @@ public class PoppyDB {
         }
     }
 
-    private void stopReplication() {
+    // Synchronized so it serializes with startReplicationToLeader on the PoppyDB monitor: a
+    // discovery callback mid-install either finishes first (and this teardown catches its fresh
+    // ReplicationManager), or arrives later (and its running-guard no-ops). Without this, a
+    // callback already past shutdown()'s running=false flip could install an RM that nothing
+    // ever stops.
+    private synchronized void stopReplication() {
         if (replicationManager != null) {
             replicationManager.stop();
             replicationManager = null;

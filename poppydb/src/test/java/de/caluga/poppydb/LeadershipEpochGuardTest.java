@@ -106,4 +106,53 @@ public class LeadershipEpochGuardTest {
         assertSame(coordinatorAfterLeaderBody, db.getReplicationCoordinator(),
                 "stale follower body must not clear the coordinator a newer leader body just set up");
     }
+
+    /**
+     * The flag-side counterpart of the epoch guard (2026-08-06 review finding): the epoch bump
+     * and the {@code primary} flip must be ONE atomic unit. Before the fix, the wrapper did
+     * {@code incrementAndGet()} and then wrote {@code primary} unsynchronized - a preempted
+     * stale true-dispatch could re-assert {@code primary==true} AFTER a newer false-dispatch
+     * already wrote the current value, leaving a demoted leader that silently never replicates
+     * (startReplicationToLeader, the liveness probe and the retry chain all no-op on
+     * {@code primary}). This hammers {@link PoppyDB#applyLeadershipFlip(boolean)} from many
+     * threads and asserts the flag always ends up matching the transition that owns the
+     * HIGHEST epoch - on the old unsynchronized write this inverts within a few hundred
+     * iterations.
+     */
+    @Test
+    void primaryFlagAlwaysMatchesTheNewestEpochsTransition() throws Exception {
+        db = electionModeNode();
+
+        int threads = 8;
+        int iterationsPerThread = 500;
+        java.util.concurrent.ConcurrentHashMap<Long, Boolean> byEpoch = new java.util.concurrent.ConcurrentHashMap<>();
+        java.util.concurrent.CyclicBarrier startLine = new java.util.concurrent.CyclicBarrier(threads);
+        java.util.List<Thread> workers = new java.util.ArrayList<>();
+
+        for (int t = 0; t < threads; t++) {
+            boolean isLeader = t % 2 == 0; // half the threads flip true, half false
+            Thread w = new Thread(() -> {
+                try {
+                    startLine.await();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                for (int i = 0; i < iterationsPerThread; i++) {
+                    long epoch = db.applyLeadershipFlip(isLeader);
+                    byEpoch.put(epoch, isLeader);
+                }
+            }, "flip-" + t);
+            workers.add(w);
+            w.start();
+        }
+        for (Thread w : workers) {
+            w.join(30000);
+        }
+
+        long maxEpoch = byEpoch.keySet().stream().mapToLong(Long::longValue).max().orElseThrow();
+        assertEquals(threads * iterationsPerThread, byEpoch.size(),
+                "every flip must have received a unique epoch");
+        assertEquals(byEpoch.get(maxEpoch), db.isPrimary(),
+                "primary flag must reflect the transition holding the newest epoch, never a stale overwrite");
+    }
 }
