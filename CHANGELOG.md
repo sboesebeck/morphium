@@ -10,6 +10,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Driver: failover read path could throw a raw NPE past every retry; stale `getLastConnectFailure()` after recovery
+The read-preference fallback chain read the volatile `primaryNode` field multiple times; the
+heartbeat nulls that field on stepdown or connection error - exactly while the fallback code
+runs - so `hosts.get(null)` could throw a `NullPointerException` that, not being a
+`MorphiumDriverException`, escaped every retry-catch on the read path and aborted a read the
+fallback was built to save. Both fallback sites now work on a local snapshot. Additionally,
+`getLastConnectFailure()` is cleared when a connect succeeds, so a caller polling after
+recovery no longer sees the pre-recovery error as if it were current.
+
+#### InMemoryDriver: `updateUser` reset the user's SCRAM mechanism set on every password change; malformed field types escaped as ClassCastException
+A password change without an explicit `mechanisms` field rebuilt the credentials with the
+both-mechanisms default, silently re-arming SCRAM-SHA-1 for a user deliberately created
+SHA-256-only; mongod preserves the existing mechanism set, and now the in-memory driver does
+too. `mechanisms` without `pwd` is now supported with mongod's subset-only semantics (stored
+credentials of the named mechanisms are kept verbatim, the rest dropped; non-subset requests
+are `BadValue`). All optional fields are shape-checked before casting, so `roles: "foo"` &co.
+produce a `BadValue` command error instead of an uncaught `ClassCastException`.
+
+#### PoppyDB: demoted leader could keep `primary==true` forever after a rapid leadership flap
+`onLeadershipChange` incremented the leadership epoch and then wrote the `primary` flag
+unsynchronized: a preempted stale dispatch could re-assert its outdated flag value AFTER a
+newer transition had written the current one. A node stuck with `primary==true` as a follower
+silently never replicates - `startReplicationToLeader`, the liveness probe and the retry chain
+all no-op on `primary`. Epoch bump and flag flip are now one atomic unit, making a stale
+overwrite structurally impossible. Related hardening in the same area: the post-start
+replication liveness probe now checks "watch never registered" (`watchGeneration`) instead of
+the instantaneous `isWatchLive()`, so it no longer tears down a healthy `ReplicationManager`
+it happens to sample during a routine watch-reconnect gap; and a late election callback can no
+longer install a `ReplicationManager` after `shutdown()` that nothing ever stops.
+
+#### PoppyDB: `rs.status()` reported a peer that died with the failover as SECONDARY forever
+`becomeLeader()` clears the peer-contact map, and a peer with no contact entry was treated as
+reachable indefinitely - so the classic crashed ex-primary, which never acks a single
+heartbeat of the new leader, was never reported DOWN. A missing entry is now only treated as
+reachable within a grace period (the heartbeat freshness window) measured from the moment
+leadership was assumed; beyond that the peer reports `state: 8, stateStr: "DOWN"`.
+
+#### `startPoppyDB.sh`: "port already in use, skipping node" did not actually skip
+The busy-port check printed the skip message but started the node anyway - the new JVM could
+not bind, but its PID had already overwritten the running node's PID file, which the failure
+branch then deleted, orphaning the still-running original process for `stop`/`status`. The
+skip is now real (and keeps the port sequence of the remaining nodes intact).
+
 #### PoppyDB: `--auth`/`--ssl` now work on a replica set - the internal election/replication channel was always plaintext and unauthenticated
 Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica set completely non-functional: `ElectionNetworkClient` (vote requests, heartbeats) and `ReplicationManager` (the sync connection to the primary) connected to peers as a plain, unauthenticated, unencrypted client, regardless of the server's own `--auth`/`--ssl` configuration. With `--ssl=true` every internal connection was rejected by the peer's TLS-only listener (`NotSslRecordException`); with `--auth=true` the election RPCs (`requestVote`/`appendEntries`) aren't on the pre-auth command whitelist, so every one was rejected as unauthorized - either way, no leader could ever be elected. Single-node PoppyDB with `--auth`/`--ssl` was unaffected; the client-facing enforcement itself was never the problem. The internal channel now authenticates as the configured root user and, when TLS is on, trusts exactly the server's own configured certificate (`ssl-keystore`, reused as the internal client's pinned truststore) - no new config keys, no change to auth enforcement.
 
