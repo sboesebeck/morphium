@@ -2,6 +2,13 @@
 
 > **quarkus-morphium** Jakarta Data provider
 > Last updated: 2026-03-15
+> **Status as of the morphium-jakarta-data/quarkus-morphium module merge (2026-08):** every
+> numbered gap below (#1-#9) is marked DONE and already implemented and tested in
+> `morphium-jakarta-data`/`quarkus-morphium`. The only item still genuinely open is GAP-A6
+> (COUNT DISTINCT / expressions inside aggregates, listed under #8). This document is kept as
+> historical context for *how* each gap was closed (implementation notes, MongoDB pipeline
+> shapes, deliberate scope decisions) -- read it as an implementation log, not as a list of
+> pending work.
 
 ---
 

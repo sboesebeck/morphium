@@ -197,6 +197,11 @@ aggregation pipelines, bulk updates, and anything beyond standard CRUD.
 
 ## Prerequisites
 
+<!-- MAINTAINERS: these version numbers are duplicated by hand (Markdown has no
+     shared-attribute mechanism like docs/modules/ROOT/pages/includes/attributes.adoc
+     does for the AsciiDoc guide pages) -- update both this table AND the <version> in
+     the snippet below whenever the reactor version in the root pom.xml changes. -->
+
 | Dependency | Minimum version |
 |---|---|
 | Java | 21 |
@@ -212,7 +217,7 @@ This extension is a module of the Morphium reactor. Add it to your application's
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>quarkus-morphium</artifactId>
-    <version>6.3.0-SNAPSHOT</version>
+    <version>6.3.0-SNAPSHOT</version> <!-- MAINTAINERS: keep in sync with the table above and the root pom.xml -->
 </dependency>
 ```
 

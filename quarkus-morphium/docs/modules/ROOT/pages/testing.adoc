@@ -21,7 +21,7 @@ in the same test suite.
 [#dev-services]
 == Dev Services (automatic MongoDB container)
 
-When `morphium.hosts` is not set, the extension starts a MongoDB container automatically
+When `quarkus.morphium.hosts` is not set, the extension starts a MongoDB container automatically
 in **test** mode.
 No configuration is required:
 
@@ -120,8 +120,8 @@ class ProductRepositoryInMemTest {
 
 [source,properties]
 ----
-morphium.driver-name=InMemDriver
-morphium.database=inmem-test
+quarkus.morphium.driver-name=InMemDriver
+quarkus.morphium.database=inmem-test
 quarkus.morphium.devservices.enabled=false
 ----
 
