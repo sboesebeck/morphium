@@ -753,13 +753,52 @@ public class MorphiumDataProcessor {
                                             String entityClassName,
                                             Set<String> entityFields,
                                             BuildProducer<ReflectiveClassBuildItem> reflectiveClasses) {
-        for (MethodInfo method : repoInterface.methods()) {
+        // repoInterface.methods() only returns methods DECLARED directly on repoInterface --
+        // an abstract method inherited from a custom super-interface (e.g. a shared
+        // "interface WithAudit { List<T> findByAuditor(String who); }" that a @Repository
+        // interface extends alongside BasicRepository/CrudRepository) was invisible to this
+        // loop entirely, so it was never generated, never validated, and silently left
+        // abstract on the generated class -- surfacing only as an AbstractMethodError the
+        // first time a caller actually invoked it. Walk the full interface hierarchy (same
+        // interfaceTypes() traversal pattern used by resolveFromType()/implementsInterface()
+        // below) to also pick up methods declared on custom super-interfaces. The standard
+        // Jakarta Data / Morphium repository interfaces are excluded from this walk since
+        // their methods are the well-known CRUD methods already delegated to
+        // AbstractMorphiumRepository (see CRUD_METHODS) -- walking into them would otherwise
+        // flag e.g. BasicRepository's own abstract methods as "unsupported".
+        Map<String, MethodInfo> methodsBySignature = new LinkedHashMap<>();
+        for (MethodInfo m : repoInterface.methods()) {
+            methodsBySignature.put(methodSignatureKey(m), m);
+        }
+        Set<String> visitedInterfaces = new HashSet<>();
+        visitedInterfaces.add(repoInterface.name().toString());
+        collectInheritedCustomInterfaceMethods(repoInterface, index, visitedInterfaces, methodsBySignature);
+
+        for (MethodInfo method : methodsBySignature.values()) {
             String name = method.name();
 
-            // Skip standard CRUD methods and default/static methods
+            // Skip standard CRUD methods and static methods
             if (CRUD_METHODS.contains(name)) continue;
-            if (method.isDefault()) continue;
             if (Modifier.isStatic(method.flags())) continue;
+
+            // Skip anything that is NOT abstract: default methods and (Java 9+) private
+            // interface helper methods both have a body and need no generated implementation.
+            // Jandex's MethodInfo.isDefault() only recognizes "public && !static && !abstract"
+            // -- a private interface method (legal since Java 9, always has a body) is neither
+            // abstract NOR "default" by that definition, so guarding on isDefault() alone let a
+            // private helper fall through every check below and hit the "unsupported method"
+            // exception at the bottom of this loop, breaking the build for completely legal
+            // user code. Guarding on "not abstract" catches default methods, private methods,
+            // and static methods (already filtered above) alike.
+            if (!method.isAbstract()) continue;
+
+            // toString()/equals()/hashCode() redeclared as abstract (a legal, if unusual, way
+            // to re-assert/narrow the Object contract in an interface) must NOT be generated
+            // here -- they are implemented by Object itself on any concrete class, Gizmo's
+            // ClassCreator already gives the generated class those inherited implementations,
+            // and none of the generators below (Query/Find/Delete/Insert/Save/Update/derived)
+            // has any notion of how to implement them.
+            if (isObjectMethodRedeclaration(method)) continue;
 
             // Phase 5: @Query with JDQL
             if (method.hasAnnotation(QUERY_ANNOTATION)) {
@@ -802,13 +841,79 @@ public class MorphiumDataProcessor {
             // production. Fail the build instead, so an unsupported repository method is
             // caught at build time, not by a user hitting the endpoint.
             throw new IllegalStateException(
-                    "Unsupported repository method " + repoInterface.name() + "." + name
+                    "Unsupported repository method " + method.declaringClass().name() + "." + name
                             + "() -- no @Query/@Find/@Delete/@Insert/@Save/@Update annotation and "
                             + "the method name doesn't match findBy*/countBy*/existsBy*/deleteBy*. "
                             + "Add one of these annotations, rename the method to match a supported "
                             + "derived-query pattern, or make the method default/static if it needs "
                             + "custom logic.");
         }
+    }
+
+    /**
+     * Builds a per-method key ({@code name(paramType1,paramType2,...)}) used to de-duplicate
+     * methods reachable via multiple interface paths (e.g. diamond inheritance) and to let a
+     * declaration closer to {@code repoInterface} take precedence over one further up the
+     * hierarchy with the same erased signature.
+     */
+    private String methodSignatureKey(MethodInfo method) {
+        StringBuilder sb = new StringBuilder(method.name()).append('(');
+        for (int i = 0; i < method.parametersCount(); i++) {
+            if (i > 0) sb.append(',');
+            sb.append(method.parameterType(i).name());
+        }
+        return sb.append(')').toString();
+    }
+
+    /**
+     * Walks the interface hierarchy above {@code current} (breadth over super-interfaces),
+     * adding any method not yet present in {@code methodsBySignature}. Standard Jakarta Data /
+     * Morphium repository interfaces (DataRepository, BasicRepository, CrudRepository,
+     * MorphiumRepository) are treated as a hierarchy dead-end: their own abstract methods are
+     * the well-known CRUD operations handled elsewhere (delegated to
+     * {@code AbstractMorphiumRepository}, see {@code CRUD_METHODS}), not "custom" methods that
+     * need generation/validation here, so this walk must not descend into them.
+     */
+    private void collectInheritedCustomInterfaceMethods(ClassInfo current, IndexView index,
+                                                          Set<String> visitedInterfaces,
+                                                          Map<String, MethodInfo> methodsBySignature) {
+        for (Type superType : current.interfaceTypes()) {
+            DotName superName = superType.name();
+            if (superName.equals(DATA_REPOSITORY) || superName.equals(BASIC_REPOSITORY)
+                    || superName.equals(CRUD_REPOSITORY) || superName.equals(MORPHIUM_REPOSITORY)) {
+                continue;
+            }
+            if (!visitedInterfaces.add(superName.toString())) {
+                continue; // already visited (diamond inheritance) -- avoid infinite recursion
+            }
+            ClassInfo superInfo = index.getClassByName(superName);
+            if (superInfo == null) {
+                continue; // not in the Jandex index (e.g. a JDK/library interface) -- nothing to generate
+            }
+            for (MethodInfo m : superInfo.methods()) {
+                methodsBySignature.putIfAbsent(methodSignatureKey(m), m);
+            }
+            collectInheritedCustomInterfaceMethods(superInfo, index, visitedInterfaces, methodsBySignature);
+        }
+    }
+
+    /**
+     * True if {@code method} is an abstract redeclaration of {@code toString()}, {@code equals(Object)},
+     * or {@code hashCode()} -- i.e. it has the exact name and parameter signature of one of the
+     * {@code java.lang.Object} methods a repository interface is legally allowed to re-assert as
+     * abstract. Any concrete class (including a Gizmo-generated one) inherits Object's
+     * implementation of these regardless, so such a redeclaration needs no method generation here.
+     */
+    private boolean isObjectMethodRedeclaration(MethodInfo method) {
+        String name = method.name();
+        int paramCount = method.parametersCount();
+        if ("toString".equals(name) && paramCount == 0) return true;
+        if ("hashCode".equals(name) && paramCount == 0) return true;
+        if ("equals".equals(name) && paramCount == 1
+                && method.parameterType(0).name().toString().equals("java.lang.Object")) {
+            return true;
+        }
+        return false;
     }
 
     private void generateQueryMethod(ClassCreator cc,
@@ -1259,10 +1364,24 @@ public class MorphiumDataProcessor {
         boolean hasByParams = false;
         StringBuilder conditionsSpec = new StringBuilder();
         for (int i = 0; i < method.parametersCount(); i++) {
+            // Check for @By annotation; fall back to method parameter name if compiled with
+            // -parameters (Jakarta Data spec §4.6.1) -- same pattern as generateFindAnnotatedMethod.
+            // Without this fallback, a @Delete method relying on parameter names alone gets
+            // hasByParams=false, is (mis)treated as an entity-parameter delete, and ends up
+            // calling doDelete(someString) at runtime -- attempting to delete a String as if
+            // it were an entity.
             AnnotationInstance byAnn = method.parameters().get(i).annotation(BY_ANNOTATION);
+            String fieldName = null;
             if (byAnn != null) {
+                fieldName = byAnn.value().asString();
+            } else {
+                String methodParamName = method.parameters().get(i).name();
+                if (methodParamName != null) {
+                    fieldName = methodParamName;
+                }
+            }
+            if (fieldName != null) {
                 hasByParams = true;
-                String fieldName = byAnn.value().asString();
                 if (conditionsSpec.length() > 0) conditionsSpec.append(",");
                 conditionsSpec.append(fieldName).append(":").append(i);
             }
@@ -1280,6 +1399,26 @@ public class MorphiumDataProcessor {
             boolean returnsCount = returnType.kind() == Type.Kind.PRIMITIVE
                     && (returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.LONG
                         || returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.INT);
+
+            // Jakarta Data restricts a parameter-based (i.e. condition-driven) @Delete method to
+            // void, int, or long return types (jakarta.data-api 1.0.1, @Delete javadoc: "the
+            // return type must be void, or a numeric type... int or long"). Any other return
+            // type -- boolean, Integer, Long, or anything else -- previously fell through to the
+            // "void" branch below: the generated bytecode called the void-returning
+            // executeAnnotatedDelete bridge and then executed a bare "return" for a method whose
+            // descriptor promises a non-void value, which is invalid bytecode and throws
+            // VerifyError the first time the class is loaded, not at build time. Reject it here
+            // with a clear build-time message instead.
+            boolean returnsVoid = returnType.kind() == Type.Kind.VOID;
+            if (!returnsVoid && !returnsCount) {
+                throw new IllegalStateException(
+                        "Unsupported @Delete method " + method.declaringClass().name() + "."
+                                + method.name() + "() -- return type " + returnType
+                                + " is not supported for a parameter/@By-condition @Delete method. "
+                                + "Jakarta Data only allows void, int, or long here (the deleted-record "
+                                + "count for int/long, or the count discarded for void). "
+                                + "Change the return type to void, int, or long.");
+            }
             try (MethodCreator mc = cc.getMethodCreator(
                     MethodDescriptor.ofMethod(cc.getClassName(), method.name(),
                             returnTypeName, paramTypeNames))) {
