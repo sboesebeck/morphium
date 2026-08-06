@@ -46,6 +46,7 @@ import de.caluga.morphium.quarkus.MorphiumProducer;
 import de.caluga.morphium.quarkus.transaction.MorphiumTransactionalInterceptor;
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
+import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.IndexView;
@@ -226,8 +227,10 @@ public class MorphiumProcessor {
                 String className = ai.target().asClass().name().toString();
                 registerClass(className, reflectiveClasses);
                 registerSuperclasses(ai.target().asClass(), index, reflectiveClasses, registeredSuperclasses);
+                registerSubclasses(ai.target().asClass(), index, reflectiveClasses, registeredSuperclasses);
                 entityClassNames.add(className);
                 allClassNames.add(className);
+                registerCustomNameProvider(ai, reflectiveClasses);
             }
         }
         for (AnnotationInstance ai : index.getAnnotations(embeddedDotName)) {
@@ -235,6 +238,7 @@ public class MorphiumProcessor {
                 String className = ai.target().asClass().name().toString();
                 registerClass(className, reflectiveClasses);
                 registerSuperclasses(ai.target().asClass(), index, reflectiveClasses, registeredSuperclasses);
+                registerSubclasses(ai.target().asClass(), index, reflectiveClasses, registeredSuperclasses);
                 embeddedClassNames.add(className);
                 // @Embedded classes need pre-registration for typeId mapping
                 allClassNames.add(className);
@@ -514,6 +518,58 @@ public class MorphiumProcessor {
             }
             superName = superInfo.superName();
         }
+    }
+
+    /**
+     * Registers every subclass (direct and transitive) of a class annotated {@code @Entity} or
+     * {@code @Embedded}, even though those subclasses carry no annotation of their own.
+     *
+     * <p>{@code @Entity}/{@code @Embedded} are not {@code @Inherited} (Java annotation
+     * inheritance does not apply to types), but Morphium's own
+     * {@code AnnotationAndReflectionHelper.isAnnotationPresentInHierarchy()} walks the class
+     * hierarchy manually and treats a subclass as an entity/embedded type purely because a
+     * superclass carries the annotation -- Morphium fully supports polymorphic persistence this
+     * way. The Jandex scan above only ever finds classes that carry the annotation directly, so
+     * without this, storing/loading an actual runtime instance of an unannotated subclass would
+     * reflectively access fields/constructors never registered for native image, and crash only
+     * in a native build, only for that specific subclass, only once such an instance is
+     * actually persisted.
+     */
+    void registerSubclasses(ClassInfo classInfo, IndexView index,
+                                     BuildProducer<ReflectiveClassBuildItem> out,
+                                     Set<String> alreadyRegistered) {
+        for (ClassInfo subclass : index.getAllKnownSubclasses(classInfo.name())) {
+            String subclassName = subclass.name().toString();
+            if (!alreadyRegistered.add(subclassName)) {
+                continue; // already processed (e.g. reached via a different entity's hierarchy)
+            }
+            log.debugf("Morphium: registering entity subclass %s for reflection", subclassName);
+            registerClass(subclassName, out);
+        }
+    }
+
+    /**
+     * Registers a custom {@code @Entity(nameProvider = ...)} class for reflection.
+     *
+     * <p>{@code ObjectMapperImpl.getNameProviderForClass()} instantiates the configured
+     * {@code nameProvider} via {@code getDeclaredConstructor().newInstance()}, same as
+     * {@code DefaultNameProvider} (already unconditionally registered above) -- but a custom
+     * provider a user points {@code @Entity(nameProvider = ...)} at was never registered at
+     * all, so a native-image build would fail at runtime the first time that entity's
+     * collection name is resolved. {@code DefaultNameProvider} itself is skipped here since it
+     * is already registered unconditionally.
+     */
+    void registerCustomNameProvider(AnnotationInstance entityAnnotation,
+                                            BuildProducer<ReflectiveClassBuildItem> out) {
+        AnnotationValue nameProviderValue = entityAnnotation.value("nameProvider");
+        if (nameProviderValue == null) {
+            return;
+        }
+        String nameProviderClassName = nameProviderValue.asClass().name().toString();
+        if (nameProviderClassName.equals(DefaultNameProvider.class.getName())) {
+            return;
+        }
+        registerClass(nameProviderClassName, out);
     }
 
     private void registerClass(String className,
