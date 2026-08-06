@@ -1026,23 +1026,29 @@ public class ElectionManager {
      * Only meaningful when we ARE the leader: the leader is the only role
      * that actively heartbeats every peer and tracks acks, so a follower has no independent
      * way to know whether some OTHER follower is up - it returns true (optimistic/unknown) in
-     * that case, and also the first time this is asked about a peer we've never yet heard from
-     * at all (e.g. right after an election, before the first heartbeat round-trip), so a
-     * healthy peer is never falsely flagged DOWN by a startup race. Only a peer that WAS
-     * reachable and has since gone stale is reported unreachable.
+     * that case.
+     *
+     * <p>A peer with NO contact entry at all gets a grace period of the same freshness window,
+     * measured from {@code leaderSince} ({@code becomeLeader()} clears {@code peerLastContact},
+     * so every peer starts entry-less on each new leadership). Within the window it is treated
+     * as reachable, so a healthy peer is never falsely flagged DOWN by the startup race (first
+     * heartbeat round-trip still in flight). Beyond it, no-entry means the peer has not acked a
+     * single heartbeat since we became leader - the typical shape of the ex-primary that died
+     * WITH the failover, which an optimistic-forever null-check would report SECONDARY for the
+     * rest of this leadership (2026-08-06 review finding).
      */
     public boolean isPeerReachable(String peer) {
         if (state != ElectionState.LEADER) {
             return true;
         }
 
+        long freshnessMs = Math.max(3L * config.getHeartbeatIntervalMs(), 2000L);
         Long lastContact = peerLastContact.get(peer);
 
         if (lastContact == null) {
-            return true;
+            return System.currentTimeMillis() - leaderSince <= freshnessMs;
         }
 
-        long freshnessMs = Math.max(3L * config.getHeartbeatIntervalMs(), 2000L);
         return System.currentTimeMillis() - lastContact <= freshnessMs;
     }
 

@@ -152,4 +152,58 @@ public class ReplSetGetStatusDownPeerTest {
         assertThat(followerMember.get("stateStr")).isEqualTo("DOWN");
         assertThat(followerMember.get("state")).isEqualTo(8);
     }
+
+    /**
+     * 2026-08-06 review finding: {@code becomeLeader()} clears {@code peerLastContact}, and a
+     * missing entry used to mean "reachable, optimistically, forever" - so a peer that died
+     * BEFORE or WITH the leadership change (the classic crashed ex-primary after a failover)
+     * never acked a single heartbeat of the new leader and was reported SECONDARY for the rest
+     * of that leadership. With the grace-period fix, no-entry only counts as reachable within
+     * the freshness window measured from {@code leaderSince}; after that it must be DOWN.
+     * Reproduced with a 3-node RS whose third member is never started at all: the leader still
+     * wins the election (2/3 majority), the phantom never acks, and must show up DOWN once the
+     * grace period lapses - while the genuinely live follower stays SECONDARY.
+     */
+    @Test
+    public void peerDeadSinceLeadershipChangeReportsDownAfterGracePeriod() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+        int port3 = nextPort(); // reserved but NEVER started - the "died with the failover" peer
+        ElectionConfig cfg = new ElectionConfig().setHeartbeatIntervalMs(100)
+                .setElectionTimeoutMinMs(300).setElectionTimeoutMaxMs(500);
+        PoppyDB leader = new PoppyDB(port1, "localhost", 20, 5);
+        PoppyDB follower = new PoppyDB(port2, "localhost", 20, 5);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2, "localhost:" + port3);
+        var prio = Map.of("localhost:" + port1, 100, "localhost:" + port2, 50, "localhost:" + port3, 10);
+        leader.configureReplicaSet("rsDeadSinceElection", hosts, prio, true, cfg);
+        follower.configureReplicaSet("rsDeadSinceElection", hosts, prio, true, cfg);
+
+        startServer(leader, port1);
+        startServer(follower, port2);
+        waitForPrimary(leader);
+
+        String phantomName = "localhost:" + port3;
+        String followerName = "localhost:" + port2;
+
+        long deadline = System.currentTimeMillis() + 8000;
+        Map<String, Object> phantomMember = null;
+        while (System.currentTimeMillis() < deadline) {
+            Map<String, Object> status = command(port1, Doc.of("replSetGetStatus", 1, "$db", "admin"));
+            phantomMember = memberNamed(status, phantomName);
+            if ("DOWN".equals(phantomMember.get("stateStr"))) {
+                // The live follower must not have been dragged into DOWN by the same change.
+                assertThat(memberNamed(status, followerName).get("stateStr"))
+                        .as("live follower must stay SECONDARY while the phantom goes DOWN")
+                        .isEqualTo("SECONDARY");
+                break;
+            }
+            Thread.sleep(200);
+        }
+
+        assertThat(phantomMember)
+                .as("never-started peer never showed up as DOWN within 8s of the election")
+                .isNotNull();
+        assertThat(phantomMember.get("stateStr")).isEqualTo("DOWN");
+        assertThat(phantomMember.get("state")).isEqualTo(8);
+    }
 }
