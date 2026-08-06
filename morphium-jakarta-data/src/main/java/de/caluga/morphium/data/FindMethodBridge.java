@@ -271,7 +271,10 @@ public final class FindMethodBridge {
     }
 
     /**
-     * Executes a {@code @Delete} annotated method with {@code @By} parameters.
+     * Executes a {@code @Delete} annotated method with {@code @By} parameters, without
+     * reporting how many entities were removed. Kept for callers whose method is declared
+     * {@code void} (Jakarta Data permits {@code void}, {@code int}, or {@code long} for a
+     * parameter-based {@code @Delete} method).
      *
      * @param repo           the repository instance
      * @param conditionsSpec encoded conditions (same format as executeFind)
@@ -279,6 +282,23 @@ public final class FindMethodBridge {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static void executeAnnotatedDelete(AbstractMorphiumRepository<?, ?> repo,
+                                              String conditionsSpec,
+                                              Object[] args) {
+        executeAnnotatedDeleteCounted(repo, conditionsSpec, args);
+    }
+
+    /**
+     * Executes a {@code @Delete} annotated method with {@code @By} parameters and returns the
+     * number of deleted entities. Jakarta Data requires a parameter-based {@code @Delete}
+     * method declared {@code int} or {@code long} to return this count.
+     *
+     * @param repo           the repository instance
+     * @param conditionsSpec encoded conditions (same format as executeFind)
+     * @param args           the method arguments
+     * @return the number of entities deleted
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static long executeAnnotatedDeleteCounted(AbstractMorphiumRepository<?, ?> repo,
                                               String conditionsSpec,
                                               Object[] args) {
         Morphium morphium = repo.getMorphium();
@@ -299,6 +319,7 @@ public final class FindMethodBridge {
         for (Object entity : toDelete) {
             morphium.delete(entity);
         }
+        return toDelete.size();
     }
 
     /**
