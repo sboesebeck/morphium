@@ -20,16 +20,22 @@ import de.caluga.morphium.quarkus.migration.Execution;
 import de.caluga.morphium.quarkus.migration.MorphiumChangeUnit;
 
 /**
- * Test migration that sleeps for longer than the short lock TTL used by
- * {@code MorphiumMigrationTest}'s lock-renewal regression test, to prove that
- * {@code MorphiumMigrationRunner} renews the lock's {@code expires_at} between migrations
- * instead of leaving it to expire mid-run.
+ * Test migration used by {@code MorphiumMigrationTest}'s lock-renewal regression tests to prove
+ * that {@code MorphiumMigrationRunner} renews the lock's {@code expires_at} BETWEEN migrations
+ * (via {@code renewLock()} in the {@code execute()} loop) instead of leaving it to expire
+ * mid-run.
+ *
+ * <p>{@link #SLEEP_MS} is mutable (not {@code final}) so the test can temporarily set a short
+ * sleep well below the in-flight heartbeat's tick interval -- isolating the between-units
+ * renewal mechanism from the separate in-flight heartbeat, which is covered by its own,
+ * dedicated test. Callers that override it MUST restore the original value afterwards (e.g. in
+ * a {@code finally} block) since this is shared, static state.
  */
 @MorphiumChangeUnit(id = "900-slow", order = "900", author = "test")
 public class SlowMigration {
 
-    /** How long {@link #execute} sleeps, in milliseconds. Longer than the test's lock TTL. */
-    public static final long SLEEP_MS = 1500L;
+    /** How long {@link #execute} sleeps, in milliseconds. */
+    public static volatile long SLEEP_MS = 1500L;
 
     @Execution
     public void execute(Morphium morphium) throws InterruptedException {

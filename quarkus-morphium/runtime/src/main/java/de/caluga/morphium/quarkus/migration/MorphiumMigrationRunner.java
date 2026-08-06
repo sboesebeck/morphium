@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -47,7 +48,51 @@ import java.util.stream.Collectors;
 public class MorphiumMigrationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(MorphiumMigrationRunner.class);
-    private static final String LOCK_ID = "migration_lock";
+
+    /**
+     * The fixed {@code _id} of the single migration-lock document. Package-visible (not
+     * {@code private}) and named consistently with the rest of the class so that tests in
+     * other packages needing the real lock-document id (e.g. to simulate a held lock) can
+     * reference this constant instead of duplicating it as a copy-pasted string literal --
+     * a literal that would silently go stale and make such a test blind to its own bugs the
+     * moment this constant is renamed. Exposed via {@link #getLockId()} rather than made
+     * {@code public} directly, keeping the field itself an implementation detail while still
+     * giving test code (which lives in a different package, {@code
+     * de.caluga.morphium.quarkus.it}) a single, refactor-safe source of truth.
+     */
+    static final String LOCK_ID = "migration_lock";
+
+    /**
+     * The in-flight lock heartbeat (see {@link #startLockHeartbeat}) wakes up roughly this many
+     * times per {@code lockTtlSeconds} window (subject to {@link #HEARTBEAT_MIN_INTERVAL_MS}),
+     * so the lock is renewed comfortably before it could expire even while a single change unit
+     * is still running. E.g. with the default {@code lockTtlSeconds=60} this fires every ~20s.
+     */
+    private static final int HEARTBEAT_TICKS_PER_TTL = 3;
+
+    /**
+     * Lower bound for the in-flight heartbeat's tick interval, in milliseconds.
+     *
+     * <p>Purpose of the floor: purely to cap DB load for very small {@code lockTtlSeconds} --
+     * without it, e.g. {@code lockTtlSeconds=1} with {@code HEARTBEAT_TICKS_PER_TTL=3} would
+     * otherwise tick every ~333ms, which is already fine, but even smaller TTLs could drive the
+     * interval towards zero and hammer the lock collection. It must NOT, however, be so large
+     * that it eats into (or exceeds) the TTL window itself for realistic {@code lockTtlSeconds}
+     * values: a previous version of this floor was 1000ms flat, which for {@code
+     * lockTtlSeconds=1} produced an interval EQUAL to the TTL -- i.e. the first heartbeat tick
+     * was scheduled to land exactly when the lock was already expiring, with zero margin for
+     * thread-start latency, GC pauses, or the {@code renewLock()} round-trip itself. That made
+     * the in-flight heartbeat unable to ever renew in time for small TTLs, which is a real user
+     * -facing bug (anyone configuring a short {@code lockTtlSeconds}, not just tests) and not
+     * merely a test-timing artifact.
+     *
+     * <p>200ms is chosen as a floor that is small enough to still leave several ticks (and
+     * therefore several renewal attempts with real safety margin) inside a 1s TTL, while still
+     * being coarse enough that normal-to-large TTLs (seconds to minutes) are completely
+     * unaffected -- {@code HEARTBEAT_TICKS_PER_TTL}'s natural interval already exceeds 200ms for
+     * any {@code lockTtlSeconds >= 1}, so the floor only ever engages for sub-second TTLs.
+     */
+    private static final long HEARTBEAT_MIN_INTERVAL_MS = 200L;
 
     private final Morphium morphium;
     private final MorphiumMigrationConfig config;
@@ -55,10 +100,30 @@ public class MorphiumMigrationRunner {
     /** Owner identifier for this runner instance, set during {@link #acquireLock()}. */
     private String currentOwner;
 
+    /**
+     * Set by the in-flight lock heartbeat (see {@link #startLockHeartbeat}) if it detects,
+     * while a single change unit is still running, that the lock has been taken over by
+     * another process. Read and cleared by {@link #executeMigration} right after the unit
+     * finishes so the failure is never silently swallowed -- it is always either the primary
+     * exception thrown from {@code executeMigration}, or attached as a suppressed exception on
+     * the migration's own failure if both happened.
+     */
+    private final AtomicReference<RuntimeException> heartbeatFailure = new AtomicReference<>();
+
     public MorphiumMigrationRunner(Morphium morphium, MorphiumMigrationConfig config) {
         this.morphium = morphium;
         this.config = config;
         validateConfig();
+    }
+
+    /**
+     * Returns the fixed {@code _id} of the migration-lock document used by this runner.
+     * Intended for tests (and diagnostic tooling) that need to reason about the lock document
+     * directly -- e.g. to simulate a held lock -- without duplicating {@link #LOCK_ID} as a
+     * copy-pasted string literal that would silently go stale if the constant is ever renamed.
+     */
+    public static String getLockId() {
+        return LOCK_ID;
     }
 
     /**
@@ -96,10 +161,18 @@ public class MorphiumMigrationRunner {
                 // migration run that takes longer than lockTtlSeconds lets a second instance
                 // atomically steal the lock (acquireLock()'s expires_at <= now condition would
                 // match) and start running the SAME still-in-progress change units
-                // concurrently. Owner-guarded, so it silently becomes a no-op once another
-                // process has already taken over the lock -- this instance's subsequent writes
-                // and the final releaseLock() are then no-ops too (see releaseLock()'s owner
-                // check).
+                // concurrently. Owner-guarded -- but NOT a silent no-op if another process has
+                // already taken over: renewLock() inspects the owner-guarded update's matched
+                // count ("n"), exactly like acquireLock() does, and throws when it is 0,
+                // aborting this run immediately instead of continuing. This matters because
+                // only releaseLock() is owner-guarded against a lost lock -- recordExecution()
+                // and the change units themselves are NOT, so silently continuing here would
+                // let this instance keep writing (changelog entries, change-unit side effects)
+                // concurrently with whatever process now legitimately owns the lock. This call
+                // renews between change units; the separate in-flight heartbeat started inside
+                // executeMigration() additionally renews WHILE a single change unit is still
+                // executing, closing the gap where one unit alone runs longer than
+                // lockTtlSeconds.
                 renewLock();
             }
         } finally {
@@ -241,31 +314,59 @@ public class MorphiumMigrationRunner {
                     + ". Ensure it has a public no-arg constructor.", e);
         }
 
+        Thread heartbeat = startLockHeartbeat(migration.changeId());
         try {
-            invokeMigrationMethod(migration.execMethod(), instance);
-            long elapsed = System.currentTimeMillis() - startTime;
-            recordExecution(migration, elapsed, MorphiumMigrationEntry.ChangeState.EXECUTED);
-            log.info("Migration {} completed in {}ms", migration.changeId(), elapsed);
+            try {
+                invokeMigrationMethod(migration.execMethod(), instance);
+            } catch (Exception e) {
+                long elapsed = System.currentTimeMillis() - startTime;
+                RuntimeException lost = stopLockHeartbeat(heartbeat);
 
-        } catch (Exception e) {
-            long elapsed = System.currentTimeMillis() - startTime;
-            recordExecution(migration, elapsed, MorphiumMigrationEntry.ChangeState.FAILED);
-            log.error("Migration {} failed after {}ms", migration.changeId(), elapsed, e);
+                if (lost != null) {
+                    // The change unit itself also failed (its own exception, e, is the primary
+                    // cause below); attach the lock-loss failure as a suppressed exception so
+                    // both are visible together instead of losing one of them.
+                    e.addSuppressed(lost);
+                }
 
-            RuntimeException failure = new RuntimeException("Migration " + migration.changeId() + " failed", e);
-            if (migration.rollbackMethod() != null) {
-                // If the rollback itself also fails, that failure must not be silently swallowed
-                // (previously only logged) -- the database can be left in an unknown
-                // intermediate state (migration partially applied, rollback partially/not
-                // applied), and losing the rollback failure's details makes that state much
-                // harder to diagnose. Attached as a suppressed exception on the original
-                // migration failure, so both are visible together wherever this exception is
-                // logged or reported, without changing what actually gets thrown (the original
-                // migration failure remains the primary cause, per existing behavior/tests).
-                tryRollback(migration, instance).ifPresent(failure::addSuppressed);
+                recordExecution(migration, elapsed, MorphiumMigrationEntry.ChangeState.FAILED);
+                log.error("Migration {} failed after {}ms", migration.changeId(), elapsed, e);
+
+                RuntimeException failure = new RuntimeException("Migration " + migration.changeId() + " failed", e);
+                if (migration.rollbackMethod() != null) {
+                    // If the rollback itself also fails, that failure must not be silently swallowed
+                    // (previously only logged) -- the database can be left in an unknown
+                    // intermediate state (migration partially applied, rollback partially/not
+                    // applied), and losing the rollback failure's details makes that state much
+                    // harder to diagnose. Attached as a suppressed exception on the original
+                    // migration failure, so both are visible together wherever this exception is
+                    // logged or reported, without changing what actually gets thrown (the original
+                    // migration failure remains the primary cause, per existing behavior/tests).
+                    tryRollback(migration, instance).ifPresent(failure::addSuppressed);
+                }
+
+                throw failure;
             }
 
-            throw failure;
+            // The @Execution method itself completed normally; still need to check whether the
+            // heartbeat discovered mid-run that the lock had already been taken over. Handled
+            // here, outside the try/catch above, so this lock-loss failure is reported on its
+            // own terms instead of being caught and re-wrapped as a generic migration failure.
+            long elapsed = System.currentTimeMillis() - startTime;
+            RuntimeException lost = stopLockHeartbeat(heartbeat);
+            if (lost != null) {
+                // The unit itself finished, but the heartbeat detected mid-run that the lock had
+                // already been taken over -- treat this exactly like a lock loss detected by
+                // renewLock() between units: the run must not continue (recordExecution() below,
+                // and any subsequent units, are NOT owner-guarded).
+                recordExecution(migration, elapsed, MorphiumMigrationEntry.ChangeState.FAILED);
+                throw lost;
+            }
+
+            recordExecution(migration, elapsed, MorphiumMigrationEntry.ChangeState.EXECUTED);
+            log.info("Migration {} completed in {}ms", migration.changeId(), elapsed);
+        } finally {
+            stopLockHeartbeat(heartbeat);
         }
     }
 
@@ -458,10 +559,18 @@ public class MorphiumMigrationRunner {
 
     /**
      * Extends the lock's {@code expires_at} by another {@code lockTtlSeconds}, guarded by
-     * {@code owner=currentOwner} so it becomes a silent no-op if another process has already
-     * taken over the lock (e.g. because a previous renewal round-trip was slow enough for the
-     * old TTL to expire first). Called after every executed migration by {@link #runMigrations}
+     * {@code owner=currentOwner}. Called after every executed migration by {@link #execute}
      * — see the call site for why a heartbeat is needed at all.
+     *
+     * <p>Evaluates the owner-guarded update's matched count ("n"), exactly like
+     * {@link #acquireLock()} does: if it is {@code 0}, another process has already taken over
+     * the lock (e.g. because a previous renewal round-trip was slow enough for the old TTL to
+     * expire first, or a genuine steal happened while this instance was busy). In that case
+     * this method throws instead of returning silently, so the caller aborts the migration run
+     * rather than continuing to execute change units and write changelog entries concurrently
+     * with the new owner.
+     *
+     * @throws RuntimeException if the lock is no longer held by this instance (matched count 0)
      */
     private void renewLock() {
         Date expiresAt = new Date(System.currentTimeMillis() + config.lockTtlSeconds() * 1000L);
@@ -469,14 +578,110 @@ public class MorphiumMigrationRunner {
         q.setCollectionName(config.lockCollection());
         q.f("_id").eq(LOCK_ID);
         q.f("owner").eq(currentOwner);
+
+        Map<String, Object> result;
         try {
-            q.set(Map.of("expires_at", expiresAt), false, false);
+            result = q.set(Map.of("expires_at", expiresAt), false, false);
         } catch (Exception e) {
-            // Best-effort: if the renewal round-trip itself fails, the original TTL still
-            // applies and acquireLock()'s next caller will simply see an expired lock sooner
-            // than expected. Not fatal to the migration run in progress.
+            // Best-effort for a failure of the round-trip itself (e.g. a transient network
+            // error): the original TTL still applies, and either the next renewal attempt or
+            // acquireLock()'s next caller will simply observe the lock sooner than the full TTL
+            // would suggest. This is distinct from -- and less severe than -- an explicit
+            // matched-count-0 result below, which proves the lock was DEFINITELY already taken
+            // over and must abort the run.
             log.warn("Failed to renew migration lock (owner={})", currentOwner, e);
+            return;
         }
+
+        long matchedCount = 0;
+        if (result != null) {
+            Object n = result.get("n");
+            matchedCount = n instanceof Number num ? num.longValue() : 0;
+        }
+
+        if (matchedCount == 0) {
+            throw new RuntimeException("Migration lock was lost while migrations were still running (owner="
+                    + currentOwner + "). Another process has already taken over the lock '" + LOCK_ID
+                    + "' in collection '" + config.lockCollection()
+                    + "' -- aborting this run to avoid executing change units concurrently with the new owner.");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // In-flight lock heartbeat
+    // ------------------------------------------------------------------
+
+    /**
+     * Starts a daemon heartbeat thread that periodically renews the lock for the duration of a
+     * single, potentially long-running change unit's {@code @Execution} method.
+     *
+     * <p>{@link #renewLock()} alone only renews the lock <em>between</em> change units. A
+     * single unit that itself runs longer than {@code lockTtlSeconds} (e.g. building an index
+     * on a large collection) would otherwise let another instance atomically take over the
+     * lock and start running that very same unit concurrently, while the original instance is
+     * still inside its (unaware) {@code invoke()} call. This heartbeat closes that gap by
+     * renewing on a fixed schedule (roughly {@link #HEARTBEAT_TICKS_PER_TTL} times per TTL
+     * window, floored at {@link #HEARTBEAT_MIN_INTERVAL_MS}) for as long as the unit is
+     * executing.
+     *
+     * <p>The thread is a daemon so it can never prevent JVM shutdown by itself, and always
+     * terminates via {@link #stopLockHeartbeat} in a {@code finally} block around the unit's
+     * execution, so it never outlives the unit it was started for. If a heartbeat tick
+     * discovers the lock has been taken over (matched count 0 on the owner-guarded update), it
+     * records that as a {@link RuntimeException} in {@link #heartbeatFailure} and stops ticking
+     * -- it deliberately does NOT interrupt the running {@code @Execution} method itself (Java
+     * has no safe way to abort arbitrary user code), but the caller checks {@code
+     * heartbeatFailure} as soon as the unit returns (successfully or not) and surfaces the
+     * failure instead of silently accepting the unit's result.
+     *
+     * @return the heartbeat thread; always non-null, always already started
+     */
+    private Thread startLockHeartbeat(String changeId) {
+        heartbeatFailure.set(null);
+        long intervalMs = Math.max(HEARTBEAT_MIN_INTERVAL_MS,
+                (config.lockTtlSeconds() * 1000L) / HEARTBEAT_TICKS_PER_TTL);
+
+        Thread thread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(intervalMs);
+                } catch (InterruptedException ie) {
+                    return;
+                }
+                try {
+                    renewLock();
+                    log.debug("In-flight lock heartbeat renewed lock while executing {} (owner={})",
+                            changeId, currentOwner);
+                } catch (RuntimeException lockLost) {
+                    // Not swallowed: recorded for executeMigration() to pick up and surface as
+                    // soon as the (still-running) change unit returns.
+                    heartbeatFailure.set(lockLost);
+                    log.error("In-flight lock heartbeat detected the migration lock was lost while "
+                            + "executing {} (owner={})", changeId, currentOwner, lockLost);
+                    return;
+                }
+            }
+        }, "morphium-migration-lock-heartbeat");
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
+    }
+
+    /**
+     * Stops the heartbeat thread started by {@link #startLockHeartbeat} and returns whatever
+     * lock-loss failure it may have recorded, so the caller can surface it instead of letting
+     * it disappear silently. Safe to call more than once for the same thread (e.g. from both
+     * the normal-completion path and a {@code finally} block) -- interrupting an already-dead
+     * thread, or joining one that already finished, is a no-op.
+     */
+    private RuntimeException stopLockHeartbeat(Thread heartbeat) {
+        heartbeat.interrupt();
+        try {
+            heartbeat.join(1000L);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+        return heartbeatFailure.getAndSet(null);
     }
 
     private void throwLockHeld() {

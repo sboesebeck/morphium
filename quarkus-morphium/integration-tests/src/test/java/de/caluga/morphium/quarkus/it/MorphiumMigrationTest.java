@@ -30,7 +30,9 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -178,60 +180,204 @@ class MorphiumMigrationTest {
         assertThat(lockQ.countAll()).isZero();
     }
 
-    // -- Regression: lock TTL renewal + wait-instead-of-fail (merge blocker #6) --
+    // -- Regression: lock TTL renewal (merge blocker #6) --
+    //
+    // Why this does NOT use the seemingly obvious "a concurrent contender's acquireLock() must
+    // fail" approach: InMemoryDriver's upsert path, when its filter (owner-agnostic, matching
+    // only an expired/absent lock) matches zero documents, seeds a replacement from the
+    // equality predicates (just _id, correctly mirroring real MongoDB) and routes it through
+    // storeInternal(). storeInternal() treats an already-existing _id there as a plain replace
+    // (remove + insert) rather than raising a duplicate-key error -- unlike its own
+    // insertInternal() path, which does implement that check correctly, but which the upsert
+    // never reaches. Consequently any contender can steal a still-valid, still-renewed lock
+    // under InMemoryDriver regardless of renewal, making acquireLock() non-atomic there (though
+    // correctly atomic against a real MongoDB server). A contender-based test is therefore not
+    // just flaky but structurally unable to prove anything on this driver.
+    //
+    // These two tests instead prove renewal directly and positively: while the real migration
+    // workload runs on a background thread, the main test thread observes the lock document
+    // (read straight from config.lockCollection() via MorphiumMigrationRunner.getLockId(), since
+    // releaseLock() deletes it once the run finishes) at two defined points in time DURING the
+    // run, and asserts that (1) the owner is unchanged -- no takeover -- and (2) expires_at has
+    // moved strictly forward between the two measurements, which is only possible if
+    // renewLock() (directly, or via the in-flight heartbeat) actually executed in between.
+    //
+    //   (a) renewLockBetweenChangeUnitsAdvancesExpiry: measures once during the first change
+    //       unit and once during the second, straddling the boundary between them, with a TTL
+    //       long enough that the in-flight heartbeat's tick interval exceeds either unit's
+    //       sleep -- so only the between-units renewLock() call in the execute() loop can move
+    //       expires_at here.
+    //
+    //   (b) inFlightHeartbeatAdvancesExpiryDuringSingleUnit: both measurements are taken WHILE a
+    //       single, long-running change unit is still executing -- there is no "between units"
+    //       boundary at all until that one unit returns, so only the in-flight heartbeat started
+    //       inside executeMigration() can be responsible for any forward movement observed here.
+    //
+    // Both use generous (hundreds of ms) margins around every measurement/renewal boundary to
+    // avoid flaky timing races while keeping total runtime in the low single-digit seconds.
+
+    /** Reads the single migration-lock document directly, or {@code null} if not currently held. */
+    private MorphiumMigrationLock readLockDocument() {
+        Query<MorphiumMigrationLock> q = morphium.createQueryFor(MorphiumMigrationLock.class);
+        q.setCollectionName(LOCK_COLLECTION);
+        q.f("_id").eq(MorphiumMigrationRunner.getLockId());
+        return q.get();
+    }
 
     @Test
     @Order(7)
-    @DisplayName("Lock is renewed between migrations, surviving past the original TTL")
-    void lockIsRenewedBetweenMigrations() {
+    @DisplayName("renewLock() between change units advances expires_at without changing the owner")
+    void renewLockBetweenChangeUnitsAdvancesExpiry() throws Exception {
         morphium.dropCollection(MorphiumMigrationEntry.class, CHANGELOG_COLLECTION, null);
         morphium.dropCollection(MorphiumMigrationLock.class, LOCK_COLLECTION, null);
 
-        // Short TTL, well below SlowMigration's sleep -- without renewal, the lock would
-        // expire mid-run and a concurrent acquireLock() call would succeed (proving the bug).
-        var shortTtlConfig = new TestMigrationConfig() {
-            @Override public int lockTtlSeconds() { return 1; }
+        // Long (10s) TTL relative to the unit sleeps below: the in-flight heartbeat's tick
+        // interval (~TTL/3, here ~3.3s, floored at 200ms) is far longer than either unit's
+        // 600ms sleep, so it cannot fire during either one. The only thing that can move
+        // expires_at forward between this test's two measurements is the renewLock() call
+        // between units.
+        var config = new TestMigrationConfig() {
+            @Override public int lockTtlSeconds() { return 10; }
         };
-        var slowRunner = new MorphiumMigrationRunner(morphium, shortTtlConfig);
+        var slowRunner = new MorphiumMigrationRunner(morphium, config);
 
-        // Run two migrations: SlowMigration sleeps past the 1s TTL, then AddCategoryMigration
-        // runs -- if the lock weren't renewed after SlowMigration, a second acquireLock() call
-        // below (from a different runner/owner) would succeed while this run is still "active"
-        // conceptually, since the whole execute() call is synchronous here we instead verify
-        // renewal directly: read expires_at right after the run and confirm it is still in the
-        // future by roughly the configured TTL, not expired by the elapsed sleep time.
-        long before = System.currentTimeMillis();
-        slowRunner.execute(List.of(SlowMigration.class.getName(), AddCategoryMigration.class.getName()));
-        long elapsedMs = System.currentTimeMillis() - before;
+        SlowMigration.SLEEP_MS = 600L;
+        SlowMigration2.SLEEP_MS = 600L;
+        try {
+            AtomicReference<Throwable> workerFailure = new AtomicReference<>();
+            Thread worker = new Thread(() -> {
+                try {
+                    slowRunner.execute(List.of(SlowMigration.class.getName(), SlowMigration2.class.getName(),
+                            AddCategoryMigration.class.getName()));
+                } catch (Throwable t) {
+                    workerFailure.set(t);
+                }
+            });
+            worker.start();
 
-        // The run took longer than the 1s TTL (SlowMigration alone sleeps 1.5s) -- if the lock
-        // had not been renewed after SlowMigration, acquireLock()'s expires_at <= now condition
-        // would have let a concurrent instance steal it well before AddCategoryMigration ran.
-        assertThat(elapsedMs).isGreaterThan(1000L);
+            // t=300ms: comfortably inside the first unit (600ms total), well before it returns
+            // and therefore well before the renewLock() call that only happens once it does.
+            Thread.sleep(300L);
+            MorphiumMigrationLock during1 = readLockDocument();
+            assertThat(during1).as("lock document must exist while migrations are running").isNotNull();
 
-        // Lock is released at the end of a successful run (existing behavior) -- the renewal
-        // itself is proven indirectly by the fact that the second migration executed at all:
-        // a stolen lock does not cause an exception here, but AddCategoryMigration's changelog
-        // entry existing confirms this runner (not a hypothetical concurrent thief) still owned
-        // the lock when it ran.
-        Query<MorphiumMigrationEntry> q = morphium.createQueryFor(MorphiumMigrationEntry.class);
-        q.setCollectionName(CHANGELOG_COLLECTION);
-        q.f("_id").eq("002-add-category");
-        assertThat(q.get()).isNotNull();
+            // t=900ms: 300ms into the second unit (which started at ~600ms) -- comfortably
+            // AFTER the renewLock() call that ran between the two units (~600ms) and
+            // comfortably BEFORE the second unit itself finishes (~1200ms).
+            Thread.sleep(600L);
+            MorphiumMigrationLock during2 = readLockDocument();
+            assertThat(during2).as("lock document must still exist while migrations are running").isNotNull();
+
+            worker.join(5000L);
+            assertThat(worker.isAlive()).as("migration worker thread should have finished").isFalse();
+            assertThat(workerFailure.get()).as("migration run must have completed without error").isNull();
+
+            assertThat(during2.getOwner())
+                    .as("owner must be unchanged between the two measurements -- no takeover happened")
+                    .isEqualTo(during1.getOwner());
+            assertThat(during2.getExpiresAt())
+                    .as("expires_at must have been pushed forward by the between-units renewLock() call")
+                    .isAfter(during1.getExpiresAt());
+
+            Query<MorphiumMigrationEntry> q = morphium.createQueryFor(MorphiumMigrationEntry.class);
+            q.setCollectionName(CHANGELOG_COLLECTION);
+            q.f("_id").eq("002-add-category");
+            assertThat(q.get()).isNotNull();
+
+            // Lock released at the end of a successful run.
+            Query<?> lockQ = morphium.createQueryFor(MorphiumMigrationLock.class);
+            lockQ.setCollectionName(LOCK_COLLECTION);
+            assertThat(lockQ.countAll()).isZero();
+        } finally {
+            SlowMigration.SLEEP_MS = 1500L;
+            SlowMigration2.SLEEP_MS = 1500L;
+        }
     }
 
     @Test
     @Order(8)
+    @DisplayName("In-flight lock heartbeat advances expires_at during a single long-running change unit")
+    void inFlightHeartbeatAdvancesExpiryDuringSingleUnit() throws Exception {
+        morphium.dropCollection(MorphiumMigrationEntry.class, CHANGELOG_COLLECTION, null);
+        morphium.dropCollection(MorphiumMigrationLock.class, LOCK_COLLECTION, null);
+
+        // Short (1s) TTL: the in-flight heartbeat's tick interval (~333ms with this TTL) is far
+        // shorter than the single unit's 2s sleep below, so it ticks several times while that
+        // one unit is still running. Both measurements are taken WHILE this single unit is
+        // executing, so renewLock() in the execute() loop cannot be responsible for anything
+        // observed here -- there is no "between units" until this one unit returns.
+        var config = new TestMigrationConfig() {
+            @Override public int lockTtlSeconds() { return 1; }
+        };
+        var slowRunner = new MorphiumMigrationRunner(morphium, config);
+
+        SlowMigration2.SLEEP_MS = 2000L;
+        try {
+            AtomicReference<Throwable> workerFailure = new AtomicReference<>();
+            Thread worker = new Thread(() -> {
+                try {
+                    slowRunner.execute(List.of(SlowMigration2.class.getName(), AddCategoryMigration.class.getName()));
+                } catch (Throwable t) {
+                    workerFailure.set(t);
+                }
+            });
+            worker.start();
+
+            // t=600ms: well after the heartbeat's first tick (fires ~333ms after the unit
+            // starts, given the 1s TTL and its floor-adjusted ~333ms interval), well before the
+            // unit itself finishes at ~2000ms.
+            Thread.sleep(600L);
+            MorphiumMigrationLock during1 = readLockDocument();
+            assertThat(during1).as("lock document must exist while the unit is still running").isNotNull();
+
+            // t=1600ms: a full second later -- several more heartbeat ticks have had the chance
+            // to fire in between (~333ms interval), still comfortably before the unit finishes
+            // (~2000ms).
+            Thread.sleep(1000L);
+            MorphiumMigrationLock during2 = readLockDocument();
+            assertThat(during2).as("lock document must still exist while the unit is still running").isNotNull();
+
+            worker.join(5000L);
+            assertThat(worker.isAlive()).as("migration worker thread should have finished").isFalse();
+            assertThat(workerFailure.get()).as("migration run must have completed without error").isNull();
+
+            assertThat(during2.getOwner())
+                    .as("owner must be unchanged between the two measurements -- no takeover happened")
+                    .isEqualTo(during1.getOwner());
+            assertThat(during2.getExpiresAt())
+                    .as("expires_at must have been pushed forward by the in-flight heartbeat while the unit "
+                            + "was still executing")
+                    .isAfter(during1.getExpiresAt());
+
+            Query<MorphiumMigrationEntry> q = morphium.createQueryFor(MorphiumMigrationEntry.class);
+            q.setCollectionName(CHANGELOG_COLLECTION);
+            q.f("_id").eq("002-add-category");
+            assertThat(q.get()).isNotNull();
+
+            Query<?> lockQ = morphium.createQueryFor(MorphiumMigrationLock.class);
+            lockQ.setCollectionName(LOCK_COLLECTION);
+            assertThat(lockQ.countAll()).isZero();
+        } finally {
+            SlowMigration2.SLEEP_MS = 1500L;
+        }
+    }
+
+    @Test
+    @Order(9)
     @DisplayName("acquireLockWithWait: waits for a held lock instead of failing immediately")
     void acquireLockWaitsForHeldLock() throws Exception {
         morphium.dropCollection(MorphiumMigrationLock.class, LOCK_COLLECTION, null);
 
         // Manually hold the lock, simulating another instance already running migrations.
+        // Uses MorphiumMigrationRunner.getLockId() -- the real lock-document id -- rather than
+        // a copy-pasted string literal, so that renaming MorphiumMigrationRunner.LOCK_ID cannot
+        // silently make this test blind to its own bugs by upserting a different (unrelated)
+        // lock document than the one acquireLock() actually reads and writes.
         MorphiumMigrationLock heldLock = new MorphiumMigrationLock();
-        heldLock.setId("morphium_migration_lock");
+        heldLock.setId(MorphiumMigrationRunner.getLockId());
         heldLock.setOwner("other-instance");
-        heldLock.setAcquiredAt(new java.util.Date());
-        heldLock.setExpiresAt(new java.util.Date(System.currentTimeMillis() + 5000L));
+        heldLock.setAcquiredAt(new Date());
+        heldLock.setExpiresAt(new Date(System.currentTimeMillis() + 5000L));
         morphium.store(heldLock, LOCK_COLLECTION, null);
 
         // Release it from a background thread after a short delay, simulating the other
@@ -244,7 +390,7 @@ class MorphiumMigrationTest {
             }
             Query<MorphiumMigrationLock> q = morphium.createQueryFor(MorphiumMigrationLock.class);
             q.setCollectionName(LOCK_COLLECTION);
-            q.f("_id").eq("morphium_migration_lock");
+            q.f("_id").eq(MorphiumMigrationRunner.getLockId());
             morphium.delete(q);
         });
         releaser.start();
