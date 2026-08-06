@@ -178,6 +178,8 @@ Two tags have special semantics:
 
 `wire-failover` is different: it marks `DriverFailoverProxyTest`, which reproduces failover behaviour (clean stepdown, hard kill, frozen socket, and the resulting read/write/messaging recovery) through a reusable wire-level fault-injection proxy instead of controlling a real replica set process. It needs no hardcoded local setup and kills nothing, so it **does run in the normal matrix** — against both MongoDB and PoppyDB replica sets — and is not excluded by `runtests.sh` or any Maven profile.
 
+The proxy behind that test (`WireProxy`, package `de.caluga.test.morphium.testutil.proxy`) is a general-purpose test utility, not failover-specific: runtime-switchable fault modes (freeze/reset/close), wire-level frame observation/logging, and response rewriting up to deliberately injecting invalid replies. See [Wire Proxy — Fault Injection & Wire-Level Monitoring](wire-proxy.md) for the full guide.
+
 #### PoppyDB Options
 ```bash
 --poppydb                      # Start single-node PoppyDB (recommended)

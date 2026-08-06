@@ -73,6 +73,7 @@ nav:
     - Test Runner: test-runner.md
     - InMemory Driver: inmemory-driver.md
     - Quick Reference: howtos/inmemory-driver.md
+    - Wire Proxy (Fault Injection): wire-proxy.md
   - PoppyDB:
     - Overview: poppydb.md
     - Production Deployment Playbook: howtos/poppydb-deployment.md
