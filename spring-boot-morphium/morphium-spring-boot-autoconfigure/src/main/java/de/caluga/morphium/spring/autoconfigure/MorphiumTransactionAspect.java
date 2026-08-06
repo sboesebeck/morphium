@@ -4,9 +4,9 @@ import de.caluga.morphium.Morphium;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.stereotype.Component;
 
 /**
  * AspectJ aspect that wraps every method (or every method of every class) annotated
@@ -14,8 +14,10 @@ import org.springframework.stereotype.Component;
  * {@code startTransaction()} before the method runs, {@code commitTransaction()} on
  * normal return, {@code abortTransaction()} if the method throws.
  *
- * <p>Registered as a plain {@code @Component}, so it only becomes an active Spring
- * bean — and only then does its {@code @Around} advice apply — when both hold:
+ * <p>Registered as {@code @AutoConfiguration} (not a plain {@code @Component}
+ * picked up by component scan — see the "why" note below), so it only becomes an
+ * active Spring bean — and only then does its {@code @Around} advice apply — when
+ * both hold:
  * <ul>
  *   <li>{@code org.aspectj.lang.annotation.Aspect} is on the classpath
  *       ({@code @ConditionalOnClass(name = "org.aspectj.lang.annotation.Aspect")}) —
@@ -24,10 +26,18 @@ import org.springframework.stereotype.Component;
  *   <li>a {@link Morphium} bean already exists in the context
  *       ({@code @ConditionalOnBean}).</li>
  * </ul>
- * Unlike the {@code @AutoConfiguration} classes in this package, this class is a
- * plain {@code @Component} picked up by Spring Boot's component scan (or explicit
- * bean registration) rather than the auto-configuration import mechanism — but the
- * two {@code @Conditional} annotations are evaluated the same way.
+ * <p><b>Why {@code @AutoConfiguration} and not {@code @Component}:</b> this class
+ * lives in {@code de.caluga.morphium.spring.autoconfigure}, a package that belongs to
+ * this library, not to any application using it. Spring Boot's component scan only
+ * looks at the application's own base package (and its sub-packages) unless told
+ * otherwise, so a plain {@code @Component} here is picked up only by coincidence —
+ * for any real application depending on this starter as an external jar, it is
+ * simply never scanned, silently leaving {@code @MorphiumTransactional} methods
+ * running without a transaction. Registering this class in
+ * {@code META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports}
+ * (alongside {@link MorphiumAutoConfiguration} and
+ * {@link MorphiumHealthAutoConfiguration}) makes Spring Boot's auto-configuration
+ * import mechanism instantiate it regardless of the application's package structure.</p>
  *
  * <p>Requires a MongoDB replica set or Atlas cluster
  * ({@code morphium.replica-set-name}) — a standalone MongoDB node rejects
@@ -48,7 +58,7 @@ import org.springframework.stereotype.Component;
  * }</pre>
  */
 @Aspect
-@Component
+@AutoConfiguration
 @ConditionalOnClass(name = "org.aspectj.lang.annotation.Aspect")
 @ConditionalOnBean(Morphium.class)
 public class MorphiumTransactionAspect {
