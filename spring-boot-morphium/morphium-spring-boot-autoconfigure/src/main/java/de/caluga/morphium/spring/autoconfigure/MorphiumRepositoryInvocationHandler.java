@@ -8,6 +8,7 @@ import jakarta.data.Limit;
 import jakarta.data.page.CursoredPage;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
+import jakarta.data.repository.By;
 import jakarta.data.repository.Delete;
 import jakarta.data.repository.Find;
 import jakarta.data.repository.OrderBy;
@@ -143,6 +144,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     }
 
     private MethodHandler buildDerivedQueryHandler(Method method) {
+        boolean returnsAsync = CompletionStage.class.isAssignableFrom(method.getReturnType());
         boolean returnsSingle = !List.class.isAssignableFrom(method.getReturnType())
                 && !Stream.class.isAssignableFrom(method.getReturnType())
                 && !Page.class.isAssignableFrom(method.getReturnType())
@@ -152,7 +154,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                 && !method.getReturnType().equals(boolean.class)
                 && !method.getReturnType().equals(Boolean.class)
                 && !Optional.class.isAssignableFrom(method.getReturnType())
-                && !CompletionStage.class.isAssignableFrom(method.getReturnType());
+                && !returnsAsync;
         boolean returnsOptional = Optional.class.isAssignableFrom(method.getReturnType());
         boolean returnsBoolean = method.getReturnType() == boolean.class
                 || method.getReturnType() == Boolean.class;
@@ -160,8 +162,20 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
 
         String orderBySpec = getOrderBySpec(method);
 
+        // Strip the "Async" suffix for parsing (e.g. "findByStatusAsync" -> "findByStatus"),
+        // matching quarkus-morphium's MorphiumDataProcessor convention for derived-query
+        // methods with a CompletionStage return type.
+        String methodName = method.getName();
+        String parseableName = returnsAsync && methodName.endsWith("Async")
+                ? methodName.substring(0, methodName.length() - 5) : methodName;
+
+        if (returnsAsync) {
+            return args -> QueryMethodBridge.executeQueryAsync(
+                    delegate, parseableName, args != null ? args : new Object[0],
+                    returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec);
+        }
         return args -> QueryMethodBridge.executeQuery(
-                delegate, method.getName(), args != null ? args : new Object[0],
+                delegate, parseableName, args != null ? args : new Object[0],
                 returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec);
     }
 
@@ -242,8 +256,8 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         Parameter[] params = method.getParameters();
         for (int i = 0; i < params.length; i++) {
             if (isSpecialParam(params[i].getType())) continue;
-            Param paramAnno = params[i].getAnnotation(Param.class);
-            String fieldName = paramAnno != null ? paramAnno.value() : params[i].getName();
+            By byAnno = params[i].getAnnotation(By.class);
+            String fieldName = byAnno != null ? byAnno.value() : params[i].getName();
             if (sb.length() > 0) sb.append(",");
             sb.append(fieldName).append(":").append(i);
         }
