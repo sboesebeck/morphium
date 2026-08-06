@@ -342,6 +342,7 @@ public List<Map<String, Object>> salesByCategory() {
 | `quarkus.morphium.ssl.truststore-password` | -- | Truststore password |
 | `quarkus.morphium.ssl.invalid-hostname-allowed` | `false` | Allow invalid hostnames (dev only) |
 | `quarkus.morphium.ssl.x509-username` | -- | X.509 subject DN override |
+| `quarkus.morphium.ssl.tls-configuration-name` | -- | Name of a Quarkus TLS configuration (`quarkus.tls.<name>.*`) to use instead of explicit keystore/truststore paths; `<default>` selects the unnamed default. Falls back to the default Quarkus TLS configuration automatically when no explicit keystore/truststore is set and one is available. |
 | `quarkus.morphium.devservices.enabled` | `true` | Enable automatic MongoDB container |
 | `quarkus.morphium.devservices.image-name` | `mongo:8` | Docker image for Dev Services |
 | `quarkus.morphium.devservices.database-name` | `morphium-dev` | Database name in Dev Services |

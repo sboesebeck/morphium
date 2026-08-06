@@ -16,6 +16,8 @@
 package de.caluga.morphium.quarkus.transaction;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -179,6 +181,44 @@ class MorphiumTransactionalInterceptorRetryTest {
     @DisplayName("a plain entity/DTO return type is NOT an async return type")
     void plainReturnType_isNotAsyncReturnType() {
         assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(String.class)).isFalse();
+    }
+
+    // Mutiny is not a dependency of this module (see isAsyncReturnType's javadoc), so
+    // io.smallrye.mutiny.Uni/Multi cannot be referenced directly, and the detection under test
+    // is a plain string comparison against those two fully-qualified names. Rather than
+    // declaring stub classes named io.smallrye.mutiny.Uni/Multi in this test tree -- which
+    // would occupy a foreign package namespace and collide with the real Mutiny classes the
+    // moment smallrye-mutiny ever becomes an actual (test or compile) dependency of this
+    // module -- these two classes are defined on the fly with ByteBuddy (already on the test
+    // classpath transitively via mockito-core / morphium-core) under exactly the FQNs
+    // isAsyncReturnType() checks for. This exercises the real name comparison without ever
+    // creating a source file in a package this module does not own.
+    private static Class<?> defineClassNamed(String fullyQualifiedName) {
+        return new ByteBuddy()
+                .subclass(Object.class)
+                .name(fullyQualifiedName)
+                .make()
+                .load(MorphiumTransactionalInterceptorRetryTest.class.getClassLoader(),
+                        ClassLoadingStrategy.Default.INJECTION)
+                .getLoaded();
+    }
+
+    @Test
+    @DisplayName("Mutiny's io.smallrye.mutiny.Uni is detected as an async return type (by class name -- "
+            + "Mutiny is not a compile-time dependency of this module)")
+    void mutinyUni_isAsyncReturnType() {
+        Class<?> uniStandIn = defineClassNamed("io.smallrye.mutiny.Uni");
+        assertThat(uniStandIn.getName()).isEqualTo("io.smallrye.mutiny.Uni");
+        assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(uniStandIn)).isTrue();
+    }
+
+    @Test
+    @DisplayName("Mutiny's io.smallrye.mutiny.Multi is detected as an async return type (by class name, "
+            + "same as Uni -- Mutiny is not a compile-time dependency of this module)")
+    void mutinyMulti_isAsyncReturnType() {
+        Class<?> multiStandIn = defineClassNamed("io.smallrye.mutiny.Multi");
+        assertThat(multiStandIn.getName()).isEqualTo("io.smallrye.mutiny.Multi");
+        assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(multiStandIn)).isTrue();
     }
 
     // -------------------------------------------------------------------------

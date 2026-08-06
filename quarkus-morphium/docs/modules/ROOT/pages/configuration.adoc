@@ -156,6 +156,10 @@ See xref:advanced.adoc#ssl-tls[Advanced Topics: SSL/TLS] for usage examples.
 | `quarkus.morphium.ssl.x509-username`
 | –
 | Explicit X.509 subject DN to use as the MongoDB username. When absent, the subject DN is extracted automatically from the client certificate.
+
+| `quarkus.morphium.ssl.tls-configuration-name`
+| –
+| Name of a Quarkus TLS configuration (from `quarkus.tls.<name>.*`) to use for the MongoDB connection instead of explicit keystore/truststore paths; use the special value `<default>` to explicitly select the unnamed default TLS configuration. When absent and no explicit `keystore-path` / `truststore-path` is configured, the extension automatically falls back to the default (unnamed) Quarkus TLS configuration if one is available -- the recommended setup for native images where the runtime script writes `quarkus.tls.key-store.p12.*` / `quarkus.tls.trust-store.p12.*` properties.
 |===
 
 == Dev Services Properties (Build Time)
@@ -199,6 +203,8 @@ See xref:dev-services.adoc[Dev Services] for details.
 
 NOTE: `@Execution` methods must be idempotent -- the changelog entry marking a change unit as executed is written only after the method returns successfully, so a crash between the method completing and that write causes it to run again on the next start. See the `@Execution` Javadoc for details.
 
+IMPORTANT: The migration lock is renewed both **between** change units (after every executed migration) **and, while a single change unit is still running, by an in-flight heartbeat thread** that periodically extends the lock's TTL. This closes the gap where one change unit alone (e.g. an index build on a large collection) runs longer than `lock-ttl-seconds`: without the heartbeat, another instance could atomically take over the lock mid-unit and start running that *same* still-in-progress change unit concurrently. If a heartbeat tick ever detects that the lock has genuinely been taken over by another process (e.g. because the heartbeat itself was starved for longer than the TTL, or the owning process's clock drifted -- see the `lock-ttl-seconds` clock-skew note below), the migration run aborts with an explicit exception instead of silently continuing to write changelog entries concurrently with the new owner.
+
 [cols="3,1,4",options="header"]
 |===
 | Property | Default | Description
@@ -217,7 +223,7 @@ NOTE: `@Execution` methods must be idempotent -- the changelog entry marking a c
 
 | `quarkus.morphium.migration.lock-ttl-seconds`
 | `60`
-| Time-to-live in seconds for the migration lock. Must be greater than `0`. The lock is renewed (heartbeat) after every executed migration, so this only needs to exceed the time a single change unit's `execute()` can take, not the whole migration run. Computed from each instance's local clock, not the MongoDB server's -- keep replica clocks synchronized (NTP/chrony) and set this generously above the expected clock drift between instances, not just above expected migration runtime.
+| Time-to-live in seconds for the migration lock. Must be greater than `0`. The lock is renewed both between change units and, via an in-flight heartbeat thread, while a single change unit is still running (see the IMPORTANT note above) -- so this mainly needs to comfortably exceed the heartbeat's own renewal interval, not the runtime of any single change unit or the whole migration run. Computed from each instance's local clock, not the MongoDB server's -- keep replica clocks synchronized (NTP/chrony) and set this generously above the expected clock drift between instances.
 
 | `quarkus.morphium.migration.lock-wait-seconds`
 | `0`

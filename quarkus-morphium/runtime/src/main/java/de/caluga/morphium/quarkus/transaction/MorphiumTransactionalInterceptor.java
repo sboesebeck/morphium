@@ -383,13 +383,15 @@ public class MorphiumTransactionalInterceptor {
 
     /**
      * Returns {@code true} for a {@link CompletionStage} return type, or Mutiny's
-     * {@code io.smallrye.mutiny.Uni} by class name (Mutiny is not a compile-time dependency of
-     * this module, so it cannot be referenced directly — checking the name still correctly
-     * detects it whether or not Mutiny happens to be on the runtime classpath).
+     * {@code io.smallrye.mutiny.Uni} / {@code io.smallrye.mutiny.Multi} by class name (Mutiny is
+     * not a compile-time dependency of this module, so it cannot be referenced directly —
+     * checking the name still correctly detects it whether or not Mutiny happens to be on the
+     * runtime classpath).
      */
     static boolean isAsyncReturnType(Class<?> returnType) {
         return CompletionStage.class.isAssignableFrom(returnType)
-                || "io.smallrye.mutiny.Uni".equals(returnType.getName());
+                || "io.smallrye.mutiny.Uni".equals(returnType.getName())
+                || "io.smallrye.mutiny.Multi".equals(returnType.getName());
     }
 
     /**
