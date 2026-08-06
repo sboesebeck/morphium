@@ -131,12 +131,9 @@ public class MorphiumTransactionalInterceptor {
         int maxRetries = 3;
         try {
             for (int attempt = 0; ; attempt++) {
+                Object result;
                 try {
-                    Object result = ctx.proceed();
-                    beforeCommit.fire(new MorphiumTransactionEvent(Phase.BEFORE_COMMIT));
-                    safeCommit();
-                    afterCommit.fire(new MorphiumTransactionEvent(Phase.AFTER_COMMIT));
-                    return result;
+                    result = ctx.proceed();
                 } catch (Throwable t) {
                     // catch (Throwable), not (Exception): an Error (e.g. OutOfMemoryError,
                     // StackOverflowError) must still trigger safeAbort() -- otherwise the
@@ -169,6 +166,28 @@ public class MorphiumTransactionalInterceptor {
                     afterRollback.fire(new MorphiumTransactionEvent(Phase.AFTER_ROLLBACK, e));
                     throw e;
                 }
+
+                // The business method itself succeeded -- from here on, a transient error
+                // must retry ONLY the commit, never re-run ctx.proceed(). MongoDB drivers
+                // retry a transient commit failure (e.g. code 251/NoSuchTransaction after a
+                // failover where the server actually committed but the reply was lost) by
+                // resending the commit, exactly for this reason: re-running the statements
+                // that already ran inside the (possibly already-committed) transaction would
+                // apply them a second time. safeCommitWithRetry() below handles that retry
+                // internally and never re-invokes ctx.proceed().
+                try {
+                    beforeCommit.fire(new MorphiumTransactionEvent(Phase.BEFORE_COMMIT));
+                    safeCommitWithRetry(ctx);
+                    afterCommit.fire(new MorphiumTransactionEvent(Phase.AFTER_COMMIT));
+                    return result;
+                } catch (Throwable t) {
+                    safeAbort();
+                    if (t instanceof Exception e) {
+                        afterRollback.fire(new MorphiumTransactionEvent(Phase.AFTER_ROLLBACK, e));
+                        throw e;
+                    }
+                    throw t;
+                }
             }
         } finally {
             if (writeBufferWasEnabled) {
@@ -194,6 +213,45 @@ public class MorphiumTransactionalInterceptor {
                         e.getMessage());
             } else {
                 throw e;
+            }
+        }
+    }
+
+    /**
+     * Commits the current transaction, retrying ONLY the commit itself (never
+     * {@code ctx.proceed()}) up to {@code maxRetries} times when a transient MongoDB error
+     * ({@link #isTransientTransactionError}) occurs. This mirrors how MongoDB drivers handle a
+     * transient commit failure internally: a failed commit whose underlying write may have
+     * actually succeeded on the server (the reply was merely lost, e.g. during a primary
+     * failover -- code 251/NoSuchTransaction) is retried by resending the commit, never by
+     * re-running the original statements. Re-running the whole {@code @MorphiumTransactional}
+     * method here would apply every write inside it a second time.
+     *
+     * @param ctx the invocation context, used only for the log message's method name
+     */
+    private void safeCommitWithRetry(InvocationContext ctx) throws MorphiumDriverException {
+        int maxRetries = 3;
+        for (int attempt = 0; ; attempt++) {
+            try {
+                safeCommit();
+                return;
+            } catch (MorphiumDriverException e) {
+                if (attempt >= maxRetries || !isTransientTransactionError(e)) {
+                    throw e;
+                }
+                log.warnf("Transient error committing transaction for %s.%s (attempt %d/%d) — "
+                                + "retrying the commit only, not the business method: %s",
+                        ctx.getMethod().getDeclaringClass().getSimpleName(),
+                        ctx.getMethod().getName(),
+                        attempt + 1, maxRetries,
+                        e.getMessage());
+                long backoffMs = 50L * (1L << attempt); // exponential: 50, 100, 200ms
+                try {
+                    Thread.sleep(Math.min(backoffMs, 1000L));
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
             }
         }
     }
