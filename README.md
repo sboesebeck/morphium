@@ -27,19 +27,21 @@ Morphium is the only Java ODM that ships a message queue living inside MongoDB. 
 | Message persistence | Built in | Snapshots (optional) | Optional | Built in |
 | Message priority | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No |
 | Distributed locks | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| Throughput, one-way send→receive | ~8K msg/s | —* | 10K–50K msg/s | 100K+ msg/s |
-| Round-trip request→response (ping-pong) | 89 msg/s | **223 msg/s (2.5×)** | — | — |
+| Throughput, one-way send→receive* | ~870 msg/s | ~770–2100 msg/s | 10K–50K msg/s | 100K+ msg/s |
+| Round-trip request→response (ping-pong)* | 89 msg/s | **223 msg/s (2.5×)** | — | — |
 | Operations | ⭐ Very easy | ⭐ Trivial (single process) | ⭐⭐ Medium | ⭐⭐⭐⭐ Complex |
 
-_* All numbers are indicative and depend heavily on hardware and workload. The two rows
-measure different things: the one-way figure counts send→delivery only (no processing, no
-reply — the same kind of number the RabbitMQ/Kafka columns quote), while the round-trip row
-measures complete ping-pongs (request out, response received) from the
-[benchmark](docs/v5-vs-v6-performance.md): 223 msg/s at 4.5 ms latency against PoppyDB vs.
-89 msg/s at 11.3 ms against a 3-node MongoDB replica set — 2.5× the throughput at less than
-half the latency, thanks to PoppyDB and Morphium Messaging being optimized for each other
-(both sides detect the counterpart). No separate one-way figure has been measured for
-PoppyDB. Persistence there is snapshot-based, see the
+_* All numbers are indicative and depend heavily on hardware and workload; Morphium's are
+[measured](docs/v5-vs-v6-performance.md), the RabbitMQ/Kafka columns quote typical vendor/
+community figures. The two rows measure different things. **One-way** counts send→receipt
+only (no processing, no reply): ~870 msg/s against a 3-node MongoDB replica set; PoppyDB
+runs in-process and therefore scales with the host — ~770 msg/s on a small 4-core CI host,
+~2100 msg/s on a laptop-class CPU. **Round-trip** measures complete ping-pongs (request out,
+response received): 223 msg/s at 4.5 ms latency against PoppyDB vs. 89 msg/s at 11.3 ms
+against the MongoDB replica set — 2.5× the throughput at less than half the latency, thanks
+to PoppyDB and Morphium Messaging being optimized for each other (both sides detect the
+counterpart). PoppyDB's strength is latency, not raw one-way throughput on constrained
+hardware. Persistence there is snapshot-based, see the
 [PoppyDB section](#-poppydb--mongodb-compatible-in-memory-server) below._
 
 ## 🌱 PoppyDB — MongoDB-Compatible In-Memory Server

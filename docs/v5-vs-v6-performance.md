@@ -39,6 +39,30 @@
 
 > **Key insight:** PoppyDB is 2.5x faster than real MongoDB for messaging tests!
 
+These are **round-trip** numbers: complete ping-pongs (request out, response received).
+PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
+same workload completes 2.5x faster.
+
+### Messaging One-Way Throughput (send → receipt, no replies)
+
+Measured 2026-08-06 with `MessagingOneWayThroughputBenchmark` (poppydb module, tag `manual`):
+5000 messages, 4 sender threads, one listening receiver, clock from first send to last
+receipt. Same 4-CPU test-runner LXC as the CI matrix; MongoDB is the 3-node homelab replica
+set on separate hosts, PoppyDB runs in-process.
+
+| Backend | Host | One-way throughput |
+|---------|------|--------------------|
+| **MongoDB** (3-node replica set, external hosts) | 4-CPU test runner | 868 msg/s |
+| **PoppyDB** (in-process) | 4-CPU test runner | 769 msg/s |
+| **PoppyDB** (in-process) | Apple-Silicon laptop | 2101 msg/s |
+
+> **Honest reading:** one-way throughput is write-bound, and an in-process PoppyDB shares its
+> host's CPU with sender and receiver — on a small 4-core host it lands slightly *below* an
+> external replica set, while on a laptop-class CPU it is well above. PoppyDB's advantage is
+> round-trip latency (table above), not raw one-way throughput on constrained hardware. A
+> historic "~8K msg/s" one-way figure circulated in older READMEs; it came from a setup that
+> is no longer reproducible and is superseded by these measurements.
+
 ### $in Query: Indexed vs Non-Indexed
 
 | Field | MongoDB | InMemory |
