@@ -69,7 +69,8 @@ public class MorphiumDevServicesProcessor {
             return null;
         }
 
-        if (ConfigUtils.isPropertyNonEmpty("quarkus.morphium.hosts")) {
+        if (ConfigUtils.isPropertyNonEmpty("quarkus.morphium.hosts")
+                || ConfigUtils.isPropertyNonEmpty("quarkus.morphium.atlas-url")) {
             log.debug("Morphium connection settings already configured – skipping Dev Services");
             return null;
         }
