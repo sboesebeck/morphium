@@ -416,6 +416,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * read/write admin.system.users through the generic paths (which never touch this mutex).
      * Deadlock-free: this mutex is always acquired BEFORE the users collection lock and nothing
      * acquires it while holding any collection lock, so no lock-order cycle exists.
+     *
+     * <p>SCOPE (honest limits, 2026-08-06 review): the ordering guarantee holds only among the
+     * user writes that take this mutex - createUser/updateUser vs each other. It does NOT cover
+     * (a) deletes on admin.system.users (there is no dropUser command yet; a raw delete goes
+     * through the generic path without this mutex and can still get its token inverted relative
+     * to a concurrent create/update), and (b) cross-namespace inversion: a concurrent write to
+     * any OTHER collection can be assigned a higher token yet complete delivery before a user
+     * event - combined with a resume via max-seen-token (PoppyDB's lastAppliedSequence), a
+     * reconnecting secondary can then skip the user event until the next full resync. Both are
+     * follow-up tickets, not properties this lock provides.
      */
     private final java.util.concurrent.locks.ReentrantLock userWriteEmitLock = new java.util.concurrent.locks.ReentrantLock();
     private final List<String> hostSeed = new CopyOnWriteArrayList<>();
@@ -1616,6 +1626,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * new credentials cryptographically to the old password) and/or replaces {@code roles}.
      * {@code buildUserDocument}'s {@code _id} is derived from db+user alone, so the replacement
      * document keeps the same {@code _id} as the document it replaces without any extra bookkeeping.
+     *
+     * <p>Mechanism semantics follow mongod: a pwd change WITHOUT {@code mechanisms} preserves the
+     * user's existing mechanism set (it does not reset to the both-mechanisms default), and
+     * {@code mechanisms} without {@code pwd} is a subset-only update that keeps the stored
+     * credentials of the named mechanisms and drops the rest. Not modeled: {@code customData}
+     * and {@code authenticationRestrictions}.
      */
     private int updateUserInternal(Map<String, Object> cmdMap) {
         String db = (String) cmdMap.get("$db");
@@ -1625,14 +1641,41 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return errorResult(2, "BadValue", "updateUser requires a user name");
         }
 
-        String pwd = (String) cmdMap.get("pwd");
-        @SuppressWarnings("unchecked")
-        List<Object> roles = (List<Object>) cmdMap.get("roles");
-        @SuppressWarnings("unchecked")
-        List<String> mechanisms = (List<String>) cmdMap.get("mechanisms");
+        // Shape-check every optional field BEFORE casting: a client sending e.g. roles as a
+        // string must get a mongod-style BadValue command error, not an uncaught
+        // ClassCastException out of the command handler.
+        Object pwdRaw = cmdMap.get("pwd");
+        if (pwdRaw != null && (!(pwdRaw instanceof String) || ((String) pwdRaw).isBlank())) {
+            return errorResult(2, "BadValue", "pwd must be a non-empty string");
+        }
+        String pwd = (String) pwdRaw;
 
-        if (pwd == null && roles == null) {
-            return errorResult(2, "BadValue", "updateUser requires at least one of pwd or roles");
+        Object rolesRaw = cmdMap.get("roles");
+        if (rolesRaw != null && !(rolesRaw instanceof List)) {
+            return errorResult(2, "BadValue", "roles must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> roles = (List<Object>) rolesRaw;
+
+        Object mechanismsRaw = cmdMap.get("mechanisms");
+        if (mechanismsRaw != null && !(mechanismsRaw instanceof List)) {
+            return errorResult(2, "BadValue", "mechanisms must be an array");
+        }
+        @SuppressWarnings("unchecked")
+        List<String> mechanisms = (List<String>) mechanismsRaw;
+        if (mechanisms != null) {
+            if (mechanisms.isEmpty()) {
+                return errorResult(2, "BadValue", "mechanisms field must not be empty");
+            }
+            for (Object m : (List<?>) mechanisms) {
+                if (!(m instanceof String)) {
+                    return errorResult(2, "BadValue", "mechanisms must be an array of strings");
+                }
+            }
+        }
+
+        if (pwd == null && roles == null && mechanisms == null) {
+            return errorResult(2, "BadValue", "updateUser requires at least one of pwd, roles or mechanisms");
         }
 
         // Fast pre-lock check only for the common "no such user" answer. The authoritative
@@ -1671,11 +1714,44 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     if (pwd != null) {
                         @SuppressWarnings("unchecked")
                         List<Object> effectiveRoles = roles != null ? roles : (List<Object>) current.get("roles");
+                        // mongod preserves the user's existing mechanism set when the command
+                        // omits "mechanisms" - passing null through to buildUserDocument would
+                        // instead reset to BOTH defaults, silently re-arming SCRAM-SHA-1
+                        // credentials for a user deliberately created SHA-256-only
+                        // (2026-08-06 review finding).
+                        List<String> effectiveMechanisms = mechanisms;
+                        if (effectiveMechanisms == null && current.get("credentials") instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> currentCreds = (Map<String, Object>) current.get("credentials");
+                            effectiveMechanisms = new ArrayList<>(currentCreds.keySet());
+                        }
                         replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
-                            .buildUserDocument(db, user, pwd, effectiveRoles, mechanisms);
+                            .buildUserDocument(db, user, pwd, effectiveRoles, effectiveMechanisms);
                     } else {
                         replacement = new LinkedHashMap<>(current);
-                        replacement.put("roles", roles);
+                        if (roles != null) {
+                            replacement.put("roles", roles);
+                        }
+                        if (mechanisms != null) {
+                            // mongod: mechanisms without pwd is legal only as a SUBSET of the
+                            // user's existing mechanisms - the stored credentials for the named
+                            // mechanisms are kept verbatim (they can't be re-derived without the
+                            // password), all others are dropped.
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> currentCreds = current.get("credentials") instanceof Map
+                                ? (Map<String, Object>) current.get("credentials")
+                                : java.util.Map.of();
+                            Map<String, Object> keptCreds = new LinkedHashMap<>();
+                            for (Object m : (List<?>) mechanisms) {
+                                Object cred = currentCreds.get(m);
+                                if (cred == null) {
+                                    return errorResult(2, "BadValue",
+                                        "mechanisms field must be a subset of previously set mechanisms");
+                                }
+                                keptCreds.put((String) m, cred);
+                            }
+                            replacement.put("credentials", keptCreds);
+                        }
                     }
 
                     users.removeIf(doc -> id.equals(doc.get("_id")));
@@ -8396,10 +8472,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         //
         // Note: "after lock release" means the sequence token below is NOT assigned under
         // the collection lock, so two racing writers can get tokens in the opposite of
-        // their store order. For admin.system.users writes that inversion is corrected by
-        // userWriteEmitLock (held across store+notify in createUserInternal /
+        // their store order. For createUser/updateUser racing EACH OTHER that inversion is
+        // corrected by userWriteEmitLock (held across store+notify in createUserInternal /
         // updateUserInternal) because PoppyDB replicates users via this stream in token
-        // order - see the field's javadoc for the full reasoning.
+        // order - see the field's javadoc, including its SCOPE paragraph: raw deletes on
+        // admin.system.users and cross-namespace token inversion are NOT covered.
         // log.debug("notifyWatchers called: db={}, coll={}, op={}, driver instance={}",
         // db, collection, op, System.identityHashCode(this));
         ChangeStreamEventInfo eventInfo = buildChangeStreamEvent(db, collection, op, doc, updatedFields, removedFields,
