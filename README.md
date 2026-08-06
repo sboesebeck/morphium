@@ -9,6 +9,7 @@ Available languages: English and [Deutsch](README.de.md)
 - ⚡ **Multi-level caching** with cluster-wide invalidation
 - 🔌 **Custom MongoDB wire-protocol driver** tuned for Morphium
 - 🧪 **In-memory driver** for fast tests (no MongoDB required)
+- 🌱 **PoppyDB** — MongoDB-compatible in-memory server: replica sets, auth/TLS, messaging backend
 - 🎯 **JMS API (experimental)** for standards-based messaging
 - 🚀 **Java 21+** — modern language baseline (pattern matching, sealed types)
 
@@ -31,6 +32,95 @@ Morphium is the only Java ODM that ships a message queue living inside MongoDB. 
 
 _* Numbers are indicative and depend heavily on hardware and workload._
 
+## 🌱 PoppyDB — MongoDB-Compatible In-Memory Server
+
+PoppyDB is Morphium's sibling product: an in-memory server that speaks the MongoDB wire
+protocol. Any client connects — `mongosh`, Compass, PyMongo, the official drivers, and of
+course Morphium. It starts in milliseconds and needs zero infrastructure: no Docker, no
+Testcontainers, no MongoDB installation.
+
+- Wire protocol, change streams, aggregation pipeline, indexes, transactions
+- **Replica-set emulation** with real leader election and automatic failover
+- **SCRAM authentication + TLS** (6.3.0) — `mongosh` logs in exactly as against real MongoDB
+- **Declarative user provisioning** (6.3.0) via `--users-file` — idempotent, replicated, version-gated
+- **Snapshot persistence** — periodic dumps, automatic restore on startup
+- **Messaging backend** — server-side optimizations specifically for Morphium Messaging
+
+### How-to: embedded test backend
+
+```xml
+<dependency>
+    <groupId>de.caluga</groupId>
+    <artifactId>poppydb</artifactId>
+    <version>6.2.10</version>
+    <scope>test</scope>
+</dependency>
+```
+
+```java
+PoppyDB server = new PoppyDB(27017, "localhost", 100, 10);
+server.start();
+// ... any MongoDB client can connect to localhost:27017 now ...
+server.shutdown();
+```
+
+### How-to: standalone server with persistence
+
+```bash
+java -jar poppydb-6.2.10-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
+```
+
+Snapshots every 5 minutes, final dump on shutdown, automatic restore on the next start.
+Config can also live in a properties file: `--cfg /etc/poppydb/config` (validate it upfront
+with `--check-config`, inspect the effective result with `--print-config`).
+
+### How-to: 3-node replica set
+
+One process per node, each with the same seed list — election picks the primary, failover is
+automatic:
+
+```bash
+java -jar poppydb-6.2.10-cli.jar -p 17017 --rs-name myrs \
+  --rs-seed host1:17017,host2:17017,host3:17017 --rs-priorities 100,50,50
+```
+
+Users (`admin.system.users`) replicate across the set, so logins survive failover.
+
+### How-to: authentication + TLS (6.3.0)
+
+```bash
+java -jar poppydb-cli.jar -p 27018 --auth --rootUser admin --rootPassword s3cr3t \
+  --ssl --sslKeystore server.jks --sslKeystorePassword changeit
+
+mongosh "mongodb://admin:s3cr3t@localhost:27018/test?authSource=admin"
+```
+
+For provisioning a whole user set declaratively, point `--users-file` at a JSON file — applied
+idempotently on every leadership change, protected against rollback by a version gate.
+
+### How-to: message queue without MongoDB
+
+Morphium Messaging runs on PoppyDB as its backend — a full message queue (topics, exclusive
+delivery, request/response) with a single Java dependency:
+
+```java
+PoppyDB server = new PoppyDB(27017, "localhost", 100, 10);
+server.start();
+
+try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhost:27017
+    MorphiumMessaging messaging = morphium.createMessaging();
+    messaging.addListenerForTopic("orders", (mq, msg) -> {
+        System.out.println("new order: " + msg.getValue());
+        return null;
+    });
+    messaging.start();
+}
+```
+
+📖 **Deep dives:** [PoppyDB guide](docs/poppydb.md) ·
+[Production deployment playbook](docs/howtos/poppydb-deployment.md) ·
+[Migrating from MongoDB](docs/howtos/migration-mongodb-to-poppydb.md)
+
 ## 📚 Documentation
 
 ### Quick access
@@ -40,6 +130,8 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 - **[Upgrade v6.1→v6.2](docs/howtos/migration-v6_1-to-v6_2.md)** – migration checklist for 6.2.x
 - **[Migration v5→v6](docs/howtos/migration-v5-to-v6.md)** – step-by-step upgrade guide
 - **[InMemory Driver Guide](docs/howtos/inmemory-driver.md)** – capabilities, caveats, testing tips
+- **[PoppyDB Guide](docs/poppydb.md)** – the MongoDB-compatible in-memory server in depth
+- **[PoppyDB Deployment Playbook](docs/howtos/poppydb-deployment.md)** – config file, replica sets, auth/TLS in production
 - **[Optimistic Locking (`@Version`)](docs/howtos/optimistic-locking.md)** – prevent lost updates with `@Version`
 - **[SSL/TLS & MONGODB-X509](docs/ssl-tls.md)** – encrypted connections and certificate-based authentication
 
@@ -56,25 +148,9 @@ _* Numbers are indicative and depend heavily on hardware and workload._
 Morphium is now a multi-module project: `morphium-parent` (BOM), `morphium` (core library), and `poppydb` (server). The core library `de.caluga:morphium` no longer drags in server dependencies (Netty, etc.) — 90% leaner for users who just need the ODM.
 
 ### PoppyDB – Standalone MongoDB-Compatible Server
-The former MorphiumServer is now an independent module `de.caluga:poppydb`. It implements the MongoDB Wire Protocol as an in-memory server with Replica Set emulation, Change Streams, Aggregation Pipeline, and snapshot-based persistence.
-
-PoppyDB and Morphium Messaging are **optimized for each other** — both sides recognize the counterpart and adapt their behavior, resulting in lower latency and less overhead than with a real MongoDB as messaging backend.
-
-```xml
-<dependency>
-    <groupId>de.caluga</groupId>
-    <artifactId>poppydb</artifactId>
-    <version>6.2.10</version>
-    <scope>test</scope> <!-- or remove scope for production use -->
-</dependency>
-```
-
-- ✅ **Full Wire Protocol**: Any MongoDB client can connect (mongosh, Compass, PyMongo, ...)
-- ✅ **Messaging Backend**: Run Morphium messaging without MongoDB — optimized for low-latency
-- ✅ **CLI Tooling**: `poppydb-6.2.10-cli.jar` for standalone deployment
-- ✅ **Replica Set Emulation**: Test cluster behavior without real MongoDB
-- ✅ **Snapshot Persistence**: `--dump-dir` / `--dump-interval` to preserve data across restarts
-- ✅ **Opt-in Authentication & TLS** (6.3.0): Real SCRAM-SHA-1/-256 auth (`--auth`, `--rootUser`) plus SSL/TLS (`--ssl`) — standard clients like mongosh authenticate exactly as against real MongoDB
+The former MorphiumServer became an independent module `de.caluga:poppydb` in 6.2 — see the
+[PoppyDB section above](#-poppydb--mongodb-compatible-in-memory-server) for what it does and
+how to use it.
 
 ### MorphiumDriverException is now unchecked
 `MorphiumDriverException` extends `RuntimeException` — consistent with the MongoDB Java driver. Eliminates 40+ boilerplate `catch-wrap-rethrow` blocks.
