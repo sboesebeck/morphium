@@ -42,8 +42,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>{@link DockerAvailableCondition}, registered via {@code @ExtendWith} below, checks
  * {@code DockerClientFactory.instance().isDockerAvailable()} directly and disables the whole
  * class — with a clear message — when no Docker daemon is reachable, instead of failing the
- * whole {@code integration-tests} build. See D3 ("Begleitmaßnahmen", Punkt 3): the core
- * build must never require Docker.
+ * whole {@code integration-tests} build: a build without a Docker daemon must still be able to
+ * complete, so this class opts itself out rather than breaking the module.
  *
  * <p>This must be an {@link org.junit.jupiter.api.extension.ExecutionCondition}, not a
  * {@code @BeforeAll} assumption: {@code @QuarkusTest} boots the application (attempting to

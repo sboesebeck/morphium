@@ -64,11 +64,10 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- D3-Begleitmaßnahme 3: MorphiumTransactionalTest checks
-         DockerClientFactory.instance().isDockerAvailable() directly (the same
-         class Dev Services itself uses for its own container startup) to skip
-         itself cleanly when no Docker daemon is reachable, instead of failing
-         the whole integration-tests build. Version managed by quarkus-bom. -->
+    <!-- MorphiumTransactionalTest checks DockerClientFactory.instance().isDockerAvailable()
+         directly (the same class Dev Services itself uses for its own container startup) to
+         skip itself cleanly when no Docker daemon is reachable, instead of failing the
+         whole integration-tests build. Version managed by quarkus-bom. -->
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
