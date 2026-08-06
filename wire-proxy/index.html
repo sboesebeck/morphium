@@ -18,7 +18,7 @@
         <link rel="prev" href="../howtos/inmemory-driver/">
       
       
-        <link rel="next" href="../poppydb/">
+        <link rel="next" href="../developer-testing-guide/">
       
       
         
@@ -947,6 +947,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#full-example-3-node-replica-set-everything-logged" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full example: 3-node replica set, everything logged
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fault-injection" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1016,6 +1027,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer-testing-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Testing Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1410,6 +1449,62 @@
     
   
     Field Name Mapping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howtos/optimistic-locking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimistic Locking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howtos/references-and-relationships/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    References & Relationships
   
 
     
@@ -2105,6 +2200,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#full-example-3-node-replica-set-everything-logged" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full example: 3-node replica set, everything logged
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fault-injection" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2227,6 +2333,105 @@ copy the package (it has no dependencies beyond <code>WireProtocolMessage</code>
 </span></code></pre></div>
 <p><code>WireProxy</code> implements <code>AutoCloseable</code>, so try-with-resources works too. <code>stop()</code> guarantees
 that every internal pump thread has exited before it returns — no thread leakage across tests.</p>
+<h2 id="full-example-3-node-replica-set-everything-logged">Full example: 3-node replica set, everything logged<a class="headerlink" href="#full-example-3-node-replica-set-everything-logged" title="Permanent link">&para;</a></h2>
+<p>The fragments above show single pieces; this is the whole thing end to end — three proxies in
+front of a three-node replica set, address rewriting so the driver never escapes the proxies,
+an observer logging every server reply, one write and one read flowing through, and a clean
+teardown. Runs as-is from <code>morphium-core</code>'s test scope (that's where <code>WireProxy</code> and
+<code>UncachedObject</code> live):</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.Morphium</span><span class="p">;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.MorphiumConfig</span><span class="p">;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.driver.wireprotocol.OpMsg</span><span class="p">;</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.driver.wireprotocol.WireProtocolMessage</span><span class="p">;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.test.mongo.suite.data.UncachedObject</span><span class="p">;</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.test.morphium.testutil.proxy.AddressRewriter</span><span class="p">;</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.test.morphium.testutil.proxy.WireProxy</span><span class="p">;</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">WireProxyDemo</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">Exception</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">        </span><span class="c1">// The RS members EXACTLY as the servers report them in hello (&quot;Map-key invariant&quot;:</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">        </span><span class="c1">// if the server says &quot;mongo1:27017&quot;, the key must be &quot;mongo1:27017&quot;, not an IP).</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">members</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">List</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="s">&quot;mongo1:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;mongo2:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;mongo3:27017&quot;</span><span class="p">);</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">        </span><span class="c1">// 1) One proxy per member, each on a random local port.</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">WireProxy</span><span class="o">&gt;</span><span class="w"> </span><span class="n">proxies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">backendToProxy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedHashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">member</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">members</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">            </span><span class="n">String</span><span class="w"> </span><span class="n">host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">member</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">member</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="sc">&#39;:&#39;</span><span class="p">));</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span><span class="n">member</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">member</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="sc">&#39;:&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">));</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">            </span><span class="n">WireProxy</span><span class="w"> </span><span class="n">proxy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">WireProxy</span><span class="p">(</span><span class="n">host</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">);</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">            </span><span class="n">proxies</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">proxy</span><span class="p">);</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">            </span><span class="n">backendToProxy</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">member</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">proxy</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">());</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">        </span><span class="c1">// 2) One shared rewriter (so every hello reply, from every node, maps the full</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">        </span><span class="c1">//    topology to proxy addresses) + a logging observer on every proxy.</span>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">        </span><span class="n">AddressRewriter</span><span class="w"> </span><span class="n">rewriter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">AddressRewriter</span><span class="p">(</span><span class="n">backendToProxy</span><span class="p">);</span>
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">WireProxy</span><span class="w"> </span><span class="n">proxy</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">proxies</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="w">            </span><span class="n">proxy</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
+</span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="w">            </span><span class="n">proxy</span><span class="p">.</span><span class="na">addObserver</span><span class="p">((</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span>
+</span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="w">                </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">printf</span><span class="p">(</span><span class="s">&quot;[proxy:%d] %s %s%n&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="na">listenPort</span><span class="p">(),</span><span class="w"> </span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">summarize</span><span class="p">(</span><span class="n">msg</span><span class="p">)));</span>
+</span><span id="__span-1-36"><a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="w">            </span><span class="n">proxy</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
+</span><span id="__span-1-37"><a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-1-38"><a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;topology mapping: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">backendToProxy</span><span class="p">);</span>
+</span><span id="__span-1-39"><a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a>
+</span><span id="__span-1-40"><a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a><span class="w">        </span><span class="c1">// 3) Morphium gets ONLY the proxy addresses as its seed. SSL and wire compression</span>
+</span><span id="__span-1-41"><a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a><span class="w">        </span><span class="c1">//    must be OFF - the proxy cannot frame-parse either (deliberate non-goal).</span>
+</span><span id="__span-1-42"><a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="w">        </span><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
+</span><span id="__span-1-43"><a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a><span class="w">        </span><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;wireproxy_demo&quot;</span><span class="p">);</span>
+</span><span id="__span-1-44"><a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a><span class="w">        </span><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">getHostSeed</span><span class="p">().</span><span class="na">clear</span><span class="p">();</span>
+</span><span id="__span-1-45"><a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a><span class="w">        </span><span class="n">backendToProxy</span><span class="p">.</span><span class="na">values</span><span class="p">().</span><span class="na">forEach</span><span class="p">(</span><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">()::</span><span class="n">addHostToSeed</span><span class="p">);</span>
+</span><span id="__span-1-46"><a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a><span class="w">        </span><span class="n">cfg</span><span class="p">.</span><span class="na">driverSettings</span><span class="p">().</span><span class="na">setDriverName</span><span class="p">(</span><span class="s">&quot;PooledDriver&quot;</span><span class="p">);</span>
+</span><span id="__span-1-47"><a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a><span class="w">        </span><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setHeartbeatFrequency</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
+</span><span id="__span-1-48"><a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a><span class="w">        </span><span class="n">cfg</span><span class="p">.</span><span class="na">driverSettings</span><span class="p">().</span><span class="na">setServerSelectionTimeout</span><span class="p">(</span><span class="mi">5000</span><span class="p">);</span>
+</span><span id="__span-1-49"><a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a><span class="w">        </span><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setUseSSL</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span>
+</span><span id="__span-1-50"><a id="__codelineno-1-50" name="__codelineno-1-50" href="#__codelineno-1-50"></a><span class="w">        </span><span class="n">cfg</span><span class="p">.</span><span class="na">driverSettings</span><span class="p">().</span><span class="na">setCompressionType</span><span class="p">(</span><span class="n">MorphiumConfig</span><span class="p">.</span><span class="na">CompressionType</span><span class="p">.</span><span class="na">NONE</span><span class="p">);</span>
+</span><span id="__span-1-51"><a id="__codelineno-1-51" name="__codelineno-1-51" href="#__codelineno-1-51"></a>
+</span><span id="__span-1-52"><a id="__codelineno-1-52" name="__codelineno-1-52" href="#__codelineno-1-52"></a><span class="w">        </span><span class="c1">// 4) Everything from here on - discovery hellos, heartbeats, the write, the read -</span>
+</span><span id="__span-1-53"><a id="__codelineno-1-53" name="__codelineno-1-53" href="#__codelineno-1-53"></a><span class="w">        </span><span class="c1">//    shows up line by line in the observer output.</span>
+</span><span id="__span-1-54"><a id="__codelineno-1-54" name="__codelineno-1-54" href="#__codelineno-1-54"></a><span class="w">        </span><span class="k">try</span><span class="w"> </span><span class="p">(</span><span class="n">Morphium</span><span class="w"> </span><span class="n">morphium</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Morphium</span><span class="p">(</span><span class="n">cfg</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-55"><a id="__codelineno-1-55" name="__codelineno-1-55" href="#__codelineno-1-55"></a><span class="w">            </span><span class="n">morphium</span><span class="p">.</span><span class="na">store</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">UncachedObject</span><span class="p">(</span><span class="s">&quot;hello through the proxy&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">42</span><span class="p">));</span>
+</span><span id="__span-1-56"><a id="__codelineno-1-56" name="__codelineno-1-56" href="#__codelineno-1-56"></a><span class="w">            </span><span class="kt">long</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">UncachedObject</span><span class="p">.</span><span class="na">class</span><span class="p">).</span><span class="na">countAll</span><span class="p">();</span>
+</span><span id="__span-1-57"><a id="__codelineno-1-57" name="__codelineno-1-57" href="#__codelineno-1-57"></a><span class="w">            </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;read back through the proxies: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; document(s)&quot;</span><span class="p">);</span>
+</span><span id="__span-1-58"><a id="__codelineno-1-58" name="__codelineno-1-58" href="#__codelineno-1-58"></a>
+</span><span id="__span-1-59"><a id="__codelineno-1-59" name="__codelineno-1-59" href="#__codelineno-1-59"></a><span class="w">            </span><span class="c1">// Optional: watch the driver cope with a frozen node. Freeze the first proxy -</span>
+</span><span id="__span-1-60"><a id="__codelineno-1-60" name="__codelineno-1-60" href="#__codelineno-1-60"></a><span class="w">            </span><span class="c1">// its connections go silent (no error, no close), exactly like a paused VM.</span>
+</span><span id="__span-1-61"><a id="__codelineno-1-61" name="__codelineno-1-61" href="#__codelineno-1-61"></a><span class="w">            </span><span class="c1">// proxies.get(0).setFaultMode(FaultMode.freeze);</span>
+</span><span id="__span-1-62"><a id="__codelineno-1-62" name="__codelineno-1-62" href="#__codelineno-1-62"></a><span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-63"><a id="__codelineno-1-63" name="__codelineno-1-63" href="#__codelineno-1-63"></a><span class="w">            </span><span class="c1">// Severs every connection (hard RST) and joins all pump threads before returning.</span>
+</span><span id="__span-1-64"><a id="__codelineno-1-64" name="__codelineno-1-64" href="#__codelineno-1-64"></a><span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">WireProxy</span><span class="w"> </span><span class="n">proxy</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">proxies</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-65"><a id="__codelineno-1-65" name="__codelineno-1-65" href="#__codelineno-1-65"></a><span class="w">                </span><span class="n">proxy</span><span class="p">.</span><span class="na">stop</span><span class="p">();</span>
+</span><span id="__span-1-66"><a id="__codelineno-1-66" name="__codelineno-1-66" href="#__codelineno-1-66"></a><span class="w">            </span><span class="p">}</span>
+</span><span id="__span-1-67"><a id="__codelineno-1-67" name="__codelineno-1-67" href="#__codelineno-1-67"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-1-68"><a id="__codelineno-1-68" name="__codelineno-1-68" href="#__codelineno-1-68"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-69"><a id="__codelineno-1-69" name="__codelineno-1-69" href="#__codelineno-1-69"></a>
+</span><span id="__span-1-70"><a id="__codelineno-1-70" name="__codelineno-1-70" href="#__codelineno-1-70"></a><span class="w">    </span><span class="cm">/** Compact one-liner per frame: hello replies show the (rewritten!) topology,</span>
+</span><span id="__span-1-71"><a id="__codelineno-1-71" name="__codelineno-1-71" href="#__codelineno-1-71"></a><span class="cm">     *  everything else just its top-level keys. */</span>
+</span><span id="__span-1-72"><a id="__codelineno-1-72" name="__codelineno-1-72" href="#__codelineno-1-72"></a><span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">summarize</span><span class="p">(</span><span class="n">WireProtocolMessage</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-73"><a id="__codelineno-1-73" name="__codelineno-1-73" href="#__codelineno-1-73"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">msg</span><span class="w"> </span><span class="k">instanceof</span><span class="w"> </span><span class="n">OpMsg</span><span class="w"> </span><span class="n">op</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">op</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-74"><a id="__codelineno-1-74" name="__codelineno-1-74" href="#__codelineno-1-74"></a><span class="w">            </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Object</span><span class="o">&gt;</span><span class="w"> </span><span class="n">doc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">op</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">();</span>
+</span><span id="__span-1-75"><a id="__codelineno-1-75" name="__codelineno-1-75" href="#__codelineno-1-75"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">doc</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="s">&quot;hosts&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-76"><a id="__codelineno-1-76" name="__codelineno-1-76" href="#__codelineno-1-76"></a><span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="s">&quot;hello(primary=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">doc</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;primary&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;, hosts=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">doc</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;hosts&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;)&quot;</span><span class="p">;</span>
+</span><span id="__span-1-77"><a id="__codelineno-1-77" name="__codelineno-1-77" href="#__codelineno-1-77"></a><span class="w">            </span><span class="p">}</span>
+</span><span id="__span-1-78"><a id="__codelineno-1-78" name="__codelineno-1-78" href="#__codelineno-1-78"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="s">&quot;OpMsg&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">doc</span><span class="p">.</span><span class="na">keySet</span><span class="p">();</span>
+</span><span id="__span-1-79"><a id="__codelineno-1-79" name="__codelineno-1-79" href="#__codelineno-1-79"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-1-80"><a id="__codelineno-1-80" name="__codelineno-1-80" href="#__codelineno-1-80"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getClass</span><span class="p">().</span><span class="na">getSimpleName</span><span class="p">();</span>
+</span><span id="__span-1-81"><a id="__codelineno-1-81" name="__codelineno-1-81" href="#__codelineno-1-81"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-82"><a id="__codelineno-1-82" name="__codelineno-1-82" href="#__codelineno-1-82"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Typical output — note that the <code>hello</code> lines already show <strong>proxy</strong> addresses, which is the
+address rewriting doing its job; if a real backend address ever shows up here, your
+<code>backendToProxy</code> keys don't match what the server reports:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>topology mapping: {mongo1:27017=localhost:52114, mongo2:27017=localhost:52115, mongo3:27017=localhost:52116}
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[proxy:52114] BACKEND_TO_CLIENT hello(primary=localhost:52114, hosts=[localhost:52114, localhost:52115, localhost:52116])
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>[proxy:52115] BACKEND_TO_CLIENT hello(primary=localhost:52114, hosts=[localhost:52114, localhost:52115, localhost:52116])
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>[proxy:52114] BACKEND_TO_CLIENT OpMsg[n, electionId, opTime, ok, ...]
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>[proxy:52114] BACKEND_TO_CLIENT OpMsg[cursor, ok, ...]
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>read back through the proxies: 1 document(s)
+</span></code></pre></div>
 <h2 id="fault-injection">Fault injection<a class="headerlink" href="#fault-injection" title="Permanent link">&para;</a></h2>
 <p>Faults are switched at runtime via <code>proxy.setFaultMode(...)</code>:</p>
 <table>
@@ -2284,16 +2489,16 @@ the server answers with the <strong>real</strong> addresses (<code>hosts</code>,
 <p><code>AddressRewriter</code> fixes that. It is a <code>ResponseRewriter</code> that detects <code>hello</code>/<code>isMaster</code>-shaped
 replies structurally (<code>setName</code> + <code>hosts</code> present) and maps every real address to its proxy
 address:</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// one proxy per RS member</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">backendToProxy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Map</span><span class="p">.</span><span class="na">of</span><span class="p">(</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="s">&quot;mongo1:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p1</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">(),</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="s">&quot;mongo2:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p2</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">(),</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="s">&quot;mongo3:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p3</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">());</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">AddressRewriter</span><span class="w"> </span><span class="n">rewriter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">AddressRewriter</span><span class="p">(</span><span class="n">backendToProxy</span><span class="p">);</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">p1</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">p2</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">p3</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// one proxy per RS member</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">backendToProxy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Map</span><span class="p">.</span><span class="na">of</span><span class="p">(</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="s">&quot;mongo1:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p1</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">(),</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="s">&quot;mongo2:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p2</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">(),</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="s">&quot;mongo3:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p3</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">());</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">AddressRewriter</span><span class="w"> </span><span class="n">rewriter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">AddressRewriter</span><span class="p">(</span><span class="n">backendToProxy</span><span class="p">);</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">p1</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">p2</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">p3</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
 </span></code></pre></div>
 <p>The driver now lives in a consistent alternate topology consisting entirely of proxies — every
 connection it ever opens, including discovery-triggered ones, flows through a fault gate.
@@ -2304,8 +2509,8 @@ how to verify no traffic leaks around the proxies.</p>
 <code>replSetStepDown</code>, poll <code>replSetGetStatus</code>), use <code>ControlChannel</code> — an auth-aware direct
 connection to the real nodes, deliberately separate from the proxied data path.</p>
 <h2 id="monitoring-frameobserver">Monitoring: <code>FrameObserver</code><a class="headerlink" href="#monitoring-frameobserver" title="Permanent link">&para;</a></h2>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">proxy</span><span class="p">.</span><span class="na">addObserver</span><span class="p">((</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="n">log</span><span class="p">.</span><span class="na">info</span><span class="p">(</span><span class="s">&quot;[{}] {} -&gt; {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="na">listenPort</span><span class="p">(),</span><span class="w"> </span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getClass</span><span class="p">().</span><span class="na">getSimpleName</span><span class="p">()));</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">proxy</span><span class="p">.</span><span class="na">addObserver</span><span class="p">((</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="n">log</span><span class="p">.</span><span class="na">info</span><span class="p">(</span><span class="s">&quot;[{}] {} -&gt; {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="na">listenPort</span><span class="p">(),</span><span class="w"> </span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getClass</span><span class="p">().</span><span class="na">getSimpleName</span><span class="p">()));</span>
 </span></code></pre></div>
 <p>Observers are read-only by contract — they must not mutate the frame (rewriting is
 <code>ResponseRewriter</code>'s job; the interfaces are deliberately separate: <em>fault = state,
@@ -2318,14 +2523,14 @@ reserved for a consumer that actually needs it.</p>
 <h2 id="injecting-invalid-or-manipulated-replies">Injecting invalid or manipulated replies<a class="headerlink" href="#injecting-invalid-or-manipulated-replies" title="Permanent link">&para;</a></h2>
 <p><code>ResponseRewriter</code> receives every parsed server reply and returns what the client should see —
 including something intentionally broken:</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">proxy</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">reply</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">reply</span><span class="w"> </span><span class="k">instanceof</span><span class="w"> </span><span class="n">OpMsg</span><span class="w"> </span><span class="n">msg</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">            </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">containsKey</span><span class="p">(</span><span class="s">&quot;cursor&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">        </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;ok&quot;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">);</span><span class="w">            </span><span class="c1">// flip a find reply into an error</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">        </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;errmsg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;injected&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// ... or corrupt it any way you like</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">reply</span><span class="p">;</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">});</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">proxy</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">reply</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">reply</span><span class="w"> </span><span class="k">instanceof</span><span class="w"> </span><span class="n">OpMsg</span><span class="w"> </span><span class="n">msg</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">            </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">containsKey</span><span class="p">(</span><span class="s">&quot;cursor&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">        </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;ok&quot;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">);</span><span class="w">            </span><span class="c1">// flip a find reply into an error</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">        </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;errmsg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;injected&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// ... or corrupt it any way you like</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">reply</span><span class="p">;</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">});</span>
 </span></code></pre></div>
 <p>This is the hook for robustness tests: truncated cursors, unexpected error codes, protocol
 violations, replies claiming a different topology than reality. Only the backend→client

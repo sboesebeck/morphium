@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://sboesebeck.github.io/morphium/poppydb/">
       
       
-        <link rel="prev" href="../wire-proxy/">
+        <link rel="prev" href="../developer-testing-guide/">
       
       
         <link rel="next" href="../howtos/poppydb-deployment/">
@@ -879,6 +879,34 @@
     
   
     Wire Proxy (Fault Injection)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer-testing-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Testing Guide
   
 
     
@@ -1970,6 +1998,62 @@
     
   
     Field Name Mapping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howtos/optimistic-locking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimistic Locking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howtos/references-and-relationships/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    References & Relationships
   
 
     
@@ -3483,7 +3567,7 @@ with code 0 (OK) or 1 (errors) - like <code>nginx -t</code>. Beyond syntax and s
 loaded (catching wrong keystore passwords), secret files are read, the dump directory is
 checked for usability, and — if <code>users-file</code> is set — the file is read, permission-checked and
 fully parsed/validated exactly like at real startup (see
-<a href="#bootstrapping-users---users-file">Bootstrapping users</a>), so a broken users file is caught before
+<a href="#bootstrapping-users-users-file">Bootstrapping users</a>), so a broken users file is caught before
 it can abort a real deployment. Warnings (e.g. <code>ssl</code> without a keystore) do not affect the exit code:</p>
 <div class="language-text highlight"><pre><span></span><code>java -jar poppydb.jar --cfg /etc/poppydb/config --check-config
 </code></pre></div>
@@ -3614,7 +3698,7 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 <tr>
 <td><code>--users-file &lt;path&gt;</code></td>
 <td><code>users-file</code></td>
-<td>JSON file declaring users to provision at startup (idempotent upsert, primary-only apply, optional version gate). See <a href="#bootstrapping-users---users-file">Bootstrapping users</a>.</td>
+<td>JSON file declaring users to provision at startup (idempotent upsert, primary-only apply, optional version gate). See <a href="#bootstrapping-users-users-file">Bootstrapping users</a>.</td>
 <td></td>
 </tr>
 <tr>
@@ -3994,7 +4078,7 @@ is briefly empty until the snapshot lands, so SCRAM logins against that node fai
 brief window before the new primary has (re-)created the root user, during which root logins may
 transiently fail until that completes.</p>
 <p>For provisioning more than the one initial admin user declaratively, see
-<a href="#bootstrapping-users---users-file">Bootstrapping users (<code>--users-file</code>)</a> below — a JSON file of
+<a href="#bootstrapping-users-users-file">Bootstrapping users (<code>--users-file</code>)</a> below — a JSON file of
 users applied the same idempotent, primary-only, replication-riding way <code>--rootUser</code> is.</p>
 <p><strong>SSL with Docker:</strong>
 <div class="language-dockerfile highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">FROM</span><span class="w"> </span><span class="s">openjdk:21-slim</span>
@@ -4026,7 +4110,7 @@ becomes primary — no manual <code>createUser</code> shell commands, no drift b
 </span></code></pre></div>
 <p>Per entry: <code>user</code> and <code>pwd</code> are required non-empty strings; <code>db</code> defaults to <code>"admin"</code>; <code>roles</code>
 is optional and stored mongod-shaped but <strong>not enforced</strong> (like everywhere else in PoppyDB —
-see <a href="#authentication---auth">Current limitations</a> above); <code>mechanisms</code> is optional. Any unknown
+see <a href="#authentication-auth">Current limitations</a> above); <code>mechanisms</code> is optional. Any unknown
 field in an entry, or at the top level, is a hard error naming the field (and the entry index)
 instead of being silently ignored. Two entries naming the same <code>(user, db)</code> pair are a hard error
 too — mongod identifies a user by that pair, so both would apply to the same principal; without
@@ -4054,7 +4138,7 @@ diagnostic at all. <code>version</code>, if present, must be a positive integer.
 <li>A static-mode <strong>secondary</strong> never applies the file locally, even if <code>--users-file</code> is
   configured on it too (PoppyDB logs an INFO line noting that it is ignored there) — it receives
   the result purely through the normal <code>admin.system.users</code> replication that already carries
-  <code>createUser</code>/<code>updateUser</code> writes (see <a href="#authentication---auth">User replication</a> above). The
+  <code>createUser</code>/<code>updateUser</code> writes (see <a href="#authentication-auth">User replication</a> above). The
   file is only ignored for <em>application</em> on such a node — it is still parsed and validated at
   startup like everywhere else, so a syntactically broken file fails that node's startup too
   (fail-fast by design, not a live-apply attempt).</li>
@@ -4327,7 +4411,7 @@ sessions automatically, replica-set failover keeps sessions alive across node re
 (more than memcached offers), and off-the-shelf MongoDB session backends (e.g. Spring
 Session) work unchanged. <code>$inc</code> + TTL also cover rate limiting and counters; tiny
 config/feature-flag collections get instant propagation via change streams.</p>
-<p>For all production use: enable <a href="#authentication---auth"><code>--auth</code></a> (note that roles are
+<p>For all production use: enable <a href="#authentication-auth"><code>--auth</code></a> (note that roles are
 not evaluated yet — isolate the network segment), size the heap deliberately, monitor
 <code>db.serverStatus().memoryWatermark</code> and <code>db.stats()</code>, and read the loss model above.</p>
 <h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h2>
@@ -4725,7 +4809,7 @@ Netty internals, replace the configuration via <code>-Dlogback.configurationFile
 <ul>
 <li>✅ <strong>TLS/SSL Supported</strong> - Encrypted connections available (since v6.1.0)</li>
 <li>✅ <strong>Authentication</strong> - Real SCRAM-SHA-1/SHA-256, opt-in via <code>--auth</code> (since v6.3.0) - see
-  <a href="#authentication---auth">Authentication</a></li>
+  <a href="#authentication-auth">Authentication</a></li>
 <li>⚠️ <strong>Authorization not enforced</strong> - roles are stored (<code>createUser</code>'s <code>roles</code> field) but not
   evaluated; any authenticated user may run any command. Isolate the network segment if you need
   fine-grained access control.</li>

@@ -892,6 +892,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer-testing-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Testing Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1443,6 +1471,62 @@
     
   
     Field Name Mapping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../optimistic-locking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optimistic Locking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../references-and-relationships/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    References & Relationships
   
 
     
@@ -2475,7 +2559,7 @@ accordingly:</p>
 <li>Rolling upgrade for a replica set: upgrade secondaries first (they resync from the current
   primary on restart), then step down the primary (<code>replSetStepDown</code> or restart it last) so a
   secondary takes over — verify <em>some</em> node became primary afterward rather than waiting for a
-  specific one (see <a href="../../poppydb/#stepdown--failover-behavior-replica-set">PoppyDB § StepDown/Failover Behavior</a>
+  specific one (see <a href="../../poppydb/#stepdown-failover-behavior-replica-set">PoppyDB § StepDown/Failover Behavior</a>
   for why the original primary may not reclaim leadership).</li>
 <li>Take a manual snapshot immediately before upgrading (see §7) regardless of your regular dump
   interval.</li>
@@ -2512,7 +2596,7 @@ a replacement for reading the sections above.</p>
   where the <a href="../../poppydb/#5-message-broker-for-short-lived-messages-production">loss model</a> (loss
   between snapshots is acceptable) actually fits your data.</li>
 <li>Don't wait for "the original primary" to reclaim leadership after a failover — verify <em>any</em> node
-  became primary instead (see <a href="#8-upgrades">§8</a> and <a href="../../poppydb/#stepdown--failover-behavior-replica-set">PoppyDB § StepDown/Failover Behavior</a>).</li>
+  became primary instead (see <a href="#8-upgrades">§8</a> and <a href="../../poppydb/#stepdown-failover-behavior-replica-set">PoppyDB § StepDown/Failover Behavior</a>).</li>
 <li>Don't skip the config-file <strong>permission warning</strong> — <code>chmod 600</code> any file PoppyDB tells you is
   group/other-readable and contains secrets, before it becomes group/other-<em>writable</em> and PoppyDB
   refuses to start entirely.</li>
