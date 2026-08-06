@@ -265,6 +265,53 @@ public class MorphiumProducer {
         }
     }
 
+    /**
+     * Validates that {@code quarkus.morphium.username} and {@code quarkus.morphium.password}
+     * are either both present or both absent.
+     *
+     * <p>Silently connecting unauthenticated when exactly one of the two is set would be a
+     * serious, hard-to-notice misconfiguration: the application would appear to work (e.g.
+     * against a no-auth MongoDB in dev) while every environment where auth is actually required
+     * would either reject the connection outright, or — worse — silently succeed
+     * unauthenticated against a MongoDB instance that happens to allow it.
+     *
+     * @param usernamePresent {@code config.username().isPresent()}
+     * @param passwordPresent {@code config.password().isPresent()}
+     * @throws IllegalStateException if exactly one of the two is present
+     */
+    static void validateCredentialsPresence(boolean usernamePresent, boolean passwordPresent) {
+        if (usernamePresent != passwordPresent) {
+            throw new IllegalStateException(
+                    "quarkus.morphium." + (usernamePresent ? "password" : "username")
+                            + " must also be set when quarkus.morphium."
+                            + (usernamePresent ? "username" : "password")
+                            + " is configured -- both or neither, never just one.");
+        }
+    }
+
+    /**
+     * Converts {@code quarkus.morphium.cache.global-valid-time} (a {@code long}, milliseconds)
+     * to the {@code int} that {@code CacheSettings.setGlobalCacheValidTime(int)} actually takes.
+     *
+     * <p>A direct {@code (int)} cast silently overflows for any value above
+     * {@code Integer.MAX_VALUE} ms (~24.8 days) — e.g. a well-intentioned "cache for 30 days"
+     * config ({@code 2_592_000_000L} ms) would wrap to a negative int and produce a cache that
+     * never (or immediately) expires, with no warning at all.
+     *
+     * @param globalValidTimeMs the configured value, in milliseconds
+     * @return the same value, safely narrowed to {@code int}
+     * @throws IllegalStateException if the value exceeds {@code Integer.MAX_VALUE}
+     */
+    static int toIntGlobalCacheValidTime(long globalValidTimeMs) {
+        if (globalValidTimeMs > Integer.MAX_VALUE) {
+            throw new IllegalStateException(
+                    "quarkus.morphium.cache.global-valid-time=" + globalValidTimeMs
+                            + " exceeds the maximum supported value of " + Integer.MAX_VALUE
+                            + " ms (~24.8 days) -- morphium-core's CacheSettings.globalCacheValidTime is an int.");
+        }
+        return (int) globalValidTimeMs;
+    }
+
     private Morphium buildMorphium() {
         // Clear static caches and pre-register entities for the current ClassLoader.
         // This is essential for Quarkus dev-mode hot-reload where the QuarkusClassLoader
@@ -370,6 +417,7 @@ public class MorphiumProducer {
         }
 
         // Credentials
+        validateCredentialsPresence(config.username().isPresent(), config.password().isPresent());
         if (config.username().isPresent() && config.password().isPresent()) {
             cfg.authSettings().setMongoLogin(config.username().get());
             cfg.authSettings().setMongoPassword(config.password().get());
@@ -377,7 +425,7 @@ public class MorphiumProducer {
         }
 
         // Cache settings
-        cfg.cacheSettings().setGlobalCacheValidTime((int) config.cache().globalValidTime());
+        cfg.cacheSettings().setGlobalCacheValidTime(toIntGlobalCacheValidTime(config.cache().globalValidTime()));
         cfg.cacheSettings().setReadCacheEnabled(config.cache().readCacheEnabled());
 
         // TLS / X.509 settings
