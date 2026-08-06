@@ -19,6 +19,7 @@ import org.jboss.logging.Logger;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.quarkus.transaction.MorphiumTransactionEvent.Phase;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
@@ -268,8 +269,24 @@ public class MorphiumTransactionalInterceptor {
      * @param ctx the invocation context, used only for the log message's method name
      */
     private void safeCommitWithRetry(InvocationContext ctx) throws MorphiumDriverException {
+        // Snapshot the transaction context before the first commit attempt: PooledDriver's
+        // commitTransaction() clears it in a `finally` block unconditionally -- even when the
+        // commit command itself failed (see PooledDriver.java's commitTransaction/abortTransaction).
+        // Without re-installing it before each retry, safeCommit()'s own
+        // `morphium.getTransaction() == null` check (meant to tolerate "no DB operations
+        // occurred at all") would misinterpret "the driver already cleared the context after a
+        // FAILED commit attempt" as the exact same thing, silently converting a real commit
+        // failure into a reported success: for a genuinely transient error where the server
+        // actually did commit (code 251 after a failover, reply merely lost) that accidentally
+        // gives the right answer, but for a transient error where the server did NOT commit
+        // (code 112/WriteConflict at commit time -- nothing was persisted) the interceptor would
+        // return normally and fire AFTER_COMMIT while every write in the transaction is lost.
+        MorphiumTransactionContext txContext = morphium.getTransaction();
         int maxRetries = 3;
         for (int attempt = 0; ; attempt++) {
+            if (attempt > 0) {
+                morphium.setTransaction(txContext);
+            }
             try {
                 safeCommit();
                 return;
