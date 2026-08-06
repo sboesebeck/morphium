@@ -141,6 +141,12 @@ public class UserWritePrimaryOnlyTest {
             assertEquals(10107, codeOf(updateReply),
                     "secondary must reject updateUser with NotWritablePrimary: " + updateReply);
             assertEquals("NotWritablePrimary", updateReply.get("codeName"));
+
+            Map<String, Object> dropReply = command(sock, Doc.of(
+                    "dropUser", "repltestuser", "$db", "admin"));
+            assertEquals(10107, codeOf(dropReply),
+                    "secondary must reject dropUser with NotWritablePrimary: " + dropReply);
+            assertEquals("NotWritablePrimary", dropReply.get("codeName"));
         }
     }
 }

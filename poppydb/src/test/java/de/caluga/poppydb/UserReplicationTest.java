@@ -237,6 +237,42 @@ public class UserReplicationTest {
                 "after updateUser the secondary must accept the new password and reject the old one");
     }
 
+    /**
+     * 2026-08-06 follow-up (dropUser): a user dropped on the primary must stop being loginable
+     * on the secondary - the drop replicates as a documentKey-keyed delete event through the
+     * same change stream the create/update path uses.
+     */
+    @Test
+    public void dropUserReplicates() throws Exception {
+        int port1 = nextPort();
+        int port2 = nextPort();
+        PoppyDB primary = new PoppyDB(port1, "localhost", 20, 5);
+        PoppyDB secondary = new PoppyDB(port2, "localhost", 20, 5);
+        var hosts = List.of("localhost:" + port1, "localhost:" + port2);
+        var prio = Map.of("localhost:" + port1, 300, "localhost:" + port2, 100);
+        primary.configureReplicaSet("rsUserReplDrop", hosts, prio);
+        secondary.configureReplicaSet("rsUserReplDrop", hosts, prio);
+
+        startServer(primary, port1);
+        waitForPrimary(primary);
+        startServer(secondary, port2);
+        waitForInitialSync(secondary);
+
+        Map<String, Object> createReply = command(port1, Doc.of(
+                "createUser", "app3", "pwd", "droppw", "roles", List.of(), "$db", "admin"));
+        assertEquals(1.0, okOf(createReply), "createUser must succeed: " + createReply);
+        assertTrue(poll(30_000, () -> scramLoginWorks(port2, "app3", "droppw")),
+                "user must replicate to the secondary before the drop");
+
+        Map<String, Object> dropReply = command(port1, Doc.of("dropUser", "app3", "$db", "admin"));
+        assertEquals(1.0, okOf(dropReply), "dropUser on the primary must succeed: " + dropReply);
+
+        assertTrue(poll(10_000, () -> !scramLoginWorks(port1, "app3", "droppw")),
+                "dropped user must stop being loginable on the primary itself");
+        assertTrue(poll(30_000, () -> !scramLoginWorks(port2, "app3", "droppw")),
+                "dropped user must stop being loginable on the secondary once the delete replicated");
+    }
+
     @Test
     public void initialSyncCarriesUsers() throws Exception {
         int port1 = nextPort();

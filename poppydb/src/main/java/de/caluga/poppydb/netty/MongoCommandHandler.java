@@ -61,7 +61,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private static final Set<String> WRITE_COMMANDS = Set.of(
             "insert", "update", "delete", "findandmodify",
             "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite",
-            "createuser", "updateuser"
+            "createuser", "updateuser", "dropuser"
     );
 
     // Control-plane / handshake / session / election commands that are handled with their
