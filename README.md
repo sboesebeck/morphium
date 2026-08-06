@@ -27,13 +27,15 @@ Morphium is the only Java ODM that ships a message queue living inside MongoDB. 
 | Message persistence | Built in | Snapshots (optional) | Optional | Built in |
 | Message priority | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No |
 | Distributed locks | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| Throughput (internal tests) | ~8K msg/s | similar, lower latency* | 10K–50K msg/s | 100K+ msg/s |
+| Throughput (internal tests) | ~8K msg/s | **2.5× MongoDB backend*** | 10K–50K msg/s | 100K+ msg/s |
 | Operations | ⭐ Very easy | ⭐ Trivial (single process) | ⭐⭐ Medium | ⭐⭐⭐⭐ Complex |
 
 _* Numbers are indicative and depend heavily on hardware and workload. PoppyDB and Morphium
-Messaging are optimized for each other (both sides detect the counterpart), which cuts latency
-and overhead compared to a real MongoDB backend — but persistence is snapshot-based, see the
-[PoppyDB section](#-poppydb--mongodb-compatible-in-memory-server) below._
+Messaging are optimized for each other (both sides detect the counterpart): in the
+[benchmark](docs/v5-vs-v6-performance.md) the same messaging workload ran at 223 msg/s with
+4.5 ms latency against PoppyDB vs. 89 msg/s at 11.3 ms against a 3-node MongoDB replica set —
+2.5× the throughput at less than half the latency. Persistence is snapshot-based though, see
+the [PoppyDB section](#-poppydb--mongodb-compatible-in-memory-server) below._
 
 ## 🌱 PoppyDB — MongoDB-Compatible In-Memory Server
 
