@@ -36,7 +36,7 @@ import java.util.Optional;
  * quarkus.morphium.database=my-app-db
  * quarkus.morphium.hosts=mongo1:27017,mongo2:27017
  * quarkus.morphium.username=admin
- * quarkus.morphium.password=secret
+ * quarkus.morphium.password=changeit
  * quarkus.morphium.max-connections=250
  * }</pre>
  */
