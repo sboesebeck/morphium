@@ -22,6 +22,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.QuarkusTestProfile;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.*;
 import org.testcontainers.DockerClientFactory;
 
@@ -90,6 +91,31 @@ class MorphiumTransactionalTest {
     @BeforeEach
     void clearEvents() {
         eventCollector.clear();
+    }
+
+    @Test
+    @Order(0)
+    @DisplayName("Dev Services actually started a container: hosts is a container port, driver reports replicaSet=true")
+    void devServicesStartedARealContainer() {
+        // This is the one thing no other Dev Services test in this suite actually proves:
+        // MorphiumDevServicesReplicaSetConfigTest explicitly documents that it starts no
+        // container at all (only checks the config keys are bound), and this class's own
+        // other tests only prove transactions work -- which happens to require a replica set,
+        // but doesn't directly show a container was started for it. Verified here instead:
+        // hosts must be a real container-assigned port (Testcontainers never binds to 27017
+        // itself), and the driver must report isReplicaSet()==true, which only a real
+        // MongoDB replica set negotiates during the driver handshake (an unconfigured
+        // standalone mongod would report false).
+        String hosts = ConfigProvider.getConfig().getValue("quarkus.morphium.hosts", String.class);
+        assertThat(hosts).as("hosts must be injected by Dev Services, not left at the @WithDefault")
+                .isNotEqualTo("localhost:27017");
+        int port = Integer.parseInt(hosts.substring(hosts.indexOf(':') + 1));
+        assertThat(port).as("Dev Services assigns a random container port, not the standard 27017")
+                .isNotEqualTo(27017);
+
+        assertThat(morphium.getDriver().isReplicaSet())
+                .as("driver must have negotiated replica-set mode with the real container")
+                .isTrue();
     }
 
     @Test
