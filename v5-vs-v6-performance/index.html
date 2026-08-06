@@ -2647,8 +2647,9 @@ set on separate hosts, PoppyDB runs in-process.</p>
 host's CPU with sender and receiver — on a small 4-core host it lands slightly <em>below</em> an
 external replica set, while on a laptop-class CPU it is well above. PoppyDB's advantage is
 round-trip latency (table above), not raw one-way throughput on constrained hardware. A
-historic "~8K msg/s" one-way figure circulated in older READMEs; it came from a setup that
-is no longer reproducible and is superseded by these measurements.</p>
+historic "~8K msg/s" one-way figure circulated in older READMEs; it most likely stemmed
+from plain document-write throughput (compare the bulk-write numbers above), not from
+messaging with a listening receiver, and is superseded by these measurements.</p>
 </blockquote>
 <h3 id="in-query-indexed-vs-non-indexed">$in Query: Indexed vs Non-Indexed<a class="headerlink" href="#in-query-indexed-vs-non-indexed" title="Permanent link">&para;</a></h3>
 <table>
