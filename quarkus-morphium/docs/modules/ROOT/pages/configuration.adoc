@@ -39,13 +39,29 @@ All configuration properties live under the `quarkus.morphium.*` prefix in
 | `primary`
 | Read preference: `primary`, `primaryPreferred`, `secondary`, `secondaryPreferred`, `nearest`.
 
-| `quarkus.morphium.create-indexes`
-| `true`
-| Automatically create / verify indexes on startup.
+| `quarkus.morphium.index-check`
+| `create-on-startup`
+| Index creation strategy: `create-on-startup` (create missing indexes when Morphium connects), `warn-on-startup` (log a warning, don't create -- not supported in native images, silently downgraded to `no-check` there), `create-on-write-new-col` (create lazily when writing to a new collection), `no-check` (disable all index management).
 
 | `quarkus.morphium.max-connections`
 | `250`
 | Maximum number of connections in the pool.
+
+| `quarkus.morphium.max-wait-time`
+| `2000`
+| Maximum time in milliseconds for low-level operations: waiting for a connection from the pool, driver-level timeouts, and change streams. Does not affect query execution -- use `default-query-timeout-ms` for that.
+
+| `quarkus.morphium.default-query-timeout-ms`
+| `0`
+| Default server-side time limit (`maxTimeMS`) in milliseconds for queries with no per-query timeout set. `0` (the default) disables the server-side limit entirely (Morphium sets `noCursorTimeout` instead).
+
+| `quarkus.morphium.replica-set-name`
+| –
+| MongoDB replica set name. Required for `@MorphiumTransactional` and change streams against a self-managed replica set. Dev Services sets this automatically when `quarkus.morphium.devservices.replica-set=true`.
+
+| `quarkus.morphium.connect-retries`
+| `5`
+| Number of connection attempts before giving up (minimum `1`). Useful in CI environments (Docker-in-Docker) where the replica set primary may not be immediately reachable after the container starts.
 
 | `quarkus.morphium.driver-name`
 | `PooledDriver`
@@ -177,6 +193,33 @@ See xref:dev-services.adoc[Dev Services] for details.
 | `quarkus.morphium.health.enabled`
 | `true`
 | Enable Morphium health checks (liveness, readiness, startup) via SmallRye Health. Health endpoints are available by default when the extension is present.
+|===
+
+== Migration Properties
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.migration.migrate-at-start`
+| `false`
+| Whether to run pending migrations automatically when the application starts. Migrations must be triggered explicitly (via `MorphiumMigrationRunner`) unless enabled.
+
+| `quarkus.morphium.migration.change-log-collection`
+| `morphiumChangeLog`
+| MongoDB collection that tracks executed migrations.
+
+| `quarkus.morphium.migration.lock-collection`
+| `morphiumMigrationLock`
+| MongoDB collection used for the distributed migration lock.
+
+| `quarkus.morphium.migration.lock-ttl-seconds`
+| `60`
+| Time-to-live in seconds for the migration lock. Must be greater than `0`. The lock is renewed (heartbeat) after every executed migration, so this only needs to exceed the time a single change unit's `execute()` can take, not the whole migration run.
+
+| `quarkus.morphium.migration.lock-wait-seconds`
+| `0`
+| Maximum time in seconds to wait for the migration lock if another instance already holds it, polling every second, before giving up and failing startup. `0` (the default) fails immediately; set this above `0` in a multi-replica rolling deployment so replicas wait for an in-progress migration run instead of crash-looping.
 |===
 
 == Environment Variable Overrides

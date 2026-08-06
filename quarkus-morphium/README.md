@@ -319,8 +319,12 @@ public List<Map<String, Object>> salesByCategory() {
 | `quarkus.morphium.auth-database` | `admin` | Authentication database |
 | `quarkus.morphium.atlas-url` | -- | MongoDB Atlas SRV URL (overrides `hosts`) |
 | `quarkus.morphium.read-preference` | `primary` | Read preference |
-| `quarkus.morphium.create-indexes` | `true` | Create indexes on startup |
+| `quarkus.morphium.index-check` | `create-on-startup` | Index creation strategy (`create-on-startup`, `warn-on-startup`, `create-on-write-new-col`, `no-check`) |
 | `quarkus.morphium.max-connections` | `250` | Connection pool size |
+| `quarkus.morphium.max-wait-time` | `2000` | Max wait (ms) for a pooled connection / driver-level timeout |
+| `quarkus.morphium.default-query-timeout-ms` | `0` | Default server-side query time limit (ms); `0` disables it |
+| `quarkus.morphium.replica-set-name` | -- | Replica set name; required for `@MorphiumTransactional` and change streams |
+| `quarkus.morphium.connect-retries` | `5` | Connection attempts before giving up |
 | `quarkus.morphium.driver-name` | `PooledDriver` | `PooledDriver` (production) or `InMemDriver` (tests) |
 | `quarkus.morphium.cache.read-cache-enabled` | `true` | Enable query result cache |
 | `quarkus.morphium.cache.global-valid-time` | `60000` | Cache TTL in milliseconds |
@@ -338,6 +342,11 @@ public List<Map<String, Object>> salesByCategory() {
 | `quarkus.morphium.devservices.database-name` | `morphium-dev` | Database name in Dev Services |
 | `quarkus.morphium.devservices.replica-set` | `true` | Start as replica set (enables transactions) |
 | `quarkus.morphium.health.enabled` | `true` | Enable health checks |
+| `quarkus.morphium.migration.migrate-at-start` | `false` | Run pending migrations automatically at startup |
+| `quarkus.morphium.migration.change-log-collection` | `morphiumChangeLog` | Collection tracking executed migrations |
+| `quarkus.morphium.migration.lock-collection` | `morphiumMigrationLock` | Collection used for the distributed migration lock |
+| `quarkus.morphium.migration.lock-ttl-seconds` | `60` | Migration lock TTL in seconds (renewed between migrations) |
+| `quarkus.morphium.migration.lock-wait-seconds` | `0` | Seconds to wait for a held migration lock before failing (`0` = fail immediately) |
 
 For detailed descriptions, see the
 [Configuration Reference](docs/modules/ROOT/pages/configuration.adoc).
