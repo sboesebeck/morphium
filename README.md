@@ -20,17 +20,20 @@ Available languages: English and [Deutsch](README.de.md)
 
 Morphium is the only Java ODM that ships a message queue living inside MongoDB. If you already run MongoDB, you can power persistence, messaging, caching, and change streams with a single component.
 
-| Feature | Morphium | Spring Data + RabbitMQ | Kafka |
-|---------|----------|------------------------|-------|
-| Infrastructure | MongoDB only | MongoDB + RabbitMQ | MongoDB + Kafka |
-| Setup complexity | ⭐ Very low | ⭐⭐⭐ Medium | ⭐⭐⭐⭐⭐ High |
-| Message persistence | Built in | Optional | Built in |
-| Message priority | ✅ Yes | ✅ Yes | ❌ No |
-| Distributed locks | ✅ Yes | ❌ No | ❌ No |
-| Throughput (internal tests) | ~8K msg/s | 10K–50K msg/s | 100K+ msg/s |
-| Operations | ⭐ Very easy | ⭐⭐ Medium | ⭐⭐⭐⭐ Complex |
+| Feature | Morphium | Morphium + PoppyDB | Spring Data + RabbitMQ | Kafka |
+|---------|----------|--------------------|------------------------|-------|
+| Infrastructure | MongoDB only | **None** — embedded Java server | MongoDB + RabbitMQ | MongoDB + Kafka |
+| Setup complexity | ⭐ Very low | ⭐ Minimal (one dependency) | ⭐⭐⭐ Medium | ⭐⭐⭐⭐⭐ High |
+| Message persistence | Built in | Snapshots (optional) | Optional | Built in |
+| Message priority | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No |
+| Distributed locks | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
+| Throughput (internal tests) | ~8K msg/s | similar, lower latency* | 10K–50K msg/s | 100K+ msg/s |
+| Operations | ⭐ Very easy | ⭐ Trivial (single process) | ⭐⭐ Medium | ⭐⭐⭐⭐ Complex |
 
-_* Numbers are indicative and depend heavily on hardware and workload._
+_* Numbers are indicative and depend heavily on hardware and workload. PoppyDB and Morphium
+Messaging are optimized for each other (both sides detect the counterpart), which cuts latency
+and overhead compared to a real MongoDB backend — but persistence is snapshot-based, see the
+[PoppyDB section](#-poppydb--mongodb-compatible-in-memory-server) below._
 
 ## 🌱 PoppyDB — MongoDB-Compatible In-Memory Server
 
