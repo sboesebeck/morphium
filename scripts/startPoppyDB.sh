@@ -182,19 +182,25 @@ else
   p=$BASEPORT
   for n in $(seq $NODES); do
     if [ $ONLYNODE -eq 0 ] || [ $ONLYNODE -eq $n ]; then
+      # Skip via else (NOT `continue`): the port increment at the loop bottom must still run,
+      # otherwise every later node would shift onto the wrong port. Starting anyway would be
+      # worse still - the new JVM can't bind, but its pid would already have clobbered
+      # node-$n.pid, and the failure branch below would then delete the pid file of the process
+      # that IS still running, orphaning it for stop/status.
       if lsof -Pi :$p -sTCP:LISTEN -t >/dev/null; then
         echo "Port $p is already in use, skipping node $n"
-      fi
-      echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
+      else
+        echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
 
-      java -Xmx8G -jar $TMPDIR/poppydb.jar --no-config -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" $SSL_ARGS >$TMPDIR/poppydb-$n.log 2>&1 &
-      pid=$!
-      echo "$pid" >$TMPDIR/node-$n.pid
-      sleep 1
-      if ! kill -0 $pid 2>/dev/null; then
-        echo "Failed to start node $n PoppyDB, check $TMPDIR/poppydb-$n.log"
-        cat $TMPDIR/poppydb-$n.log
-        rm $TMPDIR/node-$n.pid
+        java -Xmx8G -jar $TMPDIR/poppydb.jar --no-config -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" $SSL_ARGS >$TMPDIR/poppydb-$n.log 2>&1 &
+        pid=$!
+        echo "$pid" >$TMPDIR/node-$n.pid
+        sleep 1
+        if ! kill -0 $pid 2>/dev/null; then
+          echo "Failed to start node $n PoppyDB, check $TMPDIR/poppydb-$n.log"
+          cat $TMPDIR/poppydb-$n.log
+          rm $TMPDIR/node-$n.pid
+        fi
       fi
     fi
     let p=p+1
