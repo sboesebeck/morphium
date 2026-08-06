@@ -97,6 +97,10 @@ public final class UserDocuments {
         if (!(cmd.get("roles") instanceof List)) {
             return "roles must be an array";
         }
+        Object customData = cmd.get("customData");
+        if (customData != null && !(customData instanceof Map)) {
+            return "customData must be a document";
+        }
         Object mechanisms = cmd.get("mechanisms");
         if (mechanisms != null) {
             if (!(mechanisms instanceof List)) {

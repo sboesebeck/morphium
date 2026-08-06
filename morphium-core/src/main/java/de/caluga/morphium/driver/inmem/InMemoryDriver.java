@@ -418,10 +418,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * acquires it while holding any collection lock, so no lock-order cycle exists.
      *
      * <p>SCOPE (honest limits, 2026-08-06 review): the ordering guarantee holds only among the
-     * user writes that take this mutex - createUser/updateUser vs each other. It does NOT cover
-     * (a) deletes on admin.system.users (there is no dropUser command yet; a raw delete goes
-     * through the generic path without this mutex and can still get its token inverted relative
-     * to a concurrent create/update), and (b) cross-namespace inversion: a concurrent write to
+     * user writes that take this mutex - createUser/updateUser/dropUser vs each other. It does
+     * NOT cover (a) RAW deletes on admin.system.users (the generic delete path does not take
+     * this mutex and can still get its token inverted relative to a concurrent create/update -
+     * use dropUser), and (b) cross-namespace inversion: a concurrent write to
      * any OTHER collection can be assigned a higher token yet complete delivery before a user
      * event - combined with a resume via max-seen-token (PoppyDB's lastAppliedSequence), a
      * reconnecting secondary can then skip the user event until the next full resync. Both are
@@ -1530,7 +1530,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser", "updateUser",
-                "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash", "validate"));
+                "dropUser", "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash", "validate"));
         return names;
     }
 
@@ -1571,7 +1571,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return null;
     }
 
-    private int createUserInternal(String db, String user, String pwd, List<Object> roles, List<String> mechanisms) {
+    private int createUserInternal(String db, String user, String pwd, List<Object> roles, List<String> mechanisms,
+                                   Map<String, Object> customData) {
         // Fast pre-lock check only for the common "already exists" answer - the authoritative
         // check happens under the write lock below, because two concurrent createUsers must not
         // both act on the same pre-lock snapshot (that was the TOCTOU: both passed this check
@@ -1587,6 +1588,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // (~ms range) and a losing racer simply discards the document
             Map<String, Object> doc = de.caluga.morphium.driver.inmem.auth.UserDocuments
                 .buildUserDocument(db, user, pwd, roles, mechanisms);
+            if (customData != null) {
+                doc.put("customData", customData);
+            }
             List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
 
             // held across store + notify so stream order equals store order - see userWriteEmitLock
@@ -1630,8 +1634,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * <p>Mechanism semantics follow mongod: a pwd change WITHOUT {@code mechanisms} preserves the
      * user's existing mechanism set (it does not reset to the both-mechanisms default), and
      * {@code mechanisms} without {@code pwd} is a subset-only update that keeps the stored
-     * credentials of the named mechanisms and drops the rest. Not modeled: {@code customData}
-     * and {@code authenticationRestrictions}.
+     * credentials of the named mechanisms and drops the rest. {@code customData} follows mongod
+     * too: replaced wholesale when given (also as the only field), preserved when omitted.
+     * Not modeled: {@code authenticationRestrictions}.
      */
     private int updateUserInternal(Map<String, Object> cmdMap) {
         String db = (String) cmdMap.get("$db");
@@ -1674,8 +1679,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        if (pwd == null && roles == null && mechanisms == null) {
-            return errorResult(2, "BadValue", "updateUser requires at least one of pwd, roles or mechanisms");
+        Object customDataRaw = cmdMap.get("customData");
+        if (customDataRaw != null && !(customDataRaw instanceof Map)) {
+            return errorResult(2, "BadValue", "customData must be a document");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> customData = (Map<String, Object>) customDataRaw;
+
+        if (pwd == null && roles == null && mechanisms == null && customData == null) {
+            return errorResult(2, "BadValue",
+                "updateUser requires at least one of pwd, roles, mechanisms or customData");
         }
 
         // Fast pre-lock check only for the common "no such user" answer. The authoritative
@@ -1727,10 +1740,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         }
                         replacement = de.caluga.morphium.driver.inmem.auth.UserDocuments
                             .buildUserDocument(db, user, pwd, effectiveRoles, effectiveMechanisms);
+                        // buildUserDocument creates a fresh document - customData would silently
+                        // vanish on every pwd change without this carry-over (mongod preserves it
+                        // when omitted, replaces it wholesale when given)
+                        Object effectiveCustomData = customData != null ? customData : current.get("customData");
+                        if (effectiveCustomData != null) {
+                            replacement.put("customData", effectiveCustomData);
+                        }
                     } else {
                         replacement = new LinkedHashMap<>(current);
                         if (roles != null) {
                             replacement.put("roles", roles);
+                        }
+                        if (customData != null) {
+                            replacement.put("customData", customData);
                         }
                         if (mechanisms != null) {
                             // mongod: mechanisms without pwd is legal only as a SUBSET of the
@@ -1770,6 +1793,72 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // buildUserDocument's resolveMechanisms throws this for an unknown mechanism name -
             // mongod-style callers expect a BadValue command error, not an uncaught exception.
             return errorResult(2, "BadValue", e.getMessage());
+        }
+
+        int requestId = commandNumber.incrementAndGet();
+        addResult(requestId, prepareResult(Doc.of("ok", 1.0)));
+        return requestId;
+    }
+
+    /**
+     * mongod-compatible {@code dropUser}: removes the user document and emits a delete event on
+     * admin.system.users (documentKey-keyed, same shape as the generic delete path - PoppyDB
+     * secondaries replicate the drop by applying exactly that delete). Runs under
+     * {@code userWriteEmitLock} so the delete event gets the same store-order-equals-token-order
+     * guarantee as createUser/updateUser - without it, a drop racing a concurrent create/update
+     * of the same user could invert token order and make secondaries converge on the wrong
+     * state (the gap the 2026-08-06 review documented for raw deletes).
+     */
+    private int dropUserInternal(Map<String, Object> cmdMap) {
+        String db = (String) cmdMap.get("$db");
+        Object nameRaw = cmdMap.get("dropUser");
+
+        if (!(nameRaw instanceof String) || ((String) nameRaw).isBlank()) {
+            return errorResult(2, "BadValue", "dropUser requires a user name");
+        }
+        String user = (String) nameRaw;
+
+        // Fast pre-lock check for the common "no such user" answer; authoritative resolve
+        // happens under the write lock below (same discipline as create/update).
+        if (findUserDocument(db, user) == null) {
+            return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
+        }
+
+        String id = de.caluga.morphium.driver.inmem.auth.UserDocuments.userId(db, user);
+
+        try {
+            Map<String, Object> removed = null;
+            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
+
+            // held across store + notify so stream order equals store order - see userWriteEmitLock
+            userWriteEmitLock.lock();
+            try {
+                java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+                lock.writeLock().lock();
+                try {
+                    for (java.util.Iterator<Map<String, Object>> it = users.iterator(); it.hasNext(); ) {
+                        Map<String, Object> doc = it.next();
+                        if (id.equals(doc.get("_id"))) {
+                            removed = doc;
+                            it.remove();
+                            break;
+                        }
+                    }
+
+                    if (removed == null) {
+                        // lost the race against a concurrent drop since the pre-lock check
+                        return errorResult(11, "UserNotFound", "User \"" + user + "@" + db + "\" not found");
+                    }
+                } finally {
+                    lock.writeLock().unlock();
+                }
+                // same event shape as the generic delete path: op "delete", beforeDocument set
+                notifyWatchers(USERS_DB, USERS_COLLECTION, "delete", removed, null, null, removed);
+            } finally {
+                userWriteEmitLock.unlock();
+            }
+        } catch (MorphiumDriverException e) {
+            return errorResult(1, "InternalError", "could not drop user: " + e.getMessage());
         }
 
         int requestId = commandNumber.incrementAndGet();
@@ -1891,7 +1980,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         List<Object> roles = cmd.getRoles() == null ? new ArrayList<>() : new ArrayList<Object>(cmd.getRoles());
-        return createUserInternal(cmd.getDb(), cmd.getUserName(), cmd.getPwd(), roles, cmd.getMechanisms());
+        return createUserInternal(cmd.getDb(), cmd.getUserName(), cmd.getPwd(), roles, cmd.getMechanisms(),
+            cmd.getCustomData());
     }
 
     public int runCommand(CreateRoleAdminCommand cmd) {
@@ -2143,12 +2233,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<Object> roles = (List<Object>) cmdMap.get("roles");
             @SuppressWarnings("unchecked")
             List<String> mechanisms = (List<String>) cmdMap.get("mechanisms");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> customData = (Map<String, Object>) cmdMap.get("customData");
             return createUserInternal((String) cmdMap.get("$db"), (String) cmdMap.get("createUser"),
-                (String) cmdMap.get("pwd"), roles, mechanisms);
+                (String) cmdMap.get("pwd"), roles, mechanisms, customData);
         }
 
         if (commandName.equals("updateUser")) {
             return updateUserInternal(cmdMap);
+        }
+
+        if (commandName.equals("dropUser")) {
+            return dropUserInternal(cmdMap);
         }
 
         // serverStatus and the top-level bulkWrite (MongoDB 8.0 shape) have no typed command
