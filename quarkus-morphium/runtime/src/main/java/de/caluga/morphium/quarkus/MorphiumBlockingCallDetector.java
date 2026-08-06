@@ -22,6 +22,7 @@ import de.caluga.morphium.query.Query;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,9 +57,31 @@ public class MorphiumBlockingCallDetector {
     private final AtomicLong lastWarnNanos = new AtomicLong(0);
 
     @Inject
-    Morphium morphium;
+    Instance<Morphium> morphiumInstance;
 
+    /**
+     * Registers the storage listener on a background thread instead of directly in this
+     * {@code StartupEvent} observer. {@code morphiumInstance.get()} dereferences the CDI proxy
+     * for {@link Morphium}, which triggers {@code MorphiumProducer.buildMorphium()} — a blocking
+     * connect with a full retry ladder — on whatever thread calls it. {@code StartupEvent}
+     * observers run on the application boot thread, so doing this directly here would defeat
+     * {@link MorphiumProducer}'s own lazy-initialization design (its {@code Morphium} bean is
+     * meant to connect on first real use, not eagerly at boot) and, more concretely, delay
+     * application startup — including the startup health check becoming ready — by however long
+     * the connect (and its retries, if MongoDB is briefly unreachable during a rolling deploy)
+     * takes. Running it on a plain background thread keeps the boot thread free; the trade-off
+     * is that a write from the very first few milliseconds after startup completes could
+     * theoretically happen before this listener is registered, which only means this detector's
+     * warning would be missed for that one write, not that anything breaks.
+     */
     void onStart(@Observes StartupEvent event) {
+        Thread registrar = new Thread(this::registerListener, "morphium-blocking-call-detector-init");
+        registrar.setDaemon(true);
+        registrar.start();
+    }
+
+    private void registerListener() {
+        Morphium morphium = morphiumInstance.get();
         morphium.addListener(new MorphiumStorageListener<Object>() {
             @Override
             public void preStore(Morphium m, Object r, boolean isNew) throws MorphiumAccessVetoException {
