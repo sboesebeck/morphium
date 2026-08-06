@@ -51,8 +51,13 @@ public @interface MorphiumChangeUnit {
     String id();
 
     /**
-     * Execution order. Migrations are sorted lexicographically by this value.
-     * Use zero-padded numbers for predictable ordering (e.g. "001", "002").
+     * Execution order, used to sort migrations before running them.
+     *
+     * <p>Compared numerically when both this and the other migration's {@code order()} value
+     * parse as a number (e.g. {@code "2"} sorts before {@code "10"}), falling back to a plain
+     * lexicographic string comparison otherwise -- so a non-numeric convention (e.g. date-based
+     * order values) is also supported. Zero-padded numbers (e.g. {@code "001"}, {@code "002"})
+     * work correctly either way and remain the recommended convention for readability.
      */
     String order();
 
