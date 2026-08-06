@@ -1935,6 +1935,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#messaging-one-way-throughput-send-receipt-no-replies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging One-Way Throughput (send → receipt, no replies)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#in-query-indexed-vs-non-indexed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2324,6 +2335,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#messaging-one-way-throughput-send-receipt-no-replies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messaging One-Way Throughput (send → receipt, no replies)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#in-query-indexed-vs-non-indexed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2585,6 +2607,48 @@
 </table>
 <blockquote>
 <p><strong>Key insight:</strong> PoppyDB is 2.5x faster than real MongoDB for messaging tests!</p>
+</blockquote>
+<p>These are <strong>round-trip</strong> numbers: complete ping-pongs (request out, response received).
+PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
+same workload completes 2.5x faster.</p>
+<h3 id="messaging-one-way-throughput-send-receipt-no-replies">Messaging One-Way Throughput (send → receipt, no replies)<a class="headerlink" href="#messaging-one-way-throughput-send-receipt-no-replies" title="Permanent link">&para;</a></h3>
+<p>Measured 2026-08-06 with <code>MessagingOneWayThroughputBenchmark</code> (poppydb module, tag <code>manual</code>):
+5000 messages, 4 sender threads, one listening receiver, clock from first send to last
+receipt. Same 4-CPU test-runner LXC as the CI matrix; MongoDB is the 3-node homelab replica
+set on separate hosts, PoppyDB runs in-process.</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Host</th>
+<th>One-way throughput</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MongoDB</strong> (3-node replica set, external hosts)</td>
+<td>4-CPU test runner</td>
+<td>868 msg/s</td>
+</tr>
+<tr>
+<td><strong>PoppyDB</strong> (in-process)</td>
+<td>4-CPU test runner</td>
+<td>769 msg/s</td>
+</tr>
+<tr>
+<td><strong>PoppyDB</strong> (in-process)</td>
+<td>Apple-Silicon laptop</td>
+<td>2101 msg/s</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Honest reading:</strong> one-way throughput is write-bound, and an in-process PoppyDB shares its
+host's CPU with sender and receiver — on a small 4-core host it lands slightly <em>below</em> an
+external replica set, while on a laptop-class CPU it is well above. PoppyDB's advantage is
+round-trip latency (table above), not raw one-way throughput on constrained hardware. A
+historic "~8K msg/s" one-way figure circulated in older READMEs; it came from a setup that
+is no longer reproducible and is superseded by these measurements.</p>
 </blockquote>
 <h3 id="in-query-indexed-vs-non-indexed">$in Query: Indexed vs Non-Indexed<a class="headerlink" href="#in-query-indexed-vs-non-indexed" title="Permanent link">&para;</a></h3>
 <table>
