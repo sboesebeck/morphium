@@ -83,7 +83,7 @@ public class MorphiumMigrationRunner {
         migrations.sort(Comparator.comparing(MigrationInfo::order));
         log.info("Found {} migration(s) to evaluate", migrations.size());
 
-        acquireLock();
+        acquireLockWithWait();
         try {
             Set<String> executedIds = loadExecutedChangeIds();
             for (MigrationInfo migration : migrations) {
@@ -92,6 +92,15 @@ public class MorphiumMigrationRunner {
                     continue;
                 }
                 executeMigration(migration);
+                // Renew the lock's TTL after every executed migration: without this, a
+                // migration run that takes longer than lockTtlSeconds lets a second instance
+                // atomically steal the lock (acquireLock()'s expires_at <= now condition would
+                // match) and start running the SAME still-in-progress change units
+                // concurrently. Owner-guarded, so it silently becomes a no-op once another
+                // process has already taken over the lock -- this instance's subsequent writes
+                // and the final releaseLock() are then no-ops too (see releaseLock()'s owner
+                // check).
+                renewLock();
             }
         } finally {
             releaseLock();
@@ -288,6 +297,38 @@ public class MorphiumMigrationRunner {
     // ------------------------------------------------------------------
 
     /**
+     * Acquires the migration lock, waiting up to {@code lockWaitSeconds} (polling every second)
+     * if another instance already holds it, before giving up. With the default
+     * {@code lockWaitSeconds=0} this is identical to calling {@link #acquireLock()} directly.
+     *
+     * <p>Without this, a k8s rolling deployment with multiple replicas crash-loops every replica
+     * except the one that happened to win the lock race, until the migration run finishes and
+     * the lock is released — instead of the other replicas simply waiting their turn.
+     *
+     * @throws RuntimeException if the lock is still held by another process after the wait
+     */
+    private void acquireLockWithWait() {
+        long deadline = System.currentTimeMillis() + config.lockWaitSeconds() * 1000L;
+        while (true) {
+            try {
+                acquireLock();
+                return;
+            } catch (RuntimeException e) {
+                if (System.currentTimeMillis() >= deadline) {
+                    throw e;
+                }
+                log.info("Migration lock held by another instance — waiting (owner={})", currentOwner);
+                try {
+                    Thread.sleep(1000L);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+    }
+
+    /**
      * Acquires the migration lock atomically using {@code findAndModify} with {@code upsert: true}.
      *
      * <p>The query matches a lock document that either does not exist or has expired.
@@ -295,6 +336,8 @@ public class MorphiumMigrationRunner {
      * the race condition where two instances could both read "no lock" and then both write.
      *
      * <p>If the lock is held by another process and has not expired, the method throws.
+     * Callers that want to wait for a currently-held lock to become available should call
+     * {@link #acquireLockWithWait()} instead.
      *
      * @throws RuntimeException if the lock is held by another process
      */
@@ -346,6 +389,29 @@ public class MorphiumMigrationRunner {
         }
 
         log.debug("Migration lock acquired (TTL={}s)", config.lockTtlSeconds());
+    }
+
+    /**
+     * Extends the lock's {@code expires_at} by another {@code lockTtlSeconds}, guarded by
+     * {@code owner=currentOwner} so it becomes a silent no-op if another process has already
+     * taken over the lock (e.g. because a previous renewal round-trip was slow enough for the
+     * old TTL to expire first). Called after every executed migration by {@link #runMigrations}
+     * — see the call site for why a heartbeat is needed at all.
+     */
+    private void renewLock() {
+        Date expiresAt = new Date(System.currentTimeMillis() + config.lockTtlSeconds() * 1000L);
+        Query<MorphiumMigrationLock> q = morphium.createQueryFor(MorphiumMigrationLock.class);
+        q.setCollectionName(config.lockCollection());
+        q.f("_id").eq(LOCK_ID);
+        q.f("owner").eq(currentOwner);
+        try {
+            q.set(Map.of("expires_at", expiresAt), false, false);
+        } catch (Exception e) {
+            // Best-effort: if the renewal round-trip itself fails, the original TTL still
+            // applies and acquireLock()'s next caller will simply see an expired lock sooner
+            // than expected. Not fatal to the migration run in progress.
+            log.warn("Failed to renew migration lock (owner={})", currentOwner, e);
+        }
     }
 
     private void throwLockHeld() {

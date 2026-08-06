@@ -49,9 +49,20 @@ public interface MorphiumMigrationConfig {
 
     /**
      * Time-to-live in seconds for the migration lock. Prevents deadlocks from crashed processes.
-     * Must be greater than 0 and should exceed the maximum expected migration runtime.
-     * If migrations take longer than this value, another instance may override the lock.
+     * Must be greater than 0. The lock is renewed (heartbeat) after every executed migration, so
+     * this only needs to exceed the time a single change unit's {@code execute()} can take, not
+     * the whole migration run.
      */
     @WithDefault("60")
     int lockTtlSeconds();
+
+    /**
+     * Maximum time in seconds to wait for the migration lock if another instance already holds
+     * it, polling every second, before giving up and failing startup. Defaults to {@code 0}
+     * (fail immediately, the pre-existing behavior) — set this above {@code 0} in a multi-replica
+     * rolling deployment so that replicas whose pod starts while another replica is already
+     * running migrations wait for that run to finish instead of crash-looping.
+     */
+    @WithDefault("0")
+    int lockWaitSeconds();
 }
