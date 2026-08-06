@@ -52,16 +52,33 @@ public class MorphiumStartupCheck implements HealthCheck {
             builder.withData("database", morphium.getConfig().connectionSettings().getDatabase())
                    .withData("connectionsOpened", (long) opened);
 
-            // PooledDriver.isConnected() iterates over the hosts map which may
-            // still be empty during SRV discovery. CONNECTIONS_OPENED is a
-            // monotonically increasing counter that proves at least one TCP
-            // connection was successfully established — regardless of host-map state.
-            // This latch is intentionally one-way: once UP, the startup probe never
-            // returns DOWN — transient disconnects are handled by the liveness probe.
-            boolean everConnected = opened > 0 || driver.isConnected();
+            boolean everConnected = isEverConnected(opened, driver.isConnected());
             return builder.status(everConnected).build();
         } catch (Exception e) {
             return builder.down().withData("error", e.getMessage()).build();
         }
+    }
+
+    /**
+     * The SRV-discovery-tolerant "ever connected" latch. {@code PooledDriver.isConnected()}
+     * iterates over the hosts map, which may still be empty during SRV discovery.
+     * {@code connectionsOpened} is a monotonically increasing counter that proves at least one
+     * TCP connection was successfully established, regardless of host-map state. This latch is
+     * intentionally one-way: once {@code true}, the startup probe never goes back to
+     * {@code false} again — transient disconnects are the liveness probe's concern, not this
+     * one's.
+     *
+     * <p>Package-private (not {@code private}) specifically so
+     * {@code MorphiumStartupCheckTest} can exercise the exact production formula directly,
+     * rather than a duplicated copy that could silently drift out of sync with this method
+     * (e.g. a future edit flipping {@code ||} to {@code &&} here would go undetected by a test
+     * asserting against its own separate copy of the same expression).
+     *
+     * @param connectionsOpened the driver's {@code CONNECTIONS_OPENED} stat
+     * @param driverConnected   {@code driver.isConnected()}
+     * @return {@code true} once either signal has ever indicated a successful connection
+     */
+    static boolean isEverConnected(double connectionsOpened, boolean driverConnected) {
+        return connectionsOpened > 0 || driverConnected;
     }
 }
