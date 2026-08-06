@@ -90,9 +90,9 @@ public class MorphiumDevServicesProcessor {
         }
 
         if (ConfigUtils.getFirstOptionalValue(List.of("quarkus.morphium.driver-name"), String.class)
-                .map(driverName -> !driverName.equalsIgnoreCase("PooledDriver"))
+                .map(driverName -> driverName.equalsIgnoreCase("InMemDriver"))
                 .orElse(false)) {
-            log.debugf("Morphium driver-name explicitly set to a non-production driver (e.g. InMemDriver) – " +
+            log.debugf("Morphium driver-name explicitly set to InMemDriver – " +
                     "skipping Dev Services since no real MongoDB connection is needed");
             return null;
         }
