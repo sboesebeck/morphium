@@ -315,11 +315,15 @@ public final class FindMethodBridge {
             }
         }
 
-        List toDelete = query.asList();
-        for (Object entity : toDelete) {
-            morphium.delete(entity);
-        }
-        return toDelete.size();
+        // Query-based delete (single round-trip, server-side) instead of loading every matching
+        // entity into memory and deleting one by one: more efficient for large deletes, and more
+        // accurate -- "n" below is the driver's own count of documents actually removed, whereas
+        // counting the entities loaded by a prior query() would drift from the real delete count
+        // under concurrent modification (a document deleted or changed by another writer between
+        // the load and the per-entity delete).
+        Map<String, Object> result = query.delete();
+        Object n = result == null ? null : result.get("n");
+        return n instanceof Number num ? num.longValue() : 0L;
     }
 
     /**
