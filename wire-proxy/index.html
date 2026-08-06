@@ -12,9 +12,13 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/releases/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/wire-proxy/">
       
       
+        <link rel="prev" href="../howtos/inmemory-driver/">
+      
+      
+        <link rel="next" href="../poppydb/">
       
       
         
@@ -25,7 +29,7 @@
     
     
       
-        <title>Release Documentation - Morphium Documentation</title>
+        <title>Wire Proxy (Fault Injection) - Morphium Documentation</title>
       
     
     
@@ -76,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#release-documentation" class="md-skip">
+        <a href="#wire-proxy-fault-injection-wire-level-monitoring" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Release Documentation
+              Wire Proxy (Fault Injection)
             
           </span>
         </div>
@@ -264,10 +268,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../test-runner/" class="md-tabs__link">
           
   
@@ -724,28 +730,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -763,7 +772,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -862,10 +871,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../wire-proxy/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Wire Proxy (Fault Injection)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -881,6 +917,105 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fault-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fault injection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replica-sets-the-address-rewriting-trick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replica sets: the address-rewriting trick
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-frameobserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring: FrameObserver
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#injecting-invalid-or-manipulated-replies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Injecting invalid or manipulated replies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations-honest-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations (honest list)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference consumer
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1959,10 +2094,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#documentation-structure" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Structure
+        Quick start
       
     </span>
   </a>
@@ -1970,10 +2105,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-this-structure" class="md-nav__link">
+  <a href="#fault-injection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why This Structure?
+        Fault injection
       
     </span>
   </a>
@@ -1981,10 +2116,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#release-process" class="md-nav__link">
+  <a href="#replica-sets-the-address-rewriting-trick" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Release Process
+        Replica sets: the address-rewriting trick
       
     </span>
   </a>
@@ -1992,10 +2127,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#for-future-releases" class="md-nav__link">
+  <a href="#monitoring-frameobserver" class="md-nav__link">
     <span class="md-ellipsis">
       
-        For Future Releases
+        Monitoring: FrameObserver
       
     </span>
   </a>
@@ -2003,30 +2138,35 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#available-releases" class="md-nav__link">
+  <a href="#injecting-invalid-or-manipulated-replies" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Available Releases
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Available Releases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#601-tbd" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.0.1 - TBD
+        Injecting invalid or manipulated replies
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#limitations-honest-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations (honest list)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference consumer
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2050,63 +2190,162 @@
   
 
 
-<h1 id="release-documentation">Release Documentation<a class="headerlink" href="#release-documentation" title="Permanent link">&para;</a></h1>
-<p>This directory contains detailed release notes for each Morphium version.</p>
-<h2 id="documentation-structure">Documentation Structure<a class="headerlink" href="#documentation-structure" title="Permanent link">&para;</a></h2>
-<p><strong>Root Level:</strong>
-- <code>CHANGELOG.md</code> - Single changelog file with all releases (standard format, <a href="https://keepachangelog.com/">Keep a Changelog</a>)</p>
-<p><strong>This Directory (<code>docs/releases/</code>):</strong>
-- <code>CHANGELOG-X.Y.Z.md</code> - Comprehensive technical changelog with implementation details
-- <code>RELEASE-NOTES-X.Y.Z.md</code> - Quick summary and migration guide for users</p>
-<h2 id="why-this-structure">Why This Structure?<a class="headerlink" href="#why-this-structure" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Single CHANGELOG.md</strong>: Industry standard, easy to browse all versions</li>
-<li><strong>Detailed docs</strong>: Technical teams need deep dive documentation</li>
-<li><strong>Quick notes</strong>: Users need fast migration info without technical details</li>
-<li><strong>No clutter</strong>: Root directory stays clean with just one changelog file</li>
-</ul>
-<h2 id="release-process">Release Process<a class="headerlink" href="#release-process" title="Permanent link">&para;</a></h2>
-<p>Releases are managed via <code>release.sh</code> in the project root:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Patch release (default): 6.1.9 → 6.1.10</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./release.sh
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Minor release: 6.1.9 → 6.2.0</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>./release.sh<span class="w"> </span>--minor
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Major release: 6.1.9 → 7.0.0</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>./release.sh<span class="w"> </span>--major
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Test the release process without uploading</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>./release.sh<span class="w"> </span>--minor<span class="w"> </span>--dry-run
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Roll back a failed release</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>./release.sh<span class="w"> </span>--rollback
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># Fix broken state after aborted release</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>./release.sh<span class="w"> </span>--reset
-</span></code></pre></div>
-<p>The script handles version calculation (from last git tag), Maven release:prepare,
-artifact signing, Sonatype upload, and git operations (tag, merge to master).</p>
-<p><strong>Multi-module:</strong> The release creates a single Sonatype bundle containing
-morphium-parent, morphium (core), and poppydb.</p>
-<h2 id="for-future-releases">For Future Releases<a class="headerlink" href="#for-future-releases" title="Permanent link">&para;</a></h2>
-<p>When creating a new release:</p>
+<h1 id="wire-proxy-fault-injection-wire-level-monitoring">Wire Proxy — Fault Injection &amp; Wire-Level Monitoring<a class="headerlink" href="#wire-proxy-fault-injection-wire-level-monitoring" title="Permanent link">&para;</a></h1>
+<p>Morphium's test sources ship a small, reusable TCP proxy for the MongoDB wire protocol:
+<code>WireProxy</code>. It sits between any wire-protocol client (Morphium, the official drivers,
+<code>mongosh</code>) and any wire-protocol backend (MongoDB <strong>or</strong> PoppyDB) and gives you three things
+that are otherwise hard to get in a test:</p>
 <ol>
-<li>Run <code>./release.sh --minor</code> (or <code>--patch</code>/<code>--major</code>)</li>
-<li>Add entry to root <code>CHANGELOG.md</code> (concise)</li>
-<li>Create <code>docs/releases/CHANGELOG-X.Y.Z.md</code> (detailed)</li>
-<li>Create <code>docs/releases/RELEASE-NOTES-X.Y.Z.md</code> (user-facing)</li>
-<li>Update this README with the new release</li>
+<li><strong>Fault injection</strong> — freeze, reset, or cleanly close connections at runtime, without
+   touching the server process. This is how <code>DriverFailoverProxyTest</code> reproduces failovers
+   (clean stepdown, hard kill, frozen socket) in the normal CI matrix, with no <code>kill -9</code> and
+   no hand-built infrastructure.</li>
+<li><strong>Wire-level monitoring</strong> — observe every server response frame as a parsed
+   <code>WireProtocolMessage</code>, e.g. to log exactly what a server sends during a test, or to assert
+   on protocol-level behavior your API-level test can't see.</li>
+<li><strong>Response manipulation</strong> — rewrite server replies before the client sees them: change
+   topology information (that is how the failover suite works), mutate documents, or inject
+   deliberately malformed replies to test client robustness.</li>
 </ol>
-<h2 id="available-releases">Available Releases<a class="headerlink" href="#available-releases" title="Permanent link">&para;</a></h2>
-<h3 id="601-tbd"><a href="CHANGELOG-6.0.1/">6.0.1</a> - TBD<a class="headerlink" href="#601-tbd" title="Permanent link">&para;</a></h3>
-<p>Bugfix release with enhanced null handling and connection stability
-- <a href="CHANGELOG-6.0.1/">Detailed Changelog</a>
-- <a href="RELEASE-NOTES-6.0.1/">Quick Release Notes</a></p>
-<p><strong>Highlights:</strong>
-- Bidirectional @UseIfNull behavior (protection from null contamination)
-- Socket timeout retry logic
-- Annotation rename: @UseIfnull → @UseIfNull</p>
+<p>It lives in <code>morphium-core</code>'s <strong>test</strong> sources — package
+<code>de.caluga.test.morphium.testutil.proxy</code> — so it is available to every test in this repository.
+It is not (yet) published as a standalone artifact; if you want to use it outside this repo,
+copy the package (it has no dependencies beyond <code>WireProtocolMessage</code>) or open an issue.</p>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// Proxy in front of any wire-protocol server (MongoDB or PoppyDB)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">WireProxy</span><span class="w"> </span><span class="n">proxy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">WireProxy</span><span class="p">(</span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">proxy</span><span class="p">.</span><span class="na">addObserver</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">Slf4jFrameObserver</span><span class="p">());</span><span class="w">   </span><span class="c1">// log every server response frame</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">proxy</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1">// Point the client at the proxy, not the server</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">setHostSeed</span><span class="p">(</span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">proxy</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">());</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1">// ... run the test ...</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">proxy</span><span class="p">.</span><span class="na">stop</span><span class="p">();</span><span class="w">   </span><span class="c1">// severs all connections, joins every pump thread before returning</span>
+</span></code></pre></div>
+<p><code>WireProxy</code> implements <code>AutoCloseable</code>, so try-with-resources works too. <code>stop()</code> guarantees
+that every internal pump thread has exited before it returns — no thread leakage across tests.</p>
+<h2 id="fault-injection">Fault injection<a class="headerlink" href="#fault-injection" title="Permanent link">&para;</a></h2>
+<p>Faults are switched at runtime via <code>proxy.setFaultMode(...)</code>:</p>
+<table>
+<thead>
+<tr>
+<th><code>FaultMode</code></th>
+<th>Existing connections</th>
+<th>New connection attempts</th>
+<th>Simulates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>passthrough</code></td>
+<td>forwarded normally</td>
+<td>accepted</td>
+<td>healthy network (default)</td>
+</tr>
+<tr>
+<td><code>freeze</code></td>
+<td>left open, never answered, never closed</td>
+<td>accepted, then silence</td>
+<td>frozen process (<code>kill -STOP</code>), network partition, paused VM — the failure a client cannot distinguish from a slow server</td>
+</tr>
+<tr>
+<td><code>reset</code></td>
+<td>severed with a hard RST</td>
+<td>refused</td>
+<td>dead process (<code>kill -9</code>), closed port</td>
+</tr>
+<tr>
+<td><code>close</code></td>
+<td>severed with a clean FIN</td>
+<td>refused</td>
+<td>this route to the node is gone (the node itself may live on — e.g. after a clean stepdown)</td>
+</tr>
+</tbody>
+</table>
+<p>Semantics worth knowing before you build a test on them:</p>
+<ul>
+<li><strong><code>freeze</code> is one-way per connection.</strong> A connection accepted (or already open) during a
+  freeze stays parked until <code>stop()</code> — switching back to <code>passthrough</code> only affects
+  connections opened <em>after</em> the switch. That mirrors reality: a socket to a frozen process
+  does not spring back to life; the client has to time out and reconnect.</li>
+<li><strong><code>close</code> and <code>reset</code> both refuse new connections</strong> — they differ only in how existing ones
+  are severed (FIN vs. RST). "Nothing reachable behind this proxy right now" is the contract.</li>
+<li><strong><code>stop()</code> always severs with RST</strong>, regardless of the configured fault mode, so a client
+  blocked in a read sees a definite error rather than a clean EOF that would look like an
+  orderly shutdown.</li>
+</ul>
+<h2 id="replica-sets-the-address-rewriting-trick">Replica sets: the address-rewriting trick<a class="headerlink" href="#replica-sets-the-address-rewriting-trick" title="Permanent link">&para;</a></h2>
+<p>A proxy per node is not enough for a replica set: drivers do server discovery via <code>hello</code>, and
+the server answers with the <strong>real</strong> addresses (<code>hosts</code>, <code>primary</code>, <code>me</code>). After the first
+<code>hello</code>, a driver would connect straight past your proxies.</p>
+<p><code>AddressRewriter</code> fixes that. It is a <code>ResponseRewriter</code> that detects <code>hello</code>/<code>isMaster</code>-shaped
+replies structurally (<code>setName</code> + <code>hosts</code> present) and maps every real address to its proxy
+address:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// one proxy per RS member</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">backendToProxy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Map</span><span class="p">.</span><span class="na">of</span><span class="p">(</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="s">&quot;mongo1:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p1</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">(),</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="s">&quot;mongo2:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p2</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">(),</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="s">&quot;mongo3:27017&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;localhost:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p3</span><span class="p">.</span><span class="na">getListenPort</span><span class="p">());</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">AddressRewriter</span><span class="w"> </span><span class="n">rewriter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">AddressRewriter</span><span class="p">(</span><span class="n">backendToProxy</span><span class="p">);</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">p1</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">p2</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">p3</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">rewriter</span><span class="p">);</span>
+</span></code></pre></div>
+<p>The driver now lives in a consistent alternate topology consisting entirely of proxies — every
+connection it ever opens, including discovery-triggered ones, flows through a fault gate.
+The map keys must be the <strong>exact</strong> <code>host:port</code> strings the server reports (watch out for
+hostname vs. IP mismatches). <code>DriverFailoverProxyTest.assertOnlyConnectedThroughProxies</code> shows
+how to verify no traffic leaks around the proxies.</p>
+<p>To drive the <em>real</em> replica set while the driver only sees proxies (e.g. trigger a genuine
+<code>replSetStepDown</code>, poll <code>replSetGetStatus</code>), use <code>ControlChannel</code> — an auth-aware direct
+connection to the real nodes, deliberately separate from the proxied data path.</p>
+<h2 id="monitoring-frameobserver">Monitoring: <code>FrameObserver</code><a class="headerlink" href="#monitoring-frameobserver" title="Permanent link">&para;</a></h2>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">proxy</span><span class="p">.</span><span class="na">addObserver</span><span class="p">((</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="n">log</span><span class="p">.</span><span class="na">info</span><span class="p">(</span><span class="s">&quot;[{}] {} -&gt; {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="na">listenPort</span><span class="p">(),</span><span class="w"> </span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getClass</span><span class="p">().</span><span class="na">getSimpleName</span><span class="p">()));</span>
+</span></code></pre></div>
+<p>Observers are read-only by contract — they must not mutate the frame (rewriting is
+<code>ResponseRewriter</code>'s job; the interfaces are deliberately separate: <em>fault = state,
+rewrite = strategy, observe = listener</em>). <code>Slf4jFrameObserver</code> is a ready-made logging
+implementation. Observer exceptions never kill a proxy thread.</p>
+<p>Today only <code>BACKEND_TO_CLIENT</code> frames fire: client→backend traffic is forwarded as raw,
+length-prefixed bytes without parsing — deliberate pass-through fidelity, the proxy cannot
+distort what it does not interpret. The <code>CLIENT_TO_BACKEND</code> direction exists in the enum and is
+reserved for a consumer that actually needs it.</p>
+<h2 id="injecting-invalid-or-manipulated-replies">Injecting invalid or manipulated replies<a class="headerlink" href="#injecting-invalid-or-manipulated-replies" title="Permanent link">&para;</a></h2>
+<p><code>ResponseRewriter</code> receives every parsed server reply and returns what the client should see —
+including something intentionally broken:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">proxy</span><span class="p">.</span><span class="na">setRewriter</span><span class="p">(</span><span class="n">reply</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">reply</span><span class="w"> </span><span class="k">instanceof</span><span class="w"> </span><span class="n">OpMsg</span><span class="w"> </span><span class="n">msg</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">            </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">containsKey</span><span class="p">(</span><span class="s">&quot;cursor&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">        </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;ok&quot;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">);</span><span class="w">            </span><span class="c1">// flip a find reply into an error</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">        </span><span class="n">msg</span><span class="p">.</span><span class="na">getFirstDoc</span><span class="p">().</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;errmsg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;injected&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// ... or corrupt it any way you like</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">reply</span><span class="p">;</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">});</span>
+</span></code></pre></div>
+<p>This is the hook for robustness tests: truncated cursors, unexpected error codes, protocol
+violations, replies claiming a different topology than reality. Only the backend→client
+direction can be rewritten — requests pass through untouched by design.</p>
+<h2 id="limitations-honest-list">Limitations (honest list)<a class="headerlink" href="#limitations-honest-list" title="Permanent link">&para;</a></h2>
+<ul>
+<li>No latency injection — a frame is forwarded immediately or not at all. If you need slow-link
+  simulation, that would be a new <code>FaultMode</code>.</li>
+<li>No request (client→backend) rewriting or observation — see above, deliberate.</li>
+<li><code>freeze</code> is not reversible per connection (matches reality, but don't expect a parked
+  connection to resume).</li>
+<li>It is test infrastructure: no TLS termination, no config file, one backend per proxy
+  instance.</li>
+</ul>
+<h2 id="reference-consumer">Reference consumer<a class="headerlink" href="#reference-consumer" title="Permanent link">&para;</a></h2>
+<p><code>DriverFailoverProxyTest</code> (tag <code>wire-failover</code>) is the full-scale example: three proxies in
+front of a real replica set, address rewriting, freeze/reset/close scenarios, stepdown via
+<code>ControlChannel</code>, and read/write/messaging recovery assertions. It runs in the normal test
+matrix against both MongoDB and PoppyDB — see the
+<a href="../developer-testing-guide/">Developer Testing Guide</a> for how the tags fit together.</p>
 
 
 
