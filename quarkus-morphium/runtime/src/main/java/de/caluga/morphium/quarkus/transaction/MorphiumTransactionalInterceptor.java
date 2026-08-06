@@ -80,6 +80,13 @@ public class MorphiumTransactionalInterceptor {
             try {
                 cosmosDb = morphium.getDriver().isCosmosDB();
             } catch (Exception e) {
+                // Fail-open to false (standard MongoDB) here is intentional, not an oversight:
+                // this is a best-effort cache, not the only safety net. If the backend actually
+                // IS CosmosDB and this detection call failed only transiently, startTransaction()
+                // below throws UnsupportedOperationException on the very next call and that
+                // catch block corrects cosmosDb to true immediately -- see its comment. The
+                // worst case here is one avoidable failed startTransaction() attempt before
+                // self-correcting, never a silently wrong steady state.
                 log.warnf("Could not determine if backend is CosmosDB; assuming standard MongoDB. Cause: %s",
                         e.getMessage());
                 cosmosDb = false;
@@ -199,6 +206,13 @@ public class MorphiumTransactionalInterceptor {
                 // that already ran inside the (possibly already-committed) transaction would
                 // apply them a second time. safeCommitWithRetry() below handles that retry
                 // internally and never re-invokes ctx.proceed().
+                //
+                // BEFORE_COMMIT below fires exactly once per successful ctx.proceed() -- it is
+                // outside safeCommitWithRetry()'s own internal retry loop, so a transient commit
+                // retry does NOT re-fire it (observers that key idempotency/outbox logic off this
+                // event would otherwise see it multiple times for what is really the same logical
+                // commit attempt). It only fires again if the OUTER loop above re-runs
+                // ctx.proceed() from scratch, which is a genuinely new transaction attempt.
                 try {
                     beforeCommit.fire(new MorphiumTransactionEvent(Phase.BEFORE_COMMIT));
                     safeCommitWithRetry(ctx);
@@ -302,9 +316,34 @@ public class MorphiumTransactionalInterceptor {
         }
     }
 
-    private static boolean isNoServerTransaction(MorphiumDriverException e) {
+    /**
+     * Returns {@code true} if {@code e} indicates there was no server-side transaction to
+     * commit/abort (e.g. every repository call inside the {@code @MorphiumTransactional} method
+     * ran against a driver/collection that never actually reached the server, such as
+     * {@code InMemDriver} in tests, or a method that made no writes at all).
+     *
+     * <p>This is a best-effort heuristic based on matching known MongoDB server error message
+     * phrasings, not a documented MongoDB error code -- the driver layer (see
+     * {@code PooledDriver.commitTransaction}/{@code abortTransaction}) throws a plain
+     * {@code IllegalArgumentException} (not even a {@code MorphiumDriverException}) for the
+     * "no transaction context on this driver" case, which {@link #safeCommit}/{@link #safeAbort}
+     * already always short-circuit before reaching here via the {@code morphium.getTransaction()
+     * == null} check. This method instead covers the server-side case: a transaction context
+     * exists client-side, but the server never actually started a transaction for it (no
+     * operation was sent under it) -- MongoDB itself rejects the commit/abort command in that
+     * case, and the exact wording of that rejection is not part of any stable, code-based
+     * contract we could match against instead of a string. If a future MongoDB server version
+     * changes this wording, this check silently stops matching -- there is no more reliable
+     * signal available to fall back to without a documented error code for this specific case.
+     */
+    static boolean isNoServerTransaction(MorphiumDriverException e) {
         String msg = e.getMessage();
-        return msg != null && msg.contains("Cannot start a transaction");
+        if (msg == null) {
+            return false;
+        }
+        String lower = msg.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("cannot start a transaction") || lower.contains("no transaction started")
+                || lower.contains("no transaction is in progress") || lower.contains("no such transaction");
     }
 
     /**

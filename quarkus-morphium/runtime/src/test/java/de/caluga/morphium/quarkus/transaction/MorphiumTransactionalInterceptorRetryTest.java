@@ -180,4 +180,44 @@ class MorphiumTransactionalInterceptorRetryTest {
     void plainReturnType_isNotAsyncReturnType() {
         assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(String.class)).isFalse();
     }
+
+    // -------------------------------------------------------------------------
+    // isNoServerTransaction -- should-fix #8: covers known MongoDB error message
+    // phrasings for "no server-side transaction to commit/abort", not just one exact string
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("\"Cannot start a transaction\" (the original exact match) is still detected")
+    void originalExactPhrase_isDetected() {
+        MorphiumDriverException e = new MorphiumDriverException("Cannot start a transaction on a session already started a transaction");
+        assertThat(MorphiumTransactionalInterceptor.isNoServerTransaction(e)).isTrue();
+    }
+
+    @Test
+    @DisplayName("differently-cased phrasing is still detected (case-insensitive)")
+    void differentCasing_isDetected() {
+        MorphiumDriverException e = new MorphiumDriverException("cannot start a transaction: some detail");
+        assertThat(MorphiumTransactionalInterceptor.isNoServerTransaction(e)).isTrue();
+    }
+
+    @Test
+    @DisplayName("\"No such transaction\" phrasing is detected")
+    void noSuchTransactionPhrasing_isDetected() {
+        MorphiumDriverException e = new MorphiumDriverException("No such transaction exists for this session");
+        assertThat(MorphiumTransactionalInterceptor.isNoServerTransaction(e)).isTrue();
+    }
+
+    @Test
+    @DisplayName("an unrelated MongoDB error message is NOT detected")
+    void unrelatedError_isNotDetected() {
+        MorphiumDriverException e = new MorphiumDriverException("E11000 duplicate key error collection");
+        assertThat(MorphiumTransactionalInterceptor.isNoServerTransaction(e)).isFalse();
+    }
+
+    @Test
+    @DisplayName("null message is NOT detected (no NPE)")
+    void nullMessage_isNotDetected() {
+        MorphiumDriverException e = new MorphiumDriverException((String) null);
+        assertThat(MorphiumTransactionalInterceptor.isNoServerTransaction(e)).isFalse();
+    }
 }
