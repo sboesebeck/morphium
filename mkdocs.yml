@@ -60,6 +60,15 @@ markdown_extensions:
       permalink: true
       title: On this page
 
+# Internal design/planning documents - not part of the published site at all.
+exclude_docs: |
+  superpowers/
+
+# Historical release notes are kept as plain files, deliberately not part of the nav
+# (CHANGELOG.md in the repo root is the maintained changelog).
+not_in_nav: |
+  releases/*
+
 nav:
   - Home: index.md
   - Getting Started:
@@ -74,6 +83,7 @@ nav:
     - InMemory Driver: inmemory-driver.md
     - Quick Reference: howtos/inmemory-driver.md
     - Wire Proxy (Fault Injection): wire-proxy.md
+    - Developer Testing Guide: developer-testing-guide.md
   - PoppyDB:
     - Overview: poppydb.md
     - Production Deployment Playbook: howtos/poppydb-deployment.md
@@ -86,6 +96,8 @@ nav:
     - Caching Examples: howtos/caching-examples.md
     - Cache Patterns: howtos/cache-patterns.md
     - Field Name Mapping: howtos/field-names.md
+    - Optimistic Locking: howtos/optimistic-locking.md
+    - References & Relationships: howtos/references-and-relationships.md
   - Core Features:
     - Messaging System: messaging.md
     - Messaging Implementations: howtos/messaging-implementations.md

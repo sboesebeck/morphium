@@ -142,7 +142,7 @@ java -jar poppydb-cli.jar -p 27018 --auth --rootUser admin --rootPassword s3cr3t
 ```
 
 Note that authorization is authentication-only for now: roles are stored but not evaluated,
-and `createRole` is not implemented. See the [PoppyDB documentation](poppydb.md#authentication---auth)
+and `createRole` is not implemented. See the [PoppyDB documentation](poppydb.md#authentication-auth)
 for details, client examples and limitations.
 
 ## MONGODB-X509 Certificate Authentication

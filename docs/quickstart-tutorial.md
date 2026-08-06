@@ -297,7 +297,7 @@ You can now:
 
 **Continue with:**
 - [Write Your First Test](./first-test.md)
-- [Annotations in Detail](./developer-guide.md#annotations)
+- [Annotations in Detail](./api-reference.md#annotation-reference)
 - [Using Messaging](./messaging.md)
 
 ---

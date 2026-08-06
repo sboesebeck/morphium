@@ -41,6 +41,112 @@ proxy.stop();   // severs all connections, joins every pump thread before return
 `WireProxy` implements `AutoCloseable`, so try-with-resources works too. `stop()` guarantees
 that every internal pump thread has exited before it returns — no thread leakage across tests.
 
+## Full example: 3-node replica set, everything logged
+
+The fragments above show single pieces; this is the whole thing end to end — three proxies in
+front of a three-node replica set, address rewriting so the driver never escapes the proxies,
+an observer logging every server reply, one write and one read flowing through, and a clean
+teardown. Runs as-is from `morphium-core`'s test scope (that's where `WireProxy` and
+`UncachedObject` live):
+
+```java
+import java.util.*;
+
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
+import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
+import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.morphium.testutil.proxy.AddressRewriter;
+import de.caluga.test.morphium.testutil.proxy.WireProxy;
+
+public class WireProxyDemo {
+
+    public static void main(String[] args) throws Exception {
+        // The RS members EXACTLY as the servers report them in hello ("Map-key invariant":
+        // if the server says "mongo1:27017", the key must be "mongo1:27017", not an IP).
+        List<String> members = List.of("mongo1:27017", "mongo2:27017", "mongo3:27017");
+
+        // 1) One proxy per member, each on a random local port.
+        List<WireProxy> proxies = new ArrayList<>();
+        Map<String, String> backendToProxy = new LinkedHashMap<>();
+        for (String member : members) {
+            String host = member.substring(0, member.indexOf(':'));
+            int port = Integer.parseInt(member.substring(member.indexOf(':') + 1));
+            WireProxy proxy = new WireProxy(host, port);
+            proxies.add(proxy);
+            backendToProxy.put(member, "localhost:" + proxy.getListenPort());
+        }
+
+        // 2) One shared rewriter (so every hello reply, from every node, maps the full
+        //    topology to proxy addresses) + a logging observer on every proxy.
+        AddressRewriter rewriter = new AddressRewriter(backendToProxy);
+        for (WireProxy proxy : proxies) {
+            proxy.setRewriter(rewriter);
+            proxy.addObserver((dir, msg, ctx) ->
+                System.out.printf("[proxy:%d] %s %s%n", ctx.listenPort(), dir, summarize(msg)));
+            proxy.start();
+        }
+        System.out.println("topology mapping: " + backendToProxy);
+
+        // 3) Morphium gets ONLY the proxy addresses as its seed. SSL and wire compression
+        //    must be OFF - the proxy cannot frame-parse either (deliberate non-goal).
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.connectionSettings().setDatabase("wireproxy_demo");
+        cfg.clusterSettings().getHostSeed().clear();
+        backendToProxy.values().forEach(cfg.clusterSettings()::addHostToSeed);
+        cfg.driverSettings().setDriverName("PooledDriver");
+        cfg.clusterSettings().setHeartbeatFrequency(1000);
+        cfg.driverSettings().setServerSelectionTimeout(5000);
+        cfg.connectionSettings().setUseSSL(false);
+        cfg.driverSettings().setCompressionType(MorphiumConfig.CompressionType.NONE);
+
+        // 4) Everything from here on - discovery hellos, heartbeats, the write, the read -
+        //    shows up line by line in the observer output.
+        try (Morphium morphium = new Morphium(cfg)) {
+            morphium.store(new UncachedObject("hello through the proxy", 42));
+            long count = morphium.createQueryFor(UncachedObject.class).countAll();
+            System.out.println("read back through the proxies: " + count + " document(s)");
+
+            // Optional: watch the driver cope with a frozen node. Freeze the first proxy -
+            // its connections go silent (no error, no close), exactly like a paused VM.
+            // proxies.get(0).setFaultMode(FaultMode.freeze);
+        } finally {
+            // Severs every connection (hard RST) and joins all pump threads before returning.
+            for (WireProxy proxy : proxies) {
+                proxy.stop();
+            }
+        }
+    }
+
+    /** Compact one-liner per frame: hello replies show the (rewritten!) topology,
+     *  everything else just its top-level keys. */
+    private static String summarize(WireProtocolMessage msg) {
+        if (msg instanceof OpMsg op && op.getFirstDoc() != null) {
+            Map<String, Object> doc = op.getFirstDoc();
+            if (doc.containsKey("hosts")) {
+                return "hello(primary=" + doc.get("primary") + ", hosts=" + doc.get("hosts") + ")";
+            }
+            return "OpMsg" + doc.keySet();
+        }
+        return msg.getClass().getSimpleName();
+    }
+}
+```
+
+Typical output — note that the `hello` lines already show **proxy** addresses, which is the
+address rewriting doing its job; if a real backend address ever shows up here, your
+`backendToProxy` keys don't match what the server reports:
+
+```text
+topology mapping: {mongo1:27017=localhost:52114, mongo2:27017=localhost:52115, mongo3:27017=localhost:52116}
+[proxy:52114] BACKEND_TO_CLIENT hello(primary=localhost:52114, hosts=[localhost:52114, localhost:52115, localhost:52116])
+[proxy:52115] BACKEND_TO_CLIENT hello(primary=localhost:52114, hosts=[localhost:52114, localhost:52115, localhost:52116])
+[proxy:52114] BACKEND_TO_CLIENT OpMsg[n, electionId, opTime, ok, ...]
+[proxy:52114] BACKEND_TO_CLIENT OpMsg[cursor, ok, ...]
+read back through the proxies: 1 document(s)
+```
+
 ## Fault injection
 
 Faults are switched at runtime via `proxy.setFaultMode(...)`:

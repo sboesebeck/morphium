@@ -201,7 +201,7 @@ with code 0 (OK) or 1 (errors) - like `nginx -t`. Beyond syntax and semantic cro
 loaded (catching wrong keystore passwords), secret files are read, the dump directory is
 checked for usability, and — if `users-file` is set — the file is read, permission-checked and
 fully parsed/validated exactly like at real startup (see
-[Bootstrapping users](#bootstrapping-users---users-file)), so a broken users file is caught before
+[Bootstrapping users](#bootstrapping-users-users-file)), so a broken users file is caught before
 it can abort a real deployment. Warnings (e.g. `ssl` without a keystore) do not affect the exit code:
 
     java -jar poppydb.jar --cfg /etc/poppydb/config --check-config
@@ -234,7 +234,7 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 | `--no-auth` | | Force auth off, overriding a config file's `auth=true`. | |
 | `--rootUser <name>` | `root-user` | Initial admin user, created at startup if absent. Required for a fresh `--auth` server — there is no localhost exception. | |
 | `--rootPassword <pw>` | `root-password` | Password for the initial admin user. `root-password-file` (config-file only) reads it from a separate file instead. | |
-| `--users-file <path>` | `users-file` | JSON file declaring users to provision at startup (idempotent upsert, primary-only apply, optional version gate). See [Bootstrapping users](#bootstrapping-users---users-file). | |
+| `--users-file <path>` | `users-file` | JSON file declaring users to provision at startup (idempotent upsert, primary-only apply, optional version gate). See [Bootstrapping users](#bootstrapping-users-users-file). | |
 | `-d`, `--dump-dir <path>` | `dump-dir` | Directory for periodic database dumps. Enables persistence. | |
 | `--dump-interval <seconds>` | `dump-interval` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
 | `--max-connections <num>` | `max-connections` | Maximum concurrent connections. | `500` |
@@ -598,7 +598,7 @@ brief window before the new primary has (re-)created the root user, during which
 transiently fail until that completes.
 
 For provisioning more than the one initial admin user declaratively, see
-[Bootstrapping users (`--users-file`)](#bootstrapping-users---users-file) below — a JSON file of
+[Bootstrapping users (`--users-file`)](#bootstrapping-users-users-file) below — a JSON file of
 users applied the same idempotent, primary-only, replication-riding way `--rootUser` is.
 
 **SSL with Docker:**
@@ -638,7 +638,7 @@ becomes primary — no manual `createUser` shell commands, no drift between envi
 
 Per entry: `user` and `pwd` are required non-empty strings; `db` defaults to `"admin"`; `roles`
 is optional and stored mongod-shaped but **not enforced** (like everywhere else in PoppyDB —
-see [Current limitations](#authentication---auth) above); `mechanisms` is optional. Any unknown
+see [Current limitations](#authentication-auth) above); `mechanisms` is optional. Any unknown
 field in an entry, or at the top level, is a hard error naming the field (and the entry index)
 instead of being silently ignored. Two entries naming the same `(user, db)` pair are a hard error
 too — mongod identifies a user by that pair, so both would apply to the same principal; without
@@ -669,7 +669,7 @@ java -jar poppydb-cli.jar --auth --rootUser admin --rootPassword s3cr3t \
 - A static-mode **secondary** never applies the file locally, even if `--users-file` is
   configured on it too (PoppyDB logs an INFO line noting that it is ignored there) — it receives
   the result purely through the normal `admin.system.users` replication that already carries
-  `createUser`/`updateUser` writes (see [User replication](#authentication---auth) above). The
+  `createUser`/`updateUser` writes (see [User replication](#authentication-auth) above). The
   file is only ignored for *application* on such a node — it is still parsed and validated at
   startup like everywhere else, so a syntactically broken file fails that node's startup too
   (fail-fast by design, not a live-apply attempt).
@@ -995,7 +995,7 @@ sessions automatically, replica-set failover keeps sessions alive across node re
 Session) work unchanged. `$inc` + TTL also cover rate limiting and counters; tiny
 config/feature-flag collections get instant propagation via change streams.
 
-For all production use: enable [`--auth`](#authentication---auth) (note that roles are
+For all production use: enable [`--auth`](#authentication-auth) (note that roles are
 not evaluated yet — isolate the network segment), size the heap deliberately, monitor
 `db.serverStatus().memoryWatermark` and `db.stats()`, and read the loss model above.
 
@@ -1218,7 +1218,7 @@ db.watch().on('change', console.log);
 ### Security
 - ✅ **TLS/SSL Supported** - Encrypted connections available (since v6.1.0)
 - ✅ **Authentication** - Real SCRAM-SHA-1/SHA-256, opt-in via `--auth` (since v6.3.0) - see
-  [Authentication](#authentication---auth)
+  [Authentication](#authentication-auth)
 - ⚠️ **Authorization not enforced** - roles are stored (`createUser`'s `roles` field) but not
   evaluated; any authenticated user may run any command. Isolate the network segment if you need
   fine-grained access control.

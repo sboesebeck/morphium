@@ -247,7 +247,7 @@ accordingly:
 - Rolling upgrade for a replica set: upgrade secondaries first (they resync from the current
   primary on restart), then step down the primary (`replSetStepDown` or restart it last) so a
   secondary takes over — verify *some* node became primary afterward rather than waiting for a
-  specific one (see [PoppyDB § StepDown/Failover Behavior](../poppydb.md#stepdown--failover-behavior-replica-set)
+  specific one (see [PoppyDB § StepDown/Failover Behavior](../poppydb.md#stepdown-failover-behavior-replica-set)
   for why the original primary may not reclaim leadership).
 - Take a manual snapshot immediately before upgrading (see §7) regardless of your regular dump
   interval.
@@ -286,7 +286,7 @@ a replacement for reading the sections above.
   where the [loss model](../poppydb.md#5-message-broker-for-short-lived-messages-production) (loss
   between snapshots is acceptable) actually fits your data.
 - Don't wait for "the original primary" to reclaim leadership after a failover — verify *any* node
-  became primary instead (see [§8](#8-upgrades) and [PoppyDB § StepDown/Failover Behavior](../poppydb.md#stepdown--failover-behavior-replica-set)).
+  became primary instead (see [§8](#8-upgrades) and [PoppyDB § StepDown/Failover Behavior](../poppydb.md#stepdown-failover-behavior-replica-set)).
 - Don't skip the config-file **permission warning** — `chmod 600` any file PoppyDB tells you is
   group/other-readable and contains secrets, before it becomes group/other-*writable* and PoppyDB
   refuses to start entirely.
