@@ -30,15 +30,19 @@ Morphium ist eine umfassende Datenschicht-Lösung für MongoDB mit:
 | Nachrichten persistent | Standard | Snapshots (optional) | Optional | Standard |
 | Nachrichtenpriorität | ✅ Ja | ✅ Ja | ✅ Ja | ❌ Nein |
 | Distributed Locks | ✅ Ja | ✅ Ja | ❌ Nein | ❌ Nein |
-| Durchsatz (interne Tests) | ~8K msg/s | **2,5× MongoDB-Backend*** | 10K–50K msg/s | 100K+ msg/s |
+| Durchsatz one-way Send→Empfang | ~8K msg/s | —* | 10K–50K msg/s | 100K+ msg/s |
+| Round-Trip Request→Response (Ping-Pong) | 89 msg/s | **223 msg/s (2,5×)** | — | — |
 | Betrieb | ⭐ Sehr einfach | ⭐ Trivial (ein Prozess) | ⭐⭐ Mittel | ⭐⭐⭐⭐ Komplex |
 
-_* Richtwerte aus internen Messungen; tatsächliche Werte hängen von Hardware und Workload ab.
-PoppyDB und Morphium Messaging sind aufeinander optimiert (beide Seiten erkennen das
-Gegenüber): Im [Benchmark](docs/v5-vs-v6-performance.md) lief derselbe Messaging-Workload mit
-223 msg/s bei 4,5 ms Latenz gegen PoppyDB vs. 89 msg/s bei 11,3 ms gegen ein 3-Node-MongoDB-
-Replica-Set — 2,5-facher Durchsatz bei weniger als halber Latenz. Die Persistenz ist
-allerdings Snapshot-basiert, siehe die
+_* Alle Zahlen sind Richtwerte und hängen stark von Hardware und Workload ab. Die beiden
+Zeilen messen Unterschiedliches: Die One-way-Zahl zählt nur Send→Zustellung (keine
+Verarbeitung, keine Antwort — dieselbe Art Zahl, die auch die RabbitMQ-/Kafka-Spalten
+angeben), die Round-Trip-Zeile misst komplette Ping-Pongs (Request raus, Response zurück) aus
+dem [Benchmark](docs/v5-vs-v6-performance.md): 223 msg/s bei 4,5 ms Latenz gegen PoppyDB vs.
+89 msg/s bei 11,3 ms gegen ein 3-Node-MongoDB-Replica-Set — 2,5-facher Durchsatz bei weniger
+als halber Latenz, weil PoppyDB und Morphium Messaging aufeinander optimiert sind (beide
+Seiten erkennen das Gegenüber). Eine separate One-way-Messung für PoppyDB gibt es nicht. Die
+Persistenz dort ist Snapshot-basiert, siehe die
 [PoppyDB-Sektion](#-poppydb--mongodb-kompatibler-in-memory-server) unten._
 
 ## 🌱 PoppyDB — MongoDB-kompatibler In-Memory-Server
