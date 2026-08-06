@@ -7,7 +7,7 @@ set -eo pipefail
 # This script handles the complete release process for the multi-module project:
 # 1. Validates prerequisites (branch, credentials, GPG, Java)
 # 2. Runs tests (optional)
-# 3. Aligns POM versions if necessary
+# 3. Aligns POM versions if necessary; bumps README version snippets
 # 4. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
 # 5. Builds release artifacts for all modules
 # 6. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
@@ -225,6 +225,44 @@ checksum_file() {
   if [ -f "$file" ]; then
     calc_md5 "$file" >"${file}.md5"
     calc_sha1 "$file" >"${file}.sha1"
+  fi
+}
+
+# Bump the version in both READMEs from <old> to <new> - but ONLY in the
+# machine-readable spots: <version>X.Y.Z</version> dependency snippets,
+# poppydb-X.Y.Z-cli.jar mentions, and de.caluga:poppydb:X.Y.Z coordinates.
+# Deliberately NOT a blanket old->new replace: prose like the
+# "Patch releases 6.2.1 - 6.2.10" summary describes CONTENT and must only ever
+# be extended by a human who also updates the text. The README title has been
+# versionless since 2026-08-06 (the Maven Central badge shows the current
+# release), so titles never need bumping. No-op for files where the old
+# version does not appear (e.g. already bumped by hand). BSD/macOS-sed
+# compatible (-i.relbak + rm, matching this script's bash-3.2 portability bar).
+bump_readme_versions() {
+  local old_version="$1"
+  local new_version="$2"
+  local old_esc="${old_version//./\\.}"
+  local file bumped=""
+
+  for file in README.md README.de.md; do
+    [ -f "$file" ] || continue
+    if grep -qE "<version>${old_esc}</version>|poppydb-${old_esc}-cli\.jar|de\.caluga:poppydb:${old_esc}" "$file"; then
+      sed -i.relbak -E \
+        -e "s|<version>${old_esc}</version>|<version>${new_version}</version>|g" \
+        -e "s|poppydb-${old_esc}-cli\.jar|poppydb-${new_version}-cli.jar|g" \
+        -e "s|de\.caluga:poppydb:${old_esc}|de.caluga:poppydb:${new_version}|g" \
+        "$file"
+      rm -f "${file}.relbak"
+      bumped="${bumped:+$bumped }$file"
+    fi
+  done
+
+  if [ -n "$bumped" ]; then
+    git add $bumped
+    git commit -m "Update README version snippets to ${new_version} for release" -q
+    log_success "README version snippets bumped to ${new_version} (${bumped})"
+  else
+    log_info "README version snippets already current - nothing to bump"
   fi
 }
 
@@ -737,6 +775,16 @@ if [ "$current_version" != "${release_version}-SNAPSHOT" ]; then
   fi
 else
   log_success "POM version: $current_version"
+fi
+
+# Keep the README dependency snippets in sync with the release - they used to
+# rot silently (the README still said 6.2.4 while v6.2.10 was long out). Must
+# happen before release:prepare, which requires a clean working tree; the
+# helper commits on its own when it changed anything.
+if [ "$DRY_RUN" = true ]; then
+  log_info "Not bumping README versions because of DRY_RUN"
+else
+  bump_readme_versions "$last_version" "$release_version"
 fi
 
 # Verify multi-module structure
