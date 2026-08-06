@@ -862,6 +862,29 @@ public class MorphiumDataProcessor {
         boolean hasDynamicParam = sortParamIndex >= 0 || orderParamIndex >= 0
                 || pageRequestParamIndex >= 0 || limitParamIndex >= 0;
 
+        // Reject Limit/PageRequest on countBy*/existsBy*/deleteBy* at BUILD TIME (see PR #267
+        // review / regression fix in QueryMethodBridge.executeQuery): a dynamic Sort/Order
+        // argument on a non-FIND prefix is harmless to accept (there is no result list for it to
+        // reorder, so QueryMethodBridge simply ignores it), but a Limit or PageRequest is
+        // semantically meaningless there -- "the 3rd page of a delete" or "count, but only the
+        // first 10 matches" has no sensible definition, and none of the underlying Morphium
+        // primitives (countAll(), query.delete()) support a skip/limit-bounded variant anyway.
+        // Rather than silently ignoring the parameter (which would surprise a caller who wrote
+        // it expecting it to take effect) or raising an ambiguous runtime exception on first
+        // call, fail the build immediately with a clear message, same pattern as the other
+        // unsupported-signature checks in this method.
+        if (descriptor.prefix() != QueryDescriptor.Prefix.FIND
+                && (pageRequestParamIndex >= 0 || limitParamIndex >= 0)) {
+            throw new IllegalStateException(
+                    "Unsupported repository method " + method.declaringClass().name() + "." + methodName
+                            + "() -- a " + (pageRequestParamIndex >= 0 ? "PageRequest" : "Limit")
+                            + " parameter is not supported on a " + descriptor.prefix().name().toLowerCase(Locale.ROOT)
+                            + "By* method (" + methodName + "). Paging/limiting a count, existence check, or "
+                            + "bulk delete is not sensibly definable. Remove the parameter, or restructure the "
+                            + "method as a findBy* query and apply count()/isEmpty()/delete() logic in application "
+                            + "code instead.");
+        }
+
         // Determine return type for the descriptor (based on effective/inner type)
         boolean returnsPage = effectiveReturnType.name().equals(PAGE_TYPE);
         boolean returnsOptional = isOptional(effectiveReturnType);

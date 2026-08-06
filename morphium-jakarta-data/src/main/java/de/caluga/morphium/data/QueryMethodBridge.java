@@ -115,6 +115,39 @@ public final class QueryMethodBridge {
             return parsed;
         });
 
+        // Regression fix (see commit 11f669e77 review, PR #267): this overload used to always
+        // fall through to a plain find (query.asList()/asBoolean-from-list-emptiness) further
+        // down, no matter what descriptor.prefix() said. That is correct for FIND, but for
+        // COUNT/EXISTS/DELETE it silently turned a countBy*/existsBy*/deleteBy* method with a
+        // dynamic Sort/Order/PageRequest/Limit parameter into a find: countBy*/existsBy* got a
+        // List back where a Long/boolean was expected (ClassCastException at the generated
+        // checkCast), and deleteBy* stopped deleting anything at all while still reporting
+        // success.
+        //
+        // Decision: for any non-FIND prefix, delegate to the same QueryExecutor.execute() path
+        // used by the simpler (no-dynamic-parameter) overload below, which already implements
+        // the correct DELETE/COUNT/EXISTS semantics (actually deletes, returns a count/boolean,
+        // never a List). This *does* take the dynamic parameters into account: a dynamic
+        // Sort/Order argument is harmless to accept-and-ignore here (there is no result set on a
+        // count, an existence check, or a bulk delete for it to reorder — same reasoning as a
+        // static/method-name-derived order-by, which QueryExecutor.execute() already applies
+        // only for FIND), so simply not passing it through is the correct, side-effect-free
+        // behaviour. A dynamic Limit or PageRequest argument on a non-FIND prefix, however, is
+        // semantically questionable (what would "the 3rd page of a delete" or "count, but only
+        // the first 10" mean?) and is not sensibly supportable — that combination is therefore
+        // rejected at BUILD TIME in MorphiumDataProcessor.generateQueryMethod(), so it can never
+        // reach this method; if it ever did, it would be silently ignored below, same as Sort/
+        // Order, since limitParamIndex/pageRequestParamIndex are simply not read on this branch.
+        if (descriptor.prefix() != QueryDescriptor.Prefix.FIND) {
+            Object result = QueryExecutor.execute(descriptor, args, repo);
+            // For deleteBy* with boolean return: convert count > 0 (mirrors the equivalent
+            // conversion in the simpler overload below).
+            if (returnsBoolean && result instanceof Long count) {
+                return count > 0;
+            }
+            return result;
+        }
+
         Morphium morphium = repo.getMorphium();
         Class entityClass = repo.getMetadata().entityClass();
         Query query = morphium.createQueryFor(entityClass);
