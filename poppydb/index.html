@@ -3954,9 +3954,9 @@ settings) — the driver performs the SCRAM handshake automatically on connect.<
 - Passwords travel SCRAM-hashed, never in the clear — but combine <code>--auth</code> with <code>--ssl</code> when
   crossing untrusted networks to also encrypt the data itself.</p>
 <p><strong>User replication:</strong> in a replica set, <code>admin.system.users</code> is the one system collection that
-replicates — users created or updated via <code>createUser</code>/<code>updateUser</code> reach every member, and
-(like all writes) only the primary accepts these commands; a secondary answers them with
-<code>NotWritablePrimary</code>. This means logins survive failover: a user created before a leadership
+replicates — users created, updated or removed via <code>createUser</code>/<code>updateUser</code>/<code>dropUser</code> reach
+every member, and (like all writes) only the primary accepts these commands; a secondary answers
+them with <code>NotWritablePrimary</code>. This means logins survive failover: a user created before a leadership
 change can still authenticate against the new primary and against every secondary, and a dump
 taken on any member — including a priority-0 backup node that never leads — contains the users,
 not just the data. Before this change users were node-local, so a backup-node dump silently
@@ -4014,9 +4014,13 @@ diagnostic at all. <code>version</code>, if present, must be a positive integer.
   instead of silently leaving users unprovisioned).</li>
 <li>Election-mode replica set: every time this node's leadership hook runs, right after
   <code>ensureRootUser</code> — i.e. on every election, not just the first one. This is intentionally
-  idempotent: <code>createUser</code> on a name that already exists falls back to <code>updateUser</code> (password,
-  roles and mechanisms from the file replace the stored state), so repeated leadership changes
-  (flapping, priority takeover) just re-apply harmlessly. A failure here can only be <strong>logged</strong>
+  idempotent: <code>createUser</code> on a name that already exists falls back to <code>updateUser</code> (password
+  and roles from the file replace the stored state; <code>mechanisms</code>, when listed in the file,
+  replaces the stored set too — but when the file entry OMITS <code>mechanisms</code>, an existing user
+  keeps whatever mechanism set they already have, mongod's <code>updateUser</code> semantics. A user first
+  provisioned with <code>mechanisms: ["SCRAM-SHA-256"]</code> therefore stays SHA-256-only even if a later
+  file version drops the key; to get back to the default pair, list both mechanisms explicitly),
+  so repeated leadership changes (flapping, priority takeover) just re-apply harmlessly. A failure here can only be <strong>logged</strong>
   (<code>ERROR</code>) — a running server cannot abort mid-failover, so the node keeps serving with
   whatever user state it already had.</li>
 <li>A static-mode <strong>secondary</strong> never applies the file locally, even if <code>--users-file</code> is
@@ -4059,9 +4063,10 @@ per-node lag beyond ordinary replication.</p>
 </span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">server</span><span class="p">.</span><span class="na">setBootstrapUsers</span><span class="p">(</span><span class="n">UsersFileLoader</span><span class="p">.</span><span class="na">load</span><span class="p">(</span><span class="s">&quot;/etc/poppydb/users.json&quot;</span><span class="p">));</span>
 </span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="n">server</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
 </span></code></pre></div></p>
-<p><strong>Out of scope (by design):</strong> there is no <code>dropUser</code>/reconciliation-delete — the file only ever
-adds/updates, so removing a user still means an explicit <code>dropUser</code> (or leaving them in the file
-with a rotated password is not equivalent to removal); no role <em>enforcement</em> (same limitation as
+<p><strong>Out of scope (by design):</strong> the file has no reconciliation-delete — it only ever adds/updates,
+so removing a user means an explicit <code>dropUser</code> command against the primary (which replicates
+like any other user write; merely deleting the entry from the file does NOT remove the user);
+no role <em>enforcement</em> (same limitation as
 <code>createUser</code>'s <code>roles</code> field everywhere else); no environment-variable substitution inside the
 file; and no file-watching — a changed file only takes effect on the next apply (restart, or the
 next leadership change in election mode), never live.</p>
