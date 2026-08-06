@@ -92,7 +92,7 @@ public class MorphiumTransactionalInterceptor {
     }
 
     @AroundInvoke
-    Object aroundInvoke(InvocationContext ctx) throws Exception {
+    Object aroundInvoke(InvocationContext ctx) throws Throwable {
         // CosmosDB: execute without transaction wrapping but still fire lifecycle events
         if (isCosmosDb()) {
             log.debugf("CosmosDB: @MorphiumTransactional on %s.%s executes WITHOUT transaction.",
@@ -137,8 +137,18 @@ public class MorphiumTransactionalInterceptor {
                     safeCommit();
                     afterCommit.fire(new MorphiumTransactionEvent(Phase.AFTER_COMMIT));
                     return result;
-                } catch (Exception e) {
+                } catch (Throwable t) {
+                    // catch (Throwable), not (Exception): an Error (e.g. OutOfMemoryError,
+                    // StackOverflowError) must still trigger safeAbort() -- otherwise the
+                    // transaction context stays open on this thread, and a later invocation
+                    // reusing the same (pooled) thread would silently "join" a dead
+                    // transaction via the REQUIRED-propagation check above.
                     safeAbort();
+                    if (!(t instanceof Exception e)) {
+                        // Errors are never retried; rethrow as-is (no lifecycle event,
+                        // matching how an unrecoverable JVM-level failure should propagate).
+                        throw t;
+                    }
                     if (attempt < maxRetries && isTransientTransactionError(e)) {
                         log.warnf("Transient transaction error on %s.%s (attempt %d/%d) — retrying entire transaction: %s",
                                 ctx.getMethod().getDeclaringClass().getSimpleName(),
@@ -219,15 +229,17 @@ public class MorphiumTransactionalInterceptor {
      * Executes the intercepted method without transaction wrapping but fires
      * the same lifecycle events so that observers (outbox, cleanup, etc.) still work.
      */
-    private Object proceedWithEvents(InvocationContext ctx) throws Exception {
+    private Object proceedWithEvents(InvocationContext ctx) throws Throwable {
         try {
             Object result = ctx.proceed();
             beforeCommit.fire(new MorphiumTransactionEvent(Phase.BEFORE_COMMIT));
             afterCommit.fire(new MorphiumTransactionEvent(Phase.AFTER_COMMIT));
             return result;
-        } catch (Exception e) {
-            afterRollback.fire(new MorphiumTransactionEvent(Phase.AFTER_ROLLBACK, e));
-            throw e;
+        } catch (Throwable t) {
+            if (t instanceof Exception e) {
+                afterRollback.fire(new MorphiumTransactionEvent(Phase.AFTER_ROLLBACK, e));
+            }
+            throw t;
         }
     }
 
