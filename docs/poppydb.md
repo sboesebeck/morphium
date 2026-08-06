@@ -585,9 +585,9 @@ server.start();
   crossing untrusted networks to also encrypt the data itself.
 
 **User replication:** in a replica set, `admin.system.users` is the one system collection that
-replicates — users created or updated via `createUser`/`updateUser` reach every member, and
-(like all writes) only the primary accepts these commands; a secondary answers them with
-`NotWritablePrimary`. This means logins survive failover: a user created before a leadership
+replicates — users created, updated or removed via `createUser`/`updateUser`/`dropUser` reach
+every member, and (like all writes) only the primary accepts these commands; a secondary answers
+them with `NotWritablePrimary`. This means logins survive failover: a user created before a leadership
 change can still authenticate against the new primary and against every secondary, and a dump
 taken on any member — including a priority-0 backup node that never leads — contains the users,
 not just the data. Before this change users were node-local, so a backup-node dump silently
@@ -657,9 +657,13 @@ java -jar poppydb-cli.jar --auth --rootUser admin --rootPassword s3cr3t \
   instead of silently leaving users unprovisioned).
 - Election-mode replica set: every time this node's leadership hook runs, right after
   `ensureRootUser` — i.e. on every election, not just the first one. This is intentionally
-  idempotent: `createUser` on a name that already exists falls back to `updateUser` (password,
-  roles and mechanisms from the file replace the stored state), so repeated leadership changes
-  (flapping, priority takeover) just re-apply harmlessly. A failure here can only be **logged**
+  idempotent: `createUser` on a name that already exists falls back to `updateUser` (password
+  and roles from the file replace the stored state; `mechanisms`, when listed in the file,
+  replaces the stored set too — but when the file entry OMITS `mechanisms`, an existing user
+  keeps whatever mechanism set they already have, mongod's `updateUser` semantics. A user first
+  provisioned with `mechanisms: ["SCRAM-SHA-256"]` therefore stays SHA-256-only even if a later
+  file version drops the key; to get back to the default pair, list both mechanisms explicitly),
+  so repeated leadership changes (flapping, priority takeover) just re-apply harmlessly. A failure here can only be **logged**
   (`ERROR`) — a running server cannot abort mid-failover, so the node keeps serving with
   whatever user state it already had.
 - A static-mode **secondary** never applies the file locally, even if `--users-file` is
@@ -707,9 +711,10 @@ server.setBootstrapUsers(UsersFileLoader.load("/etc/poppydb/users.json"));
 server.start();
 ```
 
-**Out of scope (by design):** there is no `dropUser`/reconciliation-delete — the file only ever
-adds/updates, so removing a user still means an explicit `dropUser` (or leaving them in the file
-with a rotated password is not equivalent to removal); no role *enforcement* (same limitation as
+**Out of scope (by design):** the file has no reconciliation-delete — it only ever adds/updates,
+so removing a user means an explicit `dropUser` command against the primary (which replicates
+like any other user write; merely deleting the entry from the file does NOT remove the user);
+no role *enforcement* (same limitation as
 `createUser`'s `roles` field everywhere else); no environment-variable substitution inside the
 file; and no file-watching — a changed file only takes effect on the next apply (restart, or the
 next leadership change in election mode), never live.

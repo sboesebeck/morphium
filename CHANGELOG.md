@@ -58,6 +58,21 @@ Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica s
 
 ### Added
 
+#### `dropUser` — the user lifecycle is complete (InMemoryDriver + PoppyDB)
+The in-memory driver (and with it PoppyDB) now implements mongod-compatible `dropUser`: the user
+document is removed and a delete event is emitted on `admin.system.users` under the same
+ordering lock as `createUser`/`updateUser`, so PoppyDB secondaries replicate the drop exactly
+like creates and updates (documentKey-keyed delete). On a replica set the command is
+primary-only like every other write - a secondary answers `NotWritablePrimary`. Previously the
+only way to remove a user was a raw delete on `admin.system.users`, which bypassed the
+event-ordering guarantee and was not wired into any command surface.
+
+#### `customData` support in `createUser`/`updateUser`
+`createUser` stores an optional `customData` document on the user (mongod's shape);
+`updateUser` accepts `customData` — replaced wholesale when given (including as the only field,
+which previously returned `BadValue`), preserved when omitted. A password change no longer
+silently discards stored `customData`. `authenticationRestrictions` remains unmodeled.
+
 #### Driver: automated failover test via wire-rewriting proxy, replaces manual `FailoverReproTest`
 `FailoverReproTest` reproduced the 6.2.6 failover regressions but required a hand-built local
 replica set and process kills (`kill -9`, SIGSTOP) run by hand — it was tagged `manual` and never
