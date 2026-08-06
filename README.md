@@ -44,6 +44,35 @@ counterpart). PoppyDB's strength is latency, not raw one-way throughput on const
 hardware. Persistence there is snapshot-based, see the
 [PoppyDB section](#-poppydb--mongodb-compatible-in-memory-server) below._
 
+_**How real is Kafka's 100K+ figure — and how big is the gap really?** We measured both on
+one and the same laptop-class machine (Apple M1 Max, single-node Kafka 4.1, ~200-byte
+payload, one consumer, end-to-end from first send to last receipt — the same setup as our
+[one-way benchmark](poppydb/src/test/java/de/caluga/poppydb/MessagingOneWayThroughputBenchmark.java)).
+In its normal operating mode — asynchronous sends, client-side batching — Kafka reached
+~900K msg/s, so the 100K+ column is real and even conservative on modern hardware. But
+forced into Morphium's semantics, where every message is sent synchronously and individually
+acknowledged by the broker (4 sender threads, `acks=all`), Kafka drops to ~8–10K msg/s vs.
+~1,800 msg/s for Morphium+PoppyDB on the same machine — a factor of 4–5, not 100+. Kafka's
+headline throughput comes almost entirely from batching thousands of records into each
+network round-trip (with no per-message broker ack and, by default, no per-message fsync —
+durability comes from replication), not from faster per-message handling. Morphium Messaging
+deliberately sends each message as an individually acknowledged insert; the remaining 4–5×
+is the price of a full ODM insert (object mapping, wire protocol, change-stream dispatch)
+per message._
+
+_**Where exactly does Morphium's per-message cost go?** Decomposed on the same machine: a
+raw `morphium.insert` of the very same Msg document into PoppyDB runs at ~4,600 docs/s —
+0.33 ms per operation single-threaded, on par with Kafka's ~0.5 ms per-request latency, so
+the wire protocol and server are not the problem. An active change-stream watcher brings
+that to ~3,600 docs/s (fanout, ~20 %), and the full messaging layer (topic registry,
+listener dispatch, processing queue) lands at ~2,500–2,800 msg/s once the JVM is warm — the
+~1,800 msg/s above is a cold-start figure. The real limiting factor is write concurrency:
+PoppyDB's in-memory backend serializes writes, so raw throughput plateaus at ~4,600
+inserts/s no matter how many sender threads you add (1 thread: ~3,100/s; 2+: ~4,300–4,600/s).
+Per-message-acknowledged throughput on par with Kafka's synchronous mode (~8–10K msg/s) is
+the realistic ceiling for future server-side concurrency work — not 100K+, which no system
+reaches without batching._
+
 ## 🌱 PoppyDB — MongoDB-Compatible In-Memory Server
 
 PoppyDB is Morphium's sibling product: an in-memory server that speaks the MongoDB wire

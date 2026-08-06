@@ -47,6 +47,36 @@ weniger als halber Latenz, weil PoppyDB und Morphium Messaging aufeinander optim
 One-way-Durchsatz auf knapper Hardware. Die Persistenz dort ist Snapshot-basiert, siehe die
 [PoppyDB-Sektion](#-poppydb--mongodb-kompatibler-in-memory-server) unten._
 
+_**Wie real sind Kafkas 100K+ — und wie groß ist die Lücke wirklich?** Wir haben beides auf
+ein und derselben Laptop-Maschine gemessen (Apple M1 Max, Single-Node Kafka 4.1, ~200-Byte-
+Payload, ein Consumer, end-to-end vom ersten Send bis zum letzten Empfang — derselbe Aufbau
+wie unser
+[One-way-Benchmark](poppydb/src/test/java/de/caluga/poppydb/MessagingOneWayThroughputBenchmark.java)).
+Im Normalbetrieb — asynchrones Senden, Batching im Client — erreichte Kafka ~900K msg/s;
+die 100K+-Spalte ist also real und auf moderner Hardware sogar konservativ. Zwingt man
+Kafka aber in Morphiums Semantik, bei der jede Message synchron gesendet und einzeln vom
+Broker bestätigt wird (4 Sender-Threads, `acks=all`), fällt Kafka auf ~8–10K msg/s vs.
+~1.800 msg/s für Morphium+PoppyDB auf derselben Maschine — Faktor 4–5, nicht 100+. Kafkas
+Spitzendurchsatz kommt fast vollständig daraus, tausende Records pro Netzwerk-Roundtrip zu
+batchen (ohne Per-Message-Broker-Ack und standardmäßig ohne Per-Message-fsync — Durability
+kommt aus der Replikation), nicht aus schnellerer Verarbeitung der einzelnen Message.
+Morphium Messaging sendet bewusst jede Message als einzeln bestätigten Insert; die
+verbleibenden 4–5× sind der Preis eines vollen ODM-Inserts (Object-Mapping, Wire-Protokoll,
+Change-Stream-Dispatch) pro Message._
+
+_**Wo genau bleiben Morphiums Kosten pro Message?** Auf derselben Maschine zerlegt: Ein
+roher `morphium.insert` desselben Msg-Dokuments in PoppyDB schafft ~4.600 docs/s — 0,33 ms
+pro Operation single-threaded, gleichauf mit Kafkas ~0,5 ms Request-Latenz; Wire-Protokoll
+und Server sind also nicht das Problem. Ein aktiver Change-Stream-Watcher bringt das auf
+~3.600 docs/s (Fanout, ~20 %), und der volle Messaging-Layer (Topic-Registry,
+Listener-Dispatch, Processing-Queue) landet bei ~2.500–2.800 msg/s, sobald die JVM warm
+ist — die ~1.800 msg/s oben sind ein Kaltstart-Wert. Der eigentliche Begrenzer ist die
+Schreib-Parallelität: PoppyDBs In-Memory-Backend serialisiert Writes, der Roh-Durchsatz
+sättigt daher bei ~4.600 Inserts/s, egal wie viele Sender-Threads man hinzufügt (1 Thread:
+~3.100/s; ab 2: ~4.300–4.600/s). Per-Message-bestätigter Durchsatz auf dem Niveau von
+Kafkas Synchron-Modus (~8–10K msg/s) ist das realistische Ziel künftiger
+Server-Parallelisierung — nicht 100K+, die kein System ohne Batching erreicht._
+
 ## 🌱 PoppyDB — MongoDB-kompatibler In-Memory-Server
 
 PoppyDB ist Morphiums Schwesterprodukt: ein In-Memory-Server, der das MongoDB Wire Protocol
