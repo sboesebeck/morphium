@@ -793,7 +793,21 @@ public class MorphiumDataProcessor {
             if (name.startsWith("findBy") || name.startsWith("countBy")
                     || name.startsWith("existsBy") || name.startsWith("deleteBy")) {
                 generateQueryMethod(cc, method, entityClassName, entityFields);
+                continue;
             }
+
+            // No recognized pattern matched this abstract method. Silently skipping it would
+            // leave an unimplemented abstract method on the generated class -- legal at class
+            // load time, but any call to it throws AbstractMethodError at first use in
+            // production. Fail the build instead, so an unsupported repository method is
+            // caught at build time, not by a user hitting the endpoint.
+            throw new IllegalStateException(
+                    "Unsupported repository method " + repoInterface.name() + "." + name
+                            + "() -- no @Query/@Find/@Delete/@Insert/@Save/@Update annotation and "
+                            + "the method name doesn't match findBy*/countBy*/existsBy*/deleteBy*. "
+                            + "Add one of these annotations, rename the method to match a supported "
+                            + "derived-query pattern, or make the method default/static if it needs "
+                            + "custom logic.");
         }
     }
 
@@ -944,6 +958,12 @@ public class MorphiumDataProcessor {
                     MethodDescriptor.ofMethod(Long.class, "valueOf", Long.class, long.class), value);
             case INT -> mc.invokeStaticMethod(
                     MethodDescriptor.ofMethod(Integer.class, "valueOf", Integer.class, int.class), value);
+            case SHORT -> mc.invokeStaticMethod(
+                    MethodDescriptor.ofMethod(Short.class, "valueOf", Short.class, short.class), value);
+            case BYTE -> mc.invokeStaticMethod(
+                    MethodDescriptor.ofMethod(Byte.class, "valueOf", Byte.class, byte.class), value);
+            case CHAR -> mc.invokeStaticMethod(
+                    MethodDescriptor.ofMethod(Character.class, "valueOf", Character.class, char.class), value);
             case BOOLEAN -> mc.invokeStaticMethod(
                     MethodDescriptor.ofMethod(Boolean.class, "valueOf", Boolean.class, boolean.class), value);
             default -> value;
@@ -977,6 +997,21 @@ public class MorphiumDataProcessor {
                 ResultHandle cast = mc.checkCast(value, Float.class);
                 yield mc.invokeVirtualMethod(
                         MethodDescriptor.ofMethod(Float.class, "floatValue", float.class), cast);
+            }
+            case SHORT -> {
+                ResultHandle cast = mc.checkCast(value, Short.class);
+                yield mc.invokeVirtualMethod(
+                        MethodDescriptor.ofMethod(Short.class, "shortValue", short.class), cast);
+            }
+            case BYTE -> {
+                ResultHandle cast = mc.checkCast(value, Byte.class);
+                yield mc.invokeVirtualMethod(
+                        MethodDescriptor.ofMethod(Byte.class, "byteValue", byte.class), cast);
+            }
+            case CHAR -> {
+                ResultHandle cast = mc.checkCast(value, Character.class);
+                yield mc.invokeVirtualMethod(
+                        MethodDescriptor.ofMethod(Character.class, "charValue", char.class), cast);
             }
             default -> value;
         };
@@ -1156,6 +1191,10 @@ public class MorphiumDataProcessor {
 
         if (hasByParams) {
             // Delete by conditions
+            Type returnType = method.returnType();
+            boolean returnsCount = returnType.kind() == Type.Kind.PRIMITIVE
+                    && (returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.LONG
+                        || returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.INT);
             try (MethodCreator mc = cc.getMethodCreator(
                     MethodDescriptor.ofMethod(cc.getClassName(), method.name(),
                             returnTypeName, paramTypeNames))) {
@@ -1171,17 +1210,42 @@ public class MorphiumDataProcessor {
                     mc.writeArrayValue(argsArray, i, param);
                 }
 
-                mc.invokeStaticMethod(
-                        MethodDescriptor.ofMethod(
-                                FindMethodBridge.class,
-                                "executeAnnotatedDelete",
-                                void.class,
-                                AbstractMorphiumRepository.class,
-                                String.class, Object[].class),
-                        mc.getThis(),
-                        mc.load(conditionsSpec.toString()),
-                        argsArray);
-                mc.returnVoid();
+                if (returnsCount) {
+                    // int/long: Jakarta Data requires the deleted-record count to be returned
+                    // (@Delete Javadoc: "If the method return type is int or long, the method
+                    // must return the number of deleted records").
+                    ResultHandle count = mc.invokeStaticMethod(
+                            MethodDescriptor.ofMethod(
+                                    FindMethodBridge.class,
+                                    "executeAnnotatedDeleteCounted",
+                                    long.class,
+                                    AbstractMorphiumRepository.class,
+                                    String.class, Object[].class),
+                            mc.getThis(),
+                            mc.load(conditionsSpec.toString()),
+                            argsArray);
+                    if (returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.INT) {
+                        ResultHandle asInt = mc.invokeStaticMethod(
+                                MethodDescriptor.ofMethod(Math.class, "toIntExact", int.class, long.class),
+                                count);
+                        mc.returnValue(asInt);
+                    } else {
+                        mc.returnValue(count);
+                    }
+                } else {
+                    // void: Jakarta Data permits (and this is the common case) discarding the count.
+                    mc.invokeStaticMethod(
+                            MethodDescriptor.ofMethod(
+                                    FindMethodBridge.class,
+                                    "executeAnnotatedDelete",
+                                    void.class,
+                                    AbstractMorphiumRepository.class,
+                                    String.class, Object[].class),
+                            mc.getThis(),
+                            mc.load(conditionsSpec.toString()),
+                            argsArray);
+                    mc.returnVoid();
+                }
             }
         } else {
             // Single entity parameter → delegate to doDelete
