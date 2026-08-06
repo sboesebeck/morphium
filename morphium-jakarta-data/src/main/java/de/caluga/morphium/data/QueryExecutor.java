@@ -198,7 +198,7 @@ public final class QueryExecutor {
     }
 
     @SuppressWarnings("unchecked")
-    private static String resolveMongoField(Morphium morphium,
+    static String resolveMongoField(Morphium morphium,
                                              Class entityClass,
                                              String javaFieldName) {
         try {

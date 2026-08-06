@@ -8,6 +8,8 @@ import jakarta.data.repository.Param;
 import jakarta.data.repository.Query;
 import jakarta.data.repository.Repository;
 
+import jakarta.data.Limit;
+import jakarta.data.Sort;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
 
@@ -39,6 +41,16 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     long countByStatus(String status);
 
     boolean existsByStatus(String status);
+
+    // -- Regression: dynamic Sort/Limit/PageRequest parameters on a derived findBy* method
+    // (previously silently ignored -- QueryMethodBridge had no mechanism to detect or apply
+    // them, unlike the @Find path via FindMethodBridge) --
+
+    List<OrderEntity> findByStatus(String status, Sort<OrderEntity> sort);
+
+    List<OrderEntity> findByStatus(String status, Limit limit);
+
+    Page<OrderEntity> findByStatus(String status, PageRequest pageRequest);
 
     // -- Phase 5: @Query with JDQL --
 

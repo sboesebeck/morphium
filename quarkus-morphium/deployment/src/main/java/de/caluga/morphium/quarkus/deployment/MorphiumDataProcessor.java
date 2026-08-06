@@ -839,11 +839,35 @@ public class MorphiumDataProcessor {
                     + "." + methodName + ": " + e.getMessage(), e);
         }
 
+        // Detect dynamic Sort/Order/PageRequest/Limit parameters -- same convention as
+        // generateFindAnnotatedMethod: these are matched by type, not by an annotation, so a
+        // derived findBy*/countBy*/existsBy*/deleteBy* method can accept them too (Jakarta Data
+        // does not restrict these parameter types to @Find methods).
+        int sortParamIndex = -1;
+        int orderParamIndex = -1;
+        int pageRequestParamIndex = -1;
+        int limitParamIndex = -1;
+        for (int i = 0; i < method.parametersCount(); i++) {
+            DotName paramTypeName = method.parameterType(i).name();
+            if (paramTypeName.equals(SORT_TYPE)) {
+                sortParamIndex = i;
+            } else if (paramTypeName.equals(ORDER_TYPE)) {
+                orderParamIndex = i;
+            } else if (paramTypeName.equals(PAGE_REQUEST_TYPE)) {
+                pageRequestParamIndex = i;
+            } else if (paramTypeName.equals(LIMIT_TYPE)) {
+                limitParamIndex = i;
+            }
+        }
+        boolean hasDynamicParam = sortParamIndex >= 0 || orderParamIndex >= 0
+                || pageRequestParamIndex >= 0 || limitParamIndex >= 0;
+
         // Determine return type for the descriptor (based on effective/inner type)
+        boolean returnsPage = effectiveReturnType.name().equals(PAGE_TYPE);
         boolean returnsOptional = isOptional(effectiveReturnType);
         boolean returnsStream = isStream(effectiveReturnType);
         boolean returnsSingle = !isList(effectiveReturnType) && !returnsStream
-                && !returnsOptional
+                && !returnsOptional && !returnsPage
                 && descriptor.prefix() == QueryDescriptor.Prefix.FIND;
 
         // Build actual parameter type descriptors from the Jandex method info
@@ -906,22 +930,51 @@ public class MorphiumDataProcessor {
                         orderBySpecHandle);
                 mc.returnVoid();
             } else {
-                ResultHandle result = mc.invokeStaticMethod(
-                        MethodDescriptor.ofMethod(
-                                QueryMethodBridge.class,
-                                bridgeMethod,
-                                bridgeReturnType,
-                                AbstractMorphiumRepository.class,
-                                String.class,
-                                Object[].class,
-                                boolean.class,
-                                boolean.class,
-                                boolean.class,
-                                boolean.class,
-                                String.class),
-                        thisHandle, methodNameHandle, argsArray, returnsSingleHandle,
-                        returnsOptionalHandle, returnsBooleanHandle, returnsStreamHandle,
-                        orderBySpecHandle);
+                ResultHandle result;
+                if (hasDynamicParam) {
+                    ResultHandle sortIdxHandle = mc.load(sortParamIndex);
+                    ResultHandle orderIdxHandle = mc.load(orderParamIndex);
+                    ResultHandle pageRequestIdxHandle = mc.load(pageRequestParamIndex);
+                    ResultHandle limitIdxHandle = mc.load(limitParamIndex);
+                    result = mc.invokeStaticMethod(
+                            MethodDescriptor.ofMethod(
+                                    QueryMethodBridge.class,
+                                    bridgeMethod,
+                                    bridgeReturnType,
+                                    AbstractMorphiumRepository.class,
+                                    String.class,
+                                    Object[].class,
+                                    boolean.class,
+                                    boolean.class,
+                                    boolean.class,
+                                    boolean.class,
+                                    String.class,
+                                    int.class,
+                                    int.class,
+                                    int.class,
+                                    int.class),
+                            thisHandle, methodNameHandle, argsArray, returnsSingleHandle,
+                            returnsOptionalHandle, returnsBooleanHandle, returnsStreamHandle,
+                            orderBySpecHandle, sortIdxHandle, orderIdxHandle,
+                            pageRequestIdxHandle, limitIdxHandle);
+                } else {
+                    result = mc.invokeStaticMethod(
+                            MethodDescriptor.ofMethod(
+                                    QueryMethodBridge.class,
+                                    bridgeMethod,
+                                    bridgeReturnType,
+                                    AbstractMorphiumRepository.class,
+                                    String.class,
+                                    Object[].class,
+                                    boolean.class,
+                                    boolean.class,
+                                    boolean.class,
+                                    boolean.class,
+                                    String.class),
+                            thisHandle, methodNameHandle, argsArray, returnsSingleHandle,
+                            returnsOptionalHandle, returnsBooleanHandle, returnsStreamHandle,
+                            orderBySpecHandle);
+                }
 
                 // Unbox/cast the result to the declared return type (skip for async — returns CompletionStage)
                 if (!isAsync && returnType.kind() == Type.Kind.PRIMITIVE) {
@@ -1059,10 +1112,19 @@ public class MorphiumDataProcessor {
                 continue;
             }
 
-            // Check for @By annotation
+            // Check for @By annotation; fall back to method parameter name
+            // if compiled with -parameters (Jakarta Data spec §4.6.1)
             AnnotationInstance byAnn = method.parameters().get(i).annotation(BY_ANNOTATION);
+            String fieldName = null;
             if (byAnn != null) {
-                String fieldName = byAnn.value().asString();
+                fieldName = byAnn.value().asString();
+            } else {
+                String methodParamName = method.parameters().get(i).name();
+                if (methodParamName != null) {
+                    fieldName = methodParamName;
+                }
+            }
+            if (fieldName != null) {
                 // Validate field exists — for dot-notation paths (e.g. "category.name")
                 // only validate the root segment against entity fields
                 if (entityFields != null && !entityFields.isEmpty() && !"id(this)".equals(fieldName)) {

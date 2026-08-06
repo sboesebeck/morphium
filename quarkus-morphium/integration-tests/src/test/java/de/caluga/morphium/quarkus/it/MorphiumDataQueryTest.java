@@ -2,6 +2,10 @@ package de.caluga.morphium.quarkus.it;
 
 import de.caluga.morphium.Morphium;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.data.Limit;
+import jakarta.data.Sort;
+import jakarta.data.page.Page;
+import jakarta.data.page.PageRequest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.*;
 
@@ -165,5 +169,35 @@ class MorphiumDataQueryTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getName()).isEqualTo("Expensive");
+    }
+
+    // -- Regression: dynamic Sort/Limit/PageRequest parameters on a derived findBy* method --
+
+    @Test
+    @Order(11)
+    @DisplayName("findByStatus(Sort): dynamic Sort parameter is applied, not silently ignored")
+    void findByStatusSorted() {
+        List<OrderEntity> ascending = repository.findByStatus("OPEN", Sort.asc("amount"));
+        assertThat(ascending).extracting(OrderEntity::getAmount).containsExactly(100.0, 250.0);
+
+        List<OrderEntity> descending = repository.findByStatus("OPEN", Sort.desc("amount"));
+        assertThat(descending).extracting(OrderEntity::getAmount).containsExactly(250.0, 100.0);
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("findByStatus(Limit): dynamic Limit parameter is applied, not silently ignored")
+    void findByStatusLimited() {
+        List<OrderEntity> limited = repository.findByStatus("OPEN", Limit.of(1));
+        assertThat(limited).hasSize(1);
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("findByStatus(PageRequest): dynamic PageRequest parameter returns a Page, not a ClassCastException")
+    void findByStatusPaged() {
+        Page<OrderEntity> page = repository.findByStatus("OPEN", PageRequest.ofSize(1));
+        assertThat(page.content()).hasSize(1);
+        assertThat(page.totalElements()).isEqualTo(2);
     }
 }
