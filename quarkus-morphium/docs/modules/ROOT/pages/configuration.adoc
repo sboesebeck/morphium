@@ -197,6 +197,8 @@ See xref:dev-services.adoc[Dev Services] for details.
 
 == Migration Properties
 
+NOTE: `@Execution` methods must be idempotent -- the changelog entry marking a change unit as executed is written only after the method returns successfully, so a crash between the method completing and that write causes it to run again on the next start. See the `@Execution` Javadoc for details.
+
 [cols="3,1,4",options="header"]
 |===
 | Property | Default | Description
@@ -215,7 +217,7 @@ See xref:dev-services.adoc[Dev Services] for details.
 
 | `quarkus.morphium.migration.lock-ttl-seconds`
 | `60`
-| Time-to-live in seconds for the migration lock. Must be greater than `0`. The lock is renewed (heartbeat) after every executed migration, so this only needs to exceed the time a single change unit's `execute()` can take, not the whole migration run.
+| Time-to-live in seconds for the migration lock. Must be greater than `0`. The lock is renewed (heartbeat) after every executed migration, so this only needs to exceed the time a single change unit's `execute()` can take, not the whole migration run. Computed from each instance's local clock, not the MongoDB server's -- keep replica clocks synchronized (NTP/chrony) and set this generously above the expected clock drift between instances, not just above expected migration runtime.
 
 | `quarkus.morphium.migration.lock-wait-seconds`
 | `0`

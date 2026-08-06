@@ -27,6 +27,15 @@ import java.lang.annotation.Target;
  * or no parameters at all.
  *
  * <p>Each {@link MorphiumChangeUnit} must have exactly one {@code @Execution} method.
+ *
+ * <p><b>Must be idempotent.</b> The changelog entry marking a change unit as executed is written
+ * only <em>after</em> this method returns successfully. If the process crashes (or is killed)
+ * between this method completing its work and that changelog write, the next run sees no
+ * changelog entry for this change unit and executes it again — the method's own effects (e.g.
+ * an insert that already succeeded once) must survive being applied a second time without
+ * corrupting data or throwing. Prefer {@code upsert} over unconditional insert, make deletes
+ * conditional on existence, and design any external side effect (a call to another service, a
+ * message published, etc.) to tolerate being triggered twice for the same logical migration run.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)

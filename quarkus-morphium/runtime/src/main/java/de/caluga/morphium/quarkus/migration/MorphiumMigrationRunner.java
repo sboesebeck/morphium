@@ -23,11 +23,11 @@ import org.slf4j.LoggerFactory;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -80,7 +80,7 @@ public class MorphiumMigrationRunner {
         }
 
         validateUniqueIds(migrations);
-        migrations.sort(Comparator.comparing(MigrationInfo::order));
+        migrations.sort(MorphiumMigrationRunner::compareByOrder);
         log.info("Found {} migration(s) to evaluate", migrations.size());
 
         acquireLockWithWait();
@@ -131,6 +131,37 @@ public class MorphiumMigrationRunner {
                 throw new IllegalStateException("Duplicate @MorphiumChangeUnit id '"
                         + m.changeId() + "' — each migration must have a unique id.");
             }
+        }
+    }
+
+    /**
+     * Compares two migrations by {@link MorphiumChangeUnit#order()} numerically when both
+     * values parse as a {@code long}, falling back to a plain lexicographic string comparison
+     * otherwise.
+     *
+     * <p>{@code order()} is a {@code String}, not a number, so {@code Comparator.comparing}
+     * on it directly sorts lexicographically: {@code "10"} sorts BEFORE {@code "2"} (because
+     * {@code '1' < '2'} as characters), silently reordering migrations once there are more than
+     * 9 of them unless every {@code order} value happens to be zero-padded to the same width
+     * (the convention every migration in this codebase's own tests already follows, which is
+     * exactly why this was never caught by them). Falling back to lexicographic comparison for
+     * non-numeric values keeps this compatible with a date-based or other non-numeric ordering
+     * convention some users may already rely on.
+     */
+    static int compareByOrder(MigrationInfo a, MigrationInfo b) {
+        Long numA = tryParseLong(a.order());
+        Long numB = tryParseLong(b.order());
+        if (numA != null && numB != null) {
+            return Long.compare(numA, numB);
+        }
+        return a.order().compareTo(b.order());
+    }
+
+    private static Long tryParseLong(String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 
@@ -221,11 +252,20 @@ public class MorphiumMigrationRunner {
             recordExecution(migration, elapsed, MorphiumMigrationEntry.ChangeState.FAILED);
             log.error("Migration {} failed after {}ms", migration.changeId(), elapsed, e);
 
+            RuntimeException failure = new RuntimeException("Migration " + migration.changeId() + " failed", e);
             if (migration.rollbackMethod() != null) {
-                tryRollback(migration, instance);
+                // If the rollback itself also fails, that failure must not be silently swallowed
+                // (previously only logged) -- the database can be left in an unknown
+                // intermediate state (migration partially applied, rollback partially/not
+                // applied), and losing the rollback failure's details makes that state much
+                // harder to diagnose. Attached as a suppressed exception on the original
+                // migration failure, so both are visible together wherever this exception is
+                // logged or reported, without changing what actually gets thrown (the original
+                // migration failure remains the primary cause, per existing behavior/tests).
+                tryRollback(migration, instance).ifPresent(failure::addSuppressed);
             }
 
-            throw new RuntimeException("Migration " + migration.changeId() + " failed", e);
+            throw failure;
         }
     }
 
@@ -241,7 +281,16 @@ public class MorphiumMigrationRunner {
         }
     }
 
-    private void tryRollback(MigrationInfo migration, Object instance) {
+    /**
+     * Attempts to run the migration's {@code @RollbackExecution} method after the migration
+     * itself failed, and updates the changelog entry to {@code ROLLED_BACK} on success.
+     *
+     * @return the rollback's own exception if it also failed, so the caller can attach it
+     *         (e.g. as a suppressed exception) to the original migration failure instead of
+     *         losing it; {@link Optional#empty()} if the rollback succeeded or there was
+     *         nothing to roll back
+     */
+    private Optional<Exception> tryRollback(MigrationInfo migration, Object instance) {
         try {
             log.info("Attempting rollback for migration: {}", migration.changeId());
             invokeMigrationMethod(migration.rollbackMethod(), instance);
@@ -252,12 +301,15 @@ public class MorphiumMigrationRunner {
             q.setCollectionName(config.changeLogCollection());
             q.f("_id").eq(migration.changeId());
             MorphiumMigrationEntry entry = q.get();
+
             if (entry != null) {
                 entry.setState(MorphiumMigrationEntry.ChangeState.ROLLED_BACK);
                 morphium.store(entry, config.changeLogCollection(), null);
             }
+            return Optional.empty();
         } catch (Exception re) {
             log.error("Rollback for {} also failed", migration.changeId(), re);
+            return Optional.of(re);
         }
     }
 
@@ -334,6 +386,19 @@ public class MorphiumMigrationRunner {
      * <p>The query matches a lock document that either does not exist or has expired.
      * The atomic update sets the new owner and expiration in one round-trip, preventing
      * the race condition where two instances could both read "no lock" and then both write.
+     *
+     * <p><b>Client clock skew:</b> {@code expires_at} is computed from this process's local
+     * clock ({@code System.currentTimeMillis()}), not the MongoDB server's clock. If two
+     * instances' clocks drift apart by more than a small fraction of {@code lockTtlSeconds}, the
+     * instance with the faster clock can see the other's still-valid lock as already expired and
+     * take it over while the original holder is still actively running migrations. Morphium/the
+     * MongoDB driver used here has no update-pipeline support for a server-computed expiry
+     * (MongoDB 4.2+'s {@code $$NOW} in aggregation-pipeline updates would be the correct
+     * primitive, but nothing in this codebase issues one), so this is a real, currently
+     * unaddressed limitation, not a false alarm — the accepted mitigation is what every
+     * NTP-less distributed lock already requires: keep replica clocks synchronized (NTP/chrony),
+     * and set {@code lockTtlSeconds} generously above the expected clock drift, not just above
+     * the expected migration runtime.
      *
      * <p>If the lock is held by another process and has not expired, the method throws.
      * Callers that want to wait for a currently-held lock to become available should call
