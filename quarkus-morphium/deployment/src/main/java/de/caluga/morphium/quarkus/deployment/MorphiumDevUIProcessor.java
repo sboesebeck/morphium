@@ -46,7 +46,7 @@ public class MorphiumDevUIProcessor {
         card.addLibraryVersion("de.caluga", "morphium",
                 "Morphium", "https://github.com/sboesebeck/morphium");
         card.addLibraryVersion("de.caluga", "quarkus-morphium",
-                "Quarkus Morphium Extension", "https://github.com/Bardioc1977/quarkus-morphium");
+                "Quarkus Morphium Extension", "https://github.com/sboesebeck/morphium");
         card.addLibraryVersion("jakarta.data", "jakarta.data-api",
                 "Jakarta Data", "https://jakarta.ee/specifications/data/");
 

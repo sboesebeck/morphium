@@ -6,8 +6,9 @@ The extension automatically registers three MicroProfile Health probes with the 
 Health subsystem. These probes integrate with Kubernetes liveness, readiness, and startup
 probes out of the box.
 
-NOTE: The extension already includes `quarkus-smallrye-health` as a transitive dependency.
-No additional dependency is needed — health endpoints are available by default.
+NOTE: `quarkus-smallrye-health` is an *optional* dependency of this extension.
+Add `io.quarkus:quarkus-smallrye-health` to your project's dependencies to enable
+health endpoints — without it, no health probes are registered.
 
 == Probes Overview
 

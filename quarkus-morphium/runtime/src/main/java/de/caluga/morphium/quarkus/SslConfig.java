@@ -38,7 +38,7 @@ import java.util.Optional;
  * quarkus.morphium.ssl.truststore-path=/etc/certs/mongo-truststore.jks
  * quarkus.morphium.ssl.truststore-password=changeit
  * # Optional – overrides the subject DN extracted from the certificate:
- * # morphium.ssl.x509-username=CN=myUser,O=myOrg,C=DE
+ * # quarkus.morphium.ssl.x509-username=CN=myUser,O=myOrg,C=DE
  * }</pre>
  */
 public interface SslConfig {

@@ -6,4 +6,4 @@ nav:
   - modules/ROOT/nav.adoc
 asciidoc:
   attributes:
-    page-toclevels: 3@
+    page-toclevels: 3
