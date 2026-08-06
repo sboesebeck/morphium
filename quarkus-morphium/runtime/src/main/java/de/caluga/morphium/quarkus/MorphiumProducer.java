@@ -26,6 +26,7 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Messaging;
 import de.caluga.morphium.config.CollectionCheckSettings;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.wire.SslHelper;
 import de.caluga.morphium.objectmapping.LocalDateTimeMapper;
 import io.quarkus.runtime.ImageMode;
@@ -236,6 +237,34 @@ public class MorphiumProducer {
         }
     }
 
+    /**
+     * Parses the {@code quarkus.morphium.read-preference} string into a
+     * {@link ReadPreference}. Accepted values match {@link MorphiumRuntimeConfig#readPreference()}'s
+     * documentation: {@code primary}, {@code primaryPreferred}, {@code secondary},
+     * {@code secondaryPreferred}, {@code nearest} (case-insensitive).
+     *
+     * @param value the configured read preference string
+     * @return the corresponding {@link ReadPreference}; falls back to {@link ReadPreference#primary()}
+     *         (matching the documented default) for an unrecognized value
+     */
+    static ReadPreference parseReadPreference(String value) {
+        switch (value.toLowerCase()) {
+            case "primary":
+                return ReadPreference.primary();
+            case "primarypreferred":
+                return ReadPreference.primaryPreferred();
+            case "secondary":
+                return ReadPreference.secondary();
+            case "secondarypreferred":
+                return ReadPreference.secondaryPreferred();
+            case "nearest":
+                return ReadPreference.nearest();
+            default:
+                log.warn("Unrecognized quarkus.morphium.read-preference value '{}', falling back to 'primary'", value);
+                return ReadPreference.primary();
+        }
+    }
+
     private Morphium buildMorphium() {
         // Clear static caches and pre-register entities for the current ClassLoader.
         // This is essential for Quarkus dev-mode hot-reload where the QuarkusClassLoader
@@ -287,7 +316,7 @@ public class MorphiumProducer {
         cfg.connectionSettings().setMaxConnections(config.maxConnections());
         cfg.connectionSettings().setMaxWaitTime(config.maxWaitTime());
         cfg.connectionSettings().setDefaultQueryTimeoutMS(config.defaultQueryTimeoutMs());
-        cfg.driverSettings().setDefaultReadPreferenceType(config.readPreference());
+        cfg.driverSettings().setDefaultReadPreference(parseReadPreference(config.readPreference()));
 
         // Morphium's internal checkIndices() uses ClassGraph at startup.
         // In Quarkus, we handle index creation explicitly via ensureIndices() using the
