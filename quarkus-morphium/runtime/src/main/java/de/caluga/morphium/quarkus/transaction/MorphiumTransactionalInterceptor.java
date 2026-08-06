@@ -26,6 +26,8 @@ import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
 
+import java.util.concurrent.CompletionStage;
+
 /**
  * CDI interceptor that wraps methods annotated with {@link MorphiumTransactional}
  * in a Morphium transaction.
@@ -93,6 +95,28 @@ public class MorphiumTransactionalInterceptor {
 
     @AroundInvoke
     Object aroundInvoke(InvocationContext ctx) throws Throwable {
+        Class<?> returnType = ctx.getMethod().getReturnType();
+        if (isAsyncReturnType(returnType)) {
+            // Fail fast instead of silently doing the wrong thing: ctx.proceed() below returns
+            // the CompletionStage/Uni object itself immediately (the method body hasn't
+            // actually finished running its async work yet), so committing/firing
+            // AFTER_COMMIT right after ctx.proceed() returns would commit the transaction
+            // before the method's actual database writes (which typically run later, on
+            // repo.getAsyncExecutor() or a Mutiny scheduler) have even happened. There is no
+            // reliable way for this synchronous CDI interceptor to hook "when the returned
+            // CompletionStage/Uni completes" without materially changing what @MorphiumTransactional
+            // does, so this is unsupported until that's built deliberately -- not silently wrong.
+            throw new UnsupportedOperationException(
+                    "@MorphiumTransactional does not support asynchronous return types (found "
+                            + returnType.getName() + " on " + ctx.getMethod().getDeclaringClass().getSimpleName()
+                            + "." + ctx.getMethod().getName() + "()). The interceptor commits "
+                            + "immediately after ctx.proceed() returns, which happens before an async "
+                            + "method's actual work completes -- use a synchronous method (or the "
+                            + "repository's doXxxAsync methods called from within a synchronous "
+                            + "@MorphiumTransactional method, so their CompletionStage is awaited "
+                            + "before the method returns) instead.");
+        }
+
         // CosmosDB: execute without transaction wrapping but still fire lifecycle events
         if (isCosmosDb()) {
             log.debugf("CosmosDB: @MorphiumTransactional on %s.%s executes WITHOUT transaction.",
@@ -299,6 +323,17 @@ public class MorphiumTransactionalInterceptor {
             }
             throw t;
         }
+    }
+
+    /**
+     * Returns {@code true} for a {@link CompletionStage} return type, or Mutiny's
+     * {@code io.smallrye.mutiny.Uni} by class name (Mutiny is not a compile-time dependency of
+     * this module, so it cannot be referenced directly — checking the name still correctly
+     * detects it whether or not Mutiny happens to be on the runtime classpath).
+     */
+    static boolean isAsyncReturnType(Class<?> returnType) {
+        return CompletionStage.class.isAssignableFrom(returnType)
+                || "io.smallrye.mutiny.Uni".equals(returnType.getName());
     }
 
     /**

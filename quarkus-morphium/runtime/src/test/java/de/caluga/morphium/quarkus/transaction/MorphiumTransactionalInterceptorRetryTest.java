@@ -149,4 +149,35 @@ class MorphiumTransactionalInterceptorRetryTest {
         assertThat(MorphiumTransactionalInterceptor.isTransientTransactionError(ex))
                 .isTrue();
     }
+
+    // -------------------------------------------------------------------------
+    // isAsyncReturnType — merge blocker #8: async return types must be detected
+    // so aroundInvoke can fail fast instead of committing before the async work runs
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("CompletionStage is detected as an async return type")
+    void completionStage_isAsyncReturnType() {
+        assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(
+                java.util.concurrent.CompletionStage.class)).isTrue();
+    }
+
+    @Test
+    @DisplayName("CompletableFuture (a CompletionStage subtype) is detected as an async return type")
+    void completableFuture_isAsyncReturnType() {
+        assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(
+                java.util.concurrent.CompletableFuture.class)).isTrue();
+    }
+
+    @Test
+    @DisplayName("void is NOT an async return type")
+    void voidType_isNotAsyncReturnType() {
+        assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(void.class)).isFalse();
+    }
+
+    @Test
+    @DisplayName("a plain entity/DTO return type is NOT an async return type")
+    void plainReturnType_isNotAsyncReturnType() {
+        assertThat(MorphiumTransactionalInterceptor.isAsyncReturnType(String.class)).isFalse();
+    }
 }
