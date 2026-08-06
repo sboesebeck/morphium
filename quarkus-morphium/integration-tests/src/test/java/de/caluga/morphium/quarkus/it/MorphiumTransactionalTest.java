@@ -24,13 +24,12 @@ import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.*;
-import org.testcontainers.DockerClientFactory;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Integration tests for {@code @MorphiumTransactional} interceptor and
@@ -40,11 +39,18 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * with {@code quarkus.morphium.devservices.replica-set=true} to start a
  * single-node replica set via Testcontainers.
  *
- * <p>A {@code @BeforeAll} assumption checks {@code DockerClientFactory.instance()
- * .isDockerAvailable()} directly and skips the whole class — with a clear message
- * — when no Docker daemon is reachable, instead of failing the whole
- * {@code integration-tests} build. See D3 ("Begleitmaßnahmen", Punkt 3): the core
+ * <p>{@link DockerAvailableCondition}, registered via {@code @ExtendWith} below, checks
+ * {@code DockerClientFactory.instance().isDockerAvailable()} directly and disables the whole
+ * class — with a clear message — when no Docker daemon is reachable, instead of failing the
+ * whole {@code integration-tests} build. See D3 ("Begleitmaßnahmen", Punkt 3): the core
  * build must never require Docker.
+ *
+ * <p>This must be an {@link org.junit.jupiter.api.extension.ExecutionCondition}, not a
+ * {@code @BeforeAll} assumption: {@code @QuarkusTest} boots the application (attempting to
+ * connect to MongoDB) inside {@code QuarkusTestExtension}'s own {@code beforeAll} callback,
+ * which JUnit always runs before the test class's {@code @BeforeAll} methods. By the time a
+ * {@code @BeforeAll} check would run, the boot attempt — and, without Docker, its failure —
+ * has already happened. An {@code ExecutionCondition} is evaluated ahead of that.
  *
  * <p><strong>Deliberately not using {@code testcontainers-junit-jupiter}'s
  * {@code @EnabledIfDockerAvailable}</strong>: under Quarkus's test classloading,
@@ -56,16 +62,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * directly — the same class Dev Services itself uses — avoids that discrepancy.
  */
 @QuarkusTest
+@ExtendWith(DockerAvailableCondition.class)
 @TestProfile(MorphiumTransactionalTest.ReplicaSetProfile.class)
 @DisplayName("@MorphiumTransactional interceptor + events")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class MorphiumTransactionalTest {
-
-    @BeforeAll
-    static void requireDocker() {
-        assumeTrue(DockerClientFactory.instance().isDockerAvailable(),
-                "Docker is not available — skipping tests that require a MongoDB replica set via Dev Services");
-    }
 
     public static class ReplicaSetProfile implements QuarkusTestProfile {
         @Override

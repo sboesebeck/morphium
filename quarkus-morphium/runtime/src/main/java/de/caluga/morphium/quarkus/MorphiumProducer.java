@@ -441,6 +441,13 @@ public class MorphiumProducer {
 
         Morphium m = connectWithRetry(cfg);
 
+        // Register the blocking-call detector's storage listener only now, after the
+        // connection has actually been established. Doing this here (instead of e.g. a
+        // separate CDI StartupEvent observer that injects Instance<Morphium>) makes it
+        // structurally impossible for the detector to itself be the cause of a connect —
+        // by the time this line runs, `m` already exists.
+        MorphiumBlockingCallDetector.registerOn(m);
+
         // Defensive: ensure the driver knows it's a replica set when a RS name is configured.
         // PooledDriver < 6.2.1 only checked host-seed count, missing single-node replica sets.
         if (config.replicaSetName().isPresent() && !m.getDriver().isReplicaSet()) {

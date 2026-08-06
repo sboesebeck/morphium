@@ -19,11 +19,6 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.query.Query;
-import io.quarkus.runtime.StartupEvent;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
-import jakarta.enterprise.inject.Instance;
-import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,49 +34,44 @@ import java.util.concurrent.atomic.AtomicLong;
  * Calling them directly from a Vert.x event-loop thread will stall the event loop, which
  * causes health-check timeouts and general request degradation.
  *
- * <p>This bean registers a {@link MorphiumStorageListener} at application startup and logs
- * a clear {@code WARN} with fix instructions whenever a write is attempted on an event-loop
+ * <p>{@link #registerOn(Morphium)} attaches a {@link MorphiumStorageListener} that logs a
+ * clear {@code WARN} with fix instructions whenever a write is attempted on an event-loop
  * thread. No Vert.x API dependency is required — detection is based solely on the well-known
  * thread-name prefix {@code "vert.x-eventloop-thread"}.
  *
  * <p><b>Fix:</b> annotate the offending JAX-RS method with
  * {@code @io.smallrye.common.annotation.RunOnVirtualThread} (preferred) or
  * {@code @io.smallrye.common.annotation.Blocking}.
+ *
+ * <p><b>Why this is not a CDI bean anymore:</b> this used to be an {@code @ApplicationScoped}
+ * bean that injected {@code Instance<Morphium>} and dereferenced it (via {@code .get()}) from
+ * a {@code StartupEvent} observer to register the listener. That dereference is what actually
+ * triggers {@code MorphiumProducer.buildMorphium()} — a blocking connect with a full retry
+ * ladder — because {@code Morphium} is a normal-scoped CDI bean whose proxy connects lazily on
+ * first real use. Running that on a background thread (the previous workaround) only kept the
+ * Quarkus boot thread free; it did not stop the eager connect attempt itself, so without a
+ * reachable MongoDB the extension would still burn through the full retry ladder in the
+ * background — exactly the failure this class must never cause, since it is pure debug
+ * diagnostics. Registering the listener here, called directly from
+ * {@link MorphiumProducer#buildMorphium()} right after the real connect has already succeeded,
+ * makes it structurally impossible for this class to be the cause of a connect: by the time
+ * {@link #registerOn(Morphium)} runs, the {@code Morphium} instance already exists.
  */
-@ApplicationScoped
-public class MorphiumBlockingCallDetector {
+public final class MorphiumBlockingCallDetector {
 
     private static final Logger log = LoggerFactory.getLogger(MorphiumBlockingCallDetector.class);
     private static final String EVENTLOOP_THREAD_PREFIX = "vert.x-eventloop-thread";
     private static final long WARN_INTERVAL_NANOS = Duration.ofSeconds(30).toNanos();
-    private final AtomicLong lastWarnNanos = new AtomicLong(0);
+    private static final AtomicLong lastWarnNanos = new AtomicLong(0);
 
-    @Inject
-    Instance<Morphium> morphiumInstance;
+    private MorphiumBlockingCallDetector() {}
 
     /**
-     * Registers the storage listener on a background thread instead of directly in this
-     * {@code StartupEvent} observer. {@code morphiumInstance.get()} dereferences the CDI proxy
-     * for {@link Morphium}, which triggers {@code MorphiumProducer.buildMorphium()} — a blocking
-     * connect with a full retry ladder — on whatever thread calls it. {@code StartupEvent}
-     * observers run on the application boot thread, so doing this directly here would defeat
-     * {@link MorphiumProducer}'s own lazy-initialization design (its {@code Morphium} bean is
-     * meant to connect on first real use, not eagerly at boot) and, more concretely, delay
-     * application startup — including the startup health check becoming ready — by however long
-     * the connect (and its retries, if MongoDB is briefly unreachable during a rolling deploy)
-     * takes. Running it on a plain background thread keeps the boot thread free; the trade-off
-     * is that a write from the very first few milliseconds after startup completes could
-     * theoretically happen before this listener is registered, which only means this detector's
-     * warning would be missed for that one write, not that anything breaks.
+     * Registers the storage listener on the given, already-connected {@link Morphium} instance.
+     * Called from {@link MorphiumProducer#buildMorphium()} once the connection has been
+     * established — never triggers a connect itself.
      */
-    void onStart(@Observes StartupEvent event) {
-        Thread registrar = new Thread(this::registerListener, "morphium-blocking-call-detector-init");
-        registrar.setDaemon(true);
-        registrar.start();
-    }
-
-    private void registerListener() {
-        Morphium morphium = morphiumInstance.get();
+    public static void registerOn(Morphium morphium) {
         morphium.addListener(new MorphiumStorageListener<Object>() {
             @Override
             public void preStore(Morphium m, Object r, boolean isNew) throws MorphiumAccessVetoException {
@@ -140,7 +130,7 @@ public class MorphiumBlockingCallDetector {
         });
     }
 
-    private void warnIfOnEventLoop() {
+    private static void warnIfOnEventLoop() {
         String threadName = Thread.currentThread().getName();
         if (threadName.startsWith(EVENTLOOP_THREAD_PREFIX) && shouldWarnNow()) {
             log.warn("""
@@ -152,7 +142,7 @@ public class MorphiumBlockingCallDetector {
         }
     }
 
-    private boolean shouldWarnNow() {
+    private static boolean shouldWarnNow() {
         long now = System.nanoTime();
         long last = lastWarnNanos.get();
         return now - last >= WARN_INTERVAL_NANOS && lastWarnNanos.compareAndSet(last, now);

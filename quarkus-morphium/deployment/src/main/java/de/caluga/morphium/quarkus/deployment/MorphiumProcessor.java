@@ -41,7 +41,6 @@ import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedPackageBuildItem;
 import io.quarkus.smallrye.health.deployment.spi.HealthBuildItem;
-import de.caluga.morphium.quarkus.MorphiumBlockingCallDetector;
 import de.caluga.morphium.quarkus.MorphiumProducer;
 import de.caluga.morphium.quarkus.transaction.MorphiumTransactionalInterceptor;
 import org.jboss.jandex.AnnotationInstance;
@@ -117,11 +116,13 @@ public class MorphiumProcessor {
         // MorphiumRuntimeConfig / CacheConfig are @ConfigMapping interfaces and are
         // registered automatically by the SmallRye Config Quarkus extension.
         // MorphiumRecorder is a @Recorder (build-time only) and must not appear here.
+        // MorphiumBlockingCallDetector is no longer a CDI bean: it is a plain static
+        // utility invoked directly by MorphiumProducer.buildMorphium() right after the
+        // real connect, so it must not be registered here.
         return AdditionalBeanBuildItem.builder()
             .addBeanClasses(
                 MorphiumProducer.class,
-                MorphiumTransactionalInterceptor.class,
-                MorphiumBlockingCallDetector.class)
+                MorphiumTransactionalInterceptor.class)
             .setUnremovable()
             .build();
     }
