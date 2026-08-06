@@ -1021,6 +1021,9 @@ public class PooledDriver extends DriverBase {
             HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
             stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
             markStatsDirty();
+            // A connect just succeeded - a caller polling isConnected()/getLastConnectFailure()
+            // after recovery must not keep seeing the pre-recovery error as if it were current.
+            lastConnectFailure = null;
 
             long dur = System.currentTimeMillis() - start;
 
@@ -1324,12 +1327,17 @@ public class PooledDriver extends DriverBase {
                     // recovered fine (observed live: readOk frozen for 25s+ while writeOk climbed).
                     // borrowConnection() itself waits deadline-bounded (serverSelectionTimeout) for
                     // the pool to be refilled, which is precisely what PRIMARY_PREFERRED wants.
-                    if (primaryNode != null && hosts.get(primaryNode) != null) {
+                    // Snapshot primaryNode: the heartbeat nulls the volatile field on stepdown or
+                    // connection error - i.e. exactly while this failover-path code runs - and
+                    // hosts.get(null) would throw an NPE that bypasses every MorphiumDriverException
+                    // retry-catch on the read path.
+                    String preferredPrimary = primaryNode;
+                    if (preferredPrimary != null && hosts.get(preferredPrimary) != null) {
                         try {
-                            return borrowConnection(primaryNode);
+                            return borrowConnection(preferredPrimary);
                         } catch (MorphiumDriverException e) {
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                            log.warn("Could not get connection to {} trying secondary", primaryNode);
+                            log.warn("Could not get connection to {} trying secondary", preferredPrimary);
                         }
                     }
                     // fall through — primary not available or failed, try secondary
@@ -1396,14 +1404,18 @@ public class PooledDriver extends DriverBase {
                             // this loop retrying the dead ex-primary while the healthy new primary
                             // sat idle, so reads never recovered although writes did). Only a
                             // strict SECONDARY preference keeps excluding the primary.
-                            if (type != ReadPreferenceType.SECONDARY && retry > 0 && primaryNode != null
-                                    && hosts.get(primaryNode) != null) {
+                            // Same snapshot rationale as the PRIMARY_PREFERRED branch above: the
+                            // heartbeat nulls primaryNode concurrently, and hosts.get(null) NPEs
+                            // past every retry-catch here.
+                            String fallbackPrimary = primaryNode;
+                            if (type != ReadPreferenceType.SECONDARY && retry > 0 && fallbackPrimary != null
+                                    && hosts.get(fallbackPrimary) != null) {
                                 try {
-                                    return borrowConnection(primaryNode);
+                                    return borrowConnection(fallbackPrimary);
                                 } catch (MorphiumDriverException pe) {
                                     stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                                     log.warn("Primary fallback failed too ({}) - continuing secondary retries",
-                                             primaryNode);
+                                             fallbackPrimary, pe);
                                 }
                             }
 
