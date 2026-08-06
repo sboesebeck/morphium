@@ -98,6 +98,14 @@ java -jar poppydb-6.2.10-cli.jar --port 27017 --no-config
 Test-Suite auf `mongodb://localhost:27017` zeigen lassen, Prozess danach beenden — der
 Zustand ist weg (außer man will Persistenz, siehe unten). `--help` listet alle Optionen.
 
+Die CLI ist aber nicht nur ein Test-Werkzeug: **Als Messaging-Backend ist sie
+production-ready** — genau dafür existieren PoppyDBs serverseitige
+Messaging-Optimierungen. Mit Snapshot-Persistenz, Replica Set für HA und Auth/TLS (alles
+unten) hat man einen stehenden Message Broker aus einem einzigen Jar. Ein genereller
+MongoDB-*Ersatz* ist sie nur für Dev/Test — als dediziertes Backend für Morphium Messaging
+ist sie die Empfehlung, siehe das
+[Deployment-Playbook](docs/howtos/poppydb-deployment.md).
+
 ### How-to: Standalone-Server mit Persistenz
 
 ```bash
@@ -136,7 +144,10 @@ Rollback geschützt.
 ### How-to: Message Queue ohne MongoDB
 
 Morphium Messaging läuft mit PoppyDB als Backend — eine vollwertige Message Queue (Topics,
-exklusive Zustellung, Request/Response) mit einer einzigen Java-Dependency:
+exklusive Zustellung, Request/Response) mit einer einzigen Java-Dependency. Das ist ein
+Produktions-Use-Case, kein Test-Trick: PoppyDB und Morphium Messaging sind aufeinander
+optimiert, und eine Standalone-PoppyDB (CLI, mit Persistenz + Replica Set + Auth/TLS) ergibt
+einen dedizierten Message Broker, ohne eine MongoDB zu betreiben:
 
 ```java
 PoppyDB server = new PoppyDB(27017, "localhost", 100, 10);
