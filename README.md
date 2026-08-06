@@ -76,6 +76,24 @@ server.start();
 server.shutdown();
 ```
 
+### How-to: the CLI — a throwaway MongoDB for ANY test suite
+
+The embedded route above is Java-only; the CLI jar works for every stack. It is a single
+self-contained jar from Maven Central (classifier `cli`) — your Python/Node/Go/Rust
+integration tests get a MongoDB-compatible server in milliseconds, no Docker image, no
+Testcontainers, nothing to install:
+
+```bash
+curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.2.10/poppydb-6.2.10-cli.jar
+
+# start for a test run: --no-config keeps it isolated from any stray
+# ~/.config/poppydb/config on a developer machine - same flags, same behavior in CI
+java -jar poppydb-6.2.10-cli.jar --port 27017 --no-config
+```
+
+Point your test suite at `mongodb://localhost:27017`, kill the process afterwards — state is
+gone (unless you want persistence, see below). `--help` lists all options.
+
 ### How-to: standalone server with persistence
 
 ```bash

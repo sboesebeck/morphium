@@ -79,6 +79,25 @@ server.start();
 server.shutdown();
 ```
 
+### How-to: Die CLI — eine Wegwerf-MongoDB für JEDE Test-Suite
+
+Der Embedded-Weg oben ist Java-only; das CLI-Jar funktioniert für jeden Stack. Ein einzelnes,
+self-contained Jar von Maven Central (Classifier `cli`) — deine Python-/Node-/Go-/Rust-
+Integrationstests bekommen in Millisekunden einen MongoDB-kompatiblen Server, kein
+Docker-Image, kein Testcontainers, nichts zu installieren:
+
+```bash
+curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.2.10/poppydb-6.2.10-cli.jar
+
+# Start für einen Testlauf: --no-config hält den Lauf isoliert von einer
+# versehentlichen ~/.config/poppydb/config auf Entwickler-Maschinen - gleiche
+# Flags, gleiches Verhalten in der CI
+java -jar poppydb-6.2.10-cli.jar --port 27017 --no-config
+```
+
+Test-Suite auf `mongodb://localhost:27017` zeigen lassen, Prozess danach beenden — der
+Zustand ist weg (außer man will Persistenz, siehe unten). `--help` listet alle Optionen.
+
 ### How-to: Standalone-Server mit Persistenz
 
 ```bash

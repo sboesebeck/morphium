@@ -246,11 +246,12 @@ bump_readme_versions() {
 
   for file in README.md README.de.md; do
     [ -f "$file" ] || continue
-    if grep -qE "<version>${old_esc}</version>|poppydb-${old_esc}-cli\.jar|de\.caluga:poppydb:${old_esc}" "$file"; then
+    if grep -qE "<version>${old_esc}</version>|poppydb-${old_esc}-cli\.jar|de\.caluga:poppydb:${old_esc}|de/caluga/poppydb/${old_esc}/" "$file"; then
       sed -i.relbak -E \
         -e "s|<version>${old_esc}</version>|<version>${new_version}</version>|g" \
         -e "s|poppydb-${old_esc}-cli\.jar|poppydb-${new_version}-cli.jar|g" \
         -e "s|de\.caluga:poppydb:${old_esc}|de.caluga:poppydb:${new_version}|g" \
+        -e "s|de/caluga/poppydb/${old_esc}/|de/caluga/poppydb/${new_version}/|g" \
         "$file"
       rm -f "${file}.relbak"
       bumped="${bumped:+$bumped }$file"
