@@ -24,6 +24,24 @@ the live collection had been cleared to zero documents. Both `abortTransaction()
 whose store was actually built while the transaction was open, not merely the ones it wrote
 to, since a read-only indexed query can trigger that same lazy rebuild without ever writing.
 
+#### PoppyDB: a re-syncing secondary broadcast its own initial-sync wipe as change-stream drop events, letting stale watchers destroy `admin.system.users` cluster-wide during a stepdown
+The initial sync's `clearLocalDatabases()` wipe and snapshot copy ran as regular commands and
+therefore emitted live change-stream events on the syncing node - including
+`drop admin.system.users`. During a live stepdown that is catastrophic: the demoted ex-primary
+immediately starts re-sync attempts toward the presumed new leader (each failed retry wiping
+again), while the other nodes' OLD ReplicationManagers are still watching the demoted node
+(they only tear down once their own ElectionManager delivers the leader change) and faithfully
+apply those wipe-drops to their own data. The drops then ricochet through every node's own
+re-emission, and even the freshly promoted primary applied the demoted node's wipe-drop right
+at its promotion (its stopping ReplicationManager flushes queued events) - so whether a user
+created on the new primary survived on any given node was pure timing (the
+`StepdownReplicationTest` ~40% flake, and a real data-loss window on production failovers).
+Initial-sync writes are now performed inside a new
+`InMemoryDriver.suppressChangeStreamEvents()` scope - mirroring MongoDB, where initial-sync
+writes are never oplogged - so the wipe + snapshot are invisible to change-stream watchers;
+steady-state replication applies still emit events as before (a promoted secondary must be
+able to serve resumable streams).
+
 #### Driver: failover read path could throw a raw NPE past every retry; stale `getLastConnectFailure()` after recovery
 The read-preference fallback chain read the volatile `primaryNode` field multiple times; the
 heartbeat nulls that field on stepdown or connection error - exactly while the fallback code

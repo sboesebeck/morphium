@@ -1392,6 +1392,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private volatile int memoryRejectPercent = 90;
     private final AtomicBoolean memoryWarnActive = new AtomicBoolean(false);
     private static final ThreadLocal<Boolean> memoryGuardBypass = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    // See suppressChangeStreamEvents(): thread-local because the replication initial sync runs on
+    // its own dedicated thread, and only THAT thread's writes must go unobserved.
+    private static final ThreadLocal<Boolean> changeStreamSuppressed = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /** Warn/reject thresholds in percent of max heap; 100 disables the respective stage. */
     public void setMemoryWatermarks(int warnPercent, int rejectPercent) {
@@ -1470,6 +1473,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         @Override
         public void close() {
             memoryGuardBypass.set(Boolean.FALSE);
+        }
+    }
+
+    /**
+     * try-with-resources scope during which writes performed by this thread emit NO change-stream
+     * events: nothing is recorded into the change-stream history and nothing is dispatched to
+     * subscribers.
+     *
+     * <p>Used by PoppyDB's replication initial sync (wipe + snapshot copy), mirroring MongoDB's
+     * semantics that initial-sync writes are never oplogged. Without this, a re-syncing secondary
+     * broadcasts its own {@code clearLocalDatabases()} wipe as live {@code drop} events - and
+     * during a leadership transition the OTHER nodes' still-running old ReplicationManagers
+     * (watching the demoted ex-primary) faithfully apply those drops to their own data,
+     * destroying {@code admin.system.users} cluster-wide (observed as the
+     * StepdownReplicationTest flake: the freshly-promoted primary itself applied the demoted
+     * node's wipe-drop right before/while being promoted).
+     */
+    public ChangeStreamSuppressionScope suppressChangeStreamEvents() {
+        changeStreamSuppressed.set(Boolean.TRUE);
+        return new ChangeStreamSuppressionScope();
+    }
+
+    public static final class ChangeStreamSuppressionScope implements AutoCloseable {
+        @Override
+        public void close() {
+            changeStreamSuppressed.set(Boolean.FALSE);
         }
     }
 
@@ -8581,6 +8610,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     private void notifyWatchers(String db, String collection, String op, Map doc, Map<String, Object> updatedFields,
                                 List<String> removedFields, Map<String, Object> beforeDocument) {
+        // Writes inside a suppressChangeStreamEvents() scope (replication initial sync: wipe +
+        // snapshot copy) are never observable via the change stream - neither recorded into the
+        // history nor dispatched to live subscribers. See the scope's javadoc for why.
+        if (Boolean.TRUE.equals(changeStreamSuppressed.get())) {
+            return;
+        }
         // Build and dispatch change stream event synchronously
         // This method is now called AFTER write locks are released (see
         // insert/store/update methods)
