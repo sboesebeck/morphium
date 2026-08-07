@@ -12,13 +12,13 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/overview/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/quarkus-extension/">
       
       
-        <link rel="prev" href="../first-test/">
+        <link rel="prev" href="../jakarta-data/">
       
       
-        <link rel="next" href="../architecture-overview/">
+        <link rel="next" href="../api-reference/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Overview - Morphium Documentation</title>
+        <title>Quarkus Extension - Morphium Documentation</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#overview" class="md-skip">
+        <a href="#quarkus-extension-cdi-integration-for-morphium" class="md-skip">
           Skip to content
         </a>
       
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Quarkus Extension
             
           </span>
         </div>
@@ -248,12 +248,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../why-morphium/" class="md-tabs__link">
           
   
@@ -350,10 +348,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../jakarta-data/" class="md-tabs__link">
           
   
@@ -501,31 +501,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
@@ -543,7 +540,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -642,19 +639,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
         
   
   
@@ -670,7 +658,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1575,28 +1562,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
   
@@ -1614,7 +1604,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1657,10 +1647,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../quarkus-extension/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quarkus Extension
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1676,6 +1693,94 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-provides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it provides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-without-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing without Docker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2083,6 +2188,80 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-provides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it provides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-without-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing without Docker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -2101,69 +2280,336 @@
   
 
 
-<h1 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h1>
-<p>Morphium combines a high‑performance MongoDB ODM with a built‑in, database‑native messaging system.</p>
-<p>Key features
-- Integrated messaging: topic‑based queue stored in MongoDB (exclusive one‑of‑n or broadcast to all listeners)
-- Own MongoDB wire‑protocol driver (no full MongoDB Java driver dependency)
-- Distributed caching with cache synchronization across nodes
-- Annotation‑driven mapping and validation
-- Fluent query API and aggregation support
-- Best practice: use field name enums in queries to avoid string typos and smooth migrations</p>
-<p>Compatibility
-- Java: 21+
-- MongoDB: 5.0+</p>
-<p>Quick start
-<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.Morphium</span><span class="p">;</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.MorphiumConfig</span><span class="p">;</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1">// Configure</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">MorphiumConfig</span><span class="w"> </span><span class="n">cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumConfig</span><span class="p">();</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setDatabase</span><span class="p">(</span><span class="s">&quot;myapp&quot;</span><span class="p">);</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">cfg</span><span class="p">.</span><span class="na">clusterSettings</span><span class="p">().</span><span class="na">addHostToSeed</span><span class="p">(</span><span class="s">&quot;localhost&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">27017</span><span class="p">);</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1">// Create client</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">Morphium</span><span class="w"> </span><span class="n">morphium</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Morphium</span><span class="p">(</span><span class="n">cfg</span><span class="p">);</span>
-</span></code></pre></div></p>
-<p>First entity
-<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.annotations.*</span><span class="p">;</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">de.caluga.morphium.driver.MorphiumId</span><span class="p">;</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@Entity</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nd">@Cache</span><span class="p">(</span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">30_000</span><span class="p">)</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">User</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nd">@Id</span><span class="w"> </span><span class="kd">private</span><span class="w"> </span><span class="n">MorphiumId</span><span class="w"> </span><span class="n">id</span><span class="p">;</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nd">@Index</span><span class="w"> </span><span class="kd">private</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">username</span><span class="p">;</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="kd">private</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">email</span><span class="p">;</span>
+<h1 id="quarkus-extension-cdi-integration-for-morphium">Quarkus Extension: CDI Integration for Morphium<a class="headerlink" href="#quarkus-extension-cdi-integration-for-morphium" title="Permanent link">&para;</a></h1>
+<p><code>quarkus-morphium</code> is an <strong>optional Morphium module</strong> that integrates Morphium into
+<a href="https://quarkus.io">Quarkus</a> applications via a CDI producer, type-safe
+<code>@ConfigMapping</code> configuration, declarative transactions, health checks, Dev Services,
+Dev UI integration, and GraalVM native-image support. It also pulls in
+<a href="../jakarta-data/"><code>morphium-jakarta-data</code></a> and generates Jakarta Data <code>@Repository</code>
+implementations at <strong>build time</strong> via Gizmo bytecode generation — no runtime
+reflection, no dynamic proxies.</p>
+<div class="admonition note">
+<p class="admonition-title">Optional module — the Morphium core does not depend on it</p>
+<p><code>de.caluga:morphium</code> has zero compile- or runtime dependency on this extension, on
+Quarkus, or on <code>jakarta.data-api</code>. Building the Morphium reactor without this module
+(<code>-DskipExtensions</code>) produces an unchanged core. You only need <code>quarkus-morphium</code> if
+you are building a Quarkus application against MongoDB via Morphium.</p>
+</div>
+<h2 id="what-it-provides">What it provides<a class="headerlink" href="#what-it-provides" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>CDI producer</strong> — <code>@Inject Morphium morphium;</code> anywhere in a Quarkus bean, backed by
+  a single, application-scoped <code>Morphium</code> instance configured from
+  <code>application.properties</code>.</li>
+<li><strong>Type-safe configuration</strong> — every setting lives under <code>quarkus.morphium.*</code> as a
+  <code>@ConfigMapping</code>, validated at build time instead of failing at runtime on a typo.</li>
+<li><strong>Declarative transactions</strong> — <code>@MorphiumTransactional</code> on a CDI bean method wraps
+  the method body in <code>startTransaction()</code>/<code>commitTransaction()</code>/<code>abortTransaction()</code>
+  automatically, with <code>MorphiumTransactionEvent</code> CDI events (<code>BEFORE_COMMIT</code>,
+  <code>AFTER_COMMIT</code>, <code>AFTER_ROLLBACK</code>) for cross-cutting reactions (audit logging,
+  outbox publishing, etc.). Gracefully degrades to non-transactional execution on
+  Azure CosmosDB, which is auto-detected.</li>
+<li><strong>Jakarta Data repositories</strong> — declare a <code>@Repository</code> interface extending
+  <code>CrudRepository</code>/<code>MorphiumRepository</code> from <code>morphium-jakarta-data</code>; the extension's
+  build-time processor generates the implementation via Gizmo, with no reflection at
+  runtime. See <a href="../jakarta-data/">Jakarta Data</a> for the full query-derivation, JDQL, and
+  pagination feature set — everything documented there works identically once
+  generated by this extension.</li>
+<li><strong>Health checks</strong> — MicroProfile liveness (<code>/q/health/live</code>), readiness
+  (<code>/q/health/ready</code>, with connection-pool metadata), and startup (<code>/q/health/started</code>)
+  probes registered automatically via SmallRye Health.</li>
+<li><strong>Dev Services</strong> — a MongoDB container (optionally as a single-node replica set, so
+  transactions and change streams work out of the box) starts automatically in dev and
+  test mode when no explicit <code>quarkus.morphium.hosts</code> is configured — no Docker Compose,
+  no manual setup.</li>
+<li><strong>Dev UI card</strong> — live MongoDB connection info (hosts, database, replica-set mode,
+  container ID) at <code>/q/dev-ui/</code>.</li>
+<li><strong>GraalVM native-image support</strong> — every <code>@Entity</code>/<code>@Embedded</code> class (and Morphium's
+  own reflection-dependent internals) is registered for reflection at build time; no
+  manual <code>reflect-config.json</code>.</li>
+<li><strong><code>MorphiumId</code> JSON serialization</strong> — entities with <code>@Id MorphiumId id</code> serialize to
+  a plain 24-character hex string over REST (both Jackson and JSON-B), and parse back
+  from one — no serializer to write by hand.</li>
+<li><strong>Migration runner</strong> — a lightweight, MongoDB-backed schema/data migration mechanism
+  (<code>quarkus.morphium.migration.*</code>) with a distributed lock, so multiple application
+  instances don't race to apply the same migration.</li>
+</ul>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
+<div class="language-xml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">&lt;dependency&gt;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&lt;groupId&gt;</span>de.caluga<span class="nt">&lt;/groupId&gt;</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&lt;artifactId&gt;</span>quarkus-morphium<span class="nt">&lt;/artifactId&gt;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&lt;version&gt;</span>${project.version}<span class="nt">&lt;/version&gt;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nt">&lt;/dependency&gt;</span>
+</span></code></pre></div>
+<p>In the Morphium reactor, <code>${project.version}</code> currently resolves to <code>6.3.0-SNAPSHOT</code>.
+This module follows Morphium's regular release versioning; there is no separate version
+line to track — building the reactor (<code>mvn -pl quarkus-morphium -am verify</code>) builds this
+extension against the exact Morphium core version in the same build.</p>
+<h2 id="configuration-reference">Configuration Reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
+<p>All properties live under <code>quarkus.morphium.*</code>. This is not the complete list — see the
+Antora documentation in the module directory (<code>quarkus-morphium/docs/</code>) for every
+property — but covers the most commonly used ones, each verified directly against the
+<code>@ConfigMapping</code> source.</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Default</th>
+<th>Description</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>quarkus.morphium.hosts</code></td>
+<td><code>localhost:27017</code></td>
+<td>Comma-separated <code>host:port</code> list</td>
+<td><code>MorphiumRuntimeConfig.java:52</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.database</code></td>
+<td><em>(required)</em></td>
+<td>MongoDB database name</td>
+<td><code>MorphiumRuntimeConfig.java:55</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.username</code> / <code>.password</code></td>
+<td>--</td>
+<td>Optional credentials</td>
+<td><code>MorphiumRuntimeConfig.java:58,61</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.auth-database</code></td>
+<td><code>admin</code></td>
+<td>Authentication database</td>
+<td><code>MorphiumRuntimeConfig.java:65</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.read-preference</code></td>
+<td><code>primary</code></td>
+<td>Read preference</td>
+<td><code>MorphiumRuntimeConfig.java:73</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.index-check</code></td>
+<td><code>create-on-startup</code></td>
+<td>Index management strategy (<code>create-on-startup</code>, <code>warn-on-startup</code>, <code>create-on-write-new-col</code>, <code>no-check</code>)</td>
+<td><code>MorphiumRuntimeConfig.java:92</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.max-connections</code></td>
+<td><code>250</code></td>
+<td>Connection pool size</td>
+<td><code>MorphiumRuntimeConfig.java:108</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.max-wait-time</code></td>
+<td><code>2000</code></td>
+<td>Max wait time (ms) for a pooled connection</td>
+<td><code>MorphiumRuntimeConfig.java:118</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.default-query-timeout-ms</code></td>
+<td><code>0</code> (disabled)</td>
+<td>Server-side <code>maxTimeMS</code> applied to queries without an explicit per-query timeout</td>
+<td><code>MorphiumRuntimeConfig.java:133</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.atlas-url</code></td>
+<td>--</td>
+<td>MongoDB Atlas SRV connection string (overrides <code>hosts</code>)</td>
+<td><code>MorphiumRuntimeConfig.java:139</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.driver-name</code></td>
+<td><code>PooledDriver</code></td>
+<td><code>PooledDriver</code> (production) or <code>InMemDriver</code> (tests, no MongoDB needed)</td>
+<td><code>MorphiumRuntimeConfig.java:146</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.replica-set-name</code></td>
+<td>--</td>
+<td>MongoDB replica set name (required for transactions)</td>
+<td><code>MorphiumRuntimeConfig.java:153</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.connect-retries</code></td>
+<td><code>5</code></td>
+<td>Connection attempts before giving up</td>
+<td><code>MorphiumRuntimeConfig.java:162</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.cache.read-cache-enabled</code></td>
+<td><code>true</code></td>
+<td>Enable query result cache</td>
+<td><code>CacheConfig.java:31</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.cache.global-valid-time</code></td>
+<td><code>60000</code></td>
+<td>Cache TTL in milliseconds</td>
+<td><code>CacheConfig.java:27</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.local-date-time.use-bson-date</code></td>
+<td>--</td>
+<td>Store <code>LocalDateTime</code> as BSON <code>ISODate</code></td>
+<td><code>LocalDateTimeConfig.java</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.ssl.enabled</code></td>
+<td><code>false</code></td>
+<td>Enable TLS</td>
+<td><code>SslConfig.java:48</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.ssl.auth-mechanism</code></td>
+<td>--</td>
+<td><code>MONGODB-X509</code> for client-certificate auth</td>
+<td><code>SslConfig.java:59</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.ssl.keystore-path</code> / <code>.keystore-password</code></td>
+<td>--</td>
+<td>Keystore for client-cert auth / mutual TLS</td>
+<td><code>SslConfig.java:65,68</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.ssl.truststore-path</code> / <code>.truststore-password</code></td>
+<td>--</td>
+<td>Truststore for server certificate validation</td>
+<td><code>SslConfig.java:74,77</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.ssl.invalid-hostname-allowed</code></td>
+<td><code>false</code></td>
+<td>Allow invalid hostnames (dev only)</td>
+<td><code>SslConfig.java:84</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.ssl.tls-configuration-name</code></td>
+<td>--</td>
+<td>Use a named Quarkus TLS registry configuration instead of explicit keystore/truststore paths</td>
+<td><code>SslConfig.java:108</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.devservices.enabled</code></td>
+<td><code>true</code></td>
+<td>Enable automatic MongoDB container in dev/test mode</td>
+<td><code>MorphiumDevServicesBuildTimeConfig.java:45</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.devservices.image-name</code></td>
+<td><code>mongo:8</code></td>
+<td>Docker image for Dev Services</td>
+<td><code>MorphiumDevServicesBuildTimeConfig.java:52</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.devservices.database-name</code></td>
+<td><code>morphium-dev</code></td>
+<td>Database name injected by Dev Services</td>
+<td><code>MorphiumDevServicesBuildTimeConfig.java:59</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.devservices.replica-set</code></td>
+<td><code>true</code></td>
+<td>Start MongoDB as a single-node replica set (enables transactions)</td>
+<td><code>MorphiumDevServicesBuildTimeConfig.java:72</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.health.enabled</code></td>
+<td><code>true</code></td>
+<td>Enable liveness/readiness/startup health checks</td>
+<td><code>MorphiumHealthBuildTimeConfig.java:41</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.migration.migrate-at-start</code></td>
+<td><code>false</code></td>
+<td>Run pending migrations automatically on startup</td>
+<td><code>MorphiumMigrationConfig.java:40</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.migration.change-log-collection</code></td>
+<td><code>morphiumChangeLog</code></td>
+<td>Collection tracking executed migrations</td>
+<td><code>MorphiumMigrationConfig.java:44</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.migration.lock-collection</code></td>
+<td><code>morphiumMigrationLock</code></td>
+<td>Collection used for the distributed migration lock</td>
+<td><code>MorphiumMigrationConfig.java:48</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.migration.lock-ttl-seconds</code></td>
+<td><code>60</code></td>
+<td>Migration-lock TTL in seconds</td>
+<td><code>MorphiumMigrationConfig.java:56</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="quick-example">Quick Example<a class="headerlink" href="#quick-example" title="Permanent link">&para;</a></h2>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@Entity</span><span class="p">(</span><span class="n">collectionName</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;products&quot;</span><span class="p">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Product</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nd">@Id</span><span class="w"> </span><span class="kd">private</span><span class="w"> </span><span class="n">MorphiumId</span><span class="w"> </span><span class="n">id</span><span class="p">;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="n">price</span><span class="p">;</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">category</span><span class="p">;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nd">@Version</span><span class="w"> </span><span class="kd">private</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">version</span><span class="p">;</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="c1">// getters/setters omitted</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="c1">// getters and setters omitted for brevity</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="kd">public</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">getUsername</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">username</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">setUsername</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">username</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">username</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span><span class="kd">public</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">getEmail</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">email</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">setEmail</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">email</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">email</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="p">}</span>
-</span></code></pre></div></p>
-<p>CRUD
-<div class="language-java highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">User</span><span class="w"> </span><span class="n">u</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">User</span><span class="p">();</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">u</span><span class="p">.</span><span class="na">setUsername</span><span class="p">(</span><span class="s">&quot;alice&quot;</span><span class="p">);</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">u</span><span class="p">.</span><span class="na">setEmail</span><span class="p">(</span><span class="s">&quot;alice@example.com&quot;</span><span class="p">);</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">morphium</span><span class="p">.</span><span class="na">store</span><span class="p">(</span><span class="n">u</span><span class="p">);</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">User</span><span class="w"> </span><span class="n">found</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createQueryFor</span><span class="p">(</span><span class="n">User</span><span class="p">.</span><span class="na">class</span><span class="p">)</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="p">.</span><span class="na">f</span><span class="p">(</span><span class="s">&quot;username&quot;</span><span class="p">).</span><span class="na">eq</span><span class="p">(</span><span class="s">&quot;alice&quot;</span><span class="p">)</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="p">.</span><span class="na">get</span><span class="p">();</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">found</span><span class="p">.</span><span class="na">setEmail</span><span class="p">(</span><span class="s">&quot;alice.new@example.com&quot;</span><span class="p">);</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">morphium</span><span class="p">.</span><span class="na">store</span><span class="p">(</span><span class="n">found</span><span class="p">);</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">morphium</span><span class="p">.</span><span class="na">delete</span><span class="p">(</span><span class="n">found</span><span class="p">);</span>
-</span></code></pre></div></p>
-<p>Next steps
-- See Developer Guide for configuration, mapping, queries, aggregation, caching, and extension points
-- See Messaging for the built‑in message queue
-- How‑Tos: Aggregation Examples, Caching Examples, and Cache Patterns</p>
-<p>Driver notes
-- Morphium uses its own wire‑protocol driver tailored to Morphium’s mapping.
-- Limitations: No MongoDB Atlas support.</p>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nd">@Repository</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="kd">public</span><span class="w"> </span><span class="kd">interface</span> <span class="nc">ProductRepository</span><span class="w"> </span><span class="kd">extends</span><span class="w"> </span><span class="n">MorphiumRepository</span><span class="o">&lt;</span><span class="n">Product</span><span class="p">,</span><span class="w"> </span><span class="n">MorphiumId</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Product</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">findByCategory</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">category</span><span class="p">);</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="nd">@OrderBy</span><span class="p">(</span><span class="s">&quot;price&quot;</span><span class="p">)</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Product</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">findByPriceGreaterThan</span><span class="p">(</span><span class="kt">double</span><span class="w"> </span><span class="n">minPrice</span><span class="p">);</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="p">}</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="nd">@ApplicationScoped</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">ProductService</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">    </span><span class="nd">@Inject</span><span class="w"> </span><span class="n">ProductRepository</span><span class="w"> </span><span class="n">products</span><span class="p">;</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span><span class="nd">@MorphiumTransactional</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">Product</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="n">price</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">category</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">        </span><span class="kd">var</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Product</span><span class="p">();</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">        </span><span class="n">p</span><span class="p">.</span><span class="na">setName</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">        </span><span class="n">p</span><span class="p">.</span><span class="na">setPrice</span><span class="p">(</span><span class="n">price</span><span class="p">);</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">        </span><span class="n">p</span><span class="p">.</span><span class="na">setCategory</span><span class="p">(</span><span class="n">category</span><span class="p">);</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">products</span><span class="p">.</span><span class="na">insert</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="p">}</span>
+</span></code></pre></div>
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="na">quarkus.morphium.database</span><span class="o">=</span><span class="s">my-app-db</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># Dev Services starts MongoDB automatically — no further config needed in dev/test.</span>
+</span></code></pre></div>
+<h2 id="testing-without-docker">Testing without Docker<a class="headerlink" href="#testing-without-docker" title="Permanent link">&para;</a></h2>
+<div class="language-properties highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="na">%test.quarkus.morphium.driver-name</span><span class="o">=</span><span class="s">InMemDriver</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="na">%test.quarkus.morphium.database</span><span class="o">=</span><span class="s">test-db</span>
+</span></code></pre></div>
+<p><code>InMemDriver</code> is Morphium's in-memory MongoDB emulation — <code>@QuarkusTest</code> classes run
+against it with no container and no external MongoDB, exactly like the core Morphium
+test suite.</p>
+<h2 id="full-documentation">Full Documentation<a class="headerlink" href="#full-documentation" title="Permanent link">&para;</a></h2>
+<p>This page is an overview. The complete documentation — getting started, entity
+mapping, configuration reference, transactions, health checks, Dev Services, Jakarta
+Data repositories, testing, and advanced topics — lives as an <a href="https://antora.org">Antora</a>
+documentation module in the repository, at <code>quarkus-morphium/docs/</code> (source pages under
+<code>quarkus-morphium/docs/modules/ROOT/pages/</code>):</p>
+<p><a href="https://github.com/sboesebeck/morphium/tree/develop/quarkus-morphium/docs/modules/ROOT/pages"><code>quarkus-morphium/docs/modules/ROOT/pages/</code></a></p>
+<div class="admonition note">
+<p class="admonition-title">Antora docs are not part of this site's build</p>
+<p>This MkDocs site (the pages under <code>docs/</code>, including this one) and the Antora
+documentation under <code>quarkus-morphium/docs/</code> are two separate, coexisting
+toolchains — the Antora source is not currently built or published by this
+repository's <code>deploy-docs.yml</code> workflow. Until a publishing decision is made,
+browse the Antora pages directly on GitHub via the link above, or render them
+locally with the <a href="https://docs.antora.org/antora/latest/">Antora CLI</a> from
+<code>quarkus-morphium/docs/antora.yml</code>.</p>
+</div>
+<p>See also <a href="../jakarta-data/">Jakarta Data</a> for the framework-agnostic repository runtime
+that this extension builds on, and <a href="../poppydb/">PoppyDB</a> for Morphium's other optional
+module.</p>
 
 
 

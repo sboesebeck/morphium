@@ -1792,6 +1792,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="quarkus-extension/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quarkus Extension
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2381,7 +2409,12 @@ any of the following. These are additional, opt-in modules built on top of the c
   - Query derivation from method names, JDQL (<code>@Query</code>), <code>@Find</code>/<code>@Delete</code> with <code>@By</code>
   - Offset and cursor pagination (<code>Page&lt;T&gt;</code>, <code>CursoredPage&lt;T&gt;</code>), dynamic and static sorting
   - Zero dependency from the core: build with <code>-DskipExtensions</code> for a core-only artifact;
-    framework integrations for Quarkus and Spring Boot build on top of this module</p>
+    framework integrations for Quarkus and Spring Boot build on top of this module
+- <strong><a href="quarkus-extension/">Quarkus Extension</a></strong> - Optional module integrating Morphium into
+  Quarkus applications via a CDI producer, <code>@ConfigMapping</code>, <code>@MorphiumTransactional</code>, health
+  checks, Dev Services, Dev UI, and build-time Jakarta Data repository generation via Gizmo
+  - GraalVM native-image support and <code>MorphiumId</code> JSON (de)serialization out of the box
+  - Zero dependency from the core: build with <code>-DskipExtensions</code> for a core-only artifact</p>
 <p>Minimum requirements
 - Java 21+
 - MongoDB 5.0+</p>
