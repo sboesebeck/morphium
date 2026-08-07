@@ -2639,6 +2639,13 @@
 <p>These are <strong>round-trip</strong> numbers: complete ping-pongs (request out, response received).
 PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
 same workload completes 2.5x faster.</p>
+<blockquote>
+<p><strong>Due for re-measurement:</strong> these round-trip figures predate the 2026-08 messaging
+optimizations (answers dispatched before the <code>processed_by</code> write; non-exclusive messages
+processed straight from the change-stream <code>fullDocument</code>, saving one read roundtrip per
+message). Both cut per-message roundtrips, so the PoppyDB/InMemory advantage should have
+widened — re-measure with the Morpheus load generator before quoting these numbers.</p>
+</blockquote>
 <h3 id="messaging-one-way-throughput-send-receipt-no-replies">Messaging One-Way Throughput (send → receipt, no replies)<a class="headerlink" href="#messaging-one-way-throughput-send-receipt-no-replies" title="Permanent link">&para;</a></h3>
 <p>Measured 2026-08-06 with <code>MessagingOneWayThroughputBenchmark</code> (poppydb module, tag <code>manual</code>):
 5000 messages, 4 sender threads, one listening receiver, clock from first send to last
@@ -2665,8 +2672,13 @@ set on separate hosts, PoppyDB runs in-process.</p>
 </tr>
 <tr>
 <td><strong>PoppyDB</strong> (in-process)</td>
-<td>Apple-Silicon laptop</td>
+<td>MacBook Pro (M1 Max, 32GB)</td>
 <td>2101 msg/s</td>
+</tr>
+<tr>
+<td><strong>PoppyDB</strong> (in-process)</td>
+<td>Mac Studio (M1 Ultra, 64GB)</td>
+<td>4300–4900 msg/s (2026-08-07)</td>
 </tr>
 </tbody>
 </table>
@@ -2678,6 +2690,15 @@ round-trip latency (table above), not raw one-way throughput on constrained hard
 historic "~8K msg/s" one-way figure circulated in older READMEs; it most likely stemmed
 from plain document-write throughput (compare the bulk-write numbers above), not from
 messaging with a listening receiver, and is superseded by these measurements.</p>
+<p>The M1 Max and M1 Ultra rows are different machines — in-process throughput simply scales
+with the host. An A/B run on the M1 Ultra on 2026-08-07 (baseline vs. the 2026-08
+optimization round: O(1) duplicate-<code>_id</code> insert pre-check, dead messaging index removed,
+<code>fullDocument</code> fast path) showed <strong>no</strong> significant change on this benchmark — with a
+near-empty collection, throughput is bound by the per-collection write lock, exactly as
+the write-concurrency plateau predicts. What the optimization round <em>did</em> change: insert
+cost no longer grows with collection size. Single-document inserts into a collection
+pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) <code>_id</code> scan) to
+~205,000 inserts/s (O(1) index lookup) in the same A/B setup.</p>
 </blockquote>
 <h3 id="in-query-indexed-vs-non-indexed">$in Query: Indexed vs Non-Indexed<a class="headerlink" href="#in-query-indexed-vs-non-indexed" title="Permanent link">&para;</a></h3>
 <table>
