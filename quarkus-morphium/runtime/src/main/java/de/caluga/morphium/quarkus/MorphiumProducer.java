@@ -312,6 +312,83 @@ public class MorphiumProducer {
         return (int) globalValidTimeMs;
     }
 
+    /**
+     * Applies the configured {@link MorphiumRuntimeConfig.IndexCheckMode} to {@code cfg},
+     * accounting for the fact that {@code CREATE_ON_WRITE_NEW_COL} — unlike the other three
+     * modes — sets both {@code IndexCheck} <em>and</em> {@code CappedCheck}
+     * ({@code MorphiumConfig.setAutoIndexAndCappedCreationOnWrite(true)} sets both to
+     * {@code CREATE_ON_WRITE_NEW_COL}, see {@code MorphiumConfig} lines ~508-511).
+     *
+     * <p>That matters because {@code Morphium.initializeAndConnect()} calls
+     * {@code checkCapped()} <strong>unconditionally</strong> — with no mode gate at all, unlike
+     * {@code checkIndices()}, which is only invoked for {@code CREATE_ON_STARTUP}/
+     * {@code WARN_ON_STARTUP}. {@code checkCapped()} then calls
+     * {@code ClassGraphCache.getClassesWithAnnotation(Capped.class.getName())}, which — despite
+     * the build-time pre-registration this producer performs above — falls through to a live
+     * ClassGraph classpath scan if that pre-registration is ever missing, cleared, or bypassed.
+     * A live classpath scan is exactly what native-image cannot do at runtime (no classpath to
+     * scan), so it crashes. Setting {@code CREATE_ON_WRITE_NEW_COL} alone (Stephan Boesebeck's
+     * originally proposed fix) only prevents the {@code IndexCheck} scan and misses this
+     * unconditional {@code CappedCheck} path entirely.
+     *
+     * <p><strong>Native image:</strong> both {@code IndexCheck} and {@code CappedCheck} are
+     * forced to {@code NO_CHECK}. This deliberately gives up the on-write index/capped-creation
+     * behaviour of this mode under native-image — accepted here because "starts reliably" beats
+     * "creates indices automatically", and users who need that behaviour in native mode can
+     * still call {@code ensureIndicesFor()}/create capped collections explicitly.
+     *
+     * <p><strong>JVM mode:</strong> deliberately left untouched (both checks stay
+     * {@code CREATE_ON_WRITE_NEW_COL}). On the JVM the {@code checkCapped()} scan is not fatal —
+     * it costs a one-time startup delay (same live-classpath scan the plain {@code morphium-core}
+     * library always pays for this mode), and disabling {@code CappedCheck} here would silently
+     * remove the mode's actual purpose (auto-creating capped collections on first write) for
+     * every JVM-mode user, not just native-image ones. That regression would be worse than the
+     * startup cost it avoids.
+     *
+     * @param cfg               the config being built
+     * @param indexCheckMode    the (already native-image-downgraded, for {@code WARN_ON_STARTUP})
+     *                          configured index check mode
+     * @param imageMode         the current Quarkus {@link ImageMode}, used to decide whether the
+     *                          native-image-only downgrade below applies
+     */
+    static void applyIndexCheckMode(MorphiumConfig cfg, MorphiumRuntimeConfig.IndexCheckMode indexCheckMode,
+            ImageMode imageMode) {
+        switch (indexCheckMode) {
+            case CREATE_ON_STARTUP:
+                // Disable Morphium-internal creation — Producer.ensureIndices() handles it
+                cfg.collectionCheckSettings().setIndexCheck(CollectionCheckSettings.IndexCheck.NO_CHECK);
+                break;
+            case WARN_ON_STARTUP:
+                cfg.collectionCheckSettings().setIndexCheck(CollectionCheckSettings.IndexCheck.WARN_ON_STARTUP);
+                break;
+            case CREATE_ON_WRITE_NEW_COL:
+                cfg.setAutoIndexAndCappedCreationOnWrite(true);
+                if (imageMode == ImageMode.NATIVE_RUN) {
+                    // Defence in depth. setAutoIndexAndCappedCreationOnWrite(true) sets BOTH the
+                    // index and the capped check to CREATE_ON_WRITE_NEW_COL (MorphiumConfig
+                    // lines 509-511), and Morphium.initializeAndConnect() calls checkCapped()
+                    // UNCONDITIONALLY -- unlike checkIndices(), which is gated to
+                    // CREATE_ON_STARTUP/WARN_ON_STARTUP -- and checkCapped() would perform a live
+                    // ClassGraph scan, which cannot work in a native image.
+                    //
+                    // In practice buildMorphium() already prevents that scan by pre-registering
+                    // the build-time @Capped list into ClassGraphCache before the Morphium
+                    // constructor runs (an empty list is enough: getClassesWithAnnotation returns
+                    // the pre-registered entry and never reaches the scan). So this is not the
+                    // sole safeguard -- but it is a cheap one that does not depend on that
+                    // ordering staying intact, and it keeps this branch symmetric with the other
+                    // three. Native runs cannot create collections on the fly anyway, so nothing
+                    // of value is disabled here.
+                    cfg.collectionCheckSettings().setIndexCheck(CollectionCheckSettings.IndexCheck.NO_CHECK);
+                    cfg.collectionCheckSettings().setCappedCheck(CollectionCheckSettings.CappedCheck.NO_CHECK);
+                }
+                break;
+            case NO_CHECK:
+                cfg.collectionCheckSettings().setIndexCheck(CollectionCheckSettings.IndexCheck.NO_CHECK);
+                break;
+        }
+    }
+
     private Morphium buildMorphium() {
         // Clear static caches and pre-register entities for the current ClassLoader.
         // This is essential for Quarkus dev-mode hot-reload where the QuarkusClassLoader
@@ -381,21 +458,7 @@ public class MorphiumProducer {
                     + "Downgrading to NO_CHECK for this native run.");
             effectiveIndexCheck = MorphiumRuntimeConfig.IndexCheckMode.NO_CHECK;
         }
-        switch (effectiveIndexCheck) {
-            case CREATE_ON_STARTUP:
-                // Disable Morphium-internal creation — Producer.ensureIndices() handles it
-                cfg.collectionCheckSettings().setIndexCheck(CollectionCheckSettings.IndexCheck.NO_CHECK);
-                break;
-            case WARN_ON_STARTUP:
-                cfg.collectionCheckSettings().setIndexCheck(CollectionCheckSettings.IndexCheck.WARN_ON_STARTUP);
-                break;
-            case CREATE_ON_WRITE_NEW_COL:
-                cfg.setAutoIndexAndCappedCreationOnWrite(true);
-                break;
-            case NO_CHECK:
-                cfg.collectionCheckSettings().setIndexCheck(CollectionCheckSettings.IndexCheck.NO_CHECK);
-                break;
-        }
+        applyIndexCheckMode(cfg, effectiveIndexCheck, ImageMode.current());
 
         // Host configuration
         if (config.atlasUrl().isPresent()) {
