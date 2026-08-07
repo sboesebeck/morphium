@@ -43,11 +43,19 @@ These are **round-trip** numbers: complete ping-pongs (request out, response rec
 PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
 same workload completes 2.5x faster.
 
-> **Due for re-measurement:** these round-trip figures predate the 2026-08 messaging
-> optimizations (answers dispatched before the `processed_by` write; non-exclusive messages
-> processed straight from the change-stream `fullDocument`, saving one read roundtrip per
-> message). Both cut per-message roundtrips, so the PoppyDB/InMemory advantage should have
-> widened — re-measure with the Morpheus load generator before quoting these numbers.
+> **Re-measured 2026-08-07** (Morpheus `latency --headless`, 100 msg/s fixed rate, 5 sender
+> threads, 30 s measured after 10 s warmup, Mac Studio M1 Ultra client; PoppyDB = local
+> 3-node replica set, MongoDB = the 3-node homelab replica set): median RTT **2.4 ms**
+> against PoppyDB vs **5.7 ms** against MongoDB; averages 2.5 ms vs 7.9 ms — MongoDB's mean
+> carries a fat majority-fsync tail (p99 70–128 ms), PoppyDB's p99 stays under 5 ms. A
+> same-session A/B against the pre-optimization baseline attributes **8–18 % lower median
+> RTT** to the 2026-08 messaging optimizations (answers dispatched before the
+> `processed_by` write; non-exclusive messages processed straight from the change-stream
+> `fullDocument`): PoppyDB p50 2.89 → 2.42 ms, MongoDB p50 6.23 → 5.1–5.7 ms. Beware the
+> cold-start trap when reproducing: the very first run after server start measures JIT, not
+> the code — discard it (ours read 2× slower than the warm steady state). The table above
+> keeps the original serial-ping-pong figures; both setups measure the same path under
+> different load profiles, so compare within a vintage, not across.
 
 ### Messaging One-Way Throughput (send → receipt, no replies)
 

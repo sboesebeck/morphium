@@ -42,11 +42,13 @@ it simply scales with the host. **Round-trip** measures complete ping-pongs (req
 response received): 223 msg/s at 4.5 ms latency against PoppyDB vs. 89 msg/s at 11.3 ms
 against the MongoDB replica set — 2.5× the throughput at less than half the latency, thanks
 to PoppyDB and Morphium Messaging being optimized for each other (both sides detect the
-counterpart). The round-trip figures predate the 2026-08 messaging optimizations (answers
-dispatched before the `processed_by` write, non-exclusive messages processed straight from
-the change-stream `fullDocument`) and are due for re-measurement — the PoppyDB advantage
-should have widened. PoppyDB's strength is latency, not raw one-way throughput on
-constrained hardware. Persistence there is snapshot-based, see the
+counterpart). Re-measured 2026-08-07 with the Morpheus load generator (100 msg/s fixed
+rate, 5 sender threads, Mac Studio client): median round-trip 2.4 ms against a local
+PoppyDB replica set vs 5.7 ms against the MongoDB replica set — the ~2.5× relationship
+holds, and a same-session A/B attributes 8–18 % lower median RTT to the 2026-08 messaging
+optimizations (answers dispatched before the `processed_by` write, non-exclusive messages
+processed straight from the change-stream `fullDocument`). PoppyDB's strength is latency,
+not raw one-way throughput on constrained hardware. Persistence there is snapshot-based, see the
 [PoppyDB section](#-poppydb--mongodb-compatible-in-memory-server) below._
 
 _**How real is Kafka's 100K+ figure — and how big is the gap really?** We measured both on
