@@ -32,7 +32,7 @@
   </developers>
   <!--
     Core modules (always built) vs. extension modules (profile "extensions",
-    active by default). See D3-reactor-strategie.md, Variante B.
+    active by default).
 
     Invariants that this setup guarantees:
       I1: morphium-core/pom.xml does not reference any extension module.
@@ -42,9 +42,27 @@
           respective extension module's own POM.
       I5: No cyclic module dependency (extension -> core, never the reverse).
 
+    Version properties vs. BOM imports (I4): a framework's *version
+    property* (e.g. quarkus.version) MAY live here in morphium-parent so
+    that upgrading it is a single-line change, but the framework's *BOM
+    import* (scope=import) must stay in that extension's own module POM.
+    Centralizing the version property in one place is safe and convenient;
+    moving the BOM import here would force every core build
+    (morphium-core/poppydb, no -DskipExtensions needed to trigger it) to
+    resolve ~400 foreign artifacts merely to read this parent POM, which is
+    exactly what I4 forbids. The two are not the same kind of change: keep
+    them separate.
+
     "mvn install"                    -> builds core + PoppyDB + all extensions
     "mvn install -DskipExtensions"    -> builds only core + PoppyDB (no Docker,
-                                          no Quarkus/Spring download needed)
+                                          no Quarkus/Spring download needed).
+                                          Skips BOTH extension modules currently
+                                          in the "extensions" profile below:
+                                          morphium-jakarta-data AND quarkus-morphium,
+                                          not just quarkus-morphium. quarkus-morphium
+                                          depends on morphium-jakarta-data, so this
+                                          reactor could not build one without the
+                                          other even if it tried to.
   -->
   <modules>
     <module>morphium-core</module>
@@ -70,6 +88,13 @@
     <!-- Extension module property for morphium-jakarta-data.
          Deliberately only the version, no Quarkus/Spring BOM (see I4). -->
     <jakarta.data.version>1.0.0</jakarta.data.version>
+    <!-- Extension module property for quarkus-morphium (kept here, in
+         morphium-parent, rather than in quarkus-morphium/pom.xml): a
+         Quarkus upgrade is a single-line change here. The Quarkus BOM
+         *import* itself stays in quarkus-morphium/pom.xml (see I4 and the
+         dependencyManagement comment below); only the version property is
+         centralized. -->
+    <quarkus.version>3.32.3</quarkus.version>
   </properties>
   <build>
     <pluginManagement>
@@ -400,9 +425,9 @@
         <morphium.driver>single</morphium.driver>
       </properties>
     </profile>
-    <!-- Extension modules. Active by default (see D3, Variante B).
-         Disable with "-DskipExtensions" for a core-only build without
-         Quarkus/Spring download and without Docker. -->
+    <!-- Extension modules. Active by default; disable with
+         "-DskipExtensions" for a core-only build without Quarkus/Spring
+         download and without Docker. -->
     <profile>
       <id>extensions</id>
       <activation>
@@ -412,6 +437,7 @@
       </activation>
       <modules>
         <module>morphium-jakarta-data</module>
+        <module>quarkus-morphium</module>
       </modules>
     </profile>
   </profiles>

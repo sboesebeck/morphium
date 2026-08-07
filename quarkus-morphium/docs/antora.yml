@@ -1,0 +1,9 @@
+name: quarkus-morphium
+title: Morphium MongoDB ORM
+version: '6.3'
+display_version: 6.3.0-SNAPSHOT
+nav:
+  - modules/ROOT/nav.adoc
+asciidoc:
+  attributes:
+    page-toclevels: 3

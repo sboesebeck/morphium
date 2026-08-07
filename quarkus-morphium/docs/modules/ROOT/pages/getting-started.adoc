@@ -1,0 +1,185 @@
+= Getting Started
+
+include::./includes/attributes.adoc[]
+
+This guide walks you through adding the Quarkus Morphium extension to a project, configuring a
+MongoDB connection, defining your first entity, and performing basic CRUD operations.
+
+== Prerequisites
+
+* JDK 21+
+* Apache Maven 3.9+
+* A running MongoDB instance (or just use <<dev-services,Dev Services>> — no setup needed)
+
+== Installation
+
+Add the extension to your `pom.xml`:
+
+[source,xml,subs=attributes+]
+----
+<dependency>
+    <groupId>{quarkus-morphium-groupid}</groupId>
+    <artifactId>quarkus-morphium</artifactId>
+    <version>{quarkus-morphium-version}</version>
+</dependency>
+----
+
+[NOTE]
+====
+`quarkus-morphium` is an **optional module of Morphium**. It shares Morphium's
+Maven reactor, groupId, and release version, but the Morphium core
+(`de.caluga:morphium`) does not depend on it — adding core Morphium alone does not
+pull in Quarkus or any of its APIs. This extension is what you add explicitly when
+you want Morphium wired into Quarkus via CDI.
+====
+
+To build the extension from source instead of using a released artifact, run
+`mvn -pl quarkus-morphium -am verify` from the root of the
+link:{morphium-github-url}[Morphium repository] (`-am` also builds `morphium` core
+first if it is not already up to date in the reactor).
+
+== Minimal Configuration
+
+Create `src/main/resources/application.properties` with a single required property:
+
+[source,properties]
+----
+quarkus.morphium.database=my-database
+----
+
+That's it. In dev and test mode, Dev Services automatically starts a MongoDB container — no
+Docker configuration needed. For all configuration options see
+xref:configuration.adoc[Configuration Reference].
+
+== Define an Entity
+
+[source,java]
+----
+import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.lifecycle.*;
+import java.time.Instant;
+
+@Entity(collectionName = "products")
+@Lifecycle
+public class ProductEntity {
+
+    @Id
+    private String id;
+
+    @Property(fieldName = "name")
+    private String name;
+
+    @Property(fieldName = "price")
+    private double price;
+
+    @Version
+    @Property(fieldName = "version")
+    private long version;
+
+    @Property(fieldName = "created_at")
+    private Instant createdAt;
+
+    @PreStore
+    public void onStore() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
+
+    // getters / setters
+}
+----
+
+Every class annotated with `@Entity` or `@Embedded` is automatically registered for GraalVM
+reflection at build time — no manual `reflect-config.json` required.
+
+For a complete guide to annotations see xref:entities.adoc[Entities & Annotations].
+
+== Create a Repository (Jakarta Data)
+
+The recommended approach is to use Jakarta Data `@Repository` interfaces. The extension
+generates the implementation at build time:
+
+[source,java]
+----
+import de.caluga.morphium.driver.MorphiumId;
+import jakarta.data.repository.CrudRepository;
+import jakarta.data.repository.OrderBy;
+import jakarta.data.repository.Repository;
+import java.util.List;
+
+@Repository
+public interface ProductRepository extends CrudRepository<ProductEntity, String> {
+
+    List<ProductEntity> findByName(String name);
+
+    @OrderBy("price")
+    List<ProductEntity> findByPriceGreaterThan(double minPrice);
+}
+----
+
+[source,java]
+----
+@ApplicationScoped
+public class ProductService {
+
+    @Inject ProductRepository products;
+
+    public ProductEntity save(ProductEntity product) {
+        return products.save(product);
+    }
+
+    public List<ProductEntity> findByName(String name) {
+        return products.findByName(name);
+    }
+}
+----
+
+For the full Jakarta Data guide (query derivation, `@Find`/`@By`, JDQL, pagination,
+`MorphiumRepository`) see xref:jakarta-data.adoc[Jakarta Data 1.0].
+
+== Imperative API (Inject Morphium)
+
+For aggregation pipelines, atomic updates, and other operations beyond Jakarta Data,
+inject `Morphium` directly:
+
+[source,java]
+----
+import de.caluga.morphium.Morphium;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.List;
+
+@ApplicationScoped
+public class ProductAnalytics {
+
+    @Inject
+    Morphium morphium;
+
+    public List<ProductEntity> findAll() {
+        return morphium.createQueryFor(ProductEntity.class).asList();
+    }
+}
+----
+
+The `Morphium` instance is a CDI `@ApplicationScoped` bean — the extension manages its full
+lifecycle (connection setup, shutdown, hot-reload cache clearing).
+
+TIP: Both approaches work together. Use `MorphiumRepository` for the best of both worlds —
+standard CRUD via Jakarta Data plus `morphium()` and `query()` for the escape hatch.
+
+[[dev-services]]
+== Dev Services
+
+When you run `quarkus dev` or execute tests, the extension automatically starts a MongoDB
+Docker container. No manual Docker setup is needed. See xref:dev-services.adoc[Dev Services]
+for details.
+
+== Next Steps
+
+* xref:jakarta-data.adoc[Jakarta Data 1.0] — query derivation, `@Find`/`@By`, JDQL, pagination, `MorphiumRepository`
+* xref:configuration.adoc[Configuration Reference] — all `quarkus.morphium.*` properties
+* xref:entities.adoc[Entities & Annotations] — `@Entity`, `@Embedded`, `@Id`, `@Version`, lifecycle hooks
+* xref:transactions.adoc[Transactions] — declarative `@MorphiumTransactional`
+* xref:dev-services.adoc[Dev Services] — automatic MongoDB container, replica-set mode
+* xref:health-checks.adoc[Health Checks] — MicroProfile Health probes
+* xref:testing.adoc[Testing] — Dev Services vs. InMemDriver strategies
+* xref:advanced.adoc[Advanced Topics] — SSL/TLS, Atlas SRV, GraalVM native

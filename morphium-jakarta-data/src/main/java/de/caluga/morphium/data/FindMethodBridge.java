@@ -271,7 +271,10 @@ public final class FindMethodBridge {
     }
 
     /**
-     * Executes a {@code @Delete} annotated method with {@code @By} parameters.
+     * Executes a {@code @Delete} annotated method with {@code @By} parameters, without
+     * reporting how many entities were removed. Kept for callers whose method is declared
+     * {@code void} (Jakarta Data permits {@code void}, {@code int}, or {@code long} for a
+     * parameter-based {@code @Delete} method).
      *
      * @param repo           the repository instance
      * @param conditionsSpec encoded conditions (same format as executeFind)
@@ -279,6 +282,23 @@ public final class FindMethodBridge {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static void executeAnnotatedDelete(AbstractMorphiumRepository<?, ?> repo,
+                                              String conditionsSpec,
+                                              Object[] args) {
+        executeAnnotatedDeleteCounted(repo, conditionsSpec, args);
+    }
+
+    /**
+     * Executes a {@code @Delete} annotated method with {@code @By} parameters and returns the
+     * number of deleted entities. Jakarta Data requires a parameter-based {@code @Delete}
+     * method declared {@code int} or {@code long} to return this count.
+     *
+     * @param repo           the repository instance
+     * @param conditionsSpec encoded conditions (same format as executeFind)
+     * @param args           the method arguments
+     * @return the number of entities deleted
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static long executeAnnotatedDeleteCounted(AbstractMorphiumRepository<?, ?> repo,
                                               String conditionsSpec,
                                               Object[] args) {
         Morphium morphium = repo.getMorphium();
@@ -295,10 +315,15 @@ public final class FindMethodBridge {
             }
         }
 
-        List toDelete = query.asList();
-        for (Object entity : toDelete) {
-            morphium.delete(entity);
-        }
+        // Query-based delete (single round-trip, server-side) instead of loading every matching
+        // entity into memory and deleting one by one: more efficient for large deletes, and more
+        // accurate -- "n" below is the driver's own count of documents actually removed, whereas
+        // counting the entities loaded by a prior query() would drift from the real delete count
+        // under concurrent modification (a document deleted or changed by another writer between
+        // the load and the per-entity delete).
+        Map<String, Object> result = query.delete();
+        Object n = result == null ? null : result.get("n");
+        return n instanceof Number num ? num.longValue() : 0L;
     }
 
     /**
