@@ -344,7 +344,30 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * gets rebuilt from scratch on the next read - see {@link #getIndexStore} for the lifecycle
      * contract every write path must follow.
      */
-    private final Map<String, CollectionIndexStore> indexStoreByCollection = new ConcurrentHashMap<>();
+    private final Map<String, OwnedIndexStore> indexStoreByCollection = new ConcurrentHashMap<>();
+
+    /**
+     * A {@link CollectionIndexStore} together with the data provenance it was built from:
+     * either a specific {@link InMemTransactionContext} (the store holds that transaction's
+     * cloned documents) or {@link #NO_TRANSACTION} (built from the live database).
+     *
+     * <p>Store and owner live in ONE map value on purpose. Held in two parallel maps they could
+     * not be published atomically, so a concurrent {@link #getIndexStore} on another thread
+     * could observe a store whose owner entry was not written yet - or already overwritten by a
+     * third thread - and reuse it for the wrong caller. That is exactly the confusion the owner
+     * check exists to prevent, so it must not be re-introduced by the bookkeeping itself.
+     */
+    private record OwnedIndexStore(CollectionIndexStore store, Object owner) {
+    }
+
+    /**
+     * Sentinel {@link OwnedIndexStore#owner} value marking a store built with no transaction
+     * active, i.e. one holding live documents. {@code null} is not usable here: it is exactly
+     * what {@link #currentTransaction}{@code .get()} returns outside a transaction, so a null
+     * owner could not be told apart from "unknown".
+     */
+    private static final Object NO_TRANSACTION = new Object();
+
 
     /**
      * Counts {@link #buildIndexStore} calls - i.e. full, from-scratch {@code addIndex} rebuilds of
@@ -5972,10 +5995,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * Returns the persistent {@link CollectionIndexStore} for {@code db.collection}, building it
      * on first access from every currently defined non-{@code _id} index
      * ({@link #isDefaultIdDefinition}) and the collection's current documents
-     * ({@link CollectionIndexStore#addIndex}). Once built, a store lives forever (until an
-     * invalidating structural change - see {@link #invalidateIndexStore}) and is kept in sync by
-     * every write path calling {@code onInsert}/{@code onUpdate}/{@code onRemove} on it directly,
-     * which is why - unlike Task 3's rebuild-on-miss cache - there is no epoch/version check here.
+     * ({@link CollectionIndexStore#addIndex}). Once built, a store lives until an invalidating
+     * structural change (see {@link #invalidateIndexStore}) and is kept in sync by every write
+     * path calling {@code onInsert}/{@code onUpdate}/{@code onRemove} on it directly, so - unlike
+     * Task 3's rebuild-on-miss cache - there is no epoch/version check on its CONTENT. There is,
+     * however, a check on its PROVENANCE: a store is only handed to the caller whose data it was
+     * built from, since the same map has to serve both live documents and per-transaction clones.
+     * See the reuse conditions inline below.
      *
      * <p><b>Lifecycle contract for write paths.</b> A mutation entry point MUST call this method
      * (or otherwise be sure the store already exists) BEFORE mutating the collection's document
@@ -5994,14 +6020,63 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     /* package-private */ CollectionIndexStore getIndexStore(String db, String collection) throws MorphiumDriverException {
         String key = db + "." + collection;
-        CollectionIndexStore existing = indexStoreByCollection.get(key);
+        InMemTransactionContext ctx = currentTransaction.get();
+        // The provenance this caller requires: its own transaction, or "live" outside one.
+        Object requiredOwner = ctx == null ? NO_TRANSACTION : ctx;
+        OwnedIndexStore existing = indexStoreByCollection.get(key);
         if (existing != null) {
-            return existing;
+            // A store built before the currently open transaction started is stale: it was
+            // built by reading through getCollection()/getDB(), which resolves against the LIVE
+            // database outside a transaction (see buildIndexStore/getDB) - so it holds live
+            // document instances. startTransaction() then clones the database for this
+            // transaction's writes to mutate in place, but never told this pre-existing store,
+            // which keeps serving those now-superseded live instances for the rest of the
+            // transaction. Index-backed reads inside the transaction see stale data (diverging
+            // from a full scan, which does resolve against the transaction's snapshot), and any
+            // update whose candidate came from an index-backed lookup mutates a live object the
+            // commit never merges back - the write is lost.
+            //
+            // Reuse is only safe when the store was built from the same data this caller reads
+            // through. There are three provenances and, outside a transaction, only one of them
+            // qualifies:
+            //
+            //  - NO_TRANSACTION: built from the live database. Valid for a non-transactional
+            //    caller, stale for a transaction (that transaction's writes go to its clones,
+            //    which this store never learns about - the bug this fix exists for).
+            //  - the CALLER's own context: built from exactly the snapshot this caller writes to
+            //    and reads through. Valid for that transaction, and unreachable here for a
+            //    non-transactional caller.
+            //  - SOME OTHER transaction's context: built from a different, possibly still-open
+            //    snapshot holding that transaction's uncommitted clones. Never valid for anyone
+            //    else - a non-transactional reader would observe uncommitted data, and another
+            //    transaction's index-backed update would land in the wrong snapshot, lost on its
+            //    own commit and corrupting the other's on the way.
+            //
+            // currentTransaction is thread-local, so transactions genuinely overlap across
+            // threads (see InMemTransactionIsolationTest) and all three provenances really do
+            // occur. Build ORDER cannot separate them - a later build may well belong to someone
+            // else - which is why this is keyed by context identity.
+            if (existing.owner() == requiredOwner) {
+                return existing.store();
+            }
+            // Stale (predates this transaction) or foreign (belongs to a different, still-open
+            // transaction on another thread): fall through to a rebuild, exactly like a cache
+            // miss. Remove this exact entry (value-compare, so a concurrent replacement by
+            // another thread is left alone) so a concurrent reader cannot observe it in between.
+            indexStoreByCollection.remove(key, existing);
         }
-        CollectionIndexStore built = buildIndexStore(db, collection);
-        CollectionIndexStore prev = indexStoreByCollection.putIfAbsent(key, built);
+        OwnedIndexStore built = new OwnedIndexStore(buildIndexStore(db, collection), requiredOwner);
+        // Store and owner are published in a single map operation, so no other thread can ever
+        // see one without the other. If another thread won the race and published first, its
+        // entry only counts for us when its provenance matches ours - otherwise we must NOT
+        // return it (that was the whole point of the check above) and use our own build instead.
+        // Ours is not published in that case: the winner's entry stays, and the next caller
+        // re-evaluates provenance normally. Building twice is wasteful but never incorrect (see
+        // this method's contract), whereas handing back a foreign snapshot's store is exactly
+        // the cross-transaction leak this guards against.
+        OwnedIndexStore prev = indexStoreByCollection.putIfAbsent(key, built);
         if (prev != null) {
-            return prev;
+            return prev.owner() == requiredOwner ? prev.store() : built.store();
         }
         // Record that this collection's persistent index store was actually BUILT (not merely
         // reused) while a transaction is open - see
@@ -6010,16 +6085,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // while one is active - i.e. against structurally-cloned document instances, not the
         // live ones - so only a build can seed the store with clones that must not outlive the
         // transaction. A plain reuse of an already-built store can never introduce clones: the
-        // store already existed before this call (built either outside any transaction or by an
-        // earlier one that has since been invalidated on commit/abort), so it holds only
-        // references that were valid at the time it was built. Write paths are covered
+        // identity check above only reuses a store this very transaction built, i.e. one whose
+        // clones are the ones this transaction is already working on. Write paths are covered
         // separately and unconditionally by markCollectionTouched before their first store
-        // mutation, so they need no recording here even though they also call this method.
-        InMemTransactionContext ctx = currentTransaction.get();
+        // mutation, so they need no recording
+        // here even though they also call this method.
         if (ctx != null) {
             ctx.getIndexStoreAccessedCollections().add(db + "/" + collection);
         }
-        return built;
+        return built.store();
     }
 
     private CollectionIndexStore buildIndexStore(String db, String collection) throws MorphiumDriverException {
@@ -10722,6 +10796,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * concurrent non-transactional thread that deletes and then re-inserts a live document under
      * the same unique key can still collide with the transaction's clone and see a false
      * duplicate. That race is not introduced by this fix and is not addressed here.
+     *
+     * <p>A separate, single-threaded variant of the general "identity-based staleness" problem
+     * class - a store built BEFORE the transaction even started, rather than one built during
+     * it and outliving it - is addressed by {@link #getIndexStore}'s provenance check, not here:
+     * such a store holds live document instances that this method's touchedCollections/
+     * indexStoreAccessedCollections invalidation never sees, because it was never recorded as
+     * accessed by this (or any) transaction in the first place.
      */
     public void abortTransaction() {
         InMemTransactionContext ctx = currentTransaction.get();
