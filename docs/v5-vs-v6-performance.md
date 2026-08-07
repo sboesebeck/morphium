@@ -43,6 +43,12 @@ These are **round-trip** numbers: complete ping-pongs (request out, response rec
 PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
 same workload completes 2.5x faster.
 
+> **Due for re-measurement:** these round-trip figures predate the 2026-08 messaging
+> optimizations (answers dispatched before the `processed_by` write; non-exclusive messages
+> processed straight from the change-stream `fullDocument`, saving one read roundtrip per
+> message). Both cut per-message roundtrips, so the PoppyDB/InMemory advantage should have
+> widened — re-measure with the Morpheus load generator before quoting these numbers.
+
 ### Messaging One-Way Throughput (send → receipt, no replies)
 
 Measured 2026-08-06 with `MessagingOneWayThroughputBenchmark` (poppydb module, tag `manual`):
@@ -54,7 +60,7 @@ set on separate hosts, PoppyDB runs in-process.
 |---------|------|--------------------|
 | **MongoDB** (3-node replica set, external hosts) | 4-CPU test runner | 868 msg/s |
 | **PoppyDB** (in-process) | 4-CPU test runner | 769 msg/s |
-| **PoppyDB** (in-process) | Apple-Silicon laptop | 2101 msg/s |
+| **PoppyDB** (in-process) | Apple-Silicon laptop | 2101 msg/s (2026-08-06) / 4300–4900 msg/s (2026-08-07) |
 
 > **Honest reading:** one-way throughput is write-bound, and an in-process PoppyDB shares its
 > host's CPU with sender and receiver — on a small 4-core host it lands slightly *below* an
@@ -63,6 +69,17 @@ set on separate hosts, PoppyDB runs in-process.
 > historic "~8K msg/s" one-way figure circulated in older READMEs; it most likely stemmed
 > from plain document-write throughput (compare the bulk-write numbers above), not from
 > messaging with a listening receiver, and is superseded by these measurements.
+>
+> The two laptop figures were taken on the same hardware and effectively the same code, one
+> day apart — in-process one-way throughput swings ~2x with host state, so treat laptop
+> numbers as order-of-magnitude. An A/B run on 2026-08-07 (baseline vs. the 2026-08
+> optimization round: O(1) duplicate-`_id` insert pre-check, dead messaging index removed,
+> `fullDocument` fast path) showed **no** significant change on this benchmark — with a
+> near-empty collection, throughput is bound by the per-collection write lock, exactly as
+> the write-concurrency plateau predicts. What the optimization round *did* change: insert
+> cost no longer grows with collection size. Single-document inserts into a collection
+> pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) `_id` scan) to
+> ~205,000 inserts/s (O(1) index lookup) in the same A/B setup.
 
 ### $in Query: Indexed vs Non-Indexed
 
