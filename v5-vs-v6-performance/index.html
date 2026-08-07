@@ -2666,6 +2666,11 @@ set on separate hosts, PoppyDB runs in-process.</p>
 <td>868 msg/s</td>
 </tr>
 <tr>
+<td><strong>MongoDB</strong> (3-node replica set, external hosts)</td>
+<td>Mac Studio (M1 Ultra, 64GB)</td>
+<td>1100–1250 msg/s (2026-08-07)</td>
+</tr>
+<tr>
 <td><strong>PoppyDB</strong> (in-process)</td>
 <td>4-CPU test runner</td>
 <td>769 msg/s</td>
@@ -2695,10 +2700,15 @@ with the host. An A/B run on the M1 Ultra on 2026-08-07 (baseline vs. the 2026-0
 optimization round: O(1) duplicate-<code>_id</code> insert pre-check, dead messaging index removed,
 <code>fullDocument</code> fast path) showed <strong>no</strong> significant change on this benchmark — with a
 near-empty collection, throughput is bound by the per-collection write lock, exactly as
-the write-concurrency plateau predicts. What the optimization round <em>did</em> change: insert
-cost no longer grows with collection size. Single-document inserts into a collection
-pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) <code>_id</code> scan) to
-~205,000 inserts/s (O(1) index lookup) in the same A/B setup.</p>
+the write-concurrency plateau predicts. The same A/B against the MongoDB replica set
+(Mac Studio client, 2026-08-07) is also flat: there the benchmark is sender-bound
+(sendRate ≈ endToEndRate — four threads doing synchronous majority-acked inserts over the
+network), and the receiver-side re-read the <code>fullDocument</code> fast path removes shows up as
+delivery latency, not one-way throughput. Its effect belongs to the round-trip table
+above — hence the re-measurement note there. What the optimization round <em>did</em> change:
+insert cost no longer grows with collection size. Single-document inserts into a
+collection pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) <code>_id</code>
+scan) to ~205,000 inserts/s (O(1) index lookup) in the same A/B setup.</p>
 </blockquote>
 <h3 id="in-query-indexed-vs-non-indexed">$in Query: Indexed vs Non-Indexed<a class="headerlink" href="#in-query-indexed-vs-non-indexed" title="Permanent link">&para;</a></h3>
 <table>
