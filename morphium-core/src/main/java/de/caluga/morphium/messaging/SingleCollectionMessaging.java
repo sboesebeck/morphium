@@ -629,6 +629,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         el.setTimestamp(System.currentTimeMillis());
                     }
 
+                    // Fast path: for non-exclusive insert events the fullDocument is an
+                    // authoritative snapshot - nothing mutates a non-exclusive message between
+                    // insert and processing that our skip checks depend on, so the processing
+                    // runnable can deserialize it directly and skip the per-message PRIMARY
+                    // re-fetch. Exclusive messages deliberately do NOT get the document: their
+                    // processed_by re-check after claiming the lock needs a fresh read
+                    // (correctness, not overhead). Requeue updates and poll pickups never come
+                    // through here and keep the re-fetch as staleness protection.
+                    if ("insert".equals(evt.getOperationType()) && (exclusive == null || !exclusive)) {
+                        el.setFullDocument(msg);
+                    }
+
                     // Check if not already queued for processing
                     if (!processing.contains(el)) {
                         processing.add(el);
@@ -636,7 +648,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
 
-                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: queued for processing");
+                        traceDecision(messageId, msg.get("in_answer_to"), el.getFullDocument() != null
+                                      ? "cs-event: queued for processing (fullDocument attached)"
+                                      : "cs-event: queued for processing");
                         log.debug("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
                     } else {
                         traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in processing queue, skipped");
@@ -1013,17 +1027,48 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             return;
                         }
 
-                        // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
-                        // With NEAREST, replica lag could cause us to see old processedBy values
-                        // which would cause message processing to be incorrectly skipped
-                        var q = morphium.createQueryFor(Msg.class)
-                                .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
-                        q.setCollectionName(getCollectionName());
-                        msg = q.get();
+                        // Fast path: non-exclusive insert events carry the fullDocument snapshot
+                        // (attached in handleChangeStreamEvent) - deserialize it directly and save
+                        // the per-message DB roundtrip. All skip checks below run against the
+                        // deserialized message exactly as they would against a re-fetched one.
+                        Map<String, Object> fullDoc = finalPrEl.getFullDocument();
+
+                        if (fullDoc != null) {
+                            try {
+                                msg = morphium.getMapper().deserialize(Msg.class, fullDoc);
+                            } catch (Exception e) {
+                                log.warn("Could not deserialize change stream fullDocument for {} - falling back to re-fetch", finalPrEl.getId(), e);
+                                msg = null;
+                            }
+
+                            // Defensive: the fast path is for non-exclusive messages only. If an
+                            // exclusive message ever slips through (or deserialization produced no
+                            // id), discard and take the re-fetch path - exclusive semantics must
+                            // stay byte-identical to the pre-fast-path behavior.
+                            if (msg != null && (msg.isExclusive() || msg.getMsgId() == null)) {
+                                msg = null;
+                            }
+
+                            if (msg != null) {
+                                traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: using change stream fullDocument (fast path, no re-fetch)");
+                            }
+                        }
 
                         if (msg == null) {
-                            traceDecision(finalPrEl.getId(), null, "processing: reread returned null - message gone from collection");
-                            return;
+                            // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
+                            // With NEAREST, replica lag could cause us to see old processedBy values
+                            // which would cause message processing to be incorrectly skipped
+                            var q = morphium.createQueryFor(Msg.class)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
+                            q.setCollectionName(getCollectionName());
+                            msg = q.get();
+
+                            if (msg == null) {
+                                traceDecision(finalPrEl.getId(), null, "processing: reread returned null - message gone from collection");
+                                return;
+                            }
+
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: re-fetched from database");
                         }
 
                         // do not process if no listener registered for this message
@@ -2551,6 +2596,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         private int priority;
         private MorphiumId id;
         private long timestamp;
+        // Optional insert-event snapshot for the non-exclusive fast path: when set, the
+        // processing runnable deserializes the message from here instead of re-fetching it.
+        // Deliberately NOT part of equals/hashCode/compareTo - queue identity stays the id.
+        private Map<String, Object> fullDocument;
 
         public ProcessingQueueElement() {
         }
@@ -2585,6 +2634,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         public ProcessingQueueElement setId(MorphiumId id) {
             this.id = id;
+            return this;
+        }
+
+        public Map<String, Object> getFullDocument() {
+            return fullDocument;
+        }
+
+        public ProcessingQueueElement setFullDocument(Map<String, Object> fullDocument) {
+            this.fullDocument = fullDocument;
             return this;
         }
 
