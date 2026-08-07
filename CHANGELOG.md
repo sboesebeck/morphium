@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Messaging: change-stream fullDocument fast path skipped `@PostLoad`, silently dropping V5-legacy messages that only carry a `name` field
+The non-exclusive fast path introduced with the fullDocument optimization deserialized the
+change-stream snapshot via the raw `ObjectMapper`, which - unlike the query path - fires no
+entity lifecycle callbacks. `Msg.postLoad()` is exactly where the V5→V6 compatibility
+migration lives (`topic = name` when only the legacy `name` field is set), so a message
+inserted externally in V5 format without a `topic` field (e.g. via `storeMap()`, as
+`V5V6CompatibilityTest` simulates) arrived with `topic == null` and was silently discarded by
+the "no listener registered for this topic" check - no exception, no fallback, on every
+backend. The fast path now fires `firePostLoadEvent()` right after a successful deserialize,
+matching the query path; if the callback throws, the message falls back to the pre-existing
+re-fetch path.
+
 #### InMemoryDriver: aborted/committed transactions could leave stale `CollectionIndexStore` entries, causing false duplicate-key errors on a provably empty collection
 A persistent `CollectionIndexStore` lazily built while a transaction is open is built from
 the transaction's private snapshot, i.e. from structurally-cloned document instances rather

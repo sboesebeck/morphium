@@ -1036,6 +1036,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         if (fullDoc != null) {
                             try {
                                 msg = morphium.getMapper().deserialize(Msg.class, fullDoc);
+                                // The raw mapper does not run entity lifecycle callbacks - fire
+                                // @PostLoad explicitly (like the query path does after unmarshalling),
+                                // otherwise Msg.postLoad()'s V5->V6 name->topic migration is skipped
+                                // and legacy messages without a "topic" field get dropped silently.
+                                if (msg != null) {
+                                    morphium.firePostLoadEvent(msg);
+                                }
                             } catch (Exception e) {
                                 log.warn("Could not deserialize change stream fullDocument for {} - falling back to re-fetch", finalPrEl.getId(), e);
                                 msg = null;
