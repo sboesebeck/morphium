@@ -59,6 +59,7 @@ set on separate hosts, PoppyDB runs in-process.
 | Backend | Host | One-way throughput |
 |---------|------|--------------------|
 | **MongoDB** (3-node replica set, external hosts) | 4-CPU test runner | 868 msg/s |
+| **MongoDB** (3-node replica set, external hosts) | Mac Studio (M1 Ultra, 64GB) | 1100–1250 msg/s (2026-08-07) |
 | **PoppyDB** (in-process) | 4-CPU test runner | 769 msg/s |
 | **PoppyDB** (in-process) | MacBook Pro (M1 Max, 32GB) | 2101 msg/s |
 | **PoppyDB** (in-process) | Mac Studio (M1 Ultra, 64GB) | 4300–4900 msg/s (2026-08-07) |
@@ -76,10 +77,15 @@ set on separate hosts, PoppyDB runs in-process.
 > optimization round: O(1) duplicate-`_id` insert pre-check, dead messaging index removed,
 > `fullDocument` fast path) showed **no** significant change on this benchmark — with a
 > near-empty collection, throughput is bound by the per-collection write lock, exactly as
-> the write-concurrency plateau predicts. What the optimization round *did* change: insert
-> cost no longer grows with collection size. Single-document inserts into a collection
-> pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) `_id` scan) to
-> ~205,000 inserts/s (O(1) index lookup) in the same A/B setup.
+> the write-concurrency plateau predicts. The same A/B against the MongoDB replica set
+> (Mac Studio client, 2026-08-07) is also flat: there the benchmark is sender-bound
+> (sendRate ≈ endToEndRate — four threads doing synchronous majority-acked inserts over the
+> network), and the receiver-side re-read the `fullDocument` fast path removes shows up as
+> delivery latency, not one-way throughput. Its effect belongs to the round-trip table
+> above — hence the re-measurement note there. What the optimization round *did* change:
+> insert cost no longer grows with collection size. Single-document inserts into a
+> collection pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) `_id`
+> scan) to ~205,000 inserts/s (O(1) index lookup) in the same A/B setup.
 
 ### $in Query: Indexed vs Non-Indexed
 

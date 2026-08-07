@@ -27,14 +27,15 @@ Morphium is the only Java ODM that ships a message queue living inside MongoDB. 
 | Message persistence | Built in | Snapshots (optional) | Optional | Built in |
 | Message priority | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No |
 | Distributed locks | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| Throughput, one-way send→receive* | ~870 msg/s | ~770–4,900 msg/s | 10K–50K msg/s | 100K+ msg/s |
+| Throughput, one-way send→receive* | ~870–1,250 msg/s | ~770–4,900 msg/s | 10K–50K msg/s | 100K+ msg/s |
 | Round-trip request→response (ping-pong)* | 89 msg/s | **223 msg/s (2.5×)** | — | — |
 | Operations | ⭐ Very easy | ⭐ Trivial (single process) | ⭐⭐ Medium | ⭐⭐⭐⭐ Complex |
 
 _* All numbers are indicative and depend heavily on hardware and workload; Morphium's are
 [measured](docs/v5-vs-v6-performance.md), the RabbitMQ/Kafka columns quote typical vendor/
 community figures. The two rows measure different things. **One-way** counts send→receipt
-only (no processing, no reply): ~870 msg/s against a 3-node MongoDB replica set; PoppyDB
+only (no processing, no reply): ~870–1,250 msg/s against a 3-node MongoDB replica set
+(depending on the client host); PoppyDB
 runs in-process and therefore scales with the host — ~770 msg/s on a small 4-core CI host,
 ~2,100 msg/s on an M1 Max laptop, ~4,300–4,900 msg/s on an M1 Ultra desktop — in-process,
 it simply scales with the host. **Round-trip** measures complete ping-pongs (request out,
