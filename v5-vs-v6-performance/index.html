@@ -2640,11 +2640,19 @@
 PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
 same workload completes 2.5x faster.</p>
 <blockquote>
-<p><strong>Due for re-measurement:</strong> these round-trip figures predate the 2026-08 messaging
-optimizations (answers dispatched before the <code>processed_by</code> write; non-exclusive messages
-processed straight from the change-stream <code>fullDocument</code>, saving one read roundtrip per
-message). Both cut per-message roundtrips, so the PoppyDB/InMemory advantage should have
-widened — re-measure with the Morpheus load generator before quoting these numbers.</p>
+<p><strong>Re-measured 2026-08-07</strong> (Morpheus <code>latency --headless</code>, 100 msg/s fixed rate, 5 sender
+threads, 30 s measured after 10 s warmup, Mac Studio M1 Ultra client; PoppyDB = local
+3-node replica set, MongoDB = the 3-node homelab replica set): median RTT <strong>2.4 ms</strong>
+against PoppyDB vs <strong>5.7 ms</strong> against MongoDB; averages 2.5 ms vs 7.9 ms — MongoDB's mean
+carries a fat majority-fsync tail (p99 70–128 ms), PoppyDB's p99 stays under 5 ms. A
+same-session A/B against the pre-optimization baseline attributes <strong>8–18 % lower median
+RTT</strong> to the 2026-08 messaging optimizations (answers dispatched before the
+<code>processed_by</code> write; non-exclusive messages processed straight from the change-stream
+<code>fullDocument</code>): PoppyDB p50 2.89 → 2.42 ms, MongoDB p50 6.23 → 5.1–5.7 ms. Beware the
+cold-start trap when reproducing: the very first run after server start measures JIT, not
+the code — discard it (ours read 2× slower than the warm steady state). The table above
+keeps the original serial-ping-pong figures; both setups measure the same path under
+different load profiles, so compare within a vintage, not across.</p>
 </blockquote>
 <h3 id="messaging-one-way-throughput-send-receipt-no-replies">Messaging One-Way Throughput (send → receipt, no replies)<a class="headerlink" href="#messaging-one-way-throughput-send-receipt-no-replies" title="Permanent link">&para;</a></h3>
 <p>Measured 2026-08-06 with <code>MessagingOneWayThroughputBenchmark</code> (poppydb module, tag <code>manual</code>):
