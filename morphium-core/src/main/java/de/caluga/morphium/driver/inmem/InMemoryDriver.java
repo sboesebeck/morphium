@@ -6522,8 +6522,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         // Notify watchers AFTER releasing the write lock to prevent deadlocks.
-        // notifyWatchers -> buildChangeStreamEvent -> shallowCopyAndNormalizeDocument
-        // creates a shallow copy (sufficient because doc values are not mutated in-place).
+        // notifyWatchers -> buildChangeStreamEvent -> deepCopyAndNormalizeDocument
+        // deep-copies each document, so events stay stable even when a later update
+        // mutates the stored document in place.
         for (Map<String, Object> o : objs) {
             notifyWatchers(db, collection, "insert", o);
         }
@@ -6636,7 +6637,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                              IndexKey.of(java.util.Collections.singletonList(o.get("_id"))));
             if (!srch.isEmpty()) {
                 // Capture reference before removing; the object itself is not mutated,
-                // and shallowCopyAndNormalizeDocument in notifyWatchers will copy it
+                // and deepCopyAndNormalizeDocument in notifyWatchers will copy it
                 Map<String, Object> previous = srch.get(0);
                 getCollection(db, collection).remove(previous);
                 // "o" is a brand new Map instance, not the same live reference as "previous" -
@@ -8493,9 +8494,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // always push a fresh queue entry rather than trying to find/remove the old
                     // one (see ttlEnqueue's own Javadoc for why that's cheaper).
                     ttlEnqueue(db, collection, obj);
-                    // original is already a deepClone from line above, no need to
-                    // deep-copy again; notifyWatchers -> shallowCopyAndNormalizeDocument
-                    // will create its own shallow copy for the change stream event
+                    // original is already a deepClone from the line above; note that
+                    // notifyWatchers -> deepCopyAndNormalizeDocument still deep-copies it
+                    // AGAIN for the change stream event - a known redundant copy for the
+                    // before-image (original is exclusively owned by the notification path
+                    // at this point), kept for now for the method's uniform contract
                     Map<String, Object> updatedMap = computeUpdatedFields(original, obj);
                     List<String> removedList = computeRemovedFields(original, obj);
                     pendingNotifications.add(new PendingNotification(db, collection, "update", obj, updatedMap,
@@ -8619,8 +8622,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @SuppressWarnings("unchecked")
     private ChangeStreamEventInfo buildChangeStreamEvent(String db, String collection, String op, Map doc,
             Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
-        Map<String, Object> newDocument = shallowCopyAndNormalizeDocument((Map<String, Object>) doc);
-        Map<String, Object> previousDocument = shallowCopyAndNormalizeDocument((Map<String, Object>) beforeDocument);
+        Map<String, Object> newDocument = deepCopyAndNormalizeDocument((Map<String, Object>) doc);
+        Map<String, Object> previousDocument = deepCopyAndNormalizeDocument((Map<String, Object>) beforeDocument);
 
         Map<String, Object> event = new LinkedHashMap<>();
         long token = changeStreamSequence.incrementAndGet();
@@ -8954,25 +8957,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * Creates a shallow copy of the document and normalizes the _id field.
+     * Creates a deep copy of the document and normalizes the _id field.
      * <p>
-     * A shallow copy is sufficient here because:
-     * 1. Primitive field values (String, Number, Boolean) are immutable.
-     * 2. The resulting event map is wrapped in Collections.unmodifiableMap() so
-     *    subscribers cannot modify it.
-     * 3. Each subscriber's deliver() creates its own working copy (new HashMap<>(event)).
-     * 4. Nested Maps/Lists in documents are not mutated in-place by InMemoryDriver —
-     *    updates replace the entire document in the collection.
+     * The copy MUST be deep - a shallow copy would share the stored document's nested
+     * Maps/Lists with the event, and those are NOT stable:
+     * 1. Update operators mutate live documents in place, including nested containers
+     *    ($set on dotted paths writes into the existing nested Map/List, $push/$addToSet
+     *    mutate the stored ArrayList itself, replacement updates clear()+putAll() the same
+     *    Map instance) - see CollectionIndexStore's identity contract, which relies on
+     *    exactly this.
+     * 2. Events outlive the write: they are appended to changeStreamHistory unconditionally
+     *    (resume/replication replay) and dispatched asynchronously after the collection
+     *    write lock is released, so a later update to the same document would retroactively
+     *    corrupt archived events or race a concurrent serialization.
      * <p>
-     * This avoids the expensive recursive deepCopyDoc() that was previously called for
-     * every change stream event, even when no subscriber matches.
+     * Collections.unmodifiableMap() on the event and the subscribers' own working copies
+     * only protect the event's top level, not shared nested structures. A shallow-copy
+     * variant of this method was tried once and reverted the same day (cf3e9cace) - do not
+     * reintroduce it while the update paths mutate in place.
      */
-    private Map<String, Object> shallowCopyAndNormalizeDocument(Map<String, Object> source) {
+    private Map<String, Object> deepCopyAndNormalizeDocument(Map<String, Object> source) {
         if (source == null) {
             return null;
         }
 
-        // Use deep copy to prevent shared mutable state between subscribers
+        // Deep copy to prevent shared mutable state between the live document, the event
+        // history, and subscribers
         Map<String, Object> copy = deepCopyDoc(source);
 
         if (copy.containsKey("_id")) {
