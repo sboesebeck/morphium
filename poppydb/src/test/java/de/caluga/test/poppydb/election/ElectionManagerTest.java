@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -158,36 +159,101 @@ public class ElectionManagerTest {
         // first and it kept retrying with a new term every ~8s; each retry - though correctly
         // denied here on priority grounds - was resetting the denier's own election timer,
         // repeatedly deferring the very candidacy the priority check exists to protect.
+        //
+        // Design note (2026-08-07, after THREE flaky iterations of this test - see git history):
+        // any shape that OBSERVES the CANDIDATE state is inherently racy, because under a
+        // continuous barrage CANDIDATE is a transient state by design: becomeCandidate() bumps
+        // our term to k+1, and the barrage's next-but-one request (term k+2 > k+1) legitimately
+        // knocks us back to FOLLOWER via the higher-term becomeFollower() path within one or two
+        // sender periods. Polling getState() - or re-asserting it after the poll - races that
+        // ~30-60ms window (attempts 1 and 2 died of exactly this). Attempt 3's measured 2/20
+        // local flake was subtler still: its "deniedCount > 5" sanity check raced the fix
+        // WORKING - on a low timeout draw the node turned candidate after exactly 5 denials,
+        // the poll stopped the sender, and the sanity check failed the test even though the
+        // election behavior was perfect (surefire logs show "became CANDIDATE at term 6" at
+        // ~0.19s in both failures).
+        //
+        // So: don't observe the state at all. The invariant is "the node STARTS ITS OWN
+        // ELECTION while denials are still arriving", and starting an election has a positive,
+        // latching, production-visible signal - becomeCandidate() calls requestVotes(), which
+        // invokes the sendVoteRequest callback for every peer. Counting down a latch there
+        // cannot be un-rung by the (correct) subsequent demotion, needs no poll, and needs no
+        // tuned window: with the fix it fires ~one election timeout after start(); with the bug
+        // the barrage (30ms cadence, far below the ~325ms minimum effective timeout) resets the
+        // timer forever and the latch deterministically never fires within the generous await.
         ElectionConfig config = new ElectionConfig()
-                .setElectionTimeoutMinMs(150)
-                .setElectionTimeoutMaxMs(200)
-                .setElectionPriority(75);
+                .setElectionTimeoutMinMs(300)
+                .setElectionTimeoutMaxMs(400)
+                .setElectionPriority(75);  // effective timeout ~325-425ms (priority adds 25ms)
 
         List<String> hosts = List.of("localhost:27017", "localhost:27018", "localhost:27019");
         ElectionManager manager = new ElectionManager("localhost:27017", hosts, config);
         managers.add(manager);
 
+        AtomicInteger deniedCount = new AtomicInteger(0);
+        AtomicInteger grantedCount = new AtomicInteger(0);
+
+        // Fires (once per peer) inside becomeCandidate() -> requestVotes(): the node has
+        // started its own election. Capture the denial count and state as they were at that
+        // exact moment (the callback runs under the state lock, so state is stably CANDIDATE
+        // here) - asserting on live state afterwards would race the barrage-driven demotion.
+        CountDownLatch candidacyLatch = new CountDownLatch(1);
+        AtomicInteger denialsAtCandidacy = new AtomicInteger(-1);
+        AtomicReference<ElectionState> stateAtCandidacy = new AtomicReference<>();
+        manager.setSendVoteRequest((peer, req) -> {
+            denialsAtCandidacy.compareAndSet(-1, deniedCount.get());
+            stateAtCandidacy.compareAndSet(null, manager.getState());
+            candidacyLatch.countDown();
+        });
+
         manager.start();
         assertEquals(ElectionState.FOLLOWER, manager.getState());
 
         // A lower-priority peer (localhost:27019) repeatedly starts a new election, term by
-        // term, every 50ms - faster than our own 150-200ms timeout. Before the fix, each denied
-        // request still reset our timer via becomeFollower(), so a continuous-enough barrage
-        // could postpone our own candidacy indefinitely.
-        for (int term = 1; term <= 8; term++) {
-            VoteRequest request = new VoteRequest(term, "localhost:27019", 0, 0, 50);
-            VoteResponse response = manager.handleVoteRequest(request);
-            assertFalse(response.isVoteGranted(),
-                    "Vote for lower-priority candidate at term " + term + " should be denied");
-            Thread.sleep(50);
+        // term, every 30ms - continuously, much faster than our own election timeout, for the
+        // whole duration of the await below. Before the fix, each denied request still reset
+        // our timer via becomeFollower(), so this barrage postponed our own candidacy for as
+        // long as it kept arriving.
+        AtomicBoolean keepDenying = new AtomicBoolean(true);
+        Thread denialSender = new Thread(() -> {
+            int term = 1;
+            while (keepDenying.get()) {
+                try {
+                    VoteRequest request = new VoteRequest(term++, "localhost:27019", 0, 0, 50);
+                    VoteResponse response = manager.handleVoteRequest(request);
+                    if (response.isVoteGranted()) {
+                        grantedCount.incrementAndGet();
+                    } else {
+                        deniedCount.incrementAndGet();
+                    }
+                    Thread.sleep(30);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }, "denial-sender");
+        denialSender.start();
+        boolean becameCandidate;
+        try {
+            becameCandidate = candidacyLatch.await(5, TimeUnit.SECONDS);
+        } finally {
+            keepDenying.set(false);
+            denialSender.join(2000);
         }
 
-        // 400ms of continuous, correctly-denied lower-priority requests have passed - well past
-        // our own 150-200ms timeout. If denials still reset our timer, we'd still be FOLLOWER
-        // here (last reset was only 50ms ago). With the fix, our own timeout fired on schedule
-        // partway through the loop and we became CANDIDATE independently of the peer's retries.
-        assertEquals(ElectionState.CANDIDATE, manager.getState(),
+        assertTrue(becameCandidate,
                 "Node should have started its own election despite continuous lower-priority vote requests");
+        assertEquals(ElectionState.CANDIDATE, stateAtCandidacy.get(),
+                "vote requests must have been sent from CANDIDATE state");
+        // Sanity: the barrage was actually in flight BEFORE candidacy - otherwise this test
+        // would pass for the wrong reason (e.g. a broken sender thread, or denials so sparse
+        // the timer was never contested). >= 3 leaves ample slack: at a 30ms cadence against a
+        // >= 325ms effective timeout, ~10 denials are expected before the timer first fires.
+        assertTrue(denialsAtCandidacy.get() >= 3,
+                "expected several denied vote requests before candidacy, got " + denialsAtCandidacy.get());
+        // Our higher-priority node must never actually vote for the lower-priority candidate.
+        assertEquals(0, grantedCount.get(),
+                "no vote must ever be granted to the lower-priority candidate");
     }
 
     @Test
