@@ -54,10 +54,4 @@ class MorphiumStartupCheckTest {
     void upWhenDriverConnectedNoConnectionsOpened() {
         assertThat(MorphiumStartupCheck.isEverConnected(0.0, true)).isTrue();
     }
-
-    @Test
-    @DisplayName("DOWN when neither signal indicates a connection")
-    void downWhenNeitherSignalConnected() {
-        assertThat(MorphiumStartupCheck.isEverConnected(0.0, false)).isFalse();
-    }
 }

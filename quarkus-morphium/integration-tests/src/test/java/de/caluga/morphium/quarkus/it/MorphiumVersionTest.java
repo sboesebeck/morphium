@@ -92,16 +92,29 @@ class MorphiumVersionTest {
     @Test
     @DisplayName("Entity without @Version stores and updates normally")
     void entityWithoutVersion_worksNormally() {
-        // UnversionedEntity re-uses ItemEntity but version field is just 0 by default.
-        // We use a different approach: test that two stores on the same entity don't fail.
-        var item = new ItemEntity();
-        item.setName("v-item-noversioncheck");
-        item.setVersion(0L);  // pretend no version was tracked
+        // UnversionedEntity has no @Version field at all, so Morphium must not
+        // perform any optimistic-locking check on store()/update().
+        var item = new UnversionedEntity();
+        item.setName("v-item-noversion");
         morphium.store(item);
 
-        // Just verify no exception is thrown on a second store when version matches
-        item.setPrice(5.0);
+        String id = item.getId();
+        assertThat(id).as("id must be assigned after first store").isNotNull();
+
+        // A concurrent "second client" loads and updates the same entity first...
+        UnversionedEntity concurrent = morphium.createQueryFor(UnversionedEntity.class)
+                .f("name").eq("v-item-noversion").get();
+        concurrent.setPrice(1.0);
+        morphium.store(concurrent);
+
+        // ...and the original in-memory reference (now stale w.r.t. price) must still
+        // store without any VersionMismatchException, because there is no version
+        // to check.
+        item.setPrice(2.0);
         morphium.store(item);
-        assertThat(item.getVersion()).isEqualTo(2L);
+
+        UnversionedEntity reloaded = morphium.createQueryFor(UnversionedEntity.class)
+                .f("id").eq(id).get();
+        assertThat(reloaded.getPrice()).isEqualTo(2.0);
     }
 }

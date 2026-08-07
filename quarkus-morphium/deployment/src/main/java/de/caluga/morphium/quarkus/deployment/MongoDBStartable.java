@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 class MongoDBStartable {
 
     private static final int MONGO_PORT = 27017;
+    private static final Pattern REPLICA_SET_PATTERN = Pattern.compile("[?&]replicaSet=([^&]+)");
 
     private final String imageName;
     private final boolean replicaSet;
@@ -87,8 +88,7 @@ class MongoDBStartable {
     String getReplicaSetName() {
         if (container instanceof MongoDBContainer mongoContainer) {
             String connStr = mongoContainer.getConnectionString();
-            Matcher m = Pattern.compile("[?&]replicaSet=([^&]+)")
-                    .matcher(connStr);
+            Matcher m = REPLICA_SET_PATTERN.matcher(connStr);
             return m.find() ? m.group(1) : "docker-rs";
         }
         return null;
