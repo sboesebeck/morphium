@@ -124,6 +124,37 @@ class MorphiumDataDeleteTest {
         assertThat(repository.findAll().toList()).isEmpty();
     }
 
+    @Test
+    @Order(8)
+    @DisplayName("silent data loss fix: remove(entity) with an entity-typed @Delete parameter actually deletes that document")
+    void removeByEntityParameter_deletesTheDocument() {
+        OrderEntity toDelete = order("C1", 100, "OPEN");
+        morphium.store(toDelete);
+        morphium.store(order("C2", 200, "OPEN"));
+        morphium.store(order("C3", 300, "CLOSED"));
+
+        // This is the check the original bug report needed: the document count BEFORE and AFTER
+        // the call. Before the fix, the entity parameter was misclassified as a @By-condition
+        // (falling back to the parameter name), building a bogus query such as
+        // {order: <OrderEntity instance>} that never matches anything in MongoDB -- so
+        // query.delete() silently removed zero documents while the method still returned
+        // normally. Asserting only "no exception was thrown" would NOT have caught that; the
+        // count comparison is what actually detects the data loss.
+        long countBefore = morphium.createQueryFor(OrderEntity.class).countAll();
+        assertThat(countBefore).isEqualTo(3);
+
+        repository.remove(toDelete);
+
+        long countAfter = morphium.createQueryFor(OrderEntity.class).countAll();
+        assertThat(countAfter).isEqualTo(countBefore - 1);
+        assertThat(morphium.createQueryFor(OrderEntity.class)
+                .f("customerId").eq("C1").countAll()).isZero();
+        assertThat(morphium.createQueryFor(OrderEntity.class)
+                .f("customerId").eq("C2").countAll()).isEqualTo(1);
+        assertThat(morphium.createQueryFor(OrderEntity.class)
+                .f("customerId").eq("C3").countAll()).isEqualTo(1);
+    }
+
     private OrderEntity order(String customerId, double amount, String status) {
         var o = new OrderEntity();
         o.setCustomerId(customerId);

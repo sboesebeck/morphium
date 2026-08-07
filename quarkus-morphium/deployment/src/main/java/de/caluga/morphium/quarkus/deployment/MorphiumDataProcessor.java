@@ -1370,11 +1370,21 @@ public class MorphiumDataProcessor {
             // hasByParams=false, is (mis)treated as an entity-parameter delete, and ends up
             // calling doDelete(someString) at runtime -- attempting to delete a String as if
             // it were an entity.
+            //
+            // Exception: the parameter-name fallback must NOT fire for an entity-shaped
+            // parameter (the entity itself, an array of it, or a List/Collection/Iterable of
+            // it). Jakarta Data defines such a parameter as a lifecycle delete-by-entity
+            // parameter, not a condition (jakarta.data-api Delete javadoc). Applying the
+            // fallback there previously built a bogus query such as {customer: <entity>}, which
+            // never matches anything -- query.delete() silently deletes zero documents and the
+            // method returns normally: a silent data-loss bug. An explicit @By annotation is
+            // always honoured, even on an entity-typed parameter, since the developer opted in
+            // deliberately.
             AnnotationInstance byAnn = method.parameters().get(i).annotation(BY_ANNOTATION);
             String fieldName = null;
             if (byAnn != null) {
                 fieldName = byAnn.value().asString();
-            } else {
+            } else if (!isEntityParameter(method.parameterType(i), entityClassName)) {
                 String methodParamName = method.parameters().get(i).name();
                 if (methodParamName != null) {
                     fieldName = methodParamName;
@@ -1385,6 +1395,29 @@ public class MorphiumDataProcessor {
                 if (conditionsSpec.length() > 0) conditionsSpec.append(",");
                 conditionsSpec.append(fieldName).append(":").append(i);
             }
+        }
+
+        // Jakarta Data does not specify mixing an entity delete-lifecycle parameter with
+        // parameter/@By conditions in the same @Delete method (jakarta.data-api Delete javadoc:
+        // a method has either exactly one such entity parameter, or condition parameters). Since
+        // there is no defined semantics for the mix, reject it at build time rather than silently
+        // picking one interpretation.
+        boolean hasEntityParam = false;
+        for (int i = 0; i < method.parametersCount(); i++) {
+            if (isEntityParameter(method.parameterType(i), entityClassName)) {
+                hasEntityParam = true;
+                break;
+            }
+        }
+        if (hasEntityParam && hasByParams) {
+            throw new IllegalStateException(
+                    "Unsupported @Delete method " + method.declaringClass().name() + "."
+                            + method.name() + "() -- mixes an entity-typed parameter with "
+                            + "parameter/@By-condition parameters. Jakarta Data does not specify "
+                            + "this combination: a @Delete method must have either exactly one "
+                            + "entity/List<entity>/entity[] lifecycle parameter, or "
+                            + "parameter/@By-condition parameters, but not both. Split this into "
+                            + "two separate methods.");
         }
 
         String[] paramTypeNames = new String[method.parametersCount()];
@@ -1963,6 +1996,32 @@ public class MorphiumDataProcessor {
     }
 
     // -- Return type analysis --
+
+    /**
+     * True if {@code paramType} is the Jakarta Data entity-lifecycle shape for the given
+     * entity: the entity class itself, an array of it, or a List/Collection/Iterable
+     * parameterized with it (jakarta.data-api 1.0.1, {@code @Delete} javadoc). Used to keep
+     * such parameters out of the @By-condition parameter-name fallback in
+     * {@link #generateDeleteAnnotatedMethod}.
+     */
+    private boolean isEntityParameter(Type paramType, String entityClassName) {
+        if (paramType == null) return false;
+        if (paramType.kind() == Type.Kind.ARRAY) {
+            Type component = paramType.asArrayType().component();
+            return component.name().toString().equals(entityClassName);
+        }
+        if (paramType.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+            String rawName = paramType.name().toString();
+            if (rawName.equals("java.util.List")
+                    || rawName.equals("java.util.Collection")
+                    || rawName.equals("java.lang.Iterable")) {
+                List<Type> args = paramType.asParameterizedType().arguments();
+                return !args.isEmpty() && args.get(0).name().toString().equals(entityClassName);
+            }
+            return false;
+        }
+        return paramType.name().toString().equals(entityClassName);
+    }
 
     private boolean isList(Type type) {
         return type.name().toString().equals("java.util.List");

@@ -1,6 +1,7 @@
 package de.caluga.morphium.quarkus.it;
 
 import jakarta.data.repository.BasicRepository;
+import jakarta.data.repository.Delete;
 import jakarta.data.repository.Find;
 import jakarta.data.repository.By;
 import jakarta.data.repository.OrderBy;
@@ -323,4 +324,12 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
 
     @Query("SELECT status, COUNT(this) GROUP BY status ORDER BY status ASC")
     Page<StatusCount> countGroupByStatusPaged(PageRequest pageRequest);
+
+    // --- Silent data loss fix: @Delete with a single entity-typed parameter must delete the
+    // given entity via doDelete(entity), not silently match nothing via a bogus {order: <entity>}
+    // condition query. Method name deliberately does NOT start with deleteBy/findBy/countBy/
+    // existsBy, since MethodNameParser would otherwise try to parse it as a derived query. ---
+
+    @Delete
+    void remove(OrderEntity order);
 }

@@ -111,6 +111,60 @@ class MorphiumDataProcessorCustomMethodsTest {
     }
 
     /**
+     * Silent-data-loss bug fixture: a @Delete method with a single ENTITY-typed parameter
+     * (Jakarta Data lifecycle-delete shape, jakarta.data-api 1.0.1 Delete javadoc). This must be
+     * treated as an entity-lifecycle delete (doDelete(entity)), never as a parameter-name
+     * @By-condition delete.
+     *
+     * <p>Boolean is deliberately used as the return type here as a build-time discriminator
+     * (same technique as {@code DeleteBadReturnTypeRepository} above): boolean is invalid for the
+     * parameter/@By-condition delete branch (which requires void/int/long) but irrelevant for the
+     * entity-lifecycle branch (which unconditionally returns void). If the entity parameter were
+     * misclassified as a condition (the bug), generation would fail with "Unsupported @Delete
+     * method ... boolean" here; correct handling reaches the entity branch and succeeds.
+     */
+    @Repository
+    public interface DeleteEntityParamRepository extends MorphiumRepository<FixtureEntity, String> {
+        @Delete
+        boolean remove(FixtureEntity entity);
+    }
+
+    /**
+     * Silent-data-loss bug fixture, mixed case: a @Delete method that combines an entity-typed
+     * parameter with an explicit @By-condition parameter in the same method. Jakarta Data does
+     * not define semantics for this combination (a @Delete method has either exactly one
+     * entity/List/array lifecycle parameter, or parameter/@By conditions -- not both), so this
+     * must be rejected at build time.
+     */
+    @Repository
+    public interface DeleteMixedEntityAndConditionRepository extends MorphiumRepository<FixtureEntity, String> {
+        @Delete
+        void remove(FixtureEntity entity, @By("name") String name);
+    }
+
+    /**
+     * Fixture purely for exercising {@code isEntityParameter} directly against every Jandex type
+     * shape it must recognize (entity, array-of-entity, List/Collection/Iterable-of-entity) and
+     * reject (a plain String, a List of Strings). Not a @Repository/@Delete method -- just a
+     * vehicle to obtain real Jandex {@code Type} instances for each parameter shape.
+     */
+    public interface EntityParamShapesRepository {
+        void single(FixtureEntity e);
+
+        void array(FixtureEntity[] es);
+
+        void list(List<FixtureEntity> es);
+
+        void collection(java.util.Collection<FixtureEntity> es);
+
+        void iterable(Iterable<FixtureEntity> es);
+
+        void byName(String name);
+
+        void listOfStrings(List<String> names);
+    }
+
+    /**
      * BEFUND 2 fixture: a parameter/@By-condition @Delete method with an unsupported return type
      * (boolean is not void/int/long per Jakarta Data). Must be rejected at build time.
      */
@@ -249,6 +303,89 @@ class MorphiumDataProcessorCustomMethodsTest {
         // the "entity delete" branch for a non-void/int/long return type.
         generate(DeleteByParamNameRepository.class, index);
         generate(DeleteByAnnotatedRepository.class, index);
+    }
+
+    // -----------------------------------------------------------------
+    // Silent-data-loss bug: @Delete with entity-typed parameter
+    // -----------------------------------------------------------------
+
+    @Test
+    @DisplayName("isEntityParameter: recognizes entity, entity[], List<entity>, Collection<entity>, Iterable<entity>; rejects String and List<String>")
+    void isEntityParameter_recognizesAllEntityShapesAndRejectsNonEntityShapes() throws Exception {
+        IndexView index = buildIndex(FixtureEntity.class, EntityParamShapesRepository.class);
+        ClassInfo repoInfo = index.getClassByName(DotName.createSimple(EntityParamShapesRepository.class.getName()));
+        String entityClassName = FixtureEntity.class.getName();
+
+        Method isEntityParameter = MorphiumDataProcessor.class.getDeclaredMethod(
+                "isEntityParameter", org.jboss.jandex.Type.class, String.class);
+        isEntityParameter.setAccessible(true);
+        MorphiumDataProcessor processor = new MorphiumDataProcessor();
+
+        Map<String, org.jboss.jandex.Type> paramTypeByMethodName = new HashMap<>();
+        for (org.jboss.jandex.MethodInfo m : repoInfo.methods()) {
+            paramTypeByMethodName.put(m.name(), m.parameterType(0));
+        }
+
+        assertThat((Boolean) isEntityParameter.invoke(processor, paramTypeByMethodName.get("single"), entityClassName))
+                .as("plain entity parameter").isTrue();
+        assertThat((Boolean) isEntityParameter.invoke(processor, paramTypeByMethodName.get("array"), entityClassName))
+                .as("entity[] parameter").isTrue();
+        assertThat((Boolean) isEntityParameter.invoke(processor, paramTypeByMethodName.get("list"), entityClassName))
+                .as("List<entity> parameter").isTrue();
+        assertThat((Boolean) isEntityParameter.invoke(processor, paramTypeByMethodName.get("collection"), entityClassName))
+                .as("Collection<entity> parameter").isTrue();
+        assertThat((Boolean) isEntityParameter.invoke(processor, paramTypeByMethodName.get("iterable"), entityClassName))
+                .as("Iterable<entity> parameter").isTrue();
+        assertThat((Boolean) isEntityParameter.invoke(processor, paramTypeByMethodName.get("byName"), entityClassName))
+                .as("plain String parameter must NOT be treated as an entity parameter").isFalse();
+        assertThat((Boolean) isEntityParameter.invoke(processor, paramTypeByMethodName.get("listOfStrings"), entityClassName))
+                .as("List<String> must NOT be treated as an entity parameter").isFalse();
+    }
+
+    @Test
+    @DisplayName("silent data loss fix: @Delete method with an ENTITY parameter must NOT be generated as a condition-delete")
+    void deleteWithEntityParameter_isNotTreatedAsConditionDelete() throws Exception {
+        IndexView index = buildIndex(FixtureEntity.class, DeleteEntityParamRepository.class,
+                MorphiumRepository.class);
+
+        // The return type here is boolean, which is invalid for the parameter/@By-condition
+        // delete branch (Jakarta Data requires void/int/long there) but is perfectly fine for the
+        // entity-lifecycle branch (which always returns void, ignoring the declared boolean --
+        // the same as the pre-existing single-entity-parameter branch already does). Before the
+        // fix, the parameter-name fallback wrongly classified the FixtureEntity parameter as a
+        // @By condition, hit the return-type guard, and this call would throw
+        // "Unsupported @Delete method ... boolean". After the fix it must generate cleanly,
+        // proving the entity-lifecycle branch (doDelete(entity)) was chosen instead.
+        generate(DeleteEntityParamRepository.class, index);
+    }
+
+    @Test
+    @DisplayName("silent data loss fix: this is the exact regression case -- deleteByParamNameFallback must stay a condition-delete, entity-param delete must stay an entity-delete")
+    void deleteByParamNameFallback_and_deleteWithEntityParameter_areClearlyDistinguished() throws Exception {
+        IndexView index = buildIndex(FixtureEntity.class, DeleteByParamNameRepository.class,
+                DeleteEntityParamRepository.class, MorphiumRepository.class);
+
+        // Condition-delete (String parameter, no @By): must still work, going through the
+        // parameter/@By branch (unaffected by the entity-parameter exception).
+        generate(DeleteByParamNameRepository.class, index);
+
+        // Entity-parameter delete (FixtureEntity parameter, no @By): must go through the
+        // entity-lifecycle branch. Discriminated the same way as the test above -- a boolean
+        // return type on this method would fail the build if it were misrouted into the
+        // condition-delete branch.
+        generate(DeleteEntityParamRepository.class, index);
+    }
+
+    @Test
+    @DisplayName("mixed entity-parameter + @By-condition @Delete method is rejected at BUILD time (unspecified by Jakarta Data)")
+    void deleteWithMixedEntityAndConditionParameters_failsAtBuildTime() throws Exception {
+        IndexView index = buildIndex(FixtureEntity.class, DeleteMixedEntityAndConditionRepository.class,
+                MorphiumRepository.class);
+
+        assertThatThrownBy(() -> generate(DeleteMixedEntityAndConditionRepository.class, index))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unsupported @Delete method")
+                .hasMessageContaining("mixes an entity-typed parameter");
     }
 
     // -----------------------------------------------------------------
