@@ -60,7 +60,8 @@ set on separate hosts, PoppyDB runs in-process.
 |---------|------|--------------------|
 | **MongoDB** (3-node replica set, external hosts) | 4-CPU test runner | 868 msg/s |
 | **PoppyDB** (in-process) | 4-CPU test runner | 769 msg/s |
-| **PoppyDB** (in-process) | Apple-Silicon laptop | 2101 msg/s (2026-08-06) / 4300–4900 msg/s (2026-08-07) |
+| **PoppyDB** (in-process) | MacBook Pro (M1 Max, 32GB) | 2101 msg/s |
+| **PoppyDB** (in-process) | Mac Studio (M1 Ultra, 64GB) | 4300–4900 msg/s (2026-08-07) |
 
 > **Honest reading:** one-way throughput is write-bound, and an in-process PoppyDB shares its
 > host's CPU with sender and receiver — on a small 4-core host it lands slightly *below* an
@@ -70,9 +71,8 @@ set on separate hosts, PoppyDB runs in-process.
 > from plain document-write throughput (compare the bulk-write numbers above), not from
 > messaging with a listening receiver, and is superseded by these measurements.
 >
-> The two laptop figures were taken on the same hardware and effectively the same code, one
-> day apart — in-process one-way throughput swings ~2x with host state, so treat laptop
-> numbers as order-of-magnitude. An A/B run on 2026-08-07 (baseline vs. the 2026-08
+> The M1 Max and M1 Ultra rows are different machines — in-process throughput simply scales
+> with the host. An A/B run on the M1 Ultra on 2026-08-07 (baseline vs. the 2026-08
 > optimization round: O(1) duplicate-`_id` insert pre-check, dead messaging index removed,
 > `fullDocument` fast path) showed **no** significant change on this benchmark — with a
 > near-empty collection, throughput is bound by the per-collection write lock, exactly as

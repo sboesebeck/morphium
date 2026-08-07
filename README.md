@@ -36,9 +36,8 @@ _* All numbers are indicative and depend heavily on hardware and workload; Morph
 community figures. The two rows measure different things. **One-way** counts send→receipt
 only (no processing, no reply): ~870 msg/s against a 3-node MongoDB replica set; PoppyDB
 runs in-process and therefore scales with the host — ~770 msg/s on a small 4-core CI host,
-~2,100–4,900 msg/s on a laptop-class CPU (the spread is between measurement sessions on the
-same hardware and code — in-process one-way throughput is very sensitive to host state, so
-read these as order-of-magnitude). **Round-trip** measures complete ping-pongs (request out,
+~2,100 msg/s on an M1 Max laptop, ~4,300–4,900 msg/s on an M1 Ultra desktop — in-process,
+it simply scales with the host. **Round-trip** measures complete ping-pongs (request out,
 response received): 223 msg/s at 4.5 ms latency against PoppyDB vs. 89 msg/s at 11.3 ms
 against the MongoDB replica set — 2.5× the throughput at less than half the latency, thanks
 to PoppyDB and Morphium Messaging being optimized for each other (both sides detect the
@@ -57,12 +56,11 @@ In its normal operating mode — asynchronous sends, client-side batching — Ka
 ~900K msg/s, so the 100K+ column is real and even conservative on modern hardware. But
 forced into Morphium's semantics, where every message is sent synchronously and individually
 acknowledged by the broker (4 sender threads, `acks=all`), Kafka drops to ~8–10K msg/s vs.
-~1,800–4,900 msg/s for Morphium+PoppyDB on the same machine (host-state spread, see above)
-— a factor of roughly 2–5, not 100+. Kafka's
+~1,800 msg/s for Morphium+PoppyDB on the same machine — a factor of 4–5, not 100+. Kafka's
 headline throughput comes almost entirely from batching thousands of records into each
 network round-trip (with no per-message broker ack and, by default, no per-message fsync —
 durability comes from replication), not from faster per-message handling. Morphium Messaging
-deliberately sends each message as an individually acknowledged insert; the remaining 2–5×
+deliberately sends each message as an individually acknowledged insert; the remaining 4–5×
 is the price of a full ODM insert (object mapping, wire protocol, change-stream dispatch)
 per message._
 
@@ -70,14 +68,16 @@ _**Where exactly does Morphium's per-message cost go?** Decomposed on the same m
 raw `morphium.insert` of the very same Msg document into PoppyDB runs at ~4,600 docs/s —
 0.33 ms per operation single-threaded, on par with Kafka's ~0.5 ms per-request latency, so
 the wire protocol and server are not the problem. An active change-stream watcher brings
-that to ~3,600 docs/s (fanout, ~20 %). Since the 2026-08 optimization round (duplicate-`_id`
+that to ~3,600 docs/s (fanout, ~20 %), and the full messaging layer (topic registry,
+listener dispatch, processing queue) lands at ~2,500–2,800 msg/s once the JVM is warm — the
+~1,800 msg/s above is a cold-start figure. The 2026-08 optimization round (duplicate-`_id`
 insert pre-check is an O(1) index lookup instead of an O(N) collection scan, one dead
 messaging index removed, non-exclusive messages processed straight from the change-stream
-`fullDocument` with no per-message re-read), the full messaging layer saturates that same
-write plateau — one-way end-to-end measures ~4,300–4,900 msg/s (2026-08-07), so the
-messaging layer itself now adds almost nothing per message. Insert cost is also independent
-of collection size now: the former O(N) `_id` scan degraded to double-digit inserts/s on a
-200K-document collection, the index lookup holds >200K inserts/s there. The real limiting
+`fullDocument` with no per-message re-read) additionally made insert cost independent of
+collection size — the former O(N) `_id` scan degraded to double-digit inserts/s on a
+200K-document collection, the index lookup holds >200K inserts/s there (A/B-measured on an
+M1 Ultra); its effect on the M1-Max figures in this paragraph has not been re-measured yet.
+The real limiting
 factor is write concurrency: PoppyDB's in-memory backend serializes writes per collection,
 so raw throughput plateaus at ~4,600
 inserts/s no matter how many sender threads you add (1 thread: ~3,100/s; 2+: ~4,300–4,600/s).
