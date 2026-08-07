@@ -150,6 +150,47 @@ public class ElectionManagerTest {
     }
 
     @Test
+    void testPriorityDenialDoesNotStarveOwnElectionTimer() throws Exception {
+        log.info("Testing that repeated priority-denied vote requests don't push back our own candidacy");
+
+        // Reproduces a real 42s (vs. the ~8s typical) election observed on poppydb.fritz.box
+        // during the 6.3.0 pre-release full suite run: a lower-priority node's timeout fired
+        // first and it kept retrying with a new term every ~8s; each retry - though correctly
+        // denied here on priority grounds - was resetting the denier's own election timer,
+        // repeatedly deferring the very candidacy the priority check exists to protect.
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(150)
+                .setElectionTimeoutMaxMs(200)
+                .setElectionPriority(75);
+
+        List<String> hosts = List.of("localhost:27017", "localhost:27018", "localhost:27019");
+        ElectionManager manager = new ElectionManager("localhost:27017", hosts, config);
+        managers.add(manager);
+
+        manager.start();
+        assertEquals(ElectionState.FOLLOWER, manager.getState());
+
+        // A lower-priority peer (localhost:27019) repeatedly starts a new election, term by
+        // term, every 50ms - faster than our own 150-200ms timeout. Before the fix, each denied
+        // request still reset our timer via becomeFollower(), so a continuous-enough barrage
+        // could postpone our own candidacy indefinitely.
+        for (int term = 1; term <= 8; term++) {
+            VoteRequest request = new VoteRequest(term, "localhost:27019", 0, 0, 50);
+            VoteResponse response = manager.handleVoteRequest(request);
+            assertFalse(response.isVoteGranted(),
+                    "Vote for lower-priority candidate at term " + term + " should be denied");
+            Thread.sleep(50);
+        }
+
+        // 400ms of continuous, correctly-denied lower-priority requests have passed - well past
+        // our own 150-200ms timeout. If denials still reset our timer, we'd still be FOLLOWER
+        // here (last reset was only 50ms ago). With the fix, our own timeout fired on schedule
+        // partway through the loop and we became CANDIDATE independently of the peer's retries.
+        assertEquals(ElectionState.CANDIDATE, manager.getState(),
+                "Node should have started its own election despite continuous lower-priority vote requests");
+    }
+
+    @Test
     void testLeaderDiscoveryFiresOnFirstHeartbeat() throws Exception {
         log.info("Testing onLeaderDiscovered fires on first heartbeat (and only on change)");
 
