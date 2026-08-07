@@ -5971,7 +5971,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         CollectionIndexStore built = buildIndexStore(db, collection);
         CollectionIndexStore prev = indexStoreByCollection.putIfAbsent(key, built);
-        return prev != null ? prev : built;
+        if (prev != null) {
+            return prev;
+        }
+        // Record that this collection's persistent index store was actually BUILT (not merely
+        // reused) while a transaction is open - see
+        // InMemTransactionContext#getIndexStoreAccessedCollections. Only a build reads via
+        // getCollection(), which resolves against this transaction's private (cloned) snapshot
+        // while one is active - i.e. against structurally-cloned document instances, not the
+        // live ones - so only a build can seed the store with clones that must not outlive the
+        // transaction. A plain reuse of an already-built store can never introduce clones: the
+        // store already existed before this call (built either outside any transaction or by an
+        // earlier one that has since been invalidated on commit/abort), so it holds only
+        // references that were valid at the time it was built. Write paths are covered
+        // separately and unconditionally by markCollectionTouched before their first store
+        // mutation, so they need no recording here even though they also call this method.
+        InMemTransactionContext ctx = currentTransaction.get();
+        if (ctx != null) {
+            ctx.getIndexStoreAccessedCollections().add(db + "/" + collection);
+        }
+        return built;
     }
 
     private CollectionIndexStore buildIndexStore(String db, String collection) throws MorphiumDriverException {
@@ -10591,10 +10610,93 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 lock.writeLock().unlock();
             }
         }
+
+        // A read-only indexed query can lazily build a collection's persistent index store from
+        // THIS transaction's cloned snapshot (see getIndexStore) without ever writing to that
+        // collection, so it never appears in touchedCollections. That store must still be
+        // invalidated here - it may reference clone instances that must not outlive the
+        // transaction - even though there is no document list to merge back for it.
+        for (String key : ctx.getIndexStoreAccessedCollections()) {
+            if (ctx.getTouchedCollections().contains(key)) {
+                continue; // already invalidated above
+            }
+            invalidateIndexStoreForKey(key);
+        }
     }
 
+    /**
+     * Splits a {@code "db/collection"} key (as recorded in
+     * {@link InMemTransactionContext#getIndexStoreAccessedCollections}), takes that collection's
+     * write lock, and invalidates its persistent {@link CollectionIndexStore} and TTL expiry
+     * queue. Shared by {@link #commitTransaction}'s and {@link #abortTransaction}'s handling of
+     * index-store-accessed-but-not-written collections. Deliberately NOT used by
+     * {@code commitTransaction}'s {@code touchedCollections} loop above, which runs inside a
+     * lock already held for the document-list merge and needs that additional merge logic
+     * alongside the invalidation - folding it into this helper would change its semantics.
+     */
+    private void invalidateIndexStoreForKey(String key) {
+        int sep = key.indexOf('/');
+        String dbName = key.substring(0, sep);
+        String collName = key.substring(sep + 1);
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(dbName, collName);
+        lock.writeLock().lock();
+        try {
+            invalidateIndexStore(dbName, collName);
+            invalidateTtlQueue(dbName, collName);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Aborts the currently active in-memory transaction, discarding its private document
+     * snapshot. Every collection whose persistent {@link CollectionIndexStore} was actually
+     * built (not merely reused) while this transaction was open - not merely the ones it wrote
+     * to - must have that store invalidated here, mirroring {@link #commitTransaction}'s
+     * equivalent invalidation.
+     *
+     * <p>A store built (lazily, on first {@link #getIndexStore} access) WHILE the transaction was
+     * open is built from {@link #getCollection}, which resolves against the transaction's
+     * snapshot while one is active (see {@link #getDB}) - i.e. against structurally-cloned
+     * document instances ({@link #deepCloneDatabase} deep-copies every document). Those clone
+     * instances get registered into the store's unique-index buckets via
+     * {@link CollectionIndexStore#addIndex}/{@code onInsert}. This happens for a WRITE (insert,
+     * update, delete - all of which call {@link #markCollectionTouched}) but just as easily for a
+     * purely READ-ONLY indexed query ({@code getDataFromIndex}), which never touches
+     * {@code markCollectionTouched} at all - see
+     * {@link InMemTransactionContext#getIndexStoreAccessedCollections} for why that set, not
+     * {@link InMemTransactionContext#getTouchedCollections}, is the correct one to invalidate
+     * against here.
+     *
+     * <p>On abort, the snapshot itself is simply dropped - but the *store* is a single object
+     * shared across the live database and every transaction (keyed only by "db.collection", see
+     * {@link #indexStoreByCollection}), so without an explicit invalidation here it keeps
+     * referencing those now-orphaned clone instances. The real live documents that were never
+     * part of this aborted transaction (or that a subsequent commit/clear removed) then can never
+     * be found by {@link CollectionIndexStore.IndexEntry#remove}, which matches by reference
+     * identity - the clone is a different object from the live document, so removal silently
+     * no-ops and the bucket keeps "existing" forever. Every later duplicate-key check against
+     * that key then fails, even after the real live collection has been cleared to zero
+     * documents - see the bug this fixes: a unique-index key rejected a totally fresh insert,
+     * because onInsert() found a bucket seeded from a clone that outlived its aborted
+     * transaction.
+     *
+     * <p>This bounds the damage rather than eliminating every related race: it guarantees a
+     * clone can no longer outlive the transaction that created it. A narrower, pre-existing race
+     * remains out of scope - while a transaction is still OPEN (before commit or abort), a
+     * concurrent non-transactional thread that deletes and then re-inserts a live document under
+     * the same unique key can still collide with the transaction's clone and see a false
+     * duplicate. That race is not introduced by this fix and is not addressed here.
+     */
     public void abortTransaction() {
+        InMemTransactionContext ctx = currentTransaction.get();
         currentTransaction.set(null);
+        if (ctx == null) {
+            return;
+        }
+        for (String key : ctx.getIndexStoreAccessedCollections()) {
+            invalidateIndexStoreForKey(key);
+        }
     }
 
     public void setTransactionContext(MorphiumTransactionContext ctx) {

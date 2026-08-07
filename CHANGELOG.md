@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### InMemoryDriver: aborted/committed transactions could leave stale `CollectionIndexStore` entries, causing false duplicate-key errors on a provably empty collection
+A persistent `CollectionIndexStore` lazily built while a transaction is open is built from
+the transaction's private snapshot, i.e. from structurally-cloned document instances rather
+than the live ones. Those clones were registered into the store's unique-index buckets same
+as any real document. `commitTransaction()` already invalidated the store for every
+collection the transaction touched, but `abortTransaction()` did not - so on abort the store
+kept referencing the orphaned clones forever, since removal matches only by reference
+identity and can never match a clone against the real document it was copied from. Every
+later insert under that same unique-index key was then rejected as a duplicate, even after
+the live collection had been cleared to zero documents. Both `abortTransaction()` and
+`commitTransaction()` now invalidate the index store (and TTL queue) for every collection
+whose store was actually built while the transaction was open, not merely the ones it wrote
+to, since a read-only indexed query can trigger that same lazy rebuild without ever writing.
+
 #### Driver: failover read path could throw a raw NPE past every retry; stale `getLastConnectFailure()` after recovery
 The read-preference fallback chain read the volatile `primaryNode` field multiple times; the
 heartbeat nulls that field on stepdown or connection error - exactly while the fallback code
