@@ -975,8 +975,18 @@ public class ReplicationManager {
                             // leaves the local state partially wiped, and a later retry must not
                             // run the consistency shortcut against that.
                             wipedThisSyncCycle.set(true);
-                            clearLocalDatabases();
-                            performInitialSync();
+                            // Initial-sync writes are never observable via the local change
+                            // stream (MongoDB: initial sync is not oplogged). Without this, the
+                            // wipe below is broadcast as live "drop" events - and during a
+                            // leadership transition the other nodes' still-running OLD
+                            // ReplicationManagers (watching this demoted ex-primary) apply those
+                            // drops to their own data, destroying admin.system.users
+                            // cluster-wide (the StepdownReplicationTest flake: even the freshly
+                            // promoted primary applied the demoted node's wipe-drop).
+                            try (var ignored = localDriver.suppressChangeStreamEvents()) {
+                                clearLocalDatabases();
+                                performInitialSync();
+                            }
                         }
 
                         // Guard: if the watch died or was re-established during the copy (or the
