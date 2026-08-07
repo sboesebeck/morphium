@@ -296,6 +296,12 @@ The change-stream watch loop receives a server reply at least every `maxTimeMS` 
 
 ### Changed
 
+#### InMemoryDriver: insert's duplicate-`_id` pre-check is an O(1) index lookup instead of an O(N) collection scan
+Every `insert()` call built a `HashSet` of all existing `_id`s by iterating the entire collection — under the exclusive write lock. For single-document inserts into large collections (the messaging workload) that scan was the dominant per-insert cost, and it was redundant: the per-collection `CollectionIndexStore` always carries a unique `_id_` index that reflects exactly the committed documents. The pre-check now asks that index directly (new `CollectionIndexStore.containsId`, a single hash lookup). Semantics are unchanged: ordered inserts still throw on a committed duplicate, unordered ones still collect a code-11000 writeError, and duplicates *within* one batch still surface at the per-document index insert, as before. As a side effect the check now uses the index's `MorphiumId`/`ObjectId` normalization, so a duplicate no longer slips past the pre-check just because caller and store hold the same id in different wrapper types.
+
+#### PoppyDB: dead `locked_by`/`locked` messaging index removed
+`MessagingOptimizer` created a `msg_locked_by_1_locked_1` index on every registered messaging collection, but those fields no longer exist on `Msg` — locking moved to the separate `MsgLock` collection long ago. Nothing ever queried the index; it only added per-insert maintenance cost on the hottest collection. Removed.
+
 #### InMemoryDriver/PoppyDB: dbStats and collStats report real sizes instead of zeros
 `db.stats()` answered all byte-size fields with 0, and `collStats` reported jol's *shallow* `sizeOf` — the ArrayList object header, not the data (and NPE'd on a missing collection). Both now compute real values: `dataSize`/`size` is the actual BSON size of every document (mongod's definition; computed on demand, O(data) — fine for a diagnostic command), `storageSize` equals it (no padding or compression in memory), `avgObjSize` follows, and index sizes are estimates proportional to the entry count (64 bytes per document per index). New fields: `totalSize`, and on dbStats `fsUsedSize`/`fsTotalSize` reporting the JVM heap — the "filesystem" an in-memory database actually lives on. Index counts now include the implicit `_id` index like mongod. The `$collStats` aggregation stage's `storageStats` uses the same computation; `collStats` on a missing collection answers zeros instead of failing.
 

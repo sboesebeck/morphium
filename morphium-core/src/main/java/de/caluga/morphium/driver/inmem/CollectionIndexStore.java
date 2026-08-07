@@ -244,6 +244,19 @@ public class CollectionIndexStore {
         }
     }
 
+    /**
+     * True if a document with {@code id} as its {@code _id} is currently registered in the
+     * built-in unique {@code _id_} index - a single O(1) hash lookup, no scan. {@code id} is
+     * normalized the same way stored keys are (see {@link IndexKey#of}), so a
+     * {@code MorphiumId} caller matches a stored {@code ObjectId} and vice versa. Callers must
+     * pass a non-null {@code id}: stored null/absent {@code _id}s are filed under
+     * {@link IndexKey#MISSING}, which a raw {@code null} here would never match.
+     */
+    public boolean containsId(Object id) {
+        IndexEntry idEntry = indexesByName.get(ID_INDEX_NAME);
+        return idEntry.hasBucket(IndexKey.of(Collections.singletonList(id)));
+    }
+
     /** Documents whose extracted key on the named index equals {@code key}, in insertion order. */
     public List<Map<String, Object>> equalityLookup(String indexName, IndexKey key) {
         IndexEntry entry = requireEntry(indexName);

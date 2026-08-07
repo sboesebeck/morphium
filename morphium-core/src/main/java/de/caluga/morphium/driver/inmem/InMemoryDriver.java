@@ -6391,27 +6391,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            // Get collection once and create snapshot for duplicate checking
+            // Get collection once - used for capped eviction and the physical adds below
             var collectionData = getCollection(db, collection);
             // Fetch/build the persistent index store BEFORE any mutation of collectionData below -
             // see getIndexStore's lifecycle contract: a first-touch build must see the pre-insert
             // document list, or the later onInsert calls would double-count the new docs.
             CollectionIndexStore indexStore = getIndexStore(db, collection);
 
-            // Build HashSet of existing _ids for O(1) lookup instead of O(N) nested loop
-            Set<Object> existingIds = new HashSet<>();
-            for (Map<String, Object> existing : collectionData) {
-                Object id = existing.get("_id");
-                if (id != null) {
-                    existingIds.add(id);
-                }
-            }
-
-            // Check new objects for duplicates in O(M) time instead of O(N*M)
+            // Check new objects for duplicate _ids against the committed documents via the
+            // store's always-present unique _id_ index - an O(1) point lookup per document
+            // instead of building a HashSet over the WHOLE collection on every insert call
+            // (O(N) under the write lock, the dominant cost for single-document inserts into
+            // large collections, e.g. messaging). At this point the index reflects exactly the
+            // pre-insert document list (first-touch builds seed it via seedIdIndex, every write
+            // path maintains it incrementally), and this loop never adds to it - so duplicates
+            // BETWEEN documents of this same batch still only surface at onInsert below,
+            // exactly as with the old snapshot-based check.
             List<Map<String, Object>> idDuplicates = new ArrayList<>();
             for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
                 Map<String, Object> o = objs.get(objIdx);
-                if (o.get("_id") != null && existingIds.contains(o.get("_id"))) {
+                if (o.get("_id") != null && indexStore.containsId(o.get("_id"))) {
                     if (ordered) {
                         throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
                     }
