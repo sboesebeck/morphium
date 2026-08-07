@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### InMemoryDriver: index-store provenance mismatch evicted the entry, causing a rebuild ping-pong between a transaction and concurrent readers
+Follow-up to the provenance fix. On a mismatch, `getIndexStore()` evicted the offending
+entry before rebuilding, and a transaction whose entry got evicted then lost the race to
+publish its own store forever: the surviving entry kept winning `putIfAbsent`, so that
+transaction rebuilt its index store on every single operation for its whole lifetime. A
+first attempt removed the eviction but left the mismatching entry in place unowned, which
+fixed the rebuild storm but left a leftover foreign entry sitting in the map. The entry now
+instead changes owner atomically once the rebuild finishes, via a compare-and-swap keyed on
+the exact entry this call observed - a same-key swap rather than a remove-then-publish, so
+there is never a moment with no entry for the key. Measured on 5000 documents and 20
+operations inside a transaction that runs against a pre-existing store: 20 `buildIndexStore`
+passes with the entry evicted, 1 with the CAS; a purely non-transactional caller (no
+transaction open at all) sees 0 either way. Same numbers for one secondary index and for
+two. Since `buildIndexStore` is O(documents x indexes) this worked against the "cost
+proportional to what a transaction touches" property the lazy rebuild was introduced for.
+The swap also never creates a "no entry present" window, which two lock-free callers (the
+`ExplainCommand` path in `runCommand`, and `recordAggregateSlowQueryIfNeeded`) could
+otherwise use to publish a store built from a document list another thread is mutating.
+
 #### Messaging: change-stream fullDocument fast path skipped `@PostLoad`, silently dropping V5-legacy messages that only carry a `name` field
 The non-exclusive fast path introduced with the fullDocument optimization deserialized the
 change-stream snapshot via the raw `ObjectMapper`, which - unlike the query path - fires no

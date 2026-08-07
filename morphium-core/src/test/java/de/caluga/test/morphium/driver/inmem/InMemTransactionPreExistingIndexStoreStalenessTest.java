@@ -25,8 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * through the transaction's snapshot - and an update whose candidate came from that stale
  * index-backed lookup mutates a live object the commit never merges back, so the write is lost.
  *
- * <p>Both symptoms are reproduced here: the read-side divergence between an index-backed lookup
- * and a full scan while the transaction is still open, and the write loss after commit.
+ * <p>Both symptoms are reproduced here. Note which one bites first without the fix: the update
+ * itself lands on the live document, because its candidate came from the stale index-backed
+ * lookup - so the transaction's own snapshot never sees the change at all, and the full-scan
+ * assertion is the one that fails (`expected: <updated> but was: <created>`). The divergence
+ * between an index-backed lookup and a full scan is the visible surface of that; the lost write
+ * after commit is its consequence.
  */
 @Tag("inmemory")
 public class InMemTransactionPreExistingIndexStoreStalenessTest {
