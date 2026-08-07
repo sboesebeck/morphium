@@ -177,13 +177,23 @@ public class WireProxyTest {
         proxy.start();
         proxy.setFaultMode(FaultMode.reset);
 
+        // The proxy accepts and immediately severs with an RST (SO_LINGER=0). WHERE that RST
+        // surfaces on the client depends on timing: usually the TCP handshake completes from
+        // the backlog, connect() succeeds, and the first read fails - but if the RST is
+        // already pending when connect()'s internal poll runs (~1% of attempts even on an idle
+        // machine, more under CI load), connect() itself throws SocketException. Both are
+        // valid "refused outright" outcomes; only a timeout or an actual reply would be wrong.
         try (Socket s = new Socket()) {
-            s.connect(new InetSocketAddress("localhost", proxy.getListenPort()), 2000);
+            try {
+                s.connect(new InetSocketAddress("localhost", proxy.getListenPort()), 2000);
+            } catch (java.net.SocketException e) {
+                return; // RST raced the connect itself - equally a hard refusal
+            }
             s.setSoTimeout(1500);
-            // The socket may connect (TCP accept happened), but any read must fail fast with a
-            // reset/EOF-shaped error - never time out, never return a reply.
-            assertThrows(IOException.class,
+            IOException e = assertThrows(IOException.class,
                     () -> WireProtocolMessage.parseFromStream(s.getInputStream()));
+            assertFalse(e instanceof java.net.SocketTimeoutException,
+                    "reset mode must fail fast with a reset/EOF-shaped error, not time out");
         }
     }
 
