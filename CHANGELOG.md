@@ -24,6 +24,27 @@ the live collection had been cleared to zero documents. Both `abortTransaction()
 whose store was actually built while the transaction was open, not merely the ones it wrote
 to, since a read-only indexed query can trigger that same lazy rebuild without ever writing.
 
+#### InMemoryDriver: a `CollectionIndexStore` built before a transaction started stayed stale for the whole transaction, silently losing an update on commit
+The previous fix only covers a store built DURING a transaction. A store built BEFORE one -
+the common case, since most collections already have a store from earlier reads or writes -
+was never touched by that invalidation at all. Such a store was built by reading through the
+live database and holds live document instances; a transaction's writes then mutate its
+private cloned snapshot instead, without that pre-existing store ever finding out. An
+index-backed read inside the transaction (an equality lookup on a secondary index) kept
+returning the pre-transaction live instance, diverging from a full scan of the same
+collection, which does read through the transaction's snapshot. Worse, an update whose
+candidate document came from that stale index-backed lookup mutated the live object instead
+of the snapshot clone the commit actually merges back, so the write was silently lost after
+commit even though it succeeded without error inside the transaction. `getIndexStore()` now
+records which transaction context (if any) each persistent store was built from and reuses a
+store only for the caller it was built for - rebuilding lazily on first access rather than
+eagerly discarding every collection's store at transaction start. Keying this by context
+identity rather than by build order matters because `currentTransaction` is thread-local and
+transactions genuinely overlap: it stops two concurrent transactions from borrowing each
+other's store (which would let one transaction's index-backed update land in the other's
+snapshot) and stops a reader outside any transaction from observing an open transaction's
+uncommitted writes through a store seeded with that transaction's clones.
+
 #### PoppyDB: a re-syncing secondary broadcast its own initial-sync wipe as change-stream drop events, letting stale watchers destroy `admin.system.users` cluster-wide during a stepdown
 The initial sync's `clearLocalDatabases()` wipe and snapshot copy ran as regular commands and
 therefore emitted live change-stream events on the syncing node - including
