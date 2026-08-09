@@ -6,6 +6,7 @@ import de.caluga.morphium.messaging.DualChannelMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -99,8 +100,18 @@ public class DualChannelMessagingShutdownTest extends MultiDriverTestBase {
                 DualChannelMessaging messaging = (DualChannelMessaging) m.createMessaging();
                 messaging.start();
                 assertTrue(messaging.waitForReady(30, TimeUnit.SECONDS));
-                assertTrue(messaging.changeStreamsLive() || !messaging.isUseChangeStream());
-                assertTrue(messaging.dmChangeStreamLive() || !messaging.isUseChangeStream());
+                // waitForReady() only promises that both monitors were STARTED - it counts down
+                // right after initDmChangeStream() (measured: total=6ms). Liveness is a stronger
+                // property: isStreamLive() stays false until the watch loop has seen its first
+                // server reply, so asserting it the instant waitForReady() returns is a race that
+                // an idle machine wins and a loaded one loses (it did, in the 5-phases-in-parallel
+                // CI run). Wait for the streams to actually go live instead.
+                if (messaging.isUseChangeStream()) {
+                    TestUtils.waitForConditionToBecomeTrue(30000,
+                        "main change stream did not go live", messaging::changeStreamsLive);
+                    TestUtils.waitForConditionToBecomeTrue(30000,
+                        "DM change stream did not go live", messaging::dmChangeStreamLive);
+                }
 
                 String threadNamePrefix = "msg-dm-" + messaging.getSenderId();
                 boolean dispatcherThreadExistsBefore = Thread.getAllStackTraces().keySet().stream()
