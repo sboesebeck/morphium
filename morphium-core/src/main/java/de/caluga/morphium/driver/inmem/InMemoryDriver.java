@@ -6712,6 +6712,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         final Map<String, Object> updatedFields;
         final List<String> removedFields;
         final Map<String, Object> beforeDocument;
+        /** See {@link #notifyWatchers(String, String, String, Map, Map, List, Map, boolean)}. */
+        final boolean beforeDocumentIsExclusiveCopy;
 
         PendingNotification(String db, String collection, String op, Map<String, Object> doc) {
             this(db, collection, op, doc, null, null, null);
@@ -6719,6 +6721,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         PendingNotification(String db, String collection, String op, Map<String, Object> doc,
                             Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
+            this(db, collection, op, doc, updatedFields, removedFields, beforeDocument, false);
+        }
+
+        PendingNotification(String db, String collection, String op, Map<String, Object> doc,
+                            Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument,
+                            boolean beforeDocumentIsExclusiveCopy) {
             this.db = db;
             this.collection = collection;
             this.op = op;
@@ -6726,6 +6734,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.updatedFields = updatedFields;
             this.removedFields = removedFields;
             this.beforeDocument = beforeDocument;
+            this.beforeDocumentIsExclusiveCopy = beforeDocumentIsExclusiveCopy;
         }
     }
 
@@ -6744,8 +6753,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         for (PendingNotification notification : pendingNotifications) {
-            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
-                           notification.updatedFields, notification.removedFields, notification.beforeDocument);
+            notifyWatchers(notification);
         }
         return result;
     }
@@ -6958,8 +6966,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         for (PendingNotification notification : pendingNotifications) {
-            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
-                           notification.updatedFields, notification.removedFields, notification.beforeDocument);
+            notifyWatchers(notification);
         }
         return result;
     }
@@ -7957,10 +7964,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // rejects it (unique violation) - see the needsFullBeforeImage comment above for why
                 // the strategy differs.
                 Map<String, Object> original;
+                // True only for the deepClone branch below, and only there: that clone shares no
+                // structure at all with the live document, and after the notification is queued
+                // nothing in this method reads or mutates it again - so the change-stream path can
+                // adopt it as the event's before-image instead of deep-copying it a second time
+                // (issue #274). Deliberately false for both buildPartialBeforeImage branches (they
+                // share untouched nested containers with the live document, see that method's
+                // javadoc) and for the shallow-copy fallback.
+                boolean originalIsExclusiveDeepCopy = false;
                 if (needsFullBeforeImage) {
                     original = deepClone(obj);
                     if (original == null) {
                         original = new HashMap<>(obj); // fallback
+                    } else {
+                        originalIsExclusiveDeepCopy = true;
                     }
                     fullBeforeImageCloneCount++;
                 } else if (isReplacement) {
@@ -8654,15 +8671,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // always push a fresh queue entry rather than trying to find/remove the old
                     // one (see ttlEnqueue's own Javadoc for why that's cheaper).
                     ttlEnqueue(db, collection, obj);
-                    // original is already a deepClone from the line above; note that
-                    // notifyWatchers -> deepCopyAndNormalizeDocument still deep-copies it
-                    // AGAIN for the change stream event - a known redundant copy for the
-                    // before-image (original is exclusively owned by the notification path
-                    // at this point), kept for now for the method's uniform contract
+                    // These two only read "original"; queuing the notification below is its last
+                    // use here, which is what lets the change-stream path take it over verbatim
+                    // when it is a full deepClone (originalIsExclusiveDeepCopy - issue #274).
                     Map<String, Object> updatedMap = computeUpdatedFields(original, obj);
                     List<String> removedList = computeRemovedFields(original, obj);
                     pendingNotifications.add(new PendingNotification(db, collection, "update", obj, updatedMap,
-                                             removedList, original));
+                                             removedList, original, originalIsExclusiveDeepCopy));
                 }
             }
             if (insert) {
@@ -8694,6 +8709,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         notifyWatchers(db, collection, op, doc, updatedFields, removedFields, null);
     }
 
+    /** Drains one deferred notification - see {@link PendingNotification}. */
+    private void notifyWatchers(PendingNotification notification) {
+        notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
+                       notification.updatedFields, notification.removedFields, notification.beforeDocument,
+                       notification.beforeDocumentIsExclusiveCopy);
+    }
+
     /**
      * {
      * _id : { <BSON Object> },
@@ -8722,6 +8744,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     private void notifyWatchers(String db, String collection, String op, Map doc, Map<String, Object> updatedFields,
                                 List<String> removedFields, Map<String, Object> beforeDocument) {
+        notifyWatchers(db, collection, op, doc, updatedFields, removedFields, beforeDocument, false);
+    }
+
+    /**
+     * @param beforeDocumentIsExclusiveCopy {@code true} promises that {@code beforeDocument} is
+     *        already a fully independent deep copy (no structure shared with any live stored
+     *        document) whose ownership the caller hands over here for good - it neither reads nor
+     *        mutates it afterwards. Only then may {@link #buildChangeStreamEvent} adopt the map as
+     *        the event's before-image instead of deep-copying it a second time (issue #274). Pass
+     *        {@code false} - the default of every other overload - whenever {@code beforeDocument}
+     *        is a live reference, aliases {@code doc}, or is a
+     *        {@link #buildPartialBeforeImage} result that still shares nested containers with the
+     *        stored document. This says nothing about {@code doc}: the after-image is a live,
+     *        in-place-mutated document on every path and is always deep-copied.
+     */
+    private void notifyWatchers(String db, String collection, String op, Map doc, Map<String, Object> updatedFields,
+                                List<String> removedFields, Map<String, Object> beforeDocument,
+                                boolean beforeDocumentIsExclusiveCopy) {
         // Writes inside a suppressChangeStreamEvents() scope (replication initial sync: wipe +
         // snapshot copy) are never observable via the change stream - neither recorded into the
         // history nor dispatched to live subscribers. See the scope's javadoc for why.
@@ -8744,7 +8784,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // log.debug("notifyWatchers called: db={}, coll={}, op={}, driver instance={}",
         // db, collection, op, System.identityHashCode(this));
         ChangeStreamEventInfo eventInfo = buildChangeStreamEvent(db, collection, op, doc, updatedFields, removedFields,
-                                          beforeDocument);
+                                          beforeDocument, beforeDocumentIsExclusiveCopy);
 
         if (eventInfo == null) {
             return;
@@ -8787,9 +8827,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @SuppressWarnings("unchecked")
     private ChangeStreamEventInfo buildChangeStreamEvent(String db, String collection, String op, Map doc,
-            Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
+            Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument,
+            boolean beforeDocumentIsExclusiveCopy) {
+        // The after-image is ALWAYS the live, in-place-mutated stored document - it must be
+        // deep-copied, no exceptions (see deepCopyAndNormalizeDocument's javadoc and cf3e9cace).
         Map<String, Object> newDocument = deepCopyAndNormalizeDocument((Map<String, Object>) doc);
-        Map<String, Object> previousDocument = deepCopyAndNormalizeDocument((Map<String, Object>) beforeDocument);
+        // The before-image may already be an exclusively-owned deep copy the caller hands over -
+        // then the second recursive copy would be pure waste and only the _id normalization is
+        // still needed. See the parameter's contract on notifyWatchers.
+        Map<String, Object> previousDocument = beforeDocumentIsExclusiveCopy
+                                               ? normalizeDocumentIdInPlace((Map<String, Object>) beforeDocument)
+                                               : deepCopyAndNormalizeDocument((Map<String, Object>) beforeDocument);
 
         Map<String, Object> event = new LinkedHashMap<>();
         long token = changeStreamSequence.incrementAndGet();
@@ -9156,6 +9204,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return copy;
+    }
+
+    /**
+     * The copy-free half of {@link #deepCopyAndNormalizeDocument}: applies only the {@code _id}
+     * normalization and returns {@code source} itself. Reserved for a document whose ownership has
+     * been handed over to the change-stream path and which is already a fully independent deep copy
+     * - i.e. exactly the {@code beforeDocumentIsExclusiveCopy} contract on
+     * {@link #notifyWatchers(String, String, String, Map, Map, List, Map, boolean)}. Everything the
+     * deep copy protects against (in-place update operators, events outliving the write) is already
+     * ruled out for such a map, so copying it again would only duplicate work. Never call this for a
+     * live stored document.
+     */
+    private Map<String, Object> normalizeDocumentIdInPlace(Map<String, Object> source) {
+        if (source == null) {
+            return null;
+        }
+
+        if (source.containsKey("_id")) {
+            source.put("_id", normalizeId(source.get("_id")));
+        }
+
+        return source;
     }
 
     private Object extractDocumentKey(Map<String, Object> newDocument, Map<String, Object> previousDocument) {
@@ -9664,8 +9734,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         // Notify watchers AFTER releasing the write lock to prevent deadlocks
         for (PendingNotification notification : pendingNotifications) {
-            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
-                           notification.updatedFields, notification.removedFields, notification.beforeDocument);
+            notifyWatchers(notification);
         }
         return result;
     }
@@ -10107,8 +10176,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         // Notify watchers AFTER releasing the write lock
         for (PendingNotification notification : pendingNotifications) {
-            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
-                           notification.updatedFields, notification.removedFields, notification.beforeDocument);
+            notifyWatchers(notification);
         }
         return result;
     }
@@ -10151,8 +10219,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         // Notify watchers AFTER releasing the write lock
         for (PendingNotification notification : pendingNotifications) {
-            notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
-                           notification.updatedFields, notification.removedFields, notification.beforeDocument);
+            notifyWatchers(notification);
         }
         return result;
     }

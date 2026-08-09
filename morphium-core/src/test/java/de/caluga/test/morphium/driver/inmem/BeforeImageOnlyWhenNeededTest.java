@@ -187,6 +187,103 @@ public class BeforeImageOnlyWhenNeededTest {
         assertFalse(fullDoc.containsKey("tag"));
     }
 
+    /**
+     * Issue #274: the change-stream event's before-image is no longer deep-copied a second time -
+     * {@code updateInternal} hands its own {@code deepClone} over to the notification path, which
+     * only normalizes the {@code _id}. That is only sound if the handed-over map really shares no
+     * structure with the live document, so this pins exactly that: nested Map and List containers
+     * (the two shapes update operators mutate IN PLACE) captured in a first event must not change
+     * when a second update mutates them afterwards. The after-image is checked the same way - it
+     * IS a live reference at build time and must keep its unconditional deep copy.
+     */
+    @Test
+    void beforeImageInEventStaysIsolatedFromLaterInPlaceMutations() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        String coll = "beforeImageIsolation";
+        drv.insert(db, coll, List.of(Doc.of("_id", 1,
+                "nested", Doc.of("inner", Doc.of("val", "orig")),
+                "tags", new ArrayList<>(List.of("x", "y")))), null, true);
+
+        MongoConnection watchConnection = drv.getPrimaryConnection(null);
+        List<Map<String, Object>> events = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(2);
+        DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
+            @Override
+            public void incomingData(Map<String, Object> data, long dur) {
+                synchronized (events) {
+                    events.add(data);
+                }
+                latch.countDown();
+            }
+
+            @Override
+            public boolean isContinued() {
+                return latch.getCount() > 0;
+            }
+        };
+
+        WatchCommand watch = new WatchCommand(watchConnection)
+                .setDb(db)
+                .setColl(coll)
+                .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+                .setFullDocumentBeforeChange(WatchCommand.FullDocumentBeforeChangeEnum.whenAvailable)
+                .setBatchSize(1)
+                .setMaxTimeMS(5000)
+                .setCb(callback);
+
+        Thread watcher = Thread.ofVirtual().start(() -> {
+            try {
+                watch.watch();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            } finally {
+                watch.releaseConnection();
+            }
+        });
+        Thread.sleep(100);
+
+        // First update: mutates the nested Map in place and appends to the existing List.
+        drv.update(db, coll, Doc.of("_id", 1), null,
+                Doc.of("$set", Doc.of("nested.inner.val", "first"), "$push", Doc.of("tags", "z")),
+                false, false, null, null);
+        // Second update: mutates the very same live containers again. If either image of the FIRST
+        // event still shared them, its captured values would change retroactively.
+        drv.update(db, coll, Doc.of("_id", 1), null,
+                Doc.of("$set", Doc.of("nested.inner.val", "second"), "$push", Doc.of("tags", "w")),
+                false, false, null, null);
+
+        if (!latch.await(5, TimeUnit.SECONDS)) {
+            fail("expected two change stream events");
+        }
+        watcher.join();
+
+        Map<String, Object> firstEvent;
+        synchronized (events) {
+            assertEquals(2, events.size());
+            firstEvent = events.get(0);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> before = (Map<String, Object>) firstEvent.get("fullDocumentBeforeChange");
+        assertNotNull(before);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> beforeInner = (Map<String, Object>) ((Map<String, Object>) before.get("nested")).get("inner");
+        assertEquals("orig", beforeInner.get("val"),
+                "the first event's before-image must still show the pre-update nested value");
+        assertEquals(List.of("x", "y"), before.get("tags"),
+                "the first event's before-image must not have grown by the later $push operations");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> after = (Map<String, Object>) firstEvent.get("fullDocument");
+        assertNotNull(after);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> afterInner = (Map<String, Object>) ((Map<String, Object>) after.get("nested")).get("inner");
+        assertEquals("first", afterInner.get("val"),
+                "the first event's after-image must be frozen at the first update, not follow the live document");
+        assertEquals(List.of("x", "y", "z"), after.get("tags"),
+                "the first event's after-image must not have grown by the SECOND update's $push");
+    }
+
     @Test
     void updateInsideTransactionFullyRevertsOnUniqueViolation() throws Exception {
         InMemoryDriver drv = freshDriver();
