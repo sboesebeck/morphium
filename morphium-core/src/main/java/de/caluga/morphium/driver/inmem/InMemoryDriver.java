@@ -356,6 +356,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * could observe a store whose owner entry was not written yet - or already overwritten by a
      * third thread - and reuse it for the wrong caller. That is exactly the confusion the owner
      * check exists to prevent, so it must not be re-introduced by the bookkeeping itself.
+     *
+     * <p><b>Reachability note.</b> A context owner is a strong reference to an
+     * {@link InMemTransactionContext}, which in turn holds that transaction's whole
+     * {@code deepCloneDatabase} snapshot. Commit and abort invalidate the entries they own (see
+     * {@link #commitTransaction}/{@link #abortTransaction}), so in normal operation the clone
+     * becomes collectable as soon as the transaction ends. An ABANDONED transaction is the
+     * exception: if a thread dies or a pooled thread's {@code currentTransaction} ThreadLocal is
+     * never cleared, the entry keeps that entire snapshot reachable until some later caller
+     * touches the same collection's store and replaces the entry. Bounded (one entry per
+     * collection) and unlikely, but larger in footprint than the pre-provenance version, which
+     * pinned only the collection's own cloned documents.
      */
     private record OwnedIndexStore(CollectionIndexStore store, Object owner) {
     }
@@ -6061,20 +6072,48 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             // Stale (predates this transaction) or foreign (belongs to a different, still-open
             // transaction on another thread): fall through to a rebuild, exactly like a cache
-            // miss. Remove this exact entry (value-compare, so a concurrent replacement by
-            // another thread is left alone) so a concurrent reader cannot observe it in between.
-            indexStoreByCollection.remove(key, existing);
+            // miss. The mismatching entry is deliberately NOT removed here - it instead changes
+            // owner atomically once the rebuild below finishes, via a compare-and-swap keyed on
+            // the exact entry we just saw. Removing it looks tidier but buys nothing and costs a
+            // lot: any other caller applies this same provenance check and would reject the
+            // entry anyway, and the CAS below already copes with someone else's entry occupying
+            // the key. What removal did buy was a rebuild ping-pong - each side throwing the
+            // other's store away on every single access, so a collection with an open
+            // transaction and interleaved transactional / non-transactional lookups rebuilt on
+            // every lookup instead of only on the mismatching side. Measured on a 5000-document
+            // collection with 20 operations inside a transaction that runs against a
+            // pre-existing store: 20 buildIndexStore passes with the removal, 1 without; a purely
+            // non-transactional caller (no transaction open at all) sees 0 either way. Same
+            // numbers for one secondary index and for two. Since buildIndexStore is
+            // O(documents x indexes), keeping the entry reachable for a same-owner swap is both
+            // cheaper and closer to the "cost proportional to what a transaction actually
+            // touches" property this cache is supposed to have. A swap also never creates a
+            // "no entry present" window, unlike a remove-then-publish would, which matters
+            // because two callers reach this method without holding the collection lock (the
+            // ExplainCommand path in runCommand and recordAggregateSlowQueryIfNeeded) and could
+            // otherwise publish a store built from a document list another thread is
+            // concurrently mutating.
         }
         OwnedIndexStore built = new OwnedIndexStore(buildIndexStore(db, collection), requiredOwner);
         // Store and owner are published in a single map operation, so no other thread can ever
-        // see one without the other. If another thread won the race and published first, its
-        // entry only counts for us when its provenance matches ours - otherwise we must NOT
-        // return it (that was the whole point of the check above) and use our own build instead.
-        // Ours is not published in that case: the winner's entry stays, and the next caller
-        // re-evaluates provenance normally. Building twice is wasteful but never incorrect (see
-        // this method's contract), whereas handing back a foreign snapshot's store is exactly
-        // the cross-transaction leak this guards against.
-        OwnedIndexStore prev = indexStoreByCollection.putIfAbsent(key, built);
+        // see one without the other. If existing was null, this is a plain first-touch publish
+        // (putIfAbsent). If existing was non-null (the mismatch case above), the entry changes
+        // owner atomically via replace(key, existing, built) - a CAS keyed on the exact snapshot
+        // we read - rather than being removed and re-inserted, so there is never a moment with
+        // no entry for this key. Either way, if another thread won the race (replace failed, or
+        // putIfAbsent found someone already there), its entry only counts for us when its
+        // provenance matches ours - otherwise we must NOT return it (that was the whole point of
+        // the check above) and use our own build instead. Ours is not published in that case: the
+        // winner's entry stays, and the next caller re-evaluates provenance normally. Building
+        // twice is wasteful but never incorrect (see this method's contract), whereas handing
+        // back a foreign snapshot's store is exactly the cross-transaction leak this guards
+        // against.
+        OwnedIndexStore prev;
+        if (existing != null) {
+            prev = indexStoreByCollection.replace(key, existing, built) ? null : indexStoreByCollection.get(key);
+        } else {
+            prev = indexStoreByCollection.putIfAbsent(key, built);
+        }
         if (prev != null) {
             return prev.owner() == requiredOwner ? prev.store() : built.store();
         }
@@ -6088,8 +6127,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // identity check above only reuses a store this very transaction built, i.e. one whose
         // clones are the ones this transaction is already working on. Write paths are covered
         // separately and unconditionally by markCollectionTouched before their first store
-        // mutation, so they need no recording
-        // here even though they also call this method.
+        // mutation, so they need no recording here even though they also call this method.
         if (ctx != null) {
             ctx.getIndexStoreAccessedCollections().add(db + "/" + collection);
         }
