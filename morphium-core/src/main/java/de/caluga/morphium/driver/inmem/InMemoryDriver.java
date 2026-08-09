@@ -4362,40 +4362,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private void scheduleExpire() {
-        expire = exec.scheduleWithFixedDelay(() -> {
-            // Only check collections that have TTL indexes - skip all others
-            if (collectionsWithTtlIndex.isEmpty()) {
-                return;
-            }
+        expire = exec.scheduleWithFixedDelay(this::runTtlSweepPass, 100, expireCheck, TimeUnit.MILLISECONDS);
+    }
 
-            try {
-                for (Map.Entry<String, TtlIndexInfo> entry : collectionsWithTtlIndex.entrySet()) {
-                    String key = entry.getKey();
-                    TtlIndexInfo ttlInfo = entry.getValue();
+    /**
+     * One full pass of the background TTL expiration check: {@link #sweepTtlQueue} for every
+     * registered TTL collection that still exists, deregistering the ones that don't. This is the
+     * body of the scheduled task in {@link #scheduleExpire} - package-private rather than an inline
+     * lambda so same-package tests can drive a sweep deterministically instead of racing the
+     * scheduler (same motivation as the package-private {@code ttlEntriesChecked} counter). Never
+     * throws: a failure on one collection must not kill the recurring task.
+     */
+    /* package-private */ void runTtlSweepPass() {
+        // Only check collections that have TTL indexes - skip all others
+        if (collectionsWithTtlIndex.isEmpty()) {
+            return;
+        }
 
-                    // Parse db.collection from key
-                    int dotIdx = key.indexOf('.');
-                    if (dotIdx < 0) continue;
-                    String db = key.substring(0, dotIdx);
-                    String coll = key.substring(dotIdx + 1);
+        try {
+            for (Map.Entry<String, TtlIndexInfo> entry : collectionsWithTtlIndex.entrySet()) {
+                String key = entry.getKey();
+                TtlIndexInfo ttlInfo = entry.getValue();
 
-                    // Check if collection still exists
-                    if (!database.containsKey(db) || !database.get(db).containsKey(coll)) {
-                        collectionsWithTtlIndex.remove(key);
-                        invalidateTtlQueue(db, coll);
-                        continue;
-                    }
+                // Parse db.collection from key
+                int dotIdx = key.indexOf('.');
+                if (dotIdx < 0) continue;
+                String db = key.substring(0, dotIdx);
+                String coll = key.substring(dotIdx + 1);
 
-                    try {
-                        sweepTtlQueue(db, coll, key, ttlInfo);
-                    } catch (Exception e) {
-                        log.error("Error processing TTL for {}", key, e);
-                    }
+                // Check if collection still exists
+                if (!database.containsKey(db) || !database.get(db).containsKey(coll)) {
+                    collectionsWithTtlIndex.remove(key);
+                    invalidateTtlQueue(db, coll);
+                    continue;
                 }
-            } catch (Exception e) {
-                log.error("Error in TTL expiration check", e);
+
+                try {
+                    sweepTtlQueue(db, coll, key, ttlInfo);
+                } catch (Exception e) {
+                    log.error("Error processing TTL for {}", key, e);
+                }
             }
-        }, 100, expireCheck, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.error("Error in TTL expiration check", e);
+        }
     }
 
     /**
@@ -4517,9 +4527,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * remove a document's OLD queue entry: {@link #sweepTtlQueue} re-checks a popped entry against
      * the live document and silently discards it if stale, which is cheaper than a queue-wide
      * search here and keeps this a pure O(1) push.
+     *
+     * <p><b>Bootstrap on miss (#269).</b> A missing entry means the queue was discarded by a
+     * structural change ({@link #invalidateTtlQueue}) and no sweep tick has rebuilt it yet. This
+     * must then do exactly what {@link #sweepTtlQueue}'s own miss branch does - a full
+     * {@link #ttlBootstrapQueue} - and NOT simply start a fresh queue holding only {@code doc}:
+     * that fresh queue is no longer {@code null}, so the sweep's bootstrap-on-miss never fires
+     * again and every OLDER document silently loses its expiry tracking for good. In practice that
+     * meant an unbounded messaging collection: {@code Msg.deleteAt} is TTL-indexed, so a single
+     * insert landing in the window between an invalidation and the next sweep tick stopped every
+     * already-stored message from ever expiring.
      */
-    private void ttlEnqueue(String db, String collection, Map<String, Object> doc) {
-        TtlIndexInfo ttlInfo = collectionsWithTtlIndex.get(db + "." + collection);
+    private void ttlEnqueue(String db, String collection, Map<String, Object> doc)
+    throws MorphiumDriverException {
+        String key = db + "." + collection;
+        TtlIndexInfo ttlInfo = collectionsWithTtlIndex.get(key);
         if (ttlInfo == null) {
             return;
         }
@@ -4528,8 +4550,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
         long expiryEpochMs = fieldEpochMs + ttlInfo.expireAfterSeconds * 1000L;
-        ttlQueueByCollection.computeIfAbsent(db + "." + collection, k -> new PriorityQueue<>())
-        .add(new TtlQueueEntry(expiryEpochMs, doc.get("_id")));
+        PriorityQueue<TtlQueueEntry> queue = ttlQueueByCollection.get(key);
+        if (queue == null) {
+            // Rebuild from the collection's current contents rather than starting empty. Safe under
+            // the write lock every caller of this method already holds (insert/storeInternal/
+            // updateInternal) - which is also what ttlBootstrapQueue requires.
+            ttlBootstrapQueue(db, collection, ttlInfo);
+            queue = ttlQueueByCollection.get(key);
+            // Every call site runs AFTER "doc" is physically in the collection and in the index
+            // store (see getIndexStore's lifecycle contract), so the scan just performed has
+            // normally already queued it - adding it again here would double-enqueue it. The
+            // bootstrap can legitimately miss it though (no TTL index definition in the store to
+            // scan, e.g. after a rename, which does not carry index definitions over), so check
+            // rather than assume. A linear scan is fine: it only ever runs on the rare
+            // once-per-invalidation rebuild, which is itself O(collection size).
+            if (ttlQueueContains(queue, expiryEpochMs, doc.get("_id"))) {
+                return;
+            }
+        }
+        queue.add(new TtlQueueEntry(expiryEpochMs, doc.get("_id")));
+    }
+
+    /**
+     * True if {@code queue} already holds an entry for exactly this {@code docId}/expiry pair -
+     * the double-add guard for {@link #ttlEnqueue}'s bootstrap-on-miss branch. Compares by value
+     * rather than by {@link TtlQueueEntry} identity on purpose: the bootstrap builds brand-new
+     * entry objects, so identity would never match.
+     */
+    private static boolean ttlQueueContains(PriorityQueue<TtlQueueEntry> queue, long expiryEpochMs, Object docId) {
+        for (TtlQueueEntry e : queue) {
+            if (e.expiryEpochMs == expiryEpochMs && Objects.equals(e.docId, docId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -4569,10 +4623,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * Discards {@code db.collection}'s expiry queue, mirroring {@link #invalidateIndexStore}'s
      * discard-and-rebuild-on-next-access pattern: called at every structural change (drop, clear,
      * rename, transaction commit replacing a collection's document list) where queued entries
-     * could otherwise point at stale expiry times. The next TTL sweep tick that finds a missing
-     * queue for a still-TTL-indexed collection rebuilds it lazily via {@link #ttlBootstrapQueue} -
-     * same lazy-rebuild contract as the index store, so callers here don't need the write lock (a
-     * freshly discarded queue is always a safe state to leave behind).
+     * could otherwise point at stale expiry times. Whichever comes first - the next TTL sweep tick
+     * or the next insert/update of a TTL-bearing document - rebuilds the queue lazily via
+     * {@link #ttlBootstrapQueue} (see {@link #sweepTtlQueue}'s and {@link #ttlEnqueue}'s miss
+     * branches; BOTH must bootstrap, or the one that doesn't leaves a queue behind that stops the
+     * other from ever rebuilding - see #269). Same lazy-rebuild contract as the index store, so
+     * callers here don't need the write lock (a freshly discarded queue is always a safe state to
+     * leave behind).
      */
     private void invalidateTtlQueue(String db, String collection) {
         ttlQueueByCollection.remove(db + "." + collection);

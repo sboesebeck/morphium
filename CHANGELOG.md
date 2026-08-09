@@ -10,6 +10,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### InMemoryDriver: a single insert after a TTL-queue invalidation stopped every older document from ever expiring (#269)
+The TTL sweep is queue-driven, and `invalidateTtlQueue()` discards a collection's queue
+outright at every structural change (drop, clear, rename, transaction commit/abort), relying
+on a lazy rebuild-on-miss - the same discard-and-rebuild contract the persistent index store
+uses. But only one of the two code paths that can find the queue missing actually rebuilt it:
+`sweepTtlQueue()` bootstrapped from a full scan, while `ttlEnqueue()` used `computeIfAbsent`
+and put a fresh, otherwise-EMPTY queue in place holding nothing but the one document it was
+called for. That queue is no longer absent, so the sweep's bootstrap-on-miss never fired
+again and every document that existed before the invalidation permanently lost its expiry
+tracking - it would only ever come back through another structural event that happened to
+invalidate the queue again at a quieter moment.
+
+Why it matters beyond the in-memory driver: `Msg.deleteAt` carries
+`@Index(options = "expireAfterSeconds:0")`, so this is the exact mechanism Morphium's
+messaging relies on to clean up processed messages, and PoppyDB runs on this driver. A
+messaging node starting against a PoppyDB that already holds messages opens precisely this
+window - the `MessagingOptimizer` registers the messaging collection (structural index work)
+and the first message inserted afterwards lands before the next sweep tick - after which the
+pre-existing messages were never expired again and the `msg` collection grew without bound.
+
+`ttlEnqueue()` now bootstraps on miss exactly like the sweep does. Two details this needed
+care with: every call site runs *after* its document is physically in the collection and in
+the index store, so the bootstrap scan has normally already queued it and re-adding it would
+double-enqueue - guarded by an explicit check rather than an assumption, since the bootstrap
+can legitimately miss it (a renamed collection carries no index definitions over, leaving
+nothing to scan). And the bootstrap requires the collection's write lock, which all five
+`ttlEnqueue()` call sites (`insert`, `storeInternal`, `updateInternal`) already hold, so no
+new lock is taken and no ordering is introduced.
+
 #### InMemoryDriver: index-store provenance mismatch evicted the entry, causing a rebuild ping-pong between a transaction and concurrent readers
 Follow-up to the provenance fix. On a mismatch, `getIndexStore()` evicted the offending
 entry before rebuilding, and a transaction whose entry got evicted then lost the race to
