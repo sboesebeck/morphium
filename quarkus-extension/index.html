@@ -2340,10 +2340,11 @@ you are building a Quarkus application against MongoDB via Morphium.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&lt;version&gt;</span>${project.version}<span class="nt">&lt;/version&gt;</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nt">&lt;/dependency&gt;</span>
 </span></code></pre></div>
-<p>In the Morphium reactor, <code>${project.version}</code> currently resolves to <code>6.3.0-SNAPSHOT</code>.
-This module follows Morphium's regular release versioning; there is no separate version
-line to track — building the reactor (<code>mvn -pl quarkus-morphium -am verify</code>) builds this
-extension against the exact Morphium core version in the same build.</p>
+<p>In the Morphium reactor, <code>${project.version}</code> resolves to whatever version the reactor is
+currently on (see the root <code>pom.xml</code>). This module follows Morphium's regular release
+versioning; there is no separate version line to track — building the reactor
+(<code>mvn -pl quarkus-morphium -am verify</code>) builds this extension against the exact Morphium
+core version in the same build.</p>
 <h2 id="configuration-reference">Configuration Reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>All properties live under <code>quarkus.morphium.*</code>. This is not the complete list — see the
 Antora documentation in the module directory (<code>quarkus-morphium/docs/</code>) for every
