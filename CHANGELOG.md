@@ -8,168 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
 
-#### InMemoryDriver: a single insert after a TTL-queue invalidation stopped every older document from ever expiring (#269)
-The TTL sweep is queue-driven, and `invalidateTtlQueue()` discards a collection's queue
-outright at every structural change (drop, clear, rename, transaction commit/abort), relying
-on a lazy rebuild-on-miss - the same discard-and-rebuild contract the persistent index store
-uses. But only one of the two code paths that can find the queue missing actually rebuilt it:
-`sweepTtlQueue()` bootstrapped from a full scan, while `ttlEnqueue()` used `computeIfAbsent`
-and put a fresh, otherwise-EMPTY queue in place holding nothing but the one document it was
-called for. That queue is no longer absent, so the sweep's bootstrap-on-miss never fired
-again and every document that existed before the invalidation permanently lost its expiry
-tracking - it would only ever come back through another structural event that happened to
-invalidate the queue again at a quieter moment.
-
-Why it matters beyond the in-memory driver: `Msg.deleteAt` carries
-`@Index(options = "expireAfterSeconds:0")`, so this is the exact mechanism Morphium's
-messaging relies on to clean up processed messages, and PoppyDB runs on this driver. A
-messaging node starting against a PoppyDB that already holds messages opens precisely this
-window - the `MessagingOptimizer` registers the messaging collection (structural index work)
-and the first message inserted afterwards lands before the next sweep tick - after which the
-pre-existing messages were never expired again and the `msg` collection grew without bound.
-
-`ttlEnqueue()` now bootstraps on miss exactly like the sweep does. Two details this needed
-care with: every call site runs *after* its document is physically in the collection and in
-the index store, so the bootstrap scan has normally already queued it and re-adding it would
-double-enqueue - guarded by an explicit check rather than an assumption, since the bootstrap
-can legitimately miss it (a renamed collection carries no index definitions over, leaving
-nothing to scan). And the bootstrap requires the collection's write lock, which all five
-`ttlEnqueue()` call sites (`insert`, `storeInternal`, `updateInternal`) already hold, so no
-new lock is taken and no ordering is introduced.
-
-#### InMemoryDriver: index-store provenance mismatch evicted the entry, causing a rebuild ping-pong between a transaction and concurrent readers
-Follow-up to the provenance fix. On a mismatch, `getIndexStore()` evicted the offending
-entry before rebuilding, and a transaction whose entry got evicted then lost the race to
-publish its own store forever: the surviving entry kept winning `putIfAbsent`, so that
-transaction rebuilt its index store on every single operation for its whole lifetime. A
-first attempt removed the eviction but left the mismatching entry in place unowned, which
-fixed the rebuild storm but left a leftover foreign entry sitting in the map. The entry now
-instead changes owner atomically once the rebuild finishes, via a compare-and-swap keyed on
-the exact entry this call observed - a same-key swap rather than a remove-then-publish, so
-there is never a moment with no entry for the key. Measured on 5000 documents and 20
-operations inside a transaction that runs against a pre-existing store: 20 `buildIndexStore`
-passes with the entry evicted, 1 with the CAS; a purely non-transactional caller (no
-transaction open at all) sees 0 either way. Same numbers for one secondary index and for
-two. Since `buildIndexStore` is O(documents x indexes) this worked against the "cost
-proportional to what a transaction touches" property the lazy rebuild was introduced for.
-The swap also never creates a "no entry present" window, which two lock-free callers (the
-`ExplainCommand` path in `runCommand`, and `recordAggregateSlowQueryIfNeeded`) could
-otherwise use to publish a store built from a document list another thread is mutating.
-
-#### Messaging: change-stream fullDocument fast path skipped `@PostLoad`, silently dropping V5-legacy messages that only carry a `name` field
-The non-exclusive fast path introduced with the fullDocument optimization deserialized the
-change-stream snapshot via the raw `ObjectMapper`, which - unlike the query path - fires no
-entity lifecycle callbacks. `Msg.postLoad()` is exactly where the V5→V6 compatibility
-migration lives (`topic = name` when only the legacy `name` field is set), so a message
-inserted externally in V5 format without a `topic` field (e.g. via `storeMap()`, as
-`V5V6CompatibilityTest` simulates) arrived with `topic == null` and was silently discarded by
-the "no listener registered for this topic" check - no exception, no fallback, on every
-backend. The fast path now fires `firePostLoadEvent()` right after a successful deserialize,
-matching the query path; if the callback throws, the message falls back to the pre-existing
-re-fetch path.
-
-#### InMemoryDriver: aborted/committed transactions could leave stale `CollectionIndexStore` entries, causing false duplicate-key errors on a provably empty collection
-A persistent `CollectionIndexStore` lazily built while a transaction is open is built from
-the transaction's private snapshot, i.e. from structurally-cloned document instances rather
-than the live ones. Those clones were registered into the store's unique-index buckets same
-as any real document. `commitTransaction()` already invalidated the store for every
-collection the transaction touched, but `abortTransaction()` did not - so on abort the store
-kept referencing the orphaned clones forever, since removal matches only by reference
-identity and can never match a clone against the real document it was copied from. Every
-later insert under that same unique-index key was then rejected as a duplicate, even after
-the live collection had been cleared to zero documents. Both `abortTransaction()` and
-`commitTransaction()` now invalidate the index store (and TTL queue) for every collection
-whose store was actually built while the transaction was open, not merely the ones it wrote
-to, since a read-only indexed query can trigger that same lazy rebuild without ever writing.
-
-#### InMemoryDriver: a `CollectionIndexStore` built before a transaction started stayed stale for the whole transaction, silently losing an update on commit
-The previous fix only covers a store built DURING a transaction. A store built BEFORE one -
-the common case, since most collections already have a store from earlier reads or writes -
-was never touched by that invalidation at all. Such a store was built by reading through the
-live database and holds live document instances; a transaction's writes then mutate its
-private cloned snapshot instead, without that pre-existing store ever finding out. An
-index-backed read inside the transaction (an equality lookup on a secondary index) kept
-returning the pre-transaction live instance, diverging from a full scan of the same
-collection, which does read through the transaction's snapshot. Worse, an update whose
-candidate document came from that stale index-backed lookup mutated the live object instead
-of the snapshot clone the commit actually merges back, so the write was silently lost after
-commit even though it succeeded without error inside the transaction. `getIndexStore()` now
-records which transaction context (if any) each persistent store was built from and reuses a
-store only for the caller it was built for - rebuilding lazily on first access rather than
-eagerly discarding every collection's store at transaction start. Keying this by context
-identity rather than by build order matters because `currentTransaction` is thread-local and
-transactions genuinely overlap: it stops two concurrent transactions from borrowing each
-other's store (which would let one transaction's index-backed update land in the other's
-snapshot) and stops a reader outside any transaction from observing an open transaction's
-uncommitted writes through a store seeded with that transaction's clones.
-
-#### PoppyDB: a re-syncing secondary broadcast its own initial-sync wipe as change-stream drop events, letting stale watchers destroy `admin.system.users` cluster-wide during a stepdown
-The initial sync's `clearLocalDatabases()` wipe and snapshot copy ran as regular commands and
-therefore emitted live change-stream events on the syncing node - including
-`drop admin.system.users`. During a live stepdown that is catastrophic: the demoted ex-primary
-immediately starts re-sync attempts toward the presumed new leader (each failed retry wiping
-again), while the other nodes' OLD ReplicationManagers are still watching the demoted node
-(they only tear down once their own ElectionManager delivers the leader change) and faithfully
-apply those wipe-drops to their own data. The drops then ricochet through every node's own
-re-emission, and even the freshly promoted primary applied the demoted node's wipe-drop right
-at its promotion (its stopping ReplicationManager flushes queued events) - so whether a user
-created on the new primary survived on any given node was pure timing (the
-`StepdownReplicationTest` ~40% flake, and a real data-loss window on production failovers).
-Initial-sync writes are now performed inside a new
-`InMemoryDriver.suppressChangeStreamEvents()` scope - mirroring MongoDB, where initial-sync
-writes are never oplogged - so the wipe + snapshot are invisible to change-stream watchers;
-steady-state replication applies still emit events as before (a promoted secondary must be
-able to serve resumable streams).
-
-#### Driver: failover read path could throw a raw NPE past every retry; stale `getLastConnectFailure()` after recovery
-The read-preference fallback chain read the volatile `primaryNode` field multiple times; the
-heartbeat nulls that field on stepdown or connection error - exactly while the fallback code
-runs - so `hosts.get(null)` could throw a `NullPointerException` that, not being a
-`MorphiumDriverException`, escaped every retry-catch on the read path and aborted a read the
-fallback was built to save. Both fallback sites now work on a local snapshot. Additionally,
-`getLastConnectFailure()` is cleared when a connect succeeds, so a caller polling after
-recovery no longer sees the pre-recovery error as if it were current.
-
-#### InMemoryDriver: `updateUser` reset the user's SCRAM mechanism set on every password change; malformed field types escaped as ClassCastException
-A password change without an explicit `mechanisms` field rebuilt the credentials with the
-both-mechanisms default, silently re-arming SCRAM-SHA-1 for a user deliberately created
-SHA-256-only; mongod preserves the existing mechanism set, and now the in-memory driver does
-too. `mechanisms` without `pwd` is now supported with mongod's subset-only semantics (stored
-credentials of the named mechanisms are kept verbatim, the rest dropped; non-subset requests
-are `BadValue`). All optional fields are shape-checked before casting, so `roles: "foo"` &co.
-produce a `BadValue` command error instead of an uncaught `ClassCastException`.
-
-#### PoppyDB: demoted leader could keep `primary==true` forever after a rapid leadership flap
-`onLeadershipChange` incremented the leadership epoch and then wrote the `primary` flag
-unsynchronized: a preempted stale dispatch could re-assert its outdated flag value AFTER a
-newer transition had written the current one. A node stuck with `primary==true` as a follower
-silently never replicates - `startReplicationToLeader`, the liveness probe and the retry chain
-all no-op on `primary`. Epoch bump and flag flip are now one atomic unit, making a stale
-overwrite structurally impossible. Related hardening in the same area: the post-start
-replication liveness probe now checks "watch never registered" (`watchGeneration`) instead of
-the instantaneous `isWatchLive()`, so it no longer tears down a healthy `ReplicationManager`
-it happens to sample during a routine watch-reconnect gap; and a late election callback can no
-longer install a `ReplicationManager` after `shutdown()` that nothing ever stops.
-
-#### PoppyDB: `rs.status()` reported a peer that died with the failover as SECONDARY forever
-`becomeLeader()` clears the peer-contact map, and a peer with no contact entry was treated as
-reachable indefinitely - so the classic crashed ex-primary, which never acks a single
-heartbeat of the new leader, was never reported DOWN. A missing entry is now only treated as
-reachable within a grace period (the heartbeat freshness window) measured from the moment
-leadership was assumed; beyond that the peer reports `state: 8, stateStr: "DOWN"`.
-
-#### `startPoppyDB.sh`: "port already in use, skipping node" did not actually skip
-The busy-port check printed the skip message but started the node anyway - the new JVM could
-not bind, but its PID had already overwritten the running node's PID file, which the failure
-branch then deleted, orphaning the still-running original process for `stop`/`status`. The
-skip is now real (and keeps the port sequence of the remaining nodes intact).
-
-#### PoppyDB: `--auth`/`--ssl` now work on a replica set - the internal election/replication channel was always plaintext and unauthenticated
-Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica set completely non-functional: `ElectionNetworkClient` (vote requests, heartbeats) and `ReplicationManager` (the sync connection to the primary) connected to peers as a plain, unauthenticated, unencrypted client, regardless of the server's own `--auth`/`--ssl` configuration. With `--ssl=true` every internal connection was rejected by the peer's TLS-only listener (`NotSslRecordException`); with `--auth=true` the election RPCs (`requestVote`/`appendEntries`) aren't on the pre-auth command whitelist, so every one was rejected as unauthorized - either way, no leader could ever be elected. Single-node PoppyDB with `--auth`/`--ssl` was unaffected; the client-facing enforcement itself was never the problem. The internal channel now authenticates as the configured root user and, when TLS is on, trusts exactly the server's own configured certificate (`ssl-keystore`, reused as the internal client's pinned truststore) - no new config keys, no change to auth enforcement.
+## [6.3.0] - 2026-08-09
 
 ### Added
+
+#### `DualChannelMessaging` — a third messaging implementation, in beta (#265)
+Load measurements showed that request/reply throughput on MongoDB is *delivery*-bound rather than
+write-bound: a single change-stream cursor hands out majority-committed events at a fixed cadence,
+which caps sustained request/reply throughput regardless of the offered rate.
+`MultiCollectionMessaging` did better in those runs — but not because of its per-topic collection
+split (on mongod every cursor tails the whole oplog anyway); the effective mechanism was its
+*second* cursor for answers and DMs. `DualChannelMessaging` ports exactly that one mechanism onto
+the Standard layout: identical single collection and cursor for broadcast/topic traffic, plus a
+dedicated per-recipient collection `<queue>_dm_<senderId>` with its own change-stream cursor and
+dispatcher thread for directed messages and answers. Select it with
+`cfg.messagingSettings().setMessagingImplementation("DualChannelMessaging")`; it interoperates
+with nodes running the other implementations. Marked **beta**: the measured benefit is smaller
+and more nuanced than the original motivation suggested — past saturation it trades a little
+throughput against markedly better tail latency (p99 519 ms vs 723 ms for Standard and 2044 ms
+for MultiCollection in the steady-state window) — so it is opt-in while it gathers real-world
+mileage. See `docs/howtos/messaging-implementations.md` for the full comparison.
 
 #### `dropUser` — the user lifecycle is complete (InMemoryDriver + PoppyDB)
 The in-memory driver (and with it PoppyDB) now implements mongod-compatible `dropUser`: the user
@@ -407,6 +266,10 @@ When the change-stream listener of `MultiCollectionMessaging` skipped a message 
 #### Messaging: change-stream liveness drives the fallback poll
 The change-stream watch loop receives a server reply at least every `maxTimeMS` (an empty batch when there are no events); that heartbeat is now stamped on the `WatchCommand` and exposed as `ChangeStreamMonitor.isStreamLive()`. Both messaging implementations use it to poll *immediately* when a stream falls silent — faster than any timer — instead of waiting for the next interval. The regular `messagingFallbackPollInterval` poll still always runs, deliberately: messages can (re-)appear without any matching stream event, e.g. requeueing by clearing `processedBy` via a plain DB update, and must be found before their TTL expires. `SingleCollectionMessaging` (whose own counter-based gate effectively polled every ~25s) now honors the configurable interval too, and gets the catch-up poll on every watch (re-)establishment for its message and lock monitors — including the one recreated by its stall watchdog. New diagnostics: `MultiCollectionMessaging.topicStreamsLive(topic)` and `SingleCollectionMessaging.changeStreamsLive()`.
 
+
+#### InMemoryDriver: the `$merge` aggregation stage is implemented (#241)
+`$merge` previously reported success and wrote nothing at all — every persistence call was commented-out dead code — so pipelines materialising results (rollups, denormalised views, ETL-style flows) silently produced no data. It now works: `whenMatched` `merge` (default, incoming fields win) / `replace` / `keepExisting` / `fail`, `whenNotMatched` `insert` (default) / `discard` / `fail`, `on` defaulting to `_id` and accepting a single field or a list, and `into` as a collection name or `{db, coll}`. `merge` and `replace` preserve the target document's `_id`; ambiguous `on` matches and documents missing an `on` field are refused rather than silently guessed; `$merge` is terminal and yields no documents. Writes go through the driver's `find()`/`store()`, so index maintenance, capped/TTL bookkeeping, locking and watcher events all happen. `whenMatched` may also be a custom update pipeline: it runs per match with the existing target document as input and the incoming document bound to `$$new`, supports the stages mongod allows there (`$addFields`/`$set`, `$project`/`$unset`, `$replaceRoot`/`$replaceWith` — anything else is refused), and honours `let` (which, as in mongod, *replaces* the default `{new: "$$ROOT"}`, is evaluated against the incoming document, and is rejected when `whenMatched` is not a pipeline). References to undefined `$$variables` fail up front instead of evaluating to null; the pipeline result keeps the target document's `_id`.
+
 ### Changed
 
 #### InMemoryDriver: the change-stream before-image is no longer deep-copied twice per watched update (#274)
@@ -432,12 +295,167 @@ Every `insert()` call built a `HashSet` of all existing `_id`s by iterating the 
 #### InMemoryDriver: O(1) change-stream replay-buffer bound
 The ring-buffer bound check in `notifyWatchers` used `ConcurrentLinkedDeque.size()` — O(n), ~200k node traversals per write at PoppyDB's 100k-event replay bound. The deque size is now tracked in an `AtomicInteger`; eviction semantics are unchanged.
 
-### Added
-
-#### InMemoryDriver: the `$merge` aggregation stage is implemented (#241)
-`$merge` previously reported success and wrote nothing at all — every persistence call was commented-out dead code — so pipelines materialising results (rollups, denormalised views, ETL-style flows) silently produced no data. It now works: `whenMatched` `merge` (default, incoming fields win) / `replace` / `keepExisting` / `fail`, `whenNotMatched` `insert` (default) / `discard` / `fail`, `on` defaulting to `_id` and accepting a single field or a list, and `into` as a collection name or `{db, coll}`. `merge` and `replace` preserve the target document's `_id`; ambiguous `on` matches and documents missing an `on` field are refused rather than silently guessed; `$merge` is terminal and yields no documents. Writes go through the driver's `find()`/`store()`, so index maintenance, capped/TTL bookkeeping, locking and watcher events all happen. `whenMatched` may also be a custom update pipeline: it runs per match with the existing target document as input and the incoming document bound to `$$new`, supports the stages mongod allows there (`$addFields`/`$set`, `$project`/`$unset`, `$replaceRoot`/`$replaceWith` — anything else is refused), and honours `let` (which, as in mongod, *replaces* the default `{new: "$$ROOT"}`, is evaluated against the incoming document, and is rejected when `whenMatched` is not a pipeline). References to undefined `$$variables` fail up front instead of evaluating to null; the pipeline result keeps the target document's `_id`.
-
 ### Fixed
+
+#### InMemoryDriver: a single insert after a TTL-queue invalidation stopped every older document from ever expiring (#269)
+The TTL sweep is queue-driven, and `invalidateTtlQueue()` discards a collection's queue
+outright at every structural change (drop, clear, rename, transaction commit/abort), relying
+on a lazy rebuild-on-miss - the same discard-and-rebuild contract the persistent index store
+uses. But only one of the two code paths that can find the queue missing actually rebuilt it:
+`sweepTtlQueue()` bootstrapped from a full scan, while `ttlEnqueue()` used `computeIfAbsent`
+and put a fresh, otherwise-EMPTY queue in place holding nothing but the one document it was
+called for. That queue is no longer absent, so the sweep's bootstrap-on-miss never fired
+again and every document that existed before the invalidation permanently lost its expiry
+tracking - it would only ever come back through another structural event that happened to
+invalidate the queue again at a quieter moment.
+
+Why it matters beyond the in-memory driver: `Msg.deleteAt` carries
+`@Index(options = "expireAfterSeconds:0")`, so this is the exact mechanism Morphium's
+messaging relies on to clean up processed messages, and PoppyDB runs on this driver. A
+messaging node starting against a PoppyDB that already holds messages opens precisely this
+window - the `MessagingOptimizer` registers the messaging collection (structural index work)
+and the first message inserted afterwards lands before the next sweep tick - after which the
+pre-existing messages were never expired again and the `msg` collection grew without bound.
+
+`ttlEnqueue()` now bootstraps on miss exactly like the sweep does. Two details this needed
+care with: every call site runs *after* its document is physically in the collection and in
+the index store, so the bootstrap scan has normally already queued it and re-adding it would
+double-enqueue - guarded by an explicit check rather than an assumption, since the bootstrap
+can legitimately miss it (a renamed collection carries no index definitions over, leaving
+nothing to scan). And the bootstrap requires the collection's write lock, which all five
+`ttlEnqueue()` call sites (`insert`, `storeInternal`, `updateInternal`) already hold, so no
+new lock is taken and no ordering is introduced.
+
+#### InMemoryDriver: index-store provenance mismatch evicted the entry, causing a rebuild ping-pong between a transaction and concurrent readers
+Follow-up to the provenance fix. On a mismatch, `getIndexStore()` evicted the offending
+entry before rebuilding, and a transaction whose entry got evicted then lost the race to
+publish its own store forever: the surviving entry kept winning `putIfAbsent`, so that
+transaction rebuilt its index store on every single operation for its whole lifetime. A
+first attempt removed the eviction but left the mismatching entry in place unowned, which
+fixed the rebuild storm but left a leftover foreign entry sitting in the map. The entry now
+instead changes owner atomically once the rebuild finishes, via a compare-and-swap keyed on
+the exact entry this call observed - a same-key swap rather than a remove-then-publish, so
+there is never a moment with no entry for the key. Measured on 5000 documents and 20
+operations inside a transaction that runs against a pre-existing store: 20 `buildIndexStore`
+passes with the entry evicted, 1 with the CAS; a purely non-transactional caller (no
+transaction open at all) sees 0 either way. Same numbers for one secondary index and for
+two. Since `buildIndexStore` is O(documents x indexes) this worked against the "cost
+proportional to what a transaction touches" property the lazy rebuild was introduced for.
+The swap also never creates a "no entry present" window, which two lock-free callers (the
+`ExplainCommand` path in `runCommand`, and `recordAggregateSlowQueryIfNeeded`) could
+otherwise use to publish a store built from a document list another thread is mutating.
+
+#### Messaging: change-stream fullDocument fast path skipped `@PostLoad`, silently dropping V5-legacy messages that only carry a `name` field
+The non-exclusive fast path introduced with the fullDocument optimization deserialized the
+change-stream snapshot via the raw `ObjectMapper`, which - unlike the query path - fires no
+entity lifecycle callbacks. `Msg.postLoad()` is exactly where the V5→V6 compatibility
+migration lives (`topic = name` when only the legacy `name` field is set), so a message
+inserted externally in V5 format without a `topic` field (e.g. via `storeMap()`, as
+`V5V6CompatibilityTest` simulates) arrived with `topic == null` and was silently discarded by
+the "no listener registered for this topic" check - no exception, no fallback, on every
+backend. The fast path now fires `firePostLoadEvent()` right after a successful deserialize,
+matching the query path; if the callback throws, the message falls back to the pre-existing
+re-fetch path.
+
+#### InMemoryDriver: aborted/committed transactions could leave stale `CollectionIndexStore` entries, causing false duplicate-key errors on a provably empty collection
+A persistent `CollectionIndexStore` lazily built while a transaction is open is built from
+the transaction's private snapshot, i.e. from structurally-cloned document instances rather
+than the live ones. Those clones were registered into the store's unique-index buckets same
+as any real document. `commitTransaction()` already invalidated the store for every
+collection the transaction touched, but `abortTransaction()` did not - so on abort the store
+kept referencing the orphaned clones forever, since removal matches only by reference
+identity and can never match a clone against the real document it was copied from. Every
+later insert under that same unique-index key was then rejected as a duplicate, even after
+the live collection had been cleared to zero documents. Both `abortTransaction()` and
+`commitTransaction()` now invalidate the index store (and TTL queue) for every collection
+whose store was actually built while the transaction was open, not merely the ones it wrote
+to, since a read-only indexed query can trigger that same lazy rebuild without ever writing.
+
+#### InMemoryDriver: a `CollectionIndexStore` built before a transaction started stayed stale for the whole transaction, silently losing an update on commit
+The previous fix only covers a store built DURING a transaction. A store built BEFORE one -
+the common case, since most collections already have a store from earlier reads or writes -
+was never touched by that invalidation at all. Such a store was built by reading through the
+live database and holds live document instances; a transaction's writes then mutate its
+private cloned snapshot instead, without that pre-existing store ever finding out. An
+index-backed read inside the transaction (an equality lookup on a secondary index) kept
+returning the pre-transaction live instance, diverging from a full scan of the same
+collection, which does read through the transaction's snapshot. Worse, an update whose
+candidate document came from that stale index-backed lookup mutated the live object instead
+of the snapshot clone the commit actually merges back, so the write was silently lost after
+commit even though it succeeded without error inside the transaction. `getIndexStore()` now
+records which transaction context (if any) each persistent store was built from and reuses a
+store only for the caller it was built for - rebuilding lazily on first access rather than
+eagerly discarding every collection's store at transaction start. Keying this by context
+identity rather than by build order matters because `currentTransaction` is thread-local and
+transactions genuinely overlap: it stops two concurrent transactions from borrowing each
+other's store (which would let one transaction's index-backed update land in the other's
+snapshot) and stops a reader outside any transaction from observing an open transaction's
+uncommitted writes through a store seeded with that transaction's clones.
+
+#### PoppyDB: a re-syncing secondary broadcast its own initial-sync wipe as change-stream drop events, letting stale watchers destroy `admin.system.users` cluster-wide during a stepdown
+The initial sync's `clearLocalDatabases()` wipe and snapshot copy ran as regular commands and
+therefore emitted live change-stream events on the syncing node - including
+`drop admin.system.users`. During a live stepdown that is catastrophic: the demoted ex-primary
+immediately starts re-sync attempts toward the presumed new leader (each failed retry wiping
+again), while the other nodes' OLD ReplicationManagers are still watching the demoted node
+(they only tear down once their own ElectionManager delivers the leader change) and faithfully
+apply those wipe-drops to their own data. The drops then ricochet through every node's own
+re-emission, and even the freshly promoted primary applied the demoted node's wipe-drop right
+at its promotion (its stopping ReplicationManager flushes queued events) - so whether a user
+created on the new primary survived on any given node was pure timing (the
+`StepdownReplicationTest` ~40% flake, and a real data-loss window on production failovers).
+Initial-sync writes are now performed inside a new
+`InMemoryDriver.suppressChangeStreamEvents()` scope - mirroring MongoDB, where initial-sync
+writes are never oplogged - so the wipe + snapshot are invisible to change-stream watchers;
+steady-state replication applies still emit events as before (a promoted secondary must be
+able to serve resumable streams).
+
+#### Driver: failover read path could throw a raw NPE past every retry; stale `getLastConnectFailure()` after recovery
+The read-preference fallback chain read the volatile `primaryNode` field multiple times; the
+heartbeat nulls that field on stepdown or connection error - exactly while the fallback code
+runs - so `hosts.get(null)` could throw a `NullPointerException` that, not being a
+`MorphiumDriverException`, escaped every retry-catch on the read path and aborted a read the
+fallback was built to save. Both fallback sites now work on a local snapshot. Additionally,
+`getLastConnectFailure()` is cleared when a connect succeeds, so a caller polling after
+recovery no longer sees the pre-recovery error as if it were current.
+
+#### InMemoryDriver: `updateUser` reset the user's SCRAM mechanism set on every password change; malformed field types escaped as ClassCastException
+A password change without an explicit `mechanisms` field rebuilt the credentials with the
+both-mechanisms default, silently re-arming SCRAM-SHA-1 for a user deliberately created
+SHA-256-only; mongod preserves the existing mechanism set, and now the in-memory driver does
+too. `mechanisms` without `pwd` is now supported with mongod's subset-only semantics (stored
+credentials of the named mechanisms are kept verbatim, the rest dropped; non-subset requests
+are `BadValue`). All optional fields are shape-checked before casting, so `roles: "foo"` &co.
+produce a `BadValue` command error instead of an uncaught `ClassCastException`.
+
+#### PoppyDB: demoted leader could keep `primary==true` forever after a rapid leadership flap
+`onLeadershipChange` incremented the leadership epoch and then wrote the `primary` flag
+unsynchronized: a preempted stale dispatch could re-assert its outdated flag value AFTER a
+newer transition had written the current one. A node stuck with `primary==true` as a follower
+silently never replicates - `startReplicationToLeader`, the liveness probe and the retry chain
+all no-op on `primary`. Epoch bump and flag flip are now one atomic unit, making a stale
+overwrite structurally impossible. Related hardening in the same area: the post-start
+replication liveness probe now checks "watch never registered" (`watchGeneration`) instead of
+the instantaneous `isWatchLive()`, so it no longer tears down a healthy `ReplicationManager`
+it happens to sample during a routine watch-reconnect gap; and a late election callback can no
+longer install a `ReplicationManager` after `shutdown()` that nothing ever stops.
+
+#### PoppyDB: `rs.status()` reported a peer that died with the failover as SECONDARY forever
+`becomeLeader()` clears the peer-contact map, and a peer with no contact entry was treated as
+reachable indefinitely - so the classic crashed ex-primary, which never acks a single
+heartbeat of the new leader, was never reported DOWN. A missing entry is now only treated as
+reachable within a grace period (the heartbeat freshness window) measured from the moment
+leadership was assumed; beyond that the peer reports `state: 8, stateStr: "DOWN"`.
+
+#### `startPoppyDB.sh`: "port already in use, skipping node" did not actually skip
+The busy-port check printed the skip message but started the node anyway - the new JVM could
+not bind, but its PID had already overwritten the running node's PID file, which the failure
+branch then deleted, orphaning the still-running original process for `stop`/`status`. The
+skip is now real (and keeps the port sequence of the remaining nodes intact).
+
+#### PoppyDB: `--auth`/`--ssl` now work on a replica set - the internal election/replication channel was always plaintext and unauthenticated
+Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica set completely non-functional: `ElectionNetworkClient` (vote requests, heartbeats) and `ReplicationManager` (the sync connection to the primary) connected to peers as a plain, unauthenticated, unencrypted client, regardless of the server's own `--auth`/`--ssl` configuration. With `--ssl=true` every internal connection was rejected by the peer's TLS-only listener (`NotSslRecordException`); with `--auth=true` the election RPCs (`requestVote`/`appendEntries`) aren't on the pre-auth command whitelist, so every one was rejected as unauthorized - either way, no leader could ever be elected. Single-node PoppyDB with `--auth`/`--ssl` was unaffected; the client-facing enforcement itself was never the problem. The internal channel now authenticates as the configured root user and, when TLS is on, trusts exactly the server's own configured certificate (`ssl-keystore`, reused as the internal client's pinned truststore) - no new config keys, no change to auth enforcement.
+
 
 #### InMemoryDriver: `$sample` larger than the collection threw instead of returning all documents
 `$sample` cut its shuffled copy with `subList(0, size)`, so a sample size exceeding the collection count failed with `IndexOutOfBoundsException: toIndex = N` instead of returning all documents in random order like mongod. Visible in every mongosh session against PoppyDB: tab completion samples schema documents with `$sample {size: 10}`, so completing on any collection with fewer than 10 documents printed a `Tab completion error: ... aggregate failed: toIndex = 10` stack trace.
@@ -458,7 +476,7 @@ The flush paths remove a type's buffer via `opLog.remove()` without holding the 
 `Msg.sendAnswer` computed `deleteAt = now + getTtl()` **before** any TTL defaulting ran. An answer created via plain `new Msg()`/`new JMSMessage()` (ttl 0 — the JMS ack pattern) was therefore stored with `deleteAt = now`: the TTL sweeper raced the consumer for the freshly inserted document and won in roughly 1–5% of runs, deleting the answer between its change-stream event and the consumer's reread. The result was the long-hunted answer-timeout flaky (BasicJMSTests et al.) — persistent within a run, because the queued-for-processing marker also blocked the fallback poll from rescuing the vanished message. `sendAnswer` now leaves `deleteAt` unset when no TTL was chosen, so the send path applies `messagingDefaultTtl` first and `preStore` derives `deleteAt` from the *defaulted* TTL. Explicit answer TTLs behave as before. Root-caused via the new processing decision trace: `queued → dequeued → runnable started → reread returned null - message gone` told the whole story.
 
 #### InMemoryDriver/PoppyDB: creating a time-series collection now fails loudly (#262 interim)
-`create` with a `timeseries` spec used to log a WARN and create a **plain** collection — a silent divergence: no `timeField` enforcement, no retention, `listCollections` reporting the wrong type. It now returns a proper command error (code 115 `CommandNotSupported`) over the wire and raises a `MorphiumDriverException` for embedded users. On the way, `CreateCommand.execute()` was switched from cursor-style reading to `readSingleAnswer` — mongod's create reply is a plain document, and the cursor path silently swallowed cursor-less replies (including error documents) on the in-memory connection. Real time-series support is tracked in #261 (API) and #262 (in-memory emulation), both scheduled for 6.4.0.
+`create` with a `timeseries` spec used to log a WARN and create a **plain** collection — a silent divergence: no `timeField` enforcement, no retention, `listCollections` reporting the wrong type. It now returns a proper command error (code 115 `CommandNotSupported`) over the wire and raises a `MorphiumDriverException` for embedded users. On the way, `CreateCommand.execute()` was switched from cursor-style reading to `readSingleAnswer` — mongod's create reply is a plain document, and the cursor path silently swallowed cursor-less replies (including error documents) on the in-memory connection. Real time-series support is tracked in #261 (API) and #262 (in-memory emulation), both scheduled for 7.0.0.
 
 #### InMemoryDriver/PoppyDB: resumed change streams could deliver an event twice
 A watch resuming with `resumeAfter` registers its subscription *before* replaying the event history (the reverse order would lose events written between history snapshot and live stream). An event written exactly in that window was delivered twice — once by the asynchronous live dispatch to the already-registered subscription, once by the replay — and, because the live dispatch can overtake the replay, in arbitrary order. Resumed subscriptions now suppress exact duplicates by resume token (a bounded recent-token window; a monotonic guard would have turned the reordering into losses). Fresh watches have no replay and are unaffected — no overhead on the messaging path. Real MongoDB never had this problem (oplog-cursor resume is snapshot-consistent); morphium's own consumers (messaging, PoppyDB replication) were already idempotent, so this mainly protects custom `ChangeStreamListener`s running against InMemoryDriver/PoppyDB.
@@ -468,12 +486,6 @@ A watch resuming with `resumeAfter` registers its subscription *before* replayin
 
 #### InMemoryDriver/PoppyDB: auth commands no longer pretend to succeed (#245)
 The entire server-side authentication surface — `saslStart`, X.509 `authenticate`, `createUser`, `createRole` — consisted of empty stubs that queued no result, which the command-dispatch machinery resolved to `{ok:1.0}`: every client "authenticated" successfully with any or no credentials, and `createUser`/`createRole` reported success while creating nothing. These commands now fail loudly (`AuthenticationFailed`/`NotImplemented` with an unmistakable message) until real SCRAM verification and a user/role store exist. InMemoryDriver/PoppyDB still perform **no** authentication — do not expose them to untrusted networks.
-
-#### Driver: mid-message read timeouts desynchronized the wire stream
-A socket timeout that struck after part of a reply had already been read (header consumed, body still in flight — likely under load) left the TCP stream misaligned, and the driver kept using it: `readNextMessage` retried the parse on the same stream, reading payload bytes as a message header (the `Illegal opcode ...` errors, whose "opcode" values decode to ASCII fragments of BSON field names), and returned `null` at its deadline while leaving the half-read connection open for the next pool borrower. Any command on any connection could be hit. `parseFromStream` now distinguishes a timeout at a message boundary (0 bytes consumed — still aligned, retryable as before) from a mid-message timeout, which is surfaced as a fatal network error; the connection is closed instead of retried or pooled. A deadline expiring without any reply also closes the connection now — a late reply would otherwise be delivered to the next borrower (`watch()` reads without `responseTo` verification). `ChangeStreamMonitor` additionally closes, rather than releases, its connection after errors that leave the stream state unknown (a reply without a cursor, unclassified failures); the pool discards closed connections and replaces them.
-
-#### Changestream: events written during a watch restart were lost; messaging could drop messages
-When a change stream died and was re-established, a consumer that had not yet received any event had no resume token, so the new stream started at "now" — every document inserted during the retry gap was silently skipped. For messaging this meant lost messages (observed as a subscriber never seeing a broadcast that was sent ~200ms after its stream went down). `watch()` now captures the cursor's `postBatchResumeToken`, which real MongoDB includes in every reply — also for empty batches — and publishes its freshest token on the `WatchCommand` on every exit; `ChangeStreamMonitor` adopts it for the next attempt, so restarts resume where the dead stream stopped. Messaging additionally polls the affected topic (and the DM collection, and all topics for the shared lock monitor) once every time a watch is (re-)established, deterministically catching up on anything written while the stream was down. The messaging fallback poll, documented as running every second but effectively gated to every ~125 seconds by a tick counter, is time-based now and runs every 10 seconds as a pure safety net behind the event-driven catch-up.
 
 #### InMemoryDriver: `store()` failed with a duplicate-key error when replacing an existing document
 `storeInternal` located the document to replace via `findByFieldValue`, which returns *copies*, while `CollectionIndexStore` removes index entries by *identity*. The copy never matched, so the old `_id` entry stayed in the index and the following insert reported `E11000 duplicate key` — the ordinary "find it, change it, store it back" round-trip threw for every existing document, and the failed store left the index holding an entry for an already-removed document. The previous document is now resolved through the `_id` index, which yields the live reference. Unnoticed until now because morphium's usual update path goes through `update()`, not `store()`.

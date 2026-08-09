@@ -16,7 +16,7 @@ Morphium provides three messaging implementations that share the same API (`Morp
   - Lock collections per topic: `<queue>_lck_<topic>`.
   - Optimized change stream efficiency and reduced contention on busy/many‑topic systems.
 
-- **Dual Channel (`DualChannelMessaging`, BETA, since 6.4.0)**
+- **Dual Channel (`DualChannelMessaging`, BETA, since 6.3.0)**
   - A complete fork of Standard: identical single-collection layout and change-stream cursor for
     broadcast/topic traffic - bit-for-bit the same backpressure/window behavior as Standard.
   - Adds a *second* delivery lane purely for directed messages and answers: each participant gets
