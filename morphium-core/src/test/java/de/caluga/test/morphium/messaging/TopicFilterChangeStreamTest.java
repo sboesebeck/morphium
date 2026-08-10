@@ -181,6 +181,60 @@ public class TopicFilterChangeStreamTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
+    public void v5LegacyNameOnlyBroadcastPassesFilter(Morphium morphium) throws Exception {
+        try (morphium) {
+            for (String impl : IMPLEMENTATIONS) {
+                log.info("=====> v5LegacyNameOnlyBroadcastPassesFilter with " + impl);
+
+                try (Morphium m = new Morphium(configFor(morphium, impl))) {
+                    m.dropCollection(Msg.class);
+                    MorphiumMessaging receiver = m.createMessaging();
+                    AtomicInteger got = new AtomicInteger(0);
+
+                    try {
+                        receiver.start();
+                        assertTrue(receiver.waitForReady(30, TimeUnit.SECONDS), "receiver not ready");
+                        receiver.addListenerForTopic("tf_legacy", (mm, msg) -> {
+                            got.incrementAndGet();
+                            return null;
+                        });
+                        TestUtils.waitForConditionToBecomeTrue(15000, "filter not rebuilt for tf_legacy",
+                            () -> csFilterTopics(receiver).contains("tf_legacy"));
+
+                        // a pre-6.x sender stores only "name" - no "topic" field on the document.
+                        // The change-stream filter must pass it; postLoad() maps name -> topic only
+                        // client-side. Delivery must be CS-prompt, well below the fallback interval.
+                        java.util.Map<String, Object> v5Doc = new java.util.HashMap<>();
+                        v5Doc.put("name", "tf_legacy");
+                        v5Doc.put("msg", "legacy message");
+                        v5Doc.put("value", "v5_value");
+                        v5Doc.put("sender", "v5_sender");
+                        v5Doc.put("senderHost", "v5_host");
+                        v5Doc.put("timestamp", System.currentTimeMillis());
+                        v5Doc.put("ttl", 30000L);
+                        v5Doc.put("priority", 1000);
+                        v5Doc.put("timingOut", true);
+                        v5Doc.put("deleteAfterProcessing", false);
+                        v5Doc.put("deleteAfterProcessingTime", 0);
+                        v5Doc.put("exclusive", false);
+                        v5Doc.put("processedBy", null);
+                        v5Doc.put("recipients", null);
+                        v5Doc.put("inAnswerTo", null);
+                        m.storeMap(receiver.getCollectionName(), v5Doc);
+
+                        TestUtils.waitForConditionToBecomeTrue(5000,
+                            "name-only legacy broadcast not delivered promptly (" + impl + ")",
+                            () -> got.get() == 1);
+                    } finally {
+                        receiver.terminate();
+                    }
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void filterShrinksOnListenerRemoval(Morphium morphium) throws Exception {
         try (morphium) {
             for (String impl : IMPLEMENTATIONS) {

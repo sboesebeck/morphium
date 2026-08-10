@@ -892,12 +892,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // snapshot below - it never changes with the listener set.
         Set<String> watchedTopics = new HashSet<>(registered);
         watchedTopics.add(statusInfoListenerName);
+        // V5-legacy senders store only "name" - "topic" does not exist on those documents,
+        // and postLoad() maps it far too late for a server-side filter. preStore() sets
+        // name = topic on every 6.x send, so this clause only ever rescues legacy documents.
+        String legacyTopicField = "fullDocument.name";
         Map<String, Object> broadcastRelevant = new LinkedHashMap<>();
         broadcastRelevant.put(recipientsField, null);
         // Broadcast answers (inAnswerTo set, no recipients) target the requester's waiter
         // whatever topic they carry - they bypass the topic clause (#283).
         broadcastRelevant.put("$or", Arrays.asList(
             UtilsMap.of(topicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
+            UtilsMap.of(legacyTopicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
             UtilsMap.of(inAnswerToField, UtilsMap.of("$ne", null))
         ));
         Map<String, Object> insertRelevant = new LinkedHashMap<>();
