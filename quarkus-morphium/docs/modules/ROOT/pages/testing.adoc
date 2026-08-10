@@ -1,0 +1,296 @@
+= Testing
+
+include::./includes/attributes.adoc[]
+
+The extension supports two complementary test strategies that can be used side by side
+in the same test suite.
+
+[cols="1,1,1",options="header"]
+|===
+| Strategy | MongoDB | Startup speed
+
+| Dev Services (automatic container)
+| real MongoDB in Docker
+| slower (container pull + boot)
+
+| `InMemDriver` via `InMemMorphiumTestProfile`
+| in-process, no Docker
+| fast (JVM only)
+|===
+
+[#dev-services]
+== Dev Services (automatic MongoDB container)
+
+When `quarkus.morphium.hosts` is not set, the extension starts a MongoDB container automatically
+in **test** mode.
+No configuration is required:
+
+[source,java]
+----
+@QuarkusTest                            // <1>
+class ProductRepositoryTest {
+
+    @Inject ProductRepository repository;
+    @Inject Morphium morphium;
+
+    @BeforeEach
+    void setUp() {
+        morphium.dropCollection(ProductEntity.class);
+        morphium.ensureIndicesFor(ProductEntity.class);
+    }
+
+    @Test
+    void savePersistsEntity() {
+        var product = new ProductEntity();
+        product.setName("Widget");
+
+        var saved = repository.save(product);
+
+        assertThat(saved.getId()).isNotNull();
+    }
+}
+----
+<1> Dev Services automatically starts a MongoDB container – nothing else needed.
+
+To customise the container image:
+
+[source,properties]
+----
+# src/test/resources/application.properties
+%test.quarkus.morphium.devservices.image-name=mongo:7
+----
+
+[#inmem]
+== InMemDriver (no Docker)
+
+For tests that should run without Docker, Morphium's built-in `InMemDriver` processes all
+operations inside the JVM.
+The `quarkus-morphium-testing` artifact ships a ready-made Quarkus test profile that sets
+the required configuration overrides.
+
+=== Dependency
+
+Add `quarkus-morphium-testing` as a **test** dependency:
+
+[source,xml,subs=attributes+]
+----
+<dependency>
+    <groupId>{quarkus-morphium-groupid}</groupId>
+    <artifactId>quarkus-morphium-testing</artifactId>
+    <version>{quarkus-morphium-version}</version>
+    <scope>test</scope>
+</dependency>
+----
+
+=== Usage
+
+[source,java]
+----
+import de.caluga.morphium.quarkus.testing.InMemMorphiumTestProfile;
+import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+
+@QuarkusTest
+@TestProfile(InMemMorphiumTestProfile.class)        // <1>
+class ProductRepositoryInMemTest {
+
+    @Inject ProductRepository repository;
+    @Inject Morphium morphium;
+
+    @BeforeEach
+    void setUp() {
+        morphium.dropCollection(ProductEntity.class);
+        morphium.ensureIndicesFor(ProductEntity.class);
+    }
+
+    @Test
+    void savePersistsEntity() {
+        var product = new ProductEntity();
+        product.setName("Widget");
+
+        var saved = repository.save(product);
+
+        assertThat(saved.getId()).isNotNull();
+    }
+}
+----
+<1> All Morphium operations run in-process; no container is started.
+
+`InMemMorphiumTestProfile` applies the following configuration overrides:
+
+[source,properties]
+----
+quarkus.morphium.driver-name=InMemDriver
+quarkus.morphium.database=inmem-test
+quarkus.morphium.devservices.enabled=false
+----
+
+=== What the InMemDriver supports
+
+The in-memory driver is a full implementation of the Morphium driver interface.
+It supports:
+
+* CRUD operations (`store`, `delete`, query)
+* Index creation via `ensureIndicesFor` (no-op, always succeeds)
+* Collection management (`dropCollection`, `clearCollection`)
+* Transactions (best-effort – no multi-document atomicity)
+* `@Version` optimistic locking
+
+[CAUTION]
+====
+The `InMemDriver` does not support:
+
+* Aggregation pipelines with complex stages (`$lookup`, `$facet`)
+* Geospatial queries
+====
+
+[#mixing]
+== Mixing Both Strategies
+
+Dev Services tests and `InMemDriver` tests coexist without any extra configuration.
+Quarkus detects the different `@TestProfile` on the `InMemDriver` test classes and
+**restarts the application context once** when switching between profiles.
+All other tests in the same profile group share a single context and start up only once.
+
+[source]
+----
+ProductRepositoryTest          → @QuarkusTest              → shared Dev Services context
+ProductServiceTest             → @QuarkusTest              → shared Dev Services context
+
+ProductRepositoryInMemTest     → @TestProfile(InMemMorphiumTestProfile.class) → separate InMem context
+CampaignRepositoryInMemTest    → @TestProfile(InMemMorphiumTestProfile.class) → same InMem context (reused)
+----
+
+The trade-off: InMem tests run faster individually but incur a one-time restart cost when
+the test runner first encounters the profile.
+Use InMem tests for pure repository / persistence-layer tests and Dev Services tests for
+integration tests that require real MongoDB behaviour (e.g. aggregations, TTL indexes).
+
+[#test-isolation]
+== Test Isolation
+
+Both strategies use the same isolation pattern:
+drop the collection and recreate indexes before each test.
+
+[source,java]
+----
+@BeforeEach
+void setUp() {
+    morphium.dropCollection(MyEntity.class);    // <1>
+    morphium.ensureIndicesFor(MyEntity.class);  // <2>
+}
+----
+<1> Removes all documents and the collection itself.
+<2> Re-creates declared indexes – important for unique-constraint tests.
+
+Alternatively, use `morphium.clearCollection(MyEntity.class)` to delete all documents
+while retaining the collection and its indexes (faster when index creation is expensive).
+
+[#transaction-testing]
+== Testing Transactions
+
+`@MorphiumTransactional` requires a replica set. The `InMemDriver` does not provide true
+multi-document atomicity, so transaction tests must use Dev Services (replica set is enabled
+by default — no extra configuration needed).
+
+[source,java]
+----
+@QuarkusTest
+class OrderServiceTransactionTest {
+
+    @Inject OrderService orderService;
+    @Inject Morphium morphium;
+
+    @BeforeEach
+    void setUp() {
+        morphium.dropCollection(Order.class);
+        morphium.dropCollection(Payment.class);
+    }
+
+    @Test
+    void commitOnSuccess() {
+        orderService.placeOrder(new Order("A1"), new Payment(42.0));
+        assertThat(morphium.createQueryFor(Order.class).countAll()).isEqualTo(1);
+    }
+
+    @Test
+    void rollbackOnFailure() {
+        assertThrows(RuntimeException.class, () ->
+            orderService.placeOrderThatFails(new Order("A2"), new Payment(0.0)));
+        assertThat(morphium.createQueryFor(Order.class).countAll()).isEqualTo(0);
+    }
+}
+----
+
+See xref:transactions.adoc[Transactions] for details on the transaction lifecycle.
+
+[#integration-tests]
+== Integration Tests
+
+For `@QuarkusIntegrationTest` (tests running against the packaged application), Dev Services
+are still available. The container started during the build phase is reused:
+
+[source,java]
+----
+import io.quarkus.test.junit.QuarkusIntegrationTest;
+
+@QuarkusIntegrationTest
+class ProductResourceIT {
+
+    @Test
+    void listProductsReturnsOk() {
+        given()
+            .when().get("/products")
+            .then().statusCode(200);
+    }
+}
+----
+
+For a complete example of integration tests with the Morphium extension, see the
+link:{showcase-github-url}[quarkus-morphium-showcase] project.
+
+[#inmem-limitations]
+== InMemDriver Limitations Reference
+
+.InMemDriver feature support
+[cols="2,1,2",options="header"]
+|===
+| Feature | Supported | Notes
+
+| CRUD (`store`, `delete`, query)
+| yes
+| Full support
+
+| Index creation (`ensureIndicesFor`)
+| yes
+| No-op, always succeeds
+
+| Collection management (`drop`, `clear`)
+| yes
+| Full support
+
+| `@Version` optimistic locking
+| yes
+| Full support
+
+| Simple aggregations (`$match`, `$group`, `$sort`)
+| partial
+| Basic stages only
+
+| Complex aggregations (`$lookup`, `$facet`, `$graphLookup`)
+| no
+| Use Dev Services for these tests
+
+| Geospatial queries
+| no
+| Use Dev Services
+
+| Multi-document transactions
+| best-effort
+| No true atomicity — use Dev Services (replica set enabled by default)
+
+| Change streams
+| no
+| Use Dev Services
+
+|===

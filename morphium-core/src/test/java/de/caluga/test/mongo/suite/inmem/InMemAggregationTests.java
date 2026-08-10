@@ -28,6 +28,51 @@ import static org.junit.jupiter.api.Assertions.*;
 public class InMemAggregationTests extends MorphiumInMemTestBase {
 
     @Test
+    public void inMemProjectInclusionReturnsOnlySelectedFields() throws Exception {
+        // #240: $project inclusion mode ({field:1}) must restrict output to _id + the listed
+        // fields, not pass the whole document through.
+        morphium.store(new UncachedObject("hello", 42));
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.project("counter"); // -> {counter: 1}
+        List<Map<String, Object>> lst = agg.aggregateMap();
+        assertEquals(1, lst.size());
+        Map<String, Object> doc = lst.get(0);
+        assertTrue(doc.containsKey("counter"), "included field must be present");
+        assertEquals(42, ((Number) doc.get("counter")).intValue());
+        assertFalse(doc.containsKey("str_value"),
+            "non-included field must be dropped in $project inclusion mode");
+    }
+
+    @Test
+    public void inMemCurrentOpStageAnswersEmptyInsteadOfError() throws Exception {
+        // mongosh's db.currentOp() pipeline stage. Embedded execution is synchronous, so an
+        // empty result is the honest answer - it used to fail with 40324. PoppyDB answers
+        // the stage server-side from its live op registry instead.
+        morphium.store(new UncachedObject("x", 1));
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.addOperator(UtilsMap.of("$currentOp", UtilsMap.of()));
+        assertEquals(0, agg.aggregateMap().size());
+    }
+
+    @Test
+    public void inMemSampleLargerThanCollectionReturnsAll() throws Exception {
+        // mongosh tab completion samples documents with $sample {size: 10}; on a collection
+        // with fewer documents this used to throw IndexOutOfBoundsException ("toIndex = 10")
+        // instead of returning all documents like MongoDB does.
+        for (int i = 0; i < 3; i++) {
+            morphium.store(new UncachedObject("s" + i, i));
+        }
+
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.sample(10);
+        assertEquals(3, agg.aggregateMap().size());
+
+        agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.sample(2);
+        assertEquals(2, agg.aggregateMap().size());
+    }
+
+    @Test
     public void inMemAggregationSumTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
@@ -447,6 +492,10 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
 
     @Test
     public void inMemAggregationMerge() throws Exception {
+        // #241: $merge materialises the pipeline output into the target collection. This test used to
+        // assert the exact opposite (target stays empty) and thereby encoded the silent-no-op bug as
+        // expected behaviour. It covers the fluent builder path and the interaction with a preceding
+        // $unset; the per-action semantics live in InMemMergeStageTest.
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
             morphium.store(u);
@@ -454,17 +503,15 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.unset(UncachedObject.Fields.strValue);
         agg.merge("test", Aggregator.MergeActionWhenMatched.merge, Aggregator.MergeActionWhenNotMatched.insert);
-        List<Map> lst = agg.aggregate();
-        assert (lst.size() == 0);
 
-        List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList();
-        assertEquals(0, l.size());
-        //checking stored after $unset
-        long lastCounter = -1;
-        for (UncachedObject o : l) {
-            assertNull (o.getStrValue());
-            assertNotEquals(lastCounter, o.getCounter());
-            lastCounter = o.getCounter();
+        List<Map> lst = agg.aggregate();
+        assertEquals(0, lst.size(), "$merge is terminal and returns no documents");
+
+        List<UncachedObject> merged = morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList();
+        assertEquals(100, merged.size(), "all pipeline documents must be materialised into 'test'");
+
+        for (UncachedObject o : merged) {
+            assertNull(o.getStrValue(), "the preceding $unset must be reflected in the merged document");
         }
     }
 

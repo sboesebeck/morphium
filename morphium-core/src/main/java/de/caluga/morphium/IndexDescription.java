@@ -45,10 +45,23 @@ public class IndexDescription {
             @SuppressWarnings("unchecked")
             Map<String, Object> keymap = (Map<String, Object>) incoming.get("key");
             for (var k : keymap.keySet()) {
+                // MongoDB's own naming convention is "<field>_<direction>" per key, joined by
+                // "_" between entries -- there is no separator after the LAST entry. Appending
+                // "_" unconditionally after every entry (as this used to do) produces a
+                // trailing underscore ("campaignNumber_1_" instead of "campaignNumber_1"), which
+                // silently breaks index creation on any database where an index on the same
+                // field already exists under the correct name: MongoDB rejects the mismatched
+                // name with "Error 85 - Index already exists with a different name", Morphium
+                // only logs that as a warning, and the index (with any unique constraint) is
+                // never created. This bug predates 6.3.0 -- it is present unchanged as far back
+                // as the v6.2.5 tag -- so it is a plain bugfix, not a behaviour change requiring
+                // a migration path.
+                if (sb.length() > 0) {
+                    sb.append("_");
+                }
                 sb.append(k);
                 sb.append("_");
                 sb.append(keymap.get(k).toString());
-                sb.append("_");
             }
             incoming.put("name", sb.toString());
         }

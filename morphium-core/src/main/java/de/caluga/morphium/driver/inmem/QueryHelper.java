@@ -66,7 +66,7 @@ public class QueryHelper {
         "$textSearch"
     );
 
-    private static boolean isKnownOperator(String op) {
+    static boolean isKnownOperator(String op) {
         return KNOWN_OPERATORS.contains(op);
     }
 
@@ -94,6 +94,9 @@ public class QueryHelper {
             if (key.startsWith("$") && !isKnownOperator(key)) {
                 throw new IllegalArgumentException("unknown top level operator: " + key);
             }
+            if (("$in".equals(key) || "$nin".equals(key)) && !isValueList(query.get(key))) {
+                throw new IllegalArgumentException(key + " requires an array operand");
+            }
 
             // Skip recursion into operators whose payload is not a query document
             // (e.g. $expr/$jsonSchema/$where carry aggregation expressions, not queries).
@@ -109,6 +112,9 @@ public class QueryHelper {
                 for (String subKey : subQuery.keySet()) {
                     if (subKey.startsWith("$") && !isKnownOperator(subKey)) {
                         throw new IllegalArgumentException("unknown operator: " + subKey);
+                    }
+                    if (("$in".equals(subKey) || "$nin".equals(subKey)) && !isValueList(subQuery.get(subKey))) {
+                        throw new IllegalArgumentException(subKey + " requires an array operand");
                     }
                     // Only recurse into operators whose payload is itself a query document.
                     if (!QUERY_CONTAINER_OPERATORS.contains(subKey)) {
@@ -136,8 +142,163 @@ public class QueryHelper {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Flattens a legacy-coordinate value into a list of [x,y] points. Accepts either a single
+     * coordinate pair ({@code [x,y]}) or a list of such pairs. Used by the {@code $geoWithin}
+     * shapes (#242).
+     */
+    @SuppressWarnings("rawtypes")
+    private static List<double[]> extractGeoPoints(Object raw) {
+        List<double[]> points = new ArrayList<>();
+
+        if (!(raw instanceof List)) {
+            return points;
+        }
+
+        List list = (List) raw;
+
+        if (list.size() == 2 && list.get(0) instanceof Number && list.get(1) instanceof Number) {
+            points.add(new double[] {((Number) list.get(0)).doubleValue(), ((Number) list.get(1)).doubleValue()});
+            return points;
+        }
+
+        for (Object o : list) {
+            if (o instanceof List) {
+                List p = (List) o;
+
+                if (p.size() >= 2 && p.get(0) instanceof Number && p.get(1) instanceof Number) {
+                    points.add(new double[] {((Number) p.get(0)).doubleValue(), ((Number) p.get(1)).doubleValue()});
+                }
+            }
+        }
+
+        return points;
+    }
+
+    /**
+     * {@code $geoWithin: {$center: [[x,y], r]}} (planar) and {@code $centerSphere: [[lon,lat], rRad]}
+     * (spherical, radius in radians). Every point of the checked value must lie inside the circle,
+     * mirroring the {@code $box} branch's semantics.
+     */
+    @SuppressWarnings("rawtypes")
+    private static boolean geoWithinCircle(Object checkValue, Object shape, boolean spherical) {
+        if (!(shape instanceof List) || ((List) shape).size() < 2) {
+            return false;
+        }
+
+        List shapeList = (List) shape;
+
+        if (!(shapeList.get(0) instanceof List) || !(shapeList.get(1) instanceof Number)) {
+            return false;
+        }
+
+        List centerList = (List) shapeList.get(0);
+
+        if (centerList.size() < 2 || !(centerList.get(0) instanceof Number) || !(centerList.get(1) instanceof Number)) {
+            return false;
+        }
+
+        double cx = ((Number) centerList.get(0)).doubleValue();
+        double cy = ((Number) centerList.get(1)).doubleValue();
+        double radius = ((Number) shapeList.get(1)).doubleValue();
+        List<double[]> points = extractGeoPoints(checkValue);
+
+        if (points.isEmpty()) {
+            return false;
+        }
+
+        for (double[] p : points) {
+            double distance = spherical ? centralAngleRadians(cx, cy, p[0], p[1])
+                              : Math.hypot(p[0] - cx, p[1] - cy);
+
+            if (distance > radius) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Great-circle central angle (in radians) between two lon/lat points - the unit
+     * {@code $centerSphere} expresses its radius in.
+     */
+    private static double centralAngleRadians(double lon1, double lat1, double lon2, double lat2) {
+        double phi1 = Math.toRadians(lat1);
+        double phi2 = Math.toRadians(lat2);
+        double dPhi = phi2 - phi1;
+        double dLambda = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
+                   + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+        return 2 * Math.asin(Math.min(1.0, Math.sqrt(a)));
+    }
+
+    /**
+     * {@code $geoWithin: {$polygon: [[x,y], ...]}} - ray-casting point-in-polygon test. Every point of
+     * the checked value must lie inside the polygon.
+     */
+    private static boolean geoWithinPolygon(Object checkValue, Object shape) {
+        List<double[]> polygon = extractGeoPoints(shape);
+
+        if (polygon.size() < 3) {
+            return false;
+        }
+
+        List<double[]> points = extractGeoPoints(checkValue);
+
+        if (points.isEmpty()) {
+            return false;
+        }
+
+        for (double[] p : points) {
+            if (!pointInPolygon(p[0], p[1], polygon)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean pointInPolygon(double x, double y, List<double[]> polygon) {
+        boolean inside = false;
+
+        for (int i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+            double xi = polygon.get(i)[0];
+            double yi = polygon.get(i)[1];
+            double xj = polygon.get(j)[0];
+            double yj = polygon.get(j)[1];
+
+            if (((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
+        }
+
+        return inside;
+    }
+
+    /**
+     * Public entry point. Delegates to a compiled, cached predicate (see {@link CompiledQuery})
+     * instead of re-interpreting the query document-by-document. The interpreter itself lives on
+     * as {@link #matchesQueryInterpreted} - it is the differential-testing oracle CompiledQuery is
+     * validated against, and driver hot paths should compile once per operation via
+     * {@link CompiledQuery#compile(Map, Map)} rather than calling this per document.
+     */
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
+        if (query == null || query.isEmpty()) {
+            return true;
+        }
+
+        return CompiledQuery.matchesQueryCached(query, toCheck, collation);
+    }
+
+    /**
+     * Reference interpreter for {@link #matchesQuery}. Kept intact (this phase) as the
+     * differential-testing oracle for {@link CompiledQuery} - do not delete or "fix" it, even
+     * where its behavior looks wrong vs real MongoDB; any such divergence is intentionally
+     * mirrored by CompiledQuery and flagged at the call site instead.
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean matchesQueryInterpreted(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
         }
@@ -209,7 +370,7 @@ public class QueryHelper {
                                     // Non-$exists queries on array elements - handle normally
                                     Object arrayElement = checkList.get(idx);
                                     if (arrayElement instanceof Map) {
-                                        if (!matchesQuery((Map<String, Object>) indexQuery, (Map<String, Object>) arrayElement, collation)) {
+                                        if (!matchesQueryInterpreted((Map<String, Object>) indexQuery, (Map<String, Object>) arrayElement, collation)) {
                                             allMatched = false;
                                             break;
                                         }
@@ -217,7 +378,7 @@ public class QueryHelper {
                                         // For primitive array elements, create synthetic document
                                         Map<String, Object> syntheticDoc = Map.of("value", arrayElement);
                                         Map<String, Object> elementQuery = Map.of("value", indexQuery);
-                                        if (!matchesQuery(elementQuery, syntheticDoc, collation)) {
+                                        if (!matchesQueryInterpreted(elementQuery, syntheticDoc, collation)) {
                                             allMatched = false;
                                             break;
                                         }
@@ -273,7 +434,7 @@ public class QueryHelper {
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
-                            if (!matchesQuery(q, toCheck, collation)) {
+                            if (!matchesQueryInterpreted(q, toCheck, collation)) {
                                 return false;
                             }
                         }
@@ -287,7 +448,7 @@ public class QueryHelper {
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
-                            if (matchesQuery(q, toCheck, collation)) {
+                            if (matchesQueryInterpreted(q, toCheck, collation)) {
                                 return true;
                             }
                         }
@@ -297,7 +458,7 @@ public class QueryHelper {
 
                 case "$not": {
                         //noinspection unchecked
-                        return (!matchesQuery((Map<String, Object>) query.get(keyQuery), toCheck, collation));
+                        return (!matchesQueryInterpreted((Map<String, Object>) query.get(keyQuery), toCheck, collation));
                     }
 
                 case "$nor": {
@@ -306,7 +467,7 @@ public class QueryHelper {
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
-                            if (matchesQuery(q, toCheck, collation)) {
+                            if (matchesQueryInterpreted(q, toCheck, collation)) {
                                 return false;
                             }
                         }
@@ -380,7 +541,7 @@ public class QueryHelper {
      * short-circuit the outer loop, skipping remaining fields).
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static boolean matchesFieldCondition(String keyQuery,
+    static boolean matchesFieldCondition(String keyQuery,
                                                   Map<String, Object> query,
                                                   Map<String, Object> toCheck,
                                                   Map<String, Object> collation) {
@@ -409,7 +570,7 @@ public class QueryHelper {
                                 Map<String, Object> singleQuery = new LinkedHashMap<>();
                                 singleQuery.put(keyQuery, singleCommand);
 
-                                if (!matchesQuery(singleQuery, toCheck, collation)) {
+                                if (!matchesQueryInterpreted(singleQuery, toCheck, collation)) {
                                     return false;
                                 }
                             }
@@ -603,11 +764,28 @@ public class QueryHelper {
                                 return false;
 
                             case "$mod":
-                                Number n = (Number) checkValue;
-                                List arr = (List) commandMap.get(commandKey);
-                                int div = ((Number) arr.get(0)).intValue();
-                                int rem = ((Number) arr.get(1)).intValue();
-                                return n.intValue() % div == rem;
+                                List modArr = (List) commandMap.get(commandKey);
+                                int div = ((Number) modArr.get(0)).intValue();
+                                int rem = ((Number) modArr.get(1)).intValue();
+
+                                // Array-valued fields match per element, like the sibling comparison
+                                // operators. The old code cast straight to Number and threw a
+                                // ClassCastException on a List (#251).
+                                if (checkValue instanceof List) {
+                                    for (Object element : (List) checkValue) {
+                                        if (element instanceof Number && ((Number) element).intValue() % div == rem) {
+                                            return true;
+                                        }
+                                    }
+
+                                    return false;
+                                }
+
+                                if (!(checkValue instanceof Number)) {
+                                    return false;
+                                }
+
+                                return ((Number) checkValue).intValue() % div == rem;
 
                             case "$ne":
                                 if (checkValue instanceof List) {
@@ -749,7 +927,7 @@ public class QueryHelper {
                                 // Wrap the $not content back into a field query so matchesQuery
                                 // can apply it against the correct field value.
                                 Map<String, Object> notInner = (Map<String, Object>) commandMap.get(commandKey);
-                                return !(matchesQuery(Map.of(keyQuery, notInner), toCheck, collation));
+                                return !(matchesQueryInterpreted(Map.of(keyQuery, notInner), toCheck, collation));
 
                             case "$regex":
                             case "$regularExpression":
@@ -859,14 +1037,27 @@ public class QueryHelper {
                                 }
 
                             case "$type":
-                                MongoType type = null;
+                                Object typeSpec = commandMap.get(commandKey);
+                                List<MongoType> types = new ArrayList<>();
 
-                                if (commandMap.get(commandKey) instanceof Number) {
-                                    type = MongoType.findByValue(((Number) commandMap.get(commandKey)).intValue());
-                                } else if (commandMap.get(commandKey) instanceof String) {
-                                    type = MongoType.findByTxt((String) commandMap.get(commandKey));
+                                if (typeSpec instanceof List) {
+                                    // MongoDB's array form: match if the field is ANY of the listed
+                                    // types. This previously fell into the else-branch below and always
+                                    // returned false (#251).
+                                    for (Object t : (List) typeSpec) {
+                                        if (t instanceof Number) {
+                                            types.add(MongoType.findByValue(((Number) t).intValue()));
+                                        } else if (t instanceof String) {
+                                            types.add(MongoType.findByTxt((String) t));
+                                        }
+                                    }
+                                } else if (typeSpec instanceof Number) {
+                                    types.add(MongoType.findByValue(((Number) typeSpec).intValue()));
+                                } else if (typeSpec instanceof String) {
+                                    types.add(MongoType.findByTxt((String) typeSpec));
                                 } else {
-                                    log.error("Type specification needs to be either int or string -" + " not " + commandMap.get(commandKey).getClass().getName());
+                                    log.error("Type specification needs to be an int, a string or an array of those - not "
+                                              + (typeSpec == null ? "null" : typeSpec.getClass().getName()));
                                     return false;
                                 }
 
@@ -879,8 +1070,10 @@ public class QueryHelper {
                                 }
 
                                 for (Object o : elements) {
-                                    if (matchesType(o, type)) {
-                                        return true;
+                                    for (MongoType t : types) {
+                                        if (t != null && matchesType(o, t)) {
+                                            return true;
+                                        }
                                     }
                                 }
 
@@ -1039,7 +1232,26 @@ public class QueryHelper {
                                     return true;
                                 }
 
-                                break;
+                                // #242: $center/$centerSphere/$polygon previously matched no branch here
+                                // and fell through to the method's unconditional "return true", so EVERY
+                                // document silently matched. Like $box above, a multi-point field must
+                                // have all of its points inside the shape.
+                                if (geoQuery.containsKey("$center")) {
+                                    return geoWithinCircle(coordToCheckWithin, geoQuery.get("$center"), false);
+                                }
+
+                                if (geoQuery.containsKey("$centerSphere")) {
+                                    return geoWithinCircle(coordToCheckWithin, geoQuery.get("$centerSphere"), true);
+                                }
+
+                                if (geoQuery.containsKey("$polygon")) {
+                                    return geoWithinPolygon(coordToCheckWithin, geoQuery.get("$polygon"));
+                                }
+
+                                // Unknown/unimplemented shape (e.g. GeoJSON $geometry): fail closed rather
+                                // than matching the whole collection.
+                                log.error("Unsupported $geoWithin shape " + geoQuery.keySet() + " - not matching");
+                                return false;
 
                             case "$all":
                                 if (checkValue == null) {
@@ -1059,9 +1271,43 @@ public class QueryHelper {
                                 List toCheckValList = (List) checkValue;
                                 List queryValues = (List) commandMap.get(commandKey);
 
+                                // $all with an empty array never matches in MongoDB. The old code's loop
+                                // body simply never ran and fell through to "return true" (#251).
+                                if (queryValues.isEmpty()) {
+                                    return false;
+                                }
+
                                 // Optimize: use HashSet for O(1) lookups instead of O(n) List.contains()
                                 Set<Object> checkSet = new HashSet<>(toCheckValList);
+
                                 for (Object o : queryValues) {
+                                    // {$all: [{$elemMatch: {...}}, ...]}: each entry is a sub-query to be
+                                    // evaluated against the array's elements. The old code looked the
+                                    // literal {$elemMatch:...} map up by equality in checkSet, so this
+                                    // combination never matched anything (#251).
+                                    if (o instanceof Map && ((Map<?, ?>) o).size() == 1
+                                            && ((Map<?, ?>) o).get("$elemMatch") instanceof Map) {
+                                        Map<String, Object> criteria = (Map<String, Object>) ((Map<?, ?>) o).get("$elemMatch");
+                                        boolean anyMatch = false;
+
+                                        for (Object element : toCheckValList) {
+                                            Map<String, Object> asDoc = element instanceof Map
+                                                                        ? (Map<String, Object>) element : Doc.of("value", element);
+
+                                            if (matchesQueryInterpreted(criteria, asDoc, null)
+                                                    || matchesQueryInterpreted(Doc.of("value", criteria), asDoc, null)) {
+                                                anyMatch = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (!anyMatch) {
+                                            return false;
+                                        }
+
+                                        continue;
+                                    }
+
                                     if (!checkSet.contains(o)) {
                                         return false;
                                     }
@@ -1071,7 +1317,9 @@ public class QueryHelper {
 
                             case "$size":
                                 if (checkValue == null) {
-                                    return commandMap.get(commandKey).equals(0);
+                                    // A missing field is not an empty array - MongoDB never matches it
+                                    // against $size (the old code matched it against $size: 0) (#251).
+                                    return false;
                                 }
 
                                 if (!(checkValue instanceof List)) {
@@ -1104,7 +1352,7 @@ public class QueryHelper {
                                         o = Doc.of("value", o);
                                     }
 
-                                    if (matchesQuery(queryMap, (Map<String, Object>) o, null) || matchesQuery(Doc.of("value", queryMap), (Map<String, Object>) o, null)) {
+                                    if (matchesQueryInterpreted(queryMap, (Map<String, Object>) o, null) || matchesQueryInterpreted(Doc.of("value", queryMap), (Map<String, Object>) o, null)) {
                                         return true;
                                     }
                                 }
@@ -1136,8 +1384,13 @@ public class QueryHelper {
                                     // long
                                     var bits = 0;
 
-                                    for (int idx = b.length - 1; idx > 0; idx++) {
-                                        value = value | (b[idx] << bits);
+                                    // Walk from the least significant (last) byte down to index 0. The
+                                    // old loop counted UP from b.length-1, so a multi-byte mask threw
+                                    // an ArrayIndexOutOfBoundsException and a single-byte mask never
+                                    // entered the loop at all, silently decoding to 0 (#251).
+                                    // The & 0xFF keeps a high-bit byte from sign-extending.
+                                    for (int idx = b.length - 1; idx >= 0; idx--) {
+                                        value = value | ((b[idx] & 0xFFL) << bits);
                                         bits += 8;
                                     }
                                 }
@@ -1276,7 +1529,7 @@ public class QueryHelper {
                     }
     }
 
-    private static boolean matchesJsonSchema(Map<String, Object> schema, Map<String, Object> document) {
+    static boolean matchesJsonSchema(Map<String, Object> schema, Map<String, Object> document) {
         if (schema == null) {
             return true;
         }
@@ -2273,7 +2526,7 @@ public class QueryHelper {
         return false;
     }
 
-    private static LookupResult resolveValuesForPath(Object current, String[] path, int position) {
+    static LookupResult resolveValuesForPath(Object current, String[] path, int position) {
         LookupResult result = new LookupResult();
 
         if (position >= path.length) {
@@ -2392,7 +2645,7 @@ public class QueryHelper {
         return true;
     }
 
-    private static boolean compareValues(Object left, Object right, Collator coll) {
+    static boolean compareValues(Object left, Object right, Collator coll) {
         Object normalizedLeft = normalizeId(left);
         Object normalizedRight = normalizeId(right);
 
@@ -2411,7 +2664,7 @@ public class QueryHelper {
         return normalizedLeft.equals(normalizedRight);
     }
 
-    private static Object normalizeId(Object value) {
+    static Object normalizeId(Object value) {
         if (value instanceof MorphiumId || value instanceof ObjectId) {
             return value == null ? null : value.toString();
         }
@@ -2427,7 +2680,7 @@ public class QueryHelper {
      * Accept all of them instead of hard-casting to List.
      */
     @SuppressWarnings("unchecked")
-    private static List<Object> asValueList(Object value) {
+    static List<Object> asValueList(Object value) {
         if (value instanceof List) {
             return (List<Object>) value;
         }
@@ -2457,16 +2710,22 @@ public class QueryHelper {
             return list;
         }
 
-        return value == null ? Collections.emptyList() : List.of(value);
+        throw new IllegalArgumentException("$in/$nin requires an array operand");
     }
 
-    private static final class LookupResult {
+    static boolean isValueList(Object value) {
+        return value instanceof List
+               || value instanceof Iterable
+               || value != null && value.getClass().isArray();
+    }
+
+    static final class LookupResult {
         boolean pathExists;
         final List<Object> values = new ArrayList<>();
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {
+    static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
         }
@@ -2501,7 +2760,7 @@ public class QueryHelper {
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean compareGreaterThan(Object left, Object right, int offset, Collator coll) {
+    static boolean compareGreaterThan(Object left, Object right, int offset, Collator coll) {
         if (left == null || right == null) {
             return false;
         }
@@ -2538,8 +2797,11 @@ public class QueryHelper {
      * then toTemporalLong (LocalDate, LocalTime), then plain Number extraction.
      * This allows comparisons between raw java.time objects (from query filters)
      * and their serialised forms (stored as Map or Long in documents).
+     *
+     * <p>Package-private so {@link IndexKey}'s comparator can share the exact same
+     * temporal normalisation instead of duplicating it.
      */
-    private static Long toTemporalNumber(Object value) {
+    static Long toTemporalNumber(Object value) {
         Long result = toEpochNanos(value);
         if (result != null) return result;
         result = toTemporalLong(value);
@@ -2610,7 +2872,7 @@ public class QueryHelper {
         return null;
     }
 
-    private static Pattern buildRegexPattern(Map<String, Object> commandMap, int baseFlags) {
+    static Pattern buildRegexPattern(Map<String, Object> commandMap, int baseFlags) {
         int flags = baseFlags;
         Object regexObject = commandMap.get("$regex");
 
@@ -2646,7 +2908,7 @@ public class QueryHelper {
         return Pattern.compile(pattern, flags);
     }
 
-    private static int applyRegexOptions(String options, int flags) {
+    static int applyRegexOptions(String options, int flags) {
         String opt = options.toLowerCase(Locale.ROOT);
 
         if (opt.contains("i")) {
@@ -2668,7 +2930,7 @@ public class QueryHelper {
         return flags;
     }
 
-    private static boolean matchesType(Object value, MongoType type) {
+    static boolean matchesType(Object value, MongoType type) {
         if (value == null) {
             return type.equals(MongoType.NULL);
         }
@@ -2724,7 +2986,7 @@ public class QueryHelper {
         return false;
     }
 
-    private static boolean fieldExists(Map<String, Object> document, String fieldPath) {
+    static boolean fieldExists(Map<String, Object> document, String fieldPath) {
         if (document == null || fieldPath == null) {
             return false;
         }
@@ -2787,7 +3049,7 @@ public class QueryHelper {
         return false;
     }
 
-    private static String convertSnakeToCamelCase(String fieldPath) {
+    static String convertSnakeToCamelCase(String fieldPath) {
         if (!fieldPath.contains("_")) {
             return fieldPath;
         }
@@ -2821,7 +3083,7 @@ public class QueryHelper {
         return result.toString();
     }
 
-    private static String convertCamelToSnakeCase(String fieldPath) {
+    static String convertCamelToSnakeCase(String fieldPath) {
         String[] parts = fieldPath.split("\\.");
         StringBuilder result = new StringBuilder();
 
@@ -2860,7 +3122,7 @@ public class QueryHelper {
      * If fields is empty, searches all string fields in the document.
      */
     @SuppressWarnings("unchecked")
-    private static boolean matchesTextSearch(Object textSearchParams, Map<String, Object> toCheck) {
+    static boolean matchesTextSearch(Object textSearchParams, Map<String, Object> toCheck) {
         if (!(textSearchParams instanceof Map)) {
             return false;
         }
@@ -2994,7 +3256,7 @@ public class QueryHelper {
         return null;
     }
 
-    private static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {
+    static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {
         System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
         ScriptEngineManager mgr = new ScriptEngineManager();
         ScriptEngine engine = mgr.getEngineByExtension("js");

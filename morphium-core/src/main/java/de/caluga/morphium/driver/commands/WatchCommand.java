@@ -73,6 +73,23 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         return this;
     }
 
+    /**
+     * Time of the last server reply seen by the watch loop - stamped for EVERY reply,
+     * including empty batches (the server answers a getMore within maxTimeMS, so this is a
+     * liveness heartbeat). 0 until the first reply arrives. Not part of the wire command.
+     */
+    @Transient
+    private volatile long lastReplyAt = 0;
+
+    public long getLastReplyAt() {
+        return lastReplyAt;
+    }
+
+    public WatchCommand setLastReplyAt(long lastReplyAt) {
+        this.lastReplyAt = lastReplyAt;
+        return this;
+    }
+
     public Map<String, Object> getResumeAfter() {
         return resumeAfter;
     }

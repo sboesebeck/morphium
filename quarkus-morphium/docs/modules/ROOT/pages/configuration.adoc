@@ -1,0 +1,255 @@
+= Configuration Reference
+
+include::./includes/attributes.adoc[]
+
+All configuration properties live under the `quarkus.morphium.*` prefix in
+`application.properties`. This page documents every available property.
+
+== Core Properties
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.database`
+| _(required)_
+| MongoDB database name.
+
+| `quarkus.morphium.hosts`
+| `localhost:27017`
+| Comma-separated `host:port` list. Overridden by `atlas-url` when set.
+
+| `quarkus.morphium.username`
+| –
+| MongoDB username (optional).
+
+| `quarkus.morphium.password`
+| –
+| MongoDB password (optional).
+
+| `quarkus.morphium.auth-database`
+| `admin`
+| Authentication database for SCRAM credentials.
+
+| `quarkus.morphium.atlas-url`
+| –
+| MongoDB Atlas SRV connection string (`mongodb+srv://...`). When set, overrides `hosts`.
+
+| `quarkus.morphium.read-preference`
+| `primary`
+| Read preference: `primary`, `primaryPreferred`, `secondary`, `secondaryPreferred`, `nearest`.
+
+| `quarkus.morphium.index-check`
+| `create-on-startup`
+| Index creation strategy: `create-on-startup` (create missing indexes when Morphium connects), `warn-on-startup` (log a warning, don't create -- not supported in native images, silently downgraded to `no-check` there), `create-on-write-new-col` (create lazily when writing to a new collection), `no-check` (disable all index management).
+
+| `quarkus.morphium.max-connections`
+| `250`
+| Maximum number of connections in the pool.
+
+| `quarkus.morphium.max-wait-time`
+| `2000`
+| Maximum time in milliseconds for low-level operations: waiting for a connection from the pool, driver-level timeouts, and change streams. Does not affect query execution -- use `default-query-timeout-ms` for that.
+
+| `quarkus.morphium.default-query-timeout-ms`
+| `0`
+| Default server-side time limit (`maxTimeMS`) in milliseconds for queries with no per-query timeout set. `0` (the default) disables the server-side limit entirely (Morphium sets `noCursorTimeout` instead).
+
+| `quarkus.morphium.replica-set-name`
+| –
+| MongoDB replica set name. Required for `@MorphiumTransactional` and change streams against a self-managed replica set. Dev Services sets this automatically when `quarkus.morphium.devservices.replica-set=true`.
+
+| `quarkus.morphium.connect-retries`
+| `5`
+| Number of connection attempts before giving up (minimum `1`). Useful in CI environments (Docker-in-Docker) where the replica set primary may not be immediately reachable after the container starts.
+
+| `quarkus.morphium.driver-name`
+| `PooledDriver`
+| Morphium driver implementation. Use `InMemDriver` for tests (no MongoDB required).
+|===
+
+== Cache Properties
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.cache.read-cache-enabled`
+| `true`
+| Enable query-result caching for `@Cache`-annotated entities.
+
+| `quarkus.morphium.cache.global-valid-time`
+| `60000`
+| Global cache TTL in milliseconds.
+|===
+
+== LocalDateTime Storage
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.local-date-time.use-bson-date`
+| `true`
+| Store `LocalDateTime` as BSON `ISODate`. Set to `false` only for backward compatibility with data written by Morphium {lt}= 6.1.
+|===
+
+.Format comparison
+[cols="2,1,1",options="header"]
+|===
+| | BSON `ISODate` (`true`) | Legacy Map (`false`)
+
+| New projects
+| *recommended*
+| –
+
+| Compatible with Morphia-written data
+| yes
+| no
+
+| Native date queries (`$gt`, `$lt`, sort)
+| yes
+| no
+
+| Readable in Atlas UI / mongosh
+| yes
+| no
+|===
+
+== SSL / TLS Properties
+
+These properties configure encrypted connections and X.509 client-certificate authentication.
+See xref:advanced.adoc#ssl-tls[Advanced Topics: SSL/TLS] for usage examples.
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.ssl.enabled`
+| `false`
+| Enable TLS for the MongoDB connection.
+
+| `quarkus.morphium.ssl.auth-mechanism`
+| –
+| Authentication mechanism. Leave unset for SCRAM-SHA-256 (default). Set to `MONGODB-X509` for X.509 client-certificate auth.
+
+| `quarkus.morphium.ssl.keystore-path`
+| –
+| Path to the keystore file (JKS or PKCS12) containing the client certificate for X.509 / mutual TLS. Falls back to the JVM default keystore (`javax.net.ssl.keyStore`) when absent.
+
+| `quarkus.morphium.ssl.keystore-password`
+| –
+| Password for the keystore.
+
+| `quarkus.morphium.ssl.truststore-path`
+| –
+| Path to the truststore file for validating the MongoDB server certificate. Falls back to the JVM default truststore when absent.
+
+| `quarkus.morphium.ssl.truststore-password`
+| –
+| Password for the truststore.
+
+| `quarkus.morphium.ssl.invalid-hostname-allowed`
+| `false`
+| Allow invalid / self-signed hostnames in the server certificate. *Do not enable in production.*
+
+| `quarkus.morphium.ssl.x509-username`
+| –
+| Explicit X.509 subject DN to use as the MongoDB username. When absent, the subject DN is extracted automatically from the client certificate.
+
+| `quarkus.morphium.ssl.tls-configuration-name`
+| –
+| Name of a Quarkus TLS configuration (from `quarkus.tls.<name>.*`) to use for the MongoDB connection instead of explicit keystore/truststore paths; use the special value `<default>` to explicitly select the unnamed default TLS configuration. When absent and no explicit `keystore-path` / `truststore-path` is configured, the extension automatically falls back to the default (unnamed) Quarkus TLS configuration if one is available -- the recommended setup for native images where the runtime script writes `quarkus.tls.key-store.p12.*` / `quarkus.tls.trust-store.p12.*` properties.
+|===
+
+== Dev Services Properties (Build Time)
+
+Dev Services configuration is resolved at *build time* and cannot be overridden at runtime.
+See xref:dev-services.adoc[Dev Services] for details.
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.devservices.enabled`
+| `true`
+| Enable automatic MongoDB container in dev / test mode.
+
+| `quarkus.morphium.devservices.image-name`
+| `mongo:8`
+| Docker image for the MongoDB container.
+
+| `quarkus.morphium.devservices.database-name`
+| `morphium-dev`
+| Database name injected as `quarkus.morphium.database`.
+
+| `quarkus.morphium.devservices.replica-set`
+| `true`
+| Start MongoDB as a single-node replica set. Enables multi-document transactions, change streams, and `@MorphiumTransactional`.
+|===
+
+== Health Check Properties (Build Time)
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.health.enabled`
+| `true`
+| Enable Morphium health checks (liveness, readiness, startup) via SmallRye Health. Health endpoints are available by default when the extension is present.
+|===
+
+== Migration Properties
+
+NOTE: `@Execution` methods must be idempotent -- the changelog entry marking a change unit as executed is written only after the method returns successfully, so a crash between the method completing and that write causes it to run again on the next start. See the `@Execution` Javadoc for details.
+
+IMPORTANT: The migration lock is renewed both **between** change units (after every executed migration) **and, while a single change unit is still running, by an in-flight heartbeat thread** that periodically extends the lock's TTL. This closes the gap where one change unit alone (e.g. an index build on a large collection) runs longer than `lock-ttl-seconds`: without the heartbeat, another instance could atomically take over the lock mid-unit and start running that *same* still-in-progress change unit concurrently. If a heartbeat tick ever detects that the lock has genuinely been taken over by another process (e.g. because the heartbeat itself was starved for longer than the TTL, or the owning process's clock drifted -- see the `lock-ttl-seconds` clock-skew note below), the migration run aborts with an explicit exception instead of silently continuing to write changelog entries concurrently with the new owner.
+
+[cols="3,1,4",options="header"]
+|===
+| Property | Default | Description
+
+| `quarkus.morphium.migration.migrate-at-start`
+| `false`
+| Whether to run pending migrations automatically when the application starts. Migrations must be triggered explicitly (via `MorphiumMigrationRunner`) unless enabled.
+
+| `quarkus.morphium.migration.change-log-collection`
+| `morphiumChangeLog`
+| MongoDB collection that tracks executed migrations.
+
+| `quarkus.morphium.migration.lock-collection`
+| `morphiumMigrationLock`
+| MongoDB collection used for the distributed migration lock.
+
+| `quarkus.morphium.migration.lock-ttl-seconds`
+| `60`
+| Time-to-live in seconds for the migration lock. Must be greater than `0`. The lock is renewed both between change units and, via an in-flight heartbeat thread, while a single change unit is still running (see the IMPORTANT note above) -- so this mainly needs to comfortably exceed the heartbeat's own renewal interval, not the runtime of any single change unit or the whole migration run. Computed from each instance's local clock, not the MongoDB server's -- keep replica clocks synchronized (NTP/chrony) and set this generously above the expected clock drift between instances.
+
+| `quarkus.morphium.migration.lock-wait-seconds`
+| `0`
+| Maximum time in seconds to wait for the migration lock if another instance already holds it, polling every second, before giving up and failing startup. `0` (the default) fails immediately; set this above `0` in a multi-replica rolling deployment so replicas wait for an in-progress migration run instead of crash-looping.
+|===
+
+== Environment Variable Overrides
+
+SmallRye Config automatically maps property names to environment variables. Replace dots with
+underscores and use upper case:
+
+[source,bash]
+----
+export QUARKUS_MORPHIUM_DATABASE=production-db
+export QUARKUS_MORPHIUM_HOSTS=mongo1:27017,mongo2:27017
+export QUARKUS_MORPHIUM_USERNAME=admin
+export QUARKUS_MORPHIUM_PASSWORD=secret
+export QUARKUS_MORPHIUM_SSL_ENABLED=true
+----
+
+== Configuration Precedence
+
+SmallRye Config resolves values in this order (highest priority first):
+
+1. System properties (`-Dquarkus.morphium.database=...`)
+2. Environment variables (`QUARKUS_MORPHIUM_DATABASE=...`)
+3. `.env` file in the project root
+4. `application.properties` (profile-specific: `%dev.`, `%test.`, `%prod.`)
+5. Default values defined in the extension

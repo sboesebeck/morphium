@@ -42,7 +42,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 @Timeout(value = 5, unit = TimeUnit.MINUTES) // Global timeout for all tests to prevent hangs
 public class MultiDriverTestBase {
 
-    public static List<String> messagingsToTest = List.of("MultiCollectionMessaging", "StandardMessaging");
+    public static List<String> messagingsToTest = List.of("MultiCollectionMessaging", "StandardMessaging", "DualChannelMessaging");
     public static AtomicInteger number = new AtomicInteger(0);
     protected static Logger log = LoggerFactory.getLogger(MultiDriverTestBase.class);
 

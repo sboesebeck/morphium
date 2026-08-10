@@ -1,12 +1,17 @@
 package de.caluga.poppydb;
 
+import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.CreateIndexesCommand;
+import de.caluga.morphium.driver.commands.DropIndexesCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.GenericCommand;
+import de.caluga.morphium.driver.commands.ListIndexesCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -17,7 +22,10 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import javax.net.ssl.SSLContext;
 
 /**
  * Handles replication from primary to secondary PoppyDB nodes.
@@ -38,18 +46,154 @@ public class ReplicationManager {
     private final AtomicLong lastEventTime = new AtomicLong(0);
     private final AtomicLong lastAppliedSequence = new AtomicLong(0);
     private final AtomicLong lastReportedSequence = new AtomicLong(0);
+    // The primary's own change-stream sequence as observed at the most recent watch
+    // registration (piggybacked on the wire as "poppyPrimarySequence", mirroring how
+    // "poppyResumeSequence" rides the resumeAfter token in the other direction - see
+    // watchForChanges()). Updated on every successful registration, independent of whether any
+    // events are ever applied during that session. Two purposes: (1) seeds lastAppliedSequence
+    // when it is still 0 so an idle session (zero applied events) still has a correct resume
+    // point on the next reconnect instead of silently starting "from now"; (2) exposed via
+    // getLastKnownPrimarySequence() so callers (e.g. a replicationLagEvents metric) can compare
+    // it against lastAppliedSequence without needing their own copy of the wire plumbing.
+    private final AtomicLong lastKnownPrimarySequence = new AtomicLong(0);
+    // Number of times the primary signalled "resume window lost" and we fell back to a full re-sync.
+    // Exposed for tests/metrics to distinguish a clean resume (0) from a re-sync fallback.
+    private final AtomicLong resyncCount = new AtomicLong(0);
+    // Wall-clock time (System.currentTimeMillis()) of the previous resync, used to detect resyncs
+    // repeating faster than the buffer can absorb (see triggerResync()). 0 = no resync yet.
+    private final AtomicLong lastResyncTimestamp = new AtomicLong(0);
+    // If a second resync happens within this window of the previous one, the replay buffer is not
+    // keeping up with the sustained write rate x sync duration - log a WARN so an operator can size
+    // the buffer (see docs/poppydb.md "Replication buffer sizing").
+    private static final long RESYNC_WARN_WINDOW_MS = TimeUnit.MINUTES.toMillis(10);
+    // Test hook: when true the replication loop severs its connection and stops reconnecting,
+    // simulating a network partition between this secondary and the primary.
+    private final AtomicBoolean pausedForTest = new AtomicBoolean(false);
 
     // Secondary's address for reporting back to primary
     private String myAddress;
 
-    private Morphium primaryMorphium;
+    // volatile: written by the replication-loop thread (connect/reconnect) and read by the
+    // separate initial-sync snapshot thread.
+    private volatile Morphium primaryMorphium;
     private ExecutorService replicationExecutor;
     private ScheduledExecutorService progressReporter;
+    // Periodic index diff (#258): change streams carry no index DDL, so createIndexes/dropIndexes
+    // on the primary are picked up by diffing listIndexes at this interval (and once as part of
+    // every initial sync). 30s of index lag is acceptable - the data plane is not affected.
+    private static final long INDEX_SYNC_INTERVAL_MS = TimeUnit.SECONDS.toMillis(30);
+    private ScheduledExecutorService indexSyncer;
     private volatile long watchCursorId = -1;
 
     // Initial sync state
     private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
+    // True when the most recently COMPLETED initial sync was satisfied by the consistency
+    // shortcut (dbHash comparison against the primary, see tryConsistencyShortcut()) instead of
+    // a full clear + snapshot. Only meaningful once initialSyncComplete is true; reset to false
+    // whenever a full snapshot completes. Package-private observable (wasLastSyncShortcut()) so
+    // tests can assert the path taken without parsing logs.
+    private final AtomicBoolean lastSyncWasShortcut = new AtomicBoolean(false);
+
+    // True once clearLocalDatabases() has run during the CURRENT sync cycle (a "cycle" is one
+    // invocation of startInitialSyncOnce()'s thread body, which may internally retry several
+    // times - see the watchInvalidatedDuringSnapshot branch below). Reset to false at the start of
+    // every fresh cycle. Guards against a misreport: if an attempt runs clearLocalDatabases() +
+    // performInitialSync() but is then discarded because the watch died/re-registered mid-copy,
+    // the NEXT retry iteration must NOT call tryConsistencyShortcut() again - the local data now
+    // holds (at least partially) this very cycle's own full copy, so a dbHash comparison would
+    // very plausibly match the primary not because the node was already consistent BEFORE this
+    // cycle started, but only because this cycle's own discarded full sync made it so. That would
+    // set lastSyncWasShortcut(true) despite a full clear + copy having actually happened, and risks
+    // flaking a test that asserts on the shortcut/full-sync distinction (e.g.
+    // FastResyncTest#fallbackOnDivergence). Once set, every subsequent retry within the same cycle
+    // skips the shortcut attempt and goes straight to a full sync.
+    private final AtomicBoolean wipedThisSyncCycle = new AtomicBoolean(false);
+
+    // Test-only observables for the abort-must-never-wipe hardening (stop() racing the sync
+    // retry loop): counts of how many times tryConsistencyShortcut() was entered and
+    // clearLocalDatabases() actually ran. A seam test uses the former to poll for "the shortcut
+    // attempt against the (unreachable/slow) primary has begun" before racing stop() against it,
+    // instead of a blind sleep; the latter is the actual assertion - it must stay 0 for a cycle
+    // that stop() interrupted, even though tryConsistencyShortcut()'s own InterruptedException
+    // handling only restores the interrupt flag and converts the exception to `false`, which by
+    // itself does NOT stop the caller from wiping local data (see the running/interrupted guard
+    // in startInitialSyncOnce() immediately before the clearLocalDatabases() call). Same seam
+    // pattern as wasLastSyncShortcut()/setWatchLiveForTest().
+    private final AtomicInteger consistencyShortcutAttempts = new AtomicInteger(0);
+    private final AtomicInteger clearLocalDatabasesInvocations = new AtomicInteger(0);
+
+    /** Test hook: number of times tryConsistencyShortcut() has been entered. */
+    int getConsistencyShortcutAttemptsForTest() {
+        return consistencyShortcutAttempts.get();
+    }
+
+    /** Test hook: number of times clearLocalDatabases() has actually run. */
+    int getClearLocalDatabasesInvocationsForTest() {
+        return clearLocalDatabasesInvocations.get();
+    }
+
+    /**
+     * Test hook: the currently running initial-sync snapshot thread, or {@code null}. Must be
+     * captured by a test BEFORE calling {@link #stop()} - stop() clears the field once it has
+     * interrupted (and, per this hardening fix, joined) the thread.
+     */
+    Thread getInitialSyncThreadForTest() {
+        return initialSyncThread;
+    }
+
+    // Test-only synchronization point, armed only when a test calls armTestPauseInShortcutForTest().
+    // A no-op (null) in production. Lets a test deterministically block the sync thread INSIDE
+    // tryConsistencyShortcut() - past the consistencyShortcutAttempts counter, at the exact spot a
+    // real blocking primary-side driver call would sit - so it can race stop() against that precise
+    // window instead of depending on real network timing (which, against a merely unreachable port,
+    // resolves in single-digit milliseconds and gives no usable window at all).
+    private volatile CountDownLatch testPauseInShortcut;
+
+    private void awaitTestPauseIfArmed() throws InterruptedException {
+        CountDownLatch latch = testPauseInShortcut;
+        if (latch != null) {
+            latch.await();
+        }
+    }
+
+    /**
+     * Test hook: arm the pause point inside {@code tryConsistencyShortcut()} (see
+     * {@link #testPauseInShortcut}). A test polls {@link #getConsistencyShortcutAttemptsForTest()}
+     * to know the sync thread has reached (and is now blocked at) the pause, then calls
+     * {@link #stop()} - whose interrupt() throws {@code InterruptedException} out of the latch
+     * await, reproducing exactly the "stop() interrupts a still-attempting shortcut" race the
+     * hardening fix guards against.
+     */
+    void armTestPauseInShortcutForTest() {
+        testPauseInShortcut = new CountDownLatch(1);
+    }
+
+    // Lossless initial sync (watch-first, buffer, snapshot, replay):
+    //   applying              - gate for the batch processor. While false, replication events
+    //                           keep accumulating in eventQueue but are NOT applied. It is
+    //                           opened once the initial-sync snapshot is done, so events that
+    //                           arrived during the snapshot are replayed on top of it.
+    //   watchLive             - true while the change-stream watch cursor is established on the
+    //                           primary (set by the WatchCommand registration callback, cleared
+    //                           when the watch ends). While it is true the watch is guaranteed to
+    //                           capture every subsequent write, so the snapshot may start without
+    //                           a lost-write gap. It is resettable (unlike a one-shot latch) so a
+    //                           reconnect during the initial sync makes the snapshot wait for the
+    //                           new watch to re-establish rather than racing ahead.
+    //   initialSyncStarted    - guards against launching more than one snapshot thread.
+    private final AtomicBoolean applying = new AtomicBoolean(false);
+    private final AtomicBoolean watchLive = new AtomicBoolean(false);
+    private final AtomicBoolean initialSyncStarted = new AtomicBoolean(false);
+    private volatile Thread initialSyncThread;
+    //   watchGeneration       - bumped every time a watch cursor registers on the primary (the
+    //                           registration callback). The snapshot captures it before the copy;
+    //                           if it changes (or watchLive drops) before the copy finishes, the
+    //                           watch died and was re-established "from now" (no resumeAfter while
+    //                           initial sync is incomplete) mid-copy, so writes in the gap between
+    //                           the old watch's death and the new watch's registration are lost and
+    //                           the snapshot must be redone. Package-private for the seam test.
+    final AtomicLong watchGeneration = new AtomicLong(0);
 
     // Progress reporting interval - balanced for good throughput and write concern latency
     // 50ms gives good responsiveness while not overwhelming the primary with reports
@@ -59,7 +203,10 @@ public class ReplicationManager {
     // Using reasonable batch interval for good throughput
     private static final int BATCH_SIZE = 100;
     private static final long BATCH_FLUSH_INTERVAL_MS = 5;
-    private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>();
+    // Bounded so a stalled batch processor applies backpressure to the watch callback
+    // (via put()) instead of buffering replication events until OOM.
+    private static final int EVENT_QUEUE_CAPACITY = 100_000;
+    private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>(EVENT_QUEUE_CAPACITY);
     private ScheduledExecutorService batchProcessor;
 
     // Flag to enable immediate progress reporting after each batch
@@ -71,6 +218,14 @@ public class ReplicationManager {
 
     // Callback to notify when log index is updated (for election consistency)
     private java.util.function.BiConsumer<Long, Long> onLogIndexUpdate;
+
+    // RS-internal connection security, set once via setInternalConnectionSecurity() before
+    // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
+    // Defaults (auth off, no SSL context) reproduce today's plaintext/unauthenticated behavior.
+    private volatile boolean authEnabled = false;
+    private volatile String authUser = null;
+    private volatile String authPassword = null;
+    private volatile SSLContext internalSslContext = null;
 
     public ReplicationManager(InMemoryDriver localDriver, String primaryHost, int primaryPort) {
         this.localDriver = localDriver;
@@ -92,6 +247,19 @@ public class ReplicationManager {
      */
     public void setOnLogIndexUpdate(java.util.function.BiConsumer<Long, Long> callback) {
         this.onLogIndexUpdate = callback;
+    }
+
+    /**
+     * Configure how the connection to the primary authenticates/encrypts itself. Call before
+     * {@link #start()}. {@code internalSslContext} of {@code null} means the connection stays
+     * plaintext even if {@code authEnabled} is true.
+     */
+    public void setInternalConnectionSecurity(boolean authEnabled, String authUser, String authPassword,
+            SSLContext internalSslContext) {
+        this.authEnabled = authEnabled;
+        this.authUser = authUser;
+        this.authPassword = authPassword;
+        this.internalSslContext = internalSslContext;
     }
 
     /**
@@ -126,6 +294,40 @@ public class ReplicationManager {
 
         // Start progress reporter
         startProgressReporter();
+
+        // Start periodic index replication (#258)
+        startIndexSyncer();
+    }
+
+    private void startIndexSyncer() {
+        indexSyncer = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "PoppyDB-IndexSyncer");
+            t.setDaemon(true);
+            return t;
+        });
+
+        indexSyncer.scheduleWithFixedDelay(this::periodicIndexSync,
+                INDEX_SYNC_INTERVAL_MS, INDEX_SYNC_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private void periodicIndexSync() {
+        // The initial sync replicates indexes itself; until it is done (and while partitioned)
+        // there is nothing sensible to diff against.
+        if (!connected.get() || pausedForTest.get() || !initialSyncComplete.get()) {
+            return;
+        }
+
+        Morphium pm = primaryMorphium;
+
+        if (pm == null) {
+            return;
+        }
+
+        try {
+            syncIndexesFrom(pm.getDriver());
+        } catch (Exception e) {
+            log.warn("Periodic index sync failed (will retry in {}ms): {}", INDEX_SYNC_INTERVAL_MS, e.getMessage());
+        }
     }
 
     /**
@@ -146,6 +348,16 @@ public class ReplicationManager {
      * Process queued events in batches for better performance.
      */
     private void processBatch() {
+        // Gate: do not apply events until the initial-sync snapshot has completed. Events keep
+        // accumulating in the (bounded) eventQueue; once the snapshot is done the gate opens and
+        // the buffered events are drained as an idempotent replay on top of the snapshot. If the
+        // snapshot outlasts the queue capacity the watch callback's blocking put() applies
+        // backpressure to the watch reader (never to the snapshot, which runs on its own thread
+        // and uses its own connections), so this cannot deadlock the snapshot.
+        if (!applying.get()) {
+            return;
+        }
+
         if (eventQueue.isEmpty()) {
             return;
         }
@@ -157,36 +369,7 @@ public class ReplicationManager {
             return;
         }
 
-        // Group events by type and collection for bulk operations
-        Map<String, List<Map<String, Object>>> insertsByCollection = new HashMap<>();
-        List<Map<String, Object>> otherEvents = new ArrayList<>();
-
-        for (Map<String, Object> event : batch) {
-            String operationType = (String) event.get("operationType");
-            @SuppressWarnings("unchecked")
-            Map<String, Object> ns = (Map<String, Object>) event.get("ns");
-
-            if (ns == null || !"insert".equals(operationType)) {
-                otherEvents.add(event);
-                continue;
-            }
-
-            String db = (String) ns.get("db");
-            String coll = (String) ns.get("coll");
-            String key = db + "." + coll;
-
-            insertsByCollection.computeIfAbsent(key, k -> new ArrayList<>()).add(event);
-        }
-
-        // Apply bulk inserts
-        for (Map.Entry<String, List<Map<String, Object>>> entry : insertsByCollection.entrySet()) {
-            applyBulkInserts(entry.getKey(), entry.getValue());
-        }
-
-        // Apply other events individually
-        for (Map<String, Object> event : otherEvents) {
-            applyChangeEvent(event);
-        }
+        applyEventsInOrder(batch);
 
         // Notify about log index update for election consistency
         long currentSeq = lastAppliedSequence.get();
@@ -202,6 +385,87 @@ public class ReplicationManager {
     }
 
     /**
+     * Apply a batch of change events to the local driver, preserving global event order.
+     *
+     * Only *contiguous* runs of insert events for the same collection are bundled into a
+     * single bulk insert; any non-insert event, or an insert for a different collection,
+     * flushes the pending run first (in order) before the next event is handled. This keeps
+     * the effective application order identical to sequential (one-event-at-a-time)
+     * application, while still batching same-collection inserts that happen to be adjacent
+     * for throughput.
+     *
+     * Package-visible (rather than private) so tests can exercise the ordering/grouping
+     * logic directly, without a live replication connection.
+     */
+    @SuppressWarnings("unchecked")
+    void applyEventsInOrder(List<Map<String, Object>> batch) {
+        // Replication applies must never be rejected by the memory watermark: the primary is
+        // the gate, and a secondary refusing what the primary accepted would silently diverge.
+        try (var ignored = localDriver.bypassMemoryGuard()) {
+            applyEventsInOrderGuarded(batch);
+        }
+    }
+
+    private void applyEventsInOrderGuarded(List<Map<String, Object>> batch) {
+        List<Map<String, Object>> run = new ArrayList<>();
+        String runCollectionKey = null;
+
+        for (Map<String, Object> event : batch) {
+            String operationType = (String) event.get("operationType");
+            Map<String, Object> ns = (Map<String, Object>) event.get("ns");
+            boolean isInsert = ns != null && "insert".equals(operationType);
+            String collKey = isInsert ? ns.get("db") + "." + ns.get("coll") : null;
+
+            if (isInsert && (runCollectionKey == null || runCollectionKey.equals(collKey))) {
+                run.add(event);
+                runCollectionKey = collKey;
+                continue;
+            }
+
+            // Non-insert event, or insert for a different collection: flush the pending run
+            // first so it is applied before this event, preserving global order.
+            if (!run.isEmpty()) {
+                applyBulkInserts(runCollectionKey, run);
+                run = new ArrayList<>();
+            }
+            runCollectionKey = null;
+
+            if (isInsert) {
+                run.add(event);
+                runCollectionKey = collKey;
+            } else {
+                applyChangeEvent(event);
+            }
+        }
+
+        // Flush any trailing run.
+        if (!run.isEmpty()) {
+            applyBulkInserts(runCollectionKey, run);
+        }
+    }
+
+    /**
+     * Which (db, collection) pairs replicate. Normal user data does; internal databases and
+     * system collections do not - with exactly two exceptions: admin.system.users, so that
+     * logins survive failovers and initial sync (users would otherwise be node-local), and
+     * admin.system.version, which carries the users-file version-gate meta doc ({_id:
+     * "poppydb.usersFile", appliedVersion: N}) so a newly-elected primary sees the version a
+     * prior primary already applied instead of silently re-applying (or skipping) the file.
+     *
+     * Central predicate for every skip decision in this class (live apply, initial-sync
+     * enumeration, resync clearing, index diff) - do not add per-site variations.
+     */
+    static boolean isReplicated(String db, String collection) {
+        if ("admin".equals(db)) {
+            return "system.users".equals(collection) || "system.version".equals(collection);
+        }
+        if ("local".equals(db) || "config".equals(db)) {
+            return false;
+        }
+        return collection == null || !collection.startsWith("system.");
+    }
+
+    /**
      * Apply multiple insert events as a single bulk insert.
      */
     @SuppressWarnings("unchecked")
@@ -212,8 +476,9 @@ public class ReplicationManager {
         String db = parts[0];
         String coll = parts[1];
 
-        // Skip system databases
-        if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+        // Skip everything outside the replicated namespace set (system databases and
+        // system.* collections - except the replicated admin system collections, see isReplicated)
+        if (!isReplicated(db, coll)) {
             // Still update sequence for skipped events
             for (Map<String, Object> event : events) {
                 long seq = extractSequenceFromEvent(event);
@@ -238,6 +503,8 @@ public class ReplicationManager {
             }
         }
 
+        final long finalMaxSeq = maxSeq;
+
         if (!documents.isEmpty()) {
             try {
                 GenericCommand cmd = new GenericCommand(localDriver);
@@ -248,18 +515,89 @@ public class ReplicationManager {
                     "$db", db,
                     "documents", documents
                 ));
-                localDriver.runCommand(cmd);
+                int msgId = localDriver.runCommand(cmd);
+                Map<String, Object> result = localDriver.readSingleAnswer(msgId);
+                Object writeErrors = (result != null) ? result.get("writeErrors") : null;
+
+                if (writeErrors instanceof List<?> errors && !errors.isEmpty()) {
+                    // InMemoryDriver does not throw for unique-secondary-index
+                    // violations (only an ordered _id duplicate throws); it silently
+                    // commits the non-conflicting documents from this very call and
+                    // reports the rest as writeErrors in the result. Treat that as a
+                    // failure of the bulk as a whole so it goes through the same
+                    // fallback below, instead of being mistaken for full success.
+                    throw new MorphiumDriverException(
+                        "Bulk insert into " + db + "." + coll + " reported writeErrors: " + errors, null);
+                }
+
                 eventsApplied.addAndGet(documents.size());
                 log.debug("Bulk inserted {} documents into {}.{}", documents.size(), db, coll);
-            } catch (Exception e) {
-                log.error("Error applying bulk insert to {}.{}: {}", db, coll, e.getMessage());
-            }
-        }
 
-        // Update sequence
-        final long finalMaxSeq = maxSeq;
-        if (finalMaxSeq > 0) {
-            lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
+                // Whole bulk command reported success: safe to advance to the run's max
+                // sequence.
+                if (finalMaxSeq > 0) {
+                    lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
+                }
+            } catch (Exception e) {
+                // The bulk insert failed as a whole, or partially (writeErrors above).
+                // Its atomicity is *not* guaranteed in general: an ordered _id-duplicate
+                // throws before any document is written, but a unique-secondary-index
+                // writeErrors result (or a failure raised later, e.g. during index
+                // maintenance) can leave some of this run's documents already
+                // committed. So we cannot just retry every event with a plain insert --
+                // that would spuriously fail (and permanently stall the sequence) on
+                // whatever already landed.
+                //
+                // Instead, fall back to applying each event in the run individually via
+                // applyChangeEvent in "replay" mode, which applies inserts as an
+                // idempotent full-document upsert-by-key (applyInsertIdempotent) rather
+                // than a strict insert -- the same replay-idempotency rule the
+                // initial-sync path needs (see task 8). Documents that already landed
+                // are harmlessly re-written to the same content; documents that didn't
+                // land yet get created. applyChangeEvent advances lastAppliedSequence per
+                // event and only on success, so it acts as a poison-skip watermark: a
+                // genuinely poison event (e.g. a real, still-unresolved unique-index
+                // conflict) fails on its own without blocking the rest of the run, and the
+                // events that follow it in the run still apply and advance the watermark.
+                // NOTE this means a poison event that is NOT the trailing (highest-sequence)
+                // event of the run does get skipped over: a later successful event pushes
+                // lastAppliedSequence past the poison's sequence, so the poison is
+                // effectively dropped rather than retried. The "no false advance" guarantee
+                // therefore only holds for a trailing conflict; a mid-run poison is skipped.
+                // That is the intended trade-off -- we prefer forward progress and
+                // eventual convergence (the primary is the source of truth) over stalling
+                // the whole stream on one unresolved conflict.
+                //
+                // Log level for the bulk failure itself is decided AFTER the fallback runs, not
+                // before: the common case here is a benign ordered _id-duplicate from a sync race
+                // (e.g. a document the initial-sync snapshot and a buffered replay both bring in),
+                // which the idempotent replay below fully resolves -- that is expected noise, not
+                // an operational problem, so it logs at WARN. Only when the per-document fallback
+                // ALSO fails for at least one event (a genuine, still-unresolved conflict) does
+                // this stay at ERROR.
+                boolean fallbackHadFailure = false;
+                for (Map<String, Object> event : events) {
+                    if (!applyChangeEvent(event, true)) {
+                        fallbackHadFailure = true;
+                    }
+                }
+                if (fallbackHadFailure) {
+                    log.error("Error applying bulk insert to {}.{}: {} (per-document fallback also "
+                            + "failed for at least one event -- see individual event errors above)",
+                            db, coll, e.getMessage());
+                } else {
+                    log.warn("Bulk insert to {}.{} hit {} (expected during sync races, e.g. a "
+                            + "document already present from initial sync or a concurrent replay; "
+                            + "auto-resolved via idempotent per-document replay)",
+                            db, coll, e.getMessage());
+                }
+            }
+        } else {
+            // No documents to insert (e.g. all events lacked fullDocument) -- nothing was
+            // attempted, so it's safe to advance to the run's max sequence.
+            if (finalMaxSeq > 0) {
+                lastAppliedSequence.updateAndGet(current -> Math.max(current, finalMaxSeq));
+            }
         }
     }
 
@@ -339,6 +677,38 @@ public class ReplicationManager {
 
         log.info("Stopping replication...");
 
+        // Interrupt an in-flight initial-sync snapshot thread (if any) so it exits promptly, then
+        // join it with a bounded wait before proceeding. Without the join, an old, just-stopped
+        // ReplicationManager's sync thread could still be mid-cycle (see the running/interrupted
+        // guard added to the retry loop above) at the moment PoppyDB installs its replacement RM,
+        // letting the old thread's clearLocalDatabases()/performInitialSync() race the new RM's
+        // own sync on the same local database.
+        //
+        // Bounded rather than unbounded: stop() is called from PoppyDB's synchronized leadership/
+        // probe paths (startReplicationToLeader, probeReplicationLiveness,
+        // onLeadershipChangeSynchronized) and, for the liveness probe, on PoppyDB's single
+        // retry-scheduler thread - an unbounded join here could stall those indefinitely on a
+        // wedged sync thread. The joined thread only ever touches this ReplicationManager's own
+        // state and its own driver connections; it never calls back into PoppyDB, so it can never
+        // itself need the monitor stop() is running under - this join cannot deadlock against it.
+        // 5s is generous versus the sync loop's own bounded per-attempt work (a dbHash comparison
+        // or per-collection copy against a healthy primary, or a fast failure against an
+        // unreachable one) while still capping the worst case for the callers above.
+        Thread syncThread = initialSyncThread;
+        initialSyncThread = null;
+        if (syncThread != null) {
+            syncThread.interrupt();
+            try {
+                syncThread.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (syncThread.isAlive()) {
+                log.warn("Initial-sync thread did not terminate within 5s of stop(); it may still "
+                        + "be running concurrently with a replacement ReplicationManager");
+            }
+        }
+
         // Stop batch processor first to flush remaining events
         if (batchProcessor != null) {
             // Process any remaining events
@@ -361,6 +731,17 @@ public class ReplicationManager {
                 Thread.currentThread().interrupt();
             }
             progressReporter = null;
+        }
+
+        // Stop periodic index replication
+        if (indexSyncer != null) {
+            indexSyncer.shutdownNow();
+            try {
+                indexSyncer.awaitTermination(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            indexSyncer = null;
         }
 
         if (replicationExecutor != null) {
@@ -391,6 +772,15 @@ public class ReplicationManager {
             config.connectionSettings().setRetriesOnNetworkError(3);
             config.connectionSettings().setSleepBetweenNetworkErrorRetries(500);
 
+            if (authEnabled) {
+                config.authSettings().setMongoLogin(authUser).setMongoPassword(authPassword)
+                        .setMongoAuthDb("admin");
+            }
+            if (internalSslContext != null) {
+                config.connectionSettings().setUseSSL(true).setSslContext(internalSslContext)
+                        .setSslInvalidHostNameAllowed(true);
+            }
+
             primaryMorphium = new Morphium(config);
             primaryMorphium.getDriver();  // Force connection
 
@@ -418,6 +808,12 @@ public class ReplicationManager {
     private void replicationLoop() {
         while (running.get()) {
             try {
+                // Test hook: simulate a partition — stay severed and do not reconnect until resumed.
+                if (pausedForTest.get()) {
+                    Thread.sleep(100);
+                    continue;
+                }
+
                 if (!connected.get()) {
                     log.info("Not connected to primary, attempting reconnect...");
                     try {
@@ -430,14 +826,19 @@ public class ReplicationManager {
                     }
                 }
 
-                // Perform initial sync if not done
+                // Lossless initial sync: start the change-stream watch FIRST (below, on this
+                // thread) so events flow into eventQueue, while a background thread performs the
+                // snapshot copy. The snapshot waits for the watch to be live (watchLive, set by the
+                // WatchCommand registration callback) before copying, so no write is lost in the
+                // gap between snapshot and watch. The batch processor stays gated (applying=false)
+                // until the snapshot completes, then drains the buffered events as an idempotent
+                // replay.
                 if (!initialSyncComplete.get()) {
-                    performInitialSync();
-                    initialSyncComplete.set(true);
-                    initialSyncLatch.countDown();
+                    startInitialSyncOnce();
                 }
 
-                // Watch for changes
+                // Watch for changes (blocks; produces events into eventQueue). During the initial
+                // sync this is the producer that fills the buffer while the snapshot runs.
                 watchForChanges();
 
                 // Check if watch ended due to staleness (no response for too long)
@@ -455,8 +856,13 @@ public class ReplicationManager {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                log.error("Error in replication loop: {}", e.getMessage(), e);
                 connected.set(false);
+                // A partition simulated by the test hook severs the connection on purpose; the watch
+                // throwing is expected, so don't log it as an error or sleep the 5s backoff.
+                if (pausedForTest.get()) {
+                    continue;
+                }
+                log.error("Error in replication loop: {}", e.getMessage(), e);
 
                 if (running.get()) {
                     try {
@@ -471,9 +877,590 @@ public class ReplicationManager {
     }
 
     /**
+     * Launch the initial-sync snapshot on a dedicated background thread, exactly once.
+     *
+     * The snapshot runs concurrently with the change-stream watch (which is driven on the
+     * replication loop thread). It first waits for the watch to be live ({@code watchLive}, set by
+     * the WatchCommand registration callback) so that every write happening during the copy is
+     * already being captured into {@code eventQueue}; only then does it copy the data. When the
+     * copy is done it opens the {@code applying} gate, which lets the batch processor drain the
+     * events that were buffered during the copy -- an idempotent replay on top of the snapshot
+     * (see the idempotency note below) -- followed by all subsequent live events.
+     *
+     * Failure/retry semantics: the snapshot uses its own pool connections, so it can fail
+     * transiently (e.g. a per-collection read error) while the change-stream watch is perfectly
+     * healthy. Because the replication loop thread is parked inside {@code watchForChanges()} for
+     * the whole life of a healthy watch, it will NOT come back around to relaunch the snapshot.
+     * So this thread retries the snapshot itself, with exponential backoff, keeping the gate
+     * closed (events keep buffering) until a copy succeeds -- rather than resetting state and
+     * relying on the loop to retry, which would leave the node permanently ungated (and eventually
+     * fill the bounded queue, blocking the watch reader) whenever the watch stays up. Each retry
+     * first drops any partially-copied local data ({@link #clearLocalDatabases()}) so that
+     * {@code performInitialSync}'s strict inserts start from a clean slate instead of failing on
+     * documents left behind by a previous, partially-successful attempt.
+     *
+     * Idempotency of the replay: the buffered events may cover documents the snapshot already
+     * copied (a document inserted during the copy can appear both in the snapshot's find() and as
+     * a buffered insert event). Update/replace events are already applied as full-document
+     * upserts-by-key, so they are naturally idempotent; a delete of a document the snapshot never
+     * contained is a no-op. Buffered *inserts* that collide with an already-copied _id are handled
+     * by the existing bulk-insert path: an ordered _id-duplicate makes the bulk command fail, and
+     * {@code applyBulkInserts} then falls back to a per-event idempotent replay
+     * ({@link #applyInsertIdempotent}, a {@code {q: _id, u: doc, upsert: true}} upsert), which
+     * converges the colliding document instead of stalling on a duplicate key. We deliberately do
+     * NOT route every replicated insert through the per-document idempotent path permanently:
+     * that would defeat the contiguous-insert bulk batching and, because InMemoryDriver's
+     * upsert-replace path skips unique-secondary-index enforcement, would be strictly weaker than
+     * the bulk path for genuine unique-index conflicts. The bulk-with-idempotent-fallback already
+     * makes the replay window lossless and convergent, which is all the initial sync needs.
+     */
+    private void startInitialSyncOnce() {
+        if (!initialSyncStarted.compareAndSet(false, true)) {
+            return; // snapshot already launched (or completed)
+        }
+
+        initialSyncThread = new Thread(() -> {
+            long backoffMs = 1000;
+            wipedThisSyncCycle.set(false); // fresh cycle: no wipe has happened yet, shortcut is fair game
+            try {
+                while (running.get()) {
+                    // Wait until the watch is live before copying, so every write that happens
+                    // during the snapshot is already being captured into eventQueue. The watch may
+                    // establish on this or a later (reconnect) attempt; poll running so a stop()
+                    // during this wait exits promptly.
+                    while (running.get() && !watchLive.get()) {
+                        Thread.sleep(50);
+                    }
+                    if (!running.get()) {
+                        return;
+                    }
+                    // Capture the generation of the watch we are about to copy under. If it changes
+                    // (or watchLive drops) before the copy finishes, the watch died mid-copy and a
+                    // replacement started "from now" with no resume point, losing the writes in the
+                    // gap -- we must redo the snapshot under the new watch.
+                    long watchGen = watchGeneration.get();
+
+                    try {
+                        // Consistency shortcut (leader change with identical data): the watch on
+                        // the (possibly new) primary is live at this point, so every subsequent
+                        // primary write is already being buffered. If the local state matches the
+                        // primary byte-for-byte per dbHash, the clear + full snapshot below is
+                        // pure waste - skip it. Any mismatch, error, or watch death falls through
+                        // to today's full path; correctness beats speed.
+                        //
+                        // shouldAttemptConsistencyShortcut() is false once this cycle has already
+                        // wiped local data via clearLocalDatabases() (see wipedThisSyncCycle's
+                        // javadoc) - a retry in that state must not re-run the shortcut, it would
+                        // be comparing the primary against data this very cycle just copied.
+                        boolean shortcut = shouldAttemptConsistencyShortcut() && tryConsistencyShortcut();
+
+                        // stop() may have interrupted this thread while tryConsistencyShortcut()'s
+                        // blocking IO was in flight (or at any point up to here). Its
+                        // InterruptedException handling restores the interrupt flag but converts the
+                        // exception itself into `false` (a correctness fallback -> full sync), which by
+                        // itself would let a STOPPED cycle fall straight into clearLocalDatabases()
+                        // below and wipe local data - possibly while an already-running replacement
+                        // ReplicationManager (PoppyDB replaces RMs on leader change) is populating the
+                        // very same local database. running.get() alone already catches the stop()
+                        // case (it flips false before the interrupt is even sent), and the interrupt
+                        // check is the belt-and-suspenders half for any other source of interruption.
+                        if (!running.get() || Thread.currentThread().isInterrupted()) {
+                            break;
+                        }
+
+                        if (!shortcut) {
+                            // Start each attempt from a clean local slate so a retry after a
+                            // partially-successful copy doesn't fail on already-copied documents.
+                            // The flag is set BEFORE the clear: even a clear that throws partway
+                            // leaves the local state partially wiped, and a later retry must not
+                            // run the consistency shortcut against that.
+                            wipedThisSyncCycle.set(true);
+                            // Initial-sync writes are never observable via the local change
+                            // stream (MongoDB: initial sync is not oplogged). Without this, the
+                            // wipe below is broadcast as live "drop" events - and during a
+                            // leadership transition the other nodes' still-running OLD
+                            // ReplicationManagers (watching this demoted ex-primary) apply those
+                            // drops to their own data, destroying admin.system.users
+                            // cluster-wide (the StepdownReplicationTest flake: even the freshly
+                            // promoted primary applied the demoted node's wipe-drop).
+                            try (var ignored = localDriver.suppressChangeStreamEvents()) {
+                                clearLocalDatabases();
+                                performInitialSync();
+                            }
+                        }
+
+                        // Guard: if the watch died or was re-established during the copy (or the
+                        // shortcut's hash comparison), the result may be missing writes that fell
+                        // into the gap. Discard it and retry under the new watch instead of
+                        // opening the gate on a lossy snapshot / stale match.
+                        if (watchInvalidatedDuringSnapshot(watchGen)) {
+                            log.warn("Watch changed during initial sync (captured gen {}, now {}, live {}); "
+                                    + "redoing snapshot in {}ms to avoid a lost-write gap",
+                                    watchGen, watchGeneration.get(), watchLive.get(), backoffMs);
+                            Thread.sleep(backoffMs);
+                            backoffMs = Math.min(backoffMs * 2, 30_000);
+                            continue;
+                        }
+
+                        // Success: open the gate. The batch processor now drains the events
+                        // buffered during the snapshot (idempotent replay) and all subsequent live
+                        // events, in order.
+                        lastSyncWasShortcut.set(shortcut);
+                        applying.set(true);
+                        initialSyncComplete.set(true);
+                        initialSyncLatch.countDown();
+                        return;
+                    } catch (Exception e) {
+                        // Snapshot failed while the watch may still be healthy. Retry from within
+                        // this thread with backoff, keeping the gate closed, so the node cannot get
+                        // stuck permanently ungated when watchForChanges() is parked on a healthy
+                        // watch and never returns to drive the loop's retry.
+                        log.error("Initial sync failed, retrying in {}ms (replication gate stays closed): {}",
+                                backoffMs, e.getMessage(), e);
+                        Thread.sleep(backoffMs);
+                        backoffMs = Math.min(backoffMs * 2, 30_000);
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "PoppyDB-InitialSync");
+        initialSyncThread.setDaemon(true);
+        initialSyncThread.start();
+    }
+
+    /**
+     * True when the change-stream watch that the snapshot started copying under is no longer the
+     * live watch: either it dropped ({@code watchLive} is false) or a new watch has since registered
+     * ({@code watchGeneration} advanced past {@code capturedGeneration}). Either way the snapshot may
+     * be missing writes from the gap and must be redone. Package-private so the seam test can drive
+     * the predicate without a live primary.
+     */
+    boolean watchInvalidatedDuringSnapshot(long capturedGeneration) {
+        return !watchLive.get() || watchGeneration.get() != capturedGeneration;
+    }
+
+    /** Test hook: force the watchLive flag. */
+    void setWatchLiveForTest(boolean live) {
+        watchLive.set(live);
+    }
+
+    /**
+     * True once the change-stream watch has registered with the primary (see {@code watchLive}'s
+     * field javadoc above for the design: watch registration is the FIRST step of a sync cycle,
+     * before any snapshot, so on a healthy connection this goes true within seconds of
+     * {@link #start()}). Package-private accessor backing PoppyDB's post-start liveness probe
+     * (Finding: for an unreachable leader, {@code PooledDriver.connect()} swallows the failure and
+     * {@code start()} returns normally instead of throwing, so the exception-based retry never
+     * fires - watchLive staying false long after start is the reliable signal that the connection
+     * never actually came up).
+     */
+    boolean isWatchLive() {
+        return watchLive.get();
+    }
+
+    /**
+     * True once the change-stream watch has registered with the primary AT LEAST ONCE since
+     * {@link #start()} ({@code watchGeneration} only ever advances, one bump per registration).
+     * This - not the instantaneous {@link #isWatchLive()} - is what PoppyDB's one-shot
+     * post-start liveness probe must check: {@code watchLive} deliberately drops to false in
+     * the watch loop's finally block between every two watch sessions, so a probe sampling
+     * {@code isWatchLive()} during such a routine reconnect gap would tear down a
+     * ReplicationManager whose connection DID come up (2026-08-06 review finding). A watch that
+     * registered once and later died is the watch-retry loop's job to repair, not the probe's.
+     */
+    boolean hasWatchEverRegistered() {
+        return watchGeneration.get() > 0;
+    }
+
+    /**
+     * True when the initial-sync retry loop should attempt the consistency shortcut for the
+     * current iteration; false once {@link #wipedThisSyncCycle} has been set by a
+     * {@code clearLocalDatabases()} call earlier in the same sync cycle. Package-private (the
+     * same seam pattern as {@link #watchInvalidatedDuringSnapshot}) so a test can drive the guard
+     * without a live primary.
+     */
+    boolean shouldAttemptConsistencyShortcut() {
+        return !wipedThisSyncCycle.get();
+    }
+
+    /** Test hook: force the wipedThisSyncCycle guard (see its javadoc) without running a real sync. */
+    void setWipedThisSyncCycleForTest(boolean wiped) {
+        wipedThisSyncCycle.set(wiped);
+    }
+
+    /** Test hook: simulate a watch (re-)registration bumping the generation. */
+    void bumpWatchGenerationForTest() {
+        watchGeneration.incrementAndGet();
+    }
+
+    /**
+     * Consistency shortcut for the initial sync: decide, via dbHash, whether the local state
+     * already matches the primary - in which case the clear + full snapshot can be skipped
+     * entirely. Returns {@code true} on a verified full match (and has then already converged
+     * the index definitions, see below); {@code false} on ANY mismatch, error, or timeout, in
+     * which case the caller runs today's full clear + snapshot. Never throws.
+     *
+     * <p><b>Why hashes and not a sequence resume:</b> change-stream sequences are primary-local.
+     * Each node's InMemoryDriver numbers events from its own private {@code changeStreamSequence}
+     * counter (reset to 0 on restart, advanced by arbitrary jumps on drops), and a follower
+     * applying replicated writes generates its OWN local numbers - nothing propagates the
+     * primary's numbering into the follower's counter. So the {@code lastAppliedSequence} this
+     * node accumulated against the OLD primary is meaningless in a NEW primary's sequence space
+     * (InMemoryDriver's resume check explicitly treats foreign-sequence-space tokens as never
+     * resumable); "resuming" there could silently skip or replay the wrong events. Comparing the
+     * actual data is the only sound cheap path.
+     *
+     * <p><b>Soundness of match-then-replay (the hash-vs-buffer window):</b> this runs in the
+     * same retry-loop slot as the snapshot, i.e. strictly AFTER the watch on the primary is
+     * registered and live - from that moment every primary write is captured into
+     * {@code eventQueue} (the gate is still closed, so nothing is applied locally; and this
+     * node, being a follower, accepts no local data-plane writes either, so the local state is
+     * frozen throughout the comparison). Each per-collection hash the primary answers is a
+     * read-locked snapshot of that collection at some instant t &gt;= watch registration. If the
+     * hashes match, the frozen local collection equals the primary's state at t - which already
+     * INCLUDES every buffered event on that collection with an effect before t. Replaying those
+     * buffered events after the gate opens is therefore a pure idempotent overlap (update/replace
+     * are upserts-by-key, deletes are no-ops, colliding inserts go through applyBulkInserts'
+     * idempotent per-event fallback - expected "Duplicate _id" noise, not corruption), and events
+     * after t apply exactly as in steady-state replication. If instead a write landed between
+     * registration and the hash read, the hashes differ and we take the full path - a spurious
+     * fallback is possible, a spurious match is not. Watch death during the comparison is caught
+     * by the caller's watchInvalidatedDuringSnapshot guard, same as for a real snapshot.
+     *
+     * <p><b>What is compared:</b> exactly the replicated namespace set per {@link #isReplicated}:
+     * every non-system database's non-system collections, plus the replicated admin system
+     * collections admin.system.users and admin.system.version (users must match too - a stale
+     * user set is divergence like any other; a follower legitimately holding the SAME users it
+     * replicated earlier is precisely the match case). Databases whose
+     * replicated-collection set is empty count as absent on both sides. Collection sets must be
+     * equal AND every per-collection dbHash must agree.
+     *
+     * <p><b>Indexes:</b> dbHash covers documents, not index definitions. The full path replicates
+     * indexes right after its snapshot (#258: never report "synced" while missing the primary's
+     * unique/TTL constraints); the shortcut upholds the same invariant by running the same
+     * {@link #syncIndexesFrom} diff after the data match. If that fails, the shortcut is
+     * abandoned and the full path (which redoes the index sync) runs.
+     */
+    private boolean tryConsistencyShortcut() {
+        consistencyShortcutAttempts.incrementAndGet();
+        try {
+            awaitTestPauseIfArmed();
+            MorphiumDriver primaryDriver = primaryMorphium.getDriver();
+            SortedMap<String, SortedSet<String>> primaryNs =
+                replicatedNamespaces(primaryDriver.listDatabases(), db -> primaryDriver.listCollections(db, null));
+            SortedMap<String, SortedSet<String>> localNs =
+                replicatedNamespaces(localDriver.listDatabases(), db -> localDriver.listCollections(db, null));
+
+            if (!primaryNs.equals(localNs)) {
+                log.info("Falling back to full sync: replicated namespace sets differ (primary: {}, local: {})",
+                        primaryNs, localNs);
+                return false;
+            }
+
+            int verified = 0;
+
+            for (Map.Entry<String, SortedSet<String>> e : primaryNs.entrySet()) {
+                String db = e.getKey();
+                List<String> colls = new ArrayList<>(e.getValue());
+                Map<String, Object> primaryHashes = collectionHashesOnPrimary(db, colls);
+                Map<String, Object> localHashes = collectionHashesLocal(db, colls);
+
+                for (String coll : colls) {
+                    Object p = primaryHashes.get(coll);
+                    Object l = localHashes.get(coll);
+
+                    if (p == null || !p.equals(l)) {
+                        log.info("Falling back to full sync: dbHash mismatch on {}.{} (primary: {}, local: {})",
+                                db, coll, p, l);
+                        return false;
+                    }
+
+                    verified++;
+                }
+            }
+
+            // Data matches; converge the index definitions too before declaring victory (see
+            // javadoc). A failure lands in the catch below -> full path.
+            syncIndexesFrom(primaryDriver);
+
+            log.info("Consistency shortcut taken ({} collections verified): local state matches primary, "
+                    + "skipping clear + full snapshot", verified);
+            return true;
+        } catch (InterruptedException e) {
+            // stop() interrupting the initial-sync thread must not be swallowed: restore the flag
+            // so the caller's next blocking call (full sync or retry backoff) exits promptly.
+            Thread.currentThread().interrupt();
+            log.info("Falling back to full sync: consistency check interrupted");
+            return false;
+        } catch (Exception e) {
+            log.info("Falling back to full sync: consistency check failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** A function that may throw a driver exception - listCollections in both driver flavors. */
+    private interface CollectionLister {
+        List<String> collectionsOf(String db) throws Exception;
+    }
+
+    /**
+     * The replicated namespace map of one side: database -> sorted set of its replicated
+     * collections (per {@link #isReplicated} - so for admin at most system.users and
+     * system.version survive, and local/config never contribute). Databases with no replicated
+     * collection are omitted, so a
+     * db existing on one side only as an empty shell (or with nothing but system collections)
+     * does not count as divergence.
+     */
+    private SortedMap<String, SortedSet<String>> replicatedNamespaces(List<String> databases,
+            CollectionLister lister) throws Exception {
+        SortedMap<String, SortedSet<String>> result = new TreeMap<>();
+
+        for (String db : databases) {
+            SortedSet<String> colls = new TreeSet<>();
+
+            for (String coll : lister.collectionsOf(db)) {
+                if (isReplicated(db, coll)) {
+                    colls.add(coll);
+                }
+            }
+
+            if (!colls.isEmpty()) {
+                result.put(db, colls);
+            }
+        }
+
+        return result;
+    }
+
+    /** Per-collection dbHash of one database on the primary, over the existing connection pool. */
+    private Map<String, Object> collectionHashesOnPrimary(String db, List<String> colls) throws Exception {
+        MongoConnection con = primaryMorphium.getDriver().getReadConnection(null);
+
+        try {
+            GenericCommand cmd = new GenericCommand(con);
+            cmd.setDb(db);
+            cmd.setCmdData(Doc.of("dbHash", 1, "collections", colls, "$db", db));
+            int msgId = cmd.executeAsync();
+            Map<String, Object> result = con.readSingleAnswer(msgId);
+            return extractCollectionHashes(db, result);
+        } finally {
+            primaryMorphium.getDriver().releaseConnection(con);
+        }
+    }
+
+    /** Per-collection dbHash of one database on the local driver. */
+    private Map<String, Object> collectionHashesLocal(String db, List<String> colls) throws Exception {
+        GenericCommand cmd = new GenericCommand(localDriver);
+        cmd.setDb(db);
+        cmd.setCmdData(Doc.of("dbHash", 1, "collections", colls, "$db", db));
+        int msgId = localDriver.runCommand(cmd);
+        Map<String, Object> result = localDriver.readSingleAnswer(msgId);
+        return extractCollectionHashes(db, result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractCollectionHashes(String db, Map<String, Object> dbHashResult) {
+        if (dbHashResult == null || !(dbHashResult.get("ok") instanceof Number ok) || ok.doubleValue() != 1.0
+                || !(dbHashResult.get("collections") instanceof Map)) {
+            throw new IllegalStateException("dbHash on " + db + " did not answer ok: " + dbHashResult);
+        }
+
+        return (Map<String, Object>) dbHashResult.get("collections");
+    }
+
+    /**
+     * Drop all non-system databases from the local driver.
+     *
+     * Used before each (re)try of the initial snapshot so {@code performInitialSync}'s strict
+     * inserts start from a clean slate and don't fail on documents left behind by a previous,
+     * partially-successful copy. Safe during the buffer phase: buffered change events are not
+     * applied until the gate opens ({@code applying == true}), so only snapshot data lives locally
+     * at this point -- dropping and re-copying it just rebuilds the snapshot, and the buffered
+     * events are still replayed on top of it once the gate opens.
+     */
+    /**
+     * Replicate the index definitions of every user database/collection from the given source
+     * driver to the local one (#258). Change streams do not carry index DDL (neither MongoDB's
+     * nor ours), so this runs after the initial-sync snapshot and periodically from
+     * {@code indexSyncLoop} - the periodic diff also picks up createIndexes/dropIndexes that
+     * happened on the primary while this node was disconnected.
+     */
+    void syncIndexesFrom(MorphiumDriver source) throws Exception {
+        for (String dbName : source.listDatabases()) {
+            for (String collName : source.listCollections(dbName, null)) {
+                // Same namespace set as the data plane: only replicated collections get their
+                // indexes converged. That includes admin.system.users - its documents arrive on
+                // secondaries via replication (never via a local createUser), so any index the
+                // primary keeps on it must be carried over here as well.
+                if (!isReplicated(dbName, collName)) {
+                    continue;
+                }
+
+                applyIndexDiff(dbName, collName, listIndexesOf(source, dbName, collName));
+            }
+        }
+    }
+
+    /**
+     * Diff the primary's index list for one collection against the local one and converge:
+     * create missing indexes (full spec - unique/TTL/partial/sparse/... survive), drop local
+     * ones the primary no longer has. The {@code _id} index is never touched. The diff is
+     * name-based; MongoDB refuses to change an existing index's options under the same name
+     * anyway (IndexOptionsConflict), so a name match means the spec matches.
+     */
+    void applyIndexDiff(String db, String coll, List<IndexDescription> primaryIndexes) throws Exception {
+        List<IndexDescription> localIndexes = listIndexesOf(localDriver, db, coll);
+        Set<String> localNames = new HashSet<>();
+        Set<String> primaryNames = new HashSet<>();
+
+        for (IndexDescription l : localIndexes) {
+            localNames.add(l.getName());
+        }
+
+        List<Map<String, Object>> toCreate = new ArrayList<>();
+
+        for (IndexDescription p : primaryIndexes) {
+            if (isIdIndex(p)) {
+                continue;
+            }
+
+            primaryNames.add(p.getName());
+
+            if (!localNames.contains(p.getName())) {
+                toCreate.add(p.asMap());
+            }
+        }
+
+        if (!toCreate.isEmpty()) {
+            CreateIndexesCommand createCmd = null;
+
+            try {
+                createCmd = new CreateIndexesCommand(localDriver.getPrimaryConnection(null))
+                .setDb(db).setColl(coll).setIndexes(toCreate);
+                createCmd.execute();
+                log.info("Index replication: created {} index(es) on {}.{}", toCreate.size(), db, coll);
+            } finally {
+                if (createCmd != null) {
+                    createCmd.releaseConnection();
+                }
+            }
+        }
+
+        for (IndexDescription l : localIndexes) {
+            if (isIdIndex(l) || primaryNames.contains(l.getName())) {
+                continue;
+            }
+
+            DropIndexesCommand dropCmd = null;
+
+            try {
+                dropCmd = new DropIndexesCommand(localDriver.getPrimaryConnection(null))
+                .setDb(db).setColl(coll).setIndex(l.getName());
+                dropCmd.execute();
+                log.info("Index replication: dropped stale index {} on {}.{}", l.getName(), db, coll);
+            } finally {
+                if (dropCmd != null) {
+                    dropCmd.releaseConnection();
+                }
+            }
+        }
+    }
+
+    private boolean isIdIndex(IndexDescription idx) {
+        return idx.getKey() != null && idx.getKey().size() == 1 && idx.getKey().containsKey("_id");
+    }
+
+    /** listIndexes against any driver; a missing collection reports no indexes (mongod: code 26) */
+    private List<IndexDescription> listIndexesOf(MorphiumDriver drv, String db, String coll) throws MorphiumDriverException {
+        MongoConnection con = null;
+        ListIndexesCommand cmd = null;
+
+        try {
+            con = drv.getReadConnection(null);
+            cmd = new ListIndexesCommand(con).setDb(db).setColl(coll);
+            return cmd.execute();
+        } catch (MorphiumDriverException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Error: 26")) {
+                return new ArrayList<>();
+            }
+
+            throw e;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (con != null) {
+                drv.releaseConnection(con);
+            }
+        }
+    }
+
+    private void clearLocalDatabases() throws Exception {
+        clearLocalDatabasesInvocations.incrementAndGet();
+        for (String dbName : localDriver.listDatabases()) {
+            // admin/local/config are never dropped wholesale: they hold node-local state beyond
+            // the replicated admin system collections (admin.system.users and
+            // admin.system.version, both cleared separately below).
+            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
+                continue;
+            }
+            GenericCommand cmd = new GenericCommand(localDriver);
+            cmd.setDb(dbName);
+            cmd.setColl(null);
+            cmd.setCmdData(Doc.of("dropDatabase", 1, "$db", dbName));
+            localDriver.runCommand(cmd);
+        }
+
+        // admin.system.users DOES replicate, so the snapshot copy must fully define its
+        // content: clear it here (right before the snapshot begins) so users deleted on the
+        // primary while this node was disconnected cannot survive a resync - and so the
+        // snapshot's strict inserts cannot collide with leftovers of a previous partial copy.
+        // Only the collection is removed, never the admin database itself. drop() rather than
+        // an empty-filter delete for the same auto-vivification reason documented for
+        // system.version below: on a cluster that never ran createUser (no root user
+        // configured), a delete's internal find() would phantom-create an empty system.users
+        // on every resyncing secondary but not on the primary, asymmetrically diverging the
+        // namespace set the consistency shortcut compares.
+        localDriver.drop("admin", "system.users", null);
+
+        // admin.system.version DOES replicate too (the users-file version-gate meta doc), and is
+        // subject to the exact same staleness risk as admin.system.users above: without this
+        // clear, a meta doc left over from BEFORE this node dropped out of the cluster would
+        // survive the resync untouched (admin is never dropped wholesale), and the snapshot copy
+        // would then land its own fresh appliedVersion doc alongside it via strict insert - either
+        // colliding on _id (harmless, same doc) or, if the primary's meta doc genuinely changed
+        // underneath, leaving stale data around long enough to wrongly gate a future users-file
+        // apply on this node.
+        //
+        // Deliberately NOT the same "delete" GenericCommand idiom clearUsers above uses: an empty
+        // delete against a collection that does not locally exist yet still runs a find() to
+        // determine the (empty) match set, and InMemoryDriver's find() auto-vivifies the target
+        // collection as a side effect (getCollection() lazily creates it, complete with its
+        // implicit _id index) even when nothing is deleted. Since system.version has no writer
+        // before the users-file feature (task 4) ever runs createUser/updateUser-style traffic
+        // against it, that phantom empty collection would otherwise get created HERE, on every
+        // secondary that ever completes a full sync - but never on a primary that has not
+        // separately gone through this same path - permanently and asymmetrically diverging the
+        // replicated-namespace set the initial-sync consistency shortcut compares
+        // (tryConsistencyShortcut's replicatedNamespaces()), which would then always fall back to
+        // a full sync instead of taking the shortcut. drop() is the safe idempotent primitive:
+        // it removes the map entry outright (a no-op if the collection was never created) and
+        // never conjures one into existence.
+        localDriver.drop("admin", "system.version", null);
+    }
+
+    /**
      * Perform initial sync - copy all data from primary to secondary.
      */
     private void performInitialSync() throws Exception {
+        // Same as applyEventsInOrder: the snapshot copy must not be refused by the local
+        // memory watermark, or a secondary could never sync a near-watermark primary.
+        try (var ignored = localDriver.bypassMemoryGuard()) {
+            performInitialSyncGuarded();
+        }
+    }
+
+    private void performInitialSyncGuarded() throws Exception {
         log.info("Starting initial sync from primary...");
         long startTime = System.currentTimeMillis();
 
@@ -482,13 +1469,17 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String dbName : databases) {
-            // Skip system databases
-            if ("admin".equals(dbName) || "local".equals(dbName) || "config".equals(dbName)) {
-                continue;
-            }
-
+            // No db-level skip here: the per-collection isReplicated filter in syncDatabase
+            // decides. admin must be enumerated (its system.users and system.version replicate);
+            // for local and config every collection is filtered out there.
             totalDocs += syncDatabase(dbName);
         }
+
+        // Replicate index definitions after the data copy (mongod also builds indexes after
+        // cloning). A failure here fails the initial sync on purpose: the snapshot retry loop
+        // redoes the whole sync, so the node never reports "synced" while missing the primary's
+        // unique/TTL constraints (#258).
+        syncIndexesFrom(primaryMorphium.getDriver());
 
         long duration = System.currentTimeMillis() - startTime;
         log.info("Initial sync complete: {} documents synced in {}ms", totalDocs, duration);
@@ -505,8 +1496,10 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String collName : collections) {
-            // Skip system collections
-            if (collName.startsWith("system.")) {
+            // Copy exactly the replicated namespace set - which includes admin.system.users
+            // (copied verbatim by syncCollection: the documents carry credential material and
+            // must arrive bit-identical for SCRAM to verify on this node).
+            if (!isReplicated(dbName, collName)) {
                 continue;
             }
 
@@ -567,11 +1560,27 @@ public class ReplicationManager {
         MongoConnection con = primaryMorphium.getDriver().getPrimaryConnection(null);
         WatchCommand cmd = null;
         try {
-            cmd = new WatchCommand(con)
+            // Built as its own effectively-final local (rather than assigned straight into the
+            // outer `cmd`) so the registration callback below can close over it and read back the
+            // "poppyPrimarySequence" metadata that SingleMongoConnection.watch() stashes on it the
+            // moment the cursor is established (see that class for the wire read). `cmd` still
+            // gets assigned the same instance right after, for the finally block's release.
+            final WatchCommand watchCmd = new WatchCommand(con)
                 .setDb("admin")  // Watch at cluster level
                 .setMaxTimeMS(500)  // 500ms timeout - low latency for messaging tests
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
-                .setPipeline(List.of())  // Empty = watch everything
+                .setPipeline(List.of());  // Empty = watch everything
+            // Fires once the watch cursor is established on the primary. From that point the
+            // stream captures every subsequent write, so the initial-sync snapshot can safely
+            // start copying without losing writes that happen during the copy. Bump the
+            // generation FIRST so a snapshot that captures the generation the instant it sees
+            // watchLive observes the value belonging to this watch (not a stale one).
+            watchCmd.setRegistrationCallback(() -> {
+                watchGeneration.incrementAndGet();
+                watchLive.set(true);
+                recordPrimarySequenceAtRegistration(watchCmd);
+            });
+            cmd = watchCmd
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long cursorId) {
@@ -580,8 +1589,15 @@ public class ReplicationManager {
                         }
                         // Update staleness tracker - we received a response
                         lastWatchResponseTime.set(System.currentTimeMillis());
-                        // Queue for batch processing instead of immediate application
-                        eventQueue.offer(data);
+                        // Queue for batch processing instead of immediate application.
+                        // Use put() so a full queue blocks the watch callback (backpressure)
+                        // rather than dropping events or growing without bound.
+                        try {
+                            eventQueue.put(data);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.warn("Interrupted while enqueuing replication event; dropping event");
+                        }
                     }
 
                     @Override
@@ -601,8 +1617,36 @@ public class ReplicationManager {
                     }
                 });
 
-            cmd.watch();
+            // Resume-after-disconnect: once the initial sync is complete and we have applied events,
+            // ask the primary to resume the stream right after our last-applied sequence instead of
+            // starting "now" (which would silently drop every event that occurred while we were
+            // disconnected). The token carries the standard change-stream _data (so the primary's
+            // replay buffer delivers the gap) plus a "poppyResumeSequence" marker that tells the
+            // primary this is a replication resume and to answer with an explicit "resume window lost"
+            // error (rather than a truncated replay) when the buffer can no longer cover the gap.
+            long resumeSeq = lastAppliedSequence.get();
+            if (initialSyncComplete.get() && resumeSeq > 0) {
+                cmd.setResumeAfter(Doc.of(
+                    "_data", String.format(Locale.ROOT, "%016x", resumeSeq),
+                    "poppyResumeSequence", resumeSeq));
+                log.info("Resuming change stream after sequence {}", resumeSeq);
+            }
+
+            try {
+                cmd.watch();
+            } catch (MorphiumDriverException e) {
+                if (isResumeWindowLost(e)) {
+                    // Primary can no longer replay from our last-applied sequence — fall back to a
+                    // full re-initial-sync via the Task 8 machinery.
+                    triggerResync(resumeSeq);
+                    return;
+                }
+                throw e;
+            }
         } finally {
+            // Watch is no longer live: a snapshot still waiting to start must wait for the next
+            // watch attempt to re-establish before copying.
+            watchLive.set(false);
             if (cmd != null) {
                 cmd.releaseConnection();
             }
@@ -613,10 +1657,146 @@ public class ReplicationManager {
     }
 
     /**
+     * Records the primary's change-stream sequence as observed at watch registration (see the
+     * "poppyPrimarySequence" wire field written by MongoCommandHandler.processChangeStream and read
+     * back by SingleMongoConnection.watch() into this command's metadata).
+     *
+     * <p>Fixes the idle-window resume hole: after a completed initial sync during which ZERO
+     * events were applied, {@code lastAppliedSequence} stays at its initial 0, so a later
+     * reconnect's {@code resumeSeq > 0} check (see {@link #watchForChanges()}) fails and the new
+     * watch silently starts "from now" - silently dropping every write that happened during the
+     * gap. Seeding {@code lastAppliedSequence} here with the primary's sequence at THIS
+     * registration closes that hole: any write after this point necessarily gets a token greater
+     * than the seeded value (the primary's sequence counter only increases), so it is never missed
+     * by a subsequent resumeAfter built from this seed, and nothing before this point needs
+     * replaying (there is nothing this secondary hasn't already covered - either the initial-sync
+     * snapshot captured it, or the secondary didn't exist yet).
+     *
+     * <p>Guarded with compareAndSet(0, ...) rather than an unconditional set: once any real event
+     * is applied, {@code lastAppliedSequence} advances past this seed via the normal
+     * updateAndGet(Math::max) path (see applyChangeEvent) and must never be pulled back down or
+     * jumped forward past events that are still buffered/pending application - only a still-virgin
+     * (0) value is safe to seed.
+     *
+     * <p>{@code lastKnownPrimarySequence} is updated unconditionally on every registration
+     * (independent of the guard above) so it always reflects the most recently observed primary
+     * sequence - exposed via {@link #getLastKnownPrimarySequence()} for callers such as a
+     * replication-lag metric that need it regardless of whether it was actually used to seed the
+     * resume point.
+     */
+    private void recordPrimarySequenceAtRegistration(WatchCommand watchCmd) {
+        Map<String, Object> metaData = watchCmd.getMetaData();
+        Object raw = metaData == null ? null : metaData.get("poppyPrimarySequence");
+        if (!(raw instanceof Number n)) {
+            // Not a PoppyDB primary (or an older one without this field) - nothing to seed.
+            return;
+        }
+        long primarySeq = n.longValue();
+        lastKnownPrimarySequence.set(primarySeq);
+        if (lastAppliedSequence.compareAndSet(0, primarySeq)) {
+            log.debug("Seeded lastAppliedSequence with primary sequence {} at watch registration "
+                    + "(idle-window resume point)", primarySeq);
+        }
+    }
+
+    /**
+     * Recognise the primary's explicit "resume window lost" signal (ChangeStreamHistoryLost, code
+     * 286) sent when its replay buffer can no longer cover the gap after our last-applied sequence.
+     */
+    private boolean isResumeWindowLost(MorphiumDriverException e) {
+        // Prefer the structured error code (286 = ChangeStreamHistoryLost); fall back to the message
+        // text when the code did not survive the driver surface.
+        if (e.getMongoCode() instanceof Number code && code.intValue() == 286) {
+            return true;
+        }
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("resume window lost") || msg.contains("ChangeStreamHistoryLost"));
+    }
+
+    /**
+     * Fall back to a full re-initial-sync after the primary signalled that our resume point is no
+     * longer replayable. Rearms the Task 8 initial-sync machinery: closes the apply gate, resets the
+     * sync flags so {@link #startInitialSyncOnce()} launches a fresh snapshot, drops the events left
+     * over from the lost window, and resets the sequence so the next watch starts fresh (no
+     * resumeAfter) instead of re-requesting the same lost window in a loop. The replication loop then
+     * re-runs initial sync + watch on its next iteration.
+     */
+    private void triggerResync(long fromSequence) {
+        long n = resyncCount.incrementAndGet();
+        long now = System.currentTimeMillis();
+        long previous = lastResyncTimestamp.getAndSet(now);
+        if (previous != 0 && (now - previous) <= RESYNC_WARN_WINDOW_MS) {
+            log.warn("replication cannot keep up — buffer sizes bound write rate × sync duration "
+                    + "(resync #{} came {} ms after the previous one, within the {}-minute window)",
+                    n, now - previous, TimeUnit.MILLISECONDS.toMinutes(RESYNC_WARN_WINDOW_MS));
+        }
+        log.warn("Primary signalled resume window lost at sequence {} — falling back to full re-sync (#{})",
+                fromSequence, n);
+        applying.set(false);            // close the apply gate until the new snapshot completes
+        initialSyncComplete.set(false);
+        initialSyncStarted.set(false);  // allow startInitialSyncOnce() to launch a new snapshot
+        watchLive.set(false);
+        lastAppliedSequence.set(0);     // resume fresh; next watch sends no resumeAfter
+        lastReportedSequence.set(0);
+        eventQueue.clear();             // discard events buffered for the lost window
+    }
+
+    /**
+     * Test hook: sever the replication connection and stop reconnecting, simulating a network
+     * partition between this secondary and the primary. Writes on the primary during the pause are
+     * not seen until {@link #resumeReplicationForTest()} is called.
+     */
+    void pauseReplicationForTest() {
+        pausedForTest.set(true);
+        connected.set(false);
+        disconnectFromPrimary();
+    }
+
+    /** Test hook: heal the simulated partition; the replication loop reconnects and resumes. */
+    void resumeReplicationForTest() {
+        pausedForTest.set(false);
+    }
+
+    /** Number of times replication fell back to a full re-sync because the resume window was lost. */
+    long getResyncCount() {
+        return resyncCount.get();
+    }
+
+    /**
+     * True when the most recently completed initial sync was satisfied by the consistency
+     * shortcut (local data already matched the primary per dbHash - no clear, no snapshot)
+     * instead of a full copy. Only meaningful once {@link #isInitialSyncComplete()} is true.
+     */
+    boolean wasLastSyncShortcut() {
+        return lastSyncWasShortcut.get();
+    }
+
+    /**
      * Apply a change event to the local driver.
      */
-    @SuppressWarnings("unchecked")
     private void applyChangeEvent(Map<String, Object> event) {
+        applyChangeEvent(event, false);
+    }
+
+    /**
+     * Apply a change event to the local driver.
+     *
+     * @param asReplay when {@code true}, an "insert" event is applied as an idempotent
+     *                  full-document upsert-by-key (see {@link #applyInsertIdempotent})
+     *                  instead of a strict insert. Used by {@code applyBulkInserts}'
+     *                  per-event fallback after a failed/partially-failed bulk insert,
+     *                  where some of the run's documents may already have been
+     *                  committed -- a plain re-insert of those would spuriously fail on
+     *                  a duplicate key. Other operation types are already applied
+     *                  idempotently regardless of this flag (update/replace as an
+     *                  upsert, delete/drop/dropDatabase are naturally safe to repeat).
+     * @return {@code true} if the event applied without error; {@code false} if it threw (the
+     *         exception is caught and logged internally either way, as before -- the return value
+     *         is additive, used by {@code applyBulkInserts}' per-event fallback loop to decide the
+     *         bulk-failure log level without otherwise changing this method's behavior).
+     */
+    @SuppressWarnings("unchecked")
+    private boolean applyChangeEvent(Map<String, Object> event, boolean asReplay) {
         try {
             // Extract sequence number from resume token
             long sequenceNumber = extractSequenceFromEvent(event);
@@ -630,19 +1810,20 @@ public class ReplicationManager {
                 if (sequenceNumber > 0) {
                     lastAppliedSequence.set(sequenceNumber);
                 }
-                return;
+                return true;
             }
 
             String db = (String) ns.get("db");
             String coll = (String) ns.get("coll");
 
-            // Skip system databases
-            if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+            // Skip everything outside the replicated namespace set (system databases and
+            // system.* collections - except the replicated admin system collections, see isReplicated)
+            if (!isReplicated(db, coll)) {
                 // Still update sequence for skipped events
                 if (sequenceNumber > 0) {
                     lastAppliedSequence.set(sequenceNumber);
                 }
-                return;
+                return true;
             }
 
             log.debug("Applying change event: {} on {}.{} seq={}", operationType, db, coll, sequenceNumber);
@@ -650,16 +1831,21 @@ public class ReplicationManager {
             switch (operationType) {
                 case "insert": {
                     Map<String, Object> fullDoc = (Map<String, Object>) event.get("fullDocument");
+                    Map<String, Object> docKey = (Map<String, Object>) event.get("documentKey");
                     if (fullDoc != null) {
-                        GenericCommand cmd = new GenericCommand(localDriver);
-                        cmd.setDb(db);
-                        cmd.setColl(coll);
-                        cmd.setCmdData(Doc.of(
-                            "insert", coll,
-                            "$db", db,
-                            "documents", List.of(fullDoc)
-                        ));
-                        localDriver.runCommand(cmd);
+                        if (asReplay && docKey != null) {
+                            applyInsertIdempotent(db, coll, docKey, fullDoc);
+                        } else {
+                            GenericCommand cmd = new GenericCommand(localDriver);
+                            cmd.setDb(db);
+                            cmd.setColl(coll);
+                            cmd.setCmdData(Doc.of(
+                                "insert", coll,
+                                "$db", db,
+                                "documents", List.of(fullDoc)
+                            ));
+                            localDriver.runCommand(cmd);
+                        }
                     }
                     break;
                 }
@@ -742,9 +1928,52 @@ public class ReplicationManager {
                 lastAppliedSequence.set(sequenceNumber);
             }
 
+            return true;
         } catch (Exception e) {
             log.error("Error applying change event: {}", e.getMessage(), e);
+            return false;
         }
+    }
+
+    /**
+     * Applies an insert event as an idempotent full-document upsert-by-key rather than a
+     * strict insert.
+     *
+     * This is the replay-safe counterpart to the strict insert path above: it is used
+     * when an insert event might be re-applied after already having landed (see the
+     * per-event fallback in {@code applyBulkInserts}, and the upcoming initial-sync
+     * replay in task 8). A strict insert of a document whose key already exists fails
+     * with a duplicate-key error even when the replayed content is identical to what's
+     * already there, which would incorrectly treat a harmless replay as a real conflict
+     * and stall replication. Using {@code {q: documentKey, u: fullDocument, upsert:
+     * true}} -- the exact same technique already used for replicated update/replace
+     * events -- makes replay a no-op when the document already matches, and creates it
+     * when it doesn't exist yet.
+     *
+     * A genuine unique-index conflict (a *different* document already owning a
+     * unique-indexed value the replayed document also wants) still surfaces as an
+     * exception when the replayed document doesn't exist yet (InMemoryDriver enforces
+     * uniqueness for the upsert-creates-a-new-document case). Note this is currently
+     * NOT enforced by InMemoryDriver when the upsert instead replaces an
+     * already-existing document -- a pre-existing driver characteristic (its
+     * full-document-replacement path skips the uniqueness check that its
+     * partial-update path runs), not something introduced or relied upon here.
+     */
+    private void applyInsertIdempotent(String db, String coll, Map<String, Object> docKey,
+                                        Map<String, Object> fullDoc) {
+        GenericCommand cmd = new GenericCommand(localDriver);
+        cmd.setDb(db);
+        cmd.setColl(coll);
+        cmd.setCmdData(Doc.of(
+            "update", coll,
+            "$db", db,
+            "updates", List.of(Doc.of(
+                "q", docKey,
+                "u", fullDoc,
+                "upsert", true
+            ))
+        ));
+        localDriver.runCommand(cmd);
     }
 
     /**
@@ -791,6 +2020,18 @@ public class ReplicationManager {
     }
 
     /**
+     * True while this secondary is (re-)running its initial sync and therefore may hold a
+     * half-cleared / partial local database ({@link #clearLocalDatabases()} runs at the start of the
+     * snapshot and again on a {@link #triggerResync}). A node in this state is the PoppyDB equivalent
+     * of MongoDB's RECOVERING member: it must not serve data-plane reads or writes. Returns false
+     * once the initial sync has completed and the local database is a consistent replica, and false
+     * after {@link #stop()} (running == false).
+     */
+    public boolean isSyncing() {
+        return running.get() && !initialSyncComplete.get();
+    }
+
+    /**
      * Get the number of change events applied.
      */
     public long getEventsApplied() {
@@ -805,12 +2046,25 @@ public class ReplicationManager {
         stats.put("running", running.get());
         stats.put("connected", connected.get());
         stats.put("initialSyncComplete", initialSyncComplete.get());
+        stats.put("lastSyncWasShortcut", lastSyncWasShortcut.get());
         stats.put("eventsApplied", eventsApplied.get());
         stats.put("lastEventTime", lastEventTime.get());
         stats.put("lastAppliedSequence", lastAppliedSequence.get());
         stats.put("lastReportedSequence", lastReportedSequence.get());
+        stats.put("lastKnownPrimarySequence", lastKnownPrimarySequence.get());
+        stats.put("resyncCount", resyncCount.get());
         stats.put("primaryHost", primaryHost + ":" + primaryPort);
         stats.put("myAddress", myAddress);
+        stats.put("eventQueueSize", eventQueue.size());
+        stats.put("eventQueueCapacity", EVENT_QUEUE_CAPACITY);
+        // How many events behind the secondary is, based on the primary's sequence at the most
+        // recent watch registration (Task 2b's exchange - see getLastKnownPrimarySequence()).
+        // Clamped to 0: once live events keep flowing past that registration-time snapshot,
+        // lastAppliedSequence naturally overtakes it between registrations, which is progress, not
+        // negative lag.
+        stats.put("replicationLagEvents",
+                Math.max(0, getLastKnownPrimarySequence() - getLastAppliedSequence()));
+        stats.put("watchGeneration", watchGeneration.get());
         return stats;
     }
 
@@ -819,5 +2073,17 @@ public class ReplicationManager {
      */
     public long getLastAppliedSequence() {
         return lastAppliedSequence.get();
+    }
+
+    /**
+     * The primary's change-stream sequence as observed at the most recent watch registration (see
+     * {@link #recordPrimarySequenceAtRegistration(WatchCommand)}). Updated on every successful
+     * registration regardless of whether it was actually used to seed {@link #lastAppliedSequence}.
+     * Intended for a replication-lag metric ({@code lastKnownPrimarySequence - getLastAppliedSequence()}
+     * approximates how many sequence numbers this secondary is behind); 0 until the first
+     * registration completes.
+     */
+    public long getLastKnownPrimarySequence() {
+        return lastKnownPrimarySequence.get();
     }
 }

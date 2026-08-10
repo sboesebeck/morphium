@@ -51,6 +51,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 final MorphiumMessaging m1;
                 final MorphiumMessaging m2;
                 final MorphiumMessaging onlyAnswers;
@@ -126,7 +127,15 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                     lastMsgId = question.getMsgId();
                     onlyAnswers.sendMessage(question);
                     log.info("Send Message with id: " + question.getMsgId());
-                    TestUtils.waitForConditionToBecomeTrue(15000, "Answers not received", () -> answersReceived.get() == 2);
+                    // Diagnostic form: the condition is an EQUALITY on a monotonically increasing
+                    // counter, so it distinguishes "too few answers" (lost/slow) from "too many"
+                    // (duplicate - once it overshoots 2 the condition can never become true again).
+                    // Reported via the callback because a plain message string would be built eagerly
+                    // and would capture the counter before waiting rather than at failure time.
+                    TestUtils.waitForConditionToBecomeTrue(15000,
+                        (dur, e) -> log.error("Answers not received after {}ms: expected exactly 2, got {}",
+                                              dur, answersReceived.get()),
+                        () -> answersReceived.get() == 2, null);
                     TestUtils.waitForConditionToBecomeTrue(5000, "Question not received by m1", () -> gotMessage1);
                     TestUtils.waitForConditionToBecomeTrue(5000, "Question not received by m2", () -> gotMessage2);
                     assertFalse(error);
@@ -190,6 +199,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging m1 = morph.createMessaging();
                 m1.setSenderId("m1");
                 MorphiumMessaging m2 = morph.createMessaging();
@@ -239,6 +249,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging m1 = morph.createMessaging();
                 m1.setSenderId("m1");
                 m1.setUseChangeStream(false);
@@ -303,6 +314,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging m1 = morph.createMessaging();
                 MorphiumMessaging m2 = morph.createMessaging();
                 m1.start();
@@ -356,6 +368,7 @@ public class AnsweringBasicTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
+                    morph.dropCollection(Msg.class);
                 MorphiumMessaging sender = morph.createMessaging();
                 MorphiumMessaging recipient = morph.createMessaging();
                 sender.start();

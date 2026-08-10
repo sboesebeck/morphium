@@ -7,19 +7,30 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.IdentityCipherSuiteFilter;
+import io.netty.handler.ssl.JdkSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
+import de.caluga.poppydb.config.ConfigException;
+import de.caluga.poppydb.config.UserSpec;
+import de.caluga.poppydb.config.UsersFileSpec;
 import de.caluga.poppydb.election.ElectionConfig;
 import de.caluga.poppydb.election.ElectionManager;
 import de.caluga.poppydb.election.ElectionNetworkClient;
+import de.caluga.poppydb.netty.FindCursorRegistry;
 import de.caluga.poppydb.netty.MongoCommandHandler;
 import de.caluga.poppydb.netty.MongoWireProtocolDecoder;
 import de.caluga.poppydb.netty.MongoWireProtocolEncoder;
@@ -32,6 +43,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Async I/O MongoDB-compatible server using Netty.
@@ -59,6 +71,11 @@ public class PoppyDB {
     // Server state
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
+    // Per-instance registry of server-side find cursors (and their idle-sweeper) — owned by
+    // this PoppyDB instance and handed to every MongoCommandHandler it creates, exactly like
+    // cursorManager above. Must stay per-instance (not JVM-static): multiple PoppyDB instances
+    // running in one test JVM must not see each other's open find cursors.
+    private final FindCursorRegistry findCursorRegistry;
     private final MessagingOptimizer messagingOptimizer;
     private final AtomicInteger msgId = new AtomicInteger(1000);
     private volatile boolean running = false;
@@ -68,6 +85,26 @@ public class PoppyDB {
     private List<String> hosts = new ArrayList<>();
     private volatile boolean primary = true;
     private volatile String primaryHost;
+    // Epoch guard for onLeadershipChange (Finding A hardening): ElectionManager dispatches
+    // onLeadershipChange from a 3-thread pool, serialized on the PoppyDB monitor but NOT
+    // ordered - two rapid false->true (or true->false) dispatches can acquire the monitor in
+    // the wrong order, so a stale body would run its full leader/follower bookkeeping AFTER a
+    // newer one already did, undoing it (e.g. clearing replicationCoordinatorRef right after a
+    // fresh leader body just set it up). incrementAndGet() is atomic, so whichever wrapper
+    // invocation increments LAST always holds the current value at the moment it reaches the
+    // synchronized body - by definition nothing newer can exist to make it stale later, so the
+    // most recent transition is never starved by this guard, only strictly older ones are.
+    private final java.util.concurrent.atomic.AtomicLong leadershipEpoch = new java.util.concurrent.atomic.AtomicLong(0);
+    // Guards the epoch-increment + primary-flip pair in applyLeadershipFlip (and the startup
+    // poll's mirror write in waitForElectionResult). Without it, the two operations are
+    // individually atomic but not jointly: a stale onLeadershipChange dispatch could increment
+    // first, get preempted, and write its outdated primary value AFTER a newer transition
+    // already wrote the current one - leaving e.g. a demoted leader with primary==true forever,
+    // which no-ops startReplicationToLeader/probeReplicationLiveness/retryReplicationStart and
+    // silently stops replication. Deliberately NOT the PoppyDB monitor: the flip must stay
+    // cheap and must keep happening before the transition body competes for the monitor (see
+    // onLeadershipChange).
+    private final Object leadershipFlagLock = new Object();
 
     // Election configuration
     private boolean electionEnabled = false;
@@ -78,6 +115,22 @@ public class PoppyDB {
     // SSL configuration
     private boolean sslEnabled = false;
     private SSLContext sslContext = null;
+    // Trust anchor for the RS-internal channel (ElectionNetworkClient/ReplicationManager) when
+    // --ssl is on: pinned to this server's own configured certificate, built by PoppyDBCLI via
+    // SslHelper.createClientSslContext(sslKeystore, sslKeystorePassword) - see
+    // docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md. Null means the
+    // internal channel stays plaintext even if sslEnabled is true (e.g. the ephemeral
+    // self-signed-cert dev fallback, where every node's cert differs and pinning is impossible).
+    private SSLContext internalSslContext = null;
+    private boolean authRequired = false;
+    private String rootUser = null;
+    private String rootPassword = null;
+    // Users-file bootstrap (--users-file): parsed spec handed in by PoppyDBCLI before start(),
+    // applied wherever ensureRootUser runs - non-election start() / leadership hook. volatile:
+    // set from the startup thread, read from the election callback threads.
+    private volatile UsersFileSpec bootstrapUsers = null;
+    /** _id of the version-gate meta document in admin.system.version. */
+    static final String USERS_FILE_META_ID = "poppydb.usersFile";
 
     // Persistence configuration
     private File dumpDirectory = null;
@@ -86,8 +139,42 @@ public class PoppyDB {
     private volatile long lastDumpTime = 0;
 
     // Replication
-    private ReplicationManager replicationManager = null;
-    private volatile ReplicationCoordinator replicationCoordinator = null;
+    // volatile: mutated under synchronized on the election/leadership paths but read unsynchronized
+    // from Netty event-loop threads via the isSecondarySyncing() supplier passed to each handler.
+    private volatile ReplicationManager replicationManager = null;
+    // Held behind an AtomicReference (rather than a plain volatile field copied into each
+    // connection at accept time) so every MongoCommandHandler resolves the coordinator live
+    // via a Supplier - onLeadershipChange swaps this reference and every existing connection
+    // (not just newly accepted ones) immediately observes the new value.
+    private final AtomicReference<ReplicationCoordinator> replicationCoordinatorRef = new AtomicReference<>();
+
+    // Bounded-backoff retry for a failed startReplicationToLeader() attempt (Finding B
+    // hardening) - see scheduleReplicationRetry/retryReplicationStart. Single daemon thread,
+    // created lazily (most PoppyDB instances - standalone, static-mode RS, most tests - never
+    // fail a replication start and shouldn't pay for a background thread they never use), and
+    // shut down in shutdown(). All reads/writes go through synchronized accessors below so the
+    // monitor provides the visibility a plain field wouldn't.
+    private java.util.concurrent.ScheduledExecutorService replicationRetryScheduler;
+    static final long REPLICATION_RETRY_INITIAL_DELAY_MS = 1000;
+    static final long REPLICATION_RETRY_MAX_DELAY_MS = 30_000;
+
+    // Post-start liveness probe (closes the gap the exception-based retry above cannot cover):
+    // for an unreachable leader, PooledDriver.connect() swallows a single-host connect failure
+    // internally and Morphium's constructor returns normally, so ReplicationManager.start() does
+    // NOT throw - the RM gets assigned as if live and handleReplicationStartFailure never runs.
+    // Every successful start() schedules exactly one of these, ~45s out (comfortably longer than
+    // watchLive normally takes to go true on a healthy connection - see ReplicationManager's
+    // watch-first design). If by then the SAME ReplicationManager instance is still assigned, this
+    // node is still a non-primary follower, and its watch never registered, the connection never
+    // actually came up - tear it down and feed the existing backoff retry chain. See
+    // probeReplicationLiveness/scheduleReplicationLivenessProbe below.
+    static final long REPLICATION_LIVENESS_PROBE_DELAY_MS = 45_000;
+
+    // DevOps command context: live op registry (currentOp/killOp), real connection gauges
+    // for serverStatus, and the per-host priorities replSetGetConfig reports.
+    private final de.caluga.poppydb.netty.OpRegistry opRegistry = new de.caluga.poppydb.netty.OpRegistry();
+    private final java.util.concurrent.atomic.AtomicLong connectionsCreated = new java.util.concurrent.atomic.AtomicLong();
+    private volatile Map<String, Integer> hostPriorities;
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
@@ -98,12 +185,40 @@ public class PoppyDB {
         this.allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         this.driver = new InMemoryDriver();
         this.cursorManager = new WatchCursorManager();
+        this.findCursorRegistry = new FindCursorRegistry();
         this.messagingOptimizer = new MessagingOptimizer(driver);
         // Wire up messaging optimizer with cursor manager for fast-path notifications
         messagingOptimizer.setWatchCursorManager(cursorManager);
         driver.connect();
         // Enable server mode to prevent internal Morphium instances from shutting down the driver
         driver.setServerMode(true);
+        // Size the change-event replay buffer for replication resume-after-disconnect: a reconnecting
+        // secondary replays events after its last-applied sequence from this buffer instead of doing a
+        // full re-sync. Bound: 100_000 events (ring buffer, oldest evicted on overflow).
+        driver.setChangeStreamHistoryLimit(REPLICATION_REPLAY_BUFFER_EVENTS);
+    }
+
+    /** Primary replay-buffer bound (events) backing replication resume-after-disconnect. */
+    static final int REPLICATION_REPLAY_BUFFER_EVENTS = 100_000;
+
+    /**
+     * Warn/reject memory watermarks in percent of max heap (100 disables a stage) - see
+     * InMemoryDriver.setMemoryWatermarks. Above the reject watermark, document-creating
+     * writes are refused with ExceededMemoryLimit (146) instead of running into an OOM
+     * that a replica set cannot survive either (replication copies the volume everywhere).
+     */
+    public void setMemoryWatermarks(int warnPercent, int rejectPercent) {
+        driver.setMemoryWatermarks(warnPercent, rejectPercent);
+    }
+
+    /**
+     * BSON document size limit in bytes, mongod-compatible (default 16MB, 0 = unlimited) -
+     * see InMemoryDriver.setMaxBsonObjectSize. Enforced on inserts/stores and on update
+     * results (with mongod's 16KB internal margin), answered as BSONObjectTooLarge (10334);
+     * hello advertises the configured value so clients enforce it on their side too.
+     */
+    public void setMaxBsonObjectSize(int maxBsonObjectSize) {
+        driver.setMaxBsonObjectSize(maxBsonObjectSize);
     }
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds) {
@@ -184,17 +299,28 @@ public class PoppyDB {
                         pipeline.addLast("decoder", new MongoWireProtocolDecoder());
                         pipeline.addLast("encoder", new MongoWireProtocolEncoder(compressorId));
 
-                        // Command handler - capture current primary state for this connection
-                        // Note: primary/primaryHost are volatile and may change during election
+                        // Command handler - capture current primary state for this connection.
+                        // Note: primary/primaryHost are volatile and may change during election;
+                        // when electionManager is set the handler resolves them live through it
+                        // instead. The replication coordinator is always resolved live through
+                        // replicationCoordinatorRef::get, never captured, so a leadership change
+                        // that happens after this connection was accepted is still observed.
                         pipeline.addLast("commandHandler", new MongoCommandHandler(
-                                driver, cursorManager, messagingOptimizer, msgId,
+                                driver, cursorManager, findCursorRegistry, messagingOptimizer, msgId,
                                 host, port, rsName, hosts,
                                 primary, primaryHost, compressorId,
-                                replicationCoordinator, electionManager
-                        ));
+                                replicationCoordinatorRef::get, electionManager,
+                                PoppyDB.this::isSecondarySyncing
+                        ).setAuthRequired(authRequired)
+                         .setOpRegistry(opRegistry)
+                         .setConnectionCounters(allChannels::size, connectionsCreated::get)
+                         .setRsPriorities(hostPriorities)
+                         .setDumpNowAction(dumpDirectory == null ? null : PoppyDB.this::dumpNow)
+                         .setDumpStatusSupplier(PoppyDB.this::getDumpStatus));
 
                         // Track the channel
                         allChannels.add(ch);
+                        connectionsCreated.incrementAndGet();
                         log.debug("New connection accepted (total: {})", allChannels.size());
                     }
                 });
@@ -205,6 +331,59 @@ public class PoppyDB {
         running = true;
 
         log.info("PoppyDB started on {}:{} (workers: {})", host, port, workerThreads);
+
+        if (rootUser != null && rootPassword != null) {
+            if (!electionEnabled) {
+                ensureRootUser();
+            } else if (authRequired) {
+                // Election-mode bootstrap gap: with --auth on, ElectionNetworkClient's peer RPCs
+                // (requestVote/appendEntries) must SCRAM-authenticate before a leader even exists
+                // (see startElection() below) - deferring root-user creation to the leadership
+                // callback, as secondaries otherwise do, would deadlock the whole RS (no leader
+                // can be elected until credentials exist, and credentials are only created by
+                // the leader). So every node seeds its own local copy up front.
+                // NOTE: "superseded by replication" now actually happens end-to-end: since
+                // ReplicationManager wires auth/TLS onto its connection to the primary (see
+                // setInternalConnectionSecurity()), a secondary's replication connection to an
+                // auth-required primary completes, so the drop+repopulate of admin.system.users
+                // this comment describes runs once that secondary syncs - each node's bootstrap
+                // copy gets replaced by the primary's authoritative copy. It was always safe even
+                // before that wiring landed: every node is given the same rootUser/rootPassword
+                // (the "identical config on every node" deployment pattern), so each node's
+                // independently-created copy authenticates the same credential regardless of
+                // whether/when replication overwrites it.
+                ensureRootUser();
+            }
+            // in election mode without --auth, the leadership callback (below) creates it on the
+            // primary only - secondaries receive the user via replication instead of self-creating
+            // it, so a resync (which clears and repopulates admin.system.users from the primary)
+            // never wipes out a secondary's own root account
+        } else if (authRequired) {
+            // users may still exist from a restored dump - but a fresh --auth server without
+            // any user would be permanently unreachable (no localhost exception)
+            log.warn("auth enforcement is enabled but no root user is configured - "
+                + "clients can only authenticate if admin.system.users already contains users");
+        }
+
+        // Users-file bootstrap (non-election): apply now, while startup can still fail fast -
+        // a fatal apply error must abort the start (PoppyDBCLI's startup catch turns it into
+        // exit 1). Only the PRIMARY may write users: in election mode the leadership hook
+        // applies instead, and a static-mode secondary skips - it receives the result via
+        // replication from the static primary.
+        if (bootstrapUsers != null && !electionEnabled) {
+            if (primary) {
+                try {
+                    applyBootstrapUsers();
+                } catch (ConfigException e) {
+                    log.error("users file bootstrap apply failed - aborting startup: {}", e.getMessage());
+                    throw e;
+                }
+            } else {
+                log.info("users-file is configured on this node but it is a static-mode secondary "
+                    + "(primaryHost={}) - the file is ignored here; it applies only on the primary and "
+                    + "this node receives the result via replication", primaryHost);
+            }
+        }
 
         // Start dump scheduler if configured
         startDumpScheduler();
@@ -236,6 +415,10 @@ public class PoppyDB {
         // Stop replication
         stopReplication();
 
+        // Stop the replication-start retry scheduler (Finding B hardening) - must happen on
+        // every shutdown so its daemon thread doesn't leak across test instances in the same JVM.
+        stopReplicationRetryScheduler();
+
         // Stop dump scheduler
         stopDumpScheduler();
 
@@ -252,6 +435,10 @@ public class PoppyDB {
 
         // Shutdown cursor manager
         cursorManager.shutdown();
+
+        // Shutdown this instance's find-cursor registry sweeper thread — must happen on every
+        // shutdown so sweeper threads don't leak across test instances in the same JVM.
+        findCursorRegistry.shutdown();
 
         // Close all channels
         log.info("Closing {} client connections...", allChannels.size());
@@ -276,19 +463,54 @@ public class PoppyDB {
         log.info("PoppyDB shutdown complete");
     }
 
+    @SuppressWarnings("deprecation") // SelfSignedCertificate is deprecated by Netty but is
+    // an intentional, WARN-logged test/dev-only fallback here - see below.
     private io.netty.handler.ssl.SslContext buildSslContext() throws Exception {
         if (sslContext != null) {
-            // Use provided SSLContext - need to extract key/cert
-            // For now, use default
-            log.warn("Custom SSLContext not fully supported yet, using self-signed");
+            // Adapt the caller-provided javax.net.ssl.SSLContext (e.g. built via
+            // SslHelper.createServerSslContext(keystorePath, password), as used by
+            // PoppyDBCLI's --sslKeystore option) into a Netty SslContext for server use.
+            log.info("Using explicitly configured SSLContext for TLS");
+
+            try {
+                // Netty's 3-arg JdkSslContext(SSLContext, boolean, ClientAuth) constructor is
+                // deprecated in favor of this 8-arg one. This call reproduces the exact
+                // defaults the deprecated constructor used internally: no explicit cipher
+                // list, IdentityCipherSuiteFilter, the default ALPN negotiator (selected by
+                // passing a null ApplicationProtocolConfig), no protocol override, no
+                // startTLS - verified against the netty-handler bytecode on the classpath.
+                return new JdkSslContext(
+                        sslContext,
+                        false,
+                        null,
+                        IdentityCipherSuiteFilter.INSTANCE,
+                        (ApplicationProtocolConfig) null,
+                        ClientAuth.NONE,
+                        null,
+                        false
+                );
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                        "Configured SSLContext could not be adapted for server-side TLS: " + e.getMessage(), e);
+            }
         }
 
-        // Build a simple self-signed context for testing
-        // In production, you'd provide proper key/cert files
-        return SslContextBuilder.forServer(
-                getClass().getResourceAsStream("/server.crt"),
-                getClass().getResourceAsStream("/server.key")
-        ).build();
+        // No certificate configured: fall back to a freshly generated self-signed
+        // certificate so SSL-enabled startup doesn't fail outright. This is NOT suitable
+        // for production - configure a real certificate via setSslContext(...) (see
+        // docs/poppydb.md, "SSL/TLS Configuration").
+        log.warn("SSL enabled but no SSLContext configured - generating a self-signed certificate. " +
+                "This is INSECURE and must not be used in production; configure a real certificate " +
+                "via setSslContext(...) or PoppyDBCLI's --sslKeystore option.");
+
+        try {
+            SelfSignedCertificate ssc = new SelfSignedCertificate();
+            return SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "SSL is enabled but no SSLContext was configured, and generating a self-signed " +
+                    "fallback certificate failed. Configure a certificate via setSslContext(...).", e);
+        }
     }
 
     /**
@@ -329,6 +551,26 @@ public class PoppyDB {
 
         String myAddress = host + ":" + port;
 
+        // A wildcard or alternate bind address (e.g. --bind 0.0.0.0) is not the name this
+        // node has in the seed list. Identify it by the unique seed entry carrying our port -
+        // otherwise self stays in the election peer list (duplicate rs.status member, votes
+        // for itself as a peer) and the priority lookup below misses.
+        if (!hosts.isEmpty() && !hosts.contains(myAddress)) {
+            List<String> samePortSeeds = hosts.stream().filter(h -> h.endsWith(":" + port)).toList();
+
+            if (samePortSeeds.size() == 1) {
+                log.info("Bind address {} is not a replica set seed - using seed {} as member identity",
+                         myAddress, samePortSeeds.get(0));
+                myAddress = samePortSeeds.get(0);
+            } else {
+                log.warn("Bind address {} is not in the replica set seed list {} and no unique seed matches "
+                         + "port {} - member identity may be wrong (rs.status/election)", myAddress, hosts, port);
+            }
+        }
+
+        // keep for replSetGetConfig (rs.conf())
+        this.hostPriorities = priorities == null ? null : new java.util.HashMap<>(priorities);
+
         // Set this node's election priority from the priorities map
         // Priorities should be 0-100, where 0 = cannot become primary
         // All nodes in the cluster must use the same priority configuration
@@ -366,7 +608,7 @@ public class PoppyDB {
             // has caught up before handing leadership over to it (priority takeover).
             electionManager.setLocalSequenceSupplier(driver::getChangeStreamSequence);
             electionManager.setPeerSequenceSupplier(peer -> {
-                ReplicationCoordinator coordinator = replicationCoordinator;
+                ReplicationCoordinator coordinator = replicationCoordinatorRef.get();
                 return coordinator == null ? -1L : coordinator.getAcknowledgedSequence(peer);
             });
 
@@ -400,7 +642,7 @@ public class PoppyDB {
 
         // Initialize replication coordinator for primary nodes in replica sets (static mode only)
         if (!electionEnabled && primary && !rsName.isEmpty() && hosts.size() > 1) {
-            replicationCoordinator = new ReplicationCoordinator(hosts.size());
+            replicationCoordinatorRef.set(new ReplicationCoordinator(hosts.size()));
             log.info("Replication coordinator initialized for {} nodes", hosts.size());
         }
 
@@ -411,18 +653,96 @@ public class PoppyDB {
 
     /**
      * Called when this node's leadership status changes.
+     *
+     * The externally visible {@link #primary} flag is flipped here, immediately and outside
+     * any monitor: clients polling {@code isPrimary()}/hello, and tests asserting on step-down,
+     * must not wait behind the (potentially slow, network-touching) ReplicationManager
+     * teardown/replace work in {@link #onLeadershipChangeSynchronized}, which serializes on the
+     * PoppyDB monitor behind a possibly in-flight {@link #onLeaderDiscovered}
+     * (ReplicationManager.start() does a full Morphium client construction + connect - hundreds
+     * of ms to seconds, up to a 10s connect timeout). Before the callbacks were serialized
+     * (commit 51f82bda) this flip ran unsynchronized and was near-instant; serializing it
+     * re-introduced that latency, which is what this early flip undoes without giving up the
+     * synchronization the ReplicationManager bookkeeping still needs.
+     *
+     * Interaction with the guards below, reasoned through explicitly because the flip now runs
+     * strictly before the monitor instead of as its first statement:
+     * - A stale queued onLeaderDiscovered that runs after this node already became leader: it
+     *   now reliably observes primary==true (the flip always happens before
+     *   onLeadershipChangeSynchronized(true) is even entered, let alone before any later,
+     *   independently scheduled onLeaderDiscovered call), so startReplicationToLeader's
+     *   `if (primary || leaderId == null) return;` guard no-ops it. That's strictly better than
+     *   before: a leader must never run a ReplicationManager against another node.
+     * - A stale queued onLeadershipChange(true) that flips primary=true early while a discovery
+     *   is already mid-startReplicationToLeader (having passed the guard just before the flip):
+     *   the discovery still finishes constructing/starting its ReplicationManager outside any
+     *   monitor, but onLeadershipChangeSynchronized(true) can only acquire the monitor after
+     *   that in-flight call releases it, and its leader-body unconditionally stops+nulls
+     *   whatever replicationManager it finds - so the stray ReplicationManager the discovery
+     *   just started gets torn down right after, not left running against a leader.
      */
     private void onLeadershipChange(boolean isLeader) {
         log.info("Leadership change: {} is now {}", host + ":" + port, isLeader ? "LEADER" : "FOLLOWER");
+        // Epoch bump and flag flip happen as ONE atomic unit (applyLeadershipFlip), still
+        // before the monitor - see the class-level reasoning in the javadoc above for why the
+        // early flip is safe on its own and how it interacts with the synchronized
+        // ReplicationManager bookkeeping below.
+        long epoch = applyLeadershipFlip(isLeader);
+        onLeadershipChangeSynchronized(isLeader, epoch);
+    }
+
+    /**
+     * Atomically advances {@link #leadershipEpoch} and flips the externally visible
+     * {@code primary} flag under {@link #leadershipFlagLock}. Because increment and flip are
+     * one critical section, whichever transition runs later in lock order holds the higher
+     * epoch AND writes the flag last - a stale dispatch can never overwrite a newer
+     * transition's flag (the bug class this replaces: increment-then-unsynchronized-write let
+     * a preempted stale true-dispatch re-assert primary==true after a newer false-dispatch,
+     * permanently muting startReplicationToLeader and the replication retry/liveness chain on
+     * a demoted leader). Package-private so LeadershipEpochGuardTest can hammer it
+     * concurrently and assert flag-follows-max-epoch.
+     *
+     * @return the epoch this transition owns, to be passed to
+     *         {@link #onLeadershipChangeSynchronized}
+     */
+    long applyLeadershipFlip(boolean isLeader) {
+        synchronized (leadershipFlagLock) {
+            long epoch = leadershipEpoch.incrementAndGet();
+            primary = isLeader;
+            return epoch;
+        }
+    }
+
+    /**
+     * Synchronized: ElectionManager dispatches both this and onLeaderDiscovered from a
+     * multi-thread scheduler pool, so they must serialize on the PoppyDB monitor to avoid
+     * interleaving their ReplicationManager teardown/replace logic. The externally visible
+     * {@code primary} flag itself is no longer flipped here - see {@link #onLeadershipChange}.
+     *
+     * {@code epoch} is the value {@link #leadershipEpoch} held right after this transition's
+     * wrapper incremented it, captured before this method ever competes for the monitor. If, by
+     * the time this body finally acquires the monitor, a NEWER transition's wrapper has already
+     * incremented {@link #leadershipEpoch} past {@code epoch}, then that newer body either already
+     * ran or is about to - either way it reflects the current {@link #primary}/state truth, and
+     * this stale body running its bookkeeping on top would only undo that (Finding A: e.g.
+     * clearing {@link #replicationCoordinatorRef} right after a fresh leader body just populated
+     * it). No-op in that case for BOTH directions (a stale true-body and a stale false-body are
+     * equally capable of clobbering a newer body's work). Package-private (not private) so a
+     * test can drive it directly with a deliberately stale epoch.
+     */
+    synchronized void onLeadershipChangeSynchronized(boolean isLeader, long epoch) {
+        if (epoch != leadershipEpoch.get()) {
+            log.debug("Ignoring stale leadership transition (epoch {} superseded by {})",
+                    epoch, leadershipEpoch.get());
+            return;
+        }
 
         if (isLeader) {
             // Becoming leader
-            primary = true;
             primaryHost = host + ":" + port;
 
-            // Initialize replication coordinator
-            if (replicationCoordinator == null && hosts.size() > 1) {
-                replicationCoordinator = new ReplicationCoordinator(hosts.size());
+            // Initialize replication coordinator (only if not already present)
+            if (hosts.size() > 1 && replicationCoordinatorRef.compareAndSet(null, new ReplicationCoordinator(hosts.size()))) {
                 log.info("Replication coordinator initialized for {} nodes", hosts.size());
             }
 
@@ -431,14 +751,50 @@ public class PoppyDB {
                 replicationManager.stop();
                 replicationManager = null;
             }
+
+            // Now that this node has fully assumed primary duties (primary flag flipped,
+            // replication coordinator in place, no longer replicating from a stale leader),
+            // (re-)create the root user. Idempotent (handles 51003 already-exists) so repeated
+            // leadership changes (flapping, priority takeover) never race or double-create -
+            // secondaries never self-create root, they only ever receive it via replication.
+            if (rootUser != null && rootPassword != null) {
+                ensureRootUser();
+            }
+
+            // Users-file bootstrap: (re-)apply after primary duties are fully assumed, right
+            // after ensureRootUser. Idempotent upsert - repeated leadership changes (flapping,
+            // priority takeover) re-run it harmlessly, and the version gate short-circuits
+            // when nothing changed. A failure here can only be logged: a running server
+            // cannot abort mid-failover.
+            if (bootstrapUsers != null) {
+                try {
+                    applyBootstrapUsers();
+                } catch (Exception e) {
+                    log.error("users file bootstrap apply failed on the new primary - server keeps running: {}",
+                        e.getMessage());
+                }
+            }
         } else {
-            // Stepping down from leader
-            primary = false;
+            // Stepping down from leader (primary flag already flipped to false by the caller)
 
             // Clean up replication coordinator
-            replicationCoordinator = null;
+            replicationCoordinatorRef.set(null);
 
-            // Start replication from new primary (will be set by onLeaderDiscovered)
+            // Start replication from new primary (will be set by onLeaderDiscovered) - unless
+            // ElectionManager already knows one. ElectionManager dispatches this callback and
+            // onLeaderDiscovered onto its own multi-thread pool independently: if the discovery
+            // task happened to acquire this monitor first (before the `primary = false` flip
+            // above ran), it saw primary still true and no-op'd. Since ElectionManager only
+            // re-fires onLeaderDiscovered on an actual leader CHANGE, that no-op is permanent -
+            // it will never fire again for the same leader, and this node would be stuck not
+            // replicating until some unrelated later leader change happened to bail it out.
+            // Query the now-current leader here so a raced-out discovery still gets picked up.
+            if (electionManager != null) {
+                String knownLeader = electionManager.getCurrentLeader();
+                if (knownLeader != null && !knownLeader.equals(host + ":" + port)) {
+                    startReplicationToLeader(knownLeader);
+                }
+            }
         }
     }
 
@@ -451,24 +807,271 @@ public class PoppyDB {
             return; // same leader, already replicating — nothing to do
         }
         log.info("Discovered leader: {}", leaderId);
-        primaryHost = leaderId;
+        startReplicationToLeader(leaderId);
+    }
 
-        // If we're a follower and not already replicating, start replication
-        if (!primary && replicationManager == null && leaderId != null) {
-            String[] parts = leaderId.split(":");
-            if (parts.length == 2) {
-                String leaderHost = parts[0];
-                int leaderPort = Integer.parseInt(parts[1]);
+    /**
+     * (Re-)point replication at {@code leaderId}, tearing down any existing ReplicationManager
+     * first. Called from both {@link #onLeaderDiscovered} (follower learns of a new leader via
+     * heartbeat - the common case) and {@link #onLeadershipChange} stepping-down-from-leader path
+     * (this node just got demoted and needs to catch up on a leader that discovery already raced
+     * past - see the comment there). Idempotent for repeated calls: a leaderId equal to the one
+     * already being replicated from, a null/malformed id, or a call while this node is itself
+     * primary, are all safe no-ops - so it tolerates being invoked redundantly from both paths for
+     * the same leader without re-tearing-down a healthy ReplicationManager.
+     */
+    private synchronized void startReplicationToLeader(String leaderId) {
+        startReplicationToLeader(leaderId, REPLICATION_RETRY_INITIAL_DELAY_MS);
+    }
 
-                // Start replication from new leader
-                replicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
-                replicationManager.setMyAddress(host + ":" + port);
-                try {
-                    replicationManager.start();
-                    log.info("Started replication from new leader {}", leaderId);
-                } catch (Exception e) {
-                    log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
+    /**
+     * Same as {@link #startReplicationToLeader(String)}, but carries the delay to use for the
+     * NEXT retry if this attempt also fails (Finding B hardening) - see
+     * {@link #scheduleReplicationRetry(long)}/{@link #retryReplicationStart(long)}. The public
+     * single-arg entry point always starts a fresh backoff at
+     * {@link #REPLICATION_RETRY_INITIAL_DELAY_MS}; only the retry chain itself threads a doubled
+     * delay back in here.
+     */
+    private synchronized void startReplicationToLeader(String leaderId, long delayOnFailureMs) {
+        if (!running) {
+            // Shutdown already ran (it flips running=false before stopReplication()): a late
+            // election/discovery callback must not install and start a fresh ReplicationManager
+            // that nothing will ever stop - its daemon threads would hammer the force-shutdown
+            // driver for the rest of the JVM (2026-08-06 review finding). stopReplication() is
+            // synchronized on the same monitor, so the only two orders are: it tears down what
+            // we installed (we held the monitor first), or we no-op here (it ran first).
+            return;
+        }
+        if (primary || leaderId == null) {
+            return;
+        }
+        if (leaderId.equals(primaryHost) && replicationManager != null) {
+            return; // same leader, already replicating — nothing to do
+        }
+
+        // A ReplicationManager's target host/port is fixed at construction time and never
+        // updated, so after a failover the old instance (still replicating from the now-dead
+        // former leader) would otherwise retry that dead address forever - it must be torn
+        // down and replaced with one pointed at the new leader, not left in place just because
+        // it happens to be non-null. A malformed leaderId (practically unreachable) must not
+        // tear down a perfectly working existing ReplicationManager, so teardown only happens
+        // once we know we have a usable host:port to replace it with.
+        String[] parts = leaderId.split(":");
+        if (parts.length != 2) {
+            return;
+        }
+
+        if (replicationManager != null) {
+            replicationManager.stop();
+            replicationManager = null;
+        }
+
+        String leaderHost = parts[0];
+        int leaderPort = Integer.parseInt(parts[1]);
+
+        // Start replication from new leader
+        ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+        newReplicationManager.setInternalConnectionSecurity(
+                authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
+        newReplicationManager.setMyAddress(host + ":" + port);
+        try {
+            newReplicationManager.start();
+            replicationManager = newReplicationManager;
+            primaryHost = leaderId;
+            log.info("Started replication from new leader {}", leaderId);
+            scheduleReplicationLivenessProbe(leaderId, newReplicationManager);
+        } catch (Exception e) {
+            handleReplicationStartFailure(leaderId, newReplicationManager, e, delayOnFailureMs);
+        }
+    }
+
+    /**
+     * Schedule a single, one-shot {@link #probeReplicationLiveness(String, ReplicationManager)}
+     * check ~{@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} after a successful
+     * {@code newReplicationManager.start()} - see the field comment on
+     * {@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} for why this exists alongside the
+     * exception-based {@link #handleReplicationStartFailure} retry. Reuses the same lazily-created
+     * scheduler as the retry chain (no second background thread).
+     */
+    private synchronized void scheduleReplicationLivenessProbe(String leaderId, ReplicationManager probedManager) {
+        if (!running) {
+            return; // shutting down (or never started) - nothing to probe for
+        }
+
+        try {
+            replicationRetryScheduler().schedule(() -> probeReplicationLiveness(leaderId, probedManager),
+                    REPLICATION_LIVENESS_PROBE_DELAY_MS, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Lost a race with shutdown() shutting the executor down - nothing left to probe for.
+            log.debug("Replication liveness probe not scheduled - shutting down");
+        }
+    }
+
+    /**
+     * Fires ~{@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} after a replication start that returned
+     * normally (no exception). Distinguishes a healthy-but-silent connection from one that never
+     * actually came up (see the {@link #REPLICATION_LIVENESS_PROBE_DELAY_MS} field comment): the
+     * dominant real-world case is an unreachable leader, where
+     * {@code de.caluga.morphium.driver.wire.PooledDriver#connect()} swallows the single-host
+     * connect failure and {@code ReplicationManager.start()} returns as if live.
+     *
+     * <p>All four guards must hold for the probe to act, otherwise it is a no-op:
+     * <ul>
+     *   <li>{@code running} - not shutting down;</li>
+     *   <li>{@code !primary} - this node hasn't since become leader itself;</li>
+     *   <li>{@code replicationManager == probedManager} - the RM this probe was scheduled for is
+     *       still the one assigned (not replaced by a newer leadership/discovery transition, and
+     *       not already torn down); and</li>
+     *   <li>{@code !probedManager.hasWatchEverRegistered()} - the change-stream watch never
+     *       registered with the primary at any point since start, which (per
+     *       ReplicationManager's watch-first design) is the reliable "never actually connected"
+     *       signal. Deliberately NOT the instantaneous {@code isWatchLive()}: that flag drops
+     *       between every two watch sessions, so sampling it during a routine reconnect gap
+     *       would tear down a connection that did come up.
+     * </ul>
+     * On all-true, tears the dead RM down, resets {@code primaryHost} (same reasoning as
+     * {@link #handleReplicationStartFailure}: a re-discovery of the same leader must not be
+     * short-circuited by the same-leader guard), and feeds the existing bounded-backoff retry
+     * chain via {@link #scheduleReplicationRetry(long)} - so the retry re-reads the current leader
+     * from ElectionManager rather than blindly redialing the address that just proved dead.
+     */
+    synchronized void probeReplicationLiveness(String leaderId, ReplicationManager probedManager) {
+        if (!running || primary) {
+            return; // shut down, or promoted to leader meanwhile - nothing to probe
+        }
+        if (replicationManager != probedManager) {
+            return; // superseded by a newer ReplicationManager (or already torn down) - stale probe
+        }
+        if (probedManager.hasWatchEverRegistered()) {
+            return; // healthy: the watch registered (at least once) - the connection came up;
+                    // any later watch drop is the watch-retry loop's job, not the probe's
+        }
+
+        log.warn("Replication to {} never became live - tearing down and retrying", leaderId);
+        replicationManager.stop();
+        replicationManager = null;
+        primaryHost = null;
+        scheduleReplicationRetry(REPLICATION_RETRY_INITIAL_DELAY_MS);
+    }
+
+    /**
+     * Cleans up after a failed {@code newReplicationManager.start()} and self-schedules a
+     * bounded-backoff retry (Finding B hardening). Factored out of
+     * {@link #startReplicationToLeader(String, long)}'s catch block, rather than left inline, so
+     * a test can drive exactly this logic directly (package-private seam) - forcing the real
+     * {@code ReplicationManager.start()} to throw synchronously via network conditions alone
+     * isn't reliably possible: for a single-host, non-replica-set-configured target (which is
+     * what {@code ReplicationManager} always uses), the underlying Morphium client's
+     * {@code PooledDriver.connect()} swallows an unreachable seed internally and defers to its
+     * own background heartbeat reconnection instead of throwing, so an RS test that merely
+     * leaves the leader's port unbound cannot force this catch block to run - verified
+     * empirically (see task-1-report.md).
+     */
+    synchronized void handleReplicationStartFailure(String leaderId, ReplicationManager failedManager,
+                                                      Exception e, long delayOnFailureMs) {
+        log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
+        // start() failed partway through; the instance may hold live resources
+        // (executors, a connected primaryMorphium) that must be released so we
+        // don't leak them. Never assign it to the field: leaving a dead-but-non-null
+        // ReplicationManager there would trip the same-leader guard above and block
+        // any retry until the next leader change.
+        try {
+            failedManager.stop();
+        } catch (Exception stopException) {
+            log.warn("Error stopping failed ReplicationManager for {}: {}", leaderId, stopException.getMessage());
+        }
+        // Reset primaryHost so a re-discovery of the same leader (e.g. the next
+        // heartbeat) doesn't get short-circuited by the same-leader guard and can
+        // retry cleanly instead of being stuck until an actual leader change.
+        primaryHost = null;
+        // Finding B: ElectionManager only re-fires onLeaderDiscovered on an actual leader
+        // CHANGE, not on every heartbeat - without this, a follower whose first attempt
+        // failed (e.g. the leader's port wasn't listening yet) would stay
+        // replication-less forever. Self-schedule a bounded-backoff retry instead.
+        scheduleReplicationRetry(delayOnFailureMs);
+    }
+
+    /**
+     * Schedule a single retry of {@link #retryReplicationStart(long)} after {@code delayMs}
+     * (capped at {@link #REPLICATION_RETRY_MAX_DELAY_MS}), unless the node is already shutting
+     * down. Lazily creates the retry executor on first use.
+     */
+    private synchronized void scheduleReplicationRetry(long delayMs) {
+        if (!running) {
+            return; // shutting down (or never started) - nothing to retry for
+        }
+
+        long boundedDelay = Math.min(delayMs, REPLICATION_RETRY_MAX_DELAY_MS);
+        log.info("Scheduling replication start retry in {}ms", boundedDelay);
+
+        try {
+            replicationRetryScheduler().schedule(() -> retryReplicationStart(boundedDelay),
+                    boundedDelay, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Lost a race with shutdown() shutting the executor down between the running-check
+            // above and this call - nothing left to retry for either way.
+            log.debug("Replication retry not scheduled - shutting down");
+        }
+    }
+
+    /**
+     * Retry body: re-checks every guard {@link #startReplicationToLeader} would anyway (running,
+     * not primary, no live ReplicationManager already), then re-reads
+     * {@link ElectionManager#getCurrentLeader()} rather than reusing the leader address that
+     * failed - the leader may have changed while this retry was backing off (a real failover),
+     * and retrying a stale/dead address would just fail again for the wrong reason. On repeated
+     * failure, {@link #startReplicationToLeader(String, long)} chains the next retry itself with
+     * a doubled delay (capped), via {@link #scheduleReplicationRetry(long)}.
+     */
+    private synchronized void retryReplicationStart(long lastDelayMs) {
+        if (!running || primary || replicationManager != null || electionManager == null) {
+            return; // shut down, became primary meanwhile, already replicating, or no election configured
+        }
+
+        String leader = electionManager.getCurrentLeader();
+        if (leader == null) {
+            return; // no leader known at all yet - the eventual onLeaderDiscovered will pick this up
+        }
+
+        startReplicationToLeader(leader, Math.min(lastDelayMs * 2, REPLICATION_RETRY_MAX_DELAY_MS));
+    }
+
+    /**
+     * Lazily creates the single daemon thread backing the replication-start retry chain - see
+     * the {@link #replicationRetryScheduler} field comment for why this stays lazy.
+     */
+    private synchronized java.util.concurrent.ScheduledExecutorService replicationRetryScheduler() {
+        if (replicationRetryScheduler == null) {
+            replicationRetryScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "PoppyDB-ReplicationRetry-" + host + ":" + port);
+                t.setDaemon(true);
+                return t;
+            });
+        }
+
+        return replicationRetryScheduler;
+    }
+
+    private void stopReplicationRetryScheduler() {
+        // Grab-and-clear under the monitor, but shut down/await OUTSIDE it: retryReplicationStart
+        // is itself `synchronized` on this instance, so if we held the monitor across
+        // awaitTermination() a currently-queued-or-running retry task could never acquire it to
+        // finish - deadlocking this shutdown against its own retry executor.
+        java.util.concurrent.ScheduledExecutorService scheduler;
+        synchronized (this) {
+            scheduler = replicationRetryScheduler;
+            replicationRetryScheduler = null;
+        }
+
+        if (scheduler != null) {
+            scheduler.shutdown();
+            try {
+                if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    scheduler.shutdownNow();
                 }
+            } catch (InterruptedException e) {
+                scheduler.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         }
     }
@@ -477,8 +1080,246 @@ public class PoppyDB {
         this.sslEnabled = sslEnabled;
     }
 
+    /** Enable --auth style enforcement: connections must complete a SCRAM exchange first. */
+    public void setAuthRequired(boolean authRequired) {
+        this.authRequired = authRequired;
+    }
+
+    private void ensureRootUser() {
+        try {
+            var cmd = new de.caluga.morphium.driver.commands.auth.CreateUserAdminCommand(null)
+                .setUserName(rootUser)
+                .setPwd(rootPassword);
+            cmd.setDb("admin");
+            var result = driver.readSingleAnswer(driver.runCommand(cmd));
+
+            if (result != null && Double.valueOf(1.0).equals(result.get("ok"))) {
+                log.info("created initial admin user '{}'", rootUser);
+            } else if (result != null && Integer.valueOf(51003).equals(result.get("code"))) {
+                log.debug("initial admin user '{}' already exists", rootUser);
+            } else {
+                log.error("could not create initial admin user '{}': {}", rootUser,
+                    result == null ? "no result" : result.get("errmsg"));
+            }
+        } catch (Exception e) {
+            log.error("could not create initial admin user '{}'", rootUser, e);
+        }
+    }
+
+    /**
+     * Users-file bootstrap spec ({@code --users-file}), handed in by PoppyDBCLI before
+     * {@code start()}. Applied by the PRIMARY only, wherever ensureRootUser runs: at
+     * {@code start()} for non-election nodes (a fatal apply error aborts startup), in the
+     * leadership hook for election-mode primaries (a failure there only logs ERROR).
+     */
+    public void setBootstrapUsers(UsersFileSpec spec) {
+        this.bootstrapUsers = spec;
+    }
+
+    /**
+     * Applies the users file as an idempotent upsert (users-file task 4, see
+     * docs/superpowers/specs/2026-08-04-poppydb-users-file-design.md): per entry
+     * {@code createUser} in mongod wire shape; on 51003 already-exists {@code updateUser}
+     * (pwd + roles + mechanisms from the file replace the stored state). Version gate: if the
+     * file carries a version and the LOCAL meta doc's appliedVersion is already {@code >=} it,
+     * the whole apply is skipped (INFO) - that is what makes a straggler node with an old file
+     * harmless after a failback. After a fully successful apply of a VERSIONED file the meta
+     * doc is upserted through the normal driver write path, so it emits a change event and
+     * replicates (admin.system.version is in ReplicationManager.isReplicated's allow-list).
+     * Unversioned files always apply and never touch the meta doc.
+     *
+     * Any entry failure or meta-doc problem surfaces as {@link ConfigException} - the caller
+     * decides whether that aborts (non-election startup) or is only logged (leadership hook).
+     * No pwd value is ever logged or included in an exception message.
+     */
+    private void applyBootstrapUsers() {
+        UsersFileSpec spec = bootstrapUsers;
+        if (spec == null) {
+            return;
+        }
+
+        if (spec.version() != null) {
+            Long applied = readAppliedUsersFileVersion();
+            if (applied != null && applied >= spec.version()) {
+                log.info("users file version {} already applied (stored appliedVersion {}) - skipping bootstrap apply",
+                    spec.version(), applied);
+                return;
+            }
+        }
+
+        List<String> failures = new ArrayList<>();
+        for (UserSpec user : spec.users()) {
+            String failure = applyBootstrapUser(user);
+            if (failure != null) {
+                failures.add(failure);
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new ConfigException("users file bootstrap apply failed for " + failures.size() + " of "
+                + spec.users().size() + " entries: " + String.join("; ", failures));
+        }
+
+        if (spec.version() != null) {
+            writeAppliedUsersFileVersion(spec.version());
+            log.info("users file applied: {} users upserted, appliedVersion now {}",
+                spec.users().size(), spec.version());
+        } else {
+            log.info("users file applied: {} users upserted (unversioned file - no version gate)",
+                spec.users().size());
+        }
+    }
+
+    /**
+     * Upserts ONE users-file entry. Returns a description of the failure, or null on success.
+     * The description (and every log line here) names only user and db - never the pwd.
+     */
+    private String applyBootstrapUser(UserSpec user) {
+        String who = user.user() + "@" + user.db();
+
+        try {
+            Map<String, Object> create = new LinkedHashMap<>();
+            create.put("createUser", user.user());
+            create.put("pwd", user.pwd());
+            create.put("roles", user.roles()); // mandatory in the wire shape - empty list is fine
+            if (!user.mechanisms().isEmpty()) {
+                create.put("mechanisms", user.mechanisms());
+            }
+            Map<String, Object> result = runRawCommand(user.db(), create);
+
+            if (isOk(result)) {
+                log.info("users file: created user {}", who);
+                return null;
+            }
+            if (Integer.valueOf(51003).equals(result.get("code"))) {
+                Map<String, Object> update = new LinkedHashMap<>();
+                update.put("updateUser", user.user());
+                update.put("pwd", user.pwd());
+                update.put("roles", user.roles());
+                if (!user.mechanisms().isEmpty()) {
+                    update.put("mechanisms", user.mechanisms());
+                }
+                Map<String, Object> updResult = runRawCommand(user.db(), update);
+
+                if (isOk(updResult)) {
+                    log.info("users file: updated existing user {}", who);
+                    return null;
+                }
+                return who + ": updateUser failed: " + errmsgOf(updResult);
+            }
+            return who + ": createUser failed: " + errmsgOf(result);
+        } catch (Exception e) {
+            // e.getMessage() is null for plenty of exceptions (e.g. NPE) - that used to render as
+            // "who: null" here, an unusable diagnostic. e.toString() always carries at least the
+            // exception's class name. The full throwable (with stack trace) goes to the log so
+            // the real cause is not lost even though only the short form goes into the collected
+            // failure string.
+            log.error("users file: apply failed for {}", who, e);
+            return who + ": " + e.toString();
+        }
+    }
+
+    /** The stored appliedVersion from the LOCAL meta doc in admin.system.version, or null. */
+    private Long readAppliedUsersFileVersion() {
+        try {
+            List<Map<String, Object>> docs = driver.find("admin", "system.version",
+                    Doc.of("_id", USERS_FILE_META_ID), null, null, 0, 1);
+
+            if (docs == null || docs.isEmpty()) {
+                return null;
+            }
+            Object v = docs.get(0).get("appliedVersion");
+            return v instanceof Number n ? n.longValue() : null;
+        } catch (Exception e) {
+            // If the gate state cannot be read, applying anyway could roll credentials back -
+            // treat it as an apply failure instead of guessing.
+            throw new ConfigException("could not read the users-file meta document from admin.system.version: "
+                + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Upserts {@code {_id: "poppydb.usersFile", appliedVersion: N}} into admin.system.version
+     * via a generic update-with-upsert through the normal driver write path, so it emits a
+     * change event and replicates exactly like any other write.
+     */
+    private void writeAppliedUsersFileVersion(long version) {
+        try {
+            Map<String, Object> updateCmd = new LinkedHashMap<>();
+            updateCmd.put("update", "system.version");
+            updateCmd.put("updates", List.of(Doc.of(
+                "q", Doc.of("_id", USERS_FILE_META_ID),
+                "u", Doc.of("_id", USERS_FILE_META_ID, "appliedVersion", version),
+                "upsert", true, "multi", false)));
+            Map<String, Object> result = runRawCommand("admin", updateCmd);
+
+            if (!isOk(result)) {
+                throw new ConfigException("could not persist the users-file appliedVersion " + version
+                    + " to admin.system.version: " + errmsgOf(result));
+            }
+        } catch (ConfigException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ConfigException("could not persist the users-file appliedVersion " + version
+                + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Runs a raw mongod-wire-shaped command map against the local driver (the shapes
+     * InMemoryDriver's GenericCommand path dispatches natively - the same invocation style
+     * as {@link #ensureRootUser}).
+     */
+    private Map<String, Object> runRawCommand(String db, Map<String, Object> cmdMap) throws Exception {
+        GenericCommand cmd = new GenericCommand(driver).setCmdData(cmdMap);
+        cmd.setDb(db);
+        return driver.readSingleAnswer(driver.runCommand(cmd));
+    }
+
+    /**
+     * True iff the command answer is a genuine success: {@code ok: 1} AND no non-empty
+     * {@code writeErrors} array. A generic {@code update} command (as used by
+     * {@link #writeAppliedUsersFileVersion}) can answer {@code ok: 1} at the top level while
+     * still reporting a per-statement failure via {@code writeErrors} - without this check a
+     * failed appliedVersion write would be silently treated as success.
+     */
+    private static boolean isOk(Map<String, Object> result) {
+        if (result == null || !Double.valueOf(1.0).equals(result.get("ok"))) {
+            return false;
+        }
+        Object writeErrors = result.get("writeErrors");
+        return !(writeErrors instanceof List<?> errors && !errors.isEmpty());
+    }
+
+    private static String errmsgOf(Map<String, Object> result) {
+        if (result == null) {
+            return "no result";
+        }
+        Object errmsg = result.get("errmsg");
+        Object code = result.get("code");
+        return (errmsg == null ? "unknown error" : errmsg.toString())
+            + (code == null ? "" : " (code " + code + ")");
+    }
+
+    /**
+     * Credentials for an initial admin user, created at startup if absent. Without this,
+     * an --auth server would be unreachable (there is no localhost exception).
+     */
+    public void setRootUser(String user, String password) {
+        this.rootUser = user;
+        this.rootPassword = password;
+    }
+
     public void setSslContext(SSLContext sslContext) {
         this.sslContext = sslContext;
+    }
+
+    /**
+     * Trust anchor for the RS-internal channel's outbound connections when SSL is enabled - see
+     * {@link #internalSslContext}. Set by {@code PoppyDBCLI} alongside {@link #setSslContext};
+     * has no effect unless {@link #setSslEnabled(boolean)} is also true.
+     */
+    public void setInternalSslContext(SSLContext internalSslContext) {
+        this.internalSslContext = internalSslContext;
     }
 
     public void setDumpDirectory(File dir) {
@@ -543,6 +1384,8 @@ public class PoppyDB {
 
         // Start network client first (wires up callbacks)
         if (electionNetworkClient != null) {
+            electionNetworkClient.setInternalConnectionSecurity(
+                    authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             electionNetworkClient.start();
         }
 
@@ -582,7 +1425,17 @@ public class PoppyDB {
 
             // Check if we became leader or found one
             if (electionManager.isLeader()) {
-                primary = true;
+                // Mirror write, not a transition: it must not bump the epoch, and it must not
+                // be able to overwrite a newer callback-driven flip - so re-check leadership
+                // under the same lock applyLeadershipFlip uses. If a stepdown snuck in between
+                // the poll above and here, isLeader() is already false (ElectionManager flips
+                // its state before dispatching the callback) and we skip; if the stepdown
+                // callback is still queued, its own locked flip runs after ours and wins.
+                synchronized (leadershipFlagLock) {
+                    if (electionManager.isLeader()) {
+                        primary = true;
+                    }
+                }
                 primaryHost = host + ":" + port;
                 log.info("Election complete: this node is the leader");
                 break;
@@ -625,6 +1478,8 @@ public class PoppyDB {
             log.info("Starting replication from primary {}:{}", pHost, pPort);
 
             replicationManager = new ReplicationManager(driver, pHost, pPort);
+            replicationManager.setInternalConnectionSecurity(
+                    authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             // Set this secondary's address for progress reporting
             replicationManager.setMyAddress(host + ":" + port);
             replicationManager.start();
@@ -641,11 +1496,40 @@ public class PoppyDB {
         }
     }
 
-    private void stopReplication() {
+    // Synchronized so it serializes with startReplicationToLeader on the PoppyDB monitor: a
+    // discovery callback mid-install either finishes first (and this teardown catches its fresh
+    // ReplicationManager), or arrives later (and its running-guard no-ops). Without this, a
+    // callback already past shutdown()'s running=false flip could install an RM that nothing
+    // ever stops.
+    private synchronized void stopReplication() {
         if (replicationManager != null) {
             replicationManager.stop();
             replicationManager = null;
         }
+    }
+
+    /**
+     * True when this node is a secondary that is currently (re-)running its initial sync and may
+     * therefore hold a half-cleared local database. Resolved live per command by the command
+     * handler so it can reject data-plane traffic (RECOVERING) while syncing. A primary has no
+     * replication manager, so this is false there.
+     */
+    private boolean isSecondarySyncing() {
+        ReplicationManager rm = replicationManager;
+        return rm != null && rm.isSyncing();
+    }
+
+    /** Read-only persistence info backing the dumpStatus admin command. */
+    public Map<String, Object> getDumpStatus() {
+        if (dumpDirectory == null) {
+            return de.caluga.morphium.driver.Doc.of("enabled", (Object) false);
+        }
+
+        return de.caluga.morphium.driver.Doc.of("enabled", true,
+                "dir", dumpDirectory.getAbsolutePath(),
+                "intervalMs", dumpIntervalMs,
+                "schedulerRunning", dumpScheduler != null && !dumpScheduler.isShutdown(),
+                "lastDumpMs", lastDumpTime);
     }
 
     public int dumpNow() throws IOException {
@@ -681,6 +1565,23 @@ public class PoppyDB {
         return allChannels.size();
     }
 
+    /**
+     * Test/monitoring hook: number of currently open server-side find cursors on THIS instance
+     * only. Delegates to this instance's own {@link FindCursorRegistry} — see that class'
+     * javadoc for why this must never be a JVM-static count shared across PoppyDB instances.
+     */
+    public int openFindCursors() {
+        return findCursorRegistry.openFindCursors();
+    }
+
+    /**
+     * Test/monitoring hook: number of documents currently retained in memory for a server-side
+     * find cursor's bounded window on THIS instance. Returns -1 if no such cursor is open.
+     */
+    public int retainedFindCursorDocs(long cursorId) {
+        return findCursorRegistry.retainedFindCursorDocs(cursorId);
+    }
+
     public Map<String, Object> getStats() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("connections", allChannels.size());
@@ -690,11 +1591,18 @@ public class PoppyDB {
         stats.put("primaryHost", primaryHost);
         stats.put("electionEnabled", electionEnabled);
         stats.putAll(cursorManager.getStats());
+        // Query-planning + slow-query counters (Phase C, Task 6) - fullScans/indexHits/indexSorts
+        // live on the driver (Phase B1/B2), slowQueries/slowQueriesCollScan/slowQueriesIxscan and
+        // the configured threshold were added alongside explain() in this task; nested under
+        // "query" rather than flattened so a future driver stats key can't silently collide with
+        // one of the top-level keys already used above.
+        stats.put("query", driver.getStats());
         if (replicationManager != null) {
             stats.put("replication", replicationManager.getStats());
         }
-        if (replicationCoordinator != null) {
-            stats.put("replicationCoordinator", replicationCoordinator.getStats());
+        ReplicationCoordinator coordinator = replicationCoordinatorRef.get();
+        if (coordinator != null) {
+            stats.put("replicationCoordinator", coordinator.getStats());
         }
         if (electionManager != null) {
             stats.put("election", electionManager.getStats());
@@ -703,7 +1611,12 @@ public class PoppyDB {
     }
 
     public ReplicationCoordinator getReplicationCoordinator() {
-        return replicationCoordinator;
+        return replicationCoordinatorRef.get();
+    }
+
+    /** Test hook: the secondary-side replication manager (null on a node that is currently primary). */
+    ReplicationManager getReplicationManagerForTest() {
+        return replicationManager;
     }
 
     public ElectionManager getElectionManager() {

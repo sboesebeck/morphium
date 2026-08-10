@@ -1,6 +1,7 @@
 package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.ClearCollectionCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
@@ -14,6 +15,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Regression test: $in / $nin operands supplied as a Java array (e.g. a String[]
@@ -94,5 +96,39 @@ public class InMemInArrayOperandTest {
 
         assertEquals(2, ((Number) res.get("n")).intValue());
         assertEquals(2, ((Number) res.get("nModified")).intValue());
+    }
+
+    @Test
+    public void testInWithPrimitiveArrayOperand() throws Exception {
+        var drv = newDriver();
+        String db = "in_array_db";
+        String coll = "primitive_items";
+        new ClearCollectionCommand(drv).setDb(db).setColl(coll).doClear();
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(List.of(
+            Doc.of("_id", "a", "v", 1),
+            Doc.of("_id", "b", "v", 2))).execute();
+
+        List<Map<String, Object>> found = new FindCommand(drv).setDb(db).setColl(coll)
+            .setFilter(Doc.of("v", Doc.of("$in", new int[]{2, 3}))).execute();
+
+        assertThat(found).extracting(d -> d.get("_id")).containsExactly("b");
+    }
+
+    @Test
+    public void testInRejectsScalarAndNullOperandsOnEmptyCollection() throws Exception {
+        var drv = newDriver();
+        String db = "in_array_db";
+        String coll = "invalid_items";
+        new ClearCollectionCommand(drv).setDb(db).setColl(coll).doClear();
+
+        MorphiumDriverException scalarError = assertThrows(MorphiumDriverException.class,
+            () -> new FindCommand(drv).setDb(db).setColl(coll)
+                .setFilter(Doc.of("v", Doc.of("$in", 2))).execute());
+        MorphiumDriverException nullError = assertThrows(MorphiumDriverException.class,
+            () -> new FindCommand(drv).setDb(db).setColl(coll)
+                .setFilter(Doc.of("v", Doc.of("$nin", null))).execute());
+
+        assertThat(scalarError).hasRootCauseInstanceOf(IllegalArgumentException.class);
+        assertThat(nullError).hasRootCauseInstanceOf(IllegalArgumentException.class);
     }
 }

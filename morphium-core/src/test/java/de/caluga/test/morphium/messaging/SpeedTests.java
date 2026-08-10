@@ -38,6 +38,7 @@ public class SpeedTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     MorphiumMessaging msg = m.createMessaging();
                     msg.start();
                     assertTrue(msg.waitForReady(30, TimeUnit.SECONDS), "msg not ready");
@@ -92,6 +93,7 @@ public class SpeedTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     MorphiumMessaging sender = m.createMessaging();
                     sender.start();
                     assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");
@@ -158,6 +160,7 @@ public class SpeedTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 try (Morphium m = new Morphium(cfg)) {
+                    m.dropCollection(Msg.class);
                     MorphiumMessaging sender = m.createMessaging();
                     sender.start();
                     assertTrue(sender.waitForReady(30, TimeUnit.SECONDS), "sender not ready");

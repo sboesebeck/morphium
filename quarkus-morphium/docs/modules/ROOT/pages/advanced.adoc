@@ -1,0 +1,226 @@
+= Advanced Topics
+
+include::./includes/attributes.adoc[]
+
+[#ssl-tls]
+== SSL/TLS Connections
+
+The extension supports TLS-encrypted connections and X.509 client-certificate authentication.
+
+=== TLS-Only (Encrypted Transport)
+
+Enable TLS and provide a truststore to validate the MongoDB server certificate:
+
+[source,properties]
+----
+quarkus.morphium.ssl.enabled=true
+quarkus.morphium.ssl.truststore-path=/etc/certs/mongo-truststore.jks
+quarkus.morphium.ssl.truststore-password=changeit
+----
+
+When no truststore is specified, the JVM's default truststore is used (suitable for
+certificates signed by well-known CAs, including MongoDB Atlas).
+
+=== X.509 Mutual TLS (Client Certificate Authentication)
+
+For X.509 authentication, only `ssl.enabled` and `ssl.auth-mechanism` are required.
+The client certificate and CA trust chain can come from the extension-specific keystore /
+truststore properties **or** from the global JVM stores (`javax.net.ssl.keyStore`,
+`javax.net.ssl.trustStore`). When no extension-specific paths are configured, the JVM
+defaults are used automatically.
+
+Minimal configuration (uses global JVM keystore and truststore):
+
+[source,properties]
+----
+quarkus.morphium.ssl.enabled=true
+quarkus.morphium.ssl.auth-mechanism=MONGODB-X509
+----
+
+With extension-specific stores (overrides the JVM defaults for this connection only):
+
+[source,properties]
+----
+quarkus.morphium.ssl.enabled=true
+quarkus.morphium.ssl.auth-mechanism=MONGODB-X509
+quarkus.morphium.ssl.keystore-path=/etc/certs/client-keystore.p12
+quarkus.morphium.ssl.keystore-password=secret
+quarkus.morphium.ssl.truststore-path=/etc/certs/mongo-truststore.jks
+quarkus.morphium.ssl.truststore-password=changeit
+----
+
+The MongoDB username is extracted automatically from the client certificate's subject DN.
+To override it explicitly:
+
+[source,properties]
+----
+quarkus.morphium.ssl.x509-username=CN=myUser,OU=myUnit,O=myOrg,C=DE
+----
+
+When `x509-username` is set, the extension configures `$external` as the auth database and
+clears the password (X.509 does not use password-based auth).
+
+=== MongoDB Atlas with TLS
+
+Atlas clusters use TLS by default with certificates signed by well-known CAs. Typically only
+`ssl.enabled=true` is needed:
+
+[source,properties]
+----
+quarkus.morphium.atlas-url=mongodb+srv://user:pass@cluster.mongodb.net/
+quarkus.morphium.ssl.enabled=true
+----
+
+=== Self-Signed Certificates (Development Only)
+
+For development environments with self-signed server certificates:
+
+[source,properties]
+----
+quarkus.morphium.ssl.enabled=true
+quarkus.morphium.ssl.invalid-hostname-allowed=true
+quarkus.morphium.ssl.truststore-path=/etc/certs/dev-truststore.jks
+quarkus.morphium.ssl.truststore-password=changeit
+----
+
+[WARNING]
+====
+Never enable `invalid-hostname-allowed` in production. It disables hostname verification
+and exposes the connection to man-in-the-middle attacks.
+====
+
+For the complete list of SSL/TLS properties see
+xref:configuration.adoc[Configuration Reference].
+
+== MongoDB Atlas SRV
+
+The `atlas-url` property accepts `mongodb+srv://` connection strings. When set, it overrides
+the `hosts` property.
+
+[source,properties]
+----
+quarkus.morphium.atlas-url=mongodb+srv://user:pass@cluster.mongodb.net/
+quarkus.morphium.database=my-database
+----
+
+Morphium resolves SRV records using a pure-Java `DnsSrvResolver` — no JNDI
+`InitialDirContext` is used. This works reliably in GraalVM native images and restrictive
+container environments where JNDI may not be available.
+
+== Blocking Call Detector
+
+The extension automatically detects Morphium write operations (store, delete, update) that
+are called from a Vert.x I/O event-loop thread. Blocking the event loop causes request
+timeouts and health-check failures.
+
+=== What It Detects
+
+The detector registers a `MorphiumStorageListener` at application startup. It monitors:
+
+* `preStore` — before `morphium.store()`
+* `preRemove` — before `morphium.delete()`
+* `preUpdate` — before `morphium.set()`, `morphium.inc()`, etc.
+
+When any of these are called from a thread named `vert.x-eventloop-thread-*`, a WARN log is
+emitted:
+
+[source]
+----
+[Morphium] Blocking write operation called from Vert.x I/O thread 'vert.x-eventloop-thread-0'.
+This blocks the event loop and can cause request timeouts and health-check failures.
+Fix: Add @RunOnVirtualThread (recommended) or @Blocking to your JAX-RS method.
+----
+
+Warnings are throttled to at most one every 30 seconds to avoid log flooding.
+
+=== Fix
+
+Annotate the offending JAX-RS / REST method:
+
+[source,java]
+----
+import io.smallrye.common.annotation.RunOnVirtualThread;
+
+@GET
+@Path("/products")
+@RunOnVirtualThread  // preferred — uses virtual threads
+public List<ProductEntity> listProducts() {
+    return morphium.createQueryFor(ProductEntity.class).asList();
+}
+----
+
+Alternatively, use `@Blocking` to run on a worker thread:
+
+[source,java]
+----
+import io.smallrye.common.annotation.Blocking;
+
+@GET
+@Path("/products")
+@Blocking
+public List<ProductEntity> listProducts() {
+    return morphium.createQueryFor(ProductEntity.class).asList();
+}
+----
+
+== GraalVM Native Image
+
+The extension fully supports GraalVM native compilation.
+
+=== Automatic Reflection Registration
+
+At build time, the Quarkus deployment processor scans the classpath using ClassGraph and
+registers every class annotated with `@Entity` or `@Embedded` for reflection. This includes:
+
+* Constructors (for `newInstance()`)
+* Methods (for getter/setter access)
+* Fields (for direct field access)
+
+No manual `reflect-config.json` entries are needed.
+
+=== Fallback
+
+If the ClassGraph scan fails (logged as a WARN at build time), you can add entries manually:
+
+[source,json]
+----
+[
+  {
+    "name": "com.example.ProductEntity",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  }
+]
+----
+
+Place this file at `src/main/resources/META-INF/native-image/reflect-config.json`.
+
+=== Building a Native Image
+
+[source,bash]
+----
+mvn package -Dnative
+----
+
+Or using a container build (no local GraalVM installation needed):
+
+[source,bash]
+----
+mvn package -Dnative -Dquarkus.native.container-build=true
+----
+
+== Morphium Core Documentation
+
+The Quarkus extension wraps link:{morphium-github-url}[Morphium], which provides many
+features beyond what is covered here:
+
+* *Fluent Query API* — `morphium.createQueryFor(T.class).f("field").eq(value)`
+* *Aggregation Pipeline* — type-safe aggregation stage builder
+* *MongoDB Messaging* — MongoDB-backed message queue
+* *Change Streams* — real-time document change notifications
+* *Field-Level Encryption* — transparent encryption of sensitive fields
+* *JCache Integration* — JSR-107 compliant caching
+
+For full details see the link:{morphium-docs-url}[Morphium documentation] and the
+link:{showcase-github-url}[quarkus-morphium-showcase] demo application.

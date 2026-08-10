@@ -1,0 +1,171 @@
+= Transactions
+
+include::./includes/attributes.adoc[]
+
+The Quarkus Morphium extension provides declarative transaction support via the
+`@MorphiumTransactional` annotation. On success the transaction is committed; on any
+exception it is rolled back and the exception is re-thrown.
+
+== Replica-Set Requirement
+
+[IMPORTANT]
+====
+MongoDB multi-document transactions require a *replica set* (or sharded cluster). A
+standalone MongoDB instance does not support transactions.
+
+Dev Services starts MongoDB as a single-node replica set by default, so transactions work
+out of the box. See xref:dev-services.adoc[Dev Services] for details.
+====
+
+== @MorphiumTransactional
+
+Annotate any CDI bean method to wrap it in a Morphium transaction:
+
+[source,java]
+----
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.quarkus.transaction.MorphiumTransactional;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+@ApplicationScoped
+public class OrderService {
+
+    @Inject Morphium morphium;
+
+    @MorphiumTransactional
+    public void placeOrder(Order order, Payment payment) {
+        morphium.store(order);
+        morphium.store(payment);
+        // auto-commit on success, auto-rollback on exception
+    }
+}
+----
+
+The annotation may also be placed on a *class* to apply it to all business methods.
+
+== Transaction Lifecycle
+
+The interceptor executes at priority `PLATFORM_BEFORE + 200` and follows this sequence:
+
+1. `morphium.startTransaction()`
+2. Execute the business method
+3. Fire `BEFORE_COMMIT` CDI event
+4. `morphium.commitTransaction()`
+5. Fire `AFTER_COMMIT` CDI event
+
+On exception:
+
+1. `morphium.abortTransaction()`
+2. Fire `AFTER_ROLLBACK` CDI event (with the causing `Exception`)
+3. Re-throw the exception
+
+== Transaction Lifecycle Events
+
+Use `@Observes` with the `@MorphiumTxPhase` qualifier to react to transaction phases:
+
+[source,java]
+----
+import de.caluga.morphium.quarkus.transaction.*;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
+import org.jboss.logging.Logger;
+
+import static de.caluga.morphium.quarkus.transaction.MorphiumTransactionEvent.Phase.*;
+
+@ApplicationScoped
+public class AuditObserver {
+
+    private static final Logger LOG = Logger.getLogger(AuditObserver.class);
+
+    void afterCommit(@Observes @MorphiumTxPhase(AFTER_COMMIT) MorphiumTransactionEvent e) {
+        // e.g. publish a domain event
+    }
+
+    void afterRollback(@Observes @MorphiumTxPhase(AFTER_ROLLBACK) MorphiumTransactionEvent e) {
+        LOG.warn("Transaction rolled back", e.getFailure());
+    }
+}
+----
+
+.Transaction phases
+[cols="1,2,1",options="header"]
+|===
+| Phase | When it fires | `getFailure()`
+
+| `BEFORE_COMMIT`
+| After the business method succeeds, before `commitTransaction()`
+| `null`
+
+| `AFTER_COMMIT`
+| After `commitTransaction()` succeeds
+| `null`
+
+| `AFTER_ROLLBACK`
+| After `abortTransaction()` due to an exception
+| The causing `Exception`
+|===
+
+== CosmosDB Compatibility
+
+When running against Azure CosmosDB, Morphium auto-detects the backend via the
+`hello` handshake. Because CosmosDB does not support multi-document transactions,
+`@MorphiumTransactional` **gracefully degrades**: the interceptor skips transaction
+wrapping and executes the method directly.
+
+A single WARN-level message is logged at application startup if CosmosDB is
+detected, and each subsequent invocation is logged at DEBUG level:
+
+[source,text]
+----
+WARN  CosmosDB detected — @MorphiumTransactional methods will execute WITHOUT
+      transaction wrapping. Individual ops remain atomic; multi-document rollback is unavailable.
+----
+
+[NOTE]
+====
+On CosmosDB, lifecycle events (`BEFORE_COMMIT`, `AFTER_COMMIT`, `AFTER_ROLLBACK`)
+are still fired so that observers (outbox publishers, audit logging, cleanup, etc.)
+continue to work. The only difference is that there is no real transaction backing
+them — individual Morphium operations (`store`, `inc`, `set`, etc.) remain atomic
+at the document level, but multi-document rollback is unavailable.
+====
+
+== Testing Transactions
+
+To test `@MorphiumTransactional` methods, you need a replica set. Dev Services starts one
+by default, so no extra configuration is needed:
+
+[source,java]
+----
+@QuarkusTest
+class OrderServiceTest {
+
+    @Inject OrderService orderService;
+    @Inject Morphium morphium;
+
+    @BeforeEach
+    void setUp() {
+        morphium.dropCollection(Order.class);
+        morphium.dropCollection(Payment.class);
+    }
+
+    @Test
+    void placeOrderCommitsOnSuccess() {
+        orderService.placeOrder(new Order("A1"), new Payment(42.0));
+        assertThat(morphium.createQueryFor(Order.class).countAll()).isEqualTo(1);
+        assertThat(morphium.createQueryFor(Payment.class).countAll()).isEqualTo(1);
+    }
+
+    @Test
+    void placeOrderRollsBackOnFailure() {
+        assertThrows(RuntimeException.class, () ->
+            orderService.placeOrderThatFails(new Order("A2"), new Payment(0.0)));
+        assertThat(morphium.createQueryFor(Order.class).countAll()).isEqualTo(0);
+    }
+}
+----
+
+NOTE: The `InMemDriver` does not support true multi-document transactions. Use Dev Services
+(replica set is enabled by default) for transaction testing. See xref:testing.adoc[Testing]
+for more strategies.

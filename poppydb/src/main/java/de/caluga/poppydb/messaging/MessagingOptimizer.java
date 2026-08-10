@@ -29,11 +29,12 @@ public class MessagingOptimizer {
     // Key: db.lockCollection -> parent messaging collection key
     private final ConcurrentHashMap<String, String> lockCollectionMapping = new ConcurrentHashMap<>();
 
-    // Standard indexes for messaging - field name -> direction (1 or -1)
+    // Standard indexes for messaging - field name -> direction (1 or -1).
+    // No locked_by/locked index: those fields no longer exist on Msg (locking moved to the
+    // separate MsgLock collection), so such an index would only be dead insert overhead.
     public static final List<Map<String, Object>> MESSAGING_INDEXES = List.of(
                         Doc.of("key", Doc.of("timestamp", 1), "name", "msg_timestamp_1"),
                         Doc.of("key", Doc.of("sender", 1), "name", "msg_sender_1"),
-                        Doc.of("key", Doc.of("locked_by", 1, "locked", 1), "name", "msg_locked_by_1_locked_1"),
                         Doc.of("key", Doc.of("processed_by", 1), "name", "msg_processed_by_1")
         );
 

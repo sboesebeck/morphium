@@ -99,6 +99,7 @@ public class Query<T> implements Cloneable {
 
     private String overrideDB;
     private Collation collation;
+    private List<Map<String, Object>> arrayFilters;
     private int batchSize = 0;
     private UtilsMap<String, UtilsMap<String, String>> additionalFields;
     private Integer maxTimeMS = null;
@@ -146,6 +147,28 @@ public class Query<T> implements Cloneable {
 
     public Query<T> setCollation(Collation collation) {
         this.collation = collation;
+        return this;
+    }
+
+    public List<Map<String, Object>> getArrayFilters() {
+        return arrayFilters;
+    }
+
+    /**
+     * Sets the arrayFilters for subsequent update operations on this query (set/inc/unset/push/...).
+     * Each filter document defines one {@code $[<identifier>]} placeholder used in the update's
+     * field paths, e.g. {@code Doc.of("elem", Doc.of("$gte", 90))} for a path like
+     * {@code "values.$[elem]"}.
+     */
+    public Query<T> setArrayFilters(List<Map<String, Object>> arrayFilters) {
+        this.arrayFilters = arrayFilters;
+        return this;
+    }
+
+    /** Varargs convenience for {@link #setArrayFilters(List)}. */
+    @SafeVarargs
+    public final Query<T> setArrayFilters(Map<String, Object>... filters) {
+        this.arrayFilters = Arrays.asList(filters);
         return this;
     }
 

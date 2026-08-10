@@ -86,7 +86,14 @@ public class CurrentOpCommand extends MongoCommand<CurrentOpCommand> {
     @Override
     public CurrentOpCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);
-        secsRunning = (int)((Map) m.get("secs_running")).get("$gt");
+        // secs_running is an optional filter ({secs_running:{$gt:n}}) - a plain {currentOp:1}
+        // as sent by mongosh/monitoring tools must not fail to parse (#257)
+        Object sr = m.get("secs_running");
+
+        if (sr instanceof Map && ((Map<?, ?>) sr).get("$gt") instanceof Number n) {
+            secsRunning = n.intValue();
+        }
+
         return this;
     }
 

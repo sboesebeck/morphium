@@ -34,6 +34,9 @@ public class DriverSettings extends Settings {
 
 
     private String driverName = PooledDriver.driverName;
+    // Sent to MongoDB as client.application.name in the connection handshake; shows up in
+    // db.currentOp(), server logs and profiler output. MongoDB truncates values over 128 bytes.
+    private String appName = "Morphium";
     @Transient
     private ReadPreference defaultReadPreference = ReadPreference.nearest();
     @Transient
@@ -130,6 +133,15 @@ public class DriverSettings extends Settings {
         this.changeStreamBatchSize = changeStreamBatchSize;
         return this;
     }
+    public String getAppName() {
+        return appName;
+    }
+
+    public DriverSettings setAppName(String appName) {
+        this.appName = appName;
+        return this;
+    }
+
     public String getDriverName() {
         return driverName;
     }

@@ -132,4 +132,35 @@ public class InMemUnsetDottedPathTest {
         assertThat(found.get(0)).doesNotContainKey("flag");
         assertThat(found.get(0)).containsKey("keep");
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testUnsetDottedPathThroughArrayIndex() throws Exception {
+        var drv = newDriver();
+        String db = "unset_dotted_db";
+        String coll = "array_items";
+        new ClearCollectionCommand(drv).setDb(db).setColl(coll).doClear();
+
+        ObjectId id = new ObjectId();
+        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(List.of(Doc.of(
+            "_id", id,
+            "ratings", List.of(Doc.of("rating", 5, "keep", true), Doc.of("rating", 3)),
+            "tags", List.of("a", "b", "c")))).execute();
+
+        Map<String, Object> result = new UpdateMongoCommand(drv).setDb(db).setColl(coll)
+            .addUpdate(Doc.of(
+                "q", Doc.of("_id", id),
+                "u", Doc.of("$unset", Doc.of("ratings.0.rating", "", "tags.1", "")),
+                "multi", false))
+            .execute();
+
+        assertEquals(1, ((Number) result.get("nModified")).intValue());
+        Map<String, Object> stored = new FindCommand(drv).setDb(db).setColl(coll)
+            .setFilter(Doc.of("_id", id)).execute().get(0);
+        List<Map<String, Object>> ratings = (List<Map<String, Object>>) stored.get("ratings");
+        List<Object> tags = (List<Object>) stored.get("tags");
+        assertThat(ratings.get(0)).doesNotContainKey("rating").containsEntry("keep", true);
+        assertThat(ratings.get(1)).containsEntry("rating", 3);
+        assertThat(tags).containsExactly("a", null, "c");
+    }
 }

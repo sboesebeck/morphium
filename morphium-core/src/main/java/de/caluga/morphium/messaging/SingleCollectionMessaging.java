@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -77,6 +78,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private int windowSize = 100;
     private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
+    private ChangeStreamMonitor lockChangeStreamMonitor;
     // Watchdog state for the main change stream — used to detect a stalled cursor
     // (events stop arriving while the fallback poll keeps finding unprocessed messages)
     // and trigger a restart without resume token to jump back to the present.
@@ -91,6 +93,58 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     // answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
+
+    // Bounded trace of per-message processing decisions (skip reasons, matches, enqueues).
+    // The processing pipeline bails out silently in several places, which made the recurring
+    // answer-timeout flaky undiagnosable: a real occurrence showed the answer's change-stream
+    // event arriving and delivery still failing with no hint why. Dumped only by
+    // logAnswerTimeoutDiagnostics - zero log noise in normal operation.
+    private static final int DECISION_TRACE_CAPACITY = 512;
+    private final ArrayDeque<String> decisionTrace = new ArrayDeque<>();
+
+    private void traceDecision(Object msgId, Object inAnswerTo, String decision) {
+        String entry = System.currentTimeMillis() + " " + msgId
+                       + (inAnswerTo != null ? " (answer to " + inAnswerTo + ")" : "") + ": " + decision;
+
+        synchronized (decisionTrace) {
+            decisionTrace.addLast(entry);
+
+            if (decisionTrace.size() > DECISION_TRACE_CAPACITY) {
+                decisionTrace.pollFirst();
+            }
+        }
+    }
+
+    /**
+     * All traced processing decisions referencing the given message id - directly, or through a
+     * linked message: an entry like "X (answer to REQ): queued" links answer X to request REQ,
+     * and X's later entries (dequeue/runnable markers, which only know the element id) would
+     * otherwise be invisible when filtering for REQ alone.
+     */
+    public List<String> getProcessingDecisions(MorphiumId msgId) {
+        String idStr = String.valueOf(msgId);
+
+        synchronized (decisionTrace) {
+            Set<String> relevantIds = new HashSet<>();
+            relevantIds.add(idStr);
+
+            for (String e : decisionTrace) {
+                if (e.contains(idStr)) {
+                    // entry format: "<ts> <msgId> [(answer to <reqId>)]: <decision>" - the second
+                    // token is the id of the message the decision was about
+                    String[] parts = e.split(" ", 3);
+
+                    if (parts.length >= 2) {
+                        relevantIds.add(parts[1]);
+                    }
+                }
+            }
+
+            return decisionTrace.stream()
+                   .filter(e -> relevantIds.stream().anyMatch(e::contains))
+                   .collect(Collectors.toList());
+        }
+    }
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
     private final BlockingQueue<ProcessingQueueElement> processing = new PriorityBlockingQueue<>();
@@ -464,12 +518,22 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 return running;
             }
 
+            // Requeue update (processedBy cleared, see pipeline): the message is pending
+            // again but update events carry no fullDocument - trigger a poll to pick it up.
+            if ("update".equals(evt.getOperationType())) {
+                log.debug("CSE: {}: requeue update event received, triggering re-poll", this.id);
+                requestPoll.incrementAndGet();
+                return running;
+            }
+
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
-            // Debug: Count ALL change stream events for InMemoryDriver
-            if (morphium.getDriver().getName().contains("InMem")) {
-                int totalEvents = changeStreamEventsReceived.incrementAndGet();
-                log.info("CSE: {}: Change stream event #{} received, id={}", this.id, totalEvents, id);
+            // Per-event counter, log demoted to debug (#264) - the flaky-hunt INFO version was
+            // one line per change-stream event, far too chatty for production log levels.
+            int totalEvents = changeStreamEventsReceived.incrementAndGet();
+
+            if (log.isDebugEnabled()) {
+                log.debug("CSE: {}: Change stream event #{} received, id={}", this.id, totalEvents, id);
             }
 
             MorphiumId normalizedDocKeyId = null;
@@ -515,6 +579,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // Exclusive message already processed, skip
                         // NOTE: Do NOT add to docIdsFromChangestreamSet so polling can later process it
                         // if processedBy is cleared
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: exclusive already processed by " + processedBy + ", skipped");
                         log.debug("Got already processed exclusive message - skipping but not marking as seen");
                         return running;
                     }
@@ -526,6 +591,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 // initially skipped can be picked up by polling later if processedBy is cleared
                 if (normalizedDocKeyId != null) {
                     if (docIdsFromChangestreamSet.contains(normalizedDocKeyId)) {
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: duplicate event suppressed");
                         return running;
                     }
 
@@ -540,6 +606,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 synchronized (processing) {
                     // First check if already in progress (most important for preventing duplicates)
                     if (idsInProgress.contains(messageId)) {
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in idsInProgress, skipped");
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: message {} already in idsInProgress", messageId);
                         return running;
                     }
@@ -562,6 +629,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         el.setTimestamp(System.currentTimeMillis());
                     }
 
+                    // Fast path: for non-exclusive insert events the fullDocument is an
+                    // authoritative snapshot - nothing mutates a non-exclusive message between
+                    // insert and processing that our skip checks depend on, so the processing
+                    // runnable can deserialize it directly and skip the per-message PRIMARY
+                    // re-fetch. Exclusive messages deliberately do NOT get the document: their
+                    // processed_by re-check after claiming the lock needs a fresh read
+                    // (correctness, not overhead). Requeue updates and poll pickups never come
+                    // through here and keep the re-fetch as staleness protection.
+                    if ("insert".equals(evt.getOperationType()) && (exclusive == null || !exclusive)) {
+                        el.setFullDocument(msg);
+                    }
+
                     // Check if not already queued for processing
                     if (!processing.contains(el)) {
                         processing.add(el);
@@ -569,8 +648,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         // This must happen HERE, not in the processing thread, to close the race condition window
                         idsInProgress.add(messageId);
 
+                        traceDecision(messageId, msg.get("in_answer_to"), el.getFullDocument() != null
+                                      ? "cs-event: queued for processing (fullDocument attached)"
+                                      : "cs-event: queued for processing");
                         log.debug("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
                     } else {
+                        traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in processing queue, skipped");
                         log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
                 }
@@ -669,6 +752,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             ChangeStreamMonitor fresh = new ChangeStreamMonitor(
                     morphium, getCollectionName(), false, changeStreamMaxWait, changeStreamPipeline);
             fresh.addListener(this::onMainCsEvent);
+            // same wiring as the original monitor: catch up once the fresh watch is up
+            fresh.addWatchEstablishedListener(requestPoll::incrementAndGet);
             changeStreamMonitor = fresh;
             fresh.start();
             // Reset markers — give the fresh stream the full threshold before re-evaluating.
@@ -684,6 +769,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      */
     public long getCsStallRestarts() {
         return csStallRestarts.get();
+    }
+
+    /**
+     * Whether BOTH change streams (message collection + lock collection) are provably alive
+     * and in sync: their watch loops receive a server reply at least every maxTimeMS (empty
+     * batch heartbeat). A stream falling silent triggers an immediate fallback poll instead
+     * of waiting for the regular interval. Public also for diagnostics/monitoring.
+     */
+    public boolean changeStreamsLive() {
+        return changeStreamMonitor != null && changeStreamMonitor.isStreamLive()
+            && lockChangeStreamMonitor != null && lockChangeStreamMonitor.isStreamLive();
     }
 
     /**
@@ -715,9 +811,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        // Accept "insert" (new messages) and "lock_released" (PoppyDB pushes this when
-        // a lock is deleted, so we can re-poll for exclusive messages without a separate connection)
-        in.put("$in", Arrays.asList("insert", "lock_released"));
+        // Accept "insert" (new messages), "lock_released" (PoppyDB pushes this when a lock
+        // is deleted, so we can re-poll for exclusive messages without a separate connection)
+        // and "update" (requeue detection, see the relevance filter below)
+        in.put("$in", Arrays.asList("insert", "lock_released", "update"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
 
@@ -744,9 +841,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             UtilsMap.of(recipientsField, null),
             UtilsMap.of(recipientsField, id)
         ));
+        // Requeue detection: clearing processedBy via a plain DB update makes a message
+        // pending again but produces no insert event. The requeue signature is
+        // updateDescription.updatedFields.processed_by set to an EMPTY array ($size 0) -
+        // normal processing marks use positional keys (processed_by.0, ...) and stay filtered.
+        String processedByField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.processedBy.name());
+        Map<String, Object> requeueRelevant = new LinkedHashMap<>();
+        requeueRelevant.put("operationType", "update");
+        requeueRelevant.put("updateDescription.updatedFields." + processedByField, UtilsMap.of("$size", 0));
         Map<String, Object> relevanceMatch = new LinkedHashMap<>();
         relevanceMatch.put("$or", Arrays.asList(
             UtilsMap.of("operationType", "lock_released"),
+            requeueRelevant,
             insertRelevant
         ));
         pipeline.add(UtilsMap.of("$match", relevanceMatch));
@@ -756,6 +862,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         changeStreamPipeline = pipeline;
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, changeStreamMaxWait,
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
+        lockChangeStreamMonitor = lockMonitor;
         lockMonitor.addListener(evt -> {
             // some lock removed
             if (morphium.createQueryFor(Msg.class, getCollectionName()).f("_id").eq(evt.getDocumentKey()).countAll() != 0) {
@@ -766,6 +873,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         });
         changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, changeStreamMaxWait, pipeline);
         changeStreamMonitor.addListener(this::onMainCsEvent);
+        // On every watch (re-)establishment poll once: messages inserted while the stream
+        // was down are invisible to the new stream unless a resume token was available.
+        changeStreamMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
+        // Same for lock releases: a lock deleted during a lock-monitor gap would otherwise
+        // never trigger its re-poll for exclusive messages.
+        lockMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
         // Initialize liveness markers so the watchdog doesn't fire immediately at startup.
         lastCsEventMs = System.currentTimeMillis();
         lastCsRestartMs = lastCsEventMs;
@@ -808,11 +921,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // always run this find in addition to changestream
         try {
             AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
-            // Fallback poll interval when using change streams - poll at least every N pauses
-            // to catch any events that might be missed by the change stream
-            // Test evidence shows changestream catches 100% of messages, so this is just a safety net
-            final int FALLBACK_POLL_INTERVAL = 100; // Poll every 100th pause cycle as fallback (was 10)
-            final AtomicInteger pollCycleCounter = new AtomicInteger(0);
+            // Safety-net poll runs every messagingFallbackPollInterval regardless of stream
+            // health (see the poll conditions below for why). Stream liveness - the watch loop
+            // receives a server reply at least every maxTimeMS (empty batch heartbeat) - is
+            // used to poll IMMEDIATELY when a stream falls silent, instead of on the timer.
+            final AtomicLong lastFallbackPoll = new AtomicLong(0);
+            final AtomicBoolean streamsWereLive = new AtomicBoolean(false);
             decouplePool.scheduleWithFixedDelay(() -> {
 
                 try {
@@ -824,12 +938,26 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                               cleanupTime - entry.getValue() > MESSAGE_TRACKING_RETENTION_MS);
 
                     // Poll when:
-                    // 1. requestPoll > 0 (lock deleted, new messages likely available)
+                    // 1. requestPoll > 0 (lock deleted / watch re-established, messages likely available)
                     // 2. change streams disabled (always poll)
-                    // 3. fallback: every FALLBACK_POLL_INTERVAL cycles when change streams are enabled
-                    //    to catch any events that might be missed by the change stream
-                    boolean shouldFallbackPoll = useChangeStream &&
-                    (pollCycleCounter.incrementAndGet() % FALLBACK_POLL_INTERVAL == 0);
+                    // 3. fallback: every messagingFallbackPollInterval - ALWAYS, even while the
+                    //    streams are live: messages can (re-)appear without any matching stream
+                    //    event (e.g. requeueing by clearing processedBy via a plain DB update)
+                    //    and must be found before their TTL expires. Liveness only ADDS urgency:
+                    //    a stream falling silent is polled immediately instead of on the timer.
+                    boolean shouldFallbackPoll = false;
+
+                    if (useChangeStream) {
+                        boolean live = changeStreamsLive();
+                        boolean justTurnedSuspect = streamsWereLive.getAndSet(live) && !live;
+                        long now = System.currentTimeMillis();
+
+                        if (justTurnedSuspect
+                                || now - lastFallbackPoll.get() >= settings.getMessagingFallbackPollInterval()) {
+                            lastFallbackPoll.set(now);
+                            shouldFallbackPoll = true;
+                        }
+                    }
 
                     if (requestPoll.get() > 0 || !useChangeStream || shouldFallbackPoll) {
                         lastRun.set(System.currentTimeMillis());
@@ -840,10 +968,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         boolean foundBacklog = findMessages();
                         // Watchdog: if the poll picks up unprocessed messages but the change stream
                         // has been silent for too long, the cursor has fallen behind — restart it.
-                        // Threshold = 2 × FALLBACK_POLL_INTERVAL × pause covers two full poll cycles
-                        // before declaring a stall, which avoids false positives from slow networks.
+                        // Threshold = 2 fallback intervals before declaring a stall, which avoids
+                        // false positives from slow networks.
                         if (foundBacklog && useChangeStream) {
-                            restartMainCsIfStalled(2L * FALLBACK_POLL_INTERVAL * pause);
+                            restartMainCsIfStalled(2L * settings.getMessagingFallbackPollInterval());
                         }
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
@@ -884,50 +1012,101 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
 
                 final ProcessingQueueElement finalPrEl = prEl;
+                // Distinguishes "never dequeued" from "runnable stuck in the thread pool" from
+                // "runnable ran and bailed" in the decision trace (see the BasicJMSTests flaky:
+                // an answer was queued for processing and then nothing happened for 30s).
+                traceDecision(finalPrEl.getId(), null, "processing: dequeued, submitting runnable");
                 Runnable r = () -> {
                     boolean wasProcessed = false;
                     Msg msg = null;
                     try {
+                        traceDecision(finalPrEl.getId(), null, "processing: runnable started");
+
                         if (!running || morphium == null || morphium.getDriver() == null) {
+                            traceDecision(finalPrEl.getId(), null, "processing: bailing - messaging not running / driver gone");
                             return;
                         }
 
-                        // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
-                        // With NEAREST, replica lag could cause us to see old processedBy values
-                        // which would cause message processing to be incorrectly skipped
-                        var q = morphium.createQueryFor(Msg.class)
-                                .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
-                        q.setCollectionName(getCollectionName());
-                        msg = q.get();
+                        // Fast path: non-exclusive insert events carry the fullDocument snapshot
+                        // (attached in handleChangeStreamEvent) - deserialize it directly and save
+                        // the per-message DB roundtrip. All skip checks below run against the
+                        // deserialized message exactly as they would against a re-fetched one.
+                        Map<String, Object> fullDoc = finalPrEl.getFullDocument();
+
+                        if (fullDoc != null) {
+                            try {
+                                msg = morphium.getMapper().deserialize(Msg.class, fullDoc);
+                                // The raw mapper does not run entity lifecycle callbacks - fire
+                                // @PostLoad explicitly (like the query path does after unmarshalling),
+                                // otherwise Msg.postLoad()'s V5->V6 name->topic migration is skipped
+                                // and legacy messages without a "topic" field get dropped silently.
+                                if (msg != null) {
+                                    morphium.firePostLoadEvent(msg);
+                                }
+                            } catch (Exception e) {
+                                log.warn("Could not deserialize change stream fullDocument for {} - falling back to re-fetch", finalPrEl.getId(), e);
+                                msg = null;
+                            }
+
+                            // Defensive: the fast path is for non-exclusive messages only. If an
+                            // exclusive message ever slips through (or deserialization produced no
+                            // id), discard and take the re-fetch path - exclusive semantics must
+                            // stay byte-identical to the pre-fast-path behavior.
+                            if (msg != null && (msg.isExclusive() || msg.getMsgId() == null)) {
+                                msg = null;
+                            }
+
+                            if (msg != null) {
+                                traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: using change stream fullDocument (fast path, no re-fetch)");
+                            }
+                        }
 
                         if (msg == null) {
-                            return;
+                            // CRITICAL: Use PRIMARY read preference to avoid stale reads from replicas
+                            // With NEAREST, replica lag could cause us to see old processedBy values
+                            // which would cause message processing to be incorrectly skipped
+                            var q = morphium.createQueryFor(Msg.class)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
+                            q.setCollectionName(getCollectionName());
+                            msg = q.get();
+
+                            if (msg == null) {
+                                traceDecision(finalPrEl.getId(), null, "processing: reread returned null - message gone from collection");
+                                return;
+                            }
+
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: re-fetched from database");
                         }
 
                         // do not process if no listener registered for this message
                         if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getTopic())) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: no listener for topic '" + msg.getTopic() + "', skipped");
                             return;
                         }
 
                         // Never receive messages sent by myself by default.
                         // sendMessageToSelf() uses sender="self" and explicit recipient, so it still works.
                         if (msg.getSender() != null && msg.getSender().equals(id)) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: sent by myself (sender==me), skipped");
                             return;
                         }
 
                         // exclusive message already processed
                         if (msg.isExclusive() && msg.getProcessedBy() != null && msg.getProcessedBy().size() != 0) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: exclusive already processed by " + msg.getProcessedBy() + ", skipped");
                             return;
                         }
 
                         // I did already process this message
                         // For all drivers, check the stale copy first (fast path)
                         if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: already processed by me, skipped");
                             return;
                         }
 
                         // recipient specified, but i am not it
                         if (msg.getRecipients() != null && !msg.getRecipients().contains(id)) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: not a recipient (recipients=" + msg.getRecipients() + "), skipped");
                             return;
                         }
 
@@ -943,12 +1122,25 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                             if (null != answersForMessage) {
                                 // we're expecting this message!
-                                updateProcessedBy(msg);
+                                traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: answer matched waiting request, delivered");
+
+                                // Deliver BEFORE persisting the processed_by mark: that write is
+                                // majority-acked on real MongoDB (easily 10ms+ per call) and the blocked
+                                // sendAndAwait* caller must not pay for it. The local object is marked
+                                // first so the delivered answer carries consistent metadata; redelivery
+                                // during the gap cannot happen because this block runs inside the
+                                // processing runnable and the id stays in idsInProgress (excluded by
+                                // both the poll query and the change stream duplicate check) until the
+                                // write has landed.
+                                if (!msg.getProcessedBy().contains(id)) {
+                                    msg.getProcessedBy().add(id);
+                                }
 
                                 if (!answersForMessage.contains(msg)) {
                                     answersForMessage.add(msg);
                                 }
 
+                                persistProcessedByMark(msg);
                                 checkDeleteAfterProcessing(msg);
                                 return;
                             }
@@ -957,12 +1149,20 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             final Msg theMessage = msg;
 
                             if (cbr != null) {
+                                traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: answer matched async callback, delivered");
                                 AsyncMessageCallback cb = cbr.callback;
                                 Runnable cbRunnable = () -> {
                                     cb.incomingMessage(theMessage);
                                 };
-                                updateProcessedBy(theMessage);
+                                // Dispatch BEFORE persisting the processed_by mark - same reasoning as
+                                // the waiter path above: the callback must not wait for the write, and
+                                // idsInProgress shields against redelivery until the write has landed.
+                                if (!theMessage.getProcessedBy().contains(id)) {
+                                    theMessage.getProcessedBy().add(id);
+                                }
+
                                 queueOrRun(cbRunnable);
+                                persistProcessedByMark(theMessage);
 
                                 if (cbr.theMessage.isExclusive()) {
                                     waitingForCallbacks.remove(msg.getInAnswerTo());
@@ -971,17 +1171,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                 checkDeleteAfterProcessing(msg);
                                 return;
                             }
+
+                            // neither a waiter nor a callback: the request may have timed out
+                            // already - or this is the exact silent drop the trace exists for
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: answer matched NO waiter/callback, falling through to topic listeners");
                         }
 
                         if (!getListenerNames().containsKey(msg.getTopic())) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: no listener for topic '" + msg.getTopic() + "', dropped");
                             return;
                         }
 
                         // really do handle message
                         if (msg.isExclusive()) {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: handling exclusively (lockAndProcess)");
                             lockAndProcess(msg);
                             wasProcessed = true;
                         } else {
+                            traceDecision(msg.getMsgId(), msg.getInAnswerTo(), "processing: handling (processMessage)");
                             processMessage(msg);
                             wasProcessed = true;
                         }
@@ -1267,6 +1474,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // NOTE: We do NOT add to idsInProgress here
                     // It will be added when the processing thread pulls it from the queue
                     // This prevents messages from getting stuck in idsInProgress if never processed
+                    traceDecision(el.getId(), null, "poll: queued for processing");
+                } else {
+                    traceDecision(el.getId(), null, "poll: skipped (already queued or in progress)");
                 }
             }
         }
@@ -1644,6 +1854,45 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
+     * DB-only companion to updateProcessedBy for the answer fast path: the local Msg object has
+     * already been marked (so the delivered answer carries consistent metadata) and only the
+     * $addToSet write remains. Deliberately no local-contains shortcut - the local list was just
+     * mutated, the write must still be attempted. nModified=0 means someone else marked the
+     * message or it was already deleted (deleteAfterProcessing race); both are fine for answers,
+     * $addToSet is idempotent either way.
+     */
+    private void persistProcessedByMark(Msg msg) {
+        if (msg == null || !running || morphium == null || morphium.getDriver() == null || morphium.getConfig() == null) {
+            return;
+        }
+
+        Object queryId = msg.getMsgId();
+        if (queryId instanceof MorphiumId) {
+            queryId = new org.bson.types.ObjectId(((MorphiumId) queryId).getBytes());
+        }
+        Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
+        idq.f("_id").eq(queryId);
+        UpdateMongoCommand cmd = null;
+
+        try {
+            cmd = new UpdateMongoCommand(
+                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
+            cmd.addUpdate(idq.toQueryObject(), Doc.of("$addToSet", Doc.of(processedByFieldName, id)),
+                          null, false, false, null, null, null);
+            cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+        } catch (MorphiumDriverException e) {
+            log.error("Error persisting processed_by mark for answer " + msg.getMsgId(), e);
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
+
+    /**
      * Rollback for updateProcessedBy: remove our id from processed_by ($pull) so the message
      * can be retried. Used when an exclusive message was marked before exec (see processMessage)
      * but the listener rejected or failed.
@@ -1933,6 +2182,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         m.setSender(id);
+
+        // apply the configured default TTL (Msg.preStore would fall back to the hardcoded 30s)
+        if (m.isTimingOut() && m.getTtl() <= 0) {
+            m.setTtl(settings.getMessagingDefaultTtl());
+        }
         m.setSenderHost(hostname);
         try {
             morphium.insert(m, getCollectionName(), cb);
@@ -2094,6 +2348,44 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         long timestamp;
     }
 
+    /**
+     * Failure-path-only diagnostics for the recurring answer-timeout flakies (BasicJMSTests
+     * et al., 2026-07-21): query the collection state once and name the failing stage -
+     * request never processed (delivery/processing), processed without an answer (answer
+     * never sent), or answer stored but not delivered back (answer delivery).
+     */
+    private void logAnswerTimeoutDiagnostics(Msg theMessage, long timeoutInMs) {
+        try {
+            Msg orig = morphium.createQueryFor(Msg.class, getCollectionName())
+                .f("_id").eq(theMessage.getMsgId()).get();
+            long answers = morphium.createQueryFor(Msg.class, getCollectionName())
+                .f(Msg.Fields.inAnswerTo).eq(theMessage.getMsgId()).countAll();
+            String verdict;
+
+            if (answers > 0) {
+                verdict = "answer(s) stored but not delivered back to this instance (answer delivery failed)";
+            } else if (orig == null) {
+                verdict = "request gone (deleted/expired) and no answer stored";
+            } else if (orig.getProcessedBy() == null || orig.getProcessedBy().isEmpty()) {
+                verdict = "request still unprocessed (delivery to/processing by the consumer failed)";
+            } else {
+                verdict = "request processed by " + orig.getProcessedBy() + " but no answer stored (answer never sent)";
+            }
+
+            log.error("answer timeout diagnostics for {}/{} after {}ms (instance {}): request={}, answers stored={} -> {}",
+                theMessage.getTopic(), theMessage.getMsgId(), timeoutInMs, getSenderId(),
+                orig == null ? "GONE" : "present, processedBy=" + orig.getProcessedBy(), answers, verdict);
+            // "answers stored=0" at exactly t=timeout can be a TTL artifact (answer TTL often
+            // equals the await timeout) - the decision trace shows what THIS instance actually
+            // did with the request and any answer to it, including the silent skip paths.
+            List<String> decisions = getProcessingDecisions(theMessage.getMsgId());
+            log.error("processing decision trace for {} ({} entries): {}",
+                theMessage.getMsgId(), decisions.size(), decisions.isEmpty() ? "NONE - no event or poll ever saw this id" : String.join(" | ", decisions));
+        } catch (Exception e) {
+            log.error("answer timeout diagnostics failed", e);
+        }
+    }
+
     @Override
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
         if (!running) {
@@ -2111,9 +2403,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             sendMessage(theMessage);
             T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
 
-            if (null == firstAnswer && throwExceptionOnTimeout) {
-                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/"
-                                                  + requestMsgId + " in time (" + timeoutInMs + "ms)");
+            if (null == firstAnswer) {
+                logAnswerTimeoutDiagnostics(theMessage, timeoutInMs);
+
+                if (throwExceptionOnTimeout) {
+                    throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/"
+                                                      + requestMsgId + " in time (" + timeoutInMs + "ms)");
+                }
             }
 
             return firstAnswer;
@@ -2160,6 +2456,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                 // Did not receive any message in time
                 if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
+                    logAnswerTimeoutDiagnostics(theMessage, timeout);
                     throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic()
                                                       + "/" + requestMsgId + "in time (" + timeout + ")");
                 }
@@ -2306,6 +2603,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         private int priority;
         private MorphiumId id;
         private long timestamp;
+        // Optional insert-event snapshot for the non-exclusive fast path: when set, the
+        // processing runnable deserializes the message from here instead of re-fetching it.
+        // Deliberately NOT part of equals/hashCode/compareTo - queue identity stays the id.
+        private Map<String, Object> fullDocument;
 
         public ProcessingQueueElement() {
         }
@@ -2340,6 +2641,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         public ProcessingQueueElement setId(MorphiumId id) {
             this.id = id;
+            return this;
+        }
+
+        public Map<String, Object> getFullDocument() {
+            return fullDocument;
+        }
+
+        public ProcessingQueueElement setFullDocument(Map<String, Object> fullDocument) {
+            this.fullDocument = fullDocument;
             return this;
         }
 

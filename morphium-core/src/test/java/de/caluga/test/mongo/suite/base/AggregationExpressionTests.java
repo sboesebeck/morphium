@@ -9,6 +9,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class AggregationExpressionTests {
@@ -37,5 +43,23 @@ public class AggregationExpressionTests {
         val = Utils.toJsonString(e.toQueryObject());
         log.info(val);
         assert (val.equals("{ \"$filter\" : { \"input\" :  [ 1, 14, \"asV\"], \"as\" : \"str\", \"cond\" : \"NEN\" }  } "));
+    }
+
+    @Test
+    public void inRejectsNonArrayOperand() {
+        Expr missingArray = Expr.in(Expr.string("value"), Expr.field("missing"));
+        Expr scalarArray = Expr.in(Expr.string("value"), Expr.string("value"));
+
+        assertThrows(IllegalArgumentException.class, () -> missingArray.evaluate(Map.of()));
+        assertThrows(IllegalArgumentException.class, () -> scalarArray.evaluate(Map.of()));
+    }
+
+    @Test
+    public void inSupportsListsJavaArraysAndNullElements() {
+        Expr expression = Expr.in(Expr.nullExpr(), Expr.field("values"));
+
+        assertTrue((Boolean) expression.evaluate(Map.of("values", Arrays.asList("value", null))));
+        assertTrue((Boolean) expression.evaluate(Map.of("values", new String[]{"value", null})));
+        assertFalse((Boolean) expression.evaluate(Map.of("values", List.of("value"))));
     }
 }

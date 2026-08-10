@@ -146,5 +146,12 @@ public class WatchResumeTokenTest {
                         + "watch, so the caller can resume without losing the events of the gap")
                 .isNotNull()
                 .containsEntry("_data", "TOKEN42");
+
+        // Every reply - events or empty batch - is a liveness heartbeat: the server answers a
+        // getMore within maxTimeMS. Consumers (ChangeStreamMonitor.isStreamLive) use this stamp
+        // to tell a provably healthy stream from a silently dead one.
+        assertThat(cmd.getLastReplyAt())
+                .as("watch must stamp the time of the last server reply on the command")
+                .isGreaterThan(0L);
     }
 }

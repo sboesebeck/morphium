@@ -3,9 +3,11 @@
 BASEPORT=17017
 NODES=1
 COMPILE=true
+SSL=false
 
 COMMMAND=$1
 TMPDIR=/tmp/poppydb
+SSL_KEYSTORE_PASSWORD=changeit
 
 ONLYNODE=0
 
@@ -13,9 +15,14 @@ if [[ "$1" = "start" ]]; then
   echo "Starting server"
 
 elif [[ "$1" = "startnode" ]]; then
+  if [[ "$2" = "-h" ]]; then
+    echo "$0 startnode NODENUM -s|--ssl -p BASEPORT"
+    exit 0
+  fi
   ONLYNODE=$2
   echo "Starting node $2"
   shift
+
 elif [[ "$1" = "stopnode" ]]; then
   if [ ! -e $TMPDIR/node-$2.pid ]; then
     echo "not running"
@@ -50,10 +57,10 @@ elif [[ "$1" = "status" ]]; then
     node_num=$(basename $i | sed 's/node-\([0-9]*\)\.pid/\1/')
     pid=$(<$i)
     if kill -0 $pid 2>/dev/null; then
-       echo "Node $node_num: Running (PID: $pid)"
-       lsof -Pan -p $pid -i | grep LISTEN | sed 's/.*TCP \(.*\):\(.*\) (LISTEN)/\tListening on: \1:\2/' || echo "\tNo listening port found for this PID"
+      echo "Node $node_num: Running (PID: $pid)"
+      lsof -Pan -p $pid -i | grep LISTEN | sed 's/.*TCP \(.*\):\(.*\) (LISTEN)/\tListening on: \1:\2/' || echo "\tNo listening port found for this PID"
     else
-       echo "Node $node_num: Not running (PID file exists with PID $pid, but process is dead)"
+      echo "Node $node_num: Not running (PID file exists with PID $pid, but process is dead)"
     fi
   done
   if [ "$found" = false ]; then
@@ -79,6 +86,9 @@ while [[ -n $1 ]]; do
   elif [[ "$1" = "-nc" ]] || [[ "$1" = "--nocompile" ]]; then
     COMPILE=false
     shift
+  elif [[ "$1" = "-s" ]] || [[ "$1" = "--ssl" ]]; then
+    SSL=true
+    shift
   elif [[ "$1" = "-n" ]] || [[ "$1" = "--nodes" ]]; then
     NODES=$2
     if [ "$NODES" -gt 5 ]; then
@@ -89,7 +99,10 @@ while [[ -n $1 ]]; do
     shift
     shift
   elif [[ "$1" = "-h" ]] || [[ "$1" = "--help" ]]; then
-    echo "$0 -p PORT -n NUM_NODES"
+    echo "$0 -p PORT -n NUM_NODES [-s|--ssl] [-nc|--nocompile]"
+    echo "  -s, --ssl   enable TLS - generates (or reuses) a throwaway self-signed"
+    echo "              keystore in $TMPDIR; connect with mongosh via"
+    echo "              --tls --tlsAllowInvalidCertificates"
     exit 0
   else
     echo "Unknown option $1"
@@ -102,7 +115,15 @@ if [ ! -e $TMPDIR ]; then
 fi
 if $COMPILE; then
   mvn -Dmaven.test.skip=true -Dmaven.javadoc.skip=true package -pl poppydb -am || exit 1
-  mv poppydb/target/*-cli.jar $TMPDIR/poppydb.jar
+  # resolve the current project version from the pom - stale jars from older
+  # versions may still be lying around in target/
+  POMVERSION=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' pom.xml | head -n 1)
+  CLIJAR="poppydb/target/poppydb-${POMVERSION}-cli.jar"
+  if [ ! -e "$CLIJAR" ]; then
+    echo "Build did not produce $CLIJAR - check pom version / build output"
+    exit 1
+  fi
+  mv "$CLIJAR" $TMPDIR/poppydb.jar
 else
   if [ ! -e $TMPDIR/poppydb.jar ]; then
     echo "No PoppyDB installation found"
@@ -111,13 +132,28 @@ else
 fi
 cd $TMPDIR
 
+SSL_ARGS=""
+if $SSL; then
+  KEYSTORE=$TMPDIR/poppydb.p12
+  if [ ! -e "$KEYSTORE" ]; then
+    echo "Generating throwaway self-signed keystore at $KEYSTORE"
+    keytool -genkeypair -alias poppydb -keyalg RSA -keysize 2048 -validity 365 \
+      -storetype PKCS12 -keystore "$KEYSTORE" \
+      -storepass "$SSL_KEYSTORE_PASSWORD" -keypass "$SSL_KEYSTORE_PASSWORD" \
+      -dname "CN=localhost" || exit 1
+  fi
+  SSL_ARGS="--ssl --sslKeystore $KEYSTORE --sslKeystorePassword $SSL_KEYSTORE_PASSWORD"
+  echo "SSL enabled - connect with: mongosh --tls --tlsAllowInvalidCertificates ..."
+fi
+
 if [ $NODES -eq 1 ]; then
   if lsof -Pi :$BASEPORT -sTCP:LISTEN -t >/dev/null; then
     echo "Port $BASEPORT is already in use!"
     exit 1
   fi
   echo "Starting single node PoppyDB on port $BASEPORT"
-  java -Xmx8G -jar $TMPDIR/poppydb.jar -p $BASEPORT >$TMPDIR/poppydb-1.log 2>&1 &
+  # --no-config: keep local test runs isolated from any private ~/.config/poppydb/config
+  java -Xmx8G -jar $TMPDIR/poppydb.jar --no-config -p $BASEPORT $SSL_ARGS >$TMPDIR/poppydb-1.log 2>&1 &
   pid=$!
   echo "$pid" >$TMPDIR/node-1.pid
   sleep 2
@@ -145,21 +181,26 @@ else
 
   p=$BASEPORT
   for n in $(seq $NODES); do
-    if lsof -Pi :$p -sTCP:LISTEN -t >/dev/null; then
-      echo "Port $p is already in use, skipping node $n"
-      continue
-    fi
     if [ $ONLYNODE -eq 0 ] || [ $ONLYNODE -eq $n ]; then
-      echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
+      # Skip via else (NOT `continue`): the port increment at the loop bottom must still run,
+      # otherwise every later node would shift onto the wrong port. Starting anyway would be
+      # worse still - the new JVM can't bind, but its pid would already have clobbered
+      # node-$n.pid, and the failure branch below would then delete the pid file of the process
+      # that IS still running, orphaning it for stop/status.
+      if lsof -Pi :$p -sTCP:LISTEN -t >/dev/null; then
+        echo "Port $p is already in use, skipping node $n"
+      else
+        echo "Starting node $n PoppyDB on port $p, replicaset rstst, prios $prioList, nodes: $nodeList"
 
-      java -Xmx8G -jar $TMPDIR/poppydb.jar -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" >$TMPDIR/poppydb-$n.log 2>&1 &
-      pid=$!
-      echo "$pid" >$TMPDIR/node-$n.pid
-      sleep 1
-      if ! kill -0 $pid 2>/dev/null; then
-        echo "Failed to start node $n PoppyDB, check $TMPDIR/poppydb-$n.log"
-        cat $TMPDIR/poppydb-$n.log
-        rm $TMPDIR/node-$n.pid
+        java -Xmx8G -jar $TMPDIR/poppydb.jar --no-config -p $p --rs-name tstrs --rs-seed "$nodeList" --rs-priorities "$prioList" $SSL_ARGS >$TMPDIR/poppydb-$n.log 2>&1 &
+        pid=$!
+        echo "$pid" >$TMPDIR/node-$n.pid
+        sleep 1
+        if ! kill -0 $pid 2>/dev/null; then
+          echo "Failed to start node $n PoppyDB, check $TMPDIR/poppydb-$n.log"
+          cat $TMPDIR/poppydb-$n.log
+          rm $TMPDIR/node-$n.pid
+        fi
       fi
     fi
     let p=p+1

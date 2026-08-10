@@ -1,0 +1,5 @@
+de.caluga.morphium.quarkus.deployment.MorphiumProcessor
+de.caluga.morphium.quarkus.deployment.MorphiumDataProcessor
+de.caluga.morphium.quarkus.deployment.MorphiumDevServicesProcessor
+de.caluga.morphium.quarkus.deployment.MorphiumMigrationProcessor
+de.caluga.morphium.quarkus.deployment.MorphiumDevUIProcessor

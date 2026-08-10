@@ -32,6 +32,35 @@ public class BsonEncoder {
         return encodeDocument(m, UUIDRepresentation.STANDARD);
     }
 
+    /**
+     * BSON size in bytes of the given document - exactly what {@link #encodeDocument(Map)}
+     * would produce, but without materializing the final array copy (the driver's document
+     * size limit checks this on every write, and a near-limit document would otherwise
+     * allocate its whole size twice just to be measured).
+     */
+    public static int documentSize(Map<String, Object> m) {
+        BsonEncoder enc = new BsonEncoder();
+        for (Map.Entry<String, Object> e : m.entrySet()) {
+            enc.encodeObject(e.getKey(), e.getValue());
+        }
+        // body + 4 bytes length prefix + 1 byte terminator
+        return enc.out.size() + 5;
+    }
+
+    /**
+     * Best-effort variant of {@link #documentSize(Map)}: 0 for documents containing values
+     * BSON cannot encode. The embedded InMemoryDriver accepts arbitrary Java objects as
+     * values (nothing is ever serialized there) - size gates must skip such documents
+     * instead of breaking a historically legal write.
+     */
+    public static int documentSizeOrZero(Map<String, Object> m) {
+        try {
+            return documentSize(m);
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
     public static byte[] encodeDocument(Map<String, Object> m, UUIDRepresentation representation) {
         // Use a single encoder for all fields — avoids N allocations for N fields
         BsonEncoder enc = new BsonEncoder();

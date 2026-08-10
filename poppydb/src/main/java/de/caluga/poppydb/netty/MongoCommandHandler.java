@@ -28,7 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Netty handler for processing MongoDB commands.
@@ -59,32 +60,88 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private static final Set<String> WRITE_COMMANDS = Set.of(
             "insert", "update", "delete", "findandmodify",
-            "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite"
+            "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite",
+            "createuser", "updateuser", "dropuser"
     );
+
+    // Control-plane / handshake / session / election commands that are handled with their
+    // own explicit switch case and must NOT go through the data-command middleware
+    // (preDispatch). Everything not listed here is treated as a data command: it runs the
+    // shared primary/readPreference/transaction checks before dispatch, whether it takes the
+    // fast path or the generic path. Keep this in sync with the non-data cases in
+    // processOpMsg's switch (all lower-cased).
+    // Commands a connection may run BEFORE authenticating when --auth is enabled: the
+    // handshake, the SASL conversation itself, logout and basic health probes - mirroring
+    // mongod's pre-auth allowance.
+    private static final Set<String> PRE_AUTH_COMMANDS = Set.of(
+            "hello", "ismaster", "saslstart", "saslcontinue", "logout",
+            "ping", "buildinfo", "getcmdlineopts",
+            // mongod allows these unauthenticated too (connectionStatus then reports no users)
+            "whatsmyuri", "connectionstatus");
+
+    // Auth enforcement state - one handler instance per channel, so these fields ARE the
+    // per-connection authentication state. Enforcement is strictly opt-in via setAuthRequired.
+    private volatile boolean authRequired = false;
+    private volatile String authenticatedUser = null;
+    private volatile String pendingAuthUser = null;
+
+    private static final Set<String> CONTROL_COMMANDS = Set.of(
+            "getcmdlineopts", "buildinfo", "ismaster", "hello",
+            "getfreemonitoringstatus", "ping",
+            "registermessagingcollection", "unregistermessagingsubscriber", "getmessagingstats",
+            "listdatabases", "endsessions", "startsession", "refreshsessions",
+            "aborttransaction", "committransaction", "getmore", "killcursors",
+            "getlog", "getparameter", "replsetprogress",
+            "requestvote", "appendentries", "replsetgetstatus", "replsetstepdown", "replsetfreeze",
+            "currentop", "killop", "listcommands", "hostinfo", "connectionstatus", "whatsmyuri",
+            "replsetgetconfig", "serverstatus",
+            // read-only diagnostics that MUST work on secondaries: dbHash exists to compare
+            // replica-set members, validate checks local data<->index consistency
+            "dbhash", "validate"
+    );
+
+    /**
+     * Outcome of the shared pre-dispatch middleware. When {@link #errorResponse} is non-null
+     * the caller must send it and stop; otherwise dispatch proceeds.
+     */
+    private static final class CheckResult {
+        static final CheckResult PROCEED = new CheckResult(null);
+        final Map<String, Object> errorResponse;
+
+        private CheckResult(Map<String, Object> errorResponse) {
+            this.errorResponse = errorResponse;
+        }
+
+        static CheckResult reject(Map<String, Object> errorResponse) {
+            return new CheckResult(errorResponse);
+        }
+
+        boolean rejected() {
+            return errorResponse != null;
+        }
+    }
 
     // Track cursors created by this channel so we can kill them on disconnect
     private final Set<Long> channelCursors = ConcurrentHashMap.newKeySet();
 
-    // Server-side find cursors: cursorId → remaining documents + metadata
-    private static final AtomicLong FIND_CURSOR_SEQ = new AtomicLong(1_000_000);
-    private static final ConcurrentHashMap<Long, FindCursorState> findCursors = new ConcurrentHashMap<>();
+    /**
+     * Default retained-window size, expressed as a multiple of the client's batchSize. A cursor
+     * never retains more than {@code MAX_RETAINED_BATCHES × batchSize} documents at once —
+     * bounding memory for large finds (e.g. a 1M-doc find with batchSize 100 previously pinned
+     * ~1M documents per open cursor; now it pins at most 100 × 100 = 10,000).
+     */
+    private static final int MAX_RETAINED_BATCHES = 10;
 
-    private static class FindCursorState {
-        final String db;
-        final String collection;
-        final List<Map<String, Object>> remaining;
-        final int batchSize;
-
-        FindCursorState(String db, String collection, List<Map<String, Object>> remaining, int batchSize) {
-            this.db = db;
-            this.collection = collection;
-            this.remaining = remaining;
-            this.batchSize = batchSize;
-        }
-    }
+    // Server-side find cursors are owned per PoppyDB instance via findCursorRegistry (see
+    // field below) — NOT JVM-static. A JVM-static map/sweeper here would let multiple PoppyDB
+    // instances in one test JVM observe each other's cursors (see FindCursorRegistry javadoc).
 
     private final InMemoryDriver driver;
     private final WatchCursorManager cursorManager;
+    // Per-PoppyDB-instance registry of server-side find cursors (and their idle-sweeper). Handed
+    // in by PoppyDB at construction time, exactly like cursorManager above — see
+    // FindCursorRegistry's javadoc for why this must not be JVM-static.
+    private final FindCursorRegistry findCursorRegistry;
     private final MessagingOptimizer messagingOptimizer;
     private final AtomicInteger msgId;
     private final String host;
@@ -94,26 +151,49 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private final boolean primary;
     private final String primaryHost;
     private final int compressorId;
-    private final ReplicationCoordinator replicationCoordinator;
+    // Resolved live at call time (see #replicationCoordinator()) rather than captured once at
+    // connect time: a connection accepted before a leadership change must still observe a
+    // coordinator created (or cleared) by a later election, not the value that existed when
+    // the connection's pipeline was built.
+    private final Supplier<ReplicationCoordinator> replicationCoordinatorSupplier;
     private final ElectionManager electionManager;
+    // Resolved live per command: true while this node is a secondary (re-)running its initial sync
+    // and therefore possibly serving from a half-cleared local database. Such a node is RECOVERING
+    // and must reject data-plane traffic. Never captured once — a resync that starts after this
+    // connection was accepted must still be observed.
+    private final BooleanSupplier secondarySyncingSupplier;
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               FindCursorRegistry findCursorRegistry,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
-                               int compressorId, ReplicationCoordinator replicationCoordinator) {
-        this(driver, cursorManager, messagingOptimizer, msgId, host, port, rsName, hosts, primary, primaryHost,
-             compressorId, replicationCoordinator, null);
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier) {
+        this(driver, cursorManager, findCursorRegistry, messagingOptimizer, msgId, host, port, rsName, hosts,
+             primary, primaryHost, compressorId, replicationCoordinatorSupplier, null, () -> false);
     }
 
     public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               FindCursorRegistry findCursorRegistry,
                                MessagingOptimizer messagingOptimizer,
                                AtomicInteger msgId, String host, int port, String rsName,
                                List<String> hosts, boolean primary, String primaryHost,
-                               int compressorId, ReplicationCoordinator replicationCoordinator,
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
                                ElectionManager electionManager) {
+        this(driver, cursorManager, findCursorRegistry, messagingOptimizer, msgId, host, port, rsName, hosts,
+             primary, primaryHost, compressorId, replicationCoordinatorSupplier, electionManager, () -> false);
+    }
+
+    public MongoCommandHandler(InMemoryDriver driver, WatchCursorManager cursorManager,
+                               FindCursorRegistry findCursorRegistry,
+                               MessagingOptimizer messagingOptimizer,
+                               AtomicInteger msgId, String host, int port, String rsName,
+                               List<String> hosts, boolean primary, String primaryHost,
+                               int compressorId, Supplier<ReplicationCoordinator> replicationCoordinatorSupplier,
+                               ElectionManager electionManager, BooleanSupplier secondarySyncingSupplier) {
         this.driver = driver;
         this.cursorManager = cursorManager;
+        this.findCursorRegistry = findCursorRegistry;
         this.messagingOptimizer = messagingOptimizer;
         this.msgId = msgId;
         this.host = host;
@@ -123,8 +203,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         this.primary = primary;
         this.primaryHost = primaryHost;
         this.compressorId = compressorId;
-        this.replicationCoordinator = replicationCoordinator;
+        this.replicationCoordinatorSupplier = replicationCoordinatorSupplier;
         this.electionManager = electionManager;
+        this.secondarySyncingSupplier = secondarySyncingSupplier == null ? () -> false : secondarySyncingSupplier;
     }
 
     @Override
@@ -176,7 +257,22 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof OpQuery) {
             processOpQuery(ctx, (OpQuery) msg);
         } else if (msg instanceof OpMsg) {
-            processOpMsg(ctx, (OpMsg) msg);
+            try {
+                processOpMsg(ctx, (OpMsg) msg);
+            } finally {
+                // The driver's transaction context is a ThreadLocal that preDispatch/
+                // setupTransactionContext (and start/abort/commit) install on THIS Netty
+                // event-loop thread for the duration of the command. Many channels are
+                // multiplexed onto the same event-loop thread, so it MUST be cleared once the
+                // command has been dispatched — otherwise the next command from another channel
+                // handled on this thread would inherit this client's open-transaction snapshot
+                // (its plain writes joining, and being rolled back with, that transaction). The
+                // per-command re-install from the channel attribute makes an unconditional clear
+                // here safe. Data commands run synchronously on this thread (so the context is
+                // read before this runs); async continuations (getMore/aggregate) execute on
+                // other threads that never inherit this ThreadLocal.
+                driver.setTransactionContext(null);
+            }
         } else {
             log.warn("Unsupported message type: {}", msg.getClass().getSimpleName());
             sendError(ctx, msg.getMessageId(), "Unsupported operation");
@@ -219,6 +315,66 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         ctx.writeAndFlush(reply);
     }
 
+    /** Enable --auth style enforcement for connections handled by this instance. */
+    public MongoCommandHandler setAuthRequired(boolean authRequired) {
+        this.authRequired = authRequired;
+        return this;
+    }
+
+    // DevOps command context - optional, wired by PoppyDB; tests may leave them unset.
+    private OpRegistry opRegistry;
+    private java.util.function.IntSupplier connectionCountSupplier;
+    private java.util.function.LongSupplier connectionsCreatedSupplier;
+    private Map<String, Integer> rsPriorities;
+    private java.util.concurrent.Callable<Integer> dumpNowAction;
+    private java.util.function.Supplier<Map<String, Object>> dumpStatusSupplier;
+
+    /** The server-wide op registry backing currentOp/$currentOp/killOp. */
+    public MongoCommandHandler setOpRegistry(OpRegistry opRegistry) {
+        this.opRegistry = opRegistry;
+        return this;
+    }
+
+    /** Real connection gauges for serverStatus (Netty channel count, not driver borrows). */
+    public MongoCommandHandler setConnectionCounters(java.util.function.IntSupplier current,
+            java.util.function.LongSupplier totalCreated) {
+        this.connectionCountSupplier = current;
+        this.connectionsCreatedSupplier = totalCreated;
+        return this;
+    }
+
+    /** Per-host election priorities for replSetGetConfig (rs.conf()). */
+    public MongoCommandHandler setRsPriorities(Map<String, Integer> rsPriorities) {
+        this.rsPriorities = rsPriorities;
+        return this;
+    }
+
+    /** On-demand dump trigger backing the dumpNow admin command; returns the number of
+     * databases written. Left unset (null) when the server runs without a dump directory. */
+    public MongoCommandHandler setDumpNowAction(java.util.concurrent.Callable<Integer> dumpNowAction) {
+        this.dumpNowAction = dumpNowAction;
+        return this;
+    }
+
+    /** Read-only persistence info backing the dumpStatus admin command. Unset means the
+     * handler answers enabled:false itself. */
+    public MongoCommandHandler setDumpStatusSupplier(java.util.function.Supplier<Map<String, Object>> supplier) {
+        this.dumpStatusSupplier = supplier;
+        return this;
+    }
+
+    /** Best effort: the n= value from the SASL client-first payload; null if unparsable. */
+    private static String extractSaslUser(Object payload) {
+        try {
+            String clientFirst = payload instanceof byte[] b
+                ? new String(b, java.nio.charset.StandardCharsets.UTF_8)
+                : String.valueOf(payload);
+            return de.caluga.morphium.driver.inmem.auth.ScramServerConversation.extractUser(clientFirst);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void processOpMsg(ChannelHandlerContext ctx, OpMsg opMsg) throws Exception {
         Map<String, Object> doc = opMsg.getFirstDoc();
         int requestId = opMsg.getMessageId();
@@ -228,6 +384,59 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
         log.debug("Handling command {}", cmd);
 
+        // currentOp/killOp visibility: the op is registered for its synchronous dispatch;
+        // write-concern waits continuing on the command executor and deferred getMore
+        // responses fall out of scope once dispatch returns.
+        OpRegistry.OpEntry op = opRegistry == null ? null
+            : opRegistry.register(cmd, doc, String.valueOf(ctx.channel().remoteAddress()));
+
+        try {
+            dispatchOpMsg(ctx, doc, cmd, requestId);
+        } finally {
+            if (opRegistry != null) {
+                opRegistry.deregister(op);
+            }
+        }
+    }
+
+    private void dispatchOpMsg(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+                               int requestId) throws Exception {
+
+        // Auth enforcement (--auth, strictly opt-in): until this connection completed a SCRAM
+        // exchange, only the handshake/SASL/health commands may run. One handler instance
+        // exists per channel, so authenticatedUser IS the per-connection auth state.
+        if (authRequired && authenticatedUser == null && !PRE_AUTH_COMMANDS.contains(cmd.toLowerCase())) {
+            sendResponse(ctx, requestId, Doc.of(
+                "ok", 0.0,
+                "code", 13,
+                "codeName", "Unauthorized",
+                "errmsg", "command " + cmd + " requires authentication"));
+            return;
+        }
+
+        // remember who is trying to authenticate - promoted to authenticatedUser only when the
+        // driver confirms the SCRAM exchange (see processDefaultCommandAsync)
+        if (cmd.equals("saslStart")) {
+            pendingAuthUser = extractSaslUser(doc.get("payload"));
+        } else if (cmd.equals("logout")) {
+            authenticatedUser = null;
+            pendingAuthUser = null;
+            sendResponse(ctx, requestId, Doc.of("ok", 1.0));
+            return;
+        }
+
+        // Shared command middleware: run the primary-rejection, read-preference and
+        // transaction-context checks once, before any dispatch variant (the fast-path
+        // executors below or the generic processDefaultCommandAsync path). Control-plane
+        // commands (hello/ping/election/cursor & session management) are exempt.
+        if (!CONTROL_COMMANDS.contains(cmd.toLowerCase())) {
+            CheckResult check = preDispatch(ctx, cmd, doc);
+            if (check.rejected()) {
+                sendResponse(ctx, requestId, check.errorResponse);
+                return;
+            }
+        }
+
         Map<String, Object> answer;
 
         switch (cmd) {
@@ -236,7 +445,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
 
             case "buildInfo":
-                answer = Doc.of("version", "5.0.0-ALPHA",
+                answer = Doc.of("version", InMemoryDriver.REPORTED_SERVER_VERSION,
                         "buildEnvironment", Doc.of("distarch", "java", "targetarch", "java"),
                         "ok", 1.0);
                 break;
@@ -372,8 +581,81 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 answer = processDistinctDirect(doc);
                 break;
             case "aggregate":
+                // mongosh's db.currentOp() is {aggregate: 1, pipeline: [{$currentOp: {}}, ...]} -
+                // answered here from the live op registry, never by the in-memory aggregator
+                if (isCurrentOpPipeline(doc)) {
+                    answer = processCurrentOpAggregation(doc);
+                    break;
+                }
                 processDefaultCommandAsync(ctx, doc, cmd, requestId);
                 return; // aggregate is complex, keep generic path
+
+            case "currentOp":
+                answer = Doc.of("inprog", opRegistry == null ? new ArrayList<>() : opRegistry.snapshot(),
+                        "ok", 1.0);
+                break;
+
+            case "killOp": {
+                Object opid = doc.get("op");
+
+                if (!(opid instanceof Number n)) {
+                    answer = Doc.of("ok", 0.0, "code", 2, "codeName", "BadValue",
+                            "errmsg", "killOp requires a numeric op id");
+                } else if (opRegistry != null && opRegistry.killOp(n.longValue())) {
+                    answer = Doc.of("info", "attempting to kill op", "ok", 1.0);
+                } else {
+                    answer = Doc.of("ok", 0.0, "errmsg", "no such opid: " + n.longValue());
+                }
+
+                break;
+            }
+
+            case "dumpNow":
+                processDumpNow(ctx, requestId);
+                return; // async response
+
+            case "dumpStatus": {
+                Map<String, Object> status = dumpStatusSupplier == null
+                        ? Doc.of("enabled", (Object) false) : dumpStatusSupplier.get();
+                answer = new LinkedHashMap<>(status);
+                answer.put("ok", 1.0);
+                break;
+            }
+
+            case "listCommands":
+                answer = processListCommands();
+                break;
+
+            case "hostInfo":
+                answer = processHostInfo();
+                break;
+
+            case "connectionStatus": {
+                List<Map<String, Object>> authUsers = new ArrayList<>();
+
+                if (authenticatedUser != null) {
+                    authUsers.add(Doc.of("user", authenticatedUser, "db", "admin"));
+                }
+
+                answer = Doc.of("authInfo", Doc.of("authenticatedUsers", authUsers,
+                        "authenticatedUserRoles", new ArrayList<>()), "ok", 1.0);
+                break;
+            }
+
+            case "whatsmyuri": {
+                String addr = String.valueOf(ctx.channel().remoteAddress());
+
+                if (addr.startsWith("/")) {
+                    addr = addr.substring(1);
+                }
+
+                answer = Doc.of("you", addr, "ok", 1.0);
+                break;
+            }
+
+            case "replSetGetConfig":
+                answer = processReplSetGetConfig();
+                break;
             case "createIndexes":
                 answer = processCreateIndexesDirect(doc);
                 break;
@@ -382,6 +664,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 // Fallback: GenericCommand reflection path for less common commands
                 processDefaultCommandAsync(ctx, doc, cmd, requestId);
                 return; // Async response
+        }
+
+        // Shared write-concern handling for fast-path writes (insert/update/delete/
+        // createIndexes). When w>1 this waits for replication off the I/O thread and sends
+        // the response itself; otherwise we send it here synchronously.
+        if (WRITE_COMMANDS.contains(cmd.toLowerCase())
+                && postWrite(ctx, doc, cmd, answer, requestId)) {
+            return; // response will be sent asynchronously after the replication wait
         }
 
         sendResponse(ctx, requestId, answer);
@@ -416,16 +706,29 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 final Map<String, Object> finalAnswer = answer;
                 ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
             });
-        } else if (findCursors.containsKey(cursorId)) {
-            // Server-side find cursor — return next batch from pre-fetched results
-            FindCursorState state = findCursors.get(cursorId);
+        } else if (findCursorRegistry.containsKey(cursorId)) {
+            // Server-side find cursor — return next batch from the retained (bounded) window.
+            // Invariant: whenever a cursor is present in findCursorRegistry, state.remaining is
+            // non-empty (established at creation in processFindDirect, maintained below).
+            FindCursorRegistry.FindCursorState state = findCursorRegistry.get(cursorId);
+            state.lastAccessed = System.currentTimeMillis();
+
             int count = Math.min(state.batchSize, state.remaining.size());
             List<Map<String, Object>> batch = new ArrayList<>(state.remaining.subList(0, count));
             state.remaining.subList(0, count).clear();
 
-            long returnCursorId = state.remaining.isEmpty() ? 0L : cursorId;
             if (state.remaining.isEmpty()) {
-                findCursors.remove(cursorId);
+                // Window boundary: refill now to distinguish "truly exhausted" from "more
+                // documents exist beyond this window" before deciding whether to close the
+                // cursor. Refilling here (rather than waiting for the client's next getMore)
+                // avoids both a spurious id:0 close that would drop remaining documents and
+                // a spurious extra empty round-trip.
+                refillFindCursorWindow(state);
+            }
+
+            long returnCursorId = state.remaining.isEmpty() ? 0L : cursorId;
+            if (returnCursorId == 0L) {
+                findCursorRegistry.remove(cursorId);
                 channelCursors.remove(cursorId);
             }
 
@@ -446,6 +749,149 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /** True when an aggregate command's first pipeline stage is $currentOp. */
+    @SuppressWarnings("unchecked")
+    private boolean isCurrentOpPipeline(Map<String, Object> doc) {
+        Object p = doc.get("pipeline");
+        return p instanceof List<?> pipeline && !pipeline.isEmpty()
+            && pipeline.get(0) instanceof Map<?, ?> first && first.containsKey("$currentOp");
+    }
+
+    /**
+     * db.currentOp(): answer the $currentOp pipeline from the live op registry. Follow-up
+     * $match stages (mongosh appends the currentOp filter as one) are applied; any other
+     * follow-up stage is refused loudly rather than silently ignored.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> processCurrentOpAggregation(Map<String, Object> doc) {
+        List<Map<String, Object>> pipeline = (List<Map<String, Object>>) doc.get("pipeline");
+        List<Map<String, Object>> ops = opRegistry == null ? new ArrayList<>() : opRegistry.snapshot();
+
+        for (int i = 1; i < pipeline.size(); i++) {
+            Map<String, Object> stage = pipeline.get(i);
+            Object match = stage.get("$match");
+
+            if (match instanceof Map<?, ?> m) {
+                ops.removeIf(o -> !de.caluga.morphium.driver.inmem.QueryHelper
+                    .matchesQuery((Map<String, Object>) m, o, null));
+            } else {
+                return Doc.of("ok", 0.0, "code", 40324, "errmsg",
+                        "PoppyDB supports only $match after $currentOp, got: " + stage.keySet());
+            }
+        }
+
+        String db = doc.get("$db") instanceof String s ? s : "admin";
+        return Doc.of("cursor", Doc.of("firstBatch", ops, "id", 0L, "ns", db + ".$cmd.aggregate"),
+                "ok", 1.0);
+    }
+
+    /** Triggers the configured on-demand dump off the I/O thread - a large dump must not
+     * stall every connection on this event loop. Responds from the dump thread via the
+     * channel's event loop, like the async getMore path. */
+    private void processDumpNow(ChannelHandlerContext ctx, int requestId) {
+        if (dumpNowAction == null) {
+            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions",
+                    "errmsg", "no dump directory configured - start the server with --dump-dir"));
+            return;
+        }
+
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return Doc.of("ok", 1.0, "databases", (Object) dumpNowAction.call());
+            } catch (Exception e) {
+                log.error("dumpNow failed: {}", e.getMessage(), e);
+                return Doc.of("ok", 0.0, "errmsg", "dump failed: " + e.getMessage());
+            }
+        }).thenAccept(answer -> ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, answer)));
+    }
+
+    /** Every command name this server answers: wire-level handlers plus the driver's commands. */
+    private Map<String, Object> processListCommands() {
+        java.util.TreeSet<String> names = new java.util.TreeSet<>(driver.getSupportedCommandNames());
+        names.addAll(List.of("hello", "isMaster", "ping", "buildInfo", "getCmdLineOpts",
+                "getFreeMonitoringStatus", "getLog", "getParameter", "listDatabases", "serverStatus",
+                "currentOp", "killOp", "listCommands", "hostInfo", "connectionStatus", "whatsmyuri",
+                "replSetGetStatus", "replSetGetConfig", "replSetStepDown", "replSetFreeze",
+                "saslStart", "saslContinue", "logout", "endSessions", "startSession", "refreshSessions",
+                "killCursors", "getMore", "insert", "find", "update", "delete", "count", "distinct",
+                "aggregate", "createIndexes", "bulkWrite", "abortTransaction", "commitTransaction",
+                "registerMessagingCollection", "unregisterMessagingSubscriber", "getMessagingStats",
+                "dbHash", "validate", "dumpNow", "dumpStatus"));
+        Map<String, Object> commands = new LinkedHashMap<>();
+
+        for (String n : names) {
+            commands.put(n, Doc.of("help", ""));
+        }
+
+        return Doc.of("commands", commands, "ok", 1.0);
+    }
+
+    private Map<String, Object> processHostInfo() {
+        String hostname;
+
+        try {
+            hostname = java.net.InetAddress.getLocalHost().getHostName();
+        } catch (Exception e) {
+            hostname = "localhost";
+        }
+
+        Runtime rt = Runtime.getRuntime();
+        Doc system = Doc.of();
+        system.put("currentTime", new Date());
+        system.put("hostname", hostname);
+        system.put("cpuAddrSize", 64);
+        system.put("memSizeMB", rt.maxMemory() / (1024 * 1024));
+        system.put("memLimitMB", rt.maxMemory() / (1024 * 1024));
+        system.put("numCores", rt.availableProcessors());
+        system.put("cpuArch", System.getProperty("os.arch"));
+        system.put("numaEnabled", false);
+        Doc os = Doc.of("type", System.getProperty("os.name"),
+                "name", System.getProperty("os.name"),
+                "version", System.getProperty("os.version"));
+        Doc extra = Doc.of("javaVersion", System.getProperty("java.version"), "poppydb", true);
+        return Doc.of("system", system, "os", os, "extra", extra, "ok", 1.0);
+    }
+
+    /** rs.conf(): the replica-set configuration reconstructed from seeds and priorities. */
+    private Map<String, Object> processReplSetGetConfig() {
+        if (rsName == null || rsName.isEmpty()) {
+            return Doc.of("ok", 0.0, "code", 76, "codeName", "NoReplicationEnabled",
+                    "errmsg", "not running with --replSet");
+        }
+
+        List<Map<String, Object>> members = new ArrayList<>();
+        int id = 0;
+
+        for (String h : hosts) {
+            Doc member = Doc.of();
+            member.put("_id", id++);
+            member.put("host", h);
+            member.put("arbiterOnly", false);
+            member.put("buildIndexes", true);
+            member.put("hidden", false);
+            member.put("priority", rsPriorities == null ? 50 : rsPriorities.getOrDefault(h, 50));
+            member.put("tags", Doc.of());
+            member.put("secondaryDelaySecs", 0L);
+            member.put("votes", 1);
+            members.add(member);
+        }
+
+        long term = 0;
+
+        if (electionManager != null && electionManager.getStats().get("term") instanceof Number n) {
+            term = n.longValue();
+        }
+
+        Doc config = Doc.of();
+        config.put("_id", rsName);
+        config.put("version", 1);
+        config.put("term", term);
+        config.put("protocolVersion", 1L);
+        config.put("members", members);
+        config.put("settings", Doc.of());
+        return Doc.of("config", config, "ok", 1.0);
+    }
+
     private Map<String, Object> processKillCursors(Map<String, Object> doc) {
         List<Long> cursorsToKill = new ArrayList<>();
         Object cursorsObj = doc.get("cursors");
@@ -461,7 +907,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         List<Long> notFound = new ArrayList<>();
 
         for (Long cursorId : cursorsToKill) {
-            if (findCursors.remove(cursorId) != null) {
+            if (findCursorRegistry.remove(cursorId) != null) {
                 killed.add(cursorId);
                 channelCursors.remove(cursorId);
             } else if (cursorManager.killCursor(cursorId)) {
@@ -483,50 +929,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private void processDefaultCommandAsync(ChannelHandlerContext ctx, Map<String, Object> doc,
                                             String cmd, int requestId) {
         try {
-            boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
-
-            // Reject writes to secondaries (use dynamic election state if available)
-            boolean isPrimary = isCurrentPrimary();
-            if (!isPrimary && isWriteCommand &&
-                    !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
-                // Include primary host so client can redirect
-                String currentPrimary = getCurrentPrimaryHost();
-                Map<String, Object> errorResponse = Doc.of(
-                    "ok", 0.0,
-                    "errmsg", "not primary",
-                    "code", 10107,
-                    "codeName", "NotWritablePrimary"
-                );
-                if (currentPrimary != null) {
-                    errorResponse.put("primaryHost", currentPrimary);
-                }
-                sendResponse(ctx, requestId, errorResponse);
-                return;
-            }
-
-            // Check read preference for read commands on secondaries
-            // If read preference requires primary, reject on secondaries to ensure consistency
-            if (!isPrimary && !isWriteCommand) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
-                if (readPref != null) {
-                    String mode = (String) readPref.get("mode");
-                    if ("primary".equalsIgnoreCase(mode)) {
-                        String currentPrimary = getCurrentPrimaryHost();
-                        Map<String, Object> errorResponse = Doc.of(
-                            "ok", 0.0,
-                            "errmsg", "not primary and read preference is primary",
-                            "code", 10107,
-                            "codeName", "NotPrimaryNoSecondaryOk"
-                        );
-                        if (currentPrimary != null) {
-                            errorResponse.put("primaryHost", currentPrimary);
-                        }
-                        sendResponse(ctx, requestId, errorResponse);
-                        return;
-                    }
-                }
-            }
+            // The primary/readPreference/transaction middleware (preDispatch) has already
+            // run in processOpMsg before this generic path was chosen — do not repeat it here.
 
             // Check for change stream aggregation
             if (doc.containsKey("pipeline")) {
@@ -540,15 +944,30 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 }
             }
 
-            // Set up transaction context
-            setupTransactionContext(ctx, doc);
-
             // Execute command
             int cmdMsgId = driver.runCommand(new GenericCommand(driver).fromMap(doc));
             var result = driver.readSingleAnswer(cmdMsgId);
 
             Map<String, Object> answer = Doc.of("ok", 1.0);
             if (result != null) answer.putAll(result);
+
+            // The driver's serverStatus counts its internal connection borrows - overlay the
+            // real client-socket gauges the server knows (Netty channel group).
+            if (cmd.equals("serverStatus") && connectionCountSupplier != null) {
+                int current = connectionCountSupplier.getAsInt();
+                long created = connectionsCreatedSupplier == null ? current : connectionsCreatedSupplier.getAsLong();
+                answer.put("connections", Doc.of("current", current,
+                        "available", Math.max(0, 1000000 - current), "totalCreated", created));
+            }
+
+            // Promote the pending user once the driver confirms the SCRAM exchange succeeded.
+            // done:true covers both skipEmptyExchange and the empty third round trip.
+            if (cmd.equals("saslContinue") && Boolean.TRUE.equals(answer.get("done"))
+                    && Double.valueOf(1.0).equals(answer.get("ok")) && pendingAuthUser != null) {
+                authenticatedUser = pendingAuthUser;
+                pendingAuthUser = null;
+                log.debug("connection authenticated as {}", authenticatedUser);
+            }
 
             // Notify tailable cursors about inserted documents
             if (cmd.equalsIgnoreCase("insert")) {
@@ -570,34 +989,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 setupTailableCursor(doc, answer);
             }
 
-            // Handle write concern for write commands on primary - ASYNC to not block Netty I/O
-            if (isWriteCommand && isCurrentPrimary() && replicationCoordinator != null) {
-                long writeSeq = driver.getChangeStreamSequence();
-                int w = getWriteConcernW(doc);
-                long wtimeout = getWriteConcernTimeout(doc);
-
-                if (w > 1) {
-                    // Wait for replication on a separate thread to not block Netty I/O
-                    final Map<String, Object> finalAnswer = answer;
-                    log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
-                    COMMAND_EXECUTOR.execute(() -> {
-                        try {
-                            boolean acknowledged = replicationCoordinator.waitForReplication(writeSeq, w, wtimeout);
-                            if (!acknowledged) {
-                                finalAnswer.put("writeConcernError", Doc.of(
-                                    "code", 64,
-                                    "codeName", "WriteConcernFailed",
-                                    "errmsg", "waiting for replication timed out",
-                                    "errInfo", Doc.of("wtimeout", true)
-                                ));
-                            }
-                        } finally {
-                            // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
-                            ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
-                        }
-                    });
-                    return; // Response will be sent asynchronously
-                }
+            // Shared write-concern handling (w>1 waits for replication off the I/O thread
+            // and sends the response itself).
+            if (WRITE_COMMANDS.contains(cmd.toLowerCase())
+                    && postWrite(ctx, doc, cmd, answer, requestId)) {
+                return; // Response will be sent asynchronously
             }
 
             // No replication wait needed - send response immediately
@@ -619,11 +1015,141 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
+     * Shared command middleware run before every dispatch variant (the fast-path executors
+     * and the generic {@link #processDefaultCommandAsync}). In order:
+     * <ol>
+     *   <li>reject client writes on a non-primary — except replication-applied writes, which
+     *       carry {@code $fromPrimary} (in practice these bypass this handler entirely and
+     *       apply straight to the local driver, so the flag is a defensive guard);</li>
+     *   <li>reject primary-only reads on a non-primary;</li>
+     *   <li>establish the per-channel transaction context for the command.</li>
+     * </ol>
+     * Returns {@link CheckResult#PROCEED} when dispatch may continue, or a rejection carrying
+     * the error response the caller must send.
+     */
+    @SuppressWarnings("unchecked")
+    private CheckResult preDispatch(ChannelHandlerContext ctx, String cmd, Map<String, Object> doc) {
+        boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
+        boolean isPrimary = isCurrentPrimary();
+
+        // (0) A secondary that is (re-)running its initial sync is RECOVERING: its local database
+        // may be half-cleared (clearLocalDatabases runs at the start of every snapshot and on a
+        // resync), so a plain read would see empty/partial data with no signal, and a client write
+        // would land on data that is about to be overwritten by the snapshot. Reject ALL data-plane
+        // traffic with NotPrimaryOrSecondary (13436), exactly like a real RECOVERING member.
+        // Replication-applied writes carry $fromPrimary and are exempt (in practice they bypass this
+        // handler entirely); control-plane commands never reach preDispatch, so elections and
+        // replSet traffic keep flowing.
+        if (secondarySyncingSupplier.getAsBoolean() && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
+            return CheckResult.reject(Doc.of(
+                "ok", 0.0,
+                "errmsg", "node is recovering",
+                "code", 13436,
+                "codeName", "NotPrimaryOrSecondary"
+            ));
+        }
+
+        // (1) Reject writes to secondaries (use dynamic election state if available).
+        // Replication-applied writes are flagged $fromPrimary and must pass through.
+        if (!isPrimary && isWriteCommand && !Boolean.TRUE.equals(doc.get("$fromPrimary"))) {
+            String currentPrimary = getCurrentPrimaryHost();
+            Map<String, Object> errorResponse = Doc.of(
+                "ok", 0.0,
+                "errmsg", "not primary",
+                "code", 10107,
+                "codeName", "NotWritablePrimary"
+            );
+            if (currentPrimary != null) {
+                errorResponse.put("primaryHost", currentPrimary);
+            }
+            return CheckResult.reject(errorResponse);
+        }
+
+        // (2) Reject primary-only reads on secondaries to ensure consistency.
+        if (!isPrimary && !isWriteCommand) {
+            Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
+            if (readPref != null && "primary".equalsIgnoreCase((String) readPref.get("mode"))) {
+                String currentPrimary = getCurrentPrimaryHost();
+                Map<String, Object> errorResponse = Doc.of(
+                    "ok", 0.0,
+                    "errmsg", "not primary and read preference is primary",
+                    "code", 13435,
+                    "codeName", "NotPrimaryNoSecondaryOk"
+                );
+                if (currentPrimary != null) {
+                    errorResponse.put("primaryHost", currentPrimary);
+                }
+                return CheckResult.reject(errorResponse);
+            }
+        }
+
+        // (3) Establish transaction context (start or join) for this command.
+        setupTransactionContext(ctx, doc);
+        return CheckResult.PROCEED;
+    }
+
+    /**
+     * Shared write-concern handling for both dispatch paths, called after a successful write.
+     * If the effective write concern requires replication acknowledgement (w &gt; 1) this waits
+     * off the Netty I/O thread and sends the response itself, returning {@code true}. Otherwise
+     * it returns {@code false} and the caller sends the response synchronously.
+     *
+     * <p>The replication coordinator is resolved through {@link #replicationCoordinator()} at
+     * call time so a later switch to a live supplier needs no change here.
+     */
+    private boolean postWrite(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+                              Map<String, Object> answer, int requestId) {
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        if (coordinator == null || !isCurrentPrimary()) {
+            return false;
+        }
+
+        int w = getWriteConcernW(doc);
+        if (w <= 1) {
+            return false;
+        }
+
+        long writeSeq = driver.getChangeStreamSequence();
+        long wtimeout = getWriteConcernTimeout(doc);
+        final Map<String, Object> finalAnswer = answer;
+        log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
+        COMMAND_EXECUTOR.execute(() -> {
+            try {
+                boolean acknowledged = coordinator.waitForReplication(writeSeq, w, wtimeout);
+                if (!acknowledged) {
+                    finalAnswer.put("writeConcernError", Doc.of(
+                        "code", 64,
+                        "codeName", "WriteConcernFailed",
+                        "errmsg", "waiting for replication timed out",
+                        "errInfo", Doc.of("wtimeout", true)
+                    ));
+                }
+            } finally {
+                // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
+                ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Single accessor for the replication coordinator, resolved live from the supplier on
+     * every call — never captured once at connect time. This means a leadership change that
+     * happens after this connection was accepted (coordinator created or cleared by
+     * {@code PoppyDB.onLeadershipChange}) is observed immediately, including by connections
+     * that predate the change.
+     */
+    private ReplicationCoordinator replicationCoordinator() {
+        return replicationCoordinatorSupplier == null ? null : replicationCoordinatorSupplier.get();
+    }
+
+    /**
      * Process replication progress report from a secondary.
      * This is called when a secondary sends its current replication sequence.
      */
     private Map<String, Object> processReplSetProgress(Map<String, Object> doc) {
-        if (replicationCoordinator == null) {
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        if (coordinator == null) {
             // Not a primary with replication enabled
             return Doc.of("ok", 0.0, "errmsg", "not primary or replication not enabled");
         }
@@ -638,7 +1164,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         long sequenceNumber = seqObj instanceof Number ? ((Number) seqObj).longValue() : 0;
 
         log.debug("Received replication progress from {}: seq={}", secondaryAddress, sequenceNumber);
-        replicationCoordinator.reportProgress(secondaryAddress, sequenceNumber);
+        coordinator.reportProgress(secondaryAddress, sequenceNumber);
 
         return Doc.of("ok", 1.0);
     }
@@ -727,8 +1253,40 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private Map<String, Object> processChangeStream(Map<String, Object> doc) {
         try {
             WatchCommand wcmd = new WatchCommand(driver).fromMap(doc);
+
+            // Resume-after-disconnect: a PoppyDB secondary resuming its replication watch tags its
+            // resumeAfter token with "poppyResumeSequence" (its lastAppliedSequence). Only these
+            // replication resumes are gated here — ordinary change streams (e.g. messaging) that use
+            // resumeAfter without the marker keep their previous behaviour. If the primary's replay
+            // buffer can no longer cover the gap after that sequence, answer with an explicit
+            // ChangeStreamHistoryLost error instead of a silently-truncated replay, so the secondary
+            // distinguishes "window lost" and falls back to a full re-sync.
+            Map<String, Object> resumeAfter = wcmd.getResumeAfter();
+            if (resumeAfter != null && resumeAfter.get("poppyResumeSequence") instanceof Number seqNum) {
+                long resumeSeq = seqNum.longValue();
+                if (!driver.canResumeChangeStream(resumeSeq)) {
+                    log.warn("Resume window lost for secondary (resume sequence {} no longer buffered) — signalling re-sync", resumeSeq);
+                    return Doc.of(
+                        "ok", 0.0,
+                        "code", 286,
+                        "codeName", "ChangeStreamHistoryLost",
+                        "errmsg", "resume window lost: sequence " + resumeSeq + " is no longer in the replay buffer");
+                }
+            }
+
             long cursorId = cursorManager.createWatchCursor(driver, wcmd);
             channelCursors.add(cursorId);
+
+            // Read the current sequence right after the subscription is registered (inside
+            // createWatchCursor, above) so no write after this point can be missed: any write
+            // racing with subscription either lands before this read (its token <= this value,
+            // and it is still delivered live through the subscription that was already active) or
+            // after it (its token is necessarily greater, so it is not covered by this value and
+            // will simply be delivered live too). Piggyback it on the initial aggregate response,
+            // following the same wire convention as the "poppyResumeSequence" resumeAfter marker,
+            // so a PoppyDB secondary can seed its idle-window resume point (see ReplicationManager)
+            // instead of silently starting "from now" after a gap with zero applied events.
+            long primarySequenceAtRegistration = driver.getChangeStreamSequence();
 
             // Register as messaging cursor if this is a registered messaging collection
             if (messagingOptimizer != null &&
@@ -742,7 +1300,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             var initialCursor = Doc.of("firstBatch", List.of(),
                     "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", cursorId);
-            return Doc.of("ok", 1.0, "cursor", initialCursor);
+            return Doc.of("ok", 1.0, "cursor", initialCursor,
+                    "poppyPrimarySequence", primarySequenceAtRegistration);
         } catch (Exception e) {
             log.error("Error setting up change stream: {}", e.getMessage(), e);
             return Doc.of("ok", 0.0, "errmsg", e.getMessage());
@@ -921,6 +1480,48 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /**
+     * The name this node has from a client's perspective: the seed-list entry carrying our
+     * port when the bind address itself is not a seed (e.g. bound to 0.0.0.0), otherwise
+     * bind host:port - wildcard binds resolved to the local hostname. Used for hello ("me")
+     * and the rs.status self flag, so both agree with the election member identity.
+     */
+    private String memberAddress() {
+        String effectiveHost = host;
+
+        if ("0.0.0.0".equals(effectiveHost) || "::".equals(effectiveHost)) {
+            // Prefer the RS seed entry matching our port BEFORE any DNS lookup:
+            // getLocalHost().getCanonicalHostName() below can block for ~30s on hosts
+            // without working reverse DNS, and when the seed list already names us the
+            // resolved value was discarded anyway.
+            if (hosts != null) {
+                for (String seed : hosts) {
+                    if (seed.endsWith(":" + port)) {
+                        return seed;
+                    }
+                }
+            }
+
+            try {
+                effectiveHost = java.net.InetAddress.getLocalHost().getCanonicalHostName();
+            } catch (Exception e) {
+                effectiveHost = "localhost";
+            }
+        }
+
+        String myAddress = effectiveHost + ":" + port;
+
+        if (hosts != null && !hosts.isEmpty() && !hosts.contains(myAddress)) {
+            for (String seed : hosts) {
+                if (seed.endsWith(":" + port)) {
+                    return seed;
+                }
+            }
+        }
+
+        return myAddress;
+    }
+
     private HelloResult getHelloResult() {
         HelloResult res = new HelloResult();
         res.setHelloOk(true);
@@ -929,22 +1530,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         // Derive "me" from the RS seed list entry matching our port, so that
         // clients see a reachable hostname instead of the bind address (e.g. 0.0.0.0).
-        String effectiveHost = host;
-        if ("0.0.0.0".equals(effectiveHost) || "::".equals(effectiveHost)) {
-            try {
-                effectiveHost = java.net.InetAddress.getLocalHost().getCanonicalHostName();
-            } catch (Exception e) {
-                effectiveHost = "localhost";
-            }
-        }
-        String myAddress = effectiveHost + ":" + port;
+        String myAddress = memberAddress();
         if (hosts != null && !hosts.isEmpty()) {
-            for (String seed : hosts) {
-                if (seed.endsWith(":" + port)) {
-                    myAddress = seed;
-                    break;
-                }
-            }
             List<String> allHosts = new ArrayList<>(hosts);
             if (!allHosts.contains(myAddress)) {
                 allHosts.add(0, myAddress);
@@ -968,12 +1555,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         res.setMaxWireVersion(17);
         res.setMinWireVersion(13);
         res.setMaxMessageSizeBytes(48 * 1024 * 1024); // 48MB, same as MongoDB
-        res.setMaxBsonObjectSize(16 * 1024 * 1024);  // 16MB, same as MongoDB
+        // the driver enforces this limit on every write - advertise the real value so
+        // well-behaved clients block oversized documents client-side, like against mongod
+        // (16MB by default; 0 = disabled, then advertise a permissive 128MB)
+        int maxBson = driver.getMaxBsonObjectSize();
+        res.setMaxBsonObjectSize(maxBson > 0 ? maxBson : 128 * 1024 * 1024);
         // In standalone mode (no RS name), behave like real MongoDB:
         // don't set setName, hosts, or secondary — only writablePrimary
         if (rsName != null && !rsName.isEmpty()) {
             res.setWritablePrimary(isPrimary);
-            res.setSecondary(!isPrimary);
+            // A secondary that is (re-)running its initial sync is RECOVERING, not a usable
+            // secondary: advertise secondary:false so drivers do not route reads to it.
+            res.setSecondary(!isPrimary && !secondarySyncingSupplier.getAsBoolean());
             res.setSetName(rsName);
             res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
             res.setMe(myAddress);
@@ -984,7 +1577,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             res.setHosts(Arrays.asList(myAddress));
         }
         res.setLogicalSessionTimeoutMinutes(30);
-        res.setMsg("PoppyDB V0.1ALPHA (Netty)");
+        res.setMsg("PoppyDB V" + InMemoryDriver.REPORTED_SERVER_VERSION + " (Netty)");
 
         // Advertise supported compression algorithms
         List<String> compressionAlgorithms = new ArrayList<>();
@@ -1229,12 +1822,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> electionStats = electionManager.getStats();
             status.put("term", electionStats.get("term"));
 
-            // Determine myState based on election state
+            // Determine myState based on election state - reported in MongoDB member-state
+            // nomenclature, never the internal Raft enum names (clients parse stateStr)
             ElectionState state = electionManager.getState();
             int myState = switch (state) {
                 case LEADER -> 1;    // PRIMARY
                 case FOLLOWER -> 2;  // SECONDARY
                 case CANDIDATE -> 3; // RECOVERING (closest match)
+            };
+            String myStateStr = switch (state) {
+                case LEADER -> "PRIMARY";
+                case FOLLOWER -> "SECONDARY";
+                case CANDIDATE -> "RECOVERING";
             };
             status.put("myState", myState);
 
@@ -1248,7 +1847,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             selfMember.put("_id", 0);
             selfMember.put("name", myAddress);
             selfMember.put("state", myState);
-            selfMember.put("stateStr", state.name());
+            selfMember.put("stateStr", myStateStr);
             selfMember.put("self", true);
             members.add(selfMember);
 
@@ -1263,6 +1862,13 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 if (peer.equals(currentLeader)) {
                     peerMember.put("state", 1);
                     peerMember.put("stateStr", "PRIMARY");
+                } else if (!electionManager.isPeerReachable(peer)) {
+                    // Matches real MongoDB's member state for this situation exactly
+                    // (state=8, stateStr="DOWN") - was reachable, heartbeat ack has since
+                    // gone stale. See ElectionManager#isPeerReachable for why a peer we've
+                    // never yet heard from is NOT reported DOWN (avoids a startup race).
+                    peerMember.put("state", 8);
+                    peerMember.put("stateStr", "DOWN");
                 } else {
                     peerMember.put("state", 2);
                     peerMember.put("stateStr", "SECONDARY");
@@ -1278,6 +1884,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             List<Map<String, Object>> members = new ArrayList<>();
             int memberId = 0;
+            // compare against the seed-list identity, not the raw bind address (0.0.0.0)
+            String myAddress = memberAddress();
             for (String h : hosts) {
                 Map<String, Object> member = new LinkedHashMap<>();
                 member.put("_id", memberId++);
@@ -1285,7 +1893,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 boolean isPrimary = h.equals(primaryHost);
                 member.put("state", isPrimary ? 1 : 2);
                 member.put("stateStr", isPrimary ? "PRIMARY" : "SECONDARY");
-                member.put("self", h.equals(host + ":" + port));
+                member.put("self", h.equals(myAddress));
                 members.add(member);
             }
             status.put("members", members);
@@ -1399,9 +2007,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Channel inactive, cleaning up ({} cursors to kill)", channelCursors.size());
-        // Kill all cursors owned by this channel to prevent thread/subscription leaks
+        // Kill all cursors owned by this channel to prevent thread/subscription leaks.
+        // A cursor is either a watch/tailable cursor (owned by cursorManager) or a
+        // server-side find cursor (in this instance's findCursorRegistry) — clean up both,
+        // since an unexhausted find cursor would otherwise leak permanently on disconnect.
         for (Long cursorId : channelCursors) {
-            if (cursorManager.killCursor(cursorId)) {
+            if (findCursorRegistry.remove(cursorId) != null) {
+                log.debug("Removed orphaned find cursor {} on channel disconnect", cursorId);
+            } else if (cursorManager.killCursor(cursorId)) {
                 log.debug("Killed orphaned cursor {} on channel disconnect", cursorId);
             }
         }
@@ -1429,13 +2042,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // is configured to use the same PoppyDB that runs in-process.
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processInsertDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest (no server/socket needed)
+    Map<String, Object> processInsertDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("insert");
         List<Map<String, Object>> docs = (List<Map<String, Object>>) doc.get("documents");
         if (docs == null) docs = List.of();
+        // The fast path used the 4-arg overload, which hardcodes ordered=true - a client's
+        // ordered:false (continue past individual failures) was silently ignored (#252).
+        boolean ordered = !(Boolean.FALSE.equals(doc.get("ordered")));
         try {
-            var writeErrors = driver.insert(db, coll, docs, null);
+            var writeErrors = driver.insert(db, coll, docs, null, ordered);
             Map<String, Object> answer = Doc.of("ok", 1.0, "n", docs.size());
             if (writeErrors != null && !writeErrors.isEmpty()) {
                 answer.put("writeErrors", writeErrors);
@@ -1443,8 +2060,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
             return answer;
         } catch (MorphiumDriverException e) {
+            // the driver sets a mongo code for typed failures (146 ExceededMemoryLimit from the
+            // memory watermark); everything untyped on this path is a duplicate-key error
+            Object code = e.getMongoCode() != null ? e.getMongoCode() : 11000;
             return Doc.of("ok", 1.0, "n", 0, "nModified", 0, "writeErrors",
-                    List.of(Doc.of("index", 0, "code", 11000, "errmsg", e.getMessage())));
+                    List.of(Doc.of("index", 0, "code", code, "errmsg", e.getMessage())));
         }
     }
 
@@ -1465,26 +2085,65 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
 
         if (filter == null) filter = Doc.of();
-        var results = driver.find(db, coll, filter, sort, projection, skip, limit);
 
-        // Respect batchSize: if set, only return that many in firstBatch
-        // and register a cursor for the rest (like MongoDB does)
-        if (batchSize > 0 && results.size() > batchSize) {
-            List<Map<String, Object>> firstBatch = new ArrayList<>(results.subList(0, batchSize));
-            List<Map<String, Object>> remaining = new ArrayList<>(results.subList(batchSize, results.size()));
-            long cursorId = FIND_CURSOR_SEQ.incrementAndGet();
-            findCursors.put(cursorId, new FindCursorState(db, coll, remaining, batchSize));
-            channelCursors.add(cursorId);
+        if (batchSize > 0) {
+            // Bounded-retention path: fetch only one window (firstBatch + a retained tail of
+            // at most MAX_RETAINED_BATCHES batches) instead of the full matching result set.
+            // When the window drains, getMore re-executes this same query with an advanced
+            // skip (see refillFindCursorWindow) rather than holding the remainder in memory.
+            int windowSize = MAX_RETAINED_BATCHES * batchSize;
+            int fetchLimit = batchSize + windowSize;
+            if (limit > 0) fetchLimit = Math.min(fetchLimit, limit);
+            var window = driver.find(db, coll, filter, sort, projection, skip, fetchLimit);
+
+            if (window.size() > batchSize) {
+                List<Map<String, Object>> firstBatch = new ArrayList<>(window.subList(0, batchSize));
+                List<Map<String, Object>> retained = new ArrayList<>(window.subList(batchSize, window.size()));
+                long cursorId = findCursorRegistry.nextCursorId();
+                int nextSkip = skip + window.size();
+                boolean hasLimit = limit > 0;
+                int remainingLimit = hasLimit ? Math.max(0, limit - window.size()) : 0;
+                findCursorRegistry.put(cursorId, new FindCursorRegistry.FindCursorState(db, coll, filter, sort, projection,
+                        retained, batchSize, nextSkip, hasLimit, remainingLimit));
+                channelCursors.add(cursorId);
+                return Doc.of("ok", 1.0, "cursor",
+                        Doc.of("firstBatch", firstBatch, "id", cursorId, "ns", db + "." + coll));
+            }
+
             return Doc.of("ok", 1.0, "cursor",
-                    Doc.of("firstBatch", firstBatch, "id", cursorId, "ns", db + "." + coll));
+                    Doc.of("firstBatch", window, "id", 0L, "ns", db + "." + coll));
         }
 
+        // No batchSize requested — single-shot fetch of the full (limit-bounded) result set,
+        // returned inline with no server-side cursor (unchanged from prior behaviour).
+        var results = driver.find(db, coll, filter, sort, projection, skip, limit);
         return Doc.of("ok", 1.0, "cursor",
                 Doc.of("firstBatch", results, "id", 0L, "ns", db + "." + coll));
     }
 
+    /**
+     * Re-executes {@code state}'s query with an advanced skip offset to refill its retained
+     * window once it has drained. No-op if the document budget from an original positive
+     * {@code limit} has already been exhausted. See {@link FindCursorRegistry.FindCursorState}
+     * for the concurrent-write caveat this re-execution carries.
+     */
+    private void refillFindCursorWindow(FindCursorRegistry.FindCursorState state) {
+        if (state.hasLimit && state.remainingLimit <= 0) {
+            return;
+        }
+        int windowSize = MAX_RETAINED_BATCHES * state.batchSize;
+        int fetchLimit = state.hasLimit ? Math.min(windowSize, state.remainingLimit) : windowSize;
+        if (fetchLimit <= 0) return;
+        List<Map<String, Object>> refill = driver.find(state.db, state.collection, state.filter,
+                state.sort, state.projection, state.nextSkip, fetchLimit);
+        state.nextSkip += refill.size();
+        if (state.hasLimit) state.remainingLimit -= refill.size();
+        state.remaining.addAll(refill);
+    }
+
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processUpdateDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processUpdateDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("update");
         List<Map<String, Object>> updates = (List<Map<String, Object>>) doc.get("updates");
@@ -1500,7 +2159,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             boolean multi = Boolean.TRUE.equals(upd.get("multi"));
             boolean upsert = Boolean.TRUE.equals(upd.get("upsert"));
             try {
-                var result = driver.update(db, coll, q, null, u, multi, upsert, null, null);
+                // The per-update collation was hardcoded to null here (#252); arrayFilters
+                // were dropped entirely, breaking $[<identifier>] updates over the wire (#256).
+                var result = driver.update(db, coll, q, null, u, multi, upsert,
+                                           (Map<String, Object>) upd.get("collation"), null,
+                                           (List<Map<String, Object>>) upd.get("arrayFilters"));
                 if (result != null) {
                     totalN += result.getOrDefault("n", 0) instanceof Number ? ((Number) result.get("n")).intValue() : 0;
                     totalModified += result.getOrDefault("nModified", 0) instanceof Number ? ((Number) result.get("nModified")).intValue() : 0;
@@ -1532,7 +2195,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processDeleteDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processDeleteDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("delete");
         List<Map<String, Object>> deletes = (List<Map<String, Object>>) doc.get("deletes");
@@ -1543,7 +2207,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> q = (Map<String, Object>) del.get("q");
             int limit = del.get("limit") instanceof Number ? ((Number) del.get("limit")).intValue() : 0;
             try {
-                var result = driver.delete(db, coll, q, null, limit != 1, null, null);
+                // The per-delete collation was hardcoded to null here (#252).
+                var result = driver.delete(db, coll, q, null, limit != 1,
+                                           (Map<String, Object>) del.get("collation"), null);
                 if (result != null && result.get("n") instanceof Number) {
                     totalDeleted += ((Number) result.get("n")).intValue();
                 }
@@ -1555,12 +2221,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processCountDirect(Map<String, Object> doc) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processCountDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("count");
         Map<String, Object> query = (Map<String, Object>) doc.get("query");
         if (query == null) query = Doc.of();
-        long n = driver.count(db, coll, query, (de.caluga.morphium.Collation) null, null);
+        // The client's collation was hardcoded to null here (#252).
+        long n = driver.countWithCollation(db, coll, query, (Map<String, Object>) doc.get("collation"), null);
         // Return as int to match MongoDB wire protocol (CountMongoCommand.getCount casts to Integer)
         return Doc.of("ok", 1.0, "n", (int) n);
     }
@@ -1572,21 +2240,27 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         String key = (String) doc.get("key");
         Map<String, Object> query = (Map<String, Object>) doc.get("query");
         if (query == null) query = Doc.of();
-        var values = driver.distinct(db, coll, key, query, null);
+        // The client's collation was hardcoded to null here (#252).
+        var values = driver.distinct(db, coll, key, query, (Map<String, Object>) doc.get("collation"));
         return Doc.of("ok", 1.0, "values", values);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processCreateIndexesDirect(Map<String, Object> doc) {
+    // package-private: exercised directly by CreateIndexesFastPathTest (no server/socket needed)
+    Map<String, Object> processCreateIndexesDirect(Map<String, Object> doc) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("createIndexes");
         List<Map<String, Object>> indexes = (List<Map<String, Object>>) doc.get("indexes");
         if (indexes != null) {
             for (var idx : indexes) {
                 Map<String, Object> key = (Map<String, Object>) idx.get("key");
-                Map<String, Object> options = new HashMap<>();
-                if (idx.containsKey("unique")) options.put("unique", idx.get("unique"));
-                if (idx.containsKey("name")) options.put("name", idx.get("name"));
+                // Forward the WHOLE index spec (minus the key itself) rather than hand-picking
+                // unique/name: expireAfterSeconds (TTL), sparse, background, hidden and
+                // partialFilterExpression were silently dropped, so e.g. a TTL index was created but
+                // never expired anything (#244). Copying wholesale also means any option the generic
+                // command path gains in future does not need this fast path updated separately.
+                Map<String, Object> options = new HashMap<>(idx);
+                options.remove("key");
                 driver.createIndex(db, coll, key, options);
             }
         }

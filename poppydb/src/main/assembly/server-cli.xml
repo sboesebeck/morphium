@@ -11,6 +11,15 @@
             <handlerName>metaInf-services</handlerName>
         </containerDescriptorHandler>
     </containerDescriptorHandlers>
+    <fileSets>
+        <!-- server logging defaults: the module jars deliberately exclude logback*.xml
+             (library convention, see parent pom), so the server config is added here -
+             without it logback falls back to DEBUG-everything on the console -->
+        <fileSet>
+            <directory>src/main/assembly/resources</directory>
+            <outputDirectory>/</outputDirectory>
+        </fileSet>
+    </fileSets>
     <dependencySets>
         <dependencySet>
             <outputDirectory>/</outputDirectory>

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+  Logging defaults for the PoppyDB server CLI jar. Packed into the fat jar by
+  server-cli.xml (the library jars deliberately ship no logback.xml - without this
+  file logback falls back to its basic configuration, which logs EVERYTHING at
+  DEBUG to the console).
+
+  Override at startup with the log-level CLI option or -Dpoppydb.log.level=<level>.
+-->
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [%.16t] %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <!-- framework noise stays out of server logs -->
+  <logger name="io.netty" level="WARN"/>
+  <root level="${poppydb.log.level:-INFO}">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>

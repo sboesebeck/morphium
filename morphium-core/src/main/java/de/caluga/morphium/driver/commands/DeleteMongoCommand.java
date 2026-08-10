@@ -39,6 +39,27 @@ public class DeleteMongoCommand extends WriteMongoCommand<DeleteMongoCommand> {
         return this;
     }
 
+    @Override
+    protected List<Map<String, Object>> getPayloadStatements() {
+        return deletes == null ? null : new ArrayList<>(deletes);
+    }
+
+    @Override
+    protected void setPayloadStatements(List<Map<String, Object>> statements) {
+        List<Doc> converted = new ArrayList<>();
+
+        for (Map<String, Object> st : statements) {
+            converted.add(st instanceof Doc d ? d : new Doc(st));
+        }
+
+        this.deletes = converted;
+    }
+
+    @Override
+    protected boolean isOrderedWrite() {
+        return ordered == null || ordered;
+    }
+
     public Doc getLet() {
         return let;
     }

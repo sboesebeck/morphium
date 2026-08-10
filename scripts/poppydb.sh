@@ -93,7 +93,16 @@ function _pdb_parse_hosts_from_uri() {
 
 function _pdb_find_cli_jar() {
   local jar
-  jar=$(ls -1 poppydb/target/*-cli*.jar 2>/dev/null | head -n 1)
+  # Prefer the jar matching the current pom version - stale jars from older
+  # versions may still be lying around in target/
+  local pom_version
+  pom_version=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' pom.xml 2>/dev/null | head -n 1)
+  if [ -n "$pom_version" ] && [ -f "poppydb/target/poppydb-${pom_version}-cli.jar" ]; then
+    jar="poppydb/target/poppydb-${pom_version}-cli.jar"
+  fi
+  if [ -z "$jar" ]; then
+    jar=$(ls -1 poppydb/target/*-cli*.jar 2>/dev/null | head -n 1)
+  fi
   if [ -z "$jar" ]; then
     jar=$(ls -1 poppydb/target/poppydb-*-cli.jar 2>/dev/null | head -n 1)
   fi
@@ -193,7 +202,9 @@ function _pdb_start_cluster() {
     fi
 
     local log_file="${pid_dir}/logs/poppydb_${port}.log"
-    local conn_args="--max-connections $max_conn --socket-timeout $sock_timeout"
+    # --no-config: never let a private ~/.config/poppydb/config or /etc/poppydb.conf silently
+    # influence test runs ("green locally, red in CI") - test runs are CLI-args-only.
+    local conn_args="--no-config --max-connections $max_conn --socket-timeout $sock_timeout"
     if [ "${poppydbSingleNode:-${morphiumserverSingleNode:-0}}" -eq 1 ]; then
       nohup java $jvm_opts -jar "$jar" --bind "$host" --port "$port" $conn_args >"$log_file" 2>&1 &
     else

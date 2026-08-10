@@ -609,8 +609,14 @@ if [ "$poppydbLocalMode" -eq 1 ] || [ "$startPoppydbLocal" -eq 1 ]; then
 	_pdb_ensure_cluster "$uri"
 fi
 
-# Auto-exclude failover tests when using PoppyDB
-# (PoppyDB doesn't support StepDownCommand for failover testing)
+# Auto-exclude 'failover' tests when using PoppyDB. This is no longer about
+# StepDownCommand - PoppyDB implements replSetStepDown now. The tag has become a
+# catch-all for tests that still don't play well with a PoppyDB replica set:
+# process-killing tests that are 'manual'+'external' anyway (SingleConnectDriverFailoverTests,
+# driver/pool/FailoverTests), pooled-driver tests that need a real MongoDB
+# (PooledDriverTest, PooledDriverConnectionsTests), and SortingTest's slow bulk-write case.
+# The proxy-based DriverFailoverProxyTest is tagged 'wire-failover', not 'failover', and is
+# NOT excluded here - it must keep running against both MongoDB and PoppyDB.
 if [ "$startPoppydbLocal" -eq 1 ]; then
 	if [ -z "$excludeTags" ]; then
 		excludeTags="failover"
@@ -1595,13 +1601,50 @@ function run_parallel_tests() {
 
 	# Cleanup temporary files
 	rm -f "$TEST_TMP_DIR"/test_chunk_*.txt
+
+	# Stop the background stats loop. It polls "while [ -e $runLock ]", so the lock has to
+	# go or it runs forever - which used to be exactly what happened here, because only the
+	# sequential branch below ever removed it. Two symptoms came out of that: a leftover
+	# bash process showing the SAME command line as this script (a "{ ... } &" subshell is
+	# a fork, so ps cannot tell them apart) that looked like a still-running test run, and
+	# a caller piping our output (./runtests.sh | tail) hanging forever, because the
+	# surviving subshell inherited - and never closed - our stdout. Kill it explicitly too
+	# rather than waiting out a full refresh interval for it to notice the missing lock.
+	rm -f $runLock
+	if [ -e $failPid ]; then
+		# wait after kill, otherwise bash prints the whole job body as a "Terminated" notice
+		{
+			kill $(<$failPid)
+			wait $(<$failPid)
+		} >/dev/null 2>&1
+	fi
+	rm -f $failPid >/dev/null 2>&1
+
+	# Persist the failed-test list like the sequential branch does, so --rerunfailed and a
+	# post-mortem have the same input regardless of which branch produced the run.
+	if [ $total_failed -gt 0 ]; then
+		get_test_stats >"$TEST_TMP_DIR/failed.txt" 2>/dev/null
+		cp "$TEST_TMP_DIR/failed.txt" "$LOGDIR/failed.txt" 2>/dev/null
+		echo -e "${YL}List of failed tests in $LOGDIR/failed.txt${CL}"
+	fi
+
 	echo -e "${GN}Parallel execution completed${CL}"
+
+	# Report failure to the caller. The sequential branch exits 1 on failures; this one
+	# always exited 0, so a red parallel run passed as green in any CI or scripted use.
+	[ $total_failed -eq 0 ]
 }
 
 ##################################################################################################################
 #######MAIN LOOP
 if [ $parallel -gt 1 ]; then
 	run_parallel_tests
+	parallelResult=$?
+	# quitting() does the shared teardown (test databases, PoppyDB, temp dir) that the
+	# sequential branch reaches through its own exit paths - without it a parallel run
+	# leaves its /tmp/morphium-runtests-$PID directory behind on every invocation.
+	quitting
+	exit $parallelResult
 else
 	# Original sequential logic
 	for t in $(<$classList); do

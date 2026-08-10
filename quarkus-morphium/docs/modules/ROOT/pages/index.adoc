@@ -1,0 +1,95 @@
+= Quarkus Morphium Extension
+
+include::./includes/attributes.adoc[]
+
+The Quarkus Morphium extension integrates link:{morphium-github-url}[Morphium], an actively
+maintained MongoDB ORM for Java, into Quarkus via CDI — with full
+link:https://jakarta.ee/specifications/data/1.0/[**Jakarta Data 1.0**] support.
+
+[NOTE]
+====
+`quarkus-morphium` is an **optional module of Morphium** — it lives in the same Maven
+reactor and is released in lockstep with Morphium core, but the core
+(`de.caluga:morphium`) has no dependency on this extension or on Quarkus. Add this
+module explicitly when you want Morphium available as a Quarkus CDI extension.
+====
+
+== Jakarta Data 1.0 — Declarative Repositories for MongoDB
+
+Define a `@Repository` interface, inject it, done. The implementation is generated at **build time**
+via Gizmo bytecode generation — no runtime reflection, no proxies, GraalVM native-image compatible.
+
+[source,java]
+----
+@Repository
+public interface ProductRepository extends MorphiumRepository<Product, MorphiumId> {
+
+    List<Product> findByCategory(String category);
+
+    @OrderBy("price")
+    List<Product> findByPriceBetween(double min, double max);
+}
+----
+
+Supports: query derivation (`findBy`, `countBy`, `existsBy`, `deleteBy`), `@Find`/`@By`,
+`@Query` with JDQL, `@OrderBy`, pagination (`Page`, `PageRequest`), sorting (`Sort`, `Order`),
+and auto-generated `@StaticMetamodel` classes.
+
+All Morphium ORM features (`@Version`, `@CreationTime`, `@PreStore`, `@Cache`, `@Reference`)
+work transparently through repositories.
+
+For the full guide see xref:jakarta-data.adoc[Jakarta Data 1.0].
+
+== Features
+
+* *Jakarta Data 1.0* – `@Repository` interfaces with query derivation, `@Find`/`@By`, `@Query`/JDQL, pagination, `@StaticMetamodel`
+* *MorphiumRepository* – provider-specific extension with `distinct()`, `morphium()`, `query()` escape hatch
+* *Zero-boilerplate injection* – inject `Morphium` or any `@Repository` interface directly via `@Inject`
+* *Declarative transactions* – `@MorphiumTransactional` for automatic commit / rollback with CDI lifecycle events
+* *Type-safe configuration* – all settings live under the `quarkus.morphium.*` prefix in `application.properties`
+* *Dev Services* – a MongoDB container is started automatically in dev and test mode; no manual Docker setup needed
+* *Health checks* – MicroProfile liveness, readiness, and startup probes registered automatically
+* *SSL/TLS & X.509* – encrypted connections and client-certificate authentication
+* *GraalVM native ready* – all `@Entity` and `@Embedded` classes are registered for reflection at build time
+* *Blocking call detection* – warns when Morphium writes are called from the Vert.x event loop
+* *Dev UI card* – shows MongoDB connection info in the Quarkus Dev UI at `/q/dev-ui/`
+* *Fast tests* – use the `InMemDriver` profile from `quarkus-morphium-testing` for instant, container-free tests
+
+== Documentation
+
+[cols="1,3"]
+|===
+| xref:getting-started.adoc[Getting Started]
+| Installation, minimal configuration, first entity, first query.
+
+| xref:jakarta-data.adoc[Jakarta Data 1.0]
+| `@Repository`, `CrudRepository`, `MorphiumRepository`, query derivation, `@Find`/`@By`, `@Query`/JDQL, pagination, `@StaticMetamodel`.
+
+| xref:configuration.adoc[Configuration Reference]
+| All `quarkus.morphium.*` properties including SSL/TLS, Dev Services, and health checks.
+
+| xref:entities.adoc[Entities & Annotations]
+| `@Entity`, `@Embedded`, `@Id`, `@Version`, `@AutoSequence`, lifecycle annotations, `@Cache`.
+
+| xref:transactions.adoc[Transactions]
+| Declarative `@MorphiumTransactional`, lifecycle events, replica-set requirement.
+
+| xref:dev-services.adoc[Dev Services]
+| Automatic MongoDB container, replica-set mode, Dev UI card, hot-reload behavior.
+
+| xref:health-checks.adoc[Health Checks]
+| MicroProfile liveness, readiness, and startup probes with pool metadata.
+
+| xref:testing.adoc[Testing]
+| Dev Services vs. InMemDriver strategies, test isolation, mixing approaches.
+
+| xref:advanced.adoc[Advanced Topics]
+| SSL/TLS, Atlas SRV, blocking call detector, GraalVM native image details.
+|===
+
+== Links
+
+* link:{morphium-github-url}[Morphium on GitHub] — the core ODM library
+* link:{morphium-docs-url}[Morphium Documentation] — full API reference, messaging, aggregation
+* link:{github-base-url}[quarkus-morphium on GitHub] — this extension's source code (`quarkus-morphium/` directory in the Morphium repository)
+* link:{showcase-github-url}[quarkus-morphium-showcase] — demo application showing all features

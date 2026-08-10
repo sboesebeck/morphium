@@ -38,7 +38,80 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
         return this;
     }
 
+    // Room for the command envelope (db name, writeConcern, session/txn fields) next to
+    // the payload statements inside one wire message; the floor keeps pathological
+    // maxMessageSize configurations from producing a useless budget.
+    private static final int MESSAGE_ENVELOPE_SLACK = 16 * 1024;
+
+    /**
+     * The list-shaped payload this write command carries (insert: documents, update:
+     * updates, delete: deletes) - null when the concrete command is not list-based.
+     * Commands overriding this MUST also override {@link #setPayloadStatements(List)};
+     * together they let execute() split an oversized payload across several wire messages.
+     */
+    protected List<Map<String, Object>> getPayloadStatements() {
+        return null;
+    }
+
+    protected void setPayloadStatements(List<Map<String, Object>> statements) {
+        throw new UnsupportedOperationException("command declares a payload but cannot rewrite it");
+    }
+
+    /** Ordered semantics (mongod default): stop after the first sub-batch with writeErrors. */
+    protected boolean isOrderedWrite() {
+        return true;
+    }
+
     public Map<String, Object> execute() throws MorphiumDriverException {
+        List<Map<String, Object>> statements = getPayloadStatements();
+
+        if (statements != null && statements.size() > 1) {
+            MorphiumDriver drv = getConnection().getDriver();
+            int budget = Math.max(4096, drv.getMaxMessageSize() - MESSAGE_ENVELOPE_SLACK);
+            int maxCount = Math.max(1, drv.getMaxWriteBatchSize());
+            List<List<Map<String, Object>>> chunks = WriteBatchSplitter.split(statements, budget, maxCount);
+
+            if (chunks != null) {
+                return executeChunked(statements, chunks);
+            }
+        }
+
+        return executeSingleMessage();
+    }
+
+    /**
+     * Runs the payload chunk by chunk - each chunk one wire message through the full
+     * single-shot retry path below - and folds the results into one mongod-shaped answer
+     * (see {@link WriteBatchSplitter#mergeInto}). Ordered writes stop after the first
+     * chunk reporting writeErrors, a command-level failure (ok != 1) always stops.
+     */
+    private Map<String, Object> executeChunked(List<Map<String, Object>> originalStatements,
+            List<List<Map<String, Object>>> chunks) throws MorphiumDriverException {
+        Map<String, Object> aggregate = new java.util.LinkedHashMap<>();
+        int offset = 0;
+
+        try {
+            for (List<Map<String, Object>> chunk : chunks) {
+                setPayloadStatements(chunk);
+                Map<String, Object> result = executeSingleMessage();
+                WriteBatchSplitter.mergeInto(aggregate, result, offset);
+                offset += chunk.size();
+
+                boolean failed = aggregate.get("ok") instanceof Number ok && ok.doubleValue() != 1.0;
+                boolean hasWriteErrors = aggregate.get("writeErrors") instanceof List<?> we && !we.isEmpty();
+
+                if (failed || (isOrderedWrite() && hasWriteErrors)) {
+                    break;
+                }
+            }
+        } finally {
+            setPayloadStatements(originalStatements);
+        }
+
+        return aggregate;
+    }
+
+    private Map<String, Object> executeSingleMessage() throws MorphiumDriverException {
         if (!getConnection().isConnected()) {
             throw new MorphiumDriverException("Not connected");
         }

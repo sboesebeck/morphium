@@ -23,6 +23,11 @@ public class WatchCursorManager {
 
     private static final Logger log = LoggerFactory.getLogger(WatchCursorManager.class);
 
+    // Per-cursor buffer cap. A change stream / tailable cursor whose client stops reading
+    // must not accumulate events without bound. On overflow the cursor is killed with a
+    // CursorKilled-style error rather than risking OOM.
+    static final int MAX_CURSOR_QUEUE_SIZE = 10_000;
+
     private final AtomicLong cursorIdGenerator = new AtomicLong(1000);
     private final ConcurrentMap<Long, WatchCursorState> watchCursors = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, TailableCursorState> tailableCursors = new ConcurrentHashMap<>();
@@ -176,7 +181,9 @@ public class WatchCursorManager {
      * Direct event delivery to a cursor (fast-path).
      */
     private void deliverEventToCursor(WatchCursorState state, Map<String, Object> event) {
-        state.events.offer(event);
+        if (!offerWatchEvent(state, event)) {
+            return; // cursor overflowed and was killed
+        }
 
         // Complete any pending getMore request immediately
         PendingGetMore pending;
@@ -198,7 +205,9 @@ public class WatchCursorManager {
             return;
         }
 
-        state.events.offer(event);
+        if (!offerWatchEvent(state, event)) {
+            return; // cursor overflowed and was killed
+        }
         log.trace("onWatchEvent: queued event for cursor {}, queue size now: {}", cursorId, state.events.size());
 
         // Complete any pending getMore request
@@ -383,6 +392,53 @@ public class WatchCursorManager {
     }
 
     /**
+     * Enqueue a change stream event, killing the cursor if its buffer is full.
+     *
+     * @return true if the event was buffered, false if the cursor overflowed and was killed.
+     */
+    private boolean offerWatchEvent(WatchCursorState state, Map<String, Object> event) {
+        if (state.events.offer(event)) {
+            return true;
+        }
+        log.warn("Change stream cursor {} exceeded max buffer size {} — killing cursor (slow/absent consumer)",
+                state.cursorId, MAX_CURSOR_QUEUE_SIZE);
+        WatchCursorState removed = watchCursors.remove(state.cursorId);
+        if (removed != null) {
+            unregisterMessagingCursor(state.cursorId, removed.db, removed.collection);
+            failPending(removed.pendingGetMores);
+        }
+        return false;
+    }
+
+    /**
+     * Enqueue a tailable document, killing the cursor if its buffer is full.
+     *
+     * @return true if the document was buffered, false if the cursor overflowed and was killed.
+     */
+    private boolean offerTailableDocument(TailableCursorState state, Map<String, Object> document) {
+        if (state.documents.offer(document)) {
+            return true;
+        }
+        log.warn("Tailable cursor {} exceeded max buffer size {} — killing cursor (slow/absent consumer)",
+                state.cursorId, MAX_CURSOR_QUEUE_SIZE);
+        TailableCursorState removed = tailableCursors.remove(state.cursorId);
+        if (removed != null) {
+            removed.active = false;
+            failPending(removed.pendingGetMores);
+        }
+        return false;
+    }
+
+    /** Fail all pending getMore requests with a CursorKilled-style error. */
+    private void failPending(Queue<PendingGetMore> pending) {
+        PendingGetMore p;
+        while ((p = pending.poll()) != null) {
+            p.future.completeExceptionally(new IllegalStateException(
+                    "cursor killed: event buffer overflow (max " + MAX_CURSOR_QUEUE_SIZE + " buffered events)"));
+        }
+    }
+
+    /**
      * Create a tailable cursor for a capped collection.
      */
     public long createTailableCursor(String db, String collection, Map<String, Object> filter) {
@@ -415,7 +471,9 @@ public class WatchCursorManager {
             return;
         }
 
-        state.documents.offer(document);
+        if (!offerTailableDocument(state, document)) {
+            return; // cursor overflowed and was killed
+        }
 
         // Complete any pending getMore request
         PendingGetMore pending;
@@ -439,11 +497,18 @@ public class WatchCursorManager {
             }
 
             // Add all documents to the cursor's queue
+            boolean alive = true;
             for (Map<String, Object> doc : documents) {
                 // Check if document matches the cursor's filter (if any)
                 if (state.filter == null || state.filter.isEmpty() || matchesFilter(doc, state.filter)) {
-                    state.documents.offer(doc);
+                    if (!offerTailableDocument(state, doc)) {
+                        alive = false; // cursor overflowed and was killed
+                        break;
+                    }
                 }
+            }
+            if (!alive) {
+                continue;
             }
 
             // Complete any pending getMore requests
@@ -518,7 +583,9 @@ public class WatchCursorManager {
         final long cursorId;
         final String db;
         final String collection;
-        final Queue<Map<String, Object>> events = new ConcurrentLinkedQueue<>();
+        // Bounded so a slow/absent consumer cannot grow the buffer without limit.
+        // offer() returns false at capacity; the caller then kills the cursor.
+        final Queue<Map<String, Object>> events = new LinkedBlockingQueue<>(MAX_CURSOR_QUEUE_SIZE);
         final Queue<PendingGetMore> pendingGetMores = new ConcurrentLinkedQueue<>();
         // For messaging fast-path: subscriber ID for sender filtering
         volatile String subscriberId;
@@ -535,7 +602,8 @@ public class WatchCursorManager {
         final String db;
         final String collection;
         final Map<String, Object> filter;
-        final Queue<Map<String, Object>> documents = new ConcurrentLinkedQueue<>();
+        // Bounded — see WatchCursorState.events.
+        final Queue<Map<String, Object>> documents = new LinkedBlockingQueue<>(MAX_CURSOR_QUEUE_SIZE);
         final Queue<PendingGetMore> pendingGetMores = new ConcurrentLinkedQueue<>();
         volatile boolean active = true;
 
