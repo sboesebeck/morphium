@@ -8095,6 +8095,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         // old one (see ttlEnqueue's own Javadoc for why that's cheaper).
                         ttlEnqueue(db, collection, obj);
                     }
+
+                    // A full-document replacement is a change like any other and must reach the
+                    // watchers (#288). This branch used to fall straight through to the continue
+                    // below, so the document was replaced, the index store updated and the TTL
+                    // re-queued - but no change-stream event was ever emitted: a silent write.
+                    // mongod reports such an update as operationType "replace", carrying the new
+                    // fullDocument and deliberately NO updateDescription (a replacement has no
+                    // meaningful per-field delta), which is exactly the shape built here.
+                    // Only notify when the document actually changed - mongod writes no oplog
+                    // entry for a replacement that leaves the document identical, so no event
+                    // follows there either. "modified" was filled with exactly that condition above.
+                    if (!insert && modified.contains(obj.get("_id"))) {
+                        pendingNotifications.add(new PendingNotification(db, collection, "replace", obj,
+                                                 null, null, original, originalIsExclusiveDeepCopy));
+                    }
                     continue;  // Skip to next document, no need to process as update operators
                 }
 
