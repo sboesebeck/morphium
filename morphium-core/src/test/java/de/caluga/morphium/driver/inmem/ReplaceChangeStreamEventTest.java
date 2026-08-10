@@ -29,6 +29,8 @@ public class ReplaceChangeStreamEventTest {
 
     private static final String DB = "replace_evt_db";
     private static final String COLL = "probe";
+    /** insert + operator update + replacement */
+    private static final int EXPECTED_EVENTS = 3;
 
     @Test
     public void replacementEmitsReplaceEventOperatorUpdateEmitsUpdate() throws Exception {
@@ -46,7 +48,12 @@ public class ReplaceChangeStreamEventTest {
                     }
                     @Override
                     public boolean isContinued() {
-                        return true;
+                        // Must go false once the expected events are in: a callback that answers
+                        // "true" forever keeps the watch loop - and with it the driver's event
+                        // dispatcher and this subscription - alive past the test ("Keeping
+                        // eventDispatcher alive - 1 active subscription(s) remain" on close()).
+                        // In a full-suite run that leak is what turns a tight heap into an OOM.
+                        return events.size() < EXPECTED_EVENTS;
                     }
                 });
             Thread watcher = new Thread(() -> {
@@ -66,12 +73,15 @@ public class ReplaceChangeStreamEventTest {
             drv.update(DB, COLL, Doc.of("_id", 1), null, Doc.of("b", 3), false, false, null, null);
 
             long deadline = System.currentTimeMillis() + 5000;
-            while (events.size() < 3 && System.currentTimeMillis() < deadline) {
+            while (events.size() < EXPECTED_EVENTS && System.currentTimeMillis() < deadline) {
                 Thread.sleep(50);
             }
+            // let the watch loop observe isContinued() == false and unwind before asserting,
+            // so the subscription is gone even if an assertion below fails
+            watcher.join(5000);
 
             assertThat(events).as("insert, operator update and replacement must all be delivered")
-                .hasSize(3);
+                .hasSize(EXPECTED_EVENTS);
 
             assertThat(events.get(0).get("operationType")).isEqualTo("insert");
 
