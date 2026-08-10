@@ -921,11 +921,14 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
         lockChangeStreamMonitor = lockMonitor;
         lockMonitor.addListener(evt -> {
-            // some lock removed
-            if (morphium.createQueryFor(Msg.class, getCollectionName()).f("_id").eq(evt.getDocumentKey()).countAll() != 0) {
-                // log.info("Lock CSE");
-                requestPoll.incrementAndGet();
-            }
+            // Some lock removed - ask for a poll. Deliberately no query here (#286): this runs on
+            // the change-stream callback thread, so a countAll per lock-delete event blocks the
+            // stream itself, and it buys nothing. requestPoll is a counter the poll loop reads,
+            // zeroes and answers with ONE findMessages(), so M lock deletes in a burst coalesce
+            // into a single poll either way - the gate traded M synchronous queries on this
+            // thread against at most one query in the poll thread. findMessages() decides what is
+            // actually pending, which it queries for correctly regardless.
+            requestPoll.incrementAndGet();
             return running;
         });
         changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, changeStreamMaxWait, pipeline);
