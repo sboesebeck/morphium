@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
   <artifactId>morphium-parent</artifactId>
-  <version>6.3.0-SNAPSHOT</version>
+  <version>6.3.0</version>
   <packaging>pom</packaging>
   <name>Morphium Parent</name>
   <url>http://caluga.de</url>
@@ -21,7 +21,7 @@
     <url>https://github.com/sboesebeck/morphium</url>
     <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
     <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-    <tag>v6.2.7</tag>
+    <tag>v6.3.0</tag>
   </scm>
   <developers>
     <developer>
@@ -79,11 +79,11 @@
     <mongodbDriver.version>4.11.5</mongodbDriver.version>
     <netty.version>4.2.9.Final</netty.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine/>
+    <argLine />
     <!-- JUnit tag control (defaults)
          external = needs a real MongoDB (enabled by -Pexternal)
          manual   = process-killing / hardcoded-local tests, NEVER in CI -->
-    <test.includeTags/>
+    <test.includeTags />
     <test.excludeTags>external,manual</test.excludeTags>
     <!-- Extension module property for morphium-jakarta-data.
          Deliberately only the version, no Quarkus/Spring BOM (see I4). -->
