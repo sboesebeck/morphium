@@ -316,7 +316,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Map<String, Object> filter = (Map<String, Object>) firstMatch;
                     matchFilter = filter;
                     CollectionIndexStore store = getIndexStore(db, collection);
-                    Collection<IndexDefinition> defs = store.definitions();
+                    // planningDefinitions(), not definitions(): a multikey index cannot answer a
+                    // lookup and would silently report zero candidates (#289).
+                    Collection<IndexDefinition> defs = store.planningDefinitions();
                     if (!filter.isEmpty() && defs.size() > 1) {
                         IndexPlanner.IndexPlan plan = IndexPlanner.plan(filter, defs);
                         if (!(plan instanceof IndexPlanner.FullScan)) {
@@ -2125,7 +2127,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         CollectionIndexStore store = getIndexStore(db, coll);
-        Collection<IndexDefinition> defs = store.definitions();
+        // planningDefinitions(), not definitions(): a multikey index cannot answer a lookup and
+        // would silently report zero candidates (#289).
+        Collection<IndexDefinition> defs = store.planningDefinitions();
         IndexPlanner.IndexPlan plan = (query.isEmpty() || defs.size() <= 1)
                 ? IndexPlanner.FullScan.INSTANCE : IndexPlanner.plan(query, defs);
 
@@ -5495,7 +5499,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Iterator<Map<String, Object>> indexSortIterator = null;
             if (sort != null && !sort.isEmpty() && QueryHelper.getCollator(collation) == null) {
                 CollectionIndexStore indexStore = getIndexStore(db, collection);
-                Collection<IndexDefinition> defs = indexStore.definitions();
+                // planningDefinitions(), not definitions() - see getDataFromIndex (#289).
+                Collection<IndexDefinition> defs = indexStore.planningDefinitions();
                 if (defs.size() > 1) {
                     IndexPlanner.IndexPlan filterPlan = IndexPlanner.plan(query, defs);
                     indexSortIterator = planIndexOrderedIterator(indexStore, defs, filterPlan, sort);
@@ -6390,7 +6395,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) throws MorphiumDriverException {
         CollectionIndexStore store = getIndexStore(db, collection);
-        Collection<IndexDefinition> defs = store.definitions();
+        // planningDefinitions(), not definitions(): a multikey index holds each array as ONE key,
+        // so a scalar lookup key never matches and the prefilter would come back empty - which
+        // the contract above then takes as the authoritative (empty) result (#289).
+        Collection<IndexDefinition> defs = store.planningDefinitions();
         if (defs.size() <= 1) {
             return null; // only the default _id index exists - never worth planning
         }

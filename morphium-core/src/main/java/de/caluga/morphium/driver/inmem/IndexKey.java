@@ -83,6 +83,22 @@ public final class IndexKey {
     }
 
     /**
+     * Whether any of this key's values is a {@code List}, i.e. the document made the index
+     * multikey in MongoDB's sense. Since {@link #extract} stores such a list as ONE value rather
+     * than expanding it into one entry per element, no lookup key built from a scalar query value
+     * can ever match it - the index is unusable for lookups until real multikey support lands
+     * (#289). {@code CollectionIndexStore} uses this to mark an index and keep the planner off it.
+     */
+    public boolean hasListValue() {
+        for (Object v : values) {
+            if (v instanceof List) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Extracts one value per field of {@code def} (in field order) from {@code doc}, walking
      * dotted paths (e.g. {@code "a.b.c"}) the same way a plain nested-map lookup would. Absent
      * fields and explicit {@code null}s both become {@link #MISSING}.

@@ -125,6 +125,26 @@ public class CollectionIndexStore {
         indexesByName.remove(name);
     }
 
+    /**
+     * The subset of {@link #definitions()} a query planner may serve lookups from: everything
+     * except indexes that have gone multikey. A terminal {@code List} is stored as ONE key rather
+     * than one entry per element ({@link IndexKey#extract}), so a lookup key built from a scalar
+     * query value never matches it and an index-backed query would silently answer "no documents"
+     * where an unindexed collection answers correctly (#289). Excluding such an index sends the
+     * query back to the scan, which evaluates MongoDB's array semantics properly - correct, just
+     * not accelerated. Restoring acceleration needs real per-element multikey indexing, which
+     * {@code IndexKey} already flags as a follow-up.
+     */
+    public Collection<IndexDefinition> planningDefinitions() {
+        List<IndexDefinition> defs = new ArrayList<>(indexesByName.size());
+        for (IndexEntry entry : indexesByName.values()) {
+            if (!entry.multikey) {
+                defs.add(entry.definition);
+            }
+        }
+        return Collections.unmodifiableList(defs);
+    }
+
     /** All currently registered index definitions, including the {@code _id} index. */
     public Collection<IndexDefinition> definitions() {
         List<IndexDefinition> defs = new ArrayList<>(indexesByName.size());
@@ -382,6 +402,17 @@ public class CollectionIndexStore {
         final IndexDefinition definition;
         final Map<IndexKey, ArrayList<Map<String, Object>>> byKey = new HashMap<>();
         final TreeMap<IndexKey, ArrayList<Map<String, Object>>> ordered;
+        /**
+         * Set once any indexed document holds a {@code List} for one of this index's fields -
+         * mongod's "multikey" property, learned from the data rather than declared. Since
+         * {@link IndexKey#extract} keeps such a list as ONE key instead of expanding it per
+         * element, no lookup key built from a scalar query value can match it, and serving a
+         * query from this index would silently return nothing (#289). It is therefore excluded
+         * from {@link #planningDefinitions()} and the query falls back to the scan, which
+         * evaluates MongoDB's array semantics correctly. Never cleared: once multikey, an index
+         * stays suspect for its lifetime, exactly as in mongod.
+         */
+        boolean multikey;
 
         IndexEntry(IndexDefinition definition) {
             this.definition = definition;
@@ -398,6 +429,12 @@ public class CollectionIndexStore {
         }
 
         void add(IndexKey key, Map<String, Object> doc) {
+            // Every path that populates an index goes through here (createIndex's bulk build, the
+            // _id index build, onInsert, onUpdate), which makes this the one place that reliably
+            // sees whether a document turns this index multikey - see the field's javadoc (#289).
+            if (!multikey && key.hasListValue()) {
+                multikey = true;
+            }
             ArrayList<Map<String, Object>> bucket = byKey.get(key);
             if (bucket == null) {
                 bucket = new ArrayList<>();
