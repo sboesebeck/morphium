@@ -216,6 +216,38 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg zeigt auf localhos
 - Production-Deployment: `docs/production-deployment-guide.md`
 - Monitoring & Troubleshooting: `docs/monitoring-metrics-guide.md`
 
+## 🚀 Neu in Version 6.3
+
+### Zwei optionale Integrationsmodule
+`morphium-jakarta-data` implementiert [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/) auf Basis von Morphiums Query-Engine — `@Repository`-Interfaces mit Query-Ableitung aus Methodennamen, JDQL über `@Query` (inklusive `GROUP BY`/`HAVING`, übersetzt in eine Aggregation-Pipeline), Offset- sowie Cursor-/Keyset-Pagination. `quarkus-morphium` setzt darauf auf und liefert die CDI-Integration: Config-Mapping, `@MorphiumTransactional`, Health-Checks, Dev Services, Dev UI, GraalVM-Native-Image-Support und Repository-Generierung zur Build-Zeit per Gizmo. Beide sind optional — der Core hängt von keinem der beiden ab, und `-DskipExtensions` erzeugt weiterhin einen reinen Core-Build. Siehe [Jakarta Data](docs/jakarta-data.md) und [Quarkus-Extension](docs/quarkus-extension.md).
+
+**Hinweis:** Die Quarkus-Extension ist von `io.quarkiverse.morphium:quarkus-morphium:1.2.0` nach `de.caluga:quarkus-morphium:6.3.0` umgezogen. Nur die Koordinaten — keine Paketumbenennungen, keine API-Änderungen.
+
+### DualChannelMessaging (Beta)
+Eine dritte Messaging-Implementierung: die gewohnte einzelne Collection samt Cursor für Broadcast- und Topic-Verkehr, dazu eine eigene Collection pro Empfänger mit eigenem Cursor und Dispatcher-Thread für gerichtete Nachrichten und Antworten. Auswahl über `cfg.messagingSettings().setMessagingImplementation("DualChannelMessaging")`. Bewusst Beta — jenseits der Sättigung tauscht sie etwas Durchsatz gegen deutlich bessere Tail-Latenz. Siehe `docs/howtos/messaging-implementations.md`.
+
+> ⚠️ **Alle Messaging-Teilnehmer einer Queue müssen dieselbe Implementierung fahren.** Das galt schon immer für `SingleCollectionMessaging` und `MultiCollectionMessaging` und gilt genauso für `DualChannelMessaging`: Die Implementierungen verwenden unterschiedliche Collection-Layouts, eine Brücke dazwischen gibt es nicht. Eine Abweichung schlägt *still* fehl — ein Standard-Knoten, der auf die Antwort eines Dual-Channel-Responders wartet, läuft ewig in den Timeout, weil die Antwort in der DM-Collection des Anfragenden landet, die Standard nie liest. Alle Knoten gemeinsam umstellen und Request/Reply-Verkehr währenddessen leeren oder pausieren.
+
+### Messaging-Verbesserungen (alle Implementierungen)
+Ein Datenbank-Roundtrip weniger pro nicht-exklusiver Nachricht (Verarbeitung direkt aus dem `fullDocument` des Change Streams), event-getriebene Zustellung von Requeue-Nachrichten, konfigurierbare Default-TTL und Fallback-Poll-Taktung, ein Fallback-Poll, der sich nach der Lebendigkeit des Change Streams richtet, und ein Trace der Verarbeitungsentscheidung zur Diagnose von Antwort-Timeouts.
+
+### PoppyDB: betreibbar, nicht nur startbar
+Echte SCRAM-SHA-1-/SCRAM-SHA-256-Authentifizierung mit optionaler Durchsetzung (`--auth`), deklarative Benutzerprovisionierung aus einer Datei (`--users-file`) und Benutzer, die über das ReplicaSet replizieren, statt nur auf einem Knoten zu existieren. Konfigurationsdateien (`--cfg`, `--print-config`, `--check-config`) halten Secrets von der Kommandozeile fern, `--log-level` beendet die DEBUG-Flut, und eine DevOps-Kommandofläche ergänzt Live-`currentOp`/`killOp`, `rs.conf()`, `listCommands`, `hostInfo`, `dbHash` sowie ein `validate`, das die Indizes wirklich abläuft.
+
+### Speicher-Wasserstandsmarken und ehrliche Größenlimits
+Zwei Heap-Marken (`--memory-warn` / `--memory-reject`, entschieden anhand des Live-Sets nach GC) lehnen dokumenterzeugende Schreibvorgänge mit einem wiederholbaren `ExceededMemoryLimit` ab, bevor der Heap stirbt — Updates, Deletes und TTL-Ablauf bleiben erlaubt, damit das System abfließen kann. Das 16-MB-BSON-Dokumentlimit wird jetzt wie bei mongod durchgesetzt statt nur angekündigt, und `maxMessageSizeBytes` wird durchgängig respektiert, inklusive byte-basierter Aufteilung von Schreib-Batches.
+
+### InMemoryDriver: der Abstand zu mongod schrumpft
+Neue Aggregation-Stages (`$merge`, `$documents`, `$densify`, `$fill`, `$setWindowFields`, `$collStats`, `$listSessions` und ein echtes `$out`), rund 40 zusätzliche Expression-Operatoren, die Positions-Operatoren `$`/`$[]`/`$[<identifier>]` mit `arrayFilters` sowie `$bit`. Dazu eine lange Liste von Korrektheitsfixes — darunter `$geoWithin` mit `$center`/`$centerSphere`/`$polygon`, das *jedes* Dokument traf, UTC-korrekte Datumsoperatoren mit 1-basiertem `$month` und ein `$project`-Inclusion-Modus, der die Ausgabe tatsächlich einschränkt.
+
+### Härtung von Replikation und Failover
+PoppyDBs Replikation ist jetzt verlustfrei, reihenfolgetreu und umfasst Indexdefinitionen. Behoben: ein neu synchronisierendes Secondary, das seinen Initial-Sync-Wipe als Change-Stream-Drop-Events verbreitete (womit sich `admin.system.users` während eines Stepdowns clusterweit zerstören ließ), ein degradierter Leader, der bei `primary == true` hängen blieb, ein `rs.status()`, das einen toten Peer für immer als SECONDARY meldete, und ein unverschlüsselter interner Wahl-/Replikationskanal, der `--auth`/`--ssl` im ReplicaSet wirkungslos machte. Auf Client-Seite konnte der Failover-Lesepfad eine nackte NPE an jedem Retry vorbei werfen.
+
+### Performance
+Die Duplikatsprüfung auf `_id` beim Insert ist ein O(1)-Indexzugriff statt eines vollständigen Scans unter dem Schreiblock, das Before-Image des Change Streams wird nicht mehr doppelt tief kopiert, und das Rebuild-Pingpong zwischen offener Transaktion und parallelen Lesern ist beseitigt.
+
+Das Upgrade beschreibt der [Migrationsleitfaden](docs/howtos/migration-v6_2-to-v6_3.md) Schritt für Schritt; alle Details stehen im [CHANGELOG](CHANGELOG.md).
+
 ## 🚀 Neu in Version 6.2
 
 ### Multi-Module Maven Build

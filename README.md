@@ -226,6 +226,38 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhos
 - Production deployment: `docs/production-deployment-guide.md`
 - Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
 
+## 🚀 What’s New in v6.3
+
+### Two Optional Integration Modules
+`morphium-jakarta-data` implements [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/) on top of Morphium's query engine — `@Repository` interfaces with query derivation from method names, JDQL via `@Query` (including `GROUP BY`/`HAVING` compiled into an aggregation pipeline), offset and cursor/keyset pagination. `quarkus-morphium` builds on it for CDI integration: config mapping, `@MorphiumTransactional`, health checks, Dev Services, Dev UI, GraalVM native-image support, and build-time repository generation via Gizmo. Both are optional — core has no dependency on either, and `-DskipExtensions` still produces a core-only build. See [Jakarta Data](docs/jakarta-data.md) and [Quarkus Extension](docs/quarkus-extension.md).
+
+**Note:** the Quarkus extension moved from `io.quarkiverse.morphium:quarkus-morphium:1.2.0` to `de.caluga:quarkus-morphium:6.3.0`. Coordinates only — no package renames, no API changes.
+
+### DualChannelMessaging (beta)
+A third messaging implementation: the standard single collection and cursor for broadcast/topic traffic, plus a dedicated per-recipient collection with its own cursor and dispatcher thread for directed messages and answers. Select it with `cfg.messagingSettings().setMessagingImplementation("DualChannelMessaging")`. Beta on purpose — past saturation it trades a little throughput for markedly better tail latency. See `docs/howtos/messaging-implementations.md`.
+
+> ⚠️ **All messaging participants on a queue must run the same implementation.** This has always been true for `SingleCollectionMessaging` and `MultiCollectionMessaging`, and it applies to `DualChannelMessaging` too: the implementations use different collection layouts and there is no bridge between them. A mismatch fails *silently* — a Standard node waiting for an answer from a Dual Channel responder times out forever, because the answer goes into the requester's DM collection, which Standard never reads. Switch every node together, and drain or pause request/reply traffic while you do.
+
+### Messaging Improvements (all implementations)
+One database roundtrip less per non-exclusive message (processed straight from the change-stream `fullDocument`), event-driven delivery of requeued messages, configurable default TTL and fallback-poll cadence, change-stream liveness driving the fallback poll, and a processing decision trace for diagnosing answer timeouts.
+
+### PoppyDB: Operable, Not Just Runnable
+Real SCRAM-SHA-1/SCRAM-SHA-256 authentication with opt-in enforcement (`--auth`), declarative user provisioning from a file (`--users-file`) and users that replicate across the replica set instead of living on one node. Configuration files (`--cfg`, `--print-config`, `--check-config`) keep secrets off the command line, `--log-level` stops the DEBUG firehose, and a DevOps command surface adds live `currentOp`/`killOp`, `rs.conf()`, `listCommands`, `hostInfo`, `dbHash` and a `validate` that really walks the indexes.
+
+### Memory Watermark and Honest Size Limits
+Two heap watermarks (`--memory-warn` / `--memory-reject`, decided on the post-GC live set) reject document-creating writes with a retryable `ExceededMemoryLimit` before the heap dies, while updates, deletes and TTL expiry stay allowed so the system can drain. The 16MB BSON document limit is now enforced like mongod instead of merely advertised, and `maxMessageSizeBytes` is respected end-to-end with byte-aware write-batch splitting.
+
+### InMemoryDriver: Closing the Gap to mongod
+New aggregation stages (`$merge`, `$documents`, `$densify`, `$fill`, `$setWindowFields`, `$collStats`, `$listSessions`, and a real `$out`), ~40 additional expression operators, positional update operators `$`/`$[]`/`$[<identifier>]` with `arrayFilters`, and `$bit`. Plus a long list of correctness fixes — among them `$geoWithin` with `$center`/`$centerSphere`/`$polygon`, which matched *every* document, UTC-correct date operators with a 1-based `$month`, and `$project` inclusion mode actually restricting output.
+
+### Replication and Failover Hardening
+PoppyDB replication is now lossless, order-preserving and covers index definitions. Fixed: a re-syncing secondary broadcasting its initial-sync wipe as change-stream drop events (which could destroy `admin.system.users` cluster-wide during a stepdown), a demoted leader stuck at `primary == true`, `rs.status()` reporting a dead peer as SECONDARY forever, and a plaintext internal election/replication channel that made `--auth`/`--ssl` ineffective on a replica set. On the client side, the failover read path could throw a raw NPE past every retry.
+
+### Performance
+Insert's duplicate-`_id` pre-check is an O(1) index lookup instead of a full scan under the write lock, the change-stream before-image is no longer deep-copied twice per watched update, and the index-store rebuild ping-pong between an open transaction and concurrent readers is gone.
+
+Upgrading is covered step by step in the [migration guide](docs/howtos/migration-v6_2-to-v6_3.md); see [CHANGELOG](CHANGELOG.md) for full details.
+
 ## 🚀 What’s New in v6.2
 
 ### Multi-Module Maven Build

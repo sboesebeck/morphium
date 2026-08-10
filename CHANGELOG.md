@@ -23,8 +23,14 @@ split (on mongod every cursor tails the whole oplog anyway); the effective mecha
 the Standard layout: identical single collection and cursor for broadcast/topic traffic, plus a
 dedicated per-recipient collection `<queue>_dm_<senderId>` with its own change-stream cursor and
 dispatcher thread for directed messages and answers. Select it with
-`cfg.messagingSettings().setMessagingImplementation("DualChannelMessaging")`; it interoperates
-with nodes running the other implementations. Marked **beta**: the measured benefit is smaller
+`cfg.messagingSettings().setMessagingImplementation("DualChannelMessaging")`. **Every participant
+on a given queue must run the same messaging implementation** — there is no dual-read/dual-write
+bridge between the collection layouts, and a mismatch fails silently: a `SingleCollectionMessaging`
+node awaiting an answer from a `DualChannelMessaging` responder times out forever, because the
+answer is written to the requester's DM collection, which the other implementation never reads.
+The same applies to `MultiCollectionMessaging`, whose per-topic layout shares no collection with
+the other two. Every `DualChannelMessaging` instance logs a WARN on startup restating this.
+Marked **beta**: the measured benefit is smaller
 and more nuanced than the original motivation suggested — past saturation it trades a little
 throughput against markedly better tail latency (p99 519 ms vs 723 ms for Standard and 2044 ms
 for MultiCollection in the steady-state window) — so it is opt-in while it gathers real-world
