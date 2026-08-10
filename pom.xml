@@ -80,6 +80,21 @@
     <netty.version>4.2.9.Final</netty.version>
     <!--  This is required for later correct replacement of argline -->
     <argLine />
+    <!-- Heap cap for the forked test JVMs. Without it they size themselves ergonomically from
+         the HOST's physical RAM (MaxRAMPercentage 25%), which is wrong wherever the JVM cannot
+         see the real limit: on the CI container /sys/fs/cgroup/memory.max reads "max", so each
+         fork helpfully allowed itself 5.8GB on an 8GB box. Nothing ever hit its own limit and no
+         OutOfMemoryError was ever thrown - the phases simply grew until the machine ran dry and
+         the runner's memory watchdog killed everything mid-suite. A fixed cap also makes runs
+         reproducible instead of quietly depending on how much RAM the developer's machine has.
+         Kept separate from ${argLine} so an agent that replaces that property (jacoco's
+         prepare-agent is the usual one) still composes with this.
+         Why 2g and not less: the InMemoryDriver keeps whole databases on the heap AND guards
+         itself with a watermark relative to that heap - at 1g, StorageSnapshotTest's concurrent
+         writers pushed the live set past the 90% reject threshold and the driver refused writes,
+         which is the watermark working correctly on a heap too small for the test. 1500m passes;
+         2g leaves headroom. Override per run with -Dtest.maxHeap=-XmxNNN. -->
+    <test.maxHeap>-Xmx2g</test.maxHeap>
     <!-- JUnit tag control (defaults)
          external = needs a real MongoDB (enabled by -Pexternal)
          manual   = process-killing / hardcoded-local tests, NEVER in CI -->
@@ -104,7 +119,7 @@
           <artifactId>maven-surefire-plugin</artifactId>
           <version>3.0.0</version>
           <configuration>
-            <argLine>${argLine}</argLine>
+            <argLine>${argLine} ${test.maxHeap}</argLine>
             <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
             <groups>${test.includeTags}</groups>
             <excludedGroups>${test.excludeTags}</excludedGroups>
