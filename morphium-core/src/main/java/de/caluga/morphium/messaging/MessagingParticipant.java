@@ -1,7 +1,11 @@
 package de.caluga.morphium.messaging;
 
+import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.NoCache;
 
 /**
@@ -16,6 +20,12 @@ import de.caluga.morphium.annotations.caching.NoCache;
  */
 @Entity(typeId = "msg_participant")
 @NoCache
+// Primary reads on purpose, same reasoning as Sequence: the mismatch check must see another
+// instance's acknowledged announcement immediately - a secondary read under replication lag
+// makes the THROW check silently miss a participant that announced moments ago (seen as a
+// broken test on the loaded RS test phase).
+@WriteSafety(timeout = 10000, level = SafetyLevel.BASIC)
+@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class MessagingParticipant {
     @Id
     private String id;
