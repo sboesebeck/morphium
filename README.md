@@ -114,7 +114,7 @@ Testcontainers, no MongoDB installation.
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.3.0</version>
+    <version>6.3.1</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -134,11 +134,11 @@ integration tests get a MongoDB-compatible server in milliseconds, no Docker ima
 Testcontainers, nothing to install:
 
 ```bash
-curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.0/poppydb-6.3.0-cli.jar
+curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.1/poppydb-6.3.1-cli.jar
 
 # start for a test run: --no-config keeps it isolated from any stray
 # ~/.config/poppydb/config on a developer machine - same flags, same behavior in CI
-java -jar poppydb-6.3.0-cli.jar --port 27017 --no-config
+java -jar poppydb-6.3.1-cli.jar --port 27017 --no-config
 ```
 
 Point your test suite at `mongodb://localhost:27017`, kill the process afterwards — state is
@@ -154,7 +154,7 @@ the [deployment playbook](docs/howtos/poppydb-deployment.md).
 ### How-to: standalone server with persistence
 
 ```bash
-java -jar poppydb-6.3.0-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
+java -jar poppydb-6.3.1-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
 ```
 
 Snapshots every 5 minutes, final dump on shutdown, automatic restore on the next start.
@@ -167,7 +167,7 @@ One process per node, each with the same seed list — election picks the primar
 automatic:
 
 ```bash
-java -jar poppydb-6.3.0-cli.jar -p 17017 --rs-name myrs \
+java -jar poppydb-6.3.1-cli.jar -p 17017 --rs-name myrs \
   --rs-seed host1:17017,host2:17017,host3:17017 --rs-priorities 100,50,50
 ```
 
@@ -323,7 +323,7 @@ The embedded MongoDB-compatible server was extracted to its own module and renam
 
 | | 6.1.x | 6.2.x |
 |---|---|---|
-| Maven artifact | included in `morphium` | separate: `de.caluga:poppydb:6.3.0` |
+| Maven artifact | included in `morphium` | separate: `de.caluga:poppydb:6.3.1` |
 | Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
 | Main class | `MorphiumServer` | `PoppyDB` |
 | CLI JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
@@ -334,7 +334,7 @@ If you use PoppyDB in tests, add the dependency:
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.3.0</version>
+    <version>6.3.1</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -442,7 +442,7 @@ Migrating from v5? → `docs/howtos/migration-v5-to-v6.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.3.0</version>
+  <version>6.3.1</version>
 </dependency>
 ```
 
@@ -662,7 +662,7 @@ PoppyDB (formerly MorphiumServer) runs the Morphium wire-protocol driver in a se
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>poppydb</artifactId>
-  <version>6.3.0</version>
+  <version>6.3.1</version>
 </dependency>
 ```
 
@@ -672,19 +672,19 @@ PoppyDB (formerly MorphiumServer) runs the Morphium wire-protocol driver in a se
 mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 ```
 
-This creates `poppydb/target/poppydb-6.3.0-cli.jar`.
+This creates `poppydb/target/poppydb-6.3.1-cli.jar`.
 
 **Running the Server**
 
 ```bash
 # Start the server on the default port (17017)
-java -jar poppydb/target/poppydb-6.3.0-cli.jar
+java -jar poppydb/target/poppydb-6.3.1-cli.jar
 
 # Start on a different port
-java -jar poppydb/target/poppydb-6.3.0-cli.jar --port 8080
+java -jar poppydb/target/poppydb-6.3.1-cli.jar --port 8080
 
 # Start with persistence (snapshots)
-java -jar poppydb/target/poppydb-6.3.0-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.3.1-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Support (Experimental)**
@@ -692,7 +692,7 @@ java -jar poppydb/target/poppydb-6.3.0-cli.jar --dump-dir ./data --dump-interval
 PoppyDB supports basic replica set emulation. Start multiple instances with the same replica set name and seed list:
 
 ```bash
-java -jar poppydb/target/poppydb-6.3.0-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.3.1-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use cases**
