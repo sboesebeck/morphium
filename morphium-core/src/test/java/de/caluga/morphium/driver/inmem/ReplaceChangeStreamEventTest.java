@@ -104,4 +104,67 @@ public class ReplaceChangeStreamEventTest {
             drv.close();
         }
     }
+
+    /**
+     * The other half of #288: morphium.store() on an existing document goes out on the wire as
+     * an update WITH $set (see StoreMongoCommand), so mongod reports operationType "update" with
+     * an updateDescription. The in-memory store() path used to report "replace" for the same
+     * call - same API, different event type depending on the backend.
+     */
+    @Test
+    public void storeOnExistingDocumentEmitsUpdateLikeMongod() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        List<Map<String, Object>> events = new CopyOnWriteArrayList<>();
+
+        try {
+            var con = drv.getPrimaryConnection(null);
+            WatchCommand w = new WatchCommand(con).setDb(DB).setColl("store_probe")
+                .setCb(new DriverTailableIterationCallback() {
+                    @Override
+                    public void incomingData(Map<String, Object> data, long dur) {
+                        events.add(data);
+                    }
+                    @Override
+                    public boolean isContinued() {
+                        return events.size() < 2;
+                    }
+                });
+            Thread watcher = new Thread(() -> {
+                try {
+                    drv.watch(w);
+                } catch (Exception ignored) {
+                }
+            });
+            watcher.setDaemon(true);
+            watcher.start();
+            Thread.sleep(300);
+
+            drv.store(DB, "store_probe", new ArrayList<>(List.of(Doc.of("_id", 1, "a", 1))), null);
+            // store of an EXISTING document - the ORM's store() sends {$set: doc} to mongod
+            drv.store(DB, "store_probe", new ArrayList<>(List.of(Doc.of("_id", 1, "a", 2))), null);
+
+            long deadline = System.currentTimeMillis() + 5000;
+            while (events.size() < 2 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50);
+            }
+            watcher.join(5000);
+
+            assertThat(events).as("insert and re-store must both be delivered").hasSize(2);
+            assertThat(events.get(0).get("operationType")).isEqualTo("insert");
+
+            Map<String, Object> updateEvt = events.get(1);
+            assertThat(updateEvt.get("operationType"))
+                .as("store() on an existing document is a $set update on the wire, not a replaceOne (#288)")
+                .isEqualTo("update");
+            assertThat(updateEvt).as("mongod reports the per-field delta for that update")
+                .containsKey("updateDescription");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> updated =
+                (Map<String, Object>) ((Map<String, Object>) updateEvt.get("updateDescription")).get("updatedFields");
+            assertThat(updated).containsEntry("a", 2);
+        } finally {
+            drv.close();
+        }
+    }
 }

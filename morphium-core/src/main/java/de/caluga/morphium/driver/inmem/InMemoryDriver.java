@@ -6934,7 +6934,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 indexStore.onInsert(o);
                 cappedOnRemove(db, collection, previous);
                 upd++;
-                pendingNotifications.add(new PendingNotification(db, collection, "replace", o, null, null, previous));
+                // "update", not "replace": the ORM's store() of an existing document goes out on
+                // the wire as {$set: doc} (StoreMongoCommand), which mongod reports as an
+                // operator update WITH updateDescription. Passing null updatedFields makes
+                // buildChangeStreamEvent compute the per-field delta from previous/new (#288).
+                pendingNotifications.add(new PendingNotification(db, collection, "update", o, null, null, previous));
             } else {
                 indexStore.onInsert(o);
                 pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
