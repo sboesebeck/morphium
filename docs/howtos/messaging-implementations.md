@@ -88,6 +88,15 @@ dual-write bridge between the collection layouts.
   for DM/answer delivery to work in both directions. Every `DualChannelMessaging` instance logs a
   `WARN` on startup restating this. Migrate with the same big-bang or bridge approach described
   under "Migrating Standard → MultiCollection" below (the same caveats apply).
+- Since **6.3.1**, mismatches are detected (#280): every instance — regardless of implementation —
+  announces itself in a layout-independent `<queue>_participants` collection (heartbeat document,
+  withdrawn on `terminate()`) and checks what the other participants run on startup. The channel
+  is deliberately not the messaging itself: between two implementations without a shared
+  collection, a messaging-based warning could never arrive. Behavior is configurable via
+  `MessagingSettings.ImplementationCheck`: `WARN` (default) logs the mismatch on startup and when
+  a mismatched participant joins later; `THROW` refuses startup of the mismatched instance with an
+  `IllegalStateException` (later joins still only warn — throwing on a background thread reaches
+  nobody); `IGNORE` disables announcement and check entirely.
 
 ## Measured Behavior Under Load (July 2026)
 
