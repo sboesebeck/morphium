@@ -551,11 +551,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
     // Executor for dispatching change stream events asynchronously
     // This prevents insert/update/delete operations from blocking on event delivery
-    // Platform threads on purpose: virtual threads can deadlock the whole JVM here
+    // SINGLE thread on purpose: mongod guarantees per-cursor event ordering, and a pool
+    // does not preserve submission order — with the former cached pool two back-to-back
+    // events could reach a subscriber swapped (or even concurrently) under CPU load,
+    // see ChangeStreamEventOrderingTest. The queue is unbounded, so writers still never
+    // block; serverMode doesn't use this executor at all (synchronous delivery for
+    // replication ordering and backpressure, see dispatchEvent).
+    // Platform thread on purpose: virtual threads can deadlock the whole JVM here
     // under JDK 21 — dispatchers pinned on the logback appender lock occupy all
     // carriers while the unmounted lock holder never gets scheduled again (#234).
     private final java.util.concurrent.ExecutorService eventDispatcher = java.util.concurrent.Executors
-        .newCachedThreadPool(
+        .newSingleThreadExecutor(
                         Thread.ofPlatform().name("event-dispatcher-", 0).daemon(true).factory());
     private boolean running = true;
     private int expireCheck = 10000;
@@ -9067,11 +9073,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // for replication and to provide backpressure.
             deliveryTask.run();
         } else {
-            // In client mode, dispatch async via virtual threads. Synchronous delivery
-            // causes deadlocks in messaging: the callback processes messages which trigger
-            // further writes, blocking the original writer thread indefinitely.
-            // Virtual threads ensure no event is lost (no bounded queue) while keeping
-            // the writer thread free.
+            // In client mode, dispatch async on the single-threaded eventDispatcher.
+            // Synchronous delivery causes deadlocks in messaging: the callback processes
+            // messages which trigger further writes, blocking the original writer thread
+            // indefinitely. The single dispatcher thread with its unbounded queue keeps
+            // the writer free AND preserves submission order — mongod guarantees
+            // per-cursor ordering, and a pool would reorder under load (see the
+            // eventDispatcher field's javadoc / ChangeStreamEventOrderingTest).
             try {
                 eventDispatcher.execute(deliveryTask);
             } catch (java.util.concurrent.RejectedExecutionException e) {
