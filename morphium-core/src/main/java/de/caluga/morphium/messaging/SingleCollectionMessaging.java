@@ -66,7 +66,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private String hostname;
 
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
-    private Map<String, List<MessageListener>> listenerByName = new HashMap<>();
+    // Written only via clone-and-swap (never mutated in place) and declared volatile: the
+    // poll thread iterates the current map lock-free (rebuildMainCsIfFilterStale /
+    // buildMainCsPipeline), so in-place put/remove/clear would race that iteration.
+    private volatile Map<String, List<MessageListener>> listenerByName = new HashMap<>();
     private String queueName;
     private String lockCollectionName = null;
     private String collectionName = null;
@@ -367,9 +370,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     @Override
     public void setStatusInfoListenerName(String statusInfoListenerName) {
-        listenerByName.remove(this.statusInfoListenerName);
+        Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+        c.remove(this.statusInfoListenerName);
         this.statusInfoListenerName = statusInfoListenerName;
-        listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+        c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+        listenerByName = c;
     }
 
     @Override
@@ -408,9 +413,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         this.statusInfoListenerEnabled = statusInfoListenerEnabled;
 
         if (statusInfoListenerEnabled && !listenerByName.containsKey(statusInfoListenerName)) {
-            listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            listenerByName = c;
         } else if (!statusInfoListenerEnabled) {
-            listenerByName.remove(statusInfoListenerName);
+            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            c.remove(statusInfoListenerName);
+            listenerByName = c;
         }
     }
 
@@ -762,19 +771,26 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private void rebuildMainCsIfFilterStale() {
         if (!running || !useChangeStream) return;
         if (changeStreamMonitor == null) return;
-        if (listenerByName.keySet().equals(csFilterTopics)) return;
+        Set<String> registered = Set.copyOf(listenerByName.keySet());
+        if (registered.equals(csFilterTopics)) return;
 
         log.info("Topic set changed for '{}' ({} -> {}) — rebuilding main change stream filter",
-                 getCollectionName(), csFilterTopics, listenerByName.keySet());
-        changeStreamPipeline = buildMainCsPipeline();
-        replaceMainCsMonitor(changeStreamMonitor);
+                 getCollectionName(), csFilterTopics, registered);
+        changeStreamPipeline = buildMainCsPipeline(registered);
+        // Commit the snapshot only once the fresh monitor is actually up: a failed replace
+        // must leave csFilterTopics stale so the next poll tick retries the rebuild.
+        if (replaceMainCsMonitor(changeStreamMonitor)) {
+            csFilterTopics = registered;
+        }
     }
 
     /**
      * Terminate the given monitor and start a fresh one for the current
      * changeStreamPipeline, rewired identically to the original.
+     *
+     * @return true if the fresh monitor is up, false if it could not be created/started
      */
-    private void replaceMainCsMonitor(ChangeStreamMonitor old) {
+    private boolean replaceMainCsMonitor(ChangeStreamMonitor old) {
         try {
             old.terminate();
         } catch (Exception e) {
@@ -792,8 +808,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // Reset markers — give the fresh stream the full threshold before re-evaluating.
             lastCsEventMs = System.currentTimeMillis();
             lastCsRestartMs = lastCsEventMs;
+            return true;
         } catch (Exception e) {
             log.error("Failed to restart change stream for '{}'", getCollectionName(), e);
+            return false;
         }
     }
 
@@ -849,11 +867,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     /**
      * Build the $match pipeline for the main change stream, filtered server-side to
-     * what THIS instance can actually process. Snapshot of the registered topics is
-     * recorded in csFilterTopics so the poll loop can detect when the live stream's
-     * filter no longer matches the listener set (see rebuildMainCsIfFilterStale()).
+     * what THIS instance can actually process, for the given snapshot of registered
+     * topics. The CALLER commits that snapshot to csFilterTopics — and must only do so
+     * once a stream built from this pipeline is actually up, so a failed (re)build
+     * leaves the staleness check failing and gets retried (see
+     * rebuildMainCsIfFilterStale()).
      */
-    private List<Map<String, Object>> buildMainCsPipeline() {
+    private List<Map<String, Object>> buildMainCsPipeline(Set<String> registered) {
         // pipeline for reducing incoming traffic
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
@@ -886,7 +906,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         String recipientsField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.recipients.name());
         String topicField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.topic.name());
         String inAnswerToField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.inAnswerTo.name());
-        Set<String> registered = Set.copyOf(listenerByName.keySet());
         // The status-info topic is always watched: registry discovery must keep working
         // regardless of listener registration state (#283). NOT part of the staleness
         // snapshot below - it never changes with the listener set.
@@ -927,7 +946,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             insertRelevant
         ));
         pipeline.add(UtilsMap.of("$match", relevanceMatch));
-        csFilterTopics = registered;
         return pipeline;
     }
 
@@ -935,7 +953,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // Use longer maxWait for change streams to avoid constant network polling
         // Change streams are designed to block server-side; short timeouts waste CPU/network
         changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
-        List<Map<String, Object>> pipeline = buildMainCsPipeline();
+        Set<String> registered = Set.copyOf(listenerByName.keySet());
+        List<Map<String, Object>> pipeline = buildMainCsPipeline(registered);
         changeStreamPipeline = pipeline;
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, changeStreamMaxWait,
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
@@ -956,6 +975,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // On every watch (re-)establishment poll once: messages inserted while the stream
         // was down are invisible to the new stream unless a resume token was available.
         changeStreamMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
+        // Monitor construction succeeded — a throw above propagates and aborts startup, so
+        // committing the filter snapshot here can never record a filter no stream was built for.
+        csFilterTopics = registered;
         // Same for lock releases: a lock deleted during a lock-monitor gap would otherwise
         // never trigger its re-poll for exclusive messages.
         lockMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
@@ -978,7 +1000,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         setName("Msg " + id);
 
         if (statusInfoListenerEnabled) {
-            listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            listenerByName = c;
         }
 
         // Register with PoppyDB for optimizations if connected
@@ -1303,7 +1327,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             log.debug("Messaging " + id + " stopped!");
         }
 
-        listenerByName.clear();
+        listenerByName = new HashMap<>();
     }
 
     @Override
@@ -2155,7 +2179,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             networkRegistry.terminate();
         }
         running = false;
-        listenerByName.clear();
+        listenerByName = new HashMap<>();
         waitingForAnswers.clear();
         processing.clear();
         requestPoll.set(0);
