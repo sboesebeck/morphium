@@ -44,8 +44,14 @@ against the MongoDB replica set — 2.5× the throughput at less than half the l
 to PoppyDB and Morphium Messaging being optimized for each other (both sides detect the
 counterpart). Re-measured 2026-08-07 with the Morpheus load generator (100 msg/s fixed
 rate, 5 sender threads, Mac Studio client): median round-trip 2.4 ms against a local
-PoppyDB replica set vs 5.7 ms against the MongoDB replica set — the ~2.5× relationship
-holds, and a same-session A/B attributes 8–18 % lower median RTT to the 2026-08 messaging
+PoppyDB replica set vs 5.7 ms against the MongoDB replica set — note that this run was
+*not* like-for-like (PoppyDB local, MongoDB over the network), so part of that gap is
+network, not broker. A **symmetric re-measurement on 2026-08-11** — client inside the
+homelab network, both backends separate processes on dedicated hosts at equal distance —
+confirms the ratio at **2.34–2.49×**: MongoDB p50 4.97/5.12 ms vs PoppyDB p50 2.13/2.06 ms
+over two runs (3001 pings each, zero loss). The tail is where they really diverge: MongoDB
+p99 42–129 ms at 100 msg/s on an idle cluster, PoppyDB below 7 ms, with 2.5–3× lower jitter.
+A same-session A/B attributes 8–18 % lower median RTT to the 2026-08 messaging
 optimizations (answers dispatched before the `processed_by` write, non-exclusive messages
 processed straight from the change-stream `fullDocument`). PoppyDB's strength is latency,
 not raw one-way throughput on constrained hardware. Persistence there is snapshot-based, see the
