@@ -89,4 +89,35 @@ public class MultikeyIndexQueryTest {
             drv.close();
         }
     }
+
+    @Test
+    public void indexOverDottedPathWithArrayMidPathAnswersEqualityLikeAnUnindexedOne() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        try {
+            List<Map<String, Object>> docs = new ArrayList<>();
+            docs.add(Doc.of("_id", 1, "a", new ArrayList<>(List.of(Doc.of("b", "x"), Doc.of("b", "y")))));
+            docs.add(Doc.of("_id", 2, "a", new ArrayList<>(List.of(Doc.of("b", "z")))));
+            docs.add(Doc.of("_id", 3, "a", Doc.of("b", "x")));
+
+            drv.createIndex(DB, "midpath", Doc.of("a.b", 1), Doc.of("name", "ab_1"));
+            drv.store(DB, "midpath", docs, null);
+            drv.store(DB, "midpath_plain", docs, null);
+
+            // mongod traverses the mid-path array and matches per element
+            assertThat(ids(drv.find(DB, "midpath_plain", Doc.of("a.b", "x"), null, null, 0, 0)))
+                .as("baseline without an index")
+                .containsExactlyInAnyOrder(1, 3);
+            assertThat(ids(drv.find(DB, "midpath", Doc.of("a.b", "x"), null, null, 0, 0)))
+                .as("an index over a dotted path with an array mid-path must not change the result (#289)")
+                .containsExactlyInAnyOrder(1, 3);
+
+            assertThat(drv.count(DB, "midpath", Doc.of("a.b", "x"), null, null))
+                .as("count must agree with find")
+                .isEqualTo(2);
+        } finally {
+            drv.close();
+        }
+    }
 }
