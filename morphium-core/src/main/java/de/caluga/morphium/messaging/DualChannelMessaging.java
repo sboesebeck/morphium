@@ -93,6 +93,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
     // poll thread iterates the current map lock-free (rebuildMainCsIfFilterStale /
     // buildMainCsPipeline), so in-place put/remove/clear would race that iteration.
     private volatile Map<String, List<MessageListener>> listenerByName = new HashMap<>();
+    private ParticipantAnnouncer participantAnnouncer;
     private String queueName;
     private String lockCollectionName = null;
     private String collectionName = null;
@@ -1551,6 +1552,15 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         }
     }
 
+    @Override
+    public synchronized void start() {
+        // Announce + implementation-mismatch check BEFORE the messaging thread spins up, so
+        // ImplementationCheck.THROW can abort startup with a plain exception to the caller (#280).
+        participantAnnouncer = new ParticipantAnnouncer(morphium, this, settings, NAME);
+        participantAnnouncer.announceAndCheck();
+        super.start();
+    }
+
     public void run() {
         setName("Msg " + id);
         // Startup phase timings: readiness stalls under parallel load (waitForReady timeouts,
@@ -2780,6 +2790,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             networkRegistry.terminate();
         }
         running = false;
+        if (participantAnnouncer != null) {
+            participantAnnouncer.shutdown();
+        }
         listenerByName = new HashMap<>();
         waitingForAnswers.clear();
         processing.clear();

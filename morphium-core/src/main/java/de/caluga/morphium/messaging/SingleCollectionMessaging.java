@@ -70,6 +70,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     // poll thread iterates the current map lock-free (rebuildMainCsIfFilterStale /
     // buildMainCsPipeline), so in-place put/remove/clear would race that iteration.
     private volatile Map<String, List<MessageListener>> listenerByName = new HashMap<>();
+    private ParticipantAnnouncer participantAnnouncer;
     private String queueName;
     private String lockCollectionName = null;
     private String collectionName = null;
@@ -994,6 +995,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    @Override
+    public synchronized void start() {
+        // Announce + implementation-mismatch check BEFORE the messaging thread spins up, so
+        // ImplementationCheck.THROW can abort startup with a plain exception to the caller (#280).
+        participantAnnouncer = new ParticipantAnnouncer(morphium, this, settings, NAME);
+        participantAnnouncer.announceAndCheck();
+        super.start();
     }
 
     public void run() {
@@ -2179,6 +2189,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             networkRegistry.terminate();
         }
         running = false;
+        if (participantAnnouncer != null) {
+            participantAnnouncer.shutdown();
+        }
         listenerByName = new HashMap<>();
         waitingForAnswers.clear();
         processing.clear();
