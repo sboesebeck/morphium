@@ -56,6 +56,35 @@ same workload completes 2.5x faster.
 > the code — discard it (ours read 2× slower than the warm steady state). The table above
 > keeps the original serial-ping-pong figures; both setups measure the same path under
 > different load profiles, so compare within a vintage, not across.
+>
+> **Topology caveat for the 2026-08-07 run:** it is not like-for-like. PoppyDB ran locally
+> on the client machine while MongoDB was reached over the network (homelab, via VPN), so
+> the ratio carries a network component that is not attributable to the broker. See the
+> symmetric re-measurement below.
+
+> **Symmetric re-measurement 2026-08-11** — same Morpheus parameters (100 msg/s fixed rate,
+> 5 sender threads, 30 s after 10 s warmup), but with every known bias removed: the client
+> runs *inside* the homelab network on its own host (4 cores, no other load), and **both**
+> backends are separate processes on dedicated hosts at equal network distance — PoppyDB as
+> a 3-node replica set (`poppydb.fritz.box:17017-19`, no in-process advantage), MongoDB as
+> the 2-node homelab replica set (`mongo1/mongo2:27017`). Two consecutive runs, 3001 pings
+> each, zero loss:
+>
+> | | MongoDB (run 1 / 2) | PoppyDB (run 1 / 2) |
+> |---|---|---|
+> | p50 | 4.97 / 5.12 ms | **2.13 / 2.06 ms** |
+> | avg | 6.10 / 8.34 ms | 2.41 / 2.40 ms |
+> | min | 3.89 / 3.91 ms | 1.33 / 1.35 ms |
+> | p90 | 6.80 / 7.24 ms | 2.91 / 2.63 ms |
+> | p99 | 42.3 / 129.4 ms | **5.5 / 6.7 ms** |
+> | max | 86.0 / 214.6 ms | 40.8 / 55.4 ms |
+> | jitter | 1.28 / 1.55 ms | 0.54 / 0.52 ms |
+>
+> The ratio comes out at **2.34× and 2.49×**, confirming the ~2.5× of the earlier runs — the
+> asymmetric topology of 2026-08-07 did not manufacture the advantage. Two things the median
+> hides: the tail differs by an order of magnitude (MongoDB p99 42–129 ms at a mere 100 msg/s
+> on an idle cluster, PoppyDB under 7 ms), and jitter differs by 2.5–3×. For latency-critical
+> request/reply the tail is the more relevant figure.
 
 ### Messaging One-Way Throughput (send → receipt, no replies)
 

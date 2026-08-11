@@ -161,9 +161,23 @@ public class MessagingSettings extends Settings {
         IGNORE, WARN, THROW
     }
 
+    /**
+     * What to do when another participant on the same queue runs a DIFFERENT messaging
+     * implementation (#280). The collection layouts are not interoperable and there is no
+     * bridge, so a mixed queue loses answers/directed messages silently. Detection runs via
+     * the layout-independent participants collection every instance announces itself in.
+     * WARN (default) logs on startup and whenever a mismatched participant joins later;
+     * THROW refuses to start the mismatched instance (later joins still only WARN - throwing
+     * from a background thread helps nobody); IGNORE disables announcement and check entirely.
+     */
+    public enum ImplementationCheck {
+        IGNORE, WARN, THROW
+    }
+
     private boolean messagingRegistryEnabled = false;
     private TopicCheck messagingRegistryCheckTopics = TopicCheck.IGNORE;
     private RecipientCheck messagingRegistryCheckRecipients = RecipientCheck.IGNORE;
+    private ImplementationCheck messagingImplementationCheck = ImplementationCheck.WARN;
     private int messagingRegistryUpdateInterval = 30;
     private long messagingRegistryParticipantTimeout = 65000;
     private boolean messagingRegistryWaitForInitialSync = false;
@@ -206,6 +220,14 @@ public class MessagingSettings extends Settings {
 
     public void setMessagingRegistryCheckRecipients(RecipientCheck messagingRegistryCheckRecipients) {
         this.messagingRegistryCheckRecipients = messagingRegistryCheckRecipients;
+    }
+
+    public ImplementationCheck getMessagingImplementationCheck() {
+        return messagingImplementationCheck;
+    }
+
+    public void setMessagingImplementationCheck(ImplementationCheck messagingImplementationCheck) {
+        this.messagingImplementationCheck = messagingImplementationCheck;
     }
 
     public int getMessagingRegistryUpdateInterval() {

@@ -316,7 +316,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Map<String, Object> filter = (Map<String, Object>) firstMatch;
                     matchFilter = filter;
                     CollectionIndexStore store = getIndexStore(db, collection);
-                    Collection<IndexDefinition> defs = store.definitions();
+                    // planningDefinitions(), not definitions(): a multikey index cannot answer a
+                    // lookup and would silently report zero candidates (#289).
+                    Collection<IndexDefinition> defs = store.planningDefinitions();
                     if (!filter.isEmpty() && defs.size() > 1) {
                         IndexPlanner.IndexPlan plan = IndexPlanner.plan(filter, defs);
                         if (!(plan instanceof IndexPlanner.FullScan)) {
@@ -549,11 +551,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
     // Executor for dispatching change stream events asynchronously
     // This prevents insert/update/delete operations from blocking on event delivery
-    // Platform threads on purpose: virtual threads can deadlock the whole JVM here
+    // SINGLE thread on purpose: mongod guarantees per-cursor event ordering, and a pool
+    // does not preserve submission order — with the former cached pool two back-to-back
+    // events could reach a subscriber swapped (or even concurrently) under CPU load,
+    // see ChangeStreamEventOrderingTest. The queue is unbounded, so writers still never
+    // block; serverMode doesn't use this executor at all (synchronous delivery for
+    // replication ordering and backpressure, see dispatchEvent).
+    // Platform thread on purpose: virtual threads can deadlock the whole JVM here
     // under JDK 21 — dispatchers pinned on the logback appender lock occupy all
     // carriers while the unmounted lock holder never gets scheduled again (#234).
     private final java.util.concurrent.ExecutorService eventDispatcher = java.util.concurrent.Executors
-        .newCachedThreadPool(
+        .newSingleThreadExecutor(
                         Thread.ofPlatform().name("event-dispatcher-", 0).daemon(true).factory());
     private boolean running = true;
     private int expireCheck = 10000;
@@ -1654,11 +1662,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (customData != null) {
                 doc.put("customData", customData);
             }
-            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
-
             // held across store + notify so stream order equals store order - see userWriteEmitLock
             userWriteEmitLock.lock();
             try {
+                // Resolved INSIDE the lock on purpose: getCollection() CREATES the collection when
+                // it does not exist yet. Fetched before locking, two concurrent user writes each
+                // created their own list, then checked that (empty) list and acted on it - the
+                // last put() won the map, so exactly one document survived while both callers were
+                // told they had succeeded. This is the residual half of the createUser TOCTOU: the
+                // earlier fix closed the "both see no user" window but left the "both create the
+                // collection" one, which opens only on the very first user write of a fresh
+                // instance - exactly what a concurrency test does.
+                List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
                 java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
                 lock.writeLock().lock();
                 try {
@@ -1671,6 +1686,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
 
                     users.add(doc);
+                    // The user-write paths mutate this list directly, bypassing the generic
+                    // write path that maintains CollectionIndexStore. Without this the store
+                    // for admin.system.users goes permanently stale once anything has built
+                    // it (any generic find/count/insert on that namespace does), so a generic
+                    // insert's duplicate-_id check would not see users created by command,
+                    // and index-backed finds would miss them. Invalidate rather than patch -
+                    // same contract createIndex uses; the next read rebuilds it.
+                    invalidateIndexStore(USERS_DB, USERS_COLLECTION);
                 } finally {
                     lock.writeLock().unlock();
                 }
@@ -1766,11 +1789,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         try {
             Map<String, Object> replacement;
-            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
-
             // held across store + notify so stream order equals store order - see userWriteEmitLock
             userWriteEmitLock.lock();
             try {
+                // Resolved INSIDE the lock on purpose: getCollection() CREATES the collection when
+                // it does not exist yet. Fetched before locking, two concurrent user writes each
+                // created their own list, then checked that (empty) list and acted on it - the
+                // last put() won the map, so exactly one document survived while both callers were
+                // told they had succeeded. This is the residual half of the createUser TOCTOU: the
+                // earlier fix closed the "both see no user" window but left the "both create the
+                // collection" one, which opens only on the very first user write of a fresh
+                // instance - exactly what a concurrency test does.
+                List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
                 java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
                 lock.writeLock().lock();
                 try {
@@ -1842,6 +1872,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                     users.removeIf(doc -> id.equals(doc.get("_id")));
                     users.add(replacement);
+                    // The user-write paths mutate this list directly, bypassing the generic
+                    // write path that maintains CollectionIndexStore. Without this the store
+                    // for admin.system.users goes permanently stale once anything has built
+                    // it (any generic find/count/insert on that namespace does), so a generic
+                    // insert's duplicate-_id check would not see users created by command,
+                    // and index-backed finds would miss them. Invalidate rather than patch -
+                    // same contract createIndex uses; the next read rebuilds it.
+                    //
+                    // AFTER the add, not between remove and add: getIndexStore() is reachable
+                    // with no collection lock held (the explain path and the slow-query
+                    // recorder - see its javadoc), so a rebuild landing in that gap would
+                    // publish a store built from a list the user is momentarily missing from,
+                    // and nothing would invalidate it again.
+                    invalidateIndexStore(USERS_DB, USERS_COLLECTION);
                 } finally {
                     lock.writeLock().unlock();
                 }
@@ -1891,11 +1935,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         try {
             Map<String, Object> removed = null;
-            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
-
             // held across store + notify so stream order equals store order - see userWriteEmitLock
             userWriteEmitLock.lock();
             try {
+                // Resolved INSIDE the lock on purpose: getCollection() CREATES the collection when
+                // it does not exist yet. Fetched before locking, two concurrent user writes each
+                // created their own list, then checked that (empty) list and acted on it - the
+                // last put() won the map, so exactly one document survived while both callers were
+                // told they had succeeded. This is the residual half of the createUser TOCTOU: the
+                // earlier fix closed the "both see no user" window but left the "both create the
+                // collection" one, which opens only on the very first user write of a fresh
+                // instance - exactly what a concurrency test does.
+                List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
                 java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
                 lock.writeLock().lock();
                 try {
@@ -1904,6 +1955,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         if (id.equals(doc.get("_id"))) {
                             removed = doc;
                             it.remove();
+                            // see createUserInternal: this path bypasses the generic write path
+                            // that maintains CollectionIndexStore, so the store must be dropped
+                            // or an index-backed find would keep returning the dropped user.
+                            invalidateIndexStore(USERS_DB, USERS_COLLECTION);
                             break;
                         }
                     }
@@ -2125,7 +2180,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         CollectionIndexStore store = getIndexStore(db, coll);
-        Collection<IndexDefinition> defs = store.definitions();
+        // planningDefinitions(), not definitions(): a multikey index cannot answer a lookup and
+        // would silently report zero candidates (#289).
+        Collection<IndexDefinition> defs = store.planningDefinitions();
         IndexPlanner.IndexPlan plan = (query.isEmpty() || defs.size() <= 1)
                 ? IndexPlanner.FullScan.INSTANCE : IndexPlanner.plan(query, defs);
 
@@ -5495,7 +5552,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Iterator<Map<String, Object>> indexSortIterator = null;
             if (sort != null && !sort.isEmpty() && QueryHelper.getCollator(collation) == null) {
                 CollectionIndexStore indexStore = getIndexStore(db, collection);
-                Collection<IndexDefinition> defs = indexStore.definitions();
+                // planningDefinitions(), not definitions() - see getDataFromIndex (#289).
+                Collection<IndexDefinition> defs = indexStore.planningDefinitions();
                 if (defs.size() > 1) {
                     IndexPlanner.IndexPlan filterPlan = IndexPlanner.plan(query, defs);
                     indexSortIterator = planIndexOrderedIterator(indexStore, defs, filterPlan, sort);
@@ -6390,7 +6448,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) throws MorphiumDriverException {
         CollectionIndexStore store = getIndexStore(db, collection);
-        Collection<IndexDefinition> defs = store.definitions();
+        // planningDefinitions(), not definitions(): a multikey index holds each array as ONE key,
+        // so a scalar lookup key never matches and the prefilter would come back empty - which
+        // the contract above then takes as the authoritative (empty) result (#289).
+        Collection<IndexDefinition> defs = store.planningDefinitions();
         if (defs.size() <= 1) {
             return null; // only the default _id index exists - never worth planning
         }
@@ -6873,7 +6934,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 indexStore.onInsert(o);
                 cappedOnRemove(db, collection, previous);
                 upd++;
-                pendingNotifications.add(new PendingNotification(db, collection, "replace", o, null, null, previous));
+                // "update", not "replace": the ORM's store() of an existing document goes out on
+                // the wire as {$set: doc} (StoreMongoCommand), which mongod reports as an
+                // operator update WITH updateDescription. Passing null updatedFields makes
+                // buildChangeStreamEvent compute the per-field delta from previous/new (#288).
+                pendingNotifications.add(new PendingNotification(db, collection, "update", o, null, null, previous));
             } else {
                 indexStore.onInsert(o);
                 pendingNotifications.add(new PendingNotification(db, collection, "insert", o));
@@ -8095,6 +8160,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         // old one (see ttlEnqueue's own Javadoc for why that's cheaper).
                         ttlEnqueue(db, collection, obj);
                     }
+
+                    // A full-document replacement is a change like any other and must reach the
+                    // watchers (#288). This branch used to fall straight through to the continue
+                    // below, so the document was replaced, the index store updated and the TTL
+                    // re-queued - but no change-stream event was ever emitted: a silent write.
+                    // mongod reports such an update as operationType "replace", carrying the new
+                    // fullDocument and deliberately NO updateDescription (a replacement has no
+                    // meaningful per-field delta), which is exactly the shape built here.
+                    // Only notify when the document actually changed - mongod writes no oplog
+                    // entry for a replacement that leaves the document identical, so no event
+                    // follows there either. "modified" was filled with exactly that condition above.
+                    if (!insert && modified.contains(obj.get("_id"))) {
+                        pendingNotifications.add(new PendingNotification(db, collection, "replace", obj,
+                                                 null, null, original, originalIsExclusiveDeepCopy));
+                    }
                     continue;  // Skip to next document, no need to process as update operators
                 }
 
@@ -8997,11 +9077,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // for replication and to provide backpressure.
             deliveryTask.run();
         } else {
-            // In client mode, dispatch async via virtual threads. Synchronous delivery
-            // causes deadlocks in messaging: the callback processes messages which trigger
-            // further writes, blocking the original writer thread indefinitely.
-            // Virtual threads ensure no event is lost (no bounded queue) while keeping
-            // the writer thread free.
+            // In client mode, dispatch async on the single-threaded eventDispatcher.
+            // Synchronous delivery causes deadlocks in messaging: the callback processes
+            // messages which trigger further writes, blocking the original writer thread
+            // indefinitely. The single dispatcher thread with its unbounded queue keeps
+            // the writer free AND preserves submission order — mongod guarantees
+            // per-cursor ordering, and a pool would reorder under load (see the
+            // eventDispatcher field's javadoc / ChangeStreamEventOrderingTest).
             try {
                 eventDispatcher.execute(deliveryTask);
             } catch (java.util.concurrent.RejectedExecutionException e) {
@@ -9798,15 +9880,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private List<Map<String, Object>> getCollection(String db, String collection) throws MorphiumDriverException {
         Map<String, List<Map<String, Object>>> dbMap = getDB(db);
-        if (!dbMap.containsKey(collection)) {
-            // Plain ArrayList storage: every mutation of this list happens under the collection's
-            // WRITE lock and every whole-list iteration happens under its READ lock (or over an
-            // explicit snapshot() taken under that read lock). This replaced CopyOnWriteArrayList,
-            // whose per-add array copy made single-doc inserts O(n) (O(n^2) to fill a collection);
-            // ArrayList.add is amortised O(1). Lock-free full-list iteration is therefore no longer
-            // safe - readers that used to rely on COW copy-on-iterate now go through snapshot().
-            dbMap.put(collection, new ArrayList<>());
+        // Plain ArrayList storage: every mutation of this list happens under the collection's
+        // WRITE lock and every whole-list iteration happens under its READ lock (or over an
+        // explicit snapshot() taken under that read lock). This replaced CopyOnWriteArrayList,
+        // whose per-add array copy made single-doc inserts O(n) (O(n^2) to fill a collection);
+        // ArrayList.add is amortised O(1). Lock-free full-list iteration is therefore no longer
+        // safe - readers that used to rely on COW copy-on-iterate now go through snapshot().
+        //
+        // putIfAbsent, not containsKey-then-put: the old check-then-act let two threads racing on
+        // a not-yet-existing collection each install their OWN list, the later put orphaning a
+        // list another thread was already writing into under the collection lock. That is how two
+        // concurrent createUsers could both be told they had won (UserWriteEventsTest
+        // #createUserConcurrentlyExactlyOneWins). Locking at the call sites cannot fix it: several
+        // callers resolve a collection with no lock held at all, so the create must be atomic here.
+        //
+        // NOT computeIfAbsent: createIndex() below calls getCollection() again for the same key
+        // (deliberately - creating an index materializes the collection, like mongod), and
+        // ConcurrentHashMap forbids that recursive update, throwing IllegalStateException.
+        List<Map<String, Object>> existing = dbMap.putIfAbsent(collection, new ArrayList<>());
 
+        if (existing == null) {
             try {
                 createIndex(db, collection, Doc.of("_id", 1), Doc.of("name", "_id_1"));
             } catch (MorphiumDriverException e) {
@@ -10104,16 +10197,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public List<Map<String, Object>> getIndexes(String db, String collection) {
-        if (!getIndexesForDB(db).containsKey(collection)) {
-            // new collection, create default index for _id
-            // Use CopyOnWriteArrayList for thread-safe concurrent iteration and
-            // modification
+        // Same atomicity requirement as getCollection(): with a containsKey-then-put, two
+        // first-touches each installed their own list and the later put orphaned the other -
+        // an index descriptor added to the orphaned list is lost for good, so the index is
+        // never built and a unique constraint silently disappears.
+        //
+        // The default _id descriptor is seeded BEFORE publishing, not after. Publishing an
+        // empty list first is what the old code did, and it is not merely untidy: createIndex's
+        // "already present?" loop leaves found == true over an empty list, so a concurrent
+        // createIndex that observed the list in that state would silently drop the index it was
+        // asked to create.
+        // Use CopyOnWriteArrayList for thread-safe concurrent iteration and modification.
+        Map<String, List<Map<String, Object>>> byCollection = getIndexesForDB(db);
+        List<Map<String, Object>> existing = byCollection.get(collection);
+
+        if (existing == null) {
             CopyOnWriteArrayList<Map<String, Object>> value = new CopyOnWriteArrayList<>();
-            getIndexesForDB(db).put(collection, value);
             value.add(Doc.of("_id", 1, "$options", Doc.of("name", "_id_1")));
+            existing = byCollection.putIfAbsent(collection, value);
+
+            if (existing == null) {
+                existing = value;
+            }
         }
 
-        return getIndexesForDB(db).get(collection);
+        return existing;
     }
 
     /**

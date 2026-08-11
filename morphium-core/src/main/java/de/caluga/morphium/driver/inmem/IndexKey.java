@@ -63,9 +63,11 @@ public final class IndexKey {
     };
 
     private final List<Object> values;
+    private final boolean containsList;
 
-    private IndexKey(List<Object> values) {
+    private IndexKey(List<Object> values, boolean containsList) {
         this.values = values;
+        this.containsList = containsList;
     }
 
     /**
@@ -76,10 +78,25 @@ public final class IndexKey {
      */
     public static IndexKey of(List<Object> values) {
         List<Object> normalized = new ArrayList<>(values.size());
+        boolean containsList = false;
         for (Object v : values) {
             normalized.add(normalizeIdValue(v));
+            containsList |= v instanceof List;
         }
-        return new IndexKey(Collections.unmodifiableList(normalized));
+        return new IndexKey(Collections.unmodifiableList(normalized), containsList);
+    }
+
+    /**
+     * Whether the document this key was extracted from made the index multikey in MongoDB's
+     * sense: a field resolved to a {@code List} - either as the path's terminal value or as an
+     * array crossed <em>mid-path</em> (e.g. {@code "a.b"} over {@code {a:[{b:..}]}}). Since
+     * {@link #extract} neither expands terminal lists into one entry per element nor traverses
+     * mid-path arrays, no lookup key built from a scalar query value can ever match such a
+     * document - the index is unusable for lookups until real multikey support lands (#289).
+     * {@code CollectionIndexStore} uses this to mark an index and keep the planner off it.
+     */
+    public boolean hasListValue() {
+        return containsList;
     }
 
     /**
@@ -91,27 +108,38 @@ public final class IndexKey {
      * resolves to a {@code List}, that list itself becomes the extracted value, exactly as
      * MongoDB stores a scalar. A {@code List} encountered <em>mid-path</em> (e.g. {@code "a.b"}
      * where {@code a} is an array of sub-documents) is NOT traversed - the walk stops and the
-     * field extracts as {@link #MISSING}. Per-element multikey indexing (one index entry per
-     * array element) is out of scope here.
+     * field extracts as {@link #MISSING}, but the key still reports {@link #hasListValue()} so
+     * the index gets flagged multikey and the planner stays off it - mongod WOULD traverse the
+     * array and match per element, so serving lookups from this key would silently drop those
+     * documents (#289). Per-element multikey indexing (one index entry per array element) is out
+     * of scope here.
      * // Phase B follow-up: multikey indexes
      */
     public static IndexKey extract(Map<String, Object> doc, IndexDefinition def) {
         List<Object> values = new ArrayList<>(def.fields().size());
+        boolean[] sawMidPathList = new boolean[1];
+        boolean containsList = false;
         for (String field : def.fields()) {
-            values.add(extractValue(doc, field));
+            Object value = extractValue(doc, field, sawMidPathList);
+            values.add(value);
+            containsList |= value instanceof List;
         }
-        return new IndexKey(Collections.unmodifiableList(values));
+        return new IndexKey(Collections.unmodifiableList(values), containsList || sawMidPathList[0]);
     }
 
     @SuppressWarnings("unchecked")
-    private static Object extractValue(Map<String, Object> doc, String path) {
+    private static Object extractValue(Map<String, Object> doc, String path, boolean[] sawMidPathList) {
         Object current = doc;
 
         for (String segment : path.split("\\.")) {
             if (!(current instanceof Map)) {
                 // Either we walked off into a scalar, or hit a List along the path.
                 // Phase B follow-up: multikey indexes - arrays would need to fan out into one
-                // index entry per element here; for now we just stop and treat it as missing.
+                // index entry per element here; for now we just stop and treat it as missing,
+                // recording the List so the index gets flagged multikey (#289).
+                if (current instanceof List) {
+                    sawMidPathList[0] = true;
+                }
                 return MISSING;
             }
 
@@ -281,7 +309,8 @@ public final class IndexKey {
             values.add(useRawLow ? NEGATIVE_INFINITY : POSITIVE_INFINITY);
         }
 
-        return new IndexKey(Collections.unmodifiableList(values));
+        // Synthetic range bounds never mark an index multikey - only real extracted keys do.
+        return new IndexKey(Collections.unmodifiableList(values), false);
     }
 
     @Override

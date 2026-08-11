@@ -62,6 +62,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     public final static String NAME = "MultiCollectionMessaging";
     private Logger log = LoggerFactory.getLogger(MultiCollectionMessaging.class);
     private Morphium morphium;
+    private ParticipantAnnouncer participantAnnouncer;
     private MessagingSettings effectiveSettings;
     private ThreadPoolExecutor threadPool;
     private Set<MorphiumId> processingMessages = ConcurrentHashMap.newKeySet();
@@ -178,6 +179,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     @SuppressWarnings("unchecked")
     @Override
     public void start() {
+        // Announce + implementation-mismatch check BEFORE anything spins up, so
+        // ImplementationCheck.THROW can abort startup with a plain exception to the caller (#280).
+        participantAnnouncer = new ParticipantAnnouncer(morphium, this, effectiveSettings, NAME);
+        participantAnnouncer.announceAndCheck();
         running.set(true);
         decouplePool.scheduleWithFixedDelay(() -> {
             // Process poll triggers - handle DMs and regular topics.
@@ -1738,6 +1743,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     @Override
     public void terminate() {
         running.set(false);
+        if (participantAnnouncer != null) {
+            participantAnnouncer.shutdown();
+        }
         // Unregister from PoppyDB before terminating
         unregisterFromPoppyDB();
         if (networkRegistry != null) {

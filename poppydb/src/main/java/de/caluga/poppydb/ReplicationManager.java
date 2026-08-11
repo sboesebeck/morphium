@@ -207,7 +207,11 @@ public class ReplicationManager {
     // (via put()) instead of buffering replication events until OOM.
     private static final int EVENT_QUEUE_CAPACITY = 100_000;
     private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>(EVENT_QUEUE_CAPACITY);
-    private ScheduledExecutorService batchProcessor;
+    // volatile: written by start()/stop(), read by the watch-callback thread in
+    // requestFlush() with no happens-before edge between them
+    private volatile ScheduledExecutorService batchProcessor;
+    /** at most one on-demand flush queued at a time - see requestFlush() */
+    private final java.util.concurrent.atomic.AtomicBoolean flushPending = new java.util.concurrent.atomic.AtomicBoolean();
 
     // Flag to enable immediate progress reporting after each batch
     private volatile boolean immediateProgressReporting = true;
@@ -334,14 +338,51 @@ public class ReplicationManager {
      * Start the batch processor that efficiently applies change events.
      */
     private void startBatchProcessor() {
+        // A task accepted by execute() but discarded by a later shutdownNow() would leave the
+        // flag stuck true, silently disabling every on-demand flush for this instance - the
+        // regression this whole mechanism exists to prevent, and invisible except in latency.
+        flushPending.set(false);
         batchProcessor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "PoppyDB-BatchProcessor");
             t.setDaemon(true);
             return t;
         });
 
+        // The fixed schedule stays as the safety net (catches anything enqueued while the gate
+        // was still closed, or a missed wake-up); requestFlush() is what makes a single write
+        // replicate immediately rather than on the next tick.
         batchProcessor.scheduleAtFixedRate(this::processBatch,
                 BATCH_FLUSH_INTERVAL_MS, BATCH_FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Asks the batch processor to run now. Submitted to the SAME single-threaded executor the
+     * periodic flush uses, so an on-demand run can never overlap a scheduled one - {@code
+     * processBatch()} keeps its single-threaded contract without any locking of its own.
+     *
+     * <p>{@code flushPending} collapses a burst into one extra run: while a flush is queued or
+     * in flight, further events do not pile up additional tasks. The flag is cleared BEFORE
+     * {@code processBatch()} runs, so an event arriving during that run schedules the next one
+     * and nothing is left sitting in the queue until the timer comes round.
+     */
+    private void requestFlush() {
+        ScheduledExecutorService bp = batchProcessor;
+
+        if (bp == null || bp.isShutdown() || !applying.get()) {
+            return;
+        }
+
+        if (flushPending.compareAndSet(false, true)) {
+            try {
+                bp.execute(() -> {
+                    flushPending.set(false);
+                    processBatch();
+                });
+            } catch (RejectedExecutionException e) {
+                // shutting down - the periodic task (if any) or the next start handles it
+                flushPending.set(false);
+            }
+        }
     }
 
     /**
@@ -711,8 +752,21 @@ public class ReplicationManager {
 
         // Stop batch processor first to flush remaining events
         if (batchProcessor != null) {
-            // Process any remaining events
-            processBatch();
+            // Flush the remainder ON the batch thread, not on the caller's. Calling
+            // processBatch() directly here raced a concurrently running scheduled (or
+            // on-demand) flush: two interleaved drainTo() calls can apply events out of
+            // order, and it is the one place that broke processBatch()'s single-threaded
+            // contract. Submitting it keeps every invocation on the same thread; if the
+            // executor is already gone or the flush does not finish in time, shutdownNow()
+            // below takes over exactly as before.
+            try {
+                batchProcessor.submit(this::processBatch).get(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                log.debug("Final replication flush did not complete before shutdown: {}", e.toString());
+            }
+
             batchProcessor.shutdownNow();
             try {
                 batchProcessor.awaitTermination(1, TimeUnit.SECONDS);
@@ -1594,6 +1648,14 @@ public class ReplicationManager {
                         // rather than dropping events or growing without bound.
                         try {
                             eventQueue.put(data);
+                            // Apply it now instead of waiting out the flush tick. Without this the
+                            // batch processor only ran on its fixed BATCH_FLUSH_INTERVAL_MS
+                            // schedule, so a single write that a write concern waits on paid the
+                            // full interval - measured in-process (no network): 5.04 ms per
+                            // individual store() against a 3-node replica set vs 0.31 ms against a
+                            // single node, with p50 landing exactly on the 5 ms tick. Batched
+                            // writes never showed it because one tick covers a whole batch.
+                            requestFlush();
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                             log.warn("Interrupted while enqueuing replication event; dropping event");

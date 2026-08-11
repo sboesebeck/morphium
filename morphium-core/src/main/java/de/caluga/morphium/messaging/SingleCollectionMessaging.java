@@ -66,7 +66,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private String hostname;
 
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
-    private Map<String, List<MessageListener>> listenerByName = new HashMap<>();
+    // Written only via clone-and-swap (never mutated in place) and declared volatile: the
+    // poll thread iterates the current map lock-free (rebuildMainCsIfFilterStale /
+    // buildMainCsPipeline), so in-place put/remove/clear would race that iteration.
+    private volatile Map<String, List<MessageListener>> listenerByName = new HashMap<>();
+    private ParticipantAnnouncer participantAnnouncer;
     private String queueName;
     private String lockCollectionName = null;
     private String collectionName = null;
@@ -86,6 +90,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private volatile long lastCsRestartMs = 0;
     private final AtomicLong csStallRestarts = new AtomicLong(0);
     private List<Map<String, Object>> changeStreamPipeline;
+    // Topic snapshot the live main-CS pipeline was built with; compared against
+    // listenerByName.keySet() by the poll loop to detect a stale filter.
+    private volatile Set<String> csFilterTopics = Set.of();
     private int changeStreamMaxWait;
     // Throttles the main-thread-death log so we don't spam every poll cycle once detected.
     private volatile long lastMainThreadDeathLogMs = 0;
@@ -364,9 +371,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     @Override
     public void setStatusInfoListenerName(String statusInfoListenerName) {
-        listenerByName.remove(this.statusInfoListenerName);
+        Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+        c.remove(this.statusInfoListenerName);
         this.statusInfoListenerName = statusInfoListenerName;
-        listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+        c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+        listenerByName = c;
     }
 
     @Override
@@ -405,9 +414,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         this.statusInfoListenerEnabled = statusInfoListenerEnabled;
 
         if (statusInfoListenerEnabled && !listenerByName.containsKey(statusInfoListenerName)) {
-            listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            listenerByName = c;
         } else if (!statusInfoListenerEnabled) {
-            listenerByName.remove(statusInfoListenerName);
+            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            c.remove(statusInfoListenerName);
+            listenerByName = c;
         }
     }
 
@@ -742,10 +755,47 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         log.warn("Main change stream for '{}' silent for {}ms while polling found backlog — restarting (restart #{})",
                  getCollectionName(), silenceMs, csStallRestarts.incrementAndGet());
 
+        replaceMainCsMonitor(old);
+    }
+
+    /**
+     * Rebuild the main change stream when the registered topic set no longer matches the
+     * filter the live stream was built with (listener added/removed after the stream
+     * started — the topic clause in the server-side $match would otherwise silently drop
+     * broadcasts for newly registered topics, degrading them to fallback-poll latency).
+     * Runs on every poll tick; a no-op unless the topic set actually changed. Bursts of
+     * registrations therefore coalesce into a single rebuild. Delivery during the gap is
+     * covered by the poll (addListenerForTopic bumps requestPoll).
+     *
+     * Only call from the polling thread, same discipline as restartMainCsIfStalled().
+     */
+    private void rebuildMainCsIfFilterStale() {
+        if (!running || !useChangeStream) return;
+        if (changeStreamMonitor == null) return;
+        Set<String> registered = Set.copyOf(listenerByName.keySet());
+        if (registered.equals(csFilterTopics)) return;
+
+        log.info("Topic set changed for '{}' ({} -> {}) — rebuilding main change stream filter",
+                 getCollectionName(), csFilterTopics, registered);
+        changeStreamPipeline = buildMainCsPipeline(registered);
+        // Commit the snapshot only once the fresh monitor is actually up: a failed replace
+        // must leave csFilterTopics stale so the next poll tick retries the rebuild.
+        if (replaceMainCsMonitor(changeStreamMonitor)) {
+            csFilterTopics = registered;
+        }
+    }
+
+    /**
+     * Terminate the given monitor and start a fresh one for the current
+     * changeStreamPipeline, rewired identically to the original.
+     *
+     * @return true if the fresh monitor is up, false if it could not be created/started
+     */
+    private boolean replaceMainCsMonitor(ChangeStreamMonitor old) {
         try {
             old.terminate();
         } catch (Exception e) {
-            log.warn("Error terminating stalled change stream for '{}': {}", getCollectionName(), e.getMessage());
+            log.warn("Error terminating change stream for '{}': {}", getCollectionName(), e.getMessage());
         }
 
         try {
@@ -759,9 +809,19 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // Reset markers — give the fresh stream the full threshold before re-evaluating.
             lastCsEventMs = System.currentTimeMillis();
             lastCsRestartMs = lastCsEventMs;
+            return true;
         } catch (Exception e) {
             log.error("Failed to restart change stream for '{}'", getCollectionName(), e);
+            return false;
         }
+    }
+
+    /**
+     * @return snapshot of the topics the live main change stream filter was built with —
+     *         diagnostic counterpart to getCsStallRestarts()
+     */
+    public Set<String> getCsFilterTopics() {
+        return csFilterTopics;
     }
 
     /**
@@ -806,7 +866,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 getCollectionName());
     }
 
-    private void initChangeStreams() {
+    /**
+     * Build the $match pipeline for the main change stream, filtered server-side to
+     * what THIS instance can actually process, for the given snapshot of registered
+     * topics. The CALLER commits that snapshot to csFilterTopics — and must only do so
+     * once a stream built from this pipeline is actually up, so a failed (re)build
+     * leaves the staleness check failing and gets retried (see
+     * rebuildMainCsIfFilterStale()).
+     */
+    private List<Map<String, Object>> buildMainCsPipeline(Set<String> registered) {
         // pipeline for reducing incoming traffic
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
@@ -828,17 +896,40 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // fallback poll (~FALLBACK_POLL_INTERVAL × pause latency).
         //
         // This filter restricts inserts to messages that are actually for this instance:
-        //   - sender != my id        → don't echo my own inserts
-        //   - recipients null/me     → broadcast or addressed to me
+        //   - sender != my id                  → don't echo my own inserts
+        //   - recipients me                    → addressed to me (answers pass regardless of topic)
+        //   - recipients null + topic listened → broadcasts only for topics with a registered
+        //     listener; everything else would be dropped client-side after a wasted wakeup,
+        //     decode and processing-executor slot ("no listener for topic", see queueOrRun path)
         // lock_released events are passed through unchanged (no fullDocument).
         // Use translated Mongo field names so the pipeline survives camelCase mapping changes.
         String senderField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.sender.name());
         String recipientsField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.recipients.name());
+        String topicField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.topic.name());
+        String inAnswerToField = "fullDocument." + morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.inAnswerTo.name());
+        // The status-info topic is always watched: registry discovery must keep working
+        // regardless of listener registration state (#283). NOT part of the staleness
+        // snapshot below - it never changes with the listener set.
+        Set<String> watchedTopics = new HashSet<>(registered);
+        watchedTopics.add(statusInfoListenerName);
+        // V5-legacy senders store only "name" - "topic" does not exist on those documents,
+        // and postLoad() maps it far too late for a server-side filter. preStore() sets
+        // name = topic on every 6.x send, so this clause only ever rescues legacy documents.
+        String legacyTopicField = "fullDocument.name";
+        Map<String, Object> broadcastRelevant = new LinkedHashMap<>();
+        broadcastRelevant.put(recipientsField, null);
+        // Broadcast answers (inAnswerTo set, no recipients) target the requester's waiter
+        // whatever topic they carry - they bypass the topic clause (#283).
+        broadcastRelevant.put("$or", Arrays.asList(
+            UtilsMap.of(topicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
+            UtilsMap.of(legacyTopicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
+            UtilsMap.of(inAnswerToField, UtilsMap.of("$ne", null))
+        ));
         Map<String, Object> insertRelevant = new LinkedHashMap<>();
         insertRelevant.put("operationType", "insert");
         insertRelevant.put(senderField, UtilsMap.of("$ne", id));
         insertRelevant.put("$or", Arrays.asList(
-            UtilsMap.of(recipientsField, null),
+            broadcastRelevant,
             UtilsMap.of(recipientsField, id)
         ));
         // Requeue detection: clearing processedBy via a plain DB update makes a message
@@ -856,19 +947,28 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             insertRelevant
         ));
         pipeline.add(UtilsMap.of("$match", relevanceMatch));
+        return pipeline;
+    }
+
+    private void initChangeStreams() {
         // Use longer maxWait for change streams to avoid constant network polling
         // Change streams are designed to block server-side; short timeouts waste CPU/network
         changeStreamMaxWait = Math.max(pause * 10, morphium.getConfig().connectionSettings().getMaxWaitTime());
+        Set<String> registered = Set.copyOf(listenerByName.keySet());
+        List<Map<String, Object>> pipeline = buildMainCsPipeline(registered);
         changeStreamPipeline = pipeline;
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, changeStreamMaxWait,
             List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
         lockChangeStreamMonitor = lockMonitor;
         lockMonitor.addListener(evt -> {
-            // some lock removed
-            if (morphium.createQueryFor(Msg.class, getCollectionName()).f("_id").eq(evt.getDocumentKey()).countAll() != 0) {
-                // log.info("Lock CSE");
-                requestPoll.incrementAndGet();
-            }
+            // Some lock removed - ask for a poll. Deliberately no query here (#286): this runs on
+            // the change-stream callback thread, so a countAll per lock-delete event blocks the
+            // stream itself, and it buys nothing. requestPoll is a counter the poll loop reads,
+            // zeroes and answers with ONE findMessages(), so M lock deletes in a burst coalesce
+            // into a single poll either way - the gate traded M synchronous queries on this
+            // thread against at most one query in the poll thread. findMessages() decides what is
+            // actually pending, which it queries for correctly regardless.
+            requestPoll.incrementAndGet();
             return running;
         });
         changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), false, changeStreamMaxWait, pipeline);
@@ -876,6 +976,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // On every watch (re-)establishment poll once: messages inserted while the stream
         // was down are invisible to the new stream unless a resume token was available.
         changeStreamMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
+        // Monitor construction succeeded — a throw above propagates and aborts startup, so
+        // committing the filter snapshot here can never record a filter no stream was built for.
+        csFilterTopics = registered;
         // Same for lock releases: a lock deleted during a lock-monitor gap would otherwise
         // never trigger its re-poll for exclusive messages.
         lockMonitor.addWatchEstablishedListener(requestPoll::incrementAndGet);
@@ -894,11 +997,22 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
     }
 
+    @Override
+    public synchronized void start() {
+        // Announce + implementation-mismatch check BEFORE the messaging thread spins up, so
+        // ImplementationCheck.THROW can abort startup with a plain exception to the caller (#280).
+        participantAnnouncer = new ParticipantAnnouncer(morphium, this, settings, NAME);
+        participantAnnouncer.announceAndCheck();
+        super.start();
+    }
+
     public void run() {
         setName("Msg " + id);
 
         if (statusInfoListenerEnabled) {
-            listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+            listenerByName = c;
         }
 
         // Register with PoppyDB for optimizations if connected
@@ -932,6 +1046,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 try {
                     // Liveness-check first — see checkMainThreadAlive() for the failure mode.
                     checkMainThreadAlive();
+                    // Keep the server-side topic filter in sync with the registered listeners.
+                    rebuildMainCsIfFilterStale();
                     // Cleanup old message tracking entries to prevent unbounded memory growth
                     long cleanupTime = System.currentTimeMillis();
                     locallyProcessedMessageIds.entrySet().removeIf(entry ->
@@ -1221,7 +1337,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             log.debug("Messaging " + id + " stopped!");
         }
 
-        listenerByName.clear();
+        listenerByName = new HashMap<>();
     }
 
     @Override
@@ -2073,7 +2189,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             networkRegistry.terminate();
         }
         running = false;
-        listenerByName.clear();
+        if (participantAnnouncer != null) {
+            participantAnnouncer.shutdown();
+        }
+        listenerByName = new HashMap<>();
         waitingForAnswers.clear();
         processing.clear();
         requestPoll.set(0);
