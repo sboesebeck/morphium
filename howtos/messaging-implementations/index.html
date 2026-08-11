@@ -2632,7 +2632,16 @@ dual-write bridge between the collection layouts.
 - Practically: <strong>all messaging participants on a given queue must run <code>DualChannelMessaging</code></strong>
   for DM/answer delivery to work in both directions. Every <code>DualChannelMessaging</code> instance logs a
   <code>WARN</code> on startup restating this. Migrate with the same big-bang or bridge approach described
-  under "Migrating Standard → MultiCollection" below (the same caveats apply).</p>
+  under "Migrating Standard → MultiCollection" below (the same caveats apply).
+- Since <strong>6.3.1</strong>, mismatches are detected (#280): every instance — regardless of implementation —
+  announces itself in a layout-independent <code>&lt;queue&gt;_participants</code> collection (heartbeat document,
+  withdrawn on <code>terminate()</code>) and checks what the other participants run on startup. The channel
+  is deliberately not the messaging itself: between two implementations without a shared
+  collection, a messaging-based warning could never arrive. Behavior is configurable via
+  <code>MessagingSettings.ImplementationCheck</code>: <code>WARN</code> (default) logs the mismatch on startup and when
+  a mismatched participant joins later; <code>THROW</code> refuses startup of the mismatched instance with an
+  <code>IllegalStateException</code> (later joins still only warn — throwing on a background thread reaches
+  nobody); <code>IGNORE</code> disables announcement and check entirely.</p>
 <h2 id="measured-behavior-under-load-july-2026">Measured Behavior Under Load (July 2026)<a class="headerlink" href="#measured-behavior-under-load-july-2026" title="Permanent link">&para;</a></h2>
 <p>Request/reply load tests with the <a href="https://github.com/sboesebeck/morpheus">Morpheus</a> latency tool
 (<code>sendAndAwaitAsync</code> against a pong responder, 15 sender threads, 5 s warmup; everything on one
