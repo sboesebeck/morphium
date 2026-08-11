@@ -2653,6 +2653,68 @@ cold-start trap when reproducing: the very first run after server start measures
 the code — discard it (ours read 2× slower than the warm steady state). The table above
 keeps the original serial-ping-pong figures; both setups measure the same path under
 different load profiles, so compare within a vintage, not across.</p>
+<p><strong>Topology caveat for the 2026-08-07 run:</strong> it is not like-for-like. PoppyDB ran locally
+on the client machine while MongoDB was reached over the network (homelab, via VPN), so
+the ratio carries a network component that is not attributable to the broker. See the
+symmetric re-measurement below.</p>
+<p><strong>Symmetric re-measurement 2026-08-11</strong> — same Morpheus parameters (100 msg/s fixed rate,
+5 sender threads, 30 s after 10 s warmup), but with every known bias removed: the client
+runs <em>inside</em> the homelab network on its own host (4 cores, no other load), and <strong>both</strong>
+backends are separate processes on dedicated hosts at equal network distance — PoppyDB as
+a 3-node replica set (<code>poppydb.fritz.box:17017-19</code>, no in-process advantage), MongoDB as
+the 2-node homelab replica set (<code>mongo1/mongo2:27017</code>). Two consecutive runs, 3001 pings
+each, zero loss:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>MongoDB (run 1 / 2)</th>
+<th>PoppyDB (run 1 / 2)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>p50</td>
+<td>4.97 / 5.12 ms</td>
+<td><strong>2.13 / 2.06 ms</strong></td>
+</tr>
+<tr>
+<td>avg</td>
+<td>6.10 / 8.34 ms</td>
+<td>2.41 / 2.40 ms</td>
+</tr>
+<tr>
+<td>min</td>
+<td>3.89 / 3.91 ms</td>
+<td>1.33 / 1.35 ms</td>
+</tr>
+<tr>
+<td>p90</td>
+<td>6.80 / 7.24 ms</td>
+<td>2.91 / 2.63 ms</td>
+</tr>
+<tr>
+<td>p99</td>
+<td>42.3 / 129.4 ms</td>
+<td><strong>5.5 / 6.7 ms</strong></td>
+</tr>
+<tr>
+<td>max</td>
+<td>86.0 / 214.6 ms</td>
+<td>40.8 / 55.4 ms</td>
+</tr>
+<tr>
+<td>jitter</td>
+<td>1.28 / 1.55 ms</td>
+<td>0.54 / 0.52 ms</td>
+</tr>
+</tbody>
+</table>
+<p>The ratio comes out at <strong>2.34× and 2.49×</strong>, confirming the ~2.5× of the earlier runs — the
+asymmetric topology of 2026-08-07 did not manufacture the advantage. Two things the median
+hides: the tail differs by an order of magnitude (MongoDB p99 42–129 ms at a mere 100 msg/s
+on an idle cluster, PoppyDB under 7 ms), and jitter differs by 2.5–3×. For latency-critical
+request/reply the tail is the more relevant figure.</p>
 </blockquote>
 <h3 id="messaging-one-way-throughput-send-receipt-no-replies">Messaging One-Way Throughput (send → receipt, no replies)<a class="headerlink" href="#messaging-one-way-throughput-send-receipt-no-replies" title="Permanent link">&para;</a></h3>
 <p>Measured 2026-08-06 with <code>MessagingOneWayThroughputBenchmark</code> (poppydb module, tag <code>manual</code>):
