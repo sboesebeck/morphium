@@ -53,6 +53,8 @@ containing none of a sparse index's fields are not part of the index and cannot 
 uniqueness check now skips them (documents with present fields are still enforced). Also fixed
 in passing: decoding a BSON MaxKey threw "unknown data type" due to a missing `break`.
 
+## [6.3.1] - 2026-08-11
+
 ### Added
 
 #### Messaging: implementation mismatches between queue participants are detected (#280)
