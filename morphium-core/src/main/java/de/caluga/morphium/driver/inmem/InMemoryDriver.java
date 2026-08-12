@@ -6627,6 +6627,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         if (options.containsKey("unique")
                                 && (options.get("unique").equals("true") || options.get("unique").equals(true))) {
                             // checking fields
+                            boolean sparse = options.containsKey("sparse")
+                                    && (options.get("sparse").equals("true") || options.get("sparse").equals(true));
                             Map<String, Object> indexKey = new HashMap<>(idx);
                             List<Map<String, Object>> duplicateDocs = new ArrayList<>();
 
@@ -6640,6 +6642,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     }
 
                                     q.put(k, o.get(k));
+                                }
+
+                                // Sparse unique index: a document containing none of the indexed
+                                // fields is not part of the index in MongoDB, so it can never
+                                // collide - skip the duplicate check entirely.
+                                if (sparse && q.values().stream().allMatch(java.util.Objects::isNull)) {
+                                    continue;
                                 }
 
                                 if (q.size() != 1) {

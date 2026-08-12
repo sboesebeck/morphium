@@ -87,6 +87,21 @@ public final class IndexKey {
     }
 
     /**
+     * True when every component of this key is the {@link #MISSING} sentinel - i.e. the source
+     * document contains none of the indexed fields. Sparse unique indexes skip their duplicate
+     * check for such keys (MongoDB excludes those documents from a sparse index entirely, so
+     * they can never collide there).
+     */
+    public boolean allMissing() {
+        for (Object v : values) {
+            if (v != MISSING) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Whether the document this key was extracted from made the index multikey in MongoDB's
      * sense: a field resolved to a {@code List} - either as the path's terminal value or as an
      * array crossed <em>mid-path</em> (e.g. {@code "a.b"} over {@code {a:[{b:..}]}}). Since

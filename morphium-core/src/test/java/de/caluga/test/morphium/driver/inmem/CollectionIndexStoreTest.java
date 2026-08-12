@@ -40,6 +40,13 @@ public class CollectionIndexStoreTest {
         return IndexDefinition.fromIndexMap(indexMap);
     }
 
+    private static IndexDefinition sparseUniqueIndex(String name, String field) {
+        Map<String, Object> indexMap = new LinkedHashMap<>();
+        indexMap.put(field, 1);
+        indexMap.put("$options", Map.of("name", name, "unique", true, "sparse", true));
+        return IndexDefinition.fromIndexMap(indexMap);
+    }
+
     private static IndexDefinition index(String name, String field, int direction) {
         Map<String, Object> indexMap = new LinkedHashMap<>();
         indexMap.put(field, direction);
@@ -89,6 +96,53 @@ public class CollectionIndexStoreTest {
 
         List<Map<String, Object>> miss = store.equalityLookup("u_1", IndexKey.of(List.of("nope")));
         assertTrue(miss.isEmpty());
+    }
+
+    // ---------------------------------------------------------------- sparse unique indexes
+
+    @Test
+    void sparseUniqueIndexAllowsMultipleDocsWithoutTheField() {
+        // mongorestore of a typical schema (unique+sparse email index over docs that mostly
+        // lack the field) used to throw E11000 on IndexKey.MISSING here
+        CollectionIndexStore store = new CollectionIndexStore();
+        Map<String, Object> d1 = doc(1, "name", "a");
+        Map<String, Object> d2 = doc(2, "name", "b");
+
+        store.addIndex(sparseUniqueIndex("email_1", "email"), List.of(d1, d2));
+
+        store.onInsert(doc(3, "name", "c"));                       // still no email - allowed
+        store.onInsert(doc(4, "email", "x@y.z"));                  // first real value - allowed
+        assertThrows(de.caluga.morphium.driver.MorphiumDriverException.class,
+                () -> store.onInsert(doc(5, "email", "x@y.z")),    // real duplicate - rejected
+                "unique must still be enforced for present values");
+    }
+
+    @Test
+    void sparseUniqueIndexOnUpdateSkipsMissingKeys() {
+        CollectionIndexStore store = new CollectionIndexStore();
+        store.addIndex(sparseUniqueIndex("email_1", "email"), List.of());
+        Map<String, Object> d1 = doc(1, "email", "a@b.c");
+        Map<String, Object> d2 = doc(2, "email", "d@e.f");
+        store.onInsert(d1);
+        store.onInsert(d2);
+
+        // removing the field from both must not collide on MISSING
+        Map<String, Object> before1 = new LinkedHashMap<>(d1);
+        d1.remove("email");
+        store.onUpdate(before1, d1);
+        Map<String, Object> before2 = new LinkedHashMap<>(d2);
+        d2.remove("email");
+        store.onUpdate(before2, d2);
+    }
+
+    @Test
+    void nonSparseUniqueIndexStillCollidesOnMissing() {
+        // mongod parity: without sparse, absent counts as null and collides
+        CollectionIndexStore store = new CollectionIndexStore();
+        store.addIndex(uniqueIndex("email_1", "email"), List.of());
+        store.onInsert(doc(1, "name", "a"));
+        assertThrows(de.caluga.morphium.driver.MorphiumDriverException.class,
+                () -> store.onInsert(doc(2, "name", "b")));
     }
 
     @Test

@@ -66,6 +66,13 @@ public class OpMsg extends WireProtocolMessage {
         return firstDoc;
     }
 
+    /** Kind-1 (document sequence) sections by their sequence identifier ("documents",
+     *  "updates", "deletes"). Per wire spec each sequence is equivalent to a BSON array
+     *  field of that name in the command body. Null if the message had none. */
+    public Map<String, List<Map<String, Object>>> getDocuments() {
+        return documents;
+    }
+
     public OpMsg setFirstDoc(Map<String, Object> o) {
         firstDoc = o;
         return this;
@@ -85,9 +92,13 @@ public class OpMsg extends WireProtocolMessage {
     public void parsePayload(byte[] bytes, int offset) throws IOException {
         flags = readInt(bytes, offset);
         int idx = offset + 4;
-        int len = bytes.length;
+        // Payload end: when the wire-header size is known (setSize before parse), the payload is
+        // exactly size-16 bytes from offset. bytes.length is only correct for exact-size arrays —
+        // with a zero-copy backing array (PoppyDB's Netty decoder) the buffer can hold further
+        // pipelined messages (mongorestore does this), and parsing must not run into them.
+        int len = getSize() > 0 ? offset + getSize() - 16 : bytes.length;
         if ((getFlags() & CHECKSUM_PRESENT) != 0) {
-            len = bytes.length - 4;
+            len -= 4;
         }
 
         while (idx < len) {
@@ -120,7 +131,7 @@ public class OpMsg extends WireProtocolMessage {
         if ((getFlags() & CHECKSUM_PRESENT) != 0) {
             int crc = readInt(bytes, idx);
             CRC32C c = new CRC32C();
-            c.update(bytes, 0, bytes.length - 4);
+            c.update(bytes, offset, len - offset);
             assert (crc == ((int) c.getValue()));
         }
     }
@@ -139,7 +150,9 @@ public class OpMsg extends WireProtocolMessage {
                     sectionOut.write(BsonEncoder.encodeDocument(doc));
                 }
                 byte[] section = sectionOut.toByteArray();
-                writeInt(section.length, out);
+                out.write((byte) 1);                 // section kind 1: document sequence
+                writeInt(section.length + 4, out);   // per spec the size includes its own 4 bytes
+                out.write(section);
             }
         }
         byte[] ret = out.toByteArray();

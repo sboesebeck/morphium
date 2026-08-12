@@ -279,6 +279,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /** buildInfo.versionArray as mongo-tools et al. expect it: the leading numeric components
+     *  of the version string, zero-padded to 4 entries ("6.3.2-SNAPSHOT" -> [6,3,2,0]).
+     *  mongorestore refuses to talk to a server whose versionArray has fewer than 3 entries. */
+    static List<Integer> buildVersionArray(String version) {
+        List<Integer> arr = new java.util.ArrayList<>(4);
+        for (String part : version.split("[.\\-]")) {
+            if (!part.matches("\\d+")) break;
+            arr.add(Integer.parseInt(part));
+            if (arr.size() == 4) break;
+        }
+        while (arr.size() < 4) arr.add(0);
+        return arr;
+    }
+
     private void processOpQuery(ChannelHandlerContext ctx, OpQuery query) throws Exception {
         Map<String, Object> doc = query.getDoc();
         int requestId = query.getMessageId();
@@ -287,7 +301,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // isMaster via OpQuery (legacy)
             log.debug("OpQuery->isMaster");
             OpReply reply = new OpReply();
-            reply.setFlags(2);
+            // AWAIT_CAPABLE like real mongod. QUERY_FAILURE (2) here made strict drivers
+            // (mongo-tools/Go) read the hello document as an error and drop the connection,
+            // breaking mongodump/mongorestore; lenient drivers (Node, morphium) ignore flags.
+            reply.setFlags(OpReply.AWAIT_CAPABLE_FLAG);
             reply.setMessageId(msgId.incrementAndGet());
             reply.setResponseTo(requestId);
             reply.setNumReturned(1);
@@ -304,7 +321,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         // OpQuery is deprecated
         OpReply reply = new OpReply();
-        reply.setFlags(2);
+        reply.setFlags(OpReply.QUERY_FAILURE_FLAG);
         reply.setMessageId(msgId.incrementAndGet());
         reply.setResponseTo(requestId);
         reply.setNumReturned(1);
@@ -379,6 +396,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         Map<String, Object> doc = opMsg.getFirstDoc();
         int requestId = opMsg.getMessageId();
 
+        // Kind-1 document-sequence sections (mongorestore/mongoimport bulk writes; morphium
+        // clients never send them): per wire spec each sequence is equivalent to an array
+        // field of the same name in the command body ("documents"/"updates"/"deletes").
+        if (opMsg.getDocuments() != null) {
+            for (var seq : opMsg.getDocuments().entrySet()) {
+                doc.putIfAbsent(seq.getKey(), seq.getValue());
+            }
+        }
+
         if (log.isDebugEnabled()) log.debug("Incoming {}", Utils.toJsonString(doc));
 
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
@@ -446,6 +472,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             case "buildInfo":
                 answer = Doc.of("version", InMemoryDriver.REPORTED_SERVER_VERSION,
+                        "versionArray", buildVersionArray(InMemoryDriver.REPORTED_SERVER_VERSION),
                         "buildEnvironment", Doc.of("distarch", "java", "targetarch", "java"),
                         "ok", 1.0);
                 break;

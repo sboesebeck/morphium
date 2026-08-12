@@ -8,8 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
 
-## [6.3.1] - 2026-08-11
+#### PoppyDB: mongodump/mongorestore work against PoppyDB (mongo-tools compatibility)
+`mongorestore` against a PoppyDB used to die at the handshake, and dumps of real-world schemas
+could not be loaded at all. A restore is the natural way to seed a PoppyDB from an existing
+MongoDB (and a dump the natural way to persist one), so the whole tool chain was fixed
+end-to-end; a full dump → restore → dump round trip including secondary indexes now passes.
+Individual fixes, each observable on its own:
+
+- The legacy `isMaster` (OP_QUERY) reply carried the `QueryFailure` flag, making strict drivers
+  (mongo-tools' Go driver) treat the hello document as an error and drop the connection.
+  Lenient drivers (Node, morphium) ignore OP_REPLY flags, which is why this never surfaced.
+- `buildInfo` now reports a `versionArray` — mongorestore refuses servers announcing fewer
+  than 3 version components.
+- OP_MSG kind-1 document sequences (how mongo-tools ship bulk inserts; morphium clients only
+  ever send kind 0) are now merged into the command body per wire spec. The kind-1 *writer*
+  in `OpMsg.getPayload` was rewritten as well — it never emitted the section content.
+- `OpMsg.parsePayload` bounds parsing by the wire-header message size instead of the buffer
+  length: with PoppyDB's zero-copy Netty path, a pipelining client (mongo-tools) made the
+  parser run into the next message's bytes.
+- BSON type 0x13 (Decimal128) is now encoded and decoded (`BigDecimal`, NaN/Infinity as
+  `Decimal128`) — previously any document containing a `NumberDecimal` was unparsable.
+- A message that fails to decode now gets an error reply instead of being silently skipped,
+  which left clients hanging until their timeout.
+
+### Fixed
+
+#### InMemoryDriver: unique+sparse indexes no longer throw false duplicate-key errors
+A `unique: true, sparse: true` index (the classic optional-email pattern) rejected the second
+document that lacked the indexed field with E11000 — both the index store and the insert-path
+pre-check treated the missing key as a colliding value. Per MongoDB semantics, documents
+containing none of a sparse index's fields are not part of the index and cannot collide; the
+uniqueness check now skips them (documents with present fields are still enforced). Also fixed
+in passing: decoding a BSON MaxKey threw "unknown data type" due to a missing `break`.
 
 ### Added
 

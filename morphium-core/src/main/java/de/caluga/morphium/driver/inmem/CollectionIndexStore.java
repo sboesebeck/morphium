@@ -77,7 +77,7 @@ public class CollectionIndexStore {
 
         for (Map<String, Object> doc : existingDocs) {
             IndexKey key = IndexKey.extract(doc, def);
-            if (def.unique() && entry.hasBucket(key)) {
+            if (def.unique() && !(def.sparse() && key.allMissing()) && entry.hasBucket(key)) {
                 throw duplicateKeyException(name, key);
             }
             entry.add(key, doc);
@@ -185,7 +185,8 @@ public class CollectionIndexStore {
         for (IndexEntry entry : indexesByName.values()) {
             IndexKey key = IndexKey.extract(doc, entry.definition);
             keys.put(entry, key);
-            if (entry.definition.unique() && entry.hasBucket(key)) {
+            if (entry.definition.unique() && !(entry.definition.sparse() && key.allMissing())
+                    && entry.hasBucket(key)) {
                 throw duplicateKeyException(indexNameOf(entry.definition), key);
             }
         }
@@ -247,6 +248,9 @@ public class CollectionIndexStore {
                 continue;
             }
             IndexKey newKey = newKeys.get(i);
+            if (entry.definition.sparse() && newKey.allMissing()) {
+                continue;
+            }
             List<Map<String, Object>> bucket = entry.bucket(newKey);
             if (bucket != null) {
                 for (Map<String, Object> other : bucket) {

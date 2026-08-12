@@ -25,14 +25,16 @@ public final class IndexDefinition {
     private final List<String> fields;
     private final Map<String, Integer> directions;
     private final boolean unique;
+    private final boolean sparse;
     private final Long expireAfterSeconds;
     private final String name;
 
     private IndexDefinition(List<String> fields, Map<String, Integer> directions, boolean unique,
-            Long expireAfterSeconds, String name) {
+            boolean sparse, Long expireAfterSeconds, String name) {
         this.fields = fields;
         this.directions = directions;
         this.unique = unique;
+        this.sparse = sparse;
         this.expireAfterSeconds = expireAfterSeconds;
         this.name = name;
     }
@@ -64,12 +66,16 @@ public final class IndexDefinition {
         }
 
         boolean unique = false;
+        boolean sparse = false;
         Long expireAfterSeconds = null;
         String name = null;
 
         if (options != null) {
             Object uniqueOption = options.get("unique");
             unique = Boolean.TRUE.equals(uniqueOption) || "true".equalsIgnoreCase(String.valueOf(uniqueOption));
+
+            Object sparseOption = options.get("sparse");
+            sparse = Boolean.TRUE.equals(sparseOption) || "true".equalsIgnoreCase(String.valueOf(sparseOption));
 
             Object expireOption = options.get("expireAfterSeconds");
             if (expireOption instanceof Number) {
@@ -83,7 +89,7 @@ public final class IndexDefinition {
         }
 
         List<String> orderedFields = Collections.unmodifiableList(new ArrayList<>(directions.keySet()));
-        return new IndexDefinition(orderedFields, directions, unique, expireAfterSeconds, name);
+        return new IndexDefinition(orderedFields, directions, unique, sparse, expireAfterSeconds, name);
     }
 
     /**
@@ -111,6 +117,16 @@ public final class IndexDefinition {
         return unique;
     }
 
+    /**
+     * Whether the index was declared {@code sparse}. The store still indexes every document
+     * (lookups must stay complete), but a sparse <em>unique</em> index skips its duplicate check
+     * for documents that contain none of the indexed fields - MongoDB excludes those documents
+     * from a sparse index entirely, so they never collide there.
+     */
+    public boolean sparse() {
+        return sparse;
+    }
+
     /** TTL, in seconds, or {@code null} if this is not a TTL index. */
     public Long expireAfterSeconds() {
         return expireAfterSeconds;
@@ -124,6 +140,6 @@ public final class IndexDefinition {
     @Override
     public String toString() {
         return "IndexDefinition{fields=" + fields + ", directions=" + directions + ", unique=" + unique
-                + ", expireAfterSeconds=" + expireAfterSeconds + ", name=" + name + '}';
+                + ", sparse=" + sparse + ", expireAfterSeconds=" + expireAfterSeconds + ", name=" + name + '}';
     }
 }
