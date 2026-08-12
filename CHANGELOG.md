@@ -35,6 +35,16 @@ Individual fixes, each observable on its own:
 
 ### Fixed
 
+#### InMemoryDriver: literal array queries support whole-array equality ({field: []} et al.)
+A literal query with an array operand only ever matched via the multikey "array contains the
+operand as an element" rule; MongoDB additionally matches when the document's array *is* the
+operand (order-sensitive). Most visibly, `{processed_by: []}` — the empty-array form services
+use against messaging collections — matched nothing at all, and on dotted paths the resolver
+flattened leaf arrays into their elements so an empty array contributed no match candidates
+whatsoever. Both query engines (interpreter and compiled) now check whole-array equality with
+the same id/number normalization as scalar comparison ([1, 2] matches [1L, 2.0]), on plain and
+dotted paths. Found during the mongorestore rehearsal for the acceptance drop-in test.
+
 #### InMemoryDriver: unique+sparse indexes no longer throw false duplicate-key errors
 A `unique: true, sparse: true` index (the classic optional-email pattern) rejected the second
 document that lacked the indexed field with E11000 — both the index store and the insert-path
