@@ -114,7 +114,9 @@ if [ ! -e $TMPDIR ]; then
   mkdir $TMPDIR
 fi
 if $COMPILE; then
-  mvn -Dmaven.test.skip=true -Dmaven.javadoc.skip=true package -pl poppydb -am || exit 1
+  # -DskipTests (not -Dmaven.test.skip=true): poppydb depends on the morphium
+  # test-jar, which only gets built when the test classes are compiled
+  mvn -DskipTests -Dmaven.javadoc.skip=true package -pl poppydb -am || exit 1
   # resolve the current project version from the pom - stale jars from older
   # versions may still be lying around in target/
   POMVERSION=$(sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' pom.xml | head -n 1)
