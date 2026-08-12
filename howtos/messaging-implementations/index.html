@@ -2682,6 +2682,12 @@ absolute numbers from macOS overstate the gap to in-memory servers considerably.
 Before that reorder the return leg carried an extra majority-acked write, making it twice as
 expensive as the outbound leg (measured 2.0× → 1.0× after the fix, ~40% lower request/reply RTT
 on MongoDB).</p>
+<p>These floors are for the broadcast (non-exclusive) path. <strong>Exclusive</strong> request/reply — the
+profile production services actually use — additionally pays the lock/claim machinery per
+message, which is nearly free on PoppyDB (~+1 ms median) but costly on MongoDB (~+8 ms median,
+with p99 tails growing into the seconds at only 100 msg/s). Measured numbers for both backends
+and both paths: see <a href="../../v5-vs-v6-performance/">Performance Comparison</a>, section
+"Exclusive request/reply".</p>
 <h3 id="throughput-ceiling-and-overload-behavior-mongodb">Throughput ceiling and overload behavior — MongoDB<a class="headerlink" href="#throughput-ceiling-and-overload-behavior-mongodb" title="Permanent link">&para;</a></h3>
 <p>Steady-state window (offered rate 175–225 msg/s, well past every implementation's knee):</p>
 <table>

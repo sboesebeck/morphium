@@ -1963,6 +1963,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#exclusive-requestreply-the-production-profile-measured-2026-08-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exclusive request/reply — the production profile (measured 2026-08-12)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#messaging-one-way-throughput-send-receipt-no-replies" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2363,6 +2374,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#exclusive-requestreply-the-production-profile-measured-2026-08-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exclusive request/reply — the production profile (measured 2026-08-12)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#messaging-one-way-throughput-send-receipt-no-replies" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2716,6 +2738,88 @@ hides: the tail differs by an order of magnitude (MongoDB p99 42–129 ms at a m
 on an idle cluster, PoppyDB under 7 ms), and jitter differs by 2.5–3×. For latency-critical
 request/reply the tail is the more relevant figure.</p>
 </blockquote>
+<h3 id="exclusive-requestreply-the-production-profile-measured-2026-08-12">Exclusive request/reply — the production profile (measured 2026-08-12)<a class="headerlink" href="#exclusive-requestreply-the-production-profile-measured-2026-08-12" title="Permanent link">&para;</a></h3>
+<p>All numbers above ride the <strong>broadcast (non-exclusive) path</strong>: any listener may answer, no
+lock traffic. Production request/reply between services typically uses <strong>exclusive</strong> messages
+— exactly-once processing, which costs the responder side the full lock/claim machinery
+(claim write, re-fetch, <code>processed_by</code> mark, each majority-acked on MongoDB). Measured with
+Morpheus <code>latency --exclusive</code> against <code>pong --work 5</code> (5 ms simulated handler work, modeling
+a real consumer), same parameters as the symmetric run above (100 msg/s, 5 sender threads,
+30 s recorded after 10 s warmup, two consecutive runs, ~4,000 pings each, zero loss
+everywhere). Client: Mac Studio (M1 Ultra) on the same LAN segment, 0.5–0.6 ms ICMP RTT to
+both brokers — equal network distance, but a different client host than the 2026-08-11 run,
+so compare ratios, not absolutes, across the two sections. morphium 6.3.1 client (with the
+6.3.1 topic-filter and lock-callback fixes), PoppyDB 3-node RS on a 6.3.1-era build, MongoDB
+8.0.26 as the 2-data-node + arbiter homelab RS.</p>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th></th>
+<th>MongoDB (run 1 / 2)</th>
+<th>PoppyDB (run 1 / 2)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>broadcast ping</td>
+<td>p50</td>
+<td>4.43 / 4.36 ms</td>
+<td>2.83 / 2.71 ms</td>
+</tr>
+<tr>
+<td></td>
+<td>p99</td>
+<td>88.7 / 48.1 ms</td>
+<td>8.0 / 7.0 ms</td>
+</tr>
+<tr>
+<td>exclusive</td>
+<td>p50</td>
+<td>11.81 / 12.83 ms</td>
+<td><strong>3.87 / 3.93 ms</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>p99</td>
+<td>807.8 / 1004.9 ms</td>
+<td><strong>12.2 / 15.0 ms</strong></td>
+</tr>
+<tr>
+<td>exclusive + 5 ms work</td>
+<td>p50</td>
+<td>18.45 / 18.47 ms</td>
+<td><strong>11.02 / 11.57 ms</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>p99</td>
+<td>726.0 / 2209.3 ms</td>
+<td><strong>22.5 / 23.6 ms</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Three observations:</p>
+<ul>
+<li><strong>The exclusive flag is nearly free on PoppyDB and expensive on MongoDB.</strong> Going from
+  broadcast to exclusive costs PoppyDB ~1.1 ms at the median (claim round-trip against an
+  in-memory server); MongoDB pays ~8 ms — the claim/mark writes are majority-acked, so the
+  exclusive path stacks additional majority-commit cadences on top of the delivery floor.
+  Median ratio between the backends grows from ~1.6× (broadcast) to ~3.2× (exclusive).</li>
+<li><strong>The exclusive tail on MongoDB is a different regime, not a bigger number.</strong> At a mere
+  100 msg/s on an otherwise idle cluster, exclusive p99 lands at 0.7–2.2 <strong>seconds</strong> (p90 up
+  to 630 ms, max 2.7 s), and the tail is unstable between consecutive runs. PoppyDB's p99
+  stays at 22–24 ms with run-to-run stability. For burst-shaped incident patterns (callers
+  waiting hundreds of ms for tens of ms of work) the exclusive tail is the number to watch.</li>
+<li><strong>The 5 ms simulated handler work adds more than 5 ms</strong> (PoppyDB +7 ms, MongoDB +6 ms at
+  the median): a busy handler delays subsequent claims of the single consumer, so queueing
+  briefly appears even below nominal capacity. Real deployments spread this across more
+  consumers.</li>
+</ul>
+<p>Topology caveat: with 2 data nodes + arbiter, the majority commit needs <em>both</em> data nodes —
+a 3-data-node set can acknowledge with the faster secondary, which may soften (not remove)
+the MongoDB tails. The broadcast rows are consistent with the 2026-08-11 symmetric run
+above; the exclusive rows measure the same path that production sync request/reply uses.</p>
 <h3 id="messaging-one-way-throughput-send-receipt-no-replies">Messaging One-Way Throughput (send → receipt, no replies)<a class="headerlink" href="#messaging-one-way-throughput-send-receipt-no-replies" title="Permanent link">&para;</a></h3>
 <p>Measured 2026-08-06 with <code>MessagingOneWayThroughputBenchmark</code> (poppydb module, tag <code>manual</code>):
 5000 messages, 4 sender threads, one listening receiver, clock from first send to last
