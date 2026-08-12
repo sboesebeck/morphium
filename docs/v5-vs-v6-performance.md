@@ -86,6 +86,52 @@ same workload completes 2.5x faster.
 > on an idle cluster, PoppyDB under 7 ms), and jitter differs by 2.5–3×. For latency-critical
 > request/reply the tail is the more relevant figure.
 
+### Exclusive request/reply — the production profile (measured 2026-08-12)
+
+All numbers above ride the **broadcast (non-exclusive) path**: any listener may answer, no
+lock traffic. Production request/reply between services typically uses **exclusive** messages
+— exactly-once processing, which costs the responder side the full lock/claim machinery
+(claim write, re-fetch, `processed_by` mark, each majority-acked on MongoDB). Measured with
+Morpheus `latency --exclusive` against `pong --work 5` (5 ms simulated handler work, modeling
+a real consumer), same parameters as the symmetric run above (100 msg/s, 5 sender threads,
+30 s recorded after 10 s warmup, two consecutive runs, ~4,000 pings each, zero loss
+everywhere). Client: Mac Studio (M1 Ultra) on the same LAN segment, 0.5–0.6 ms ICMP RTT to
+both brokers — equal network distance, but a different client host than the 2026-08-11 run,
+so compare ratios, not absolutes, across the two sections. morphium 6.3.1 client (with the
+6.3.1 topic-filter and lock-callback fixes), PoppyDB 3-node RS on a 6.3.1-era build, MongoDB
+8.0.26 as the 2-data-node + arbiter homelab RS.
+
+| Profile | | MongoDB (run 1 / 2) | PoppyDB (run 1 / 2) |
+|---|---|---|---|
+| broadcast ping | p50 | 4.43 / 4.36 ms | 2.83 / 2.71 ms |
+| | p99 | 88.7 / 48.1 ms | 8.0 / 7.0 ms |
+| exclusive | p50 | 11.81 / 12.83 ms | **3.87 / 3.93 ms** |
+| | p99 | 807.8 / 1004.9 ms | **12.2 / 15.0 ms** |
+| exclusive + 5 ms work | p50 | 18.45 / 18.47 ms | **11.02 / 11.57 ms** |
+| | p99 | 726.0 / 2209.3 ms | **22.5 / 23.6 ms** |
+
+Three observations:
+
+- **The exclusive flag is nearly free on PoppyDB and expensive on MongoDB.** Going from
+  broadcast to exclusive costs PoppyDB ~1.1 ms at the median (claim round-trip against an
+  in-memory server); MongoDB pays ~8 ms — the claim/mark writes are majority-acked, so the
+  exclusive path stacks additional majority-commit cadences on top of the delivery floor.
+  Median ratio between the backends grows from ~1.6× (broadcast) to ~3.2× (exclusive).
+- **The exclusive tail on MongoDB is a different regime, not a bigger number.** At a mere
+  100 msg/s on an otherwise idle cluster, exclusive p99 lands at 0.7–2.2 **seconds** (p90 up
+  to 630 ms, max 2.7 s), and the tail is unstable between consecutive runs. PoppyDB's p99
+  stays at 22–24 ms with run-to-run stability. For burst-shaped incident patterns (callers
+  waiting hundreds of ms for tens of ms of work) the exclusive tail is the number to watch.
+- **The 5 ms simulated handler work adds more than 5 ms** (PoppyDB +7 ms, MongoDB +6 ms at
+  the median): a busy handler delays subsequent claims of the single consumer, so queueing
+  briefly appears even below nominal capacity. Real deployments spread this across more
+  consumers.
+
+Topology caveat: with 2 data nodes + arbiter, the majority commit needs *both* data nodes —
+a 3-data-node set can acknowledge with the faster secondary, which may soften (not remove)
+the MongoDB tails. The broadcast rows are consistent with the 2026-08-11 symmetric run
+above; the exclusive rows measure the same path that production sync request/reply uses.
+
 ### Messaging One-Way Throughput (send → receipt, no replies)
 
 Measured 2026-08-06 with `MessagingOneWayThroughputBenchmark` (poppydb module, tag `manual`):
