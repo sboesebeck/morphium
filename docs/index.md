@@ -9,7 +9,7 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 ---
 
 <p align="center">
-  <img src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480">
+  <a href="poppydb/"><img src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480"></a>
 </p>
 
 ## PoppyDB — MongoDB‑compatible Server
@@ -26,7 +26,7 @@ connect to it. Perfect for CI/CD pipelines, integration testing, and lightweight
 java -jar poppydb-<version>-cli.jar --port 27017
 ```
 
-→ [Overview](./poppydb.md) · [Production Deployment Playbook](./howtos/poppydb-deployment.md) · [Migrating from MongoDB](./howtos/migration-mongodb-to-poppydb.md)
+→ **[PoppyDB Documentation](./poppydb.md)** · [Production Deployment Playbook](./howtos/poppydb-deployment.md) · [Migrating from MongoDB](./howtos/migration-mongodb-to-poppydb.md)
 
 ---
 
