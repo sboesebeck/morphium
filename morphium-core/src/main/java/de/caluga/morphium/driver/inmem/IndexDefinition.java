@@ -26,15 +26,17 @@ public final class IndexDefinition {
     private final Map<String, Integer> directions;
     private final boolean unique;
     private final boolean sparse;
+    private final Map<String, Object> partialFilterExpression;
     private final Long expireAfterSeconds;
     private final String name;
 
     private IndexDefinition(List<String> fields, Map<String, Integer> directions, boolean unique,
-            boolean sparse, Long expireAfterSeconds, String name) {
+            boolean sparse, Map<String, Object> partialFilterExpression, Long expireAfterSeconds, String name) {
         this.fields = fields;
         this.directions = directions;
         this.unique = unique;
         this.sparse = sparse;
+        this.partialFilterExpression = partialFilterExpression;
         this.expireAfterSeconds = expireAfterSeconds;
         this.name = name;
     }
@@ -67,6 +69,7 @@ public final class IndexDefinition {
 
         boolean unique = false;
         boolean sparse = false;
+        Map<String, Object> partialFilterExpression = null;
         Long expireAfterSeconds = null;
         String name = null;
 
@@ -76,6 +79,12 @@ public final class IndexDefinition {
 
             Object sparseOption = options.get("sparse");
             sparse = Boolean.TRUE.equals(sparseOption) || "true".equalsIgnoreCase(String.valueOf(sparseOption));
+
+            Object partialOption = options.get("partialFilterExpression");
+            if (partialOption instanceof Map && !((Map<String, Object>) partialOption).isEmpty()) {
+                partialFilterExpression = Collections.unmodifiableMap(
+                        new LinkedHashMap<>((Map<String, Object>) partialOption));
+            }
 
             Object expireOption = options.get("expireAfterSeconds");
             if (expireOption instanceof Number) {
@@ -89,7 +98,8 @@ public final class IndexDefinition {
         }
 
         List<String> orderedFields = Collections.unmodifiableList(new ArrayList<>(directions.keySet()));
-        return new IndexDefinition(orderedFields, directions, unique, sparse, expireAfterSeconds, name);
+        return new IndexDefinition(orderedFields, directions, unique, sparse, partialFilterExpression,
+                expireAfterSeconds, name);
     }
 
     /**
@@ -127,6 +137,16 @@ public final class IndexDefinition {
         return sparse;
     }
 
+    /**
+     * The index's {@code partialFilterExpression}, or {@code null} if it has none. MongoDB leaves
+     * a document out of a partial index entirely when it does not match this query, so such a
+     * document can never collide on a unique index - see {@code CollectionIndexStore}, which is
+     * where that is enforced (this class only parses).
+     */
+    public Map<String, Object> partialFilterExpression() {
+        return partialFilterExpression;
+    }
+
     /** TTL, in seconds, or {@code null} if this is not a TTL index. */
     public Long expireAfterSeconds() {
         return expireAfterSeconds;
@@ -140,6 +160,7 @@ public final class IndexDefinition {
     @Override
     public String toString() {
         return "IndexDefinition{fields=" + fields + ", directions=" + directions + ", unique=" + unique
-                + ", sparse=" + sparse + ", expireAfterSeconds=" + expireAfterSeconds + ", name=" + name + '}';
+                + ", sparse=" + sparse + ", partialFilterExpression=" + partialFilterExpression
+                + ", expireAfterSeconds=" + expireAfterSeconds + ", name=" + name + '}';
     }
 }

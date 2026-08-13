@@ -3,6 +3,7 @@ package de.caluga.test.morphium.driver.inmem;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.CreateIndexesCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import org.junit.jupiter.api.Tag;
@@ -133,6 +134,45 @@ public class UniqueIndexTest {
         assertTrue(drv.find(db, coll, Doc.of("_id", 2), null, null, 0, 10).isEmpty());
         assertTrue(drv.find(db, coll, Doc.of("_id", 3), null, null, 0, 10).isEmpty(),
                 "ordered: the doc after the failing one must not even be attempted");
+    }
+
+    @Test
+    void partialUniqueIndex_docsOutsideTheFilterDoNotCollide() throws Exception {
+        // JEF's tasks index, end to end through the driver's insert path:
+        // {msg_id:1}, unique, partialFilterExpression {msg_id:{$type:"objectId"}}
+        InMemoryDriver drv = freshDriver();
+        String coll = "partialUnique";
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("msg_id", 1)).setUnique(true)
+                        .setPartialFilterExpression(Doc.of("msg_id", Doc.of("$type", "objectId"))))
+                .execute();
+
+        List<Map<String, Object>> writeErrors = drv.insert(db, coll, List.of(
+                Doc.of("_id", 1, "name", "task without msg_id"),
+                Doc.of("_id", 2, "name", "another one without msg_id"),
+                Doc.of("_id", 3, "msg_id", "x"),
+                Doc.of("_id", 4, "msg_id", "x")), null, false);
+
+        assertTrue(writeErrors.isEmpty(), "documents outside the partial filter must not collide: " + writeErrors);
+        assertEquals(4, drv.find(db, coll, Doc.of(), null, null, 0, 10).size());
+    }
+
+    @Test
+    void partialUniqueIndex_stillEnforcedForCoveredDocs() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        String coll = "partialUniqueCovered";
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("msg_id", 1)).setUnique(true)
+                        .setPartialFilterExpression(Doc.of("msg_id", Doc.of("$type", "objectId"))))
+                .execute();
+
+        MorphiumId shared = new MorphiumId();
+        List<Map<String, Object>> writeErrors = drv.insert(db, coll, List.of(
+                Doc.of("_id", 1, "msg_id", shared),
+                Doc.of("_id", 2, "msg_id", shared)), null, false);
+
+        assertEquals(1, writeErrors.size(), "the second covered document must be rejected");
+        assertEquals(11000, writeErrors.get(0).get("code"));
     }
 
     @Test

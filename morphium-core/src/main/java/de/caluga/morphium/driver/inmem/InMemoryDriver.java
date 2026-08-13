@@ -6698,6 +6698,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             // checking fields
                             boolean sparse = options.containsKey("sparse")
                                     && (options.get("sparse").equals("true") || options.get("sparse").equals(true));
+                            Map<String, Object> partialFilter =
+                                    (options.get("partialFilterExpression") instanceof Map
+                                            && !((Map<String, Object>) options.get("partialFilterExpression")).isEmpty())
+                                    ? (Map<String, Object>) options.get("partialFilterExpression") : null;
                             Map<String, Object> indexKey = new HashMap<>(idx);
                             List<Map<String, Object>> duplicateDocs = new ArrayList<>();
 
@@ -6717,6 +6721,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 // fields is not part of the index in MongoDB, so it can never
                                 // collide - skip the duplicate check entirely.
                                 if (sparse && q.values().stream().allMatch(java.util.Objects::isNull)) {
+                                    continue;
+                                }
+
+                                // Partial index: a document not matching partialFilterExpression is
+                                // not part of the index in MongoDB either - same reasoning.
+                                if (partialFilter != null && !QueryHelper.matchesQuery(partialFilter, o, null)) {
                                     continue;
                                 }
 

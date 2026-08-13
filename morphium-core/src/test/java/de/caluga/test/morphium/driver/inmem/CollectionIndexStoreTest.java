@@ -1,6 +1,7 @@
 package de.caluga.test.morphium.driver.inmem;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.CollectionIndexStore;
 import de.caluga.morphium.driver.inmem.IndexDefinition;
 import de.caluga.morphium.driver.inmem.IndexKey;
@@ -44,6 +45,13 @@ public class CollectionIndexStoreTest {
         Map<String, Object> indexMap = new LinkedHashMap<>();
         indexMap.put(field, 1);
         indexMap.put("$options", Map.of("name", name, "unique", true, "sparse", true));
+        return IndexDefinition.fromIndexMap(indexMap);
+    }
+
+    private static IndexDefinition partialUniqueIndex(String name, String field, Map<String, Object> filter) {
+        Map<String, Object> indexMap = new LinkedHashMap<>();
+        indexMap.put(field, 1);
+        indexMap.put("$options", Map.of("name", name, "unique", true, "partialFilterExpression", filter));
         return IndexDefinition.fromIndexMap(indexMap);
     }
 
@@ -143,6 +151,75 @@ public class CollectionIndexStoreTest {
         store.onInsert(doc(1, "name", "a"));
         assertThrows(de.caluga.morphium.driver.MorphiumDriverException.class,
                 () -> store.onInsert(doc(2, "name", "b")));
+    }
+
+    // ------------------------------------------------- partial (partialFilterExpression) indexes
+
+    @Test
+    void partialUniqueIndexAllowsDocsOutsideTheFilter() {
+        // JEF's tasks collection: {msg_id:1}, unique, partialFilterExpression
+        // {msg_id:{$type:"objectId"}}. Documents whose msg_id is absent or not an ObjectId are
+        // not part of the index in MongoDB, so they can never collide there.
+        CollectionIndexStore store = new CollectionIndexStore();
+        Map<String, Object> filter = Map.of("msg_id", Map.of("$type", "objectId"));
+        store.addIndex(partialUniqueIndex("uniq_msg_id_partial", "msg_id", filter), List.of());
+
+        store.onInsert(doc(1));                          // no msg_id at all
+        store.onInsert(doc(2));                          // second one - still outside the filter
+        store.onInsert(doc(3, "msg_id", "x"));           // String, not an ObjectId
+        store.onInsert(doc(4, "msg_id", "x"));           // same String - also outside the filter
+
+        MorphiumId shared = new MorphiumId();
+        store.onInsert(doc(5, "msg_id", shared));        // first ObjectId - inside the filter
+        assertThrows(MorphiumDriverException.class,
+                () -> store.onInsert(doc(6, "msg_id", shared)),
+                "unique must still be enforced for documents the filter covers");
+    }
+
+    @Test
+    void partialUniqueIndexIgnoresUncoveredDocsAlreadyInTheBucket() {
+        // The filter selects on a DIFFERENT field than the indexed one: an uncovered document
+        // sits in the same key bucket, but must not make a covered document collide.
+        CollectionIndexStore store = new CollectionIndexStore();
+        Map<String, Object> filter = Map.of("active", true);
+        store.addIndex(partialUniqueIndex("email_1", "email", filter), List.of());
+
+        store.onInsert(doc(1, "email", "a@b.c", "active", false));  // not indexed by mongod
+        store.onInsert(doc(2, "email", "a@b.c", "active", true));   // indexed, but alone there
+
+        assertThrows(MorphiumDriverException.class,
+                () -> store.onInsert(doc(3, "email", "a@b.c", "active", true)),
+                "two covered documents on the same key must still collide");
+    }
+
+    @Test
+    void partialUniqueIndexAddIndexSkipsUncoveredExistingDocs() {
+        // mongorestore path: the index is built over documents that already exist
+        CollectionIndexStore store = new CollectionIndexStore();
+        Map<String, Object> filter = Map.of("msg_id", Map.of("$type", "objectId"));
+
+        store.addIndex(partialUniqueIndex("uniq_msg_id_partial", "msg_id", filter),
+                List.of(doc(1), doc(2), doc(3, "msg_id", "x"), doc(4, "msg_id", "x")));
+    }
+
+    @Test
+    void partialUniqueIndexOnUpdateSkipsUncoveredDocs() {
+        CollectionIndexStore store = new CollectionIndexStore();
+        Map<String, Object> filter = Map.of("msg_id", Map.of("$type", "objectId"));
+        store.addIndex(partialUniqueIndex("uniq_msg_id_partial", "msg_id", filter), List.of());
+
+        Map<String, Object> d1 = doc(1, "msg_id", new MorphiumId());
+        Map<String, Object> d2 = doc(2, "msg_id", new MorphiumId());
+        store.onInsert(d1);
+        store.onInsert(d2);
+
+        // both drop out of the filter by losing msg_id - they must not collide on MISSING
+        Map<String, Object> before1 = new LinkedHashMap<>(d1);
+        d1.remove("msg_id");
+        store.onUpdate(before1, d1);
+        Map<String, Object> before2 = new LinkedHashMap<>(d2);
+        d2.remove("msg_id");
+        store.onUpdate(before2, d2);
     }
 
     @Test

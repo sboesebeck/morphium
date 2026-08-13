@@ -77,7 +77,7 @@ public class CollectionIndexStore {
 
         for (Map<String, Object> doc : existingDocs) {
             IndexKey key = IndexKey.extract(doc, def);
-            if (def.unique() && !(def.sparse() && key.allMissing()) && entry.hasBucket(key)) {
+            if (collidesOnUnique(entry, key, doc)) {
                 throw duplicateKeyException(name, key);
             }
             entry.add(key, doc);
@@ -185,8 +185,7 @@ public class CollectionIndexStore {
         for (IndexEntry entry : indexesByName.values()) {
             IndexKey key = IndexKey.extract(doc, entry.definition);
             keys.put(entry, key);
-            if (entry.definition.unique() && !(entry.definition.sparse() && key.allMissing())
-                    && entry.hasBucket(key)) {
+            if (collidesOnUnique(entry, key, doc)) {
                 throw duplicateKeyException(indexNameOf(entry.definition), key);
             }
         }
@@ -194,6 +193,56 @@ public class CollectionIndexStore {
         for (Map.Entry<IndexEntry, IndexKey> e : keys.entrySet()) {
             e.getKey().add(e.getValue(), doc);
         }
+    }
+
+    /**
+     * Whether inserting {@code doc} under {@code key} would violate {@code entry}'s unique
+     * constraint. Beyond the plain "some other document already holds this key", two MongoDB rules
+     * take documents out of an index entirely - and a document that is not in the index cannot
+     * collide in it:
+     *
+     * <ul>
+     *   <li>{@code sparse}: a document containing none of the indexed fields;
+     *   <li>{@code partialFilterExpression}: a document not matching that query. Note this cuts
+     *       both ways - the incoming document is exempt if it does not match, and an already
+     *       stored document sitting in the same bucket does not count as a collision partner if
+     *       <em>it</em> does not match (the filter may well select on a field that is not part of
+     *       the index key, so uncovered and covered documents share buckets).
+     * </ul>
+     */
+    private boolean collidesOnUnique(IndexEntry entry, IndexKey key, Map<String, Object> doc) {
+        IndexDefinition def = entry.definition;
+
+        if (!def.unique() || (def.sparse() && key.allMissing()) || !coveredByPartialFilter(def, doc)) {
+            return false;
+        }
+
+        if (def.partialFilterExpression() == null) {
+            return entry.hasBucket(key);
+        }
+
+        List<Map<String, Object>> bucket = entry.bucket(key);
+        if (bucket == null) {
+            return false;
+        }
+        for (Map<String, Object> other : bucket) {
+            if (other != doc && coveredByPartialFilter(def, other)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether {@code doc} is part of {@code def}'s index at all, as far as its
+     * {@code partialFilterExpression} is concerned. Always true for an index without one.
+     *
+     * <p>Documents outside the filter are still <em>stored</em> in the index here (like sparse
+     * ones): lookups must stay complete, and only the uniqueness check honours the filter.
+     */
+    private static boolean coveredByPartialFilter(IndexDefinition def, Map<String, Object> doc) {
+        Map<String, Object> filter = def.partialFilterExpression();
+        return filter == null || QueryHelper.matchesQuery(filter, doc, null);
     }
 
     /** Removes {@code doc} (matched by reference identity) from every index. */
@@ -251,10 +300,13 @@ public class CollectionIndexStore {
             if (entry.definition.sparse() && newKey.allMissing()) {
                 continue;
             }
+            if (!coveredByPartialFilter(entry.definition, after)) {
+                continue;
+            }
             List<Map<String, Object>> bucket = entry.bucket(newKey);
             if (bucket != null) {
                 for (Map<String, Object> other : bucket) {
-                    if (other != after) {
+                    if (other != after && coveredByPartialFilter(entry.definition, other)) {
                         throw duplicateKeyException(indexNameOf(entry.definition), newKey);
                     }
                 }

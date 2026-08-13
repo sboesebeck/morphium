@@ -117,6 +117,18 @@ containing none of a sparse index's fields are not part of the index and cannot 
 uniqueness check now skips them (documents with present fields are still enforced). Also fixed
 in passing: decoding a BSON MaxKey threw "unknown data type" due to a missing `break`.
 
+#### InMemoryDriver: unique partial indexes enforced uniqueness over the whole collection
+A `unique` index with a `partialFilterExpression` was created and reported with its filter, but
+the filter was never evaluated: uniqueness was enforced against every document, so a schema like
+JEF's task queue (`{msg_id:1}, unique, partialFilterExpression {msg_id:{$type:"objectId"}}`)
+rejected the *second* document without an `msg_id` — or with a non-ObjectId one — with E11000,
+where mongod accepts any number of them. Documents outside the filter are not part of a partial
+index in MongoDB and cannot collide in it; both the index store and the insert-path pre-check now
+honour that. The filter cuts both ways: a stored document that does not match no longer counts as
+a collision partner either, which matters when the filter selects on a field outside the index key
+(uncovered and covered documents then share a key bucket). Found during the PoppyDB drop-in
+rehearsal for the acceptance messageBus cluster, verified against mongod 8.0.
+
 ## [6.3.1] - 2026-08-11
 
 ### Added
